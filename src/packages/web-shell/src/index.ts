@@ -83,6 +83,14 @@ export type {
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";
 export { renderToast } from "./shared/toast/toast.component";
 export type { ToastAction, ToastViewModel } from "./shared/toast/toast.component";
+export {
+	CONFIRM_POPOVER_STYLES,
+	renderConfirmPopover,
+} from "./shared/confirm-popover/confirm-popover.component";
+export type {
+	ConfirmPopover,
+	ConfirmPopoverLead,
+} from "./shared/confirm-popover/confirm-popover.component";
 export { etagMatches } from "./etag";
 export {
 	MAX_CAPTURE_POLLS,

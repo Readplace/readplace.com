@@ -14,7 +14,7 @@ import { initReadabilityParser } from "@packages/article-parser";
 
 const useApp = useTestServer();
 
-const EXIT_CONFIRM = "[data-test-exit-confirm]";
+const EXIT_CONFIRM = "[data-test-confirm-popover='exit-confirm']";
 const EXIT_CONFIRM_SCRIPT = "/client-dist/reader-exit-confirm.client.js";
 
 const ARTICLE_HTML = `
@@ -116,10 +116,10 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 
 		const form = yes.closest("form");
 		assert(form, "the confirm call to action must submit a real form");
-		// The class is the client script's submit-interception selector: rename it
+		// The attribute is the client script's submit-interception hook: rename it
 		// on either side and Yes silently degrades to a native POST that strands
 		// the reader on /queue instead of following the clicked link.
-		expect(form.classList.contains("reader-confirm__form")).toBe(true);
+		expect(form.hasAttribute("data-exit-confirm-form")).toBe(true);
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.querySelector('input[name="status"]')?.getAttribute("value")).toBe("read");
 
@@ -147,7 +147,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		// it shares a <form> with.
 		expect(no.getAttribute("type")).toBe("button");
 		expect(no.classList.contains("btn--secondary")).toBe(true);
-		expect(no.classList.contains("reader-confirm__cta--no")).toBe(true);
+		expect(no.hasAttribute("data-exit-confirm-decline")).toBe(true);
 
 		const close = doc.querySelector('[data-test-action="exit-confirm-dismiss"]');
 		assert(close, "the close control must be rendered");

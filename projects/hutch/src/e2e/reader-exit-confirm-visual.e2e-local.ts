@@ -19,9 +19,9 @@ const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const ARTICLE_TITLE = "Yes you can measure engineering | Jade Rubick - Engineering Leadership";
 const SAME_TAB_EXIT_LINK = `.article-body__content a[href^="${BASE_URL}/privacy"]`;
 const PANEL = "#reader-exit-confirm";
-const PANEL_TITLE = ".reader-confirm__title";
-const PANEL_ARTICLE = ".reader-confirm__article";
-const PANEL_QUESTION = ".reader-confirm__body";
+const PANEL_TITLE = ".confirm-popover__title";
+const PANEL_ARTICLE = ".confirm-popover__lead";
+const PANEL_QUESTION = ".confirm-popover__body";
 const PANEL_CONFIRM = '[data-test-action="exit-confirm-yes"]';
 const PANEL_DECLINE = '[data-test-action="exit-confirm-no"]';
 

@@ -13,8 +13,8 @@ interface PendingExit {
 }
 
 const PANEL_ID = "reader-exit-confirm";
-const FORM_SELECTOR = ".reader-confirm__form";
-const NO_SELECTOR = ".reader-confirm__cta--no";
+const FORM_SELECTOR = "[data-exit-confirm-form]";
+const NO_SELECTOR = "[data-exit-confirm-decline]";
 const BOUND_FLAG = "data-reader-exit-confirm-bound";
 const EXIT_SCOPES = [".article-body__content", ".next-read__card"];
 const SAME_TAB_TARGETS = ["", "_self", "_top"];

@@ -8,15 +8,15 @@ const STATUS_URL = `http://localhost:3000${STATUS_PATH}`;
 const PANEL_ID = "reader-exit-confirm";
 const BOUND_FLAG = "data-reader-exit-confirm-bound";
 
-const PANEL = `<div class="reader-confirm" id="${PANEL_ID}" popover="auto" role="dialog" tabindex="-1">
-	<div class="reader-confirm__header">
-		<h2 class="reader-confirm__title" id="${PANEL_ID}-title">Mark "Saved Post" as read?</h2>
-		<button class="reader-confirm__close" id="exit-dismiss" type="button" popovertarget="${PANEL_ID}" popovertargetaction="hide">Close</button>
+const PANEL = `<div class="confirm-popover" id="${PANEL_ID}" popover="auto" role="dialog" tabindex="-1">
+	<div class="confirm-popover__header">
+		<h2 class="confirm-popover__title" id="${PANEL_ID}-title">Mark "Saved Post" as read?</h2>
+		<button class="confirm-popover__close" id="exit-dismiss" type="button" popovertarget="${PANEL_ID}" popovertargetaction="hide">Close</button>
 	</div>
-	<form class="reader-confirm__form" method="POST" action="${STATUS_PATH}">
+	<form class="confirm-popover__actions" method="POST" data-exit-confirm-form action="${STATUS_PATH}">
 		<input type="hidden" name="status" value="read">
-		<button class="btn btn--primary reader-confirm__cta" id="exit-yes" type="submit">Yes</button>
-		<button class="btn btn--secondary reader-confirm__cta reader-confirm__cta--no" id="exit-no" type="button">No</button>
+		<button class="btn btn--primary" id="exit-yes" type="submit">Yes</button>
+		<button class="btn btn--secondary" id="exit-no" type="button" data-exit-confirm-decline>No</button>
 	</form>
 </div>`;
 
@@ -115,7 +115,7 @@ function createHarness(options: { withPanel?: boolean; supportsPopover?: boolean
 			return seen;
 		},
 		submitConfirmForm(): boolean {
-			const form = document.querySelector(".reader-confirm__form");
+			const form = document.querySelector("[data-exit-confirm-form]");
 			assert(form, "the confirmation form must exist in the fixture");
 			return form.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
 		},

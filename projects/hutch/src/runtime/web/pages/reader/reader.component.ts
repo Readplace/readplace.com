@@ -28,6 +28,7 @@ import {
 } from "../../shared/share-balloon/share-balloon.component";
 import { shareUserIdPrefix } from "../../shared/share-balloon/share-user-id-prefix";
 import { viewPathFor } from "../view/view-path";
+import { renderExitConfirm } from "./reader-exit-confirm.component";
 import { READER_STYLES } from "./reader.styles";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
@@ -57,25 +58,18 @@ function markReadPostUrl({
 	return `/queue/${articleId}/status?${params.toString()}`;
 }
 
-interface ExitConfirmDisplayModel {
-	title: string;
-	postUrl: string;
-}
-
-function buildExitConfirms(input: {
+function buildExitConfirmHtml(input: {
 	enabled: boolean;
 	isRead: boolean;
 	articleId: string;
 	title: string;
-}): ExitConfirmDisplayModel[] {
-	if (!input.enabled) return [];
-	if (input.isRead) return [];
-	return [
-		{
-			title: input.title,
-			postUrl: markReadPostUrl({ articleId: input.articleId, utmContent: "mark-read-exit" }),
-		},
-	];
+}): string {
+	if (!input.enabled) return "";
+	if (input.isRead) return "";
+	return renderExitConfirm({
+		title: input.title,
+		postUrl: markReadPostUrl({ articleId: input.articleId, utmContent: "mark-read-exit" }),
+	});
 }
 
 export function ReaderPage(
@@ -163,7 +157,7 @@ export function ReaderPage(
 		returnTo: options.currentPath,
 	});
 	const exitMarkReadConfirm = options.exitMarkReadConfirm === true;
-	const exitConfirms = buildExitConfirms({
+	const exitConfirmHtml = buildExitConfirmHtml({
 		enabled: exitMarkReadConfirm,
 		isRead,
 		articleId,
@@ -173,7 +167,7 @@ export function ReaderPage(
 		innerContent,
 		shareBalloon,
 		nextRead,
-		exitConfirms,
+		exitConfirmHtml,
 	});
 
 	return {

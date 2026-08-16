@@ -14,7 +14,7 @@ import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
 import {
 	deleteConfirmPopoverId,
 	type DeleteConfirmViewModel,
-} from "./queue-card/delete-confirm";
+} from "./queue-card/delete-confirm.component";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
 import { buildQueueCountsUrl, buildQueueUrl } from "./queue.url";

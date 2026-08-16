@@ -8,6 +8,7 @@ import type { DeviceClass } from "@packages/web-analytics";
 import {
 	render,
 	withInternalTracking,
+	CONFIRM_POPOVER_STYLES,
 	SUBSCRIBE_CTA_LABEL,
 } from "@packages/web-shell";
 import type { CspNonce, LocalTime, PageBody } from "@packages/web-shell";
@@ -15,10 +16,7 @@ import type { CspNonce, LocalTime, PageBody } from "@packages/web-shell";
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCountsTrigger, renderStatusToast } from "./queue-mutation-fragments";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
-import {
-	toDeleteConfirmDisplayModel,
-	type DeleteConfirmViewModel,
-} from "./queue-card/delete-confirm";
+import { renderDeleteConfirm } from "./queue-card/delete-confirm.component";
 import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component";
 import { buildQueueNav, renderQueueNav } from "./queue-nav.component";
 import { QUEUES, queueTitle } from "./queue.nav";
@@ -28,14 +26,6 @@ import { buildQueueUrl } from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
-
-/** The confirmation panels are built from the same `vm.articles` array as the
- * cards, so the popover set and the trigger set can never disagree. They live at
- * page level rather than in the card because a pending card replaces its own
- * subtree every 3s and would rip an open confirmation out mid-decision. */
-interface DeleteConfirmDisplayModel extends DeleteConfirmViewModel {
-	title: string;
-}
 
 interface QueueDisplayModel {
 	saveError?: string;
@@ -51,7 +41,11 @@ interface QueueDisplayModel {
 	hasArticles: boolean;
 	onboardingHtml: string;
 	articleHtmls: string[];
-	deleteConfirms: DeleteConfirmDisplayModel[];
+	/** The confirmation panels are built from the same `vm.articles` array as the
+	 * cards, so the popover set and the trigger set can never disagree. They live
+	 * at page level rather than in the card because a pending card replaces its
+	 * own subtree every 3s and would rip an open confirmation out mid-decision. */
+	deleteConfirmsHtml: string;
 	mainClass: string;
 	queueNavHtml: string;
 	queueTitle: string;
@@ -134,10 +128,11 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 				}),
 			),
 		),
-		deleteConfirms: vm.articles.map((article) => ({
-			...toDeleteConfirmDisplayModel(article.deleteConfirm),
-			title: article.title,
-		})),
+		deleteConfirmsHtml: vm.articles
+			.map((article) =>
+				renderDeleteConfirm({ confirm: article.deleteConfirm, title: article.title }),
+			)
+			.join("\n"),
 		mainClass: options.queuesFeature ? "queue queue--queues" : "queue",
 		queueNavHtml: options.queuesFeature ? renderQueueNav(buildQueueNav({ queues: QUEUES })) : "",
 		queueTitle: queueTitle(vm.filters.queue),
@@ -202,7 +197,7 @@ export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; dev
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}`,
+		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: "page-queue",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),

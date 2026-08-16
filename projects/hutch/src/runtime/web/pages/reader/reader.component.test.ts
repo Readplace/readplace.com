@@ -214,7 +214,7 @@ describe("ReaderPage", () => {
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const articleTitle = doc.querySelector(".reader-confirm__article");
+		const articleTitle = doc.querySelector(".confirm-popover__lead");
 		assert(articleTitle, "the exit confirmation must name the article it is leaving");
 		assert.equal(articleTitle.textContent, 'Why <script> & "quotes" break naive templates');
 		assert.equal(articleTitle.querySelector("script"), null);
@@ -234,7 +234,7 @@ describe("ReaderPage", () => {
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		assert.equal(doc.querySelectorAll("[data-test-exit-confirm]").length, 0);
+		assert.equal(doc.querySelectorAll("[data-test-confirm-popover='exit-confirm']").length, 0);
 		expect(html).toContain("/client-dist/reader-exit-confirm.client.js");
 	});
 

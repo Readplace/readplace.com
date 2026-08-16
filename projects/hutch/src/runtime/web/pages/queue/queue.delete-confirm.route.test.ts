@@ -25,7 +25,7 @@ describe("Queue delete confirmation", () => {
 		await saveArticles(agent, ["https://example.com/one", "https://example.com/two"]);
 
 		const doc = queueDocument((await agent.get("/queue")).text);
-		const panels = doc.querySelectorAll("[data-test-delete-confirm]");
+		const panels = doc.querySelectorAll("[data-test-confirm-popover='delete']");
 
 		expect(panels.length).toBe(2);
 		for (const panel of panels) {
@@ -55,8 +55,8 @@ describe("Queue delete confirmation", () => {
 			]),
 		);
 		const panelsByArticle = new Map(
-			[...doc.querySelectorAll("[data-test-delete-confirm]")].map((panel) => [
-				panel.getAttribute("data-test-delete-confirm"),
+			[...doc.querySelectorAll("[data-test-confirm-popover='delete']")].map((panel) => [
+				panel.getAttribute("data-test-confirm-subject"),
 				panel.getAttribute("id"),
 			]),
 		);
@@ -75,9 +75,12 @@ describe("Queue delete confirmation", () => {
 		]);
 
 		const doc = queueDocument((await agent.get("/queue")).text);
-		const ids = [...doc.querySelectorAll("[data-test-delete-confirm], .queue-confirm__title")].map(
-			(el) => el.getAttribute("id"),
-		);
+		const ids = [
+			...doc.querySelectorAll("[data-test-confirm-popover='delete']"),
+		].flatMap((panel) => [
+			panel.getAttribute("id"),
+			panel.querySelector(".confirm-popover__title")?.getAttribute("id"),
+		]);
 
 		expect(ids.length).toBe(6);
 		expect(new Set(ids).size).toBe(ids.length);
@@ -89,7 +92,7 @@ describe("Queue delete confirmation", () => {
 		await saveArticles(agent, ["https://example.com/described"]);
 
 		const doc = queueDocument((await agent.get("/queue")).text);
-		const panel = doc.querySelector("[data-test-delete-confirm]");
+		const panel = doc.querySelector("[data-test-confirm-popover='delete']");
 		assert(panel, "confirmation panel must be rendered");
 
 		const title = doc.getElementById(panel.getAttribute("aria-labelledby") ?? "");
@@ -97,12 +100,12 @@ describe("Queue delete confirmation", () => {
 		expect(title.tagName).toBe("H2");
 		expect(title.textContent).toBe("Delete this article?");
 
-		const [bodyId, articleId] = (panel.getAttribute("aria-describedby") ?? "").split(" ");
+		const [articleId, bodyId] = (panel.getAttribute("aria-describedby") ?? "").split(" ");
 		expect(doc.getElementById(bodyId ?? "")?.textContent).toBe(
 			"By deleting this you won't be able to find it anymore until you save it again.",
 		);
 		// The visible copy is brand-approved and does not name the article, so the
-		// title reaches a screen reader through the second described-by id.
+		// title reaches a screen reader through the lead described-by id.
 		assert.match(doc.getElementById(articleId ?? "")?.textContent ?? "", /^Article: /);
 	});
 
@@ -130,7 +133,7 @@ describe("Queue delete confirmation", () => {
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
 		// Not queue-article__action-form: that class carries the status toggle's
 		// in-flight loader machinery and is counted by the listing route test.
-		expect(form.classList.contains("queue-confirm__form")).toBe(true);
+		expect(form.classList.contains("confirm-popover__actions")).toBe(true);
 		expect(form.classList.contains("queue-article__action-form")).toBe(false);
 
 		const action = new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN);
@@ -146,7 +149,7 @@ describe("Queue delete confirmation", () => {
 		await saveArticles(agent, ["https://example.com/dismissable"]);
 
 		const doc = queueDocument((await agent.get("/queue")).text);
-		const panel = doc.querySelector("[data-test-delete-confirm]");
+		const panel = doc.querySelector("[data-test-confirm-popover='delete']");
 		assert(panel, "confirmation panel must be rendered");
 		const close = doc.querySelector("[data-test-action='delete-dismiss']");
 		assert(close, "close control must be rendered");
@@ -177,6 +180,6 @@ describe("Queue delete confirmation", () => {
 		).toBe(pageTarget);
 		// A panel in the fragment would duplicate the id, win tree-order
 		// resolution, and then be destroyed by the next 3s poll.
-		expect(fragment.querySelectorAll("[data-test-delete-confirm]").length).toBe(0);
+		expect(fragment.querySelectorAll("[data-test-confirm-popover='delete']").length).toBe(0);
 	});
 });
