@@ -1187,6 +1187,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const importRouter = initImportSessionRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
+		secureCookies,
 		importSessionStore: deps.importSessionStore,
 		extractLinksFromPageUrl: deps.extractLinksFromPageUrl,
 		saveArticle: deps.saveArticle,

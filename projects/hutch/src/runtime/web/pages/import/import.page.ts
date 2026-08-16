@@ -34,6 +34,8 @@ import { importErrorMessageMapping } from "./import.error";
 import { toImportAcquireViewModel, toImportViewModel } from "./import.viewmodel";
 import { initMultipartUpload } from "./multipart-upload";
 import { parseImportPage } from "./import.url";
+import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
+import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -45,6 +47,7 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	salt: string;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
+	secureCookies: boolean;
 	/** Save gates applied only at commit, the sole route that creates content.
 	 * The earlier routes (upload, review, toggle) are public so a logged-out
 	 * visitor can build a review before signing up. `requireNotLocked` blocks a
@@ -127,7 +130,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			url,
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
 		});
-		sendComponent(req, res, Base(ImportAcquirePage(vm, { cspNonce: requireCspNonce(req) }), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(ImportAcquirePage(vm, { cspNonce: requireCspNonce(req), saveTip: buildSaveTip(req, "import") }), await deps.buildBannerState(req)));
 	});
 
 	router.post("/", importRateLimit, rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {
@@ -166,6 +169,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	});
 
 	router.post("/from-url", importFromUrlRateLimit, async (req: Request, res: Response) => {
+		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 		const rawUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
 		if (rawUrl === "") {
 			res.redirect(303, FROM_URL_ERROR_REDIRECT.invalid);

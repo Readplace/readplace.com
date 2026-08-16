@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render } from "@packages/web-shell";
 import type { CspNonce, PageBody } from "@packages/web-shell";
 
+import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import { IMPORT_STYLES } from "./import.styles";
 import type {
 	ImportAcquireViewModel,
@@ -178,10 +179,17 @@ const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string 
 const IMPORT_DESCRIPTION =
 	"Paste a link or upload a bookmark, Pocket, or newsletter export and Readplace lists every URL for your reading queue. No account needed to start.";
 
-export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonce: CspNonce }): PageBody {
+export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonce: CspNonce; saveTip: SaveTip }): PageBody {
 	const panel = PANEL_CONFIG[vm.mode];
 	const tabs = vm.tabs.map(renderTab);
-	const data = { ...vm, tabs, faq: IMPORT_FAQ, errorMessage: vm.errors?.[0]?.message };
+	const data = {
+		...vm,
+		tabs,
+		faq: IMPORT_FAQ,
+		errorMessage: vm.errors?.[0]?.message,
+		saveTipState: options.saveTip.state,
+		saveTipHtml: options.saveTip.html,
+	};
 	const tabsHtml = render(IMPORT_TABS_TEMPLATE, data);
 	const panelHtml = render(panel.template, data);
 	const content = render(IMPORT_ACQUIRE_TEMPLATE, { ...data, tabsHtml, panelHtml });
@@ -216,9 +224,9 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 				},
 			],
 		},
-		styles: IMPORT_STYLES,
+		styles: `${IMPORT_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: "page-import",
 		content: { html: content },
-		scripts: panel.scripts(options.cspNonce),
+		scripts: `${panel.scripts(options.cspNonce)}${SAVE_TIP_SCRIPT}`,
 	};
 }
