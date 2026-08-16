@@ -1,2 +1,2 @@
-<a class="{{filterUnreadClass}}" id="queue-filter-unread" href="{{filterUnreadUrl}}" data-test-filter="unread" hx-swap-oob="outerHTML">{{filterUnreadLabel}}</a>
+<span id="{{unreadLabelId}}" hx-swap-oob="innerHTML">{{filterUnreadLabel}}</span>
 {{#if showPageCount}}<span class="queue__pagination-info" id="queue-pagination-info" data-test-pagination-info hx-swap-oob="outerHTML">Page {{currentPage}} of {{totalPages}}</span>{{/if}}

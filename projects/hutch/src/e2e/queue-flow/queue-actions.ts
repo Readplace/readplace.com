@@ -4,6 +4,7 @@ import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { QueueActionKey, SaveArticleKey, PaginationArticleKey } from './action-catalog'
 import { TEST_ARTICLE_COUNT, PAGINATION_ARTICLE_COUNT } from './action-catalog'
 import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation } from '../page-interactions'
+import { measuredBox } from '@packages/e2e-harness'
 import { retriable } from '@packages/retriable'
 import type { AuthProgress } from './auth-actions'
 
@@ -236,6 +237,10 @@ export function createQueueActions(
 
 				const prevLink = page.locator('[data-test-pagination-prev]')
 				await expect(prevLink).toBeVisible()
+
+				const row = await measuredBox(page, '[data-test-pagination]')
+				const prev = await measuredBox(page, '[data-test-pagination-prev]')
+				assert.equal(prev.x, row.x, 'the Previous link must sit on the row left edge, whatever the page count reads')
 
 				const articleCount = await getArticleCount(page)
 				assert.equal(articleCount, 1, 'Page 2 should show exactly 1 article (21 total, 20 per page)')

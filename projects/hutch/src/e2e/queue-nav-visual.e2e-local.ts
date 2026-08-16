@@ -7,7 +7,9 @@ import {
 	measuredBox,
 	test,
 	type VisualCheckpoint,
+	waitForBrandFonts,
 } from "@packages/e2e-harness";
+import { formatTabCountLabel } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import {
 	type MeasuredBox,
@@ -28,6 +30,9 @@ const QUEUE_TITLE = "main.queue .queue__title";
 const QUEUE_FILTERS = "main.queue .queue__filters";
 const QUEUE_LISTING = "main.queue .queue__listing";
 const OPEN_FILTER_TAB = "main.queue .queue__filter-link--active";
+const UNREAD_FILTER_TAB = 'main.queue [data-test-filter="unread"]';
+const UNREAD_FILTER_LABEL = "main.queue #queue-unread-label";
+const READ_FILTER_TAB = 'main.queue [data-test-filter="read"]';
 
 const DEFAULT_QUEUE = "";
 const QUEUES_PANEL = "?feature=queues";
@@ -194,7 +199,7 @@ async function railBesideTheListing(page: Page): Promise<void> {
 async function seededQueueSettled(page: Page): Promise<void> {
 	await expect(page.locator("[data-test-article]")).toHaveCount(SEEDED_ARTICLES.length);
 	await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
-	await expect(page.locator("#queue-filter-unread")).toHaveText(
+	await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(
 		`To Read (${SEEDED_ARTICLES.length})`,
 	);
 	await page.evaluate(neutraliseVolatileChrome, {
@@ -521,5 +526,63 @@ test.describe("Queue status tabs", () => {
 			await seededQueueSettled(page);
 			await tabsJoinTheListing(page);
 		}
+	});
+
+	test("keeps the unread count on the tab while the counts request is in flight", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-filter-tabs-count-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openQueue(page, DEFAULT_QUEUE);
+		await seededQueueSettled(page);
+
+		await page.route("**/queue/counts*", (route) => route.abort());
+
+		await page.locator(READ_FILTER_TAB).click();
+		await expect(page.locator(READ_FILTER_TAB)).toHaveClass(/queue__filter-link--active/);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(
+			`To Read (${SEEDED_ARTICLES.length})`,
+		);
+
+		await page.locator(UNREAD_FILTER_TAB).click();
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveClass(/queue__filter-link--active/);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(
+			`To Read (${SEEDED_ARTICLES.length})`,
+		);
+	});
+
+	test("reserves the unread tab's widest count from first paint", async ({ page }, testInfo) => {
+		const email = `queue-filter-tabs-reserve-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openQueue(page, DEFAULT_QUEUE);
+		await seededQueueSettled(page);
+		await waitForBrandFonts(page, ["Inter"]);
+		const counted = await measuredBox(page, UNREAD_FILTER_TAB);
+
+		await page.route("**/queue/counts*", (route) => route.abort());
+		await openQueue(page, DEFAULT_QUEUE);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText("To Read");
+		await waitForBrandFonts(page, ["Inter"]);
+		const cold = await measuredBox(page, UNREAD_FILTER_TAB);
+
+		const bare = await page.locator(UNREAD_FILTER_TAB).innerText();
+		const widestLabel = formatTabCountLabel({ label: bare, count: Number.MAX_SAFE_INTEGER });
+		await page.locator(UNREAD_FILTER_LABEL).evaluate((label, text) => {
+			label.textContent = text;
+		}, widestLabel);
+		const widest = await measuredBox(page, UNREAD_FILTER_TAB);
+
+		assert.equal(
+			cold.width,
+			counted.width,
+			`the tab must open at the width it settles to, measured ${cold.width} then ${counted.width}`,
+		);
+		assert.equal(
+			widest.width,
+			counted.width,
+			`the reserve must cover "${widestLabel}", measured ${widest.width} against ${counted.width}`,
+		);
 	});
 });

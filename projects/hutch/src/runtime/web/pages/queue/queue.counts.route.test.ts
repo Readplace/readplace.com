@@ -22,10 +22,10 @@ function swappedTargets(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id);
 }
 
-function unreadTab(doc: Document): Element {
-	const tab = doc.querySelector('[data-test-filter="unread"]');
-	assert(tab, "the counts fragment must carry the unread tab");
-	return tab;
+function unreadLabel(doc: Document): Element {
+	const label = doc.getElementById("queue-unread-label");
+	assert(label, "the counts fragment must carry the unread tab's label");
+	return label;
 }
 
 async function save(agent: LoggedInAgent, url: string): Promise<void> {
@@ -70,11 +70,10 @@ describe("GET /queue/counts", () => {
 
 			expect(response.status).toBe(200);
 			expect(response.headers["content-type"]).toContain("text/html");
-			const tab = parseFragment(response.text).querySelector('[data-test-filter="unread"]');
-			assert(tab, "the counts fragment must carry the unread tab");
-			expect(tab.textContent).toBe("To Read (2)");
-			expect(tab.getAttribute("hx-swap-oob")).toBe("outerHTML");
-			expect(tab.getAttribute("id")).toBe("queue-filter-unread");
+			const label = unreadLabel(parseFragment(response.text));
+			expect(label.textContent).toBe("To Read (2)");
+			expect(label.getAttribute("hx-swap-oob")).toBe("innerHTML");
+			expect(label.getAttribute("id")).toBe("queue-unread-label");
 		});
 
 		it("should count zero for an empty queue", async () => {
@@ -83,20 +82,7 @@ describe("GET /queue/counts", () => {
 
 			const response = await agent.get("/queue/counts");
 
-			const tab = parseFragment(response.text).querySelector('[data-test-filter="unread"]');
-			expect(tab?.textContent).toBe("To Read (0)");
-		});
-
-		it("should mark the unread tab active on the To Read tab", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-
-			const response = await agent.get("/queue/counts");
-
-			const tab = parseFragment(response.text).querySelector('[data-test-filter="unread"]');
-			expect(tab?.getAttribute("class")).toBe(
-				"queue__filter-link queue__filter-link--active",
-			);
+			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (0)");
 		});
 
 		it("should still report the unread count while the reader is on the Read tab", async () => {
@@ -109,12 +95,10 @@ describe("GET /queue/counts", () => {
 
 			const response = await agent.get("/queue/counts?tab=done");
 
-			const tab = parseFragment(response.text).querySelector('[data-test-filter="unread"]');
-			expect(tab?.textContent).toBe("To Read (2)");
-			expect(tab?.getAttribute("class")).toBe("queue__filter-link");
+			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (2)");
 		});
 
-		it("should swap only the unread tab when the tab has no pagination to swap", async () => {
+		it("should swap only the unread label when the tab has no pagination to swap", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await save(agent, "https://example.com/only");
@@ -122,8 +106,8 @@ describe("GET /queue/counts", () => {
 			const response = await agent.get("/queue/counts");
 
 			const doc = parseFragment(response.text);
-			expect(swappedTargets(doc)).toEqual(["queue-filter-unread"]);
-			expect(unreadTab(doc).textContent).toBe("To Read (1)");
+			expect(swappedTargets(doc)).toEqual(["queue-unread-label"]);
+			expect(unreadLabel(doc).textContent).toBe("To Read (1)");
 		});
 
 		it("should fill in the total page count once the tab spans pages", async () => {
@@ -159,8 +143,8 @@ describe("GET /queue/counts", () => {
 			const response = await agent.get("/queue/counts?tab=done");
 
 			const doc = parseFragment(response.text);
-			expect(swappedTargets(doc)).toEqual(["queue-filter-unread"]);
-			expect(unreadTab(doc).textContent).toBe(`To Read (${QUEUE_PAGE_SIZE + 1})`);
+			expect(swappedTargets(doc)).toEqual(["queue-unread-label"]);
+			expect(unreadLabel(doc).textContent).toBe(`To Read (${QUEUE_PAGE_SIZE + 1})`);
 		});
 	});
 
@@ -196,7 +180,7 @@ describe("GET /queue/counts", () => {
 
 			const response = await agent.get("/queue/counts");
 
-			expect(unreadTab(parseFragment(response.text)).textContent).toBe("To Read (1)");
+			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (1)");
 			expect(counted.map((query) => query.status)).toEqual(["unread"]);
 		});
 
@@ -209,7 +193,7 @@ describe("GET /queue/counts", () => {
 
 			const response = await agent.get("/queue/counts?tab=done");
 
-			expect(unreadTab(parseFragment(response.text)).textContent).toBe("To Read (1)");
+			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (1)");
 			expect(counted.map((query) => query.status)).toEqual(["read", "unread"]);
 		});
 	});
@@ -223,7 +207,7 @@ describe("GET /queue/counts", () => {
 			const page = new JSDOM((await agent.get("/queue")).text).window.document;
 			const fragment = parseFragment((await agent.get("/queue/counts")).text);
 
-			for (const id of ["queue-filter-unread", "queue-pagination-info"]) {
+			for (const id of ["queue-unread-label", "queue-pagination-info"]) {
 				const target = page.getElementById(id);
 				const replacement = fragment.getElementById(id);
 				assert(target, `the queue page must render #${id} for the counts swap to land on`);
@@ -233,17 +217,24 @@ describe("GET /queue/counts", () => {
 			}
 		});
 
-		it("should keep the unread tab href the queue page rendered so the tab keeps working", async () => {
+		it("should preserve the label the page rendered and refresh it without re-arming preserve", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await save(agent, "https://example.com/href");
+			await save(agent, "https://example.com/preserve");
 
 			const page = new JSDOM((await agent.get("/queue?tab=done")).text).window.document;
 			const fragment = parseFragment((await agent.get("/queue/counts?tab=done")).text);
 
-			const rendered = page.getElementById("queue-filter-unread")?.getAttribute("href");
-			assert(rendered, "the queue page must render an href on the unread tab");
-			expect(fragment.getElementById("queue-filter-unread")?.getAttribute("href")).toBe(rendered);
+			const rendered = page.getElementById("queue-unread-label");
+			assert(rendered, "the queue page must render the label the counts swap lands in");
+			expect(rendered.hasAttribute("hx-preserve")).toBe(true);
+			expect(rendered.textContent).toBe("To Read");
+
+			const refreshed = fragment.getElementById("queue-unread-label");
+			assert(refreshed, "the counts fragment must carry the label it refreshes");
+			expect(refreshed.getAttribute("hx-swap-oob")).toBe("innerHTML");
+			expect(refreshed.hasAttribute("hx-preserve")).toBe(false);
+			expect(refreshed.textContent).toBe("To Read (1)");
 		});
 
 		it("should be requested by the queue page on load, carrying the reader's filters", async () => {

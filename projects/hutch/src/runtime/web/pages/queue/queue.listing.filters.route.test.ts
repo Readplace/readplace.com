@@ -114,7 +114,7 @@ describe("Queue routes", () => {
 
 			const counts = await agent.get("/queue/counts");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.querySelector('[data-test-filter="unread"]')?.textContent).toBe("To Read (2)");
+			expect(countsDoc.getElementById("queue-unread-label")?.textContent).toBe("To Read (2)");
 		});
 
 		it("should show unread count when viewing read tab", async () => {
@@ -138,7 +138,7 @@ describe("Queue routes", () => {
 
 			const counts = await agent.get("/queue/counts?tab=done");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.querySelector('[data-test-filter="unread"]')?.textContent).toBe("To Read (2)");
+			expect(countsDoc.getElementById("queue-unread-label")?.textContent).toBe("To Read (2)");
 		});
 
 		it("should not show count on the Read tab", async () => {
@@ -164,7 +164,7 @@ describe("Queue routes", () => {
 
 			const counts = await agent.get("/queue/counts");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.querySelector('[data-test-filter="unread"]')?.textContent).toBe("To Read (0)");
+			expect(countsDoc.getElementById("queue-unread-label")?.textContent).toBe("To Read (0)");
 		});
 	});
 

@@ -9,7 +9,6 @@ const EMPTY_STATE_HORIZONTAL_PADDING_PX = 20
 const PAGINATION_REGION = '[data-test-pagination]'
 const PAGINATION_INFO = '[data-test-pagination-info]'
 const PAGINATION_NEXT_LINK = '[data-test-pagination-next]'
-const PAGINATION_FLEX_GAP_PX = 16
 
 async function emptyQueueSettled(page: Page): Promise<void> {
 	await page.waitForSelector('body.page-queue')
@@ -40,13 +39,12 @@ async function paginationPage1Settled(page: Page): Promise<void> {
 }
 
 async function paginationPage1Geometry(page: Page): Promise<void> {
-	const info = await measuredBox(page, PAGINATION_INFO)
+	const row = await measuredBox(page, PAGINATION_REGION)
 	const nextLink = await measuredBox(page, PAGINATION_NEXT_LINK)
-	const gapBeforeNext = nextLink.x - (info.x + info.width)
 	assert.equal(
-		gapBeforeNext,
-		PAGINATION_FLEX_GAP_PX,
-		'gap between the page info and the Next link must equal the pagination flex gap',
+		nextLink.x + nextLink.width,
+		row.x + row.width,
+		'the Next link must sit on the row right edge, where the page count cannot push it',
 	)
 }
 

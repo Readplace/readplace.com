@@ -29,45 +29,15 @@ function swappedTargets(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id);
 }
 
-function unreadTab(doc: Document): Element {
-	const tab = doc.querySelector("#queue-filter-unread");
-	assert(tab, "the counts fragment must carry the unread tab");
-	return tab;
+function unreadLabel(doc: Document): Element {
+	const label = doc.querySelector("#queue-unread-label");
+	assert(label, "the counts fragment must carry the unread tab's label");
+	return label;
 }
 
 describe("toQueueCountsDisplayModel", () => {
-	it("should mark the unread filter active on the To Read tab", () => {
-		expect(displayModelFor({ filters: { tab: "queue" } }).filterUnreadClass).toBe(
-			"queue__filter-link queue__filter-link--active",
-		);
-	});
-
-	it("should mark the unread filter inactive on the Read tab", () => {
-		expect(displayModelFor({ filters: { tab: "done" } }).filterUnreadClass).toBe(
-			"queue__filter-link",
-		);
-	});
-
-	it("should point the unread filter at the To Read tab from either tab", () => {
-		const fromDone = displayModelFor({ filters: { tab: "done" } });
-
-		expect(fromDone.filterUnreadUrl).toBe(
-			"/queue?utm_source=queue-filters&utm_medium=internal&utm_content=filter-unread",
-		);
-	});
-
-	it("should carry a non-default sort order onto the unread filter URL", () => {
-		const ascending = displayModelFor({ filters: { tab: "queue", order: "asc" } });
-
-		expect(ascending.filterUnreadUrl).toBe(
-			"/queue?order=asc&utm_source=queue-filters&utm_medium=internal&utm_content=filter-unread",
-		);
-	});
-
-	it("should drop the page from the unread filter URL so the tab restarts at page 1", () => {
-		expect(displayModelFor({ filters: { tab: "queue", page: 3 } }).filterUnreadUrl).toBe(
-			"/queue?utm_source=queue-filters&utm_medium=internal&utm_content=filter-unread",
-		);
+	it("should name the label the queue page reserved for the count", () => {
+		expect(displayModelFor({}).unreadLabelId).toBe("queue-unread-label");
 	});
 
 	it("should label the badge with the exact unread count below the cap", () => {
@@ -117,14 +87,13 @@ describe("toQueueCountsDisplayModel", () => {
 });
 
 describe("renderQueueCounts", () => {
-	it("should swap the unread tab out of band", () => {
+	it("should refresh the unread tab's label out of band", () => {
 		const doc = parseFragment(renderQueueCounts(displayModelFor({ unreadCount: 7 })));
-		const tab = doc.querySelector("#queue-filter-unread");
+		const label = unreadLabel(doc);
 
-		assert(tab, "counts fragment must carry the unread tab");
-		expect(tab.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(tab.getAttribute("data-test-filter")).toBe("unread");
-		expect(tab.textContent).toBe("To Read (7)");
+		expect(label.getAttribute("hx-swap-oob")).toBe("innerHTML");
+		expect(label.hasAttribute("hx-preserve")).toBe(false);
+		expect(label.textContent).toBe("To Read (7)");
 	});
 
 	it("should swap the pagination info out of band when the tab spans pages", () => {
@@ -140,36 +109,36 @@ describe("renderQueueCounts", () => {
 		expect(info.textContent).toBe("Page 2 of 4");
 	});
 
-	it("should swap only the unread tab when the page it targets is not rendered", () => {
+	it("should swap only the unread label when the page it targets is not rendered", () => {
 		const doc = parseFragment(renderQueueCounts(displayModelFor({ unreadCount: 5, tabTotal: 5 })));
 
-		expect(swappedTargets(doc)).toEqual(["queue-filter-unread"]);
-		expect(unreadTab(doc).textContent).toBe("To Read (5)");
+		expect(swappedTargets(doc)).toEqual(["queue-unread-label"]);
+		expect(unreadLabel(doc).textContent).toBe("To Read (5)");
 	});
 });
 
 describe("queue counts fragment against the initial render", () => {
-	function initialUnreadTab(filters: QueueUrlState): Element {
+	function initialUnreadLabel(filters: QueueUrlState): Element {
 		const vm = toQueueViewModel(
 			{ articles: [], hasMore: false, page: filters.page, pageSize: PAGE_SIZE },
 			filters,
 			{ now: new Date("2026-01-01T00:00:00.000Z") },
 		);
 		const doc = parseFragment(QueuePage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", queuesFeature: false, saveTip: { state: "due", html: "" } }).content.html);
-		const tab = doc.querySelector("#queue-filter-unread");
-		assert(tab, "the queue page must render the unread tab the counts fragment targets");
-		return tab;
+		const label = doc.querySelector("#queue-unread-label");
+		assert(label, "the queue page must render the label the counts fragment refreshes");
+		return label;
 	}
 
-	function swappedUnreadTab(filters: QueueUrlState, unreadCount: number): Element {
+	function swappedUnreadLabel(filters: QueueUrlState, unreadCount: number): Element {
 		const doc = parseFragment(
 			renderQueueCounts(
 				toQueueCountsDisplayModel({ filters, unreadCount, tabTotal: 0, pageSize: PAGE_SIZE }),
 			),
 		);
-		const tab = doc.querySelector("#queue-filter-unread");
-		assert(tab, "the counts fragment must render the unread tab");
-		return tab;
+		const label = doc.querySelector("#queue-unread-label");
+		assert(label, "the counts fragment must render the unread tab's label");
+		return label;
 	}
 
 	it.each<QueueUrlState>([
@@ -177,20 +146,18 @@ describe("queue counts fragment against the initial render", () => {
 		{ queue: "default", tab: "done", page: 1 },
 		{ queue: "default", tab: "queue", order: "asc", page: 2 },
 		{ queue: "default", tab: "done", order: "asc", page: 3 },
-	])("should reuse the class and href the initial render produced for %o", (filters) => {
-		const initial = initialUnreadTab(filters);
-		const swapped = swappedUnreadTab(filters, 3);
-		const href = initial.getAttribute("href");
-		assert(href, "the initial unread tab must carry the href the swap has to preserve");
+	])("should refresh the label the render preserves, for %o", (filters) => {
+		expect(initialUnreadLabel(filters).hasAttribute("hx-preserve")).toBe(true);
 
-		expect(swapped.getAttribute("class")).toBe(initial.getAttribute("class"));
-		expect(swapped.getAttribute("href")).toBe(href);
+		const swapped = swappedUnreadLabel(filters, 3);
+		expect(swapped.getAttribute("hx-swap-oob")).toBe("innerHTML");
+		expect(swapped.hasAttribute("hx-preserve")).toBe(false);
 	});
 
 	it("should replace the countless initial label with the counted one", () => {
 		const filters: QueueUrlState = { queue: "default", tab: "queue", page: 1 };
 
-		expect(initialUnreadTab(filters).textContent).toBe("To Read");
-		expect(swappedUnreadTab(filters, 3).textContent).toBe("To Read (3)");
+		expect(initialUnreadLabel(filters).textContent).toBe("To Read");
+		expect(swappedUnreadLabel(filters, 3).textContent).toBe("To Read (3)");
 	});
 });

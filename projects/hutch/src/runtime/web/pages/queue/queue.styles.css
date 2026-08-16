@@ -321,6 +321,20 @@
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
+.queue__filter-label {
+  display: grid;
+}
+
+.queue__filter-label > span,
+.queue__filter-label::after {
+  grid-area: 1 / 1;
+}
+
+.queue__filter-label::after {
+  content: attr(data-widest);
+  visibility: hidden;
+}
+
 .queue__filter-link:hover {
   color: var(--foreground);
 }
@@ -803,8 +817,10 @@
 }
 
 .queue__pagination-info {
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: center;
   font-size: 0.875rem;
   color: var(--muted-foreground);
 }

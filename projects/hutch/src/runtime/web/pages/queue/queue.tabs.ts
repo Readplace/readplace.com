@@ -5,6 +5,8 @@ export const TAB_IDS = ["queue", "done"] as const;
 
 export type TabId = (typeof TAB_IDS)[number];
 
+export const UNREAD_LABEL_ID = "queue-unread-label";
+
 interface TabQuery {
 	status: ArticleStatus;
 	sort: SortField;
@@ -15,7 +17,7 @@ interface TabDefinition {
 	label: string;
 	testFilter: string;
 	trackingContent: string;
-	anchorId?: string;
+	labelId?: string;
 	query: TabQuery;
 }
 
@@ -28,7 +30,7 @@ const TAB_DEFINITIONS: Record<TabId, TabDefinition> = {
 		label: "To Read",
 		testFilter: "unread",
 		trackingContent: "filter-unread",
-		anchorId: "queue-filter-unread",
+		labelId: UNREAD_LABEL_ID,
 		query: { status: "unread", sort: "savedAt", defaultOrder: "desc" },
 	},
 	done: {

@@ -98,13 +98,32 @@ describe("buildQueueFilters", () => {
 		expect(hrefParts(tabLink(doc, "read")).params.get("order")).toBe("asc");
 	});
 
-	it("should anchor only the tab the counts fragment swaps out of band", () => {
+	it("should give only the counted tab a label the counts fragment can refresh", () => {
 		const doc = renderTabs({ activeTab: "queue" });
 
-		const anchored = Array.from(doc.querySelectorAll("[data-test-filter][id]")).map((el) => [
-			el.getAttribute("data-test-filter"),
+		const labelled = Array.from(doc.querySelectorAll("[data-test-filter] span[id]")).map((el) => [
+			el.closest("[data-test-filter]")?.getAttribute("data-test-filter"),
 			el.getAttribute("id"),
 		]);
-		expect(anchored).toEqual([["unread", "queue-filter-unread"]]);
+		expect(labelled).toEqual([["unread", "queue-unread-label"]]);
+	});
+
+	it("should reserve the counted tab's widest label, on that tab only", () => {
+		const doc = renderTabs({ activeTab: "queue" });
+
+		const reserved = Array.from(doc.querySelectorAll("[data-widest]")).map((el) => [
+			el.closest("[data-test-filter]")?.getAttribute("data-test-filter"),
+			el.getAttribute("data-widest"),
+		]);
+		expect(reserved).toEqual([["unread", "To Read (99+)"]]);
+	});
+
+	it("should mark the counted tab's label preserved so a boosted swap keeps the count", () => {
+		const doc = renderTabs({ activeTab: "queue" });
+		const label = doc.querySelector("#queue-unread-label");
+		assert(label, "the unread tab must render the label the counts fragment refreshes");
+
+		expect(label.hasAttribute("hx-preserve")).toBe(true);
+		expect(label.textContent).toBe("To Read");
 	});
 });

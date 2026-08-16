@@ -21,7 +21,8 @@ export interface QueueFilterTab {
 	href: string;
 	label: string;
 	testFilter: string;
-	anchorId?: string;
+	labelId?: string;
+	widestLabel?: string;
 }
 
 export interface QueueFiltersDisplayModel {
@@ -41,7 +42,9 @@ export function buildQueueFilters(input: {
 			}),
 			label: tab.label,
 			testFilter: tab.testFilter,
-			anchorId: tab.anchorId,
+			labelId: tab.labelId,
+			widestLabel:
+				tab.labelId === undefined ? undefined : formatUnreadLabel(Number.MAX_SAFE_INTEGER),
 		})),
 	};
 }
