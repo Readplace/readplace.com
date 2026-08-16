@@ -1119,6 +1119,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const queueRouter = initQueueRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
+		secureCookies,
 		findArticlesByUser: deps.findArticlesByUser,
 		countArticlesByUser: deps.countArticlesByUser,
 		findArticleById: deps.findArticleById,

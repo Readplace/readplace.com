@@ -99,6 +99,8 @@ import { requireNotLocked } from "../../middleware/require-not-locked.middleware
 import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
+import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
+import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { initReaderPermalink } from "./reader-permalink";
 import { wantsSiren } from "../../content-negotiation";
 import type { QuerystringFeatureToggle } from "@packages/web-shell";
@@ -316,6 +318,7 @@ interface QueueDependencies {
 	 * (cancelled or trial-expired). Mounted only on save routes — list, view,
 	 * mark-as-read, and delete remain reachable for read-only users. */
 	requireWriteAccess: RequestHandler;
+	secureCookies: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
 	buildBannerState: BuildBannerState;
 	/** The site-wide announcement, for the chromeless reader only. The full shell
@@ -851,7 +854,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req) }),
+				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req), saveTip: buildSaveTip(req, "article") }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -1498,6 +1501,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.post(SAVE_ROUTE.save, requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateSaveableUrl(submittedUrl);
 
@@ -1516,7 +1520,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				crawlByUrl,
 			});
 			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req) }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req), saveTip: buildSaveTip(req, "article") }), await deps.buildBannerState(req)));
 			return;
 		}
 

@@ -118,6 +118,23 @@ const BUNDLES = [
     ].join("\n"),
   },
   {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/shared/save-tip/save-tip.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "save-tip.client.js"),
+    globalName: "SaveTip",
+    footer: [
+      "SaveTip.initSaveTip({",
+      "  document: window.document,",
+      "  supportsPopover: function () { return typeof HTMLElement.prototype.showPopover === 'function'; },",
+      "  showPopover: function (panel) { panel.showPopover(); },",
+      "  hidePopover: function (panel) { panel.hidePopover(); },",
+      "  navigate: function (href) { window.location.assign(href); }",
+      "});",
+    ].join("\n"),
+  },
+  {
     entry: path.join(PROJECT_ROOT, "src/runtime/web/pages/home/home.client.ts"),
     outfile: path.join(OUT_DIR, "home.client.js"),
     globalName: "HomeClient",

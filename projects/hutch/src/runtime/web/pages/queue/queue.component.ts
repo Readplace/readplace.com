@@ -21,6 +21,8 @@ import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component
 import { buildQueueNav, renderQueueNav } from "./queue-nav.component";
 import { QUEUES, queueTitle } from "./queue.nav";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
+import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
+import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
@@ -70,6 +72,8 @@ interface QueueDisplayModel {
 	cancellationEffectiveAt?: LocalTime;
 	accessIsReadOnly: boolean;
 	saveFormClass: string;
+	saveTipState: SaveTipState;
+	saveTipHtml: string;
 }
 
 const EMPTY_STATE_TITLES: Record<TabId, string> = {
@@ -81,7 +85,7 @@ export function emptyStateTitle(tab: TabId): string {
 	return EMPTY_STATE_TITLES[tab];
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; deviceClass: DeviceClass; queuesFeature: boolean }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; deviceClass: DeviceClass; queuesFeature: boolean; saveTip: SaveTip }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
@@ -163,6 +167,8 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		cancellationEffectiveAt: banner.state === "cancellation-scheduled" ? banner.cancellationEffectiveAt : undefined,
 		accessIsReadOnly: vm.accessIsReadOnly,
 		saveFormClass: vm.accessIsReadOnly ? "queue__save-form queue__save-form--disabled" : "queue__save-form",
+		saveTipState: options.saveTip.state,
+		saveTipHtml: options.saveTip.html,
 	};
 }
 
@@ -182,12 +188,12 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; queuesFeature: boolean; saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; queuesFeature: boolean; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass, queuesFeature: options.queuesFeature });
+	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass, queuesFeature: options.queuesFeature, saveTip: options.saveTip });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
-	const scriptParts: string[] = [NAV_HIDE_SCRIPT];
+	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT];
 	if (saveUrl) scriptParts.push(autoSubmitScript(options.cspNonce));
 
 	return {
