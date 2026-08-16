@@ -18,6 +18,11 @@ const PANEL_ID = "save-tip";
 const DUE_SELECTOR = "[data-save-tip='due']";
 const PROCEED_SELECTOR = "[data-save-tip-proceed]";
 const CONFIRMED_FLAG = "data-save-tip-confirmed";
+/** A form the page submits on the reader's behalf — a save permalink landing on
+ * the queue with the URL already filled in. There is no paste to interrupt: the
+ * decision was made on the page they came from, and holding it back would strand
+ * them in front of a panel they never asked for. */
+const AUTO_SUBMIT_FLAG = "data-auto-submit";
 
 function isElement(node: EventTarget | null): node is Element {
 	return typeof Reflect.get(Object(node), "closest") === "function";
@@ -36,6 +41,7 @@ export function initSaveTip(deps: SaveTipDeps): void {
 		if (!isElement(target)) return;
 		const form = target.closest<HTMLFormElement>(DUE_SELECTOR);
 		if (form === null) return;
+		if (form.hasAttribute(AUTO_SUBMIT_FLAG)) return;
 		// Set by the proceed control below, so the resubmit it asks for passes
 		// straight through instead of reopening the panel it came from.
 		if (form.hasAttribute(CONFIRMED_FLAG)) return;

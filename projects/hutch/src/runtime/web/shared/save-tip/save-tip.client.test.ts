@@ -13,6 +13,9 @@ const PANEL = `<div class="confirm-popover" id="save-tip" popover="auto" role="d
 
 function page(state: string): string {
 	return `<main>
+	<form id="auto-form" method="POST" action="/queue/save" data-save-tip="${state}" data-auto-submit>
+		<input type="url" name="url" value="https://example.com/permalink">
+	</form>
 	<form id="save-form" method="POST" action="/queue/save" data-save-tip="${state}">
 		<input type="url" name="url" value="https://example.com/post">
 		<button id="save" type="submit">Save</button>
@@ -119,6 +122,15 @@ describe("initSaveTip", () => {
 		const harness = createHarness({ state: "seen" });
 
 		const event = harness.submit("save-form");
+
+		expect(event.defaultPrevented).toBe(false);
+		expect(harness.shown).toEqual([]);
+	});
+
+	it("lets a save permalink through, since the page submitted it, not the reader", () => {
+		const harness = createHarness();
+
+		const event = harness.submit("auto-form");
 
 		expect(event.defaultPrevented).toBe(false);
 		expect(harness.shown).toEqual([]);
