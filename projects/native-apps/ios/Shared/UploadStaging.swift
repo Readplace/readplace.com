@@ -4,10 +4,6 @@ import Foundation
 /// it. The body must live in the App Group container: the upload runs in a system
 /// daemon long after the share extension is gone, and only a shared container is
 /// readable from there.
-///
-/// The write is `async` and belongs to no actor, so it runs off the caller's: it
-/// is made from the share sheet's main actor while its sheet is still animating,
-/// and a 25 MB body would stall that frame.
 struct UploadStaging {
 	private let directory: URL
 
@@ -20,13 +16,6 @@ struct UploadStaging {
 	/// and only the enrichment upload is lost.
 	static func inSharedContainer(appGroupId: String) -> UploadStaging? {
 		FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId).map(UploadStaging.init(containerURL:))
-	}
-
-	func stage(_ form: MultipartForm) async throws -> URL {
-		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-		let file = directory.appendingPathComponent("\(UUID().uuidString).multipart")
-		try form.write(to: file)
-		return file
 	}
 
 	/// Deletes one staged body by the name the upload task carries, so the delete

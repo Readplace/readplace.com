@@ -35,6 +35,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// hasn't advertised it, in which case the API falls back to a fixed path.
 	private var sessionAction: SirenAction?
 	private var isLoadingMore = false
+	private var isDrainingUploads = false
 	/// Whether rows beyond the first page are loaded. A post-action adoption
 	/// replaces the list outright only while everything on screen came from one
 	/// page; once the user has scrolled deeper, adoption merges instead, so the
@@ -45,6 +46,7 @@ final class ReadingListViewModel: ObservableObject {
 	private var hasLoadedOnce = false
 
 	private let api: ReadplaceAPI
+	private let jobs: UploadJobStore?
 	private let onSessionExpired: () -> Void
 
 	/// The reading list's client-side add (+) control: a navigable `add-links-help`
@@ -61,8 +63,9 @@ final class ReadingListViewModel: ObservableObject {
 		return affordance
 	}()
 
-	init(api: ReadplaceAPI, onSessionExpired: @escaping () -> Void) {
+	init(api: ReadplaceAPI, jobs: UploadJobStore?, onSessionExpired: @escaping () -> Void) {
 		self.api = api
+		self.jobs = jobs
 		self.onSessionExpired = onSessionExpired
 		// Append the same app-shell marker `open(link:)` puts on the account href, so
 		// the help page is served chromeless with a deep-link back to the native list.
@@ -274,6 +277,13 @@ final class ReadingListViewModel: ObservableObject {
 		} catch {
 			handle(error)
 		}
+	}
+
+	func drainStagedUploads(with captor: HTMLCapturing) async {
+		guard let jobs, !isDrainingUploads else { return }
+		isDrainingUploads = true
+		defer { isDrainingUploads = false }
+		await DrainUploadJobs(api: api, captor: captor, jobs: jobs).run()
 	}
 
 	/// Mints the cookie session the reader webview needs from the current bearer.

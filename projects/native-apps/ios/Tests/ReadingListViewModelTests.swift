@@ -10,6 +10,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	private func makeViewModel(
 		store: TokenStore,
+		jobs: UploadJobStore? = nil,
 		onSessionExpired: @escaping () -> Void = {}
 	) -> ReadingListViewModel {
 		let api = ReadplaceAPI(
@@ -17,7 +18,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			store: store,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
-		return ReadingListViewModel(api: api, onSessionExpired: onSessionExpired)
+		return ReadingListViewModel(api: api, jobs: jobs, onSessionExpired: onSessionExpired)
 	}
 
 	// MARK: - Add-links help (client-side)
@@ -1167,6 +1168,69 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
+	// MARK: - Draining what the share sheet staged
+
+	private func stagedUploadHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		return { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			case "/queue/save-content":
+				return .json(201, Fixtures.article(id: "a1"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	private func stagedJob() -> UploadJob {
+		UploadJob(
+			id: "j1",
+			url: "https://example.com/post",
+			title: "A Title",
+			state: .capturePending(detectedMediaType: nil),
+			attempts: 0,
+			nextAttemptAt: .distantPast,
+			createdAt: .distantPast
+		)
+	}
+
+	func testTwoForegroundsRacingOneAnotherDrainTheStagedQueueOnce() async throws {
+		StubURLProtocol.setHandler(stagedUploadHandler())
+		let jobs = UploadJobStore(containerURL: TestSupport.temporaryContainer())
+		try await jobs.admit(stagedJob())
+		let captor = FakeHTMLCaptor(
+			page: CapturedPage(rawHtml: "<html>rendered in the app</html>", title: "Rendered", mediaType: "text/html"),
+			delay: 0.2
+		)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), jobs: jobs)
+
+		async let first: Void = viewModel.drainStagedUploads(with: captor)
+		async let second: Void = viewModel.drainStagedUploads(with: captor)
+		await first
+		await second
+
+		XCTAssertEqual(captor.capturedURLs.count, 1, "a sweep already under way owns the queue; the second one steps aside")
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue/save-content").count, 1)
+		XCTAssertEqual(jobs.loadAll(now: Date()), [])
+	}
+
+	func testDrainingIsANoOpWithoutASharedContainer() async {
+		StubURLProtocol.setHandler(stagedUploadHandler())
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html"))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.drainStagedUploads(with: captor)
+
+		XCTAssertEqual(captor.capturedURLs, [])
+		XCTAssertTrue(
+			StubURLProtocol.records.isEmpty,
+			"a build with no App Group container has nothing staged, so a foreground costs it no round trip"
+		)
+	}
+
 	// MARK: - Session expiry & warnings
 
 	func testUnauthorizedLoadLogsOutWithoutAnErrorBanner() async {
@@ -1176,7 +1240,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
 		var expired = false
-		let viewModel = ReadingListViewModel(api: api, onSessionExpired: { expired = true })
+		let viewModel = ReadingListViewModel(api: api, jobs: nil, onSessionExpired: { expired = true })
 		// 401 everywhere: the entry-point load 401s, the single refresh 401s, and
 		// the load surfaces .unauthorized.
 		StubURLProtocol.setHandler { _, _ in .json(401, "{}") }

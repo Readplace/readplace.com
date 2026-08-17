@@ -15,6 +15,17 @@ final class ReadplaceAPITests: XCTestCase {
 		SirenAction(name: "save-article", href: "/queue", method: "POST", title: nil, type: "application/json", fields: nil)
 	}
 
+	private func saveContentAction() -> SirenAction {
+		SirenAction(
+			name: "save-content",
+			href: "/queue/save-content",
+			method: "POST",
+			title: nil,
+			type: "multipart/form-data",
+			fields: nil
+		)
+	}
+
 	private func updateStatusAction(id: String = "a1", statusValue: String? = "read") -> SirenAction {
 		SirenAction(
 			name: "update-status",
@@ -311,6 +322,29 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(confirmation.messages, [], "a server that predates the confirmation channel yields no copy, so the sheet keeps its own")
 		let body = TestSupport.jsonObject(StubURLProtocol.records(path: "/queue").first!.body)
 		XCTAssertEqual(body["url"] as? String, "https://example.com/x")
+	}
+
+	// MARK: - Saving content
+
+	func testSaveContentUploadsAProvidedBodyThroughTheAuthedPath() async throws {
+		let store = TestSupport.loggedInStore(access: "access-1")
+		StubURLProtocol.setHandler { _, _ in .json(201, Fixtures.article(id: "content-saved")) }
+		let body = Data("--b\r\nContent-Disposition: form-data; name=\"content\"\r\n\r\nhi\r\n--b--\r\n".utf8)
+
+		try await makeAPI(store: store).saveContent(
+			action: saveContentAction(),
+			contentType: "multipart/form-data; boundary=b",
+			body: body
+		)
+
+		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
+		XCTAssertEqual(upload.request.httpMethod, "POST")
+		XCTAssertEqual(upload.request.value(forHTTPHeaderField: "Content-Type"), "multipart/form-data; boundary=b")
+		XCTAssertEqual(
+			upload.request.value(forHTTPHeaderField: "Authorization"), "Bearer access-1",
+			"bytes staged by the extension upload on the app's one authenticated path, which refreshes a stale bearer"
+		)
+		XCTAssertEqual(upload.body, body, "the staged bytes go up byte for byte")
 	}
 
 	// MARK: - Account lockout

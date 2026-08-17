@@ -1,12 +1,9 @@
 import UIKit
 
-/// The share-sheet entry point. Saves the link first and says so, then renders
-/// the shared page in a WKWebView (or takes a shared PDF's bytes straight from
-/// the payload, or fetches them) and hands the captured content to a background
-/// session that outlives this process.
 @MainActor
 final class ShareViewController: UIViewController {
 	private let store = TokenStore()
+	private let haptics = UINotificationFeedbackGenerator()
 
 	private let card = UIView()
 	private let iconView = UIImageView()
@@ -28,32 +25,26 @@ final class ShareViewController: UIViewController {
 
 	private func run() async {
 		setStatus("Saving…")
+		haptics.prepare()
 		let shared = await ShareURLExtractor.extract(from: extensionContext)
 
 		let captor = LazyHTMLCaptor { [weak self] webView in self?.attachHidden(webView) }
-		let staging = UploadStaging.inSharedContainer(appGroupId: TokenStore.resolvedAppGroupId)
+		let containerURL = FileManager.default.containerURL(
+			forSecurityApplicationGroupIdentifier: TokenStore.resolvedAppGroupId
+		)
 		let saver = SaveSharedPage(
 			store: store,
-			api: ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store),
+			api: ReadplaceAPI(
+				baseURL: AppConfig.serverBaseURL,
+				store: store,
+				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: containerURL)
+			),
 			captor: captor,
-			staging: staging,
-			uploads: BackgroundUploadScheduler(makeSession: {
-				URLSession(
-					configuration: BackgroundUpload.sessionConfiguration(
-						identifier: BackgroundUpload.freshSessionIdentifier(),
-						appGroupId: TokenStore.resolvedAppGroupId
-					),
-					delegate: staging.map { UploadSessionDelegate(staging: $0, whenDrained: nil) },
-					delegateQueue: nil
-				)
-			})
+			jobs: containerURL.map(UploadJobStore.init(containerURL:))
 		)
 		let sharedPdf: (() async -> Data?)? = shared?.pdfProvider.map { provider in
 			{ await ShareURLExtractor.loadPDFData(provider) }
 		}
-		// Assigned when the link lands, so the sheet's dwell starts at the "Saved"
-		// the user reads — not at the end of a capture they never see.
-		var dwell: Task<Void, Never>?
 		let settled = Task { [weak self] in
 			let outcome = await saver.run(
 				url: shared?.url,
@@ -64,24 +55,24 @@ final class ShareViewController: UIViewController {
 					self.noticeLabel.text = messages.map(\.plainText).joined(separator: "\n")
 					self.noticeLabel.isHidden = false
 				},
-				onSaved: { [weak self] messages in
-					dwell = self?.paint(.saved(messages))
+				onSaved: { [weak self] _ in
 					// The server has answered and the link is on it, so leaving now
 					// costs nothing the reader was promised.
 					self?.backdropTap.isEnabled = true
+				},
+				onStillSaving: { [weak self] in
+					guard let self, !self.spinner.isHidden else { return }
+					self.setStatus("Still saving…")
 				}
 			)
-			await (dwell ?? self?.paint(outcome))?.value
+			self?.paint(outcome)
 		}
 		await endOfSheet(settled)
 		extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
 	}
 
 	/// Returns once the journey has settled, or as soon as the reader taps outside
-	/// the card — whichever lands first. A reader who has read "Saved" and wants to
-	/// move on should not be held by a capture running behind it: the link is
-	/// already saved, and an abandoned capture is only the enrichment the server's
-	/// own crawl produces anyway.
+	/// the card — whichever lands first.
 	private func endOfSheet(_ settled: Task<Void, Never>) async {
 		let claim = FirstClaim()
 		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -136,7 +127,7 @@ final class ShareViewController: UIViewController {
 		statusLabel.textAlignment = .center
 
 		// A secondary caption below the title, in the app's .footnote/.secondary
-		// house style. Hidden until the server hands down a save notice to render.
+		// house style.
 		noticeLabel.translatesAutoresizingMaskIntoConstraints = false
 		noticeLabel.font = .preferredFont(forTextStyle: .footnote)
 		noticeLabel.textColor = .secondaryLabel
@@ -188,9 +179,7 @@ final class ShareViewController: UIViewController {
 		spinner.startAnimating()
 	}
 
-	/// Paints the terminal state and returns the beat the sheet must not dismiss
-	/// before, so the user gets to read it.
-	private func paint(_ outcome: SaveSharedOutcome) -> Task<Void, Never> {
+	private func paint(_ outcome: SaveSharedOutcome) {
 		let status = ShareStatusPresentation(outcome: outcome)
 		spinner.stopAnimating()
 		spinner.isHidden = true
@@ -198,11 +187,13 @@ final class ShareViewController: UIViewController {
 		iconView.tintColor = uiColor(for: status.tone)
 		iconView.isHidden = false
 		statusLabel.text = status.message
-		// The terminal state ("Saved" / an error) replaces the spinner, so the
-		// "don't close this" caption must go with it — it no longer applies.
-		noticeLabel.isHidden = true
+		noticeLabel.text = status.subtitle
+		noticeLabel.isHidden = status.subtitle == nil
 
-		return Task { try? await Task.sleep(nanoseconds: 1_400_000_000) }
+		switch outcome {
+		case .saved, .savedAwaitingUpload: haptics.notificationOccurred(.success)
+		default: break
+		}
 	}
 }
 

@@ -19,6 +19,15 @@ final class LoginFlowTests: XCTestCase {
 		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 	}
 
+	func testTheAppsDefaultSessionConfigurationCachesNoResponses() {
+		let configuration = AppSession.uncachedEphemeralConfiguration()
+
+		XCTAssertNil(
+			configuration.urlCache,
+			"the app's list views must always revalidate; only the share extension opts into the discovery cache"
+		)
+	}
+
 	func testLoginAuthorizationRequestUsesNativeRedirectAndLoginHint() {
 		let request = makeService(store: TestSupport.loggedInStore()).makeNativeLoginAuthorizationRequest()
 
@@ -132,6 +141,42 @@ final class LoginFlowTests: XCTestCase {
 		)
 	}
 
+	func testLogoutPurgesShareArtifacts() async {
+		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
+		var purges = 0
+		let session = AppSession(
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: TestSupport.stubbedConfiguration(),
+			wipeReaderWebStore: {},
+			purgeShareArtifacts: { purges += 1 }
+		)
+
+		await session.logout()
+
+		XCTAssertEqual(
+			purges, 1,
+			"captured page bytes and cached queue responses must not outlive the session that authorised them"
+		)
+	}
+
+	func testForceLogoutPurgesShareArtifacts() async {
+		var purges = 0
+		let session = AppSession(
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: TestSupport.stubbedConfiguration(),
+			wipeReaderWebStore: {},
+			purgeShareArtifacts: { purges += 1 }
+		)
+
+		let readerWipe = session.forceLogout()
+
+		XCTAssertEqual(
+			purges, 1,
+			"a session invalidated behind the user's back leaves the same App Group traces a deliberate sign-out does"
+		)
+		await readerWipe.value
+	}
+
 	func testSignOutWipesTheSessionCookieRegardlessOfItsName() async {
 		// A4: sign-out scrubs the API session by clearing every cookie in the app's
 		// isolated jar, not one matched by a hard-coded `hutch_sid`. Seed the cookie
@@ -172,7 +217,7 @@ final class LoginFlowTests: XCTestCase {
 			}
 		}
 
-		let viewModel = ReadingListViewModel(api: session.makeAPI(), onSessionExpired: {})
+		let viewModel = ReadingListViewModel(api: session.makeAPI(), jobs: nil, onSessionExpired: {})
 		await viewModel.loadIfNeeded()
 
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])

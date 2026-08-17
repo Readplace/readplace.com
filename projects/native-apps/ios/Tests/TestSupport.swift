@@ -34,6 +34,17 @@ enum TestSupport {
 		return container
 	}
 
+	static func stagedUploadBody(
+		in container: URL,
+		content: Data = Data("<html>hi</html>".utf8)
+	) throws -> URL {
+		let directory = container.appendingPathComponent("Library/Caches/share-uploads", isDirectory: true)
+		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+		let file = directory.appendingPathComponent("\(UUID().uuidString).multipart")
+		try content.write(to: file)
+		return file
+	}
+
 	static func multipartForm(
 		url: String = "https://example.com/post",
 		mediaType: String = "text/html",

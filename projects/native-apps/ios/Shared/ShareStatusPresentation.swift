@@ -16,6 +16,7 @@ enum ShareStatusTone: Equatable {
 /// controller only paints it and maps the tone to a `UIColor`.
 struct ShareStatusPresentation: Equatable {
 	let message: String
+	let subtitle: String?
 	let symbol: String
 	let tone: ShareStatusTone
 
@@ -26,30 +27,43 @@ struct ShareStatusPresentation: Equatable {
 			/// change without an App Store release; the client's own word otherwise.
 			let serverCopy = messages.map(\.plainText).joined(separator: "\n")
 			message = serverCopy.isEmpty ? "Saved" : serverCopy
+			subtitle = nil
+			symbol = "checkmark.circle.fill"
+			tone = .success
+		case .savedAwaitingUpload(let messages):
+			let serverCopy = messages.map(\.plainText).joined(separator: "\n")
+			message = serverCopy.isEmpty ? "Saved url" : serverCopy
+			subtitle = "Content will be uploaded when you open the Readplace app"
 			symbol = "checkmark.circle.fill"
 			tone = .success
 		case .notLoggedIn:
 			message = "Open Readplace and sign in first."
+			subtitle = nil
 			symbol = "person.crop.circle.badge.exclamationmark"
 			tone = .warning
 		case .storageUnavailable(let status):
 			message = "Couldn't read your saved sign-in (Keychain error \(status)). Reopen Readplace, then try sharing again."
+			subtitle = nil
 			symbol = "exclamationmark.triangle.fill"
 			tone = .error
 		case .noLink:
 			message = "No link found to save."
+			subtitle = nil
 			symbol = "link"
 			tone = .warning
 		case .noSaveAction:
 			message = "The server offered no save action."
+			subtitle = nil
 			symbol = "exclamationmark.triangle.fill"
 			tone = .error
 		case .refused(let messages):
 			message = messages.map(\.plainText).joined(separator: "\n")
+			subtitle = nil
 			symbol = "lock.fill"
 			tone = messages.contains { $0.kind == .error } ? .error : .warning
 		case .failed(let failureMessage):
 			message = failureMessage
+			subtitle = nil
 			symbol = "exclamationmark.triangle.fill"
 			tone = .error
 		}

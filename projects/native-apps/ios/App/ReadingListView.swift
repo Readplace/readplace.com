@@ -18,6 +18,7 @@ struct ReadingListView: View {
 	/// the invoke fires, rather than acting on the tap. `article` is nil for a
 	/// collection-level control, which acts on no row.
 	@State private var pendingDestructive: PendingDestructive?
+	@State private var captureAnchor = CaptureAnchor()
 
 	private struct PendingDestructive: Identifiable {
 		let affordance: Affordance
@@ -31,6 +32,7 @@ struct ReadingListView: View {
 		let api = session.makeAPI()
 		_viewModel = StateObject(wrappedValue: ReadingListViewModel(
 			api: api,
+			jobs: UploadJobStore.inSharedContainer(appGroupId: TokenStore.resolvedAppGroupId),
 			onSessionExpired: { [weak session] in session?.forceLogout() }
 		))
 	}
@@ -60,8 +62,12 @@ struct ReadingListView: View {
 						}
 					}
 				}
+				.background(CaptureAnchorView(anchor: captureAnchor))
 				.refreshable { await viewModel.refresh() }
-				.task { await viewModel.loadIfNeeded() }
+				.task {
+					await viewModel.loadIfNeeded()
+					await drainStagedUploads()
+				}
 				.onChange(of: scenePhase) { newPhase in
 					switch newPhase {
 					case .background:
@@ -69,6 +75,7 @@ struct ReadingListView: View {
 					case .active where didEnterBackground:
 						didEnterBackground = false
 						Task { await viewModel.handleForeground() }
+						Task { await drainStagedUploads() }
 					default:
 						break
 					}
@@ -134,6 +141,11 @@ struct ReadingListView: View {
 	func signOut() async {
 		await session.logout()
 		onSignedOut()
+	}
+
+	@MainActor
+	private func drainStagedUploads() async {
+		await viewModel.drainStagedUploads(with: WindowHTMLCaptor(anchor: captureAnchor))
 	}
 
 	/// Routes a tapped collection control to the side effect its advertised

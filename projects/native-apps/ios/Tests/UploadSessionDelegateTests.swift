@@ -12,9 +12,10 @@ final class UploadSessionDelegateTests: XCTestCase {
 		return task
 	}
 
-	func testReleasesTheStagedBodyWhenTheUploadFinishes() async throws {
-		let staging = UploadStaging(containerURL: TestSupport.temporaryContainer())
-		let staged = try await staging.stage(TestSupport.multipartForm())
+	func testReleasesTheStagedBodyWhenTheUploadFinishes() throws {
+		let container = TestSupport.temporaryContainer()
+		let staging = UploadStaging(containerURL: container)
+		let staged = try TestSupport.stagedUploadBody(in: container)
 		let delegate = UploadSessionDelegate(staging: staging, whenDrained: nil)
 
 		delegate.urlSession(session, task: try makeTask(named: staged.lastPathComponent), didCompleteWithError: nil)
@@ -22,11 +23,12 @@ final class UploadSessionDelegateTests: XCTestCase {
 		XCTAssertFalse(FileManager.default.fileExists(atPath: staged.path))
 	}
 
-	func testReleasesTheStagedBodyWhenTheUploadFails() async throws {
+	func testReleasesTheStagedBodyWhenTheUploadFails() throws {
 		// A terminal failure shows the user nothing — the article is saved and the
 		// crawl produced content — so the only work left is letting the body go.
-		let staging = UploadStaging(containerURL: TestSupport.temporaryContainer())
-		let staged = try await staging.stage(TestSupport.multipartForm())
+		let container = TestSupport.temporaryContainer()
+		let staging = UploadStaging(containerURL: container)
+		let staged = try TestSupport.stagedUploadBody(in: container)
 		let delegate = UploadSessionDelegate(staging: staging, whenDrained: nil)
 
 		delegate.urlSession(session, task: try makeTask(named: staged.lastPathComponent), didCompleteWithError: URLError(.timedOut))
@@ -40,8 +42,9 @@ final class UploadSessionDelegateTests: XCTestCase {
 		// and the refusal has to be logged, or a whole class of dead uploads is silent.
 		StubURLProtocol.reset()
 		StubURLProtocol.setHandler { _, _ in .json(406, "Not Acceptable") }
-		let staging = UploadStaging(containerURL: TestSupport.temporaryContainer())
-		let staged = try await staging.stage(TestSupport.multipartForm())
+		let container = TestSupport.temporaryContainer()
+		let staging = UploadStaging(containerURL: container)
+		let staged = try TestSupport.stagedUploadBody(in: container)
 		let delegate = UploadSessionDelegate(staging: staging, whenDrained: nil)
 		let rejecting = URLSession(configuration: TestSupport.stubbedConfiguration(), delegate: delegate, delegateQueue: nil)
 		defer { rejecting.finishTasksAndInvalidate() }
@@ -83,9 +86,10 @@ final class UploadSessionDelegateTests: XCTestCase {
 		)
 	}
 
-	func testLeavesEveryBodyAloneWhenTheTaskNamesNone() async throws {
-		let staging = UploadStaging(containerURL: TestSupport.temporaryContainer())
-		let staged = try await staging.stage(TestSupport.multipartForm())
+	func testLeavesEveryBodyAloneWhenTheTaskNamesNone() throws {
+		let container = TestSupport.temporaryContainer()
+		let staging = UploadStaging(containerURL: container)
+		let staged = try TestSupport.stagedUploadBody(in: container)
 		let delegate = UploadSessionDelegate(staging: staging, whenDrained: nil)
 
 		delegate.urlSession(session, task: try makeTask(named: nil), didCompleteWithError: nil)

@@ -28,6 +28,7 @@ final class AppSession: ObservableObject {
 	private let store: TokenStore
 	private let sessionConfiguration: URLSessionConfiguration
 	private let wipeReaderWebStore: () async -> Void
+	private let purgeShareArtifacts: () -> Void
 
 	// Defaults to an ephemeral configuration so the API/OAuth sessions keep their
 	// cookie jar in an isolated, in-memory store rather than process-wide
@@ -38,12 +39,14 @@ final class AppSession: ObservableObject {
 	// OS-boundary seam tests replace with a spy.
 	init(
 		store: TokenStore = TokenStore(),
-		sessionConfiguration: URLSessionConfiguration = .ephemeral,
-		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData
+		sessionConfiguration: URLSessionConfiguration = AppSession.uncachedEphemeralConfiguration(),
+		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData,
+		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts
 	) {
 		self.store = store
 		self.sessionConfiguration = sessionConfiguration
 		self.wipeReaderWebStore = wipeReaderWebStore
+		self.purgeShareArtifacts = purgeShareArtifacts
 		self.isLoggedIn = store.isLoggedIn
 	}
 
@@ -84,6 +87,7 @@ final class AppSession: ObservableObject {
 		let readerWipe = Task { await self.wipeReaderWebStore() }
 		await makeOAuth().revoke()
 		clearSessionCookie()
+		purgeShareArtifacts()
 		await readerWipe.value
 		isLoggedIn = false
 	}
@@ -95,6 +99,7 @@ final class AppSession: ObservableObject {
 	func forceLogout() -> Task<Void, Never> {
 		store.clear()
 		clearSessionCookie()
+		purgeShareArtifacts()
 		let readerWipe = Task { await self.wipeReaderWebStore() }
 		isLoggedIn = false
 		return readerWipe
@@ -127,6 +132,16 @@ final class AppSession: ObservableObject {
 		}
 		let nonCookieTypes = WKWebsiteDataStore.allWebsiteDataTypes().subtracting([WKWebsiteDataTypeCookies])
 		await store.removeData(ofTypes: nonCookieTypes, modifiedSince: .distantPast)
+	}
+
+	private static func removeShareArtifacts() {
+		ShareArtifacts.purge(appGroupId: TokenStore.resolvedAppGroupId)
+	}
+
+	nonisolated static func uncachedEphemeralConfiguration() -> URLSessionConfiguration {
+		let configuration = URLSessionConfiguration.ephemeral
+		configuration.urlCache = nil
+		return configuration
 	}
 
 	func makeAPI() -> ReadplaceAPI {

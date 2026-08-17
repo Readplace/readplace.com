@@ -5,6 +5,7 @@
     "WebPageView.swift": "WKWebView SwiftUI wrapper (OS boundary)",
     "ReaderWebView.swift": "WKWebView + JS-bridge SwiftUI wrapper (OS boundary); the pure bridge parser is covered by ReaderBridgeTests",
     "HTMLCaptor.swift": "WKWebView navigation/capture state machine (OS boundary); the pure navigationResponseDecision is covered by HTMLCaptorTests",
+    "WindowHTMLCaptor.swift": "WKWebView attached to the app window + its UIViewRepresentable host (OS boundary); the drain that consumes it is covered by DrainUploadJobsTests",
     "AddLinkInstructionsView.swift": "pure SwiftUI layout",
     "ReaderSheet.swift": "pure SwiftUI layout",
     "ArticleRow.swift": "pure SwiftUI layout",
