@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Request, Response } from "express";
-import { SAVE_TIP_COOKIE_NAME, markSaveTipSeen, saveTipState } from "./save-tip";
+import { SAVE_TIP_COOKIE_NAME } from "./save-tip-cookie";
+import { markSaveTipSeen, saveTipState } from "./save-tip";
 
 /** Minimal request carrying only the cookie jar the function under test reads.
  * A bare `{}` (no key) models the request shape before cookie-parser has run. */
@@ -64,7 +65,17 @@ describe("markSaveTipSeen", () => {
 		const [written] = cookies;
 		assert(written, "marking the tip seen must write a cookie");
 		expect(written.options.secure).toBe(false);
-		expect(written.options.httpOnly).toBe(true);
 		expect(written.options.path).toBe("/");
+	});
+
+	it("stays readable by the page's own script, which records the warning as it shows it", () => {
+		const { res, cookies } = recordingResponse();
+
+		markSaveTipSeen(res, { secureCookies: true });
+
+		const [written] = cookies;
+		assert(written, "marking the tip seen must write a cookie");
+		expect(written.options.httpOnly).toBe(false);
+		expect(written.options.sameSite).toBe("lax");
 	});
 });

@@ -13,14 +13,15 @@ const PANEL = `<div class="confirm-popover" id="save-tip" popover="auto" role="d
 
 function page(state: string): string {
 	return `<main>
-	<form id="auto-form" method="POST" action="/queue/save" data-save-tip="${state}" data-auto-submit>
-		<input type="url" name="url" value="https://example.com/permalink">
-	</form>
 	<form id="save-form" method="POST" action="/queue/save" data-save-tip="${state}">
-		<input type="url" name="url" value="https://example.com/post">
+		<input id="save-input" type="url" name="url" value="https://example.com/post">
 		<button id="save" type="submit">Save</button>
 	</form>
+	<form id="second-form" method="GET" action="/view" data-save-tip="${state}">
+		<input id="second-input" type="url" name="url">
+	</form>
 	<form id="other-form" method="POST" action="/queue/other">
+		<input id="other-input" type="url" name="url">
 		<button id="other-save" type="submit">Other</button>
 	</form>
 	<a id="cta" href="https://readplace.com/save?url=x" data-save-tip="${state}">Save to My Queue</a>
@@ -30,7 +31,12 @@ function page(state: string): string {
 }
 
 function createHarness(
-	options: { state?: string; supportsPopover?: boolean; withPanel?: boolean } = {},
+	options: {
+		state?: string;
+		supportsPopover?: boolean;
+		withPanel?: boolean;
+		secureTransport?: boolean;
+	} = {},
 ) {
 	const body = page(options.state ?? "due");
 	const dom = new JSDOM(
@@ -41,15 +47,7 @@ function createHarness(
 	const shown: string[] = [];
 	const hidden: string[] = [];
 	const navigations: string[] = [];
-	const submitted: string[] = [];
-
-	// jsdom implements neither requestSubmit nor real navigation, so both are
-	// recorded here instead of performed.
-	for (const form of document.querySelectorAll("form")) {
-		Reflect.set(form, "requestSubmit", () => {
-			submitted.push(form.id);
-		});
-	}
+	const cookies: string[] = [];
 
 	initSaveTip({
 		document,
@@ -63,6 +61,10 @@ function createHarness(
 		navigate: (href) => {
 			navigations.push(href);
 		},
+		isSecureTransport: () => options.secureTransport === true,
+		writeCookie: (cookie) => {
+			cookies.push(cookie);
+		},
 	});
 
 	function element(id: string): Element {
@@ -71,10 +73,24 @@ function createHarness(
 		return found;
 	}
 
-	function submit(id: string): Event {
-		const event = new dom.window.Event("submit", { bubbles: true, cancelable: true });
-		element(id).dispatchEvent(event);
-		return event;
+	function stateOf(id: string): string | null {
+		return element(id).getAttribute("data-save-tip");
+	}
+
+	// jsdom moves focus only for real focus() calls on focusable nodes, so the
+	// events a browser would emit around one are dispatched directly instead.
+	function focusInto(id: string): void {
+		element(id).dispatchEvent(new dom.window.Event("focusin", { bubbles: true }));
+	}
+
+	function focusOutOf(id: string): void {
+		element(id).dispatchEvent(new dom.window.Event("focusout", { bubbles: true }));
+	}
+
+	// jsdom implements no PointerEvent, and the listeners read nothing off these
+	// beyond their arrival, so a plain Event of the right type is faithful.
+	function pointer(id: string, type: string): void {
+		element(id).dispatchEvent(new dom.window.Event(type, { bubbles: true }));
 	}
 
 	function click(id: string, init: Record<string, unknown> = {}): Event {
@@ -97,73 +113,201 @@ function createHarness(
 	return {
 		document,
 		element,
-		submit,
+		stateOf,
+		focusInto,
+		focusOutOf,
+		pointer,
 		click,
 		dispatchOnDocument,
 		shown,
 		hidden,
 		navigations,
-		submitted,
+		cookies,
 	};
 }
 
 describe("initSaveTip", () => {
-	it("holds a gated save back and shows the panel instead", () => {
+	it("opens the panel when the reader tabs into the save bar", () => {
 		const harness = createHarness();
 
-		const event = harness.submit("save-form");
+		harness.focusInto("save-input");
 
-		expect(event.defaultPrevented).toBe(true);
 		expect(harness.shown).toEqual(["save-tip"]);
-		expect(harness.submitted).toEqual([]);
 	});
 
-	it("lets the save through once the session has already been warned", () => {
+	it("records the warning as a session cookie the page itself can write", () => {
+		const harness = createHarness();
+
+		harness.focusInto("save-input");
+
+		expect(harness.cookies).toEqual(["rp_save_tip=seen; path=/; samesite=lax"]);
+	});
+
+	it("marks the cookie Secure when the page itself was served over https", () => {
+		const harness = createHarness({ secureTransport: true });
+
+		harness.focusInto("save-input");
+
+		expect(harness.cookies).toEqual(["rp_save_tip=seen; path=/; samesite=lax; secure"]);
+	});
+
+	it("marks every save bar on the page as warned, so none of them asks again", () => {
+		const harness = createHarness();
+
+		harness.focusInto("save-input");
+
+		expect(harness.stateOf("save-form")).toBe("seen");
+		expect(harness.stateOf("second-form")).toBe("seen");
+	});
+
+	it("waits for the click to finish before opening, so its own release cannot dismiss it", () => {
+		const harness = createHarness();
+
+		harness.pointer("save-input", "pointerdown");
+		harness.focusInto("save-input");
+
+		expect(harness.shown).toEqual([]);
+
+		harness.pointer("save-input", "pointerup");
+		harness.click("save-input");
+
+		expect(harness.shown).toEqual(["save-tip"]);
+	});
+
+	it("opens once for a click into the box, not again on the next click", () => {
+		const harness = createHarness();
+		harness.pointer("save-input", "pointerdown");
+		harness.focusInto("save-input");
+		harness.pointer("save-input", "pointerup");
+		harness.click("save-input");
+
+		harness.click("save-input");
+
+		expect(harness.shown).toEqual(["save-tip"]);
+	});
+
+	it("records the warning as it shows the panel, not as focus arrives", () => {
+		const harness = createHarness();
+
+		harness.pointer("save-input", "pointerdown");
+		harness.focusInto("save-input");
+
+		expect(harness.cookies).toEqual([]);
+
+		harness.pointer("save-input", "pointerup");
+		harness.click("save-input");
+
+		expect(harness.cookies).toEqual(["rp_save_tip=seen; path=/; samesite=lax"]);
+	});
+
+	it("opens for a press that lands the click somewhere other than the box", () => {
+		const harness = createHarness();
+
+		harness.pointer("save-input", "pointerdown");
+		harness.focusInto("save-input");
+		harness.pointer("save-input", "pointerup");
+		harness.click("save");
+
+		expect(harness.shown).toEqual(["save-tip"]);
+	});
+
+	it("opens on a later tab-focus rather than waiting behind an earlier click", () => {
+		const harness = createHarness();
+		harness.pointer("other-save", "pointerdown");
+		harness.pointer("other-save", "pointerup");
+		harness.click("other-save");
+
+		harness.focusInto("save-input");
+
+		expect(harness.shown).toEqual(["save-tip"]);
+	});
+
+	it("forgets a press whose focus left the box before the click arrived", () => {
+		const harness = createHarness();
+
+		harness.pointer("save-input", "pointerdown");
+		harness.focusInto("save-input");
+		harness.focusOutOf("save-input");
+		harness.pointer("save-input", "pointerup");
+		harness.click("save-input");
+
+		expect(harness.shown).toEqual([]);
+	});
+
+	it("forgets a press the browser cancelled instead of completing", () => {
+		const harness = createHarness();
+
+		harness.pointer("save-input", "pointerdown");
+		harness.focusInto("save-input");
+		harness.pointer("save-input", "pointercancel");
+		harness.click("save-input");
+
+		expect(harness.shown).toEqual([]);
+	});
+
+	it("forgets a press that never became a click once the next press begins", () => {
+		const harness = createHarness();
+		// A context-menu press or an off-target release ends without a click.
+		harness.pointer("save-input", "pointerdown");
+		harness.focusInto("save-input");
+		harness.pointer("save-input", "pointerup");
+
+		harness.pointer("other-save", "pointerdown");
+		harness.pointer("other-save", "pointerup");
+		harness.click("other-save");
+
+		expect(harness.shown).toEqual([]);
+		expect(harness.cookies).toEqual([]);
+	});
+
+	it("stays quiet when the panel was swapped away before the click completed", () => {
+		const harness = createHarness();
+		harness.pointer("save-input", "pointerdown");
+		harness.focusInto("save-input");
+		harness.element("save-tip").remove();
+		harness.pointer("save-input", "pointerup");
+
+		harness.click("save-input");
+
+		expect(harness.shown).toEqual([]);
+		expect(harness.cookies).toEqual([]);
+	});
+
+	it("opens at most once a page, so dismissing it does not bring it back", () => {
+		const harness = createHarness();
+		harness.focusInto("save-input");
+
+		harness.focusInto("save-input");
+
+		expect(harness.shown).toEqual(["save-tip"]);
+		expect(harness.cookies).toEqual(["rp_save_tip=seen; path=/; samesite=lax"]);
+	});
+
+	it("leaves the Save button alone, since only the URL box invites a paste", () => {
+		const harness = createHarness();
+
+		harness.focusInto("save");
+
+		expect(harness.shown).toEqual([]);
+		expect(harness.cookies).toEqual([]);
+	});
+
+	it("leaves a URL box outside a marked form alone", () => {
+		const harness = createHarness();
+
+		harness.focusInto("other-input");
+
+		expect(harness.shown).toEqual([]);
+		expect(harness.cookies).toEqual([]);
+	});
+
+	it("stays quiet for a session that has already been warned", () => {
 		const harness = createHarness({ state: "seen" });
 
-		const event = harness.submit("save-form");
+		harness.focusInto("save-input");
 
-		expect(event.defaultPrevented).toBe(false);
 		expect(harness.shown).toEqual([]);
-	});
-
-	it("lets a save permalink through, since the page submitted it, not the reader", () => {
-		const harness = createHarness();
-
-		const event = harness.submit("auto-form");
-
-		expect(event.defaultPrevented).toBe(false);
-		expect(harness.shown).toEqual([]);
-	});
-
-	it("leaves forms it does not gate alone", () => {
-		const harness = createHarness();
-
-		const event = harness.submit("other-form");
-
-		expect(event.defaultPrevented).toBe(false);
-		expect(harness.shown).toEqual([]);
-	});
-
-	it("submits the held form when the reader chooses to continue", () => {
-		const harness = createHarness();
-		harness.submit("save-form");
-
-		harness.click("proceed");
-
-		expect(harness.hidden).toEqual(["save-tip"]);
-		expect(harness.submitted).toEqual(["save-form"]);
-	});
-
-	it("does not re-open the panel on the submit its own proceed control triggers", () => {
-		const harness = createHarness();
-		harness.submit("save-form");
-		harness.click("proceed");
-
-		const event = harness.submit("save-form");
-
-		expect(event.defaultPrevented).toBe(false);
-		expect(harness.shown).toEqual(["save-tip"]);
+		expect(harness.cookies).toEqual([]);
 	});
 
 	it("holds a gated link back and follows it only after the reader continues", () => {
@@ -177,7 +321,17 @@ describe("initSaveTip", () => {
 
 		harness.click("proceed");
 
+		expect(harness.hidden).toEqual(["save-tip"]);
 		expect(harness.navigations).toEqual(["https://readplace.com/save?url=x"]);
+	});
+
+	it("lets a gated link through once the session has already been warned", () => {
+		const harness = createHarness({ state: "seen" });
+
+		const event = harness.click("cta");
+
+		expect(event.defaultPrevented).toBe(false);
+		expect(harness.shown).toEqual([]);
 	});
 
 	it("leaves links it does not gate alone", () => {
@@ -227,23 +381,23 @@ describe("initSaveTip", () => {
 	it("stays out of the way where the browser cannot open a popover", () => {
 		const harness = createHarness({ supportsPopover: false });
 
-		const submitEvent = harness.submit("save-form");
+		harness.focusInto("save-input");
 		const clickEvent = harness.click("cta");
 
-		expect(submitEvent.defaultPrevented).toBe(false);
 		expect(clickEvent.defaultPrevented).toBe(false);
 		expect(harness.shown).toEqual([]);
+		expect(harness.cookies).toEqual([]);
 	});
 
 	it("stays out of the way on a page that renders no panel", () => {
 		const harness = createHarness({ withPanel: false });
 
-		const submitEvent = harness.submit("save-form");
+		harness.focusInto("save-input");
 		const clickEvent = harness.click("cta");
 
-		expect(submitEvent.defaultPrevented).toBe(false);
 		expect(clickEvent.defaultPrevented).toBe(false);
 		expect(harness.shown).toEqual([]);
+		expect(harness.cookies).toEqual([]);
 	});
 
 	it("ignores a proceed click with nothing held back", () => {
@@ -252,28 +406,26 @@ describe("initSaveTip", () => {
 		harness.click("proceed");
 
 		expect(harness.hidden).toEqual([]);
-		expect(harness.submitted).toEqual([]);
 		expect(harness.navigations).toEqual([]);
 	});
 
 	it("ignores an event whose target is not an element at all", () => {
 		const harness = createHarness();
 
-		const submitEvent = harness.dispatchOnDocument("submit");
+		harness.dispatchOnDocument("focusin");
 		const clickEvent = harness.dispatchOnDocument("click");
 
-		expect(submitEvent.defaultPrevented).toBe(false);
 		expect(clickEvent.defaultPrevented).toBe(false);
 		expect(harness.shown).toEqual([]);
 	});
 
 	it("forgets what it was holding once the reader has continued", () => {
 		const harness = createHarness();
-		harness.submit("save-form");
+		harness.click("cta");
 		harness.click("proceed");
 
 		harness.click("proceed");
 
-		expect(harness.submitted).toEqual(["save-form"]);
+		expect(harness.navigations).toEqual(["https://readplace.com/save?url=x"]);
 	});
 });

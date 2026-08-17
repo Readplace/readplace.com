@@ -1,71 +1,109 @@
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "./save-tip-cookie";
+
 export interface SaveTipDeps {
 	document: Document;
 	supportsPopover: () => boolean;
 	showPopover: (panel: Element) => void;
 	hidePopover: (panel: Element) => void;
 	navigate: (href: string) => void;
+	isSecureTransport: () => boolean;
+	writeCookie: (cookie: string) => void;
 }
 
-/** What the visitor asked for and the panel is holding back: a form waiting to
- * submit, or a link waiting to be followed. The panel travels with it so the
- * proceed control never has to look one up that may not be there. */
-type PendingSave = { panel: Element } & (
-	| { form: HTMLFormElement; href?: undefined }
-	| { href: string; form?: undefined }
-);
+/** The link the panel is holding back, waiting to be followed. The panel travels
+ * with it so the proceed control never has to look one up that may not be there. */
+interface PendingNavigation {
+	panel: Element;
+	href: string;
+}
 
 const PANEL_ID = "save-tip";
-const DUE_SELECTOR = "[data-save-tip='due']";
+const STATE_ATTRIBUTE = "data-save-tip";
+const DUE_SELECTOR = `[${STATE_ATTRIBUTE}='due']`;
+const DUE_FORM_SELECTOR = `form${DUE_SELECTOR}`;
+const URL_INPUT_SELECTOR = "input[type='url']";
 const PROCEED_SELECTOR = "[data-save-tip-proceed]";
-const CONFIRMED_FLAG = "data-save-tip-confirmed";
-/** A form the page submits on the reader's behalf — a save permalink landing on
- * the queue with the URL already filled in. There is no paste to interrupt: the
- * decision was made on the page they came from, and holding it back would strand
- * them in front of a panel they never asked for. */
-const AUTO_SUBMIT_FLAG = "data-auto-submit";
 
 function isElement(node: EventTarget | null): node is Element {
 	return typeof Reflect.get(Object(node), "closest") === "function";
 }
 
 export function initSaveTip(deps: SaveTipDeps): void {
-	let pending: PendingSave | null = null;
+	let pendingNavigation: PendingNavigation | null = null;
+	let pointerPressed = false;
+	let showDeferred = false;
 
 	function openablePanel(): Element | null {
 		if (!deps.supportsPopover()) return null;
 		return deps.document.getElementById(PANEL_ID);
 	}
 
-	deps.document.addEventListener("submit", (event) => {
+	function seenCookie(): string {
+		const cookie = `${SAVE_TIP_COOKIE_NAME}=${SAVE_TIP_SEEN}; path=/; samesite=lax`;
+		return deps.isSecureTransport() ? `${cookie}; secure` : cookie;
+	}
+
+	function openTip(panel: Element): void {
+		deps.document.querySelectorAll(DUE_FORM_SELECTOR).forEach((form) => {
+			form.setAttribute(STATE_ATTRIBUTE, SAVE_TIP_SEEN);
+		});
+		deps.writeCookie(seenCookie());
+		deps.showPopover(panel);
+	}
+
+	deps.document.addEventListener("pointerdown", () => {
+		pointerPressed = true;
+		// A press that opens a context menu or releases off-target produces no
+		// click, so its deferral would otherwise ride along to the next click.
+		showDeferred = false;
+	});
+
+	deps.document.addEventListener("pointerup", () => {
+		pointerPressed = false;
+	});
+
+	deps.document.addEventListener("pointercancel", () => {
+		pointerPressed = false;
+		showDeferred = false;
+	});
+
+	deps.document.addEventListener("focusout", () => {
+		showDeferred = false;
+	});
+
+	deps.document.addEventListener("focusin", (event) => {
 		const target = event.target;
 		if (!isElement(target)) return;
-		const form = target.closest<HTMLFormElement>(DUE_SELECTOR);
-		if (form === null) return;
-		if (form.hasAttribute(AUTO_SUBMIT_FLAG)) return;
-		// Set by the proceed control below, so the resubmit it asks for passes
-		// straight through instead of reopening the panel it came from.
-		if (form.hasAttribute(CONFIRMED_FLAG)) return;
+		if (!target.matches(URL_INPUT_SELECTOR)) return;
+		if (target.closest(DUE_FORM_SELECTOR) === null) return;
 		const panel = openablePanel();
 		if (panel === null) return;
-		event.preventDefault();
-		pending = { panel, form };
-		deps.showPopover(panel);
+		// A panel opened before the pointer is released is dismissed by the very
+		// click that focused the box, so a pointer-driven focus waits for it.
+		if (pointerPressed) {
+			showDeferred = true;
+			return;
+		}
+		openTip(panel);
 	});
 
 	deps.document.addEventListener("click", (event) => {
+		if (showDeferred) {
+			showDeferred = false;
+			// Re-resolved rather than carried from focusin: a swap landing
+			// mid-press replaces the panel, and only one in the document opens.
+			const panel = openablePanel();
+			if (panel !== null) openTip(panel);
+		}
+
 		const target = event.target;
 		if (!isElement(target)) return;
 
 		if (target.closest(PROCEED_SELECTOR) !== null) {
-			const accepted = pending;
-			pending = null;
+			const accepted = pendingNavigation;
+			pendingNavigation = null;
 			if (accepted === null) return;
 			deps.hidePopover(accepted.panel);
-			if (accepted.form !== undefined) {
-				accepted.form.setAttribute(CONFIRMED_FLAG, "true");
-				accepted.form.requestSubmit();
-				return;
-			}
 			deps.navigate(accepted.href);
 			return;
 		}
@@ -78,7 +116,7 @@ export function initSaveTip(deps: SaveTipDeps): void {
 		const panel = openablePanel();
 		if (panel === null) return;
 		event.preventDefault();
-		pending = { panel, href: link.href };
+		pendingNavigation = { panel, href: link.href };
 		deps.showPopover(panel);
 	});
 }

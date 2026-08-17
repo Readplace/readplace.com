@@ -94,8 +94,8 @@ export interface ViewAction {
 	href: string;
 	variant: "primary" | "secondary";
 	expirySaveLink?: boolean;
-	/** Present on the action the save-tip panel gates, so the client script can
-	 * tell it apart from the actions it must leave alone. */
+	/** Present on the action the save-tip panel holds back, so the client script
+	 * can tell it apart from the actions it must leave alone. */
 	saveTipState?: SaveTipState;
 }
 

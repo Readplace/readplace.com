@@ -36,7 +36,7 @@ export function initSaveRoutes(deps: {
 	router.get("/", async (req, res) => {
 		const url = parseUrl(typeof req.query.url === "string" ? req.query.url : undefined);
 		// Reaching /save means the reader already went through the save tip on the
-		// page they came from, so the queue's auto-submit must not stop to ask again.
+		// page they came from, so the queue they land on must not warn them again.
 		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 
 		if (!url) {

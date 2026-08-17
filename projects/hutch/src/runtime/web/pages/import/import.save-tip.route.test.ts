@@ -17,7 +17,7 @@ function saveTipStateOn(html: string): string | null {
 }
 
 describe("Save tip — the import link box", () => {
-	it("gates the fetch for a session that has not been warned yet", async () => {
+	it("owes the tip to a session that has not been warned yet", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(harness.server).get("/import");
@@ -37,9 +37,12 @@ describe("Save tip — the import link box", () => {
 		expect(doc.getElementById("save-tip-title")?.textContent).toBe(
 			"Some of these may arrive as links only",
 		);
-		expect(
-			doc.querySelector("[data-test-action='save-tip-proceed']")?.textContent,
-		).toBe("Fetch the links anyway");
+		const actions = panel.querySelector("[data-test-save-tip-mode]");
+		assert(actions, "the panel must name the mode its controls were built for");
+		expect(actions.getAttribute("data-test-save-tip-mode")).toBe("advisory");
+		const acknowledge = doc.querySelector("[data-test-action='save-tip-acknowledge']");
+		assert(acknowledge, "the import panel must offer a way to dismiss it");
+		expect(acknowledge.getAttribute("popovertargetaction")).toBe("hide");
 	});
 
 	it("does not pretend a client could have read the index instead", async () => {
@@ -52,7 +55,7 @@ describe("Save tip — the import link box", () => {
 		expect(body.textContent).toContain("Nothing can capture a whole index for you");
 	});
 
-	it("stops gating the box once the session has been warned", async () => {
+	it("stops offering the tip once the session has been warned", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = request.agent(harness.server);
 

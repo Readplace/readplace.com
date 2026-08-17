@@ -39,7 +39,7 @@ interface RenderedAction {
 	readonly hiddenParams: readonly HiddenParam[];
 	readonly cssClass: ActionClass;
 	readonly input?: ActionInput;
-	/** Present on the one action the save-tip panel gates, so the client script
+	/** Present on the one action the save tip speaks for, so the client script
 	 * can tell it apart from the CTAs it must leave alone. */
 	readonly saveTipState?: SaveTipState;
 }

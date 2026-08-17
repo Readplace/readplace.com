@@ -130,7 +130,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			url,
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
 		});
-		sendComponent(req, res, Base(ImportAcquirePage(vm, { cspNonce: requireCspNonce(req), saveTip: buildSaveTip(req, "import") }), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(ImportAcquirePage(vm, { cspNonce: requireCspNonce(req), saveTip: buildSaveTip(req, { kind: "import", mode: "advisory" }) }), await deps.buildBannerState(req)));
 	});
 
 	router.post("/", importRateLimit, rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {

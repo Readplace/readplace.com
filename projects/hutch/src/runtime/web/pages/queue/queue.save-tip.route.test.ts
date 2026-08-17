@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { SAVE_TIP_COOKIE_NAME } from "../../shared/save-tip/save-tip";
+import { SAVE_TIP_COOKIE_NAME } from "../../shared/save-tip/save-tip-cookie";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -31,7 +31,7 @@ function panelOf(html: string): Element {
 }
 
 describe("Save tip — the queue save bar", () => {
-	it("gates the save bar for a session that has not been warned yet", async () => {
+	it("owes the tip to a save bar whose session has not been warned yet", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -40,18 +40,25 @@ describe("Save tip — the queue save bar", () => {
 		expect(saveTipStateOn(response.text, "[data-test-form='save-article']")).toBe("due");
 	});
 
-	it("puts the panel at page level, where an htmx <main> swap keeps it", async () => {
+	it("renders the advisory panel the save bar's focus opens", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const panel = panelOf((await agent.get("/queue")).text);
 
-		expect(panel.parentElement?.tagName).toBe("MAIN");
 		expect(panel.getAttribute("popover")).toBe("auto");
 		expect(panel.getAttribute("data-test-confirm-subject")).toBe("article");
+		const actions = panel.querySelector("[data-test-save-tip-mode]");
+		assert(actions, "the panel must name the mode its controls were built for");
+		expect(actions.getAttribute("data-test-save-tip-mode")).toBe("advisory");
+		expect(
+			Array.from(actions.querySelectorAll("[data-test-action]")).map((control) =>
+				control.getAttribute("data-test-action"),
+			),
+		).toEqual(["save-tip-acknowledge", "save-tip-install"]);
 	});
 
-	it("stops gating the save bar once a save has been through the warning", async () => {
+	it("stops offering the tip once a save has been through the warning", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -86,7 +93,7 @@ describe("Save tip — the queue save bar", () => {
 		expect(tipCookie.toLowerCase()).not.toContain("expires");
 	});
 
-	it("still gates the bar when the save was rejected, since nothing was saved", async () => {
+	it("still owes the tip when the save was rejected, since nothing was saved", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 

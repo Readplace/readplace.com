@@ -321,7 +321,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const counting = msLeft !== null && msLeft > 0;
 		if (counting) saveParams.set("utm_content", formatSaveUtmContent(decomposeTimeLeft(msLeft)));
 
-		const saveTip = buildSaveTip(req, "article");
+		const saveTip = buildSaveTip(req, { kind: "article", mode: "gating" });
 		const actions: ViewAction[] = [
 			{
 				name: "Save to My Queue",

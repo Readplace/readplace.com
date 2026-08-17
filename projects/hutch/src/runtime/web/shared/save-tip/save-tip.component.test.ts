@@ -3,7 +3,7 @@ import type { Request } from "express";
 import { parseHTML } from "linkedom";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
-import { type SaveTipKind, buildSaveTip } from "./save-tip.component";
+import { type SaveTipSpec, buildSaveTip } from "./save-tip.component";
 
 const IPHONE_SAFARI =
 	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
@@ -27,21 +27,31 @@ function request(input: {
 	} as unknown as Request;
 }
 
-function panelFor(req: Request, kind: SaveTipKind = "article") {
-	const { document } = parseHTML(`<main>${buildSaveTip(req, kind).html}</main>`);
+const ADVISORY_ARTICLE: SaveTipSpec = { kind: "article", mode: "advisory" };
+const ADVISORY_IMPORT: SaveTipSpec = { kind: "import", mode: "advisory" };
+const GATING_ARTICLE: SaveTipSpec = { kind: "article", mode: "gating" };
+
+function panelFor(req: Request, spec: SaveTipSpec = ADVISORY_ARTICLE) {
+	const { document } = parseHTML(`<main>${buildSaveTip(req, spec).html}</main>`);
 	return document;
 }
 
-function bodyTextFor(req: Request, kind: SaveTipKind = "article"): string {
-	const body = panelFor(req, kind).getElementById("save-tip-body");
+function bodyTextFor(req: Request, spec: SaveTipSpec = ADVISORY_ARTICLE): string {
+	const body = panelFor(req, spec).getElementById("save-tip-body");
 	assert(body, "the panel must explain why a pasted link may not be enough");
 	return body.textContent ?? "";
 }
 
+function actionsOf(doc: ReturnType<typeof panelFor>) {
+	const actions = doc.querySelector("[data-test-save-tip-mode]");
+	assert(actions, "the panel must name the mode its controls were built for");
+	return actions;
+}
+
 describe("buildSaveTip", () => {
 	it("passes the session's own state through, so the client can tell due from seen", () => {
-		const due = buildSaveTip(request({}), "article");
-		const seen = buildSaveTip(request({ cookies: { rp_save_tip: "seen" } }), "article");
+		const due = buildSaveTip(request({}), ADVISORY_ARTICLE);
+		const seen = buildSaveTip(request({ cookies: { rp_save_tip: "seen" } }), ADVISORY_ARTICLE);
 
 		expect(due.state).toBe("due");
 		expect(seen.state).toBe("seen");
@@ -55,13 +65,38 @@ describe("buildSaveTip", () => {
 		expect(panel.getAttribute("data-test-confirm-subject")).toBe("article");
 	});
 
-	it("offers a way through, so the warning informs rather than blocks", () => {
+	it("acknowledges and closes with no script, since it holds nothing back", () => {
 		const doc = panelFor(request({}));
 
+		expect(actionsOf(doc).getAttribute("data-test-save-tip-mode")).toBe("advisory");
+		const acknowledge = doc.querySelector("[data-test-action='save-tip-acknowledge']");
+		assert(acknowledge, "the advisory panel must offer a way to dismiss it");
+		expect(acknowledge.textContent).toBe("Got it");
+		expect(acknowledge.getAttribute("type")).toBe("button");
+		expect(acknowledge.getAttribute("popovertarget")).toBe("save-tip");
+		expect(acknowledge.getAttribute("popovertargetaction")).toBe("hide");
+		expect(acknowledge.hasAttribute("data-save-tip-proceed")).toBe(false);
+	});
+
+	it("offers a way through where it does hold a link back", () => {
+		const doc = panelFor(request({}), GATING_ARTICLE);
+
+		expect(actionsOf(doc).getAttribute("data-test-save-tip-mode")).toBe("gating");
 		const proceed = doc.querySelector("[data-test-action='save-tip-proceed']");
-		assert(proceed, "the panel must offer a way to continue");
+		assert(proceed, "the gating panel must offer a way to continue");
 		expect(proceed.textContent).toBe("Save the link anyway");
 		expect(proceed.getAttribute("type")).toBe("button");
+		expect(proceed.hasAttribute("data-save-tip-proceed")).toBe(true);
+	});
+
+	it("pitches the install alongside either control, since the advice is the same", () => {
+		const gating = panelFor(request({ userAgent: DESKTOP_CHROME }), GATING_ARTICLE);
+
+		const install = gating.querySelector("[data-test-action='save-tip-install']");
+		assert(install, "a visitor with no client must be offered one either way");
+		expect(new URL(install.getAttribute("href") ?? "", "https://readplace.com").pathname).toBe(
+			"/install",
+		);
 	});
 
 	describe("when the visitor has no content-capture client", () => {
@@ -127,24 +162,25 @@ describe("buildSaveTip", () => {
 
 	describe("the import surface", () => {
 		it("warns about the links it is about to fetch, not about one article", () => {
-			const doc = panelFor(request({}), "import");
+			const doc = panelFor(request({}), ADVISORY_IMPORT);
 
 			const title = doc.getElementById("save-tip-title");
 			assert(title, "the import panel must have its own title");
 			expect(title.textContent).toBe("Some of these may arrive as links only");
-			const proceed = doc.querySelector("[data-test-action='save-tip-proceed']");
-			assert(proceed, "the import panel must offer a way to continue");
-			expect(proceed.textContent).toBe("Fetch the links anyway");
+			expect(actionsOf(doc).getAttribute("data-test-save-tip-mode")).toBe("advisory");
+			const acknowledge = doc.querySelector("[data-test-action='save-tip-acknowledge']");
+			assert(acknowledge, "the import panel must offer a way to dismiss it");
+			expect(acknowledge.textContent).toBe("Got it");
 		});
 
 		it("does not pretend a client could have fetched the index instead", () => {
-			const text = bodyTextFor(request({}), "import");
+			const text = bodyTextFor(request({}), ADVISORY_IMPORT);
 
 			expect(text).toContain("Nothing can capture a whole index for you");
 		});
 
 		it("still offers the install for the single articles a client can capture", () => {
-			const doc = panelFor(request({ userAgent: IPHONE_SAFARI }), "import");
+			const doc = panelFor(request({ userAgent: IPHONE_SAFARI }), ADVISORY_IMPORT);
 
 			const install = doc.querySelector("[data-test-action='save-tip-install']");
 			assert(install, "the install offer stands for the next single article");

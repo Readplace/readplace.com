@@ -854,7 +854,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req), saveTip: buildSaveTip(req, "article") }),
+				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -1520,7 +1520,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				crawlByUrl,
 			});
 			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req), saveTip: buildSaveTip(req, "article") }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
 			return;
 		}
 

@@ -19,6 +19,12 @@ async function openFromUrlPanel(page: Page, config: ImportFromUrlActionsConfig):
 }
 
 async function submitUrl(page: Page, url: string): Promise<void> {
+	// The anonymous view action proceeds through /save, which records the save
+	// tip; without that this fill would open it over the box.
+	await expect(page.locator('[data-test-form="import-from-url"]')).toHaveAttribute(
+		'data-save-tip',
+		'seen',
+	)
 	await page.locator('[data-test-import-from-url-input]').fill(url)
 	await clickAndWaitForPageReload(page, page.locator('[data-test-action="import-from-url-submit"]'))
 }

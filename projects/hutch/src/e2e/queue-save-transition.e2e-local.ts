@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { captureTransitionFrames } from "./transition-frames";
 
 const BASE_URL = `http://localhost:${requireEnv("E2E_PORT")}`;
@@ -9,6 +10,10 @@ const VIEWPORT = { width: 1280, height: 900 };
 const SETTLE_MS = 45000;
 
 async function signUpFreshUser(page: Page, email: string): Promise<void> {
+	// Focusing the save bar opens the save tip, which would land in the frames.
+	await page
+		.context()
+		.addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
 	await page.goto(`${BASE_URL}/signup`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 
 const E2E_PORT = process.env.E2E_PORT;
@@ -77,6 +78,10 @@ function shortfall(measured: RenderedInk, where: { theme: string; view: string }
 }
 
 async function signUpFreshUser(page: Page, email: string): Promise<void> {
+	// Focusing the save bar opens the save tip, whose ink is not what is measured.
+	await page
+		.context()
+		.addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
 	await page.goto(`${BASE_URL}/signup`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);

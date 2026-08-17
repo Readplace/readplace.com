@@ -845,7 +845,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					foundingAllocation,
 					lastViewUrl: readLastViewUrl(req),
 					variant: arm.variant.marker,
-					saveTip: buildSaveTip(req, "article"),
+					saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }),
 				}),
 				banner,
 			),
