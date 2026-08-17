@@ -146,6 +146,7 @@ import {
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
 import { hasBackgroundSaveContinuity, isIosClient, isIosSurface } from "../../onboarding/ios-client";
+import { setSirenCollectionCaching } from "../../siren-discovery-cache";
 import { APP_BACK_LINK } from "../../shared/ios-app-links";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
@@ -970,6 +971,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				deps.logError,
 			);
 
+			setSirenCollectionCaching(req, res);
 			res.type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
 					filtered,

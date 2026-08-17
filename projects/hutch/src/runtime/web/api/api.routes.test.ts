@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import request from "supertest";
-import { useTestServer } from "../../test-app";
+import { loginAgent, useTestServer } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -13,6 +13,8 @@ import {
 import { initReadabilityParser } from "@packages/article-parser";
 
 import { SIREN_MEDIA_TYPE } from "./siren";
+import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../onboarding/ios-client";
+import { SIREN_DISCOVERY_MAX_AGE_SECONDS } from "../siren-discovery-cache";
 import {
 	createAccessToken,
 	saveAccessTokenForClient,
@@ -778,6 +780,76 @@ describe("GET / (Siren entry point)", () => {
 		);
 		expect(response.headers["access-control-allow-headers"]?.toLowerCase()).toContain("authorization");
 		expect(response.headers["access-control-allow-headers"]?.toLowerCase()).toContain("accept");
+	});
+
+	it("lets a Siren client hold the redirect for the server-defined lifetime, keyed on Accept", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.redirects(0);
+
+		expect(response.status).toBe(303);
+		expect(response.headers["cache-control"]).toBe(
+			`private, max-age=${SIREN_DISCOVERY_MAX_AGE_SECONDS}`,
+		);
+		expect(response.headers.vary).toBe("Accept, Origin");
+	});
+
+	it("caches the redirect for the iOS app the same way", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.redirects(0);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue");
+		expect(response.headers["cache-control"]).toBe(
+			`private, max-age=${SIREN_DISCOVERY_MAX_AGE_SECONDS}`,
+		);
+		expect(response.headers.vary).toBe("Accept, Origin");
+	});
+
+	it("caches the redirect a cookie-session Siren client follows too", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.redirects(0);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue");
+		expect(response.headers["cache-control"]).toBe(
+			`private, max-age=${SIREN_DISCOVERY_MAX_AGE_SECONDS}`,
+		);
+	});
+
+	it("keeps the signed-in browser's redirect out of every cache", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/").set("Accept", "text/html").redirects(0);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue");
+		expect(response.headers["cache-control"]).toBeUndefined();
+	});
+
+	it("keeps the home page per-visitor, since the A/B arm rides a cookie", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get("/").set("Accept", "text/html");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["cache-control"]).toBe("private, no-cache");
 	});
 });
 

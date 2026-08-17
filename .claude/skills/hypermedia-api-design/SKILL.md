@@ -70,7 +70,7 @@ Renaming an action is a breaking change — both sides must ship together. Renam
 | Rename a field name | **Yes** | Field name is the contract |
 | Rename a property in `properties` that clients read | **Yes** | Treat known property names as the contract |
 | Change an action's `method` | No | Client follows what the server declares |
-| Change an action's `href` | No | Same reason |
+| Change an action's `href` | No | Same reason, bounded by discovery freshness: a warm client may still hold the old `href` until its cached representation expires, and the re-discover-and-retry rule in [Client Conformance](#client-conformance) closes that window |
 | Change the URL structure of the site | No | As long as entry point and self-links stay consistent |
 
 When a breaking change is necessary, add the new capability alongside the old one, wait for clients to migrate, then remove the old. Versioned URLs (`/v2/queue`) are banned — they are a symptom of an API that doesn't evolve via the message format.
@@ -81,6 +81,8 @@ HTTP caching (`ETag` + `If-None-Match`) is the authoritative cache layer. Do not
 
 - Cache wrapper: `httpCacheable(understanding)` in the browser extension's `siren-reading-list.ts`
 - Short-lived action cache: `knownItems` in `initSirenReadingList` (cleared on every mutation)
+
+**Discovery freshness is server-defined.** The responses a client reads only to *discover* affordances — the entry-point `303` and the collection `GET` behind it — carry an explicit cache policy, so a warm client invokes an action it already holds without spending a re-discovery round trip first. The lifetime is granted per client: the collection's `max-age` currently goes to the native iOS client alone, and every other Siren client is held to `private, no-cache` revalidation, because entity mutations post to per-article URIs and would never auto-invalidate a cached collection on already-shipped clients. Only the server knows how long its own action vocabulary stays valid, so the client honours ordinary HTTP caching and never invents a TTL: `SIREN_DISCOVERY_MAX_AGE_SECONDS` in [projects/hutch/src/runtime/web/siren-discovery-cache.ts](../../../projects/hutch/src/runtime/web/siren-discovery-cache.ts) is the only place that lifetime is set. The two mechanisms are not interchangeable: `max-age` is what removes the warm round trip (the client answers from its own store), while `ETag`/`304` still costs a request and only cheapens revalidation when the body is unchanged — rare for a collection, which any save changes.
 
 After a mutation, the server drives the client back to the collection via `303 See Other`. `fetch` follows the redirect automatically; the client parses the new collection and that becomes the new truth. Do not synthesise "the new list after delete" client-side — read it from the response.
 
@@ -212,6 +214,8 @@ These rules make any client (extension, iOS, MCP, future) behave like a browser 
 | Drive search, filter, sort, and pagination from the server's `fields` and links — never client-built params or client-side re-paging. | Hardcoding `?page=` or re-paginating one fetched page client-side hides items past the first page and breaks when the server changes paging; hardcoding a filter field name breaks on a rename. |
 | Don't duplicate server policy (size caps, validation thresholds) in the client; attempt the action and follow the server's fallback/refusal. | A client copy of a server constant goes stale on a server change and mis-routes; the server already advertises the fallback action to follow. |
 | Bind a response's actions through one generic path that posts each declared field's server-provided `value`, encoded per the action's `type` (urlencoded → form body, json → JSON body). Don't cherry-pick named affordances into per-operation code with hardcoded shapes or hardcoded field values. | The invocation values come from the server (the field `value`), so a bare `(id, name)` invocation suffices; per-operation bespoke handling or a client-baked value means each new server capability needs new client code and goes stale on a server change. |
+| When an action discovered from a **cached** representation is invoked and the invocation fails for any reason other than a server refusal (the `messages` channel) or `401`/`403`, bypass the cache, re-discover from the entry point, and retry once. | Freshness lets a client hold an affordance the server has already moved, so this retry is what keeps "changing an `href` is non-breaking" true once caching delays the client's re-read. Refusals and auth failures are excluded because those are the server's answer, not a stale address — re-posting them would repeat a mutation the server deliberately rejected. |
+| A post-mutation collection read is **not** a discovery read: revalidate it, and treat the mutation response's own body as the post-mutation truth. | Extends "follow the `303` and read the new collection": a cached collection is by definition pre-mutation, so honouring freshness there would resurrect the very list the mutation just changed. |
 
 ## Per-Client Implementations
 
@@ -232,6 +236,10 @@ The browser-extension client separates three concerns:
 For the full flow see the source — it is the spec: [projects/browser-extensions/browser-extension-core/src/reading-list/siren-reading-list.ts](../../../projects/browser-extensions/browser-extension-core/src/reading-list/siren-reading-list.ts). The adapter `initSirenReadingList` exists only to bridge this walker to the legacy `SaveUrl`/`RemoveUrl`/`FindByUrl`/`GetAllItems` interface that the popup consumes. New consumers should call the walker directly.
 
 When adding a capability the extension supports: add an `init*Understanding` keyed by the action name, compose it via `groupOf(...)`, wrap with `httpCacheable(...)` for cacheable GETs, and drive the walker directly rather than adding a method to `initSirenReadingList`.
+
+### iOS app
+
+iOS honours the discovery freshness headers through a persistent `URLCache` installed on the **share extension's** session only — the share sheet is where a re-discovery round trip is latency the user watches, and the extension is killed between invocations, so the cache has to outlive the process to be worth anything. The main app's sessions stay uncached, which is what keeps its list views revalidating instead of painting a pre-mutation queue back over a save the user just made. Source: [projects/native-apps/ios/Shared/DiscoveryHTTPCache.swift](../../../projects/native-apps/ios/Shared/DiscoveryHTTPCache.swift).
 
 ### MCP: the same doctrine over a different transport
 
