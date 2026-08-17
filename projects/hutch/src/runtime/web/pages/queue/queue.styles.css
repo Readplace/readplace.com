@@ -339,6 +339,10 @@
   color: var(--foreground);
 }
 
+.queue__filter-link:focus-visible {
+  outline-offset: -2px;
+}
+
 .queue__filter-link--active {
   background: var(--card);
   border-bottom-color: var(--card);
