@@ -7,6 +7,7 @@ import {
 	expect as harnessExpect,
 	pinCdnFixtures,
 	waitForBrandFonts,
+	waitForImagePixels,
 } from "./hermetic-cdn";
 
 const FIXTURES_ROOT = path.join(__dirname, "..", "e2e-cdn-fixtures");
@@ -75,9 +76,9 @@ describe("pinCdnFixtures", () => {
 		await pinCdnFixtures(context);
 
 		const claimed = (url: string) => registrations.map((route) => route.matches(new URL(url)));
-		expect(claimed("https://fonts.googleapis.com/css2?family=Inter")).toEqual([true, false]);
-		expect(claimed("https://fonts.gstatic.com/s/inter/v20/font.woff2")).toEqual([false, true]);
-		expect(claimed("https://readplace.com/queue")).toEqual([false, false]);
+		expect(claimed("https://fonts.googleapis.com/css2?family=Inter")).toEqual([true, false, false]);
+		expect(claimed("https://fonts.gstatic.com/s/inter/v20/font.woff2")).toEqual([false, true, false]);
+		expect(claimed("https://readplace.com/queue")).toEqual([false, false, false]);
 	});
 
 	it("answers the stylesheet host with the bundled Inter stylesheet", async () => {
@@ -115,6 +116,85 @@ describe("pinCdnFixtures", () => {
 		});
 		expect(existsSync(fulfilled.path)).toBe(true);
 	});
+
+	it("claims the founder avatar by path on whichever origin STATIC_BASE_URL names", async () => {
+		const { context, registrations } = createRoutingContext();
+		await pinCdnFixtures(context);
+
+		const avatar = registrations[2];
+		expect(avatar.matches(new URL("https://d2uoxssv1ey7em.cloudfront.net/fayner-brack.jpg"))).toBe(true);
+		expect(avatar.matches(new URL("http://127.0.0.1:3000/fayner-brack.jpg"))).toBe(true);
+		expect(avatar.matches(new URL("https://d2uoxssv1ey7em.cloudfront.net/other.jpg"))).toBe(false);
+	});
+
+	it("answers the avatar request with the bundled portrait", async () => {
+		const { context, registrations } = createRoutingContext();
+		await pinCdnFixtures(context);
+
+		const fulfilled = await fulfilledBy(
+			registrations[2],
+			"https://d2uoxssv1ey7em.cloudfront.net/fayner-brack.jpg",
+		);
+
+		expect(fulfilled).toEqual({
+			path: path.join(FIXTURES_ROOT, "fayner-brack.jpg"),
+			contentType: "image/jpeg",
+		});
+		expect(existsSync(fulfilled.path)).toBe(true);
+	});
+});
+
+type ImageEntry = { complete: boolean; naturalWidth: number };
+
+function createImagePage(image: ImageEntry | null): { page: Page; verdicts: boolean[] } {
+	const verdicts: boolean[] = [];
+	const page = {
+		waitForFunction: async (predicate: (wanted: string) => unknown, wanted: string) => {
+			Reflect.set(globalThis, "document", {
+				querySelector: (selector: string) => (selector === wanted ? image : null),
+			});
+			try {
+				verdicts.push(Boolean(predicate(wanted)));
+			} finally {
+				Reflect.deleteProperty(globalThis, "document");
+			}
+		},
+	};
+	return { page: page as unknown as Page, verdicts };
+}
+
+describe("waitForImagePixels", () => {
+	it("holds until the image has decoded real pixels", async () => {
+		const { page, verdicts } = createImagePage({ complete: true, naturalWidth: 72 });
+
+		await waitForImagePixels(page, ".onboarding__avatar");
+
+		expect(verdicts).toEqual([true]);
+	});
+
+	it("stays unsatisfied while the image is still fetching", async () => {
+		const { page, verdicts } = createImagePage({ complete: false, naturalWidth: 0 });
+
+		await waitForImagePixels(page, ".onboarding__avatar");
+
+		expect(verdicts).toEqual([false]);
+	});
+
+	it("stays unsatisfied for a broken image that completed with no pixels", async () => {
+		const { page, verdicts } = createImagePage({ complete: true, naturalWidth: 0 });
+
+		await waitForImagePixels(page, ".onboarding__avatar");
+
+		expect(verdicts).toEqual([false]);
+	});
+
+	it("stays unsatisfied while the selector matches nothing", async () => {
+		const { page, verdicts } = createImagePage(null);
+
+		await waitForImagePixels(page, ".onboarding__avatar");
+
+		expect(verdicts).toEqual([false]);
+	});
 });
 
 describe("harness exports", () => {
@@ -134,7 +214,7 @@ describe("cdnContextFixture", () => {
 			handedOver.push(pinned);
 		});
 
-		expect(pinnedWhenHandedOver).toEqual([2]);
+		expect(pinnedWhenHandedOver).toEqual([3]);
 		expect(handedOver).toEqual([context]);
 	});
 });

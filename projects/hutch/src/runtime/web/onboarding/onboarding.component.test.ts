@@ -68,6 +68,18 @@ describe("OnboardingChecklist", () => {
 		assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
 	});
 
+	it("carries the hiding state class on a completed row and not on an outstanding one", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ installed: true })));
+
+		const done = doc.querySelector('[data-test-onboarding-step="install-extension"]');
+		assert(done, "install-extension step must still be rendered once complete");
+		assert.equal(done.classList.contains("onboarding__step--complete"), true);
+
+		const outstanding = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
+		assert(outstanding, "save-first-article step must be rendered");
+		assert.equal(outstanding.classList.contains("onboarding__step--complete"), false);
+	});
+
 	it("keeps install-extension incomplete when installed is false", () => {
 		const doc = parse(OnboardingChecklist(contextWith({ installed: false, savedArticle: true })));
 
@@ -233,6 +245,31 @@ describe("OnboardingChecklist", () => {
 
 		const avatar = success.querySelector(".onboarding__avatar");
 		assert(avatar, "founder avatar must be shown in success state");
+	});
+
+	it("keeps the full welcome visible for a first-time completion", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true })));
+
+		const message = doc.querySelector(".onboarding__success-message");
+		assert(message, "success message must be rendered");
+		assert.equal(message.classList.contains("onboarding__success-message--hidden"), false);
+		assert.match(message.textContent ?? "", /one of us/);
+	});
+
+	it("greets a user who completed a previous checklist with just the title", () => {
+		const doc = parse(
+			OnboardingChecklist(contextWith({ savedArticle: true, installed: true }), {
+				completedBefore: true,
+			}),
+		);
+
+		const title = doc.querySelector(".onboarding__success-title");
+		assert(title, "success title must be rendered");
+		assert.match(title.textContent ?? "", /You did it!/);
+
+		const message = doc.querySelector(".onboarding__success-message");
+		assert(message, "success message must stay rendered for its state class");
+		assert.equal(message.classList.contains("onboarding__success-message--hidden"), true);
 	});
 
 	it("reaches success from the iPhone steps when both are complete", () => {

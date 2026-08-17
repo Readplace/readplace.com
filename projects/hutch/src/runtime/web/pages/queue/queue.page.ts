@@ -813,9 +813,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const { installed, savedArticle } = platform === "iphone"
 			? await deps.getIosAppSignals({ userId })
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		const dismissTokenMatches = req.cookies?.[DISMISS_COOKIE_NAME] === dismissTokenFor(hasClient);
+		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
+		const dismissTokenMatches = dismissCookie === dismissTokenFor(hasClient);
 		const onboardingDismissed = hasClient ? installed && dismissTokenMatches : dismissTokenMatches;
-		return { platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed };
+		const onboardingCompletedBefore =
+			dismissCookie !== undefined && dismissCookie !== NO_CLIENT_ONBOARDING_VERSION;
+		return { platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed, onboardingCompletedBefore };
 	};
 
 	/** Renders the full queue listing from an already-fetched page of rows — the

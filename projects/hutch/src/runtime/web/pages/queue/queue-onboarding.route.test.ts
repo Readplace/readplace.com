@@ -236,6 +236,64 @@ describe("Queue onboarding", () => {
 		const cookieStr = Array.isArray(cookies) ? cookies.join("; ") : cookies;
 		expect(cookieStr).toContain(`${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}`);
 	});
+
+	describe("success-card welcome copy", () => {
+		function successMessage(html: string): Element {
+			const message = new JSDOM(html).window.document.querySelector(
+				".onboarding__success-message",
+			);
+			assert(message, "success message element must be rendered");
+			return message;
+		}
+
+		const ALL_COMPLETE_COOKIES = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
+
+		it("welcomes a first-time completion with the full message", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent
+				.get("/queue")
+				.set("User-Agent", CHROME_UA)
+				.set("Cookie", ALL_COMPLETE_COOKIES);
+
+			const message = successMessage(response.text);
+			expect(message.classList.contains("onboarding__success-message--hidden")).toBe(false);
+			expect(message.textContent).toContain("one of us");
+		});
+
+		it("greets a re-onboarded user with just the title once a past dismissal shows they finished before", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent
+				.get("/queue")
+				.set("User-Agent", CHROME_UA)
+				.set(
+					"Cookie",
+					`${DISMISS_COOKIE_NAME}=stale-version; ${ALL_COMPLETE_COOKIES}`,
+				);
+
+			const message = successMessage(response.text);
+			expect(message.classList.contains("onboarding__success-message--hidden")).toBe(true);
+		});
+
+		it("still welcomes in full when the only past dismissal was the no-client escape card", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent
+				.get("/queue")
+				.set("User-Agent", CHROME_UA)
+				.set(
+					"Cookie",
+					`${DISMISS_COOKIE_NAME}=${NO_CLIENT_ONBOARDING_VERSION}; ${ALL_COMPLETE_COOKIES}`,
+				);
+
+			const message = successMessage(response.text);
+			expect(message.classList.contains("onboarding__success-message--hidden")).toBe(false);
+		});
+	});
 });
 
 /** Mobile Safari on iPhone, the platform that reads the per-user iOS signal. */

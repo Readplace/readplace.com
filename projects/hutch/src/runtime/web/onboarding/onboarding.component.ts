@@ -22,7 +22,6 @@ interface OnboardingStepDisplayModel {
 	description: string;
 	completeAttr: "true" | "false";
 	rowClass: string;
-	checkClass: string;
 	actions: OnboardingAction[];
 }
 
@@ -40,9 +39,6 @@ function toStepDisplayModel(
 		rowClass: isComplete
 			? "onboarding__step onboarding__step--complete"
 			: "onboarding__step",
-		checkClass: isComplete
-			? "onboarding__check onboarding__check--ticked"
-			: "onboarding__check",
 		actions,
 	};
 }
@@ -68,7 +64,7 @@ function renderNoClientCard(options: { dismissed?: boolean }): string {
 
 export function OnboardingChecklist(
 	ctx: OnboardingContext,
-	options: { dismissed?: boolean } = {},
+	options: { dismissed?: boolean; completedBefore?: boolean } = {},
 ): string {
 	if (!ctx.hasInstallableClient) return renderNoClientCard(options);
 	const steps = ONBOARDING_STEPS.map((step) => toStepDisplayModel(step, ctx));
@@ -81,6 +77,9 @@ export function OnboardingChecklist(
 		steps,
 		stateClass,
 		allComplete,
+		successMessageClass: options.completedBefore
+			? "onboarding__success-message onboarding__success-message--hidden"
+			: "onboarding__success-message",
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 	});
 }

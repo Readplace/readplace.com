@@ -45,6 +45,13 @@ export function createOnboardingActions(
 				).count()
 				expect(stillIncomplete).toBe(0)
 
+				const completedStep = page.locator('[data-test-onboarding-step="install-extension"]')
+				await expect(completedStep).toBeAttached()
+				await expect(completedStep).toBeHidden()
+				await expect(
+					page.locator('[data-test-onboarding-step="save-first-article-via-extension"]'),
+				).toBeVisible()
+
 				progress.installedExtension = true
 			},
 		},

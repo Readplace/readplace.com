@@ -26,14 +26,14 @@
     </form>
     <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">
     <h2 class="onboarding__success-title">You did it! {{icon "check-circle"}}</h2>
-    <p class="onboarding__success-message">You're officially one of us. Welcome to Readplace.</p>
+    <p class="{{successMessageClass}}">You're officially one of us. Welcome to Readplace.</p>
   </div>
   {{else}}
   {{> intro lede="I built Readplace from my reading system so you could also save articles and actually read them later. Here are a few small things to set you up."}}
   <ol class="onboarding__steps" data-test-onboarding-steps>
     {{#each steps}}
     <li class="{{rowClass}}" data-test-onboarding-step="{{id}}" data-test-onboarding-complete="{{completeAttr}}">
-      <span class="{{checkClass}}" aria-hidden="true"></span>
+      <span class="onboarding__check" aria-hidden="true"></span>
       <div class="onboarding__step-body">
         <h3 class="onboarding__step-title">{{title}}</h3>
         <p class="onboarding__step-description">{{description}}</p>

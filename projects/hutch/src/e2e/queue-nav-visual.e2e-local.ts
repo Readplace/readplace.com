@@ -8,6 +8,7 @@ import {
 	test,
 	type VisualCheckpoint,
 	waitForBrandFonts,
+	waitForImagePixels,
 } from "@packages/e2e-harness";
 import { formatTabCountLabel } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
@@ -211,6 +212,7 @@ async function seededQueueSettled(page: Page): Promise<void> {
 async function wholeQueueSettled(page: Page): Promise<void> {
 	await page.waitForSelector("body.page-queue");
 	await expect(page.locator(QUEUE_NAV_LINK)).toHaveText("My Queue");
+	await waitForImagePixels(page, "main.queue .onboarding__avatar");
 	await seededQueueSettled(page);
 }
 
@@ -219,6 +221,7 @@ async function wholeQueueSettled(page: Page): Promise<void> {
 async function defaultQueueSettled(page: Page): Promise<void> {
 	await page.waitForSelector("body.page-queue");
 	await expect(page.locator(QUEUE_TITLE)).toHaveText("My Queue");
+	await waitForImagePixels(page, "main.queue .onboarding__avatar");
 	await seededQueueSettled(page);
 }
 

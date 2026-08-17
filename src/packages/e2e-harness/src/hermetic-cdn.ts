@@ -28,6 +28,25 @@ export async function pinCdnFixtures(context: BrowserContext): Promise<void> {
 			});
 		},
 	);
+	/* Matched by pathname, not hostname: the avatar's origin follows
+	 * STATIC_BASE_URL — the CDN when a developer's .env points there, the app
+	 * origin when it is empty — and both must resolve to the bundled bytes for
+	 * a capture to be network-independent. */
+	await context.route(
+		(url) => url.pathname === "/fayner-brack.jpg",
+		(route) =>
+			route.fulfill({
+				path: path.join(FIXTURES_DIR, "fayner-brack.jpg"),
+				contentType: "image/jpeg",
+			}),
+	);
+}
+
+export async function waitForImagePixels(page: Page, selector: string): Promise<void> {
+	await page.waitForFunction((wanted) => {
+		const image = document.querySelector<HTMLImageElement>(wanted);
+		return image?.complete && image.naturalWidth > 0;
+	}, selector);
 }
 
 export const cdnContextFixture = async (

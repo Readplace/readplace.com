@@ -4,6 +4,7 @@ export {
 	pinCdnFixtures,
 	test,
 	waitForBrandFonts,
+	waitForImagePixels,
 } from "./hermetic-cdn";
 export {
 	type CaptureMode,
