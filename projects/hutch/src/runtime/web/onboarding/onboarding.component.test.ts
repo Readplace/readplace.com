@@ -104,6 +104,28 @@ describe("OnboardingChecklist", () => {
 		assert.equal(step.getAttribute("data-test-onboarding-complete"), "false");
 	});
 
+	it("lets the save step's title stand alone while the install step keeps its description", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "chrome" })));
+
+		const install = doc.querySelector('[data-test-onboarding-step="install-extension"]');
+		assert(install, "install-extension step must be rendered");
+		assert.equal(install.querySelectorAll(".onboarding__step-description").length, 1);
+
+		const save = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
+		assert(save, "save-first-article step must be rendered");
+		assert.equal(save.querySelectorAll(".onboarding__step-description").length, 0);
+	});
+
+	it("keeps the share-sheet walkthrough on the iPhone save step", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone" })));
+
+		const save = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
+		assert(save, "save-first-article step must be rendered");
+		const description = save.querySelector(".onboarding__step-description");
+		assert(description, "the iPhone save step must keep its description");
+		assert.match(description.textContent ?? "", /tap Share/);
+	});
+
 	it("shows container when only save-first-article is complete", () => {
 		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: false })));
 

@@ -10,8 +10,6 @@ interface StepCopy {
 
 const INSTALL_BROWSER_DESCRIPTION =
 	"Add Readplace to your browser and log-in so you can save any page with one click.";
-const SAVE_BROWSER_DESCRIPTION =
-	"Click the Readplace button in your browser toolbar on a page you want to read later. The save bar on this page doesn't count for this step.";
 
 const INSTALL_COPY: Record<Platform, StepCopy> = {
 	firefox: {
@@ -40,12 +38,12 @@ const INSTALL_COPY: Record<Platform, StepCopy> = {
 const SAVE_COPY: Record<Platform, StepCopy> = {
 	firefox: {
 		title: "Save your first article using the browser extension",
-		description: SAVE_BROWSER_DESCRIPTION,
+		description: "",
 		actions: [],
 	},
 	chrome: {
 		title: "Save your first article using the browser extension",
-		description: SAVE_BROWSER_DESCRIPTION,
+		description: "",
 		actions: [],
 	},
 	iphone: {
@@ -56,7 +54,7 @@ const SAVE_COPY: Record<Platform, StepCopy> = {
 	},
 	other: {
 		title: "Save your first article using a browser extension",
-		description: SAVE_BROWSER_DESCRIPTION,
+		description: "",
 		actions: [{ label: "Choose browser", url: buildExtensionInstallUrl("other") }],
 	},
 };

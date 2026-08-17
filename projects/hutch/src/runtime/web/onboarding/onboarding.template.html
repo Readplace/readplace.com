@@ -36,7 +36,9 @@
       <span class="onboarding__check" aria-hidden="true"></span>
       <div class="onboarding__step-body">
         <h3 class="onboarding__step-title">{{title}}</h3>
+        {{#if description}}
         <p class="onboarding__step-description">{{description}}</p>
+        {{/if}}
         {{#if actions.length}}
         <div class="onboarding__actions">
           {{#each actions}}
