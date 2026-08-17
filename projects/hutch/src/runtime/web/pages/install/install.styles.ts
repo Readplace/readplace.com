@@ -122,25 +122,6 @@ export const INSTALL_PAGE_STYLES = `
 	margin-bottom: 36px;
 }
 
-.install-page__steps {
-	max-width: 600px;
-	margin: 0 0 28px;
-	padding-left: 24px;
-	list-style: decimal;
-	color: var(--foreground);
-}
-
-.install-page__step {
-	margin-bottom: 16px;
-	padding-left: 6px;
-	line-height: 1.6;
-}
-
-.install-page__step-title {
-	display: block;
-	font-size: 1rem;
-}
-
 .install-page__steps-outro {
 	max-width: 600px;
 	margin: 0;
@@ -281,44 +262,15 @@ export const INSTALL_PAGE_STYLES = `
 	box-shadow: var(--shadow-sm);
 }
 
+.install-page__video-frame--wide {
+	max-width: 100%;
+}
+
 .install-page__video-caption {
 	padding-top: 10px;
 	font-size: 0.875rem;
 	line-height: 1.6;
 	color: var(--muted-foreground);
 	text-wrap: pretty;
-}
-
-/**
- * 1. Same theme-adaptive frame as the homepage demo videos: the raster inside
- *    is one light-theme asset, but the border/caption chrome follows the theme.
- */
-.install-page__screenshots {
-	display: grid;
-	gap: 24px;
-	margin-top: 48px;
-	padding-top: 32px;
-	border-top: 1px solid var(--border);
-}
-
-.install-page__screenshot {
-	margin: 0;
-	min-width: 0;
-}
-
-.install-page__screenshot-img {
-	display: block;
-	width: 100%;
-	height: auto;
-	border: 1px solid var(--border); /* 1 */
-	border-radius: var(--radius-lg);
-	box-shadow: var(--shadow-sm);
-}
-
-.install-page__screenshot-caption {
-	padding-top: 10px;
-	font-size: 0.875rem;
-	line-height: 1.6;
-	color: var(--muted-foreground);
 }
 `;

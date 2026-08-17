@@ -413,7 +413,7 @@ describe("GET /", () => {
 		);
 	});
 
-	it("should render two demo videos: Desktop and Browser Extension", async () => {
+	it("should render one demo video per browser extension", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
@@ -421,7 +421,29 @@ describe("GET /", () => {
 		const demoSection = doc.querySelector('[data-test-section="demo"]');
 		const videoLabels = demoSection?.querySelectorAll(".home-demo__video-label");
 		const labels = Array.from(videoLabels ?? []).map((el) => el.textContent);
-		expect(labels).toEqual(["Desktop", "Browser Extension"]);
+		expect(labels).toEqual(["Chrome", "Firefox"]);
+	});
+
+	it("should reserve each demo video's box and leave it click-to-play", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const videos = Array.from(
+			doc.querySelectorAll('[data-test-section="demo"] .home-demo__video'),
+		);
+		expect(videos).toHaveLength(2);
+		for (const video of videos) {
+			expect(video.getAttribute("width")).toBe("1280");
+			expect(video.getAttribute("height")).toBe("800");
+			expect(video.getAttribute("preload")).toBe("none");
+			expect(video.hasAttribute("controls")).toBe(true);
+			expect(video.hasAttribute("autoplay")).toBe(false);
+			expect(video.hasAttribute("loop")).toBe(false);
+			expect(video.getAttribute("poster")).toMatch(/save-demo-poster\.webp$/);
+			const sources = Array.from(video.querySelectorAll("source")).map((s) => s.getAttribute("type"));
+			expect(sources).toEqual(["video/mp4"]);
+		}
 	});
 
 	it("should render the backstory section", async () => {

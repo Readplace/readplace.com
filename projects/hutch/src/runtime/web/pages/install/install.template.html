@@ -77,25 +77,19 @@
         {{else}}
         <p class="install-page__unavailable" data-test-section="browser-unavailable">The {{panel.browser.name}} extension is not available for download yet. Please check back soon.</p>
         {{/if}}
-        <ol class="install-page__steps" data-test-section="browser-steps">
-          {{#each browserSteps}}
-          <li class="install-page__step" data-test-browser-step><span class="install-page__step-title">{{this}}</span></li>
-          {{/each}}
-        </ol>
+        <figure class="install-page__video-frame install-page__video-frame--wide" data-test-video>
+          <video class="install-page__video" width="{{panel.browser.demo.width}}" height="{{panel.browser.demo.height}}" poster="{{panel.browser.demo.poster}}" muted playsinline controls preload="none" aria-label="{{panel.browser.demo.ariaLabel}}">
+            {{#each panel.browser.demo.sources}}
+            <source src="{{src}}" type="{{type}}">
+            {{/each}}
+          </video>
+          <figcaption class="install-page__video-caption">{{panel.browser.demo.caption}}</figcaption>
+        </figure>
+
+        <p class="install-page__steps-outro" data-test-section="browser-setup-outro">{{browserOutro}}</p>
       </section>
       {{/case}}
       {{/switch}}
-
-      {{#if screenshots.length}}
-      <section class="install-page__screenshots" aria-label="Screenshots" data-test-section="screenshots">
-        {{#each screenshots}}
-        <figure class="install-page__screenshot" data-test-screenshot>
-          <img src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" loading="lazy" class="install-page__screenshot-img">
-          <figcaption class="install-page__screenshot-caption">{{caption}}</figcaption>
-        </figure>
-        {{/each}}
-      </section>
-      {{/if}}
 
     </div>
   </main>

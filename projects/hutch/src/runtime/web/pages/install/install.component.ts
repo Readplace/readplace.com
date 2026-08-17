@@ -18,6 +18,8 @@ import { SAVE_INTENT_PROMPT } from "../mcp";
 import { CLIENT_ICON_SVG } from "../../shared/client-icons";
 import { buildShareDemoVideo } from "../../shared/share-demo-video";
 import type { ShareDemoVideo } from "../../shared/share-demo-video";
+import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
+import type { ExtensionDemoBrowser, ExtensionDemoVideo } from "../../shared/extension-demo-video";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
 
 import { firefoxS3Config } from "browser-extension-core/s3-config";
@@ -125,73 +127,11 @@ function buildTabGroups(active: ClientName): InstallTabGroup[] {
 	return groups.filter((group) => group.tabs.length > 0);
 }
 
-const BROWSER_STEPS: string[] = [
-	"Pin Readplace to your toolbar so it's one click away.",
-	"Sign in once, and your queue syncs across every browser and device.",
-	"Save the page you're reading from the toolbar button or the Ctrl/Cmd+D shortcut. Right-click to save all your open tabs, or a link you haven't opened yet.",
-];
+const BROWSER_SETUP_OUTRO =
+	"You sign in once and your queue syncs across every browser and device. Right-click to save all your open tabs, or a link you haven't opened yet.";
 
 const IOS_SETUP_OUTRO =
 	"Save what you want to read while you're out, then read it in the app or at readplace.com when you have the time. Any feedback is welcome in-app.";
-
-interface InstallScreenshot {
-	pathUnderStaticBase: string;
-	alt: string;
-	caption: string;
-	width: number;
-	height: number;
-}
-
-const SAVE_FROM_EXTENSION_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/save-from-extension.webp",
-	alt: "The Readplace extension popup confirming an article was saved, over a Quanta Magazine article",
-	caption: "One click saves the full page you're reading — not just the link.",
-	width: 1440,
-	height: 900,
-};
-
-const QUEUE_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/queue.webp",
-	alt: "The Readplace queue listing saved articles with thumbnails and short previews",
-	caption: "Everything waits in one queue, with a short preview so you know what's worth your time.",
-	width: 1440,
-	height: 900,
-};
-
-const READER_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/reader-tldr.webp",
-	alt: "The Readplace reader showing an article with its AI summary expanded",
-	caption: "Read without the clutter — with a TL;DR before you commit.",
-	width: 1440,
-	height: 900,
-};
-
-const CLIENT_SCREENSHOTS = {
-	firefox: [SAVE_FROM_EXTENSION_SHOT, QUEUE_SHOT, READER_SHOT],
-	chrome: [SAVE_FROM_EXTENSION_SHOT, QUEUE_SHOT, READER_SHOT],
-	iphone: [],
-	chatgpt: [],
-	gemini: [],
-	claude: [],
-} satisfies Record<ClientName, readonly InstallScreenshot[]>;
-
-interface InstallScreenshotView {
-	src: string;
-	alt: string;
-	caption: string;
-	width: number;
-	height: number;
-}
-
-function buildScreenshots(client: ClientName, staticBaseUrl: string): InstallScreenshotView[] {
-	return CLIENT_SCREENSHOTS[client].map((shot) => ({
-		src: `${staticBaseUrl}${shot.pathUnderStaticBase}`,
-		alt: shot.alt,
-		caption: shot.caption,
-		width: shot.width,
-		height: shot.height,
-	}));
-}
 
 /** The recording carries the whole share flow, so the panel states only what it
  * cannot show — that this works from any browser, and that the same app runs on
@@ -207,7 +147,15 @@ const IPHONE_DEMO = {
  * actually belongs to, so a client cannot be given another group's panel: the
  * `group` tag is dictated by the roster rather than hand-written beside it. */
 type PanelCopy = {
-	browserExtension: { group: "browserExtension"; intro: string; ctaLabel: string; ctaTestId: string };
+	browserExtension: {
+		group: "browserExtension";
+		intro: string;
+		ctaLabel: string;
+		ctaTestId: string;
+		demoBrowser: ExtensionDemoBrowser;
+		demoAriaLabel: string;
+		demoCaption: string;
+	};
 	nativeApp: { group: "nativeApp" };
 	aiAssistant: { group: "aiAssistant"; intro: string; promptLabel: string; prompt: string; requirement: string };
 };
@@ -221,12 +169,20 @@ const PANEL_DATA = {
 			"The extension saves the full page you're reading — the rendered article, not just what a link-only fetch would see.",
 		ctaLabel: "Install Readplace for Firefox",
 		ctaTestId: "download-firefox",
+		demoBrowser: "firefox",
+		demoAriaLabel:
+			"Pinning Readplace to the Firefox toolbar from the extensions menu, then saving the page in one click",
+		demoCaption: "Pin Readplace once, then one click saves whatever you're reading.",
 	},
 	chrome: {
 		group: "browserExtension",
 		intro: "Works in Chrome, Edge, Brave, and other Chromium browsers.",
 		ctaLabel: "Install Readplace for Chrome",
 		ctaTestId: "download-chrome",
+		demoBrowser: "chrome",
+		demoAriaLabel:
+			"Pinning Readplace to the Chrome toolbar from the extensions menu, then saving the page in one click",
+		demoCaption: "Pin Readplace once, then one click saves whatever you're reading.",
 	},
 	iphone: { group: "nativeApp" },
 	chatgpt: {
@@ -263,6 +219,7 @@ interface BrowserExtension {
 	downloadUrl: string | null;
 	ctaLabel: string;
 	ctaTestId: string;
+	demo: ExtensionDemoVideo & { ariaLabel: string; caption: string };
 }
 
 interface AiAssistant {
@@ -297,6 +254,11 @@ function buildPanel(
 					downloadUrl: client.install.kind === "store" ? client.install.url : firefoxDownloadUrl,
 					ctaLabel: data.ctaLabel,
 					ctaTestId: data.ctaTestId,
+					demo: {
+						...buildExtensionDemoVideo(data.demoBrowser, staticBaseUrl),
+						ariaLabel: data.demoAriaLabel,
+						caption: data.demoCaption,
+					},
 				},
 			};
 		case "nativeApp":
@@ -404,10 +366,9 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 				{
 					groups: buildTabGroups(params.client),
 					panel,
-					screenshots: buildScreenshots(params.client, params.staticBaseUrl),
-					browserSteps: BROWSER_STEPS,
 					iphoneAppStoreUrl: IPHONE_APP_STORE_URL,
 					iosOutro: IOS_SETUP_OUTRO,
+					browserOutro: BROWSER_SETUP_OUTRO,
 					mcpServerUrl: MCP_SERVER_URL,
 					mcpGuideUrl: MCP_GUIDE_URL,
 					saveIntentPrompt: SAVE_INTENT_PROMPT,

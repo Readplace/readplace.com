@@ -53,9 +53,10 @@
   <section class="hb-band hb-band--muted hb-proof" data-test-section="hb-proof" aria-label="What that looks like">
     <div class="hb-band__inner">
       <h2 class="hb-section__title">{{proofTitle}}</h2>
-      <video class="hb-proof__video" autoplay muted loop playsinline>
-        <source src="{{staticBaseUrl}}/videos/chrome-extension-demo.mp4" type="video/mp4; codecs=av01.0.05M.08">
-        <source src="{{staticBaseUrl}}/videos/chrome-extension-demo-h264.mp4" type="video/mp4">
+      <video class="hb-proof__video" width="{{proofVideo.width}}" height="{{proofVideo.height}}" poster="{{proofVideo.poster}}" muted playsinline controls preload="none" aria-label="{{proofVideo.ariaLabel}}">
+        {{#each proofVideo.sources}}
+        <source src="{{src}}" type="{{type}}">
+        {{/each}}
       </video>
       <figure class="hb-proof__quote">
         <blockquote class="hb-proof__quote-text">{{proofQuote}}</blockquote>

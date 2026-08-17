@@ -242,17 +242,21 @@ describe("GET /install", () => {
 		expect(requestedFirefoxPointer).toBe(false);
 	});
 
-	it("should list the browser setup steps on a browser panel", async () => {
+	it("should order the browser panel as CTA, then recording, then outro", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
-		const steps = doc.querySelectorAll("[data-test-browser-step]");
-		expect(steps).toHaveLength(3);
-		const stepsText =
-			doc.querySelector('[data-test-section="browser-steps"]')?.textContent ?? "";
-		expect(stepsText).toContain("Sign in once");
-		expect(stepsText).toContain("Ctrl/Cmd+D");
+		const panel = doc.querySelector('[data-test-panel="browser"]');
+		assert(panel, "the browser panel must render");
+		const order = Array.from(
+			panel.querySelectorAll("[data-test-cta], [data-test-video], [data-test-section]"),
+		).map(
+			(el) =>
+				el.getAttribute("data-test-cta") ?? el.getAttribute("data-test-section") ?? "video",
+		);
+		expect(order).toEqual(["download-chrome", "video", "browser-setup-outro"]);
+		expect(panel.textContent).not.toContain("Pin Readplace to your toolbar");
 	});
 
 	it("should show the Firefox unavailable message when Firefox latest.txt returns 404", async () => {
@@ -555,47 +559,35 @@ describe("GET /install", () => {
 		expect(panels).toEqual(["ai"]);
 	});
 
-	it("should render the browser screenshots with captions on the chrome panel", async () => {
+	it("should teach each browser panel with that browser's own recording", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=chrome");
-		const doc = load(response.text);
 
-		const shots = Array.from(doc.querySelectorAll("[data-test-screenshot]"));
-		expect(shots).toHaveLength(3);
+		for (const [client, asset] of [
+			["chrome", "chrome-save-demo"],
+			["firefox", "firefox-save-demo"],
+		]) {
+			const response = await request(harness.server).get(`/install?client=${client}`);
+			const doc = load(response.text);
 
-		const images = shots.map((shot) => shot.querySelector("img"));
-		expect(images.map((img) => img?.getAttribute("src"))).toEqual([
-			"https://static.test/screenshots/save-from-extension.webp",
-			"https://static.test/screenshots/queue.webp",
-			"https://static.test/screenshots/reader-tldr.webp",
-		]);
-		for (const img of images) {
-			assert(img, "each screenshot figure must contain an image");
-			expect(img.getAttribute("loading")).toBe("lazy");
-			expect(img.getAttribute("width")).toBe("1440");
-			expect(img.getAttribute("height")).toBe("900");
-			assert(img.getAttribute("alt"), "each screenshot must carry alt text");
+			const video = doc.querySelector("[data-test-video] video");
+			assert(video, `the ${client} panel must render a recording`);
+			expect(video.getAttribute("width")).toBe("1280");
+			expect(video.getAttribute("height")).toBe("800");
+			expect(video.getAttribute("preload")).toBe("none");
+			expect(video.hasAttribute("controls")).toBe(true);
+			expect(video.hasAttribute("autoplay")).toBe(false);
+			expect(video.getAttribute("poster")).toBe(`https://static.test/videos/${asset}-poster.webp`);
+
+			const sources = Array.from(video.querySelectorAll("source")).map((s) => s.getAttribute("src"));
+			expect(sources).toEqual([`https://static.test/videos/${asset}-h264.mp4`]);
 		}
-
-		const captions = shots.map((shot) => shot.querySelector("figcaption")?.textContent);
-		expect(captions[0]).toBe("One click saves the full page you're reading — not just the link.");
-		expect(captions[2]).toBe("Read without the clutter — with a TL;DR before you commit.");
 	});
 
-	it("should render the same screenshots on the firefox panel", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=firefox");
-		const doc = load(response.text);
-
-		expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(3);
-	});
-
-	it("should teach the iPhone panel with the recording alone, carrying no screenshots", async () => {
+	it("should teach the iPhone panel with exactly one recording", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = load(response.text);
 
-		expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(0);
 		expect(doc.querySelectorAll("[data-test-video]")).toHaveLength(1);
 	});
 
@@ -635,23 +627,13 @@ describe("GET /install", () => {
 		);
 	});
 
-	it("should render no demo recording on the panels that have none", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		for (const client of ["chrome", "firefox", "chatgpt", "gemini", "claude"]) {
-			const response = await request(harness.server).get(`/install?client=${client}`);
-			const doc = load(response.text);
-			expect(doc.querySelectorAll("[data-test-video]")).toHaveLength(0);
-		}
-	});
-
-	it("should not render screenshots on AI panels", async () => {
+	it("should not render a recording on AI panels", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		for (const client of ["chatgpt", "gemini", "claude"]) {
 			const response = await request(harness.server).get(`/install?client=${client}`);
 			const doc = load(response.text);
-			expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(0);
+			expect(doc.querySelectorAll("[data-test-video]")).toHaveLength(0);
 		}
 	});
 

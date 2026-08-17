@@ -25,6 +25,8 @@ import { CANONICAL_SLOGAN, SLOGANS } from "../../slogans";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
+import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
+import type { ExtensionDemoBrowser } from "../../shared/extension-demo-video";
 import { buildHomeSeo } from "./home.seo";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
@@ -150,6 +152,27 @@ const WAYS_TO_SAVE: readonly WayToSave[] = [
 
 const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></script>`;
 
+const HOME_DEMOS = [
+	{
+		browser: "chrome",
+		label: "Chrome",
+		ariaLabel: "Pinning Readplace to the Chrome toolbar, then saving the page in one click",
+	},
+	{
+		browser: "firefox",
+		label: "Firefox",
+		ariaLabel: "Pinning Readplace to the Firefox toolbar, then saving the page in one click",
+	},
+] as const satisfies readonly { browser: ExtensionDemoBrowser; label: string; ariaLabel: string }[];
+
+function buildHomeDemoVideos(staticBaseUrl: string) {
+	return HOME_DEMOS.map((demo) => ({
+		label: demo.label,
+		ariaLabel: demo.ariaLabel,
+		...buildExtensionDemoVideo(demo.browser, staticBaseUrl),
+	}));
+}
+
 interface HomePageParams {
 	userCount: number;
 	staticBaseUrl: string;
@@ -187,6 +210,7 @@ export function HomePage(params: HomePageParams): PageBody {
 		bodyClass: `page-home variant-${variant}`,
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
+			demoVideos: buildHomeDemoVideos(staticBaseUrl),
 			canonicalSlogan: CANONICAL_SLOGAN,
 			saveTipState: saveTip.state,
 			saveTipHtml: saveTip.html,

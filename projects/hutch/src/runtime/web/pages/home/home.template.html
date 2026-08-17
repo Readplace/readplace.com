@@ -90,20 +90,16 @@
       <div class="home-demo__container">
         <h2 class="home-demo__title">Save an article. Read it later.</h2>
         <div class="home-demo__videos">
+          {{#each demoVideos}}
           <div class="home-demo__video-wrapper">
-            <p class="home-demo__video-label">Desktop</p>
-            <video class="home-demo__video" autoplay muted loop playsinline>
-              <source src="{{staticBaseUrl}}/videos/desktop-demo.mp4" type="video/mp4; codecs=av01.0.05M.08">
-              <source src="{{staticBaseUrl}}/videos/desktop-demo-h264.mp4" type="video/mp4">
+            <p class="home-demo__video-label">{{label}}</p>
+            <video class="home-demo__video" width="{{width}}" height="{{height}}" poster="{{poster}}" muted playsinline controls preload="none" aria-label="{{ariaLabel}}">
+              {{#each sources}}
+              <source src="{{src}}" type="{{type}}">
+              {{/each}}
             </video>
           </div>
-          <div class="home-demo__video-wrapper">
-            <p class="home-demo__video-label">Browser Extension</p>
-            <video class="home-demo__video" autoplay muted loop playsinline>
-              <source src="{{staticBaseUrl}}/videos/chrome-extension-demo.mp4" type="video/mp4; codecs=av01.0.05M.08">
-              <source src="{{staticBaseUrl}}/videos/chrome-extension-demo-h264.mp4" type="video/mp4">
-            </video>
-          </div>
+          {{/each}}
         </div>
       </div>
     </section>

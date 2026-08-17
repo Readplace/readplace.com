@@ -7,6 +7,7 @@ import type { PageBody } from "@packages/web-shell";
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
+import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
 import { HOME_B_CONTENT } from "./home-b.content";
 import { HOME_B_STYLES } from "./home-b.styles";
 
@@ -143,6 +144,10 @@ export function HomeVariantBPage(params: {
 	}));
 
 	const content = render(TEMPLATE, {
+		proofVideo: {
+			...buildExtensionDemoVideo("chrome", staticBaseUrl),
+			ariaLabel: "Pinning Readplace to the Chrome toolbar, then saving the page in one click",
+		},
 		saveTipHtml: saveTip.html,
 		heroEyebrow: arrivedFromReader ? hero.arrivalEyebrow : undefined,
 		heroTitle: hero.title,
