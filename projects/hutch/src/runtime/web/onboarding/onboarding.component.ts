@@ -64,15 +64,20 @@ function renderNoClientCard(options: { dismissed?: boolean }): string {
 
 export function OnboardingChecklist(
 	ctx: OnboardingContext,
-	options: { dismissed?: boolean; completedBefore?: boolean } = {},
+	options: { dismissed?: boolean; completedBefore?: boolean; completionUnearned?: boolean } = {},
 ): string {
 	if (!ctx.hasInstallableClient) return renderNoClientCard(options);
 	const steps = ONBOARDING_STEPS.map((step) => toStepDisplayModel(step, ctx));
 	const allComplete = allStepsComplete(ctx);
+	/* A checklist that arrives with every step already satisfied congratulates a
+	 * reader who did nothing — the state a deep queue lands in the moment a new
+	 * step ships. Nothing was accomplished, so nothing is shown. */
+	const unearnedCompletion = allComplete && options.completionUnearned === true;
 	const activeStateClass = allComplete
 		? "onboarding--complete"
 		: "onboarding--visible";
-	const stateClass = options.dismissed ? "onboarding--hidden" : activeStateClass;
+	const stateClass =
+		options.dismissed || unearnedCompletion ? "onboarding--hidden" : activeStateClass;
 	return render(ONBOARDING_TEMPLATE, {
 		steps,
 		stateClass,

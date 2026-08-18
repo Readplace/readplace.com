@@ -340,6 +340,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		recordIosAnyActivity: onboardingSignals.recordIosAnyActivity,
 		recordIosSavedArticle: onboardingSignals.recordIosSavedArticle,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
+		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
 		consumeRateLimit,
 		rateLimitRules,
 	};

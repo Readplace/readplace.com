@@ -37,6 +37,30 @@ function fixtureWithSavedCount(savedCount: number) {
 	};
 }
 
+/** An account that starts below the Next Read minimum and crosses it on demand,
+ * so a test can render the step outstanding — the sighting the success card is
+ * owed to — before the pile is deep enough to tick it. */
+function fixtureCrossingMilestone(): {
+	fixture: ReturnType<typeof createDefaultTestAppFixture>;
+	reachMilestone: () => void;
+} {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	let savedCount = 0;
+	return {
+		reachMilestone: () => {
+			savedCount = NEXT_READ_MINIMUM_SAVES;
+		},
+		fixture: {
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				countArticlesByUser: async (query: CountArticlesQuery) =>
+					Math.min(savedCount, query.countLimit ?? savedCount),
+			},
+		},
+	};
+}
+
 /** Desktop Chrome — a platform with an installable client, so these requests
  * exercise the completion-gated step checklist. Superagent sends no
  * User-Agent by default, which resolves to the no-client "other" bucket, so
@@ -120,14 +144,18 @@ describe("Queue onboarding", () => {
 	});
 
 	it("shows success message when the alive and extension-save cookies are present and the pile is deep enough", async () => {
-		const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+		const crossing = fixtureCrossingMilestone();
+		const harness = useApp(crossing.fixture);
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
+		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
+		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", cookies);
+		crossing.reachMilestone();
 
 		const response = await agent
 			.get("/queue")
 			.set("User-Agent", CHROME_UA)
-			.set("Cookie", `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
+			.set("Cookie", cookies);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
@@ -170,14 +198,18 @@ describe("Queue onboarding", () => {
 	});
 
 	it("shows success state even when viewing an empty filter tab", async () => {
-		const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+		const crossing = fixtureCrossingMilestone();
+		const harness = useApp(crossing.fixture);
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
+		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
+		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", cookies);
+		crossing.reachMilestone();
 
 		const response = await agent
 			.get("/queue?status=read")
 			.set("User-Agent", CHROME_UA)
-			.set("Cookie", `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
+			.set("Cookie", cookies);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
@@ -390,8 +422,11 @@ describe("Queue onboarding — iPhone", () => {
 	});
 
 	it("reaches the success state once the app records a save", async () => {
-		const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+		const crossing = fixtureCrossingMilestone();
+		const harness = useApp(crossing.fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
+		await agent.get("/queue").set("User-Agent", IPHONE_UA);
+		crossing.reachMilestone();
 		const token = await bearerForLoggedInUser(harness);
 
 		// A share-sheet save (Bearer-authed, client header) records both signals at once.

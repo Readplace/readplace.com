@@ -11,6 +11,7 @@ import type {
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
 	RecordNextReadMinimumReached,
+	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";
 
 const OnboardingRow = z.object({
@@ -22,6 +23,9 @@ const OnboardingRow = z.object({
 	/* ISO instant the account's save count first reached the Next Read
 	 * minimum; absent until then. */
 	nextReadMinimumReachedAt: dynamoField(z.string()),
+	/* ISO instant the reader was first shown the Next Read step with saves
+	 * still to go; absent until then. */
+	nextReadStepOutstandingAt: dynamoField(z.string()),
 });
 
 /** Per-user onboarding signals on a dedicated table keyed by `userId`. The iOS
@@ -37,6 +41,7 @@ export function initOnboardingSignals(deps: {
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
+	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
@@ -74,13 +79,26 @@ export function initOnboardingSignals(deps: {
 		});
 	};
 
+	const recordNextReadStepOutstanding: RecordNextReadStepOutstanding = async ({
+		userId,
+	}) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET nextReadStepOutstandingAt = if_not_exists(nextReadStepOutstandingAt, :now)",
+			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {
 		const row = await onboarding.get({ userId });
 		const reachedAt = row?.nextReadMinimumReachedAt;
+		const outstandingAt = row?.nextReadStepOutstandingAt;
 		return {
 			installed: !!row?.iosAppActivatedAt,
 			savedArticle: !!row?.iosAppSavedAt,
 			nextReadMinimumReachedAt: reachedAt ? new Date(reachedAt) : undefined,
+			nextReadStepOutstandingAt: outstandingAt ? new Date(outstandingAt) : undefined,
 		};
 	};
 
@@ -92,6 +110,7 @@ export function initOnboardingSignals(deps: {
 		recordIosAnyActivity,
 		recordIosSavedArticle,
 		recordNextReadMinimumReached,
+		recordNextReadStepOutstanding,
 		getOnboardingSignals,
 		deleteOnboarding,
 	};

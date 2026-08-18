@@ -76,6 +76,7 @@ import type {
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
 	RecordNextReadMinimumReached,
+	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";
 import type {
 	AllocateSavedAt,
@@ -358,6 +359,7 @@ interface AppDependencies {
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
+	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
@@ -1176,6 +1178,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordIosAnyActivity: deps.recordIosAnyActivity,
 		recordIosSavedArticle: deps.recordIosSavedArticle,
 		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
+		recordNextReadStepOutstanding: deps.recordNextReadStepOutstanding,
 		dualAuth: dualAuthMiddleware,
 		resolveVerificationStatus,
 		requireWriteAccess,

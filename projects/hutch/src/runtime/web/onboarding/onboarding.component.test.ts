@@ -393,6 +393,44 @@ describe("OnboardingChecklist", () => {
 		assert.equal(message.classList.contains("onboarding__success-message--hidden"), true);
 	});
 
+	it("stays hidden when every step was already satisfied on arrival", () => {
+		const doc = parse(
+			OnboardingChecklist(
+				contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES }),
+				{ completedBefore: true, completionUnearned: true },
+			),
+		);
+
+		const container = doc.querySelector("[data-test-onboarding]");
+		assert(container, "onboarding container must still be rendered");
+		assert(container.classList.contains("onboarding--hidden"));
+		assert(!container.classList.contains("onboarding--complete"));
+	});
+
+	it("still congratulates a reader who finished the last outstanding step", () => {
+		const doc = parse(
+			OnboardingChecklist(
+				contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES }),
+				{ completedBefore: true, completionUnearned: false },
+			),
+		);
+
+		const container = doc.querySelector("[data-test-onboarding]");
+		assert(container, "onboarding container must be rendered");
+		assert(container.classList.contains("onboarding--complete"));
+		assert(doc.querySelector("[data-test-onboarding-success]"));
+	});
+
+	it("keeps an unearned flag harmless while a step is still outstanding", () => {
+		const doc = parse(
+			OnboardingChecklist(contextWith({ installed: true }), { completionUnearned: true }),
+		);
+
+		const container = doc.querySelector("[data-test-onboarding]");
+		assert(container, "onboarding container must be rendered");
+		assert(container.classList.contains("onboarding--visible"));
+	});
+
 	it("reaches success from the iPhone steps when both are complete", () => {
 		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone", savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
 

@@ -19,6 +19,7 @@ describe("initInMemoryOnboardingSignals", () => {
 			installed: false,
 			savedArticle: false,
 			nextReadMinimumReachedAt: undefined,
+			nextReadStepOutstandingAt: undefined,
 		});
 	});
 
@@ -31,6 +32,7 @@ describe("initInMemoryOnboardingSignals", () => {
 			installed: true,
 			savedArticle: false,
 			nextReadMinimumReachedAt: undefined,
+			nextReadStepOutstandingAt: undefined,
 		});
 	});
 
@@ -43,6 +45,7 @@ describe("initInMemoryOnboardingSignals", () => {
 			installed: true,
 			savedArticle: true,
 			nextReadMinimumReachedAt: undefined,
+			nextReadStepOutstandingAt: undefined,
 		});
 	});
 
@@ -55,6 +58,7 @@ describe("initInMemoryOnboardingSignals", () => {
 			installed: false,
 			savedArticle: false,
 			nextReadMinimumReachedAt: FIRST,
+			nextReadStepOutstandingAt: undefined,
 		});
 	});
 
@@ -68,6 +72,26 @@ describe("initInMemoryOnboardingSignals", () => {
 		expect(signals.nextReadMinimumReachedAt).toEqual(FIRST);
 	});
 
+	it("marks the step outstanding set-once with the injected clock", async () => {
+		const store = storeAt(FIRST, LATER);
+
+		await store.recordNextReadStepOutstanding({ userId: USER });
+		await store.recordNextReadStepOutstanding({ userId: USER });
+
+		const signals = await store.getOnboardingSignals({ userId: USER });
+		expect(signals.nextReadStepOutstandingAt).toEqual(FIRST);
+	});
+
+	it("clears the outstanding marker on deleteOnboarding", async () => {
+		const store = storeAt(FIRST);
+		await store.recordNextReadStepOutstanding({ userId: USER });
+
+		await store.deleteOnboarding({ userId: USER });
+
+		const signals = await store.getOnboardingSignals({ userId: USER });
+		expect(signals.nextReadStepOutstandingAt).toBeUndefined();
+	});
+
 	it("tracks signals per user independently", async () => {
 		const store = storeAt(FIRST);
 
@@ -78,6 +102,7 @@ describe("initInMemoryOnboardingSignals", () => {
 			installed: false,
 			savedArticle: false,
 			nextReadMinimumReachedAt: undefined,
+			nextReadStepOutstandingAt: undefined,
 		});
 	});
 
@@ -92,6 +117,7 @@ describe("initInMemoryOnboardingSignals", () => {
 			installed: false,
 			savedArticle: false,
 			nextReadMinimumReachedAt: undefined,
+			nextReadStepOutstandingAt: undefined,
 		});
 	});
 
@@ -108,6 +134,7 @@ describe("initInMemoryOnboardingSignals", () => {
 			installed: true,
 			savedArticle: true,
 			nextReadMinimumReachedAt: FIRST,
+			nextReadStepOutstandingAt: undefined,
 		});
 	});
 });

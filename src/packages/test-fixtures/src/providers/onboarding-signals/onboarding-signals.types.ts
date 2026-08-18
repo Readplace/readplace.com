@@ -3,4 +3,5 @@ export type {
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
 	RecordNextReadMinimumReached,
+	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";

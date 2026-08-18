@@ -154,6 +154,7 @@ import type {
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
 	RecordNextReadMinimumReached,
+	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
@@ -318,6 +319,10 @@ interface QueueDependencies {
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
+	/** Marks that the reader was shown the Next Read step with saves still to go,
+	 * so a milestone later reached can be told apart from one a deep queue
+	 * satisfied on sight. */
+	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	/** Auth middleware applied to every queue route except the public
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
@@ -809,9 +814,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * can see, which is why it is allowed on a GET. */
 	const resolveNextReadProgress = async (
 		userId: UserId,
-		reachedAt: Date | undefined,
-	): Promise<number> => {
-		if (reachedAt) return NEXT_READ_MINIMUM_SAVES;
+		signals: { nextReadMinimumReachedAt: Date | undefined; nextReadStepOutstandingAt: Date | undefined },
+	): Promise<{ savedCount: number; milestoneGranted: boolean }> => {
+		const wasOutstanding = signals.nextReadStepOutstandingAt !== undefined;
+		if (signals.nextReadMinimumReachedAt) {
+			return { savedCount: NEXT_READ_MINIMUM_SAVES, milestoneGranted: !wasOutstanding };
+		}
 		const savedCount = await deps.countArticlesByUser({
 			userId,
 			countLimit: NEXT_READ_MINIMUM_SAVES,
@@ -820,8 +828,14 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			await recordOnboardingSignalBestEffort(() =>
 				deps.recordNextReadMinimumReached({ userId }),
 			);
+			return { savedCount, milestoneGranted: !wasOutstanding };
 		}
-		return savedCount;
+		if (!wasOutstanding) {
+			await recordOnboardingSignalBestEffort(() =>
+				deps.recordNextReadStepOutstanding({ userId }),
+			);
+		}
+		return { savedCount, milestoneGranted: false };
 	};
 
 	/** Resolves the onboarding-checklist signals for an authenticated `/queue`
@@ -858,16 +872,14 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				hasInstallableClient: hasClient,
 				onboardingDismissed: dismissTokenMatches,
 				onboardingCompletedBefore,
+				onboardingCompletionUnearned: false,
 			};
 		}
 		const signals = await deps.getOnboardingSignals({ userId });
 		const { installed, savedArticle } = platform === "iphone"
 			? signals
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		const savedCount = await resolveNextReadProgress(
-			userId,
-			signals.nextReadMinimumReachedAt,
-		);
+		const { savedCount, milestoneGranted } = await resolveNextReadProgress(userId, signals);
 		const onboardingDismissed = installed && dismissTokenMatches;
 		return {
 			platform,
@@ -877,6 +889,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			hasInstallableClient: hasClient,
 			onboardingDismissed,
 			onboardingCompletedBefore,
+			onboardingCompletionUnearned: milestoneGranted,
 		};
 	};
 

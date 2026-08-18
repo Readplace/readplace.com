@@ -127,6 +127,7 @@ import type {
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
 	RecordNextReadMinimumReached,
+	RecordNextReadStepOutstanding,
 	RefreshArticleIfStale,
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
@@ -416,6 +417,7 @@ export interface OnboardingSignalsBundle {
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
+	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	getOnboardingSignals: GetOnboardingSignals;
 }
 

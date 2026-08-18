@@ -171,8 +171,11 @@ test.describe("Onboarding card", () => {
 	test("a returning user's success card carries only the title", async ({ page }, testInfo) => {
 		const email = `onboarding-success-returning-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
-		await seedSavesReachingMilestone(page, userId);
+		// Logging in first renders the checklist with the milestone still to go,
+		// which is the sighting that makes finishing it worth congratulating; a
+		// queue seeded deep enough before that would earn no card at all.
 		await loginAs(page, email);
+		await seedSavesReachingMilestone(page, userId);
 		await reloadQueueWithOnboardingCookies(page, [
 			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
 			{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },

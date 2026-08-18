@@ -310,6 +310,7 @@ async function seedAccount(
 
 	await s.onboarding.recordIosSavedArticle({ userId });
 	await s.onboarding.recordNextReadMinimumReached({ userId });
+	await s.onboarding.recordNextReadStepOutstanding({ userId });
 
 	if (subscription === "active") {
 		await s.subs.upsertActive({ userId, subscriptionId, customerId });
@@ -436,6 +437,7 @@ describe("delete-account handler", () => {
 			installed: false,
 			savedArticle: false,
 			nextReadMinimumReachedAt: undefined,
+			nextReadStepOutstandingAt: undefined,
 		});
 		assert.equal(await s.subs.findByUserId(victim.userId), undefined);
 		assert.equal(
@@ -516,6 +518,7 @@ describe("delete-account handler", () => {
 			installed: true,
 			savedArticle: true,
 			nextReadMinimumReachedAt: SEED_NOW,
+			nextReadStepOutstandingAt: SEED_NOW,
 		});
 		const bystanderSub = await s.subs.findByUserId(bystander.userId);
 		assert(bystanderSub, "expected the bystander subscription to survive");

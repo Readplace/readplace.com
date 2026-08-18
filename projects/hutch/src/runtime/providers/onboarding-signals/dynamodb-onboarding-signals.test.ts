@@ -86,6 +86,20 @@ describe("initOnboardingSignals", () => {
 		});
 	});
 
+	describe("recordNextReadStepOutstanding", () => {
+		it("upserts the outstanding marker (set-once) keyed directly by userId", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initSignal(client).recordNextReadStepOutstanding({ userId: USER });
+
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toBe(
+				"SET nextReadStepOutstandingAt = if_not_exists(nextReadStepOutstandingAt, :now)",
+			);
+		});
+	});
+
 	describe("getOnboardingSignals", () => {
 		it("reads by userId and returns both false when no row exists for the user", async () => {
 			const { client, commands } = createFakeClient({});
@@ -97,6 +111,7 @@ describe("initOnboardingSignals", () => {
 				installed: false,
 				savedArticle: false,
 				nextReadMinimumReachedAt: undefined,
+				nextReadStepOutstandingAt: undefined,
 			});
 		});
 
@@ -111,6 +126,7 @@ describe("initOnboardingSignals", () => {
 				installed: true,
 				savedArticle: false,
 				nextReadMinimumReachedAt: undefined,
+				nextReadStepOutstandingAt: undefined,
 			});
 		});
 
@@ -129,7 +145,20 @@ describe("initOnboardingSignals", () => {
 				installed: true,
 				savedArticle: true,
 				nextReadMinimumReachedAt: undefined,
+				nextReadStepOutstandingAt: undefined,
 			});
+		});
+
+		it("surfaces the outstanding marker once the row carries it", async () => {
+			const { client } = createFakeClient({
+				row: { userId: "user-1", nextReadStepOutstandingAt: "2026-06-19T08:15:00.000Z" },
+			});
+
+			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
+
+			expect(signals.nextReadStepOutstandingAt).toEqual(
+				new Date("2026-06-19T08:15:00.000Z"),
+			);
 		});
 
 		it("surfaces the Next Read milestone instant once the row carries it", async () => {

@@ -142,8 +142,21 @@ describe("Queue onboarding — Next Read milestone", () => {
 	});
 
 	it("reaches the success card only once the milestone joins the two device steps", async () => {
-		const harness = useApp(countingFixture(NEXT_READ_MINIMUM_SAVES).fixture);
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let savedCount = 3;
+		const harness = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				countArticlesByUser: async (query: CountArticlesQuery) =>
+					Math.min(savedCount, query.countLimit ?? savedCount),
+			},
+		});
 		const agent = await loginAgent(harness.server, harness.auth);
+		// The reader has to have seen the step outstanding for finishing it to
+		// mean anything; a queue that was already deep enough earns no card.
+		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", EXTENSION_COOKIES);
+		savedCount = NEXT_READ_MINIMUM_SAVES;
 
 		const response = await agent
 			.get("/queue")
@@ -156,6 +169,21 @@ describe("Queue onboarding — Next Read milestone", () => {
 		expect(container.classList.contains("onboarding--complete")).toBe(true);
 		assert(doc.querySelector("[data-test-onboarding-success]"), "success card must be rendered");
 		expect(doc.querySelectorAll("[data-test-onboarding-dismiss]")).toHaveLength(1);
+	});
+
+	it("keeps the card away from a reader whose queue was already deep enough", async () => {
+		const harness = useApp(countingFixture(NEXT_READ_MINIMUM_SAVES).fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", CHROME_UA)
+			.set("Cookie", EXTENSION_COOKIES);
+
+		const doc = new JSDOM(response.text).window.document;
+		const container = doc.querySelector("[data-test-onboarding]");
+		assert(container, "onboarding container must still be rendered");
+		expect(container.classList.contains("onboarding--hidden")).toBe(true);
 	});
 
 	it("stops issuing the count query on renders after the milestone is stamped", async () => {
