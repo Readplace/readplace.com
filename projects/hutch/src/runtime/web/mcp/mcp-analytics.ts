@@ -24,7 +24,6 @@ export function initRecordMcpToolCall(deps: {
 					outcome: record.outcome,
 					oauthClientId: record.oauthClientId,
 					userId: record.userId,
-					trialNudgeAppended: record.trialNudgeAppended,
 					...(record.submittedUrl === undefined
 						? {}
 						: { submittedUrl: record.submittedUrl }),

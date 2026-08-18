@@ -789,7 +789,6 @@ describe("buildMcpToolCalledEvent", () => {
 				outcome: "ok",
 				oauthClientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
 				userId,
-				trialNudgeAppended: false,
 			},
 		);
 		expect(event).toEqual({
@@ -800,7 +799,6 @@ describe("buildMcpToolCalledEvent", () => {
 			outcome: "ok",
 			oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
 			user_id: userId,
-			trial_nudge_appended: 0,
 		});
 	});
 
@@ -812,7 +810,6 @@ describe("buildMcpToolCalledEvent", () => {
 				outcome: "ok",
 				oauthClientId: "chatgpt",
 				userId,
-				trialNudgeAppended: false,
 				submittedUrl: "https://example.com/private/draft-42?token=secret",
 			},
 		);
@@ -830,7 +827,6 @@ describe("buildMcpToolCalledEvent", () => {
 				outcome: "error",
 				oauthClientId: "chatgpt",
 				userId,
-				trialNudgeAppended: false,
 				submittedUrl: "not a url",
 			},
 		);
@@ -840,13 +836,6 @@ describe("buildMcpToolCalledEvent", () => {
 		expect(event).toMatchObject({ outcome: "error" });
 	});
 
-	it("flags trial_nudge_appended so the trial-ending nudge can be counted where the caller actually sees it", () => {
-		const event = buildMcpToolCalledEvent(
-			{ now },
-			{ tool: "get_article", outcome: "ok", oauthClientId: "chatgpt", userId, trialNudgeAppended: true },
-		);
-		expect(event).toMatchObject({ trial_nudge_appended: 1 });
-	});
 });
 
 describe("buildMcpSaveIntentEvent", () => {

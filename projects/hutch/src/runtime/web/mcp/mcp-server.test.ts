@@ -1062,17 +1062,10 @@ describe("initMcpServer", () => {
 		});
 	});
 
-	describe("trial-ending nudge", () => {
-		const NUDGE = "PS — your trial ends soon. Renew at https://readplace.com/account.";
-		const trialEnding: McpServerDeps["resolveToolAccess"] = async () => ({
-			state: "trial-ending",
-			nudge: NUDGE,
-		});
-
-		it("appends the nudge as a second text block to a successful save_link", async () => {
+	describe("subscription state never reaches a successful result", () => {
+		it("returns a successful save_link as exactly the tool's own text — no upsell block, because the ChatGPT guidelines forbid promoting an upgrade from a tool response", async () => {
 			const server = initMcpServer(
 				fakeDeps({
-					resolveToolAccess: trialEnding,
 					saveLink: async () => ({
 						ok: true,
 						title: "My Article",
@@ -1081,42 +1074,37 @@ describe("initMcpServer", () => {
 				}),
 			);
 			const response = await call(server, 71, "save_link", { url: "https://e.test/a" });
-			expect(response).toMatchObject({
-				id: 71,
-				result: {
-					content: [
-						{ type: "text", text: expect.stringContaining("My Article") },
-						{ type: "text", text: NUDGE },
-					],
-				},
+			const result = (response as { result: { content: unknown[] } }).result;
+			expect(result.content).toHaveLength(1);
+			expect(result.content[0]).toMatchObject({
+				type: "text",
+				text: expect.stringContaining("My Article"),
 			});
 		});
 
-		it("appends the nudge to a list_queue result and leaves structuredContent intact", async () => {
-			const server = initMcpServer(fakeDeps({ resolveToolAccess: trialEnding }));
+		it("returns a successful list_queue as one text block plus its structuredContent", async () => {
+			const server = initMcpServer(fakeDeps());
 			const response = await call(server, 72, "list_queue");
 			expect(response).toMatchObject({
 				result: {
-					content: [
-						{ type: "text", text: "Your Readplace queue is empty." },
-						{ type: "text", text: NUDGE },
-					],
+					content: [{ type: "text", text: "Your Readplace queue is empty." }],
 					structuredContent: { total: 0, count: 0, articles: [] },
 				},
 			});
+			const result = (response as { result: { content: unknown[] } }).result;
+			expect(result.content).toHaveLength(1);
 		});
 
-		it("leaves an error result unchanged (no nudge on a failure)", async () => {
+		it("explains the entitlement only on the call it actually blocked — the one placement both directories permit", async () => {
 			const server = initMcpServer(
 				fakeDeps({
-					resolveToolAccess: trialEnding,
-					saveLink: async () => ({ ok: false, message: "Not saveable" }),
+					resolveToolAccess: async () => ({ state: "inactive", message: "Saving is paused." }),
 				}),
 			);
-			const response = await call(server, 73, "save_link", { url: "chrome://x" });
+			const response = await call(server, 73, "save_link", { url: "https://e.test/a" });
 			expect(response).toMatchObject({
 				id: 73,
-				result: { isError: true, content: [{ type: "text", text: "Not saveable" }] },
+				result: { isError: true, content: [{ type: "text", text: "Saving is paused." }] },
 			});
 		});
 	});
@@ -1157,7 +1145,6 @@ describe("initMcpServer", () => {
 					outcome: "ok",
 					userId,
 					oauthClientId: "dyn-registered-mcp-client",
-					trialNudgeAppended: false,
 				},
 			]);
 		});
@@ -1205,23 +1192,6 @@ describe("initMcpServer", () => {
 				context,
 			);
 			expect(records[0]).toMatchObject({ tool: "(unknown)", outcome: "invalid_params" });
-		});
-
-		it("flags the trial-ending nudge only when it was actually appended to a successful result", async () => {
-			const trialEnding: McpServerDeps["resolveToolAccess"] = async () => ({
-				state: "trial-ending",
-				nudge: "trial ends soon",
-			});
-			const { server, records } = recording({ resolveToolAccess: trialEnding });
-			await call(server, 1, "list_queue");
-			expect(records[0]).toMatchObject({ trialNudgeAppended: true });
-
-			const failing = recording({
-				resolveToolAccess: trialEnding,
-				saveLink: async () => ({ ok: false, message: "nope" }),
-			});
-			await call(failing.server, 2, "save_link", { url: "https://example.com/a" });
-			expect(failing.records[0]).toMatchObject({ outcome: "error", trialNudgeAppended: false });
 		});
 
 		it("never lets a failing analytics write break the tool call, so a recoverable tool error cannot become a JSON-RPC protocol error", async () => {

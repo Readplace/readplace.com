@@ -300,7 +300,6 @@ export interface McpToolCalledEvent {
 	outcome: McpToolOutcome;
 	oauth_client_id: string;
 	user_id: UserId;
-	trial_nudge_appended: 0 | 1;
 	article_host?: string;
 	content_class?: ContentClass;
 }
@@ -525,7 +524,6 @@ export function buildMcpToolCalledEvent(
 		outcome: McpToolOutcome;
 		oauthClientId: string;
 		userId: UserId;
-		trialNudgeAppended: boolean;
 		submittedUrl?: string;
 	},
 ): McpToolCalledEvent {
@@ -541,7 +539,6 @@ export function buildMcpToolCalledEvent(
 		outcome: params.outcome,
 		oauth_client_id: params.oauthClientId,
 		user_id: params.userId,
-		trial_nudge_appended: params.trialNudgeAppended ? 1 : 0,
 		...(articleHost === null
 			? {}
 			: {

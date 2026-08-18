@@ -939,19 +939,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 0, y: 178, width: 12, height: 8,
 			view: "table",
 		}),
-		logWidget({
-			region,
-			title: "Trial-ending nudges delivered in tool results",
-			logGroupNames: analyticsSource,
-			query: [
-				"fields @timestamp, user_id",
-				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpToolCalled}"`,
-				"| filter trial_nudge_appended = 1",
-				"| stats count(*) as nudges, count_distinct(user_id) as users by bin(1d)",
-			].join(" "),
-			x: 12, y: 178, width: 12, height: 8,
-			view: "timeSeries",
-		}),
 	);
 
 	return { widgets };

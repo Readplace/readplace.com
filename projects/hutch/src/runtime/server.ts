@@ -469,13 +469,9 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	/** The subscription paywall on the MCP surface: a read-only (lapsed)
 	 * subscription has a new save (save_link) refused while every other tool
-	 * stays open, and a trial in its final week gets a nudge on successful
-	 * results. Reads the same effective access the web banner does, so "lapsed"
+	 * stays open. Reads the same effective access the web banner does, so "lapsed"
 	 * means the same thing to an agent as it does in the browser. */
-	const resolveToolAccess = initResolveToolAccess({
-		getEffectiveAccess,
-		now: deps.now,
-	});
+	const resolveToolAccess = initResolveToolAccess({ getEffectiveAccess });
 	const resolveMcpSaveProvenance = initResolveMcpSaveProvenance({
 		findOAuthClient: deps.findOAuthClient,
 	});

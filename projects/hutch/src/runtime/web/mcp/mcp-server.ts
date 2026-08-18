@@ -145,9 +145,8 @@ export interface McpServerDeps {
 	}) => Promise<ArticleStatusResult>;
 	/** The subscription gate for the tool surface, resolved once per
 	 * `tools/call`: it decides whether to refuse a new save (save_link) when
-	 * inactive, or to append a trial-ending nudge to a successful result. Every
-	 * other tool stays open for a lapsed account. Reads the same effective access
-	 * the web banner does. */
+	 * inactive. Every other tool stays open for a lapsed account. Reads the same
+	 * effective access the web banner does. */
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
 	recordToolCall: RecordMcpToolCall;
 	logError: (message: string, error?: Error) => void;
@@ -158,7 +157,6 @@ export interface McpToolCallRecord {
 	readonly outcome: McpToolOutcome;
 	readonly userId: AuthenticatedUserId;
 	readonly oauthClientId: string;
-	readonly trialNudgeAppended: boolean;
 	readonly submittedUrl?: string;
 }
 
@@ -254,18 +252,6 @@ function data(textValue: string, structuredContent: unknown): ToolResult {
 
 function toolError(value: string): ToolResult {
 	return { content: [{ type: "text", text: value }], isError: true };
-}
-
-/** Append the trial-ending nudge as a second text block on a successful result.
- * An error result is returned unchanged (a "your trial ends soon" note has no
- * place on a failure), and `structuredContent` is left intact so structured
- * consumers still see the tool's own payload rather than the nudge. */
-function appendNudge(result: ToolResult, nudge: string): ToolResult {
-	if (result.isError) return result;
-	return {
-		...result,
-		content: [...result.content, { type: "text", text: nudge }],
-	};
 }
 
 function notFoundResult(id: string): ToolResult {
@@ -724,7 +710,6 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				outcome: MCP_TOOL_OUTCOMES.invalidParams,
 				userId: context.userId,
 				oauthClientId: context.oauthClientId,
-				trialNudgeAppended: false,
 			});
 			return failure(id, -32602, "Invalid params: expected { name, arguments }");
 		}
@@ -742,41 +727,29 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 
 		const rawArgs = parsed.data.arguments ?? {};
 		const submittedUrl = submittedSaveUrl(parsed.data.name, rawArgs);
-		const record = (
-			outcome: McpToolOutcome,
-			trialNudgeAppended: boolean,
-		): void => {
+		const record = (outcome: McpToolOutcome): void => {
 			recordCall({
 				tool: parsed.data.name,
 				outcome,
 				userId: context.userId,
 				oauthClientId: context.oauthClientId,
-				trialNudgeAppended,
 				...(submittedUrl === undefined ? {} : { submittedUrl }),
 			});
 		};
 
 		if (access.state === "inactive" && PAYWALLED_TOOLS.has(parsed.data.name)) {
-			record(MCP_TOOL_OUTCOMES.paywalled, false);
+			record(MCP_TOOL_OUTCOMES.paywalled);
 			return success(id, toolError(access.message));
 		}
 
 		const result = await dispatchTool(parsed.data.name, rawArgs, context);
 		if (!result) {
-			record(MCP_TOOL_OUTCOMES.unknownTool, false);
+			record(MCP_TOOL_OUTCOMES.unknownTool);
 			return failure(id, -32602, `Unknown tool: ${parsed.data.name}`);
 		}
 
-		const nudged = access.state === "trial-ending" && !result.isError;
-		record(
-			result.isError ? MCP_TOOL_OUTCOMES.error : MCP_TOOL_OUTCOMES.ok,
-			nudged,
-		);
-
-		return success(
-			id,
-			access.state === "trial-ending" ? appendNudge(result, access.nudge) : result,
-		);
+		record(result.isError ? MCP_TOOL_OUTCOMES.error : MCP_TOOL_OUTCOMES.ok);
+		return success(id, result);
 	}
 
 	return {

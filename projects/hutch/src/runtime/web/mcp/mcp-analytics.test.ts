@@ -30,7 +30,6 @@ function record(overrides: Partial<McpToolCallRecord> = {}): McpToolCallRecord {
 		outcome: "ok",
 		userId,
 		oauthClientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
-		trialNudgeAppended: false,
 		...overrides,
 	};
 }
@@ -54,7 +53,6 @@ describe("initRecordMcpToolCall", () => {
 			outcome: "ok",
 			oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
 			user_id: userId,
-			trial_nudge_appended: 0,
 		});
 	});
 

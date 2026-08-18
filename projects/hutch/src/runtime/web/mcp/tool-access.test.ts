@@ -34,7 +34,7 @@ function resolve(row: SubscriptionRecord | undefined) {
 		findSubscriptionByUserId,
 		now: () => NOW,
 	});
-	return initResolveToolAccess({ getEffectiveAccess, now: () => NOW })(userId);
+	return initResolveToolAccess({ getEffectiveAccess })(userId);
 }
 
 describe("initResolveToolAccess", () => {
@@ -63,25 +63,18 @@ describe("initResolveToolAccess", () => {
 		expect(access).toEqual({ state: "ok" });
 	});
 
-	it("nudges a trial at the seven-day boundary", async () => {
+	it("leaves a trial at the seven-day boundary ungated — a live trial is a paid-equivalent account and gets no upsell", async () => {
 		const access = await resolve(
 			sub({ status: "trialing", trialEndsAt: at(7 * DAY_MS) }),
 		);
-		expect(access).toMatchObject({
-			state: "trial-ending",
-			nudge: expect.stringContaining("free trial ends soon"),
-		});
+		expect(access).toEqual({ state: "ok" });
 	});
 
-	it("tells a trial in its final hours where to manage the subscription, and sells nothing", async () => {
+	it("leaves a trial in its final hours ungated, so nothing is ever attached to a successful tool result", async () => {
 		const access = await resolve(
 			sub({ status: "trialing", trialEndsAt: at(12 * HOUR_MS) }),
 		);
-		expect(access).toEqual({
-			state: "trial-ending",
-			nudge:
-				"This Readplace free trial ends soon; the subscription can be managed at https://readplace.com/account.",
-		});
+		expect(access).toEqual({ state: "ok" });
 	});
 
 	it("gates an expired trial on the account's state, not on a pitch", async () => {
