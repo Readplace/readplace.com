@@ -20,6 +20,7 @@ import {
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
+import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	AllocateSavedAt,
@@ -148,7 +149,12 @@ import {
 import { hasBackgroundSaveContinuity, isIosClient, isIosSurface } from "../../onboarding/ios-client";
 import { setSirenCollectionCaching } from "../../siren-discovery-cache";
 import { APP_BACK_LINK } from "../../shared/ios-app-links";
-import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
+import type {
+	GetOnboardingSignals,
+	RecordIosAnyActivity,
+	RecordIosSavedArticle,
+	RecordNextReadMinimumReached,
+} from "@packages/provider-contracts/onboarding-signals";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
 /** The dismiss-cookie value a device of this class writes on dismissal and the
@@ -296,10 +302,11 @@ interface QueueDependencies {
 	stickyReader: RenderReaderActions;
 	chromelessReader: RenderReaderActions;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
-	/** Reads the per-user iOS onboarding signals for the Safari `/queue` render
-	 * when the visitor is on an iPhone (where completion can't come from cookies
-	 * because Safari can't see the app's cookie jar). */
-	getIosAppSignals: GetIosAppSignals;
+	/** Reads the per-user onboarding signals for the `/queue` render: the iOS
+	 * app's install/save state when the visitor is on an iPhone (where completion
+	 * can't come from cookies because Safari can't see the app's cookie jar), and
+	 * the account-scoped Next Read milestone on every device that has a client. */
+	getOnboardingSignals: GetOnboardingSignals;
 	/** Marks the user "installed" when an authenticated iOS request carries the
 	 * client header — the cross-app-cookie-jar substitute for the extension's
 	 * liveness cookie. */
@@ -307,6 +314,10 @@ interface QueueDependencies {
 	/** Marks the user's first iOS save when a save request carries the client
 	 * header — the substitute for the extension's save cookie. */
 	recordIosSavedArticle: RecordIosSavedArticle;
+	/** Stamps the account the first time its save count reaches the Next Read
+	 * minimum, so the milestone survives the user later deleting back below it and
+	 * so later renders skip the count query entirely. */
+	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	/** Auth middleware applied to every queue route except the public
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
@@ -488,19 +499,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	});
 	const deleteArticleFromQueue = initDeleteArticleFromQueue(deps);
 
-	/** The iOS onboarding signal is non-essential bookkeeping that sits on the
-	 * critical path of the app's queue load and every save. Unlike the extension's
-	 * equivalent — a Set-Cookie header that cannot fail — this write hits DynamoDB
+	/** An onboarding signal is non-essential bookkeeping that sits on the critical
+	 * path of the app's queue load and every save. Unlike the extension's
+	 * equivalent — a Set-Cookie header that cannot fail — these writes hit DynamoDB
 	 * and can throw (a transient error, or `assert(row)` firing for a token that
 	 * outlived a deleted account). Swallow and log so the bookkeeping can never
 	 * turn a successful save into a 500 or break the iPhone app's queue load; the
 	 * signal is allowed to lag a render and catch up on the next request. */
-	const recordIosSignalBestEffort = async (record: () => Promise<void>): Promise<void> => {
+	const recordOnboardingSignalBestEffort = async (record: () => Promise<void>): Promise<void> => {
 		try {
 			await record();
 		} catch (error) {
 			deps.logError(
-				"Failed to record iOS onboarding signal",
+				"Failed to record onboarding signal",
 				error instanceof Error ? error : undefined,
 			);
 		}
@@ -511,7 +522,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * can read it; from the extension it is the same-browser-jar liveness cookie. */
 	const recordSaveSignal = async (req: Request, res: Response, userId: UserId): Promise<void> => {
 		if (isIosClient(req)) {
-			await recordIosSignalBestEffort(() => deps.recordIosSavedArticle({ userId }));
+			await recordOnboardingSignalBestEffort(() => deps.recordIosSavedArticle({ userId }));
 			return;
 		}
 		markExtensionSavedArticle(res);
@@ -789,6 +800,30 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
 
+	/** Resolves how far the account is toward the Next Read minimum, capped at it.
+	 * Once the milestone is stamped the answer is the cap and no count is issued,
+	 * which is both what makes the step sticky against later deletions and what
+	 * keeps a bounded COUNT query off the steady-state `/queue` render. Stamping
+	 * here memoises an observation the same request already made — the account
+	 * really does hold that many saves — rather than mutating anything the user
+	 * can see, which is why it is allowed on a GET. */
+	const resolveNextReadProgress = async (
+		userId: UserId,
+		reachedAt: Date | undefined,
+	): Promise<number> => {
+		if (reachedAt) return NEXT_READ_MINIMUM_SAVES;
+		const savedCount = await deps.countArticlesByUser({
+			userId,
+			countLimit: NEXT_READ_MINIMUM_SAVES,
+		});
+		if (hasEnoughSavesForNextRead(savedCount)) {
+			await recordOnboardingSignalBestEffort(() =>
+				deps.recordNextReadMinimumReached({ userId }),
+			);
+		}
+		return savedCount;
+	};
+
 	/** Resolves the onboarding-checklist signals for an authenticated `/queue`
 	 * HTML render. Shared by the top-of-page GET and the save-bar 422 error
 	 * re-render so both surface the same card for the device — resolving it in one
@@ -810,15 +845,39 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const resolveOnboardingSignals = async (req: Request, userId: UserId) => {
 		const platform = detectPlatform(req);
 		const hasClient = hasInstallableClient(req);
-		const { installed, savedArticle } = platform === "iphone"
-			? await deps.getIosAppSignals({ userId })
-			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
 		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
 		const dismissTokenMatches = dismissCookie === dismissTokenFor(hasClient);
-		const onboardingDismissed = hasClient ? installed && dismissTokenMatches : dismissTokenMatches;
 		const onboardingCompletedBefore =
 			dismissCookie !== undefined && dismissCookie !== NO_CLIENT_ONBOARDING_VERSION;
-		return { platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed, onboardingCompletedBefore };
+		if (!hasClient) {
+			return {
+				platform,
+				installed: false,
+				savedArticle: false,
+				savedCount: 0,
+				hasInstallableClient: hasClient,
+				onboardingDismissed: dismissTokenMatches,
+				onboardingCompletedBefore,
+			};
+		}
+		const signals = await deps.getOnboardingSignals({ userId });
+		const { installed, savedArticle } = platform === "iphone"
+			? signals
+			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
+		const savedCount = await resolveNextReadProgress(
+			userId,
+			signals.nextReadMinimumReachedAt,
+		);
+		const onboardingDismissed = installed && dismissTokenMatches;
+		return {
+			platform,
+			installed,
+			savedArticle,
+			savedCount,
+			hasInstallableClient: hasClient,
+			onboardingDismissed,
+			onboardingCompletedBefore,
+		};
 	};
 
 	/** Renders the full queue listing from an already-fetched page of rows — the
@@ -942,7 +1001,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * Best-effort: the app's main screen loads over this request, so the signal
 		 * write must never be able to fail it. */
 		if (isIosClient(req)) {
-			await recordIosSignalBestEffort(() => deps.recordIosAnyActivity({ userId }));
+			await recordOnboardingSignalBestEffort(() => deps.recordIosAnyActivity({ userId }));
 		}
 		const urlState = parseQueueUrl(req.query);
 		const tab = tabQuery(urlState.tab);

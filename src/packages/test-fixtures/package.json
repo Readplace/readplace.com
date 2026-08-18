@@ -129,9 +129,9 @@
       "types": "./dist/providers/google-auth/index.d.ts",
       "default": "./dist/providers/google-auth/index.js"
     },
-    "./providers/ios-onboarding-signal": {
-      "types": "./dist/providers/ios-onboarding-signal/index.d.ts",
-      "default": "./dist/providers/ios-onboarding-signal/index.js"
+    "./providers/onboarding-signals": {
+      "types": "./dist/providers/onboarding-signals/index.d.ts",
+      "default": "./dist/providers/onboarding-signals/index.js"
     },
     "./sqs": {
       "types": "./dist/sqs/index.d.ts",
@@ -174,7 +174,7 @@
       "providers/oauth": ["./dist/providers/oauth/index.d.ts"],
       "providers/events": ["./dist/providers/events/index.d.ts"],
       "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"],
-      "providers/ios-onboarding-signal": ["./dist/providers/ios-onboarding-signal/index.d.ts"],
+      "providers/onboarding-signals": ["./dist/providers/onboarding-signals/index.d.ts"],
       "sqs": ["./dist/sqs/index.d.ts"],
       "lambda-context": ["./dist/lambda-context/index.d.ts"]
     }

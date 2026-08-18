@@ -71,7 +71,12 @@ import type {
 } from "@packages/provider-contracts/payment-methods";
 import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
-import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
+import type {
+	GetOnboardingSignals,
+	RecordIosAnyActivity,
+	RecordIosSavedArticle,
+	RecordNextReadMinimumReached,
+} from "@packages/provider-contracts/onboarding-signals";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
@@ -349,9 +354,10 @@ interface AppDependencies {
 	findSavedUrls: FindSavedUrls;
 	saveArticleKeepingPosition: SaveArticle;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
-	getIosAppSignals: GetIosAppSignals;
+	getOnboardingSignals: GetOnboardingSignals;
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
+	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
@@ -1166,9 +1172,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		stickyReader: StickyReader,
 		chromelessReader: ChromelessReader,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
-		getIosAppSignals: deps.getIosAppSignals,
+		getOnboardingSignals: deps.getOnboardingSignals,
 		recordIosAnyActivity: deps.recordIosAnyActivity,
 		recordIosSavedArticle: deps.recordIosSavedArticle,
+		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
 		dualAuth: dualAuthMiddleware,
 		resolveVerificationStatus,
 		requireWriteAccess,

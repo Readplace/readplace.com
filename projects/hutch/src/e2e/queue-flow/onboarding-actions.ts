@@ -38,8 +38,7 @@ export function createOnboardingActions(
 
 				// After reload, install-extension is complete; save-first-article is
 				// independently gated on a save through the extension's Siren endpoint,
-				// so the success view never appears on this reload alone — that's
-				// simulated by onboarding-save-first-article.
+				// which onboarding-save-first-article simulates next.
 				const stillIncomplete = await page.locator(
 					'[data-test-onboarding-step="install-extension"][data-test-onboarding-complete="false"]',
 				).count()
@@ -76,11 +75,20 @@ export function createOnboardingActions(
 				}])
 				await page.reload({ waitUntil: 'domcontentloaded' })
 
-				const container = page.locator('[data-test-onboarding]')
-				await expect(container).toHaveClass(/onboarding--complete/)
+				const savedStep = page.locator(
+					'[data-test-onboarding-step="save-first-article-via-extension"]',
+				)
+				await expect(savedStep).toHaveAttribute('data-test-onboarding-complete', 'true')
+				await expect(savedStep).toBeHidden()
 
-				const success = page.locator('[data-test-onboarding-success]')
-				await expect(success).toBeVisible()
+				// The Next Read milestone needs a queue this flow can't build in a
+				// browser run, so the success card stays out of reach here; it is
+				// covered by queue-onboarding-next-read.route.test.ts instead.
+				const milestoneStep = page.locator(
+					'[data-test-onboarding-step="save-enough-for-next-read"]',
+				)
+				await expect(milestoneStep).toHaveAttribute('data-test-onboarding-complete', 'false')
+				await expect(milestoneStep).toBeVisible()
 
 				progress.savedFirstArticle = true
 			},

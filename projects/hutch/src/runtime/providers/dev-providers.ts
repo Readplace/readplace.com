@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
-import { initInMemoryIosOnboardingSignal } from "@packages/test-fixtures/providers/ios-onboarding-signal";
+import { initInMemoryOnboardingSignals } from "@packages/test-fixtures/providers/onboarding-signals";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
@@ -108,7 +108,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const staleTtlMs = 86400000;
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
-	const iosOnboardingSignal = initInMemoryIosOnboardingSignal();
+	const onboardingSignals = initInMemoryOnboardingSignals({ now: () => new Date() });
 	const articleStore = initInMemoryArticleStore();
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
@@ -409,9 +409,10 @@ export function initDevProviders(input: { appOrigin: string }) {
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
 		resolveCanonicalIdentity,
-		getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
-		recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
-		recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
+		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
+		recordIosAnyActivity: onboardingSignals.recordIosAnyActivity,
+		recordIosSavedArticle: onboardingSignals.recordIosSavedArticle,
+		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		consumeRateLimit,
 		rateLimitRules,
 	};

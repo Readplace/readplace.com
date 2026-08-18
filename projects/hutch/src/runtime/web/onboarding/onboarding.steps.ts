@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import {
+	NEXT_READ_MINIMUM_SAVES,
+	hasEnoughSavesForNextRead,
+} from "@packages/domain/article";
 import { buildExtensionInstallUrl } from "./extension-install";
 import type { OnboardingAction, OnboardingStep, Platform } from "./onboarding.types";
 
@@ -59,6 +63,17 @@ const SAVE_COPY: Record<Platform, StepCopy> = {
 	},
 };
 
+const NEXT_READ_TITLE = `Save ${NEXT_READ_MINIMUM_SAVES} articles so Next Read can start`;
+
+/** Promises readiness, never results: the compute side compares against fewer
+ * candidates than the raw save count (it excludes the article in hand and drops
+ * uncrawled rows), so reaching the minimum makes Next Read possible, not certain. */
+function nextReadDescription(savedCount: number): string {
+	return hasEnoughSavesForNextRead(savedCount)
+		? "Next Read can analyse now. It only shows when something you've saved relates to what you just read."
+		: `Next Read starts analysing at ${NEXT_READ_MINIMUM_SAVES} saves, and only shows when something you've saved relates. You've saved ${savedCount} of ${NEXT_READ_MINIMUM_SAVES}.`;
+}
+
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 	{
 		id: "install-extension",
@@ -73,6 +88,13 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		description: (ctx) => SAVE_COPY[ctx.platform].description,
 		isComplete: (ctx) => ctx.savedArticle,
 		actions: (ctx) => SAVE_COPY[ctx.platform].actions,
+	},
+	{
+		id: "save-enough-for-next-read",
+		title: () => NEXT_READ_TITLE,
+		description: (ctx) => nextReadDescription(ctx.savedCount),
+		isComplete: (ctx) => hasEnoughSavesForNextRead(ctx.savedCount),
+		actions: () => [],
 	},
 ];
 

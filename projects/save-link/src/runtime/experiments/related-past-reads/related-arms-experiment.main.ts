@@ -13,6 +13,10 @@ import {
 	RELATED_PAST_READS_EXPERIMENT,
 	type ExperimentArmResultEvent,
 } from "@packages/hutch-infra-components";
+import {
+	NEXT_READ_MINIMUM_SAVES,
+	hasEnoughSavesForNextRead,
+} from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema, normalizeEmail } from "@packages/domain/user";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -30,7 +34,6 @@ import OpenAI from "openai";
 import { z } from "zod";
 import {
 	RELATED_CANDIDATES_MAX,
-	RELATED_CANDIDATES_MIN,
 	RELATED_CANDIDATE_TEXT_MAX_CHARS,
 	RELATED_MAX_OUTPUT_TOKENS,
 	RELATED_REASON_MAX_CHARS,
@@ -675,8 +678,8 @@ async function main(): Promise<void> {
 	const firstPools = poolsByAnchor.get(firstAnchor.url);
 	assert(firstPools, "every anchor has its pools fetched before any call");
 	assert(
-		firstPools.read.length >= RELATED_CANDIDATES_MIN,
-		`this account has only ${firstPools.read.length} past reads to compare against, below the ${RELATED_CANDIDATES_MIN} the production gate needs — pick an account with more reading history before spending tokens`,
+		hasEnoughSavesForNextRead(firstPools.read.length),
+		`this account has only ${firstPools.read.length} past reads to compare against, below the ${NEXT_READ_MINIMUM_SAVES} the production gate needs — pick an account with more reading history before spending tokens`,
 	);
 
 	const reports: AnchorReport[] = [];

@@ -16,7 +16,7 @@ import { initRevokeAllUserOAuthTokens } from "./providers/oauth/dynamodb-oauth-m
 import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
-import { initIosOnboardingSignal } from "./providers/ios-onboarding-signal/dynamodb-ios-onboarding-signal";
+import { initOnboardingSignals } from "./providers/onboarding-signals/dynamodb-onboarding-signals";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
@@ -73,7 +73,7 @@ const readerReadyState = initDynamoDbReaderReadyState({
 	tableName: requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE"),
 });
 
-const onboarding = initIosOnboardingSignal({
+const onboarding = initOnboardingSignals({
 	client: dynamoClient,
 	onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
 	now,

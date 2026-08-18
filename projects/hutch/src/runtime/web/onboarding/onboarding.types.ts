@@ -20,6 +20,12 @@ export interface InstallableClientOnboarding {
 	hasInstallableClient: true;
 	installed: boolean;
 	savedArticle: boolean;
+	/** Saves counted toward the Next Read milestone, capped at
+	 * `NEXT_READ_MINIMUM_SAVES`. An account that already earned the milestone
+	 * resolves straight to the cap, which is how "sticky" is expressed without a
+	 * second field the count could disagree with. Account-scoped, unlike the
+	 * device-scoped `installed` / `savedArticle` above. */
+	savedCount: number;
 	platform: Platform;
 }
 

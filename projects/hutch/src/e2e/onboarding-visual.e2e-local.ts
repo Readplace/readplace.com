@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
+import { NEXT_READ_MINIMUM_SAVES } from "@packages/domain/article";
 import { z } from "zod";
 import {
 	captureCheckpoint,
@@ -34,12 +35,34 @@ const SUCCESS_MESSAGE = "main.queue .onboarding__success-message";
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
-async function createVerifiedUser(page: Page, email: string): Promise<void> {
+async function createVerifiedUser(page: Page, email: string): Promise<string> {
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
 	});
 	assert.equal(created.status(), 201, "the e2e user fixture must answer the create request");
-	CreatedUser.parse(await created.json());
+	return CreatedUser.parse(await created.json()).userId;
+}
+
+/* Seeded rather than saved through the UI: the milestone reads a bounded count
+ * of the reader's saves, so the pile only has to exist — driving 50 saves
+ * through the save bar would spend minutes to reach the same count. */
+async function seedSavesReachingMilestone(page: Page, userId: string): Promise<void> {
+	const seeds = Array.from({ length: NEXT_READ_MINIMUM_SAVES }, (_, index) =>
+		page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/onboarding-milestone-${index}`,
+				title: `Seeded article ${index}`,
+				content: "<p>Seeded body for the onboarding milestone baseline.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedAt: `2026-07-10T09:${String(index % 60).padStart(2, "0")}:00.000Z`,
+				savedByUserId: userId,
+				excerpt: "A seeded excerpt.",
+			},
+		}),
+	);
+	for (const response of await Promise.all(seeds)) {
+		assert.equal(response.status(), 201, "the seed endpoint must create each article");
+	}
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
@@ -75,15 +98,24 @@ async function completedRowTakesNoSpace(page: Page): Promise<void> {
 	const completed = page.locator(COMPLETED_STEP);
 	await expect(completed).toBeAttached();
 	await expect(completed).toBeHidden();
-	await expect(page.locator(`${ANY_STEP}:visible`)).toHaveCount(1);
+
+	const allSteps = await page.locator(ANY_STEP).count();
+	const visibleSteps = await page.locator(`${ANY_STEP}:visible`).count();
+	assert.equal(
+		visibleSteps,
+		allSteps - 1,
+		"every step but the checked-off one must still occupy the card",
+	);
+
 	const list = await measuredBox(page, STEPS_LIST);
 	const step = await measuredBox(page, OUTSTANDING_STEP);
-	assert.equal(step.y, list.y, "the outstanding step must start where the list starts");
 	assert.equal(
-		list.height,
-		step.height,
-		"the steps list must be exactly as tall as its one outstanding row",
+		step.y,
+		list.y,
+		"the first outstanding step must start where the list starts, with the completed row above it contributing nothing",
 	);
+	const completedBox = await page.locator(COMPLETED_STEP).boundingBox();
+	assert.equal(completedBox, null, "a checked-off row must have no box at all");
 }
 
 async function successSettled(page: Page): Promise<void> {
@@ -138,7 +170,8 @@ test.describe("Onboarding card", () => {
 
 	test("a returning user's success card carries only the title", async ({ page }, testInfo) => {
 		const email = `onboarding-success-returning-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await createVerifiedUser(page, email);
+		const userId = await createVerifiedUser(page, email);
+		await seedSavesReachingMilestone(page, userId);
 		await loginAs(page, email);
 		await reloadQueueWithOnboardingCookies(page, [
 			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },

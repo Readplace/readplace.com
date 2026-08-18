@@ -7,38 +7,43 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import type {
 	DeleteOnboarding,
-	GetIosAppSignals,
+	GetOnboardingSignals,
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
-} from "@packages/provider-contracts/ios-onboarding-signal";
+	RecordNextReadMinimumReached,
+} from "@packages/provider-contracts/onboarding-signals";
 
-const IosOnboardingRow = z.object({
+const OnboardingRow = z.object({
 	userId: UserIdSchema,
 	/* ISO instant of the first authenticated iOS request; absent until then. */
 	iosAppActivatedAt: dynamoField(z.string()),
 	/* ISO instant of the first save from the iOS app; absent until then. */
 	iosAppSavedAt: dynamoField(z.string()),
+	/* ISO instant the account's save count first reached the Next Read
+	 * minimum; absent until then. */
+	nextReadMinimumReachedAt: dynamoField(z.string()),
 });
 
-/** Per-user iOS onboarding signals on a dedicated table keyed by `userId`.
- * Writes come from the app's authenticated requests; reads from Safari's
+/** Per-user onboarding signals on a dedicated table keyed by `userId`. The iOS
+ * writes come from the app's authenticated requests and are read by Safari's
  * `/queue` render — the two share only the userId because Safari can't see the
  * app's cookies. Keyed directly by `userId` (no GSI, no users-row coupling) so
- * future per-user onboarding state can register here too. */
-export function initIosOnboardingSignal(deps: {
+ * per-user onboarding state that is not device-scoped registers here too. */
+export function initOnboardingSignals(deps: {
 	client: DynamoDBDocumentClient;
 	onboardingTableName: string;
 	now: () => Date;
 }): {
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
-	getIosAppSignals: GetIosAppSignals;
+	recordNextReadMinimumReached: RecordNextReadMinimumReached;
+	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
 	const onboarding = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.onboardingTableName,
-		schema: IosOnboardingRow,
+		schema: OnboardingRow,
 	});
 
 	const recordIosAnyActivity: RecordIosAnyActivity = async ({ userId }) => {
@@ -58,14 +63,36 @@ export function initIosOnboardingSignal(deps: {
 		});
 	};
 
-	const getIosAppSignals: GetIosAppSignals = async ({ userId }) => {
+	const recordNextReadMinimumReached: RecordNextReadMinimumReached = async ({
+		userId,
+	}) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET nextReadMinimumReachedAt = if_not_exists(nextReadMinimumReachedAt, :now)",
+			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
+	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {
 		const row = await onboarding.get({ userId });
-		return { installed: !!row?.iosAppActivatedAt, savedArticle: !!row?.iosAppSavedAt };
+		const reachedAt = row?.nextReadMinimumReachedAt;
+		return {
+			installed: !!row?.iosAppActivatedAt,
+			savedArticle: !!row?.iosAppSavedAt,
+			nextReadMinimumReachedAt: reachedAt ? new Date(reachedAt) : undefined,
+		};
 	};
 
 	const deleteOnboarding: DeleteOnboarding = async ({ userId }) => {
 		await onboarding.delete({ Key: { userId } });
 	};
 
-	return { recordIosAnyActivity, recordIosSavedArticle, getIosAppSignals, deleteOnboarding };
+	return {
+		recordIosAnyActivity,
+		recordIosSavedArticle,
+		recordNextReadMinimumReached,
+		getOnboardingSignals,
+		deleteOnboarding,
+	};
 }

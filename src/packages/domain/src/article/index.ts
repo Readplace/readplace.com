@@ -62,3 +62,7 @@ export {
 	type NextReadDismissal,
 	type NextReadSlot,
 } from "./next-read-dismissal";
+export {
+	NEXT_READ_MINIMUM_SAVES,
+	hasEnoughSavesForNextRead,
+} from "./next-read-minimum";

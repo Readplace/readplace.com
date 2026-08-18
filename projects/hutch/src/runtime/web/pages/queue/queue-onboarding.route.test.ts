@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { NEXT_READ_MINIMUM_SAVES } from "@packages/domain/article";
+import type { CountArticlesQuery } from "@packages/provider-contracts/article-store";
 import { JSDOM } from "jsdom";
 import {
 	ALIVE_COOKIE_NAME,
@@ -19,6 +21,21 @@ import {
 } from "@packages/test-fixtures";
 
 const useApp = useTestServer();
+
+/** Seeds an account already past the Next Read minimum without paying for the
+ * saves: the milestone only ever reads a bounded count, so a stubbed count is
+ * indistinguishable from a real pile and keeps these cases off 50 round-trips. */
+function fixtureWithSavedCount(savedCount: number) {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	return {
+		...fixture,
+		articleStore: {
+			...fixture.articleStore,
+			countArticlesByUser: async (query: CountArticlesQuery) =>
+				Math.min(savedCount, query.countLimit ?? savedCount),
+		},
+	};
+}
 
 /** Desktop Chrome — a platform with an installable client, so these requests
  * exercise the completion-gated step checklist. Superagent sends no
@@ -102,8 +119,8 @@ describe("Queue onboarding", () => {
 		expect(step.getAttribute("data-test-onboarding-complete")).toBe("true");
 	});
 
-	it("shows success message when both the alive and extension-save cookies are present", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	it("shows success message when the alive and extension-save cookies are present and the pile is deep enough", async () => {
+		const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
 
@@ -153,7 +170,7 @@ describe("Queue onboarding", () => {
 	});
 
 	it("shows success state even when viewing an empty filter tab", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
 
@@ -249,7 +266,7 @@ describe("Queue onboarding", () => {
 		const ALL_COMPLETE_COOKIES = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 
 		it("welcomes a first-time completion with the full message", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
@@ -263,7 +280,7 @@ describe("Queue onboarding", () => {
 		});
 
 		it("greets a re-onboarded user with just the title once a past dismissal shows they finished before", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
@@ -279,7 +296,7 @@ describe("Queue onboarding", () => {
 		});
 
 		it("still welcomes in full when the only past dismissal was the no-client escape card", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
@@ -373,7 +390,7 @@ describe("Queue onboarding — iPhone", () => {
 	});
 
 	it("reaches the success state once the app records a save", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const token = await bearerForLoggedInUser(harness);
 
@@ -418,8 +435,8 @@ describe("Queue onboarding — iPhone", () => {
 		const loggedErrors: Error[] = [];
 		const harness = useApp({
 			...fixture,
-			iosOnboardingSignal: {
-				...fixture.iosOnboardingSignal,
+			onboardingSignals: {
+				...fixture.onboardingSignals,
 				recordIosSavedArticle: async () => { throw new Error("dynamo down"); },
 			},
 			shared: {
@@ -446,8 +463,8 @@ describe("Queue onboarding — iPhone", () => {
 		const errorArgs: unknown[] = [];
 		const harness = useApp({
 			...fixture,
-			iosOnboardingSignal: {
-				...fixture.iosOnboardingSignal,
+			onboardingSignals: {
+				...fixture.onboardingSignals,
 				// biome-ignore lint/suspicious/noExplicitAny: deliberately throws a non-Error to exercise the `instanceof Error ? … : undefined` branch
 				recordIosAnyActivity: async () => { throw "dynamo down" as any; },
 			},
@@ -464,7 +481,7 @@ describe("Queue onboarding — iPhone", () => {
 			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
 
 		expect(response.status).toBe(200);
-		expect(errorArgs).toEqual([["Failed to record iOS onboarding signal", undefined]]);
+		expect(errorArgs).toEqual([["Failed to record onboarding signal", undefined]]);
 	});
 });
 

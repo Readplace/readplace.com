@@ -4,6 +4,7 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
+import { hasEnoughSavesForNextRead } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -15,7 +16,6 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import { QueueEntryCreatedEvent, RelatedArticlesComputedEvent } from "./index";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
-import { RELATED_CANDIDATES_MIN } from "./related-articles-limits";
 import type { SelectRelatedArticles } from "./related-articles-selector";
 
 interface ComputeRelatedArticlesHandlerDeps {
@@ -111,7 +111,7 @@ export function initComputeRelatedArticlesHandler(
 				});
 				const candidateCount =
 					pools.unreadCandidates.length + pools.readCandidates.length;
-				if (candidateCount < RELATED_CANDIDATES_MIN) {
+				if (!hasEnoughSavesForNextRead(candidateCount)) {
 					if (pools.awaitingCrawl > 0) throw new MetadataNotReadyError(entry.url);
 					await skip("not enough saves to compare against");
 					continue;

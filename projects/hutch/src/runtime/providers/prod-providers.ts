@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
-import { initIosOnboardingSignal } from "./ios-onboarding-signal/dynamodb-ios-onboarding-signal";
+import { initOnboardingSignals } from "./onboarding-signals/dynamodb-onboarding-signals";
 import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -113,7 +113,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const schedulerClient = new SchedulerClient({});
 
 	const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
-	const iosOnboardingSignal = initIosOnboardingSignal({ client, onboardingTableName: onboardingTable, now: () => new Date() });
+	const onboardingSignals = initOnboardingSignals({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
 	const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
 	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
@@ -336,9 +336,10 @@ export function initProdProviders(input: { appOrigin: string }) {
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
 		resolveCanonicalIdentity,
-		getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
-		recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
-		recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
+		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
+		recordIosAnyActivity: onboardingSignals.recordIosAnyActivity,
+		recordIosSavedArticle: onboardingSignals.recordIosSavedArticle,
+		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		consumeRateLimit,
 		rateLimitRules,
 	};

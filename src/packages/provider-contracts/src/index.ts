@@ -10,7 +10,7 @@ export type * from "./email-verification";
 export type * from "./events";
 export type * from "./google-auth";
 export * from "./hosted-checkout";
-export type * from "./ios-onboarding-signal";
+export type * from "./onboarding-signals";
 export type * from "./oauth";
 export * from "./password-reset";
 export * from "./payment-methods";

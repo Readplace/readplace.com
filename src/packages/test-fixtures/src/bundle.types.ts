@@ -14,7 +14,7 @@ export type {
 	HostedCheckoutBundle,
 	HttpErrorMessageMapping,
 	ImportSessionBundle,
-	IosOnboardingSignalBundle,
+	OnboardingSignalsBundle,
 	OAuthBundle,
 	ParserBundle,
 	PasswordResetBundle,

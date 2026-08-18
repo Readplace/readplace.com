@@ -57,9 +57,9 @@
       "types": "./dist/hosted-checkout.d.ts",
       "default": "./dist/hosted-checkout.js"
     },
-    "./ios-onboarding-signal": {
-      "types": "./dist/ios-onboarding-signal.d.ts",
-      "default": "./dist/ios-onboarding-signal.js"
+    "./onboarding-signals": {
+      "types": "./dist/onboarding-signals.d.ts",
+      "default": "./dist/onboarding-signals.js"
     },
     "./oauth": {
       "types": "./dist/oauth.d.ts",
@@ -132,7 +132,7 @@
       "events": ["./dist/events.d.ts"],
       "google-auth": ["./dist/google-auth.d.ts"],
       "hosted-checkout": ["./dist/hosted-checkout.d.ts"],
-      "ios-onboarding-signal": ["./dist/ios-onboarding-signal.d.ts"],
+      "onboarding-signals": ["./dist/onboarding-signals.d.ts"],
       "oauth": ["./dist/oauth.d.ts"],
       "password-reset": ["./dist/password-reset.d.ts"],
       "payment-methods": ["./dist/payment-methods.d.ts"],

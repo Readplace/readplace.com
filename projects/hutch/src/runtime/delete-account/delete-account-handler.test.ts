@@ -21,7 +21,7 @@ import {
 	initInMemoryInboxEmailLink,
 	initInMemoryInboxSavedLink,
 } from "@packages/test-fixtures/providers/inbox-email";
-import { initInMemoryIosOnboardingSignal } from "@packages/test-fixtures/providers/ios-onboarding-signal";
+import { initInMemoryOnboardingSignals } from "@packages/test-fixtures/providers/onboarding-signals";
 import {
 	createRevokeAllUserOAuthTokens,
 	initInMemoryOAuthModel,
@@ -57,7 +57,7 @@ function buildSubject() {
 	const articleStore = initInMemoryArticleStore();
 	const digest = initInMemoryDigestQueue();
 	const readerReady = initInMemoryReaderReadyState();
-	const onboarding = initInMemoryIosOnboardingSignal();
+	const onboarding = initInMemoryOnboardingSignals({ now: () => SEED_NOW });
 	const subs = initInMemorySubscriptionProviders({ now: () => SEED_NOW });
 	const inboxEmail = initInMemoryInboxEmail();
 	const inboxLink = initInMemoryInboxEmailLink();
@@ -309,6 +309,7 @@ async function seedAccount(
 	assert(claim.claimed, "expected the reader-ready slot to seed as claimed");
 
 	await s.onboarding.recordIosSavedArticle({ userId });
+	await s.onboarding.recordNextReadMinimumReached({ userId });
 
 	if (subscription === "active") {
 		await s.subs.upsertActive({ userId, subscriptionId, customerId });
@@ -431,9 +432,10 @@ describe("delete-account handler", () => {
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId, includeTotal: true })).total, 0);
 		assert.equal((await s.digest.listDigestItemsByUser(victim.userId)).length, 0);
 		assert.equal(await readerReadySlotPresent(s, victim.userId), false);
-		assert.deepEqual(await s.onboarding.getIosAppSignals({ userId: victim.userId }), {
+		assert.deepEqual(await s.onboarding.getOnboardingSignals({ userId: victim.userId }), {
 			installed: false,
 			savedArticle: false,
+			nextReadMinimumReachedAt: undefined,
 		});
 		assert.equal(await s.subs.findByUserId(victim.userId), undefined);
 		assert.equal(
@@ -510,9 +512,10 @@ describe("delete-account handler", () => {
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: bystander.userId, includeTotal: true })).total, 1);
 		assert.equal((await s.digest.listDigestItemsByUser(bystander.userId)).length, 1);
 		assert.equal(await readerReadySlotPresent(s, bystander.userId), true);
-		assert.deepEqual(await s.onboarding.getIosAppSignals({ userId: bystander.userId }), {
+		assert.deepEqual(await s.onboarding.getOnboardingSignals({ userId: bystander.userId }), {
 			installed: true,
 			savedArticle: true,
+			nextReadMinimumReachedAt: SEED_NOW,
 		});
 		const bystanderSub = await s.subs.findByUserId(bystander.userId);
 		assert(bystanderSub, "expected the bystander subscription to survive");

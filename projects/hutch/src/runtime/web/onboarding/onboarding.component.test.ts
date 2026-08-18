@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { NEXT_READ_MINIMUM_SAVES } from "@packages/domain/article";
 import { JSDOM } from "jsdom";
 import { OnboardingChecklist } from "./onboarding.component";
 import type { InstallableClientOnboarding, OnboardingContext } from "./onboarding.types";
@@ -10,6 +11,7 @@ function contextWith(
 		hasInstallableClient: true,
 		installed: false,
 		savedArticle: false,
+		savedCount: 0,
 		platform: "chrome",
 		...overrides,
 	};
@@ -25,7 +27,7 @@ function parse(html: string): Document {
 }
 
 describe("OnboardingChecklist", () => {
-	it("renders both steps incomplete and container visible when nothing is done", () => {
+	it("renders every step incomplete and container visible when nothing is done", () => {
 		const doc = parse(OnboardingChecklist(contextWith()));
 
 		const container = doc.querySelector("[data-test-onboarding]");
@@ -40,6 +42,10 @@ describe("OnboardingChecklist", () => {
 		const saveStep = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
 		assert(saveStep, "save-first-article step must be rendered");
 		assert.equal(saveStep.getAttribute("data-test-onboarding-complete"), "false");
+
+		const nextReadStep = doc.querySelector('[data-test-onboarding-step="save-enough-for-next-read"]');
+		assert(nextReadStep, "save-enough-for-next-read step must be rendered");
+		assert.equal(nextReadStep.getAttribute("data-test-onboarding-complete"), "false");
 	});
 
 	it("renders the founder avatar alongside the intro text", () => {
@@ -51,13 +57,14 @@ describe("OnboardingChecklist", () => {
 		assert.match(avatar.getAttribute("src") ?? "", /\/fayner-brack\.jpg$/);
 	});
 
-	it("renders install-extension before save-first-article", () => {
+	it("renders install-extension, then save-first-article, then the Next Read milestone", () => {
 		const doc = parse(OnboardingChecklist(contextWith()));
 
 		const steps = doc.querySelectorAll("[data-test-onboarding-step]");
-		assert(steps.length >= 2, "at least two steps must be rendered");
+		assert.equal(steps.length, 3);
 		assert.equal(steps[0].getAttribute("data-test-onboarding-step"), "install-extension");
 		assert.equal(steps[1].getAttribute("data-test-onboarding-step"), "save-first-article-via-extension");
+		assert.equal(steps[2].getAttribute("data-test-onboarding-step"), "save-enough-for-next-read");
 	});
 
 	it("marks install-extension complete when installed is true", () => {
@@ -246,8 +253,100 @@ describe("OnboardingChecklist", () => {
 		assert.equal(action.getAttribute("href"), "/install");
 	});
 
+	describe("Next Read milestone step", () => {
+		const stepOf = (doc: Document) =>
+			doc.querySelector('[data-test-onboarding-step="save-enough-for-next-read"]');
+
+		it("stays incomplete one save short of the minimum", () => {
+			const doc = parse(
+				OnboardingChecklist(contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES - 1 })),
+			);
+
+			const step = stepOf(doc);
+			assert(step, "Next Read step must be rendered");
+			assert.equal(step.getAttribute("data-test-onboarding-complete"), "false");
+		});
+
+		it("completes at exactly the minimum", () => {
+			const doc = parse(
+				OnboardingChecklist(contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES })),
+			);
+
+			const step = stepOf(doc);
+			assert(step, "Next Read step must be rendered");
+			assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
+		});
+
+		it("counts the saves so far in the description while short of the minimum", () => {
+			const doc = parse(OnboardingChecklist(contextWith({ savedCount: 12 })));
+
+			const step = stepOf(doc);
+			assert(step, "Next Read step must be rendered");
+			assert.match(
+				step.querySelector(".onboarding__step-description")?.textContent ?? "",
+				new RegExp(`saved 12 of ${NEXT_READ_MINIMUM_SAVES}`),
+			);
+		});
+
+		it("stops counting and points at the reader once the minimum is reached", () => {
+			const doc = parse(
+				OnboardingChecklist(
+					contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES, installed: true }),
+				),
+			);
+
+			const step = stepOf(doc);
+			assert(step, "Next Read step must be rendered");
+			assert.match(
+				step.querySelector(".onboarding__step-description")?.textContent ?? "",
+				/only shows when something you've saved relates/,
+			);
+		});
+
+		it("names the minimum in the title", () => {
+			const doc = parse(OnboardingChecklist(contextWith()));
+
+			const step = stepOf(doc);
+			assert(step, "Next Read step must be rendered");
+			assert.equal(
+				step.querySelector(".onboarding__step-title")?.textContent,
+				`Save ${NEXT_READ_MINIMUM_SAVES} articles so Next Read can start`,
+			);
+		});
+
+		it("reads the same on every platform, unlike the device-scoped steps", () => {
+			const titles = (["chrome", "firefox", "iphone", "other"] as const).map((platform) => {
+				const doc = parse(OnboardingChecklist(contextWith({ platform })));
+				const step = stepOf(doc);
+				assert(step, `Next Read step must be rendered for ${platform}`);
+				return step.querySelector(".onboarding__step-title")?.textContent;
+			});
+
+			assert.equal(new Set(titles).size, 1);
+		});
+
+		it("offers no action of its own — saving is the action", () => {
+			const doc = parse(OnboardingChecklist(contextWith()));
+
+			const step = stepOf(doc);
+			assert(step, "Next Read step must be rendered");
+			assert.equal(step.querySelectorAll("[data-test-onboarding-action]").length, 0);
+		});
+
+		it("holds back the success card while it is the only step outstanding", () => {
+			const doc = parse(
+				OnboardingChecklist(contextWith({ installed: true, savedArticle: true, savedCount: 3 })),
+			);
+
+			const container = doc.querySelector("[data-test-onboarding]");
+			assert(container, "onboarding container must be rendered");
+			assert(container.classList.contains("onboarding--visible"));
+			assert.equal(doc.querySelectorAll("[data-test-onboarding-dismiss]").length, 0);
+		});
+	});
+
 	it("shows success message with avatar when both steps are complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true })));
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
@@ -270,7 +369,7 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("keeps the full welcome visible for a first-time completion", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true })));
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
 
 		const message = doc.querySelector(".onboarding__success-message");
 		assert(message, "success message must be rendered");
@@ -280,7 +379,7 @@ describe("OnboardingChecklist", () => {
 
 	it("greets a user who completed a previous checklist with just the title", () => {
 		const doc = parse(
-			OnboardingChecklist(contextWith({ savedArticle: true, installed: true }), {
+			OnboardingChecklist(contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES }), {
 				completedBefore: true,
 			}),
 		);
@@ -295,7 +394,7 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("reaches success from the iPhone steps when both are complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone", savedArticle: true, installed: true })));
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone", savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
@@ -307,7 +406,7 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("does not show steps list when all complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true })));
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
 
 		const steps = doc.querySelector("[data-test-onboarding-steps]");
 		assert.equal(steps, null);

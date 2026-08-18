@@ -72,7 +72,7 @@ import type {
 	FindUserById,
 	FindUserIdsByPrefix,
 	ForceMarkCrawlPending,
-	GetIosAppSignals,
+	GetOnboardingSignals,
 	GetSessionUserId,
 	InMemoryMarkCrawlFailed,
 	InMemoryMarkCrawlReady,
@@ -126,6 +126,7 @@ import type {
 	ReadArticleContent,
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
+	RecordNextReadMinimumReached,
 	RefreshArticleIfStale,
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
@@ -411,10 +412,11 @@ export interface RateLimitBundle {
 	rules: RateLimitRules;
 }
 
-export interface IosOnboardingSignalBundle {
+export interface OnboardingSignalsBundle {
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
-	getIosAppSignals: GetIosAppSignals;
+	recordNextReadMinimumReached: RecordNextReadMinimumReached;
+	getOnboardingSignals: GetOnboardingSignals;
 }
 
 export interface GoogleAuthBundle {
@@ -497,7 +499,7 @@ export interface TestAppFixture {
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
 	rateLimit: RateLimitBundle;
-	iosOnboardingSignal: IosOnboardingSignalBundle;
+	onboardingSignals: OnboardingSignalsBundle;
 	google: GoogleAuthBundle | undefined;
 	apple: AppleAuthBundle;
 	admin: AdminBundle;
