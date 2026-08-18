@@ -26,6 +26,9 @@ final class ShareArtifactsTests: XCTestCase {
 		let jobs = UploadJobStore(containerURL: container)
 		let queued = job(id: UUID().uuidString)
 		try await jobs.admit(queued)
+		let unseenSave = UnseenSave(containerURL: container)
+		unseenSave.record()
+		XCTAssertTrue(unseenSave.exists, "precondition: a save is recorded")
 		let cache = DiscoveryHTTPCache.directory(in: container)
 		try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
 		let entry = cache.appendingPathComponent("entry")
@@ -34,6 +37,10 @@ final class ShareArtifactsTests: XCTestCase {
 		ShareArtifacts.purge(appGroupId: TokenStore.resolvedAppGroupId)
 
 		XCTAssertEqual(jobs.loadAll(now: Date()), [])
+		XCTAssertFalse(
+			unseenSave.exists,
+			"a save recorded for one account must not make the next account's list refresh"
+		)
 		XCTAssertFalse(FileManager.default.fileExists(atPath: entry.path))
 	}
 

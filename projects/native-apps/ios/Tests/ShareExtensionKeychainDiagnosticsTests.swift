@@ -43,7 +43,8 @@ final class ShareExtensionKeychainDiagnosticsTests: XCTestCase {
 				sessionConfiguration: TestSupport.stubbedConfiguration()
 			),
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil)),
-			jobs: UploadJobStore(containerURL: TestSupport.temporaryContainer())
+			jobs: UploadJobStore(containerURL: TestSupport.temporaryContainer()),
+			unseenSave: nil
 		)
 
 		let outcome = await saver.run(

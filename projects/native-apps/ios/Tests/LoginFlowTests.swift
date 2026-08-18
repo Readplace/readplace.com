@@ -217,7 +217,7 @@ final class LoginFlowTests: XCTestCase {
 			}
 		}
 
-		let viewModel = ReadingListViewModel(api: session.makeAPI(), jobs: nil, onSessionExpired: {})
+		let viewModel = ReadingListViewModel(api: session.makeAPI(), jobs: nil, unseenSave: nil, onSessionExpired: {})
 		await viewModel.loadIfNeeded()
 
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])

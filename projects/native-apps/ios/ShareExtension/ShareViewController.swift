@@ -40,7 +40,8 @@ final class ShareViewController: UIViewController {
 				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: containerURL)
 			),
 			captor: captor,
-			jobs: containerURL.map(UploadJobStore.init(containerURL:))
+			jobs: containerURL.map(UploadJobStore.init(containerURL:)),
+			unseenSave: containerURL.map(UnseenSave.init(containerURL:))
 		)
 		let sharedPdf: (() async -> Data?)? = shared?.pdfProvider.map { provider in
 			{ await ShareURLExtractor.loadPDFData(provider) }

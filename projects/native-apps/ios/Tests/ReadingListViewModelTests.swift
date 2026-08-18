@@ -11,6 +11,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	private func makeViewModel(
 		store: TokenStore,
 		jobs: UploadJobStore? = nil,
+		unseenSave: UnseenSave? = nil,
 		onSessionExpired: @escaping () -> Void = {}
 	) -> ReadingListViewModel {
 		let api = ReadplaceAPI(
@@ -18,7 +19,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			store: store,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
-		return ReadingListViewModel(api: api, jobs: jobs, onSessionExpired: onSessionExpired)
+		return ReadingListViewModel(api: api, jobs: jobs, unseenSave: unseenSave, onSessionExpired: onSessionExpired)
 	}
 
 	// MARK: - Add-links help (client-side)
@@ -537,8 +538,9 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	func testHandleForegroundOnADeepScrolledListHoldsPositionWithoutReloading() async throws {
 		// Returning to the foreground while deep-scrolled must not re-read the list —
-		// that would collapse it to page 1 and lose the user's position. The
-		// convergence no-ops (no extra GET), leaving the paginated list intact.
+		// that would collapse it to page 1 and lose the user's position. With no
+		// share-sheet save recorded, the convergence no-ops (no extra GET), leaving
+		// the paginated list intact.
 		let nextLink = """
 			,{ "rel": ["next"], "href": "/queue?page=2" }
 			"""
@@ -561,17 +563,18 @@ final class ReadingListViewModelTests: XCTestCase {
 				return .json(404, "{}")
 			}
 		}
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), unseenSave: unseenSave)
 		await viewModel.refresh()
 		await viewModel.loadMore()
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
 
 		await viewModel.handleForeground()
 
-		XCTAssertEqual(page1GETs, 1, "a deep-scrolled foreground does not re-read the first page")
+		XCTAssertEqual(page1GETs, 1, "a deep-scrolled foreground with no recorded save does not re-read the first page")
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"],
-			"the paginated list is held in place — reconciliation waits for a pull-to-refresh"
+			"the paginated list is held in place — reconciliation waits for a pull-to-refresh or a recorded save"
 		)
 	}
 
@@ -813,6 +816,230 @@ final class ReadingListViewModelTests: XCTestCase {
 			"at launch the initial load owns the fetch — the foreground hook does not race it with a second one"
 		)
 		XCTAssertTrue(viewModel.articles.isEmpty)
+	}
+
+	func testHandleForegroundOnADeepScrolledListReloadsWhenAShareSheetSaveIsPending() async throws {
+		// A share-sheet save recorded while the app was away is the one change worth
+		// the same first-page reset a pull-to-refresh performs: the deep-scrolled
+		// hold gives way, the list converges to the server's new first page — where
+		// the fresh link is — and the marker is consumed so the next return holds
+		// position again.
+		let nextLink = """
+			,{ "rel": ["next"], "href": "/queue?page=2" }
+			"""
+		var saved = false
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query?.contains("page=2") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+				))
+			case ("/queue", _):
+				let entities = saved
+					? [Fixtures.article(id: "shared"), Fixtures.article(id: "a1"), Fixtures.article(id: "a2")]
+					: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")]
+				return .json(200, Fixtures.collection(entitiesJSON: entities, extraLinks: nextLink))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), unseenSave: unseenSave)
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+
+		saved = true
+		unseenSave.record()
+		await viewModel.handleForeground()
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["shared", "a1", "a2"],
+			"a recorded share-sheet save resets the deep-scrolled list to the first page, where the new link is"
+		)
+		XCTAssertFalse(unseenSave.exists, "the reload consumed the marker — the next return holds position again")
+	}
+
+	/// A three-page queue.
+	private func threePageHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		return { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query?.contains("page=3") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a5"), Fixtures.article(id: "a6")], page: 3
+				))
+			case ("/queue", let query) where query?.contains("page=2") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?page=3\" }",
+					page: 2
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }"
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	func testHandleForegroundWithAPendingSaveStepsAsideForAnInFlightPageLoad() async throws {
+		// A pending-save reset that ran while `loadMore` had a page in flight would
+		// let the stale append land on top of the fresh first page — a gap where
+		// the boundary row was and a cursor pointing past rows never shown. The
+		// reset waits for the next return instead, and the marker survives for it.
+		StubURLProtocol.setHandler(threePageHandler())
+		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), unseenSave: unseenSave)
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+		unseenSave.record()
+
+		// Both run on the main actor: `loadMore` marks itself in flight before its
+		// first suspension, so the foreground that follows finds it under way.
+		async let pageLoad: Void = viewModel.loadMore()
+		async let foreground: Void = viewModel.handleForeground()
+		await pageLoad
+		await foreground
+
+		let firstPageGETs = StubURLProtocol.records(path: "/queue").filter { $0.request.url?.query == nil }.count
+		XCTAssertEqual(firstPageGETs, 1, "the setup read is the only first-page read; the foreground stepped aside")
+		XCTAssertTrue(unseenSave.exists, "the marker survives, so the next return performs the reset")
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4", "a5", "a6"],
+			"the list is exactly what the page loads composed — no reset landed under the append"
+		)
+	}
+
+	func testHandleForegroundWithAPendingSaveStepsAsideForAnInFlightFirstPageLoad() async throws {
+		// The same rule against the other in-flight load: a pull-to-refresh already
+		// on the wire owns the first-page read, and its response consumes the marker.
+		StubURLProtocol.setHandler(threePageHandler())
+		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), unseenSave: unseenSave)
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+		unseenSave.record()
+
+		async let pull: Void = viewModel.refresh()
+		async let foreground: Void = viewModel.handleForeground()
+		await pull
+		await foreground
+
+		let firstPageGETs = StubURLProtocol.records(path: "/queue").filter { $0.request.url?.query == nil }.count
+		XCTAssertEqual(firstPageGETs, 2, "setup's read plus the pull-to-refresh — the foreground did not add a third")
+		XCTAssertFalse(unseenSave.exists, "the pull-to-refresh showed first-page truth and consumed the marker")
+	}
+
+	func testAFailedForegroundResetKeepsThePendingSaveMarkerForTheNextReturn() async throws {
+		// If the reset's first-page read fails, nothing new was shown, so the marker
+		// must remain — otherwise a transient error would silently forfeit the
+		// automatic refresh for that save.
+		let nextLink = """
+			,{ "rel": ["next"], "href": "/queue?page=2" }
+			"""
+		var serverDown = false
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query?.contains("page=2") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+				))
+			case ("/queue", _):
+				if serverDown { return .json(500, "{}") }
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], extraLinks: nextLink
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), unseenSave: unseenSave)
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+
+		unseenSave.record()
+		serverDown = true
+		await viewModel.handleForeground()
+
+		XCTAssertNotNil(viewModel.errorText, "the failed read is surfaced like any other failed refresh")
+		XCTAssertTrue(unseenSave.exists, "nothing new was shown, so the save is still owed a refresh")
+	}
+
+	func testAPaginatedAppendLeavesThePendingSaveMarkerAlone() async {
+		// Loading a deeper page shows more of the same list, never a fresh first
+		// page, so it must not consume the marker: the save is still unseen.
+		let nextLink = """
+			,{ "rel": ["next"], "href": "/queue?page=2" }
+			"""
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query?.contains("page=2") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], extraLinks: nextLink
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), unseenSave: unseenSave)
+		await viewModel.refresh()
+		unseenSave.record()
+
+		await viewModel.loadMore()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"])
+		XCTAssertTrue(unseenSave.exists, "an append is not first-page truth — the save is still owed a refresh")
+	}
+
+	func testFirstPageLoadClearsAPendingSaveMarker() async {
+		// A save recorded while the app was dead is surfaced by the launch load
+		// itself, so the marker must not survive it — otherwise the first paginated
+		// return after launch would reset the list with nothing new to show.
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
+		unseenSave.record()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), unseenSave: unseenSave)
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"], "the launch load itself surfaces the save")
+		XCTAssertFalse(
+			unseenSave.exists,
+			"first-page truth consumes the marker, so a later paginated return will not reset an already-current list"
+		)
 	}
 
 	// MARK: - Web sheet dismissal
@@ -1240,7 +1467,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
 		var expired = false
-		let viewModel = ReadingListViewModel(api: api, jobs: nil, onSessionExpired: { expired = true })
+		let viewModel = ReadingListViewModel(api: api, jobs: nil, unseenSave: nil, onSessionExpired: { expired = true })
 		// 401 everywhere: the entry-point load 401s, the single refresh 401s, and
 		// the load surfaces .unauthorized.
 		StubURLProtocol.setHandler { _, _ in .json(401, "{}") }

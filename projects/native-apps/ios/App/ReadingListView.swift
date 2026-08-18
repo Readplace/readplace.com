@@ -7,12 +7,6 @@ struct ReadingListView: View {
 	@Environment(\.scenePhase) private var scenePhase
 
 	@State private var showingAddInstructions = false
-	/// Set when the scene actually entered the background, so the refresh on return
-	/// fires only for a real background→active round trip. iOS drives the scene
-	/// through `.inactive` and back to `.active` on transient interruptions that
-	/// never background the app (Control Center, the notification shade, a call or
-	/// permission banner); those must not trigger a re-read.
-	@State private var didEnterBackground = false
 	/// A destructive affordance awaiting confirmation. A destructive control (e.g.
 	/// `delete`) is irreversible, so it routes here for an explicit confirm before
 	/// the invoke fires, rather than acting on the tap. `article` is nil for a
@@ -33,6 +27,7 @@ struct ReadingListView: View {
 		_viewModel = StateObject(wrappedValue: ReadingListViewModel(
 			api: api,
 			jobs: UploadJobStore.inSharedContainer(appGroupId: TokenStore.resolvedAppGroupId),
+			unseenSave: UnseenSave.inSharedContainer(appGroupId: TokenStore.resolvedAppGroupId),
 			onSessionExpired: { [weak session] in session?.forceLogout() }
 		))
 	}
@@ -68,17 +63,14 @@ struct ReadingListView: View {
 					await viewModel.loadIfNeeded()
 					await drainStagedUploads()
 				}
+				// Every return to `.active` re-reads, including transient `.inactive`
+				// dips (Control Center, the notification shade): a share sheet can
+				// land a save without the scene ever backgrounding, and the deliberate
+				// trade is a cheap shallow re-read over a stale list.
 				.onChange(of: scenePhase) { newPhase in
-					switch newPhase {
-					case .background:
-						didEnterBackground = true
-					case .active where didEnterBackground:
-						didEnterBackground = false
-						Task { await viewModel.handleForeground() }
-						Task { await drainStagedUploads() }
-					default:
-						break
-					}
+					guard newPhase == .active else { return }
+					Task { await viewModel.handleForeground() }
+					Task { await drainStagedUploads() }
 				}
 				// `onDismiss` (not the sheet's own close callbacks) carries the probe:
 				// it fires on every dismissal path, including an interactive swipe-down

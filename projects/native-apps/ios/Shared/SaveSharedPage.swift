@@ -37,6 +37,9 @@ struct SaveSharedPage {
 	/// Nil when this build has no App Group container to stage a body in, which
 	/// costs the enrichment upload and nothing else.
 	let jobs: UploadJobStore?
+	/// Nil for the same no-container reason as `jobs`, which costs only the app's
+	/// automatic list refresh on return.
+	let unseenSave: UnseenSave?
 	var stillSavingAfter: TimeInterval = 4
 
 	/// `sharedPdf` lazily loads the bytes of a PDF the share sheet delivered as a
@@ -74,6 +77,7 @@ struct SaveSharedPage {
 			onNotice(page.noticeMessages)
 			guard let action = page.action(named: "save-article") else { return .noSaveAction }
 			let confirmation = try await api.saveArticle(action: action, url: url.absoluteString)
+			unseenSave?.record()
 			let admitted = await admit(page: page, url: url, title: fallbackTitle)
 			onSaved(confirmation.messages)
 			guard let jobs, let admitted else { return .saved(confirmation.messages) }

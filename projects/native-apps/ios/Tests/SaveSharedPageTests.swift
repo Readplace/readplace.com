@@ -46,6 +46,7 @@ final class SaveSharedPageTests: XCTestCase {
 			api: makeAPI(store: store),
 			captor: captor,
 			jobs: UploadJobStore(containerURL: container),
+			unseenSave: UnseenSave(containerURL: container),
 			stillSavingAfter: stillSavingAfter
 		)
 	}
@@ -136,6 +137,34 @@ final class SaveSharedPageTests: XCTestCase {
 			"the job is on disk, and still owed a capture, at the moment the sheet is told the link is saved"
 		)
 		assertUploadedNothing()
+	}
+
+	func testRecordsTheSaveForTheAppBeforeItReportsTheLinkSaved() async throws {
+		// The app decides on return whether a deep-scrolled list is worth resetting
+		// by this marker, so it must be on disk by the moment the sheet may close —
+		// which is the moment the save is reported.
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		serveQueueAndSave()
+
+		var recordedWhenReported = false
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			container: container
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { _ in recordedWhenReported = UnseenSave(containerURL: container).exists }
+		)
+
+		XCTAssertEqual(outcome, .savedAwaitingUpload([]))
+		XCTAssertTrue(
+			recordedWhenReported,
+			"the marker is on disk at the moment the sheet is told the link is saved, so leaving right away still refreshes the app"
+		)
 	}
 
 	func testMarksTheJobReadyOnceTheCaptureIsStaged() async throws {
@@ -432,7 +461,8 @@ final class SaveSharedPageTests: XCTestCase {
 			store: store,
 			api: makeAPI(store: store),
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
-			jobs: nil
+			jobs: nil,
+			unseenSave: nil
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
 
@@ -476,6 +506,10 @@ final class SaveSharedPageTests: XCTestCase {
 			"the refusal must carry the server's contact message verbatim"
 		)
 		XCTAssertEqual(queuedJobs(in: container), [], "a refused save has no article to enrich")
+		XCTAssertFalse(
+			UnseenSave(containerURL: container).exists,
+			"a refused save must not make the app reset a deep-scrolled list for a link that never landed"
+		)
 		assertUploadedNothing()
 	}
 

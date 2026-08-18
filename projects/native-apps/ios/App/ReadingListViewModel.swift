@@ -47,6 +47,7 @@ final class ReadingListViewModel: ObservableObject {
 
 	private let api: ReadplaceAPI
 	private let jobs: UploadJobStore?
+	private let unseenSave: UnseenSave?
 	private let onSessionExpired: () -> Void
 
 	/// The reading list's client-side add (+) control: a navigable `add-links-help`
@@ -63,9 +64,10 @@ final class ReadingListViewModel: ObservableObject {
 		return affordance
 	}()
 
-	init(api: ReadplaceAPI, jobs: UploadJobStore?, onSessionExpired: @escaping () -> Void) {
+	init(api: ReadplaceAPI, jobs: UploadJobStore?, unseenSave: UnseenSave?, onSessionExpired: @escaping () -> Void) {
 		self.api = api
 		self.jobs = jobs
+		self.unseenSave = unseenSave
 		self.onSessionExpired = onSessionExpired
 		// Append the same app-shell marker `open(link:)` puts on the account href, so
 		// the help page is served chromeless with a deep-link back to the native list.
@@ -161,14 +163,21 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	/// Re-reads the list when the app returns to the foreground, so changes made
-	/// while backgrounded — a share-sheet save, an item marked unread on the
-	/// website — appear without pull-to-refresh. Gated on a completed first load:
-	/// at launch the `.task` load owns the fetch and this is a no-op. A deep-scrolled
-	/// list is not re-read at all — reconciliation waits for a pull-to-refresh, the
-	/// user's explicit re-read — so returning to the app never yanks their position.
+	/// while away — a share-sheet save, an item marked unread on the website —
+	/// appear without pull-to-refresh. Gated on a completed first load: at launch
+	/// the `.task` load owns the fetch and this is a no-op. A deep-scrolled list
+	/// is re-read only when the share extension has recorded a save the list has
+	/// not shown — the one change worth the same first-page reset (and viewport
+	/// yank) a pull-to-refresh performs; every other deep-scrolled return stays
+	/// zero-network and holds the reader's position.
 	func handleForeground() async {
-		guard hasLoadedOnce, !hasPaginated else { return }
-		await reloadAndAdopt(droppingId: nil)
+		guard hasLoadedOnce else { return }
+		if hasPaginated {
+			guard unseenSave?.exists == true, !isLoading, !isLoadingMore else { return }
+			await refresh()
+		} else {
+			await reloadAndAdopt(droppingId: nil)
+		}
 	}
 
 	/// Probes the server when the in-app web sheet closes, so a session the
@@ -176,15 +185,16 @@ final class ReadingListViewModel: ObservableObject {
 	/// the account page, whose delete-account flow destroys every session and
 	/// revokes every OAuth token server-side, and nothing else fires promptly
 	/// after that: the scene never leaves `.active` for an in-app sheet, and the
-	/// foreground converge is zero-network once the list has paginated — so
-	/// without this probe the app would keep showing the deleted account's cached
-	/// list until some later call happened to 401. The probe therefore always hits
-	/// the network (no `!hasPaginated` gate, unlike the foreground re-read): against
-	/// a dead session it 401s, the refresh fails on the revoked token, and the
-	/// failure funnels into the existing `onSessionExpired` sign-out — clearing the
-	/// TokenStore and the cached UI. A live session pays one shallow
-	/// re-read, which doubles as the same reconciliation the foreground performs;
-	/// a deep-scrolled list still holds its position (`adopt` discards the page).
+	/// foreground converge is zero-network for a paginated list with no pending
+	/// share-sheet save — so without this probe the app would keep showing the
+	/// deleted account's cached list until some later call happened to 401. The
+	/// probe therefore always hits the network (no `!hasPaginated` gate, unlike
+	/// the foreground re-read): against a dead session it 401s, the refresh fails
+	/// on the revoked token, and the failure funnels into the existing
+	/// `onSessionExpired` sign-out — clearing the TokenStore and the cached UI. A
+	/// live session pays one shallow re-read, which doubles as the same
+	/// reconciliation the foreground performs; a deep-scrolled list still holds
+	/// its position (`adopt` discards the page).
 	func handleWebSheetDismissal() async {
 		await reloadAndAdopt(droppingId: nil)
 	}
@@ -314,6 +324,10 @@ final class ReadingListViewModel: ObservableObject {
 			// here, re-surfacing only if a later write is refused.
 			messages = []
 			errorText = nil
+			// The list now holds first-page server truth, so any share-sheet save
+			// recorded up to this point has been shown — including one saved before
+			// a cold launch, which the launch load itself surfaces.
+			unseenSave?.clear()
 		} else {
 			let existing = Set(articles.map(\.id))
 			articles += page.articles.filter { !existing.contains($0.id) }
