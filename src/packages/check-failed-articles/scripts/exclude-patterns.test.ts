@@ -146,6 +146,29 @@ describe("EXCLUDE_PATTERNS — archive.ph entry", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — onlinelibrary.wiley.com entry", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://alz-journals.onlinelibrary.wiley.com/doi/10.1002/dad2.70432", excluded: true, label: "stored row shape — journal subdomain DOI landing page" },
+		{ url: "https://onlinelibrary.wiley.com/doi/10.1002/dad2.70432", excluded: true, label: "apex onlinelibrary.wiley.com" },
+		{ url: "https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2023GL107070", excluded: true, label: "a different journal subdomain" },
+		{ url: "https://onlinelibrary.wiley.com/doi/pdf/10.1002/dad2.70432", excluded: true, label: "publisher PDF path" },
+		{ url: "http://onlinelibrary.wiley.com/doi/1", excluded: true, label: "http scheme" },
+		{ url: "https://onlinelibrary.wiley.com:443/doi/1", excluded: true, label: "explicit port" },
+		{ url: "https://onlinelibrary.wiley.com?q=1", excluded: true, label: "query immediately after host" },
+		{ url: "https://notonlinelibrary.wiley.com/doi/1", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://onlinelibrary.wiley.com.evil.com/doi/1", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://other.test/onlinelibrary.wiley.com/doi/1", excluded: false, label: "onlinelibrary.wiley.com inside a path" },
+		{ url: "https://www.wiley.com/en-us/education", excluded: false, label: "www.wiley.com answers 200 — must still surface" },
+		{ url: "https://link.springer.com/article/10.1007/s11023-020-09548-1", excluded: false, label: "reachable peer publisher — must still surface" },
+		{ url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC13452022/", excluded: false, label: "reachable open-access mirror — must still surface" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — presigned-URL entries", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{

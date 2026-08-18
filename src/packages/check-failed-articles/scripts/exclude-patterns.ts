@@ -64,6 +64,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*stackoverflow\.com(?:[/:?#]|$)/i,
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*bizjournals\.com(?:[/:?#]|$)/i,
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*archive\.ph(?:[/:?#]|$)/i,
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*onlinelibrary\.wiley\.com(?:[/:?#]|$)/i,
 	// Time-limited presigned URLs — permanently dead once the signature lapses.
 	// TTLs are minutes, so the crawl fetch lands at or after expiry and the
 	// origin answers 403 for the object from then on; recrawl re-fetches the
