@@ -29,16 +29,20 @@ export interface HealthSource {
 }
 
 export const HEALTH_SOURCES: readonly HealthSource[] = [
-	{
-		// Medium publications (e.g. itnext.io) serve an incomplete TLS chain —
-		// leaf cert without the Sectigo intermediate. Node's fetch fails with
-		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing recovers
-		// by fetching the intermediate from the leaf cert's AIA URL.
-		label: "Medium (itnext publication)",
-		url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
-		expectedContent: "developers were creating more and more bugs, only to fix them and get the prize",
-		expectsThumbnail: true,
-	},
+	// Cloudflare refuses this URL to our datacenter egress: on 2026-08-13 every
+	// transport leg was 403'd under both personas, so the entry asserts a fetch
+	// the crawler cannot make. Disabled rather than fixed — reaching bot-walled
+	// origins is owned by separate work.
+	// {
+	// 	// Medium publications (e.g. itnext.io) serve an incomplete TLS chain —
+	// 	// leaf cert without the Sectigo intermediate. Node's fetch fails with
+	// 	// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing recovers
+	// 	// by fetching the intermediate from the leaf cert's AIA URL.
+	// 	label: "Medium (itnext publication)",
+	// 	url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
+	// 	expectedContent: "developers were creating more and more bugs, only to fix them and get the prize",
+	// 	expectsThumbnail: true,
+	// },
 	{
 		// Guards the MediaWiki heading defect: each section heading ships with an
 		// "[edit]" link (.mw-editsection) whose link density makes Readability drop

@@ -30,6 +30,8 @@ Workflow for a canary failure:
 3. Re-run the canary locally until the failing source passes — never commit until it does.
 4. Only then push and watch CI.
 
+One exception: when the origin refuses our egress outright — every transport leg blocked, no mitigation that reaches it — comment the entry out together with the evidence, and treat reaching that origin as its own work. A commented entry still records that a real save path is broken; a deleted one records nothing.
+
 ### iOS signs in *inside* the app, and opens our own content links Chrome-first
 
 **Signing in never leaves the app.** App Store review rejected build 53 under Guideline 4 for handing the user to the default browser to authenticate, so Login and Sign up run `/oauth/authorize` in an `ASWebAuthenticationSession` ([`InAppAuthSession`](./projects/native-apps/ios/App/WebAuthOpeners.swift)), which captures the `readplace://oauth-callback` redirect in-process. Do not route auth back through an external browser, and do not reintroduce the app-level deep-link handler the session replaced: the callback is returned to its caller, so the PKCE verifier lives in one `await` and never has to be persisted.
