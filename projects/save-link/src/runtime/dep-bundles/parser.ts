@@ -48,12 +48,14 @@ export function initParserDepBundle(deps: {
 	logError: LogError;
 	logInfo: LogInfo;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
+	proxyUrl: string | undefined;
 }): ParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 		logInfo: deps.logInfo,
+		proxyUrl: deps.proxyUrl,
 	});
 	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
@@ -91,12 +93,14 @@ export function initComprehensiveParserDepBundle(deps: {
 	logInfo: LogInfo;
 	extractPdf: ExtractPdf;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
+	proxyUrl: string | undefined;
 }): ComprehensiveParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 		logInfo: deps.logInfo,
+		proxyUrl: deps.proxyUrl,
 	});
 	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),

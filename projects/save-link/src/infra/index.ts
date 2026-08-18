@@ -43,7 +43,7 @@ import {
 	SAVE_LINK_DLQ_SOURCES,
 	SAVE_LINK_LAMBDA_NAMES,
 } from "@packages/hutch-infra-components";
-import { requireEnv } from "@packages/require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
@@ -103,6 +103,10 @@ const ocrImageTags = z
 // published once by the platform stack — inbox and hutch need the same binary,
 // so one owner beats three copies. Read its ARN via the platform StackReference.
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
+const crawlEgressProxyUrl = getEnv("CRAWL_EGRESS_PROXY_URL");
+const crawlEgressProxyEnvironment: Record<string, string> = crawlEgressProxyUrl
+	? { CRAWL_EGRESS_PROXY_URL: crawlEgressProxyUrl }
+	: {};
 
 // --- Content S3 Bucket ---
 
@@ -362,6 +366,7 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 	timeout: 240,
 	layers: [curlImpersonateLayerArn],
 	environment: {
+		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -433,6 +438,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	timeout: 240,
 	layers: [curlImpersonateLayerArn],
 	environment: {
+		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -477,6 +483,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	timeout: 240,
 	layers: [curlImpersonateLayerArn],
 	environment: {
+		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
@@ -524,6 +531,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	timeout: 240,
 	layers: [curlImpersonateLayerArn],
 	environment: {
+		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -804,6 +812,7 @@ const comprehensiveCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.c
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environment: {
+		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
 		PAID_CRAWL_BUDGET: paidCrawlBudget,
@@ -907,6 +916,7 @@ const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveL
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["save-link-raw-pdf-command"] },
 	environment: {
+		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
@@ -970,6 +980,7 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	timeout: 240,
 	layers: [curlImpersonateLayerArn],
 	environment: {
+		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1382,6 +1393,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 	timeout: 240,
 	layers: [curlImpersonateLayerArn],
 	environment: {
+		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,

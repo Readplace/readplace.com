@@ -3,7 +3,7 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { requireEnv } from "@packages/require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 import { initReadPendingHtml } from "./providers/article-store/read-pending-html";
 import { initSaveLinkRawHtmlCommandHandler } from "./domain/save-link-raw-html/save-link-raw-html-command-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
@@ -36,6 +36,7 @@ const now = () => new Date();
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link-raw-html", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const parser = initParserDepBundle({
+	proxyUrl: getEnv("CRAWL_EGRESS_PROXY_URL"),
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,

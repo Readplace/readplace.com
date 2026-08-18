@@ -8,7 +8,7 @@ import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
-import { requireEnv } from "@packages/require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 import { initCanonicalAliasStore } from "@packages/article-store";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
@@ -78,6 +78,7 @@ const extractPdf = initSaveLinkPdfExtract({
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const parser = initComprehensiveParserDepBundle({
+	proxyUrl: getEnv("CRAWL_EGRESS_PROXY_URL"),
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	extractPdf,

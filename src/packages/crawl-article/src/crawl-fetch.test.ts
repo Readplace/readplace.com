@@ -57,6 +57,41 @@ describe("initCrawlFetch", () => {
 		assert.equal(primaryCalls, 2);
 	});
 
+	it("escalates a blocked origin to the proxy leg when a proxyUrl is configured", async () => {
+		const blockedFetch: typeof fetch = async () => new Response("denied", { status: 403 });
+		const stillBlocked = async (): Promise<Response> => new Response("denied", { status: 403 });
+		const proxied = async (): Promise<Response> => new Response("via proxy", { status: 200 });
+		const crawlFetch = initCrawlFetch({
+			fetch: blockedFetch,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: () => {},
+			fetchH2: stillBlocked,
+			fetchCurl: stillBlocked,
+			proxyUrl: "http://proxy.example:8080",
+			fetchProxyCurl: proxied,
+		});
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
+
+		assert.equal(response.status, 200);
+		assert.equal(await response.text(), "via proxy");
+	});
+
+	it("builds the proxy leg from the guarded curl fetcher when only proxyUrl is provided", async () => {
+		const crawlFetch = initCrawlFetch({
+			fetch: stubFetch,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: () => {},
+			proxyUrl: "http://proxy.example:8080",
+		});
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
+
+		assert.equal(response.status, 200);
+	});
+
 	it("follows a redirect on the primary leg itself, requesting each hop with redirect:manual and returning the terminal as response.url", async () => {
 		const requested: Array<{ url: string; redirect: RequestInit["redirect"] }> = [];
 		const redirectingOrigin: typeof fetch = async (input, init) => {

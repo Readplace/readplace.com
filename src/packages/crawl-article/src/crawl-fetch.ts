@@ -19,6 +19,7 @@ import { type Leg, type LegAttempt, type LegFetch, runTransportLadder } from "./
 const PRIMARY_LEG_MAX_MS = 25_000;
 const H2_LEG_MAX_MS = 2000;
 const CURL_LEG_MAX_MS = 3000;
+const PROXY_LEG_MAX_MS = 10_000;
 
 export type CrawlFetchInit = {
 	headers?: Record<string, string>;
@@ -38,6 +39,8 @@ export function initCrawlFetch(deps: {
 	resolve?: ResolveAll;
 	fetchH2?: FetchH2;
 	fetchCurl?: CurlFetch;
+	proxyUrl?: string;
+	fetchProxyCurl?: CurlFetch;
 	rateLimitRetryDelaysMs?: readonly number[];
 }): CrawlFetch {
 	const resolve = deps.resolve ?? defaultResolveAll;
@@ -76,6 +79,10 @@ export function initCrawlFetch(deps: {
 	const primaryFetch = withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup, assertHostAllowed }));
 	const fetchH2 = deps.fetchH2 ?? initFetchH2({ lookup, assertHostAllowed });
 	const fetchCurl = deps.fetchCurl ?? initGuardedCurlFetch({ resolve, isBlocked });
+	const fetchProxyCurl =
+		deps.proxyUrl === undefined
+			? undefined
+			: deps.fetchProxyCurl ?? initGuardedCurlFetch({ resolve, isBlocked, proxyUrl: deps.proxyUrl });
 	const primaryLeg: LegFetch = (url, init) =>
 		primaryFetch(url, { headers: init.headers, signal: init.deadline.signal, onRedirect: init.onRedirect });
 	const legs: readonly Leg[] = [
@@ -90,6 +97,15 @@ export function initCrawlFetch(deps: {
 			maxRunMs: CURL_LEG_MAX_MS,
 			fetch: (url, init) => fetchCurl(url, { headers: init.headers, signal: init.deadline.signal }),
 		},
+		...(fetchProxyCurl === undefined
+			? []
+			: [
+					{
+						name: "proxy",
+						maxRunMs: PROXY_LEG_MAX_MS,
+						fetch: (url, init) => fetchProxyCurl(url, { headers: init.headers, signal: init.deadline.signal }),
+					} satisfies Leg,
+				]),
 	];
 	const logAttempt = (attempt: LegAttempt) => logInfo(JSON.stringify({ stream: "crawl-legs", ...attempt }));
 	const fetchWithFallback = withRateLimitRetry(

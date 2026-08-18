@@ -101,8 +101,12 @@ export const defaultCurlImpersonateProbe: CurlImpersonateProbe = () => {
  * (argument construction, header title-casing, abort handling, error mapping,
  * response parsing) without spawning a real curl process.
  */
-export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress: ResolvePinnedAddress }): CurlFetch {
-	const { execCurl, resolvePinnedAddress } = deps;
+export function createCurlFetch(deps: {
+	execCurl: ExecCurl;
+	resolvePinnedAddress: ResolvePinnedAddress;
+	proxyUrl?: string;
+}): CurlFetch {
+	const { execCurl, resolvePinnedAddress, proxyUrl } = deps;
 
 	async function fetchOnce(
 		url: string,
@@ -112,7 +116,7 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 		const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
 		const pinnedAddress = await resolvePinnedAddress({ hostname: parsed.hostname });
 		return new Promise<Response>((resolve, reject) => {
-			const args = buildCurlArgs({ url, headers: init.headers, hostname: parsed.hostname, port, pinnedAddress });
+			const args = buildCurlArgs({ url, headers: init.headers, hostname: parsed.hostname, port, pinnedAddress, proxyUrl });
 			const child = execCurl(args, (error, stdout) => {
 				if (error) {
 					reject(new Error(`fetchCurl failed for ${url}: ${error.message}`));
@@ -157,10 +161,15 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
  * verified address. `resolve` and `isBlocked` are injectable so tests drive
  * the verdict.
  */
-export function initGuardedCurlFetch(deps: { resolve: ResolveAll; isBlocked: IsBlockedAddress }): CurlFetch {
+export function initGuardedCurlFetch(deps: {
+	resolve: ResolveAll;
+	isBlocked: IsBlockedAddress;
+	proxyUrl?: string;
+}): CurlFetch {
 	return createCurlFetch({
 		execCurl: defaultExecCurl,
 		resolvePinnedAddress: createPinnedAddressResolver({ resolve: deps.resolve, isBlocked: deps.isBlocked }),
+		proxyUrl: deps.proxyUrl,
 	});
 }
 
@@ -170,6 +179,7 @@ function buildCurlArgs(params: {
 	port: number;
 	pinnedAddress: string;
 	headers?: Record<string, string>;
+	proxyUrl?: string;
 }): string[] {
 	const args = [
 		"--http2",
@@ -198,10 +208,16 @@ function buildCurlArgs(params: {
 	];
 	// IP-literal hosts are validated up front by resolvePinnedAddress and curl
 	// connects to them without a DNS step, so there is nothing to pin; --resolve
-	// only matters when curl would otherwise resolve a name itself.
-	if (isIP(params.hostname) === 0) {
+	// only matters when curl would otherwise resolve a name itself. A proxied
+	// request never resolves locally either — curl hands the hostname to the
+	// proxy — so the pin is skipped there too (the SSRF check on the locally
+	// resolved address has already run by this point).
+	if (params.proxyUrl === undefined && isIP(params.hostname) === 0) {
 		const pinnedForCurl = params.pinnedAddress.includes(":") ? `[${params.pinnedAddress}]` : params.pinnedAddress;
 		args.push("--resolve", `${params.hostname}:${params.port}:${pinnedForCurl}`);
+	}
+	if (params.proxyUrl !== undefined) {
+		args.push("--proxy", params.proxyUrl);
 	}
 	if (params.headers) {
 		for (const [key, value] of Object.entries(params.headers)) {

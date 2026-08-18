@@ -9,6 +9,7 @@ describe("initParserDepBundle", () => {
 			logError: () => {},
 			logInfo: () => {},
 			findAdoptedFetchUrl: async () => undefined,
+			proxyUrl: undefined,
 		});
 
 		expect(typeof bundle.crawlFetch).toBe("function");
@@ -22,6 +23,7 @@ describe("initParserDepBundle", () => {
 			logError: () => {},
 			logInfo: () => {},
 			findAdoptedFetchUrl: async () => undefined,
+			proxyUrl: undefined,
 		});
 
 		expect(bundle.isSiteRuleUrl("https://example.com/story")).toBe(false);
@@ -38,6 +40,7 @@ describe("initComprehensiveParserDepBundle", () => {
 			logInfo: () => {},
 			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
 			findAdoptedFetchUrl: async () => undefined,
+			proxyUrl: undefined,
 		});
 
 		expect(typeof bundle.crawlFetch).toBe("function");
@@ -52,6 +55,7 @@ describe("initComprehensiveParserDepBundle", () => {
 			logInfo: () => {},
 			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
 			findAdoptedFetchUrl: async () => undefined,
+			proxyUrl: undefined,
 		});
 
 		expect(bundle.isSiteRuleUrl("https://example.com/story")).toBe(false);
