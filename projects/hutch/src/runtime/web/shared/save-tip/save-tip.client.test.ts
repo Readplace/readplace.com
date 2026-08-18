@@ -4,14 +4,24 @@ import { initSaveTip } from "./save-tip.client";
 
 const PAGE_URL = "https://readplace.com/queue";
 
-const PANEL = `<div class="confirm-popover" id="save-tip" popover="auto" role="dialog">
+const OPEN_BEACON = "/save-tip/event?utm_source=save-tip&utm_medium=internal&utm_content=opened";
+const DISMISS_BEACON =
+	"/save-tip/event?utm_source=save-tip&utm_medium=internal&utm_content=dismissed";
+const ACKNOWLEDGE_BEACON =
+	"/save-tip/event?utm_source=save-tip&utm_medium=internal&utm_content=acknowledged";
+
+function panelMarkup(beacons: boolean): string {
+	return `<div class="confirm-popover" id="save-tip" popover="auto" role="dialog"${beacons ? ` data-beacon-url="${OPEN_BEACON}"` : ""}>
+	<button id="close" class="confirm-popover__close" type="button"${beacons ? ` data-beacon-url="${DISMISS_BEACON}"` : ""}>Close</button>
 	<div class="confirm-popover__actions">
+		<button id="acknowledge" class="btn btn--primary" type="button"${beacons ? ` data-beacon-url="${ACKNOWLEDGE_BEACON}"` : ""}>Got it</button>
 		<button id="proceed" class="btn btn--primary" type="button" data-save-tip-proceed>Save the link anyway</button>
-		<a id="install" class="btn btn--secondary" href="/install">See the ways to save</a>
+		<a id="install" class="btn btn--secondary" href="/install">See better ways to save</a>
 	</div>
 </div>`;
+}
 
-function page(state: string): string {
+function page(state: string, panel: string): string {
 	return `<main>
 	<form id="save-form" method="POST" action="/queue/save" data-save-tip="${state}">
 		<input id="save-input" type="url" name="url" value="https://example.com/post">
@@ -26,7 +36,7 @@ function page(state: string): string {
 	</form>
 	<a id="cta" href="https://readplace.com/save?url=x" data-save-tip="${state}">Save to My Queue</a>
 	<a id="plain-cta" href="https://readplace.com/elsewhere">Elsewhere</a>
-	${PANEL}
+	${panel}
 </main>`;
 }
 
@@ -35,19 +45,22 @@ function createHarness(
 		state?: string;
 		supportsPopover?: boolean;
 		withPanel?: boolean;
+		withBeacons?: boolean;
 		secureTransport?: boolean;
 	} = {},
 ) {
-	const body = page(options.state ?? "due");
-	const dom = new JSDOM(
-		`<!doctype html><html><body>${options.withPanel === false ? body.replace(PANEL, "") : body}</body></html>`,
-		{ url: PAGE_URL, virtualConsole: new VirtualConsole() },
-	);
+	const panel = options.withPanel === false ? "" : panelMarkup(options.withBeacons !== false);
+	const body = page(options.state ?? "due", panel);
+	const dom = new JSDOM(`<!doctype html><html><body>${body}</body></html>`, {
+		url: PAGE_URL,
+		virtualConsole: new VirtualConsole(),
+	});
 	const document = dom.window.document;
 	const shown: string[] = [];
 	const hidden: string[] = [];
 	const navigations: string[] = [];
 	const cookies: string[] = [];
+	const beacons: string[] = [];
 
 	initSaveTip({
 		document,
@@ -64,6 +77,9 @@ function createHarness(
 		isSecureTransport: () => options.secureTransport === true,
 		writeCookie: (cookie) => {
 			cookies.push(cookie);
+		},
+		sendBeacon: (url) => {
+			beacons.push(url);
 		},
 	});
 
@@ -123,6 +139,7 @@ function createHarness(
 		hidden,
 		navigations,
 		cookies,
+		beacons,
 	};
 }
 
@@ -417,6 +434,53 @@ describe("initSaveTip", () => {
 
 		expect(clickEvent.defaultPrevented).toBe(false);
 		expect(harness.shown).toEqual([]);
+	});
+
+	it("reports the panel opening, once per opening", () => {
+		const harness = createHarness();
+
+		harness.focusInto("save-input");
+
+		expect(harness.beacons).toEqual([OPEN_BEACON]);
+	});
+
+	it("reports each opening of a gated link's panel, which the reader may reach again", () => {
+		const harness = createHarness();
+
+		harness.click("cta");
+		harness.click("cta");
+
+		expect(harness.beacons).toEqual([OPEN_BEACON, OPEN_BEACON]);
+	});
+
+	it("tells acknowledging the panel apart from closing it", () => {
+		const harness = createHarness();
+		harness.focusInto("save-input");
+
+		harness.click("acknowledge");
+		harness.click("close");
+
+		expect(harness.beacons).toEqual([OPEN_BEACON, ACKNOWLEDGE_BEACON, DISMISS_BEACON]);
+	});
+
+	it("says nothing for a control the panel does not count, nor for one outside it", () => {
+		const harness = createHarness();
+		harness.focusInto("save-input");
+
+		harness.click("install");
+		harness.click("save");
+
+		expect(harness.beacons).toEqual([OPEN_BEACON]);
+	});
+
+	it("stays silent on a panel that carries no beacon at all", () => {
+		const harness = createHarness({ withBeacons: false });
+
+		harness.focusInto("save-input");
+		harness.click("close");
+
+		expect(harness.shown).toEqual(["save-tip"]);
+		expect(harness.beacons).toEqual([]);
 	});
 
 	it("forgets what it was holding once the reader has continued", () => {

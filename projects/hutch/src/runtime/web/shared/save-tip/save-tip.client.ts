@@ -8,6 +8,7 @@ export interface SaveTipDeps {
 	navigate: (href: string) => void;
 	isSecureTransport: () => boolean;
 	writeCookie: (cookie: string) => void;
+	sendBeacon: (url: string) => void;
 }
 
 /** The link the panel is holding back, waiting to be followed. The panel travels
@@ -23,6 +24,8 @@ const DUE_SELECTOR = `[${STATE_ATTRIBUTE}='due']`;
 const DUE_FORM_SELECTOR = `form${DUE_SELECTOR}`;
 const URL_INPUT_SELECTOR = "input[type='url']";
 const PROCEED_SELECTOR = "[data-save-tip-proceed]";
+const BEACON_ATTRIBUTE = "data-beacon-url";
+const CONTROL_BEACON_SELECTOR = `#${PANEL_ID} [${BEACON_ATTRIBUTE}]`;
 
 function isElement(node: EventTarget | null): node is Element {
 	return typeof Reflect.get(Object(node), "closest") === "function";
@@ -43,12 +46,19 @@ export function initSaveTip(deps: SaveTipDeps): void {
 		return deps.isSecureTransport() ? `${cookie}; secure` : cookie;
 	}
 
+	function recordBeacon(element: Element | null): void {
+		const url = element === null ? null : element.getAttribute(BEACON_ATTRIBUTE);
+		if (url === null) return;
+		deps.sendBeacon(url);
+	}
+
 	function openTip(panel: Element): void {
 		deps.document.querySelectorAll(DUE_FORM_SELECTOR).forEach((form) => {
 			form.setAttribute(STATE_ATTRIBUTE, SAVE_TIP_SEEN);
 		});
 		deps.writeCookie(seenCookie());
 		deps.showPopover(panel);
+		recordBeacon(panel);
 	}
 
 	deps.document.addEventListener("pointerdown", () => {
@@ -99,6 +109,8 @@ export function initSaveTip(deps: SaveTipDeps): void {
 		const target = event.target;
 		if (!isElement(target)) return;
 
+		recordBeacon(target.closest(CONTROL_BEACON_SELECTOR));
+
 		if (target.closest(PROCEED_SELECTOR) !== null) {
 			const accepted = pendingNavigation;
 			pendingNavigation = null;
@@ -118,5 +130,6 @@ export function initSaveTip(deps: SaveTipDeps): void {
 		event.preventDefault();
 		pendingNavigation = { panel, href: link.href };
 		deps.showPopover(panel);
+		recordBeacon(panel);
 	});
 }

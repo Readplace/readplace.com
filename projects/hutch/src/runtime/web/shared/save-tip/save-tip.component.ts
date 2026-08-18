@@ -8,6 +8,12 @@ import {
 import { isIosSurface } from "../../onboarding/ios-client";
 import { FULL_PAGE_CAPTURE_PHRASE } from "../client-surface-phrases";
 import { type SaveTipState, saveTipState } from "./save-tip";
+import {
+	SAVE_TIP_ELEMENTS,
+	SAVE_TIP_EVENT_PATH,
+	SAVE_TIP_UTM_SOURCE,
+	type SaveTipElement,
+} from "./save-tip-tracking";
 
 export const SAVE_TIP_PANEL_ID = "save-tip";
 export const SAVE_TIP_SCRIPT = `<script src="/client-dist/save-tip.client.js" defer></script>`;
@@ -33,47 +39,49 @@ type SaveTipClient = "extension" | "ios" | "none";
 
 interface SaveTipCopy {
 	title: string;
-	body: string;
+	body: (client: SaveTipClient) => string;
 }
+
+const IMPORT_ADVICE = {
+	extension: "Nothing can capture a whole index for you, but the extension still takes any single article you open in full.",
+	ios: "Nothing can capture a whole index for you, but the Readplace share sheet still takes any single article you open in full.",
+	none: `Nothing can capture a whole index for you, but ${FULL_PAGE_CAPTURE_PHRASE} take any single article you open in full.`,
+} satisfies Record<SaveTipClient, string>;
 
 const COPY = {
 	article: {
-		title: "Save the whole article, not just the link",
-		body: "From a pasted link Readplace has to fetch the page from its own servers, and plenty of sites block that — the save can arrive as a bare link with none of the article in it.",
+		title: "There are better ways to save!",
+		body: () =>
+			"Readplace strongly recommends to use our dedicated clients to save content so you can always get a clean reader view.",
 	},
 	import: {
 		title: "Some of these may arrive as links only",
-		body: "Readplace fetches this page from its own servers, then saves everything it links to the same way. Sites that block automated fetching arrive as a bare link with none of the article in it.",
+		body: (client) =>
+			`Readplace fetches this page from its own servers, then saves everything it links to the same way. Sites that block automated fetching arrive as a bare link with none of the article in it. ${IMPORT_ADVICE[client]}`,
 	},
 } satisfies Record<SaveTipKind, SaveTipCopy>;
 
-/** Second sentence of the panel, resolved per surface and per client. Import
- * gets its own row rather than reusing the article one because the extension
- * and the app cannot read a newsletter index for you — there they are the
- * answer for the *next* single article, not for this fetch. */
-const ADVICE = {
-	article: {
-		extension: "Open the page and save it again with the Readplace extension, which sends what your browser already loaded.",
-		ios: "Open the page in your browser and send it to Readplace from the share sheet, which sends what your phone already loaded.",
-		none: `Saving from the page itself — with ${FULL_PAGE_CAPTURE_PHRASE} — sends what your device already loaded, which no fetch can be blocked out of.`,
-	},
-	import: {
-		extension: "Nothing can capture a whole index for you, but the extension still takes any single article you open in full.",
-		ios: "Nothing can capture a whole index for you, but the Readplace share sheet still takes any single article you open in full.",
-		none: `Nothing can capture a whole index for you, but ${FULL_PAGE_CAPTURE_PHRASE} take any single article you open in full.`,
-	},
-} satisfies Record<SaveTipKind, Record<SaveTipClient, string>>;
+function beaconUrl(element: SaveTipElement): string {
+	return withInternalTracking(SAVE_TIP_EVENT_PATH, {
+		source: SAVE_TIP_UTM_SOURCE,
+		content: element,
+	});
+}
+
+const OPEN_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.opened);
+const DISMISS_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.dismissed);
+const ACKNOWLEDGE_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.acknowledged);
 
 /** The advisory control needs no script of its own: a popover target hides the
  * panel and hands focus back to the box the reader was already typing into. */
 const PRIMARY_CONTROL = {
-	advisory: `<button class="btn btn--primary" type="button" popovertarget="${SAVE_TIP_PANEL_ID}" popovertargetaction="hide" data-test-action="save-tip-acknowledge">Got it</button>`,
+	advisory: `<button class="btn btn--primary" type="button" popovertarget="${SAVE_TIP_PANEL_ID}" popovertargetaction="hide" data-beacon-url="{{acknowledgeBeaconUrl}}" data-test-action="save-tip-acknowledge">Got it</button>`,
 	gating: `<button class="btn btn--primary" type="button" data-save-tip-proceed data-test-action="save-tip-proceed">Save the link anyway</button>`,
 } satisfies Record<SaveTipMode, string>;
 
 const SAVE_TIP_ACTIONS_TEMPLATE = `<div class="confirm-popover__actions" data-test-save-tip-variant="{{client}}" data-test-save-tip-mode="{{mode}}">
 	{{{primaryHtml}}}
-	{{#if installUrl}}<a class="btn btn--secondary" href="{{installUrl}}" data-test-action="save-tip-install">See the ways to save</a>{{/if}}
+	{{#if installUrl}}<a class="btn btn--secondary" href="{{installUrl}}" data-test-action="save-tip-install">See better ways to save</a>{{/if}}
 </div>`;
 
 function resolveSaveTipClient(req: Request): SaveTipClient {
@@ -87,8 +95,8 @@ const INSTALL_URL_BY_CLIENT = {
 	ios: () => undefined,
 	none: (req: Request) =>
 		withInternalTracking(buildExtensionInstallUrl(installablePlatform(req)), {
-			source: "save-tip",
-			content: "install",
+			source: SAVE_TIP_UTM_SOURCE,
+			content: SAVE_TIP_ELEMENTS.install,
 		}),
 } satisfies Record<SaveTipClient, (req: Request) => string | undefined>;
 
@@ -111,11 +119,15 @@ function renderSaveTip(req: Request, spec: SaveTipSpec): string {
 		key: "save-tip",
 		subject: spec.kind,
 		title: copy.title,
-		body: `${copy.body} ${ADVICE[spec.kind][client]}`,
+		body: copy.body(client),
+		openBeaconUrl: OPEN_BEACON_URL,
+		dismissBeaconUrl: DISMISS_BEACON_URL,
 		actionsHtml: render(SAVE_TIP_ACTIONS_TEMPLATE, {
 			client,
 			mode: spec.mode,
-			primaryHtml: PRIMARY_CONTROL[spec.mode],
+			primaryHtml: render(PRIMARY_CONTROL[spec.mode], {
+				acknowledgeBeaconUrl: ACKNOWLEDGE_BEACON_URL,
+			}),
 			installUrl: INSTALL_URL_BY_CLIENT[client](req),
 		}),
 	});

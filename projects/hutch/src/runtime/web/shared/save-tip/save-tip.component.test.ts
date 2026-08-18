@@ -4,6 +4,7 @@ import { parseHTML } from "linkedom";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
 import { type SaveTipSpec, buildSaveTip } from "./save-tip.component";
+import { SAVE_TIP_ELEMENTS, SAVE_TIP_EVENT_PATH, SAVE_TIP_UTM_SOURCE } from "./save-tip-tracking";
 
 const IPHONE_SAFARI =
 	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
@@ -94,9 +95,87 @@ describe("buildSaveTip", () => {
 
 		const install = gating.querySelector("[data-test-action='save-tip-install']");
 		assert(install, "a visitor with no client must be offered one either way");
+		expect(install.textContent).toBe("See better ways to save");
 		expect(new URL(install.getAttribute("href") ?? "", "https://readplace.com").pathname).toBe(
 			"/install",
 		);
+	});
+
+	it("names the better ways to save rather than the fetch that cannot reach them", () => {
+		const doc = panelFor(request({}));
+
+		const title = doc.getElementById("save-tip-title");
+		assert(title, "the article panel must have its own title");
+		expect(title.textContent).toBe("There are better ways to save!");
+		expect(bodyTextFor(request({}))).toBe(
+			"Readplace strongly recommends to use our dedicated clients to save content so you can always get a clean reader view.",
+		);
+	});
+
+	it("recommends the clients in the same words whatever the visitor already has", () => {
+		const withoutClient = bodyTextFor(request({ userAgent: DESKTOP_CHROME }));
+
+		expect(bodyTextFor(request({ cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }))).toBe(
+			withoutClient,
+		);
+		expect(bodyTextFor(request({ userAgent: IPHONE_SAFARI, iosClient: true }))).toBe(
+			withoutClient,
+		);
+	});
+
+	describe("what the panel reports to the internal-click stream", () => {
+		function beaconOn(doc: ReturnType<typeof panelFor>, selector: string): URL {
+			const element = doc.querySelector(selector);
+			assert(element, `${selector} must be rendered so its use can be counted`);
+			const url = element.getAttribute("data-beacon-url");
+			assert(url, `${selector} must carry the URL that records its use`);
+			return new URL(url, "https://readplace.com");
+		}
+
+		function elementOf(url: URL): string | null {
+			expect(url.pathname).toBe(SAVE_TIP_EVENT_PATH);
+			expect(url.searchParams.get("utm_source")).toBe(SAVE_TIP_UTM_SOURCE);
+			expect(url.searchParams.get("utm_medium")).toBe("internal");
+			return url.searchParams.get("utm_content");
+		}
+
+		it("reports the panel opening from the panel itself", () => {
+			const doc = panelFor(request({}));
+
+			expect(elementOf(beaconOn(doc, "[data-test-confirm-popover='save-tip']"))).toBe(
+				SAVE_TIP_ELEMENTS.opened,
+			);
+		});
+
+		it("tells closing it apart from acknowledging it", () => {
+			const doc = panelFor(request({}));
+
+			expect(elementOf(beaconOn(doc, "[data-test-action='save-tip-dismiss']"))).toBe(
+				SAVE_TIP_ELEMENTS.dismissed,
+			);
+			expect(elementOf(beaconOn(doc, "[data-test-action='save-tip-acknowledge']"))).toBe(
+				SAVE_TIP_ELEMENTS.acknowledged,
+			);
+		});
+
+		it("leaves the install link to the click its own navigation already records", () => {
+			const doc = panelFor(request({ userAgent: DESKTOP_CHROME }));
+
+			const install = doc.querySelector("[data-test-action='save-tip-install']");
+			assert(install, "a visitor with no client must be offered one");
+			expect(install.hasAttribute("data-beacon-url")).toBe(false);
+			const href = new URL(install.getAttribute("href") ?? "", "https://readplace.com");
+			expect(href.searchParams.get("utm_source")).toBe(SAVE_TIP_UTM_SOURCE);
+			expect(href.searchParams.get("utm_content")).toBe(SAVE_TIP_ELEMENTS.install);
+		});
+
+		it("reports the panel opening on the gated surface too, which opens it again per link", () => {
+			const doc = panelFor(request({}), GATING_ARTICLE);
+
+			expect(elementOf(beaconOn(doc, "[data-test-confirm-popover='save-tip']"))).toBe(
+				SAVE_TIP_ELEMENTS.opened,
+			);
+		});
 	});
 
 	describe("when the visitor has no content-capture client", () => {
@@ -113,13 +192,6 @@ describe("buildSaveTip", () => {
 			expect(url.searchParams.get("client")).toBe("chrome");
 			expect(url.searchParams.get("utm_source")).toBe("save-tip");
 		});
-
-		it("names both content-capture surfaces rather than only the extension", () => {
-			const text = bodyTextFor(request({ userAgent: DESKTOP_CHROME })).toLowerCase();
-
-			expect(text).toContain("browser extension");
-			expect(text).toContain("iphone app");
-		});
 	});
 
 	describe("when the extension is already installed", () => {
@@ -133,14 +205,6 @@ describe("buildSaveTip", () => {
 			expect(variant.getAttribute("data-test-save-tip-variant")).toBe("extension");
 			expect(variant.querySelector("[data-test-action='save-tip-install']")).toBeNull();
 		});
-
-		it("says what to do with the extension they have", () => {
-			const text = bodyTextFor(
-				request({ cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }),
-			);
-
-			expect(text).toContain("save it again with the Readplace extension");
-		});
 	});
 
 	describe("when the request comes from the iOS app", () => {
@@ -151,12 +215,6 @@ describe("buildSaveTip", () => {
 			assert(variant, "the panel must name the client variant it rendered");
 			expect(variant.getAttribute("data-test-save-tip-variant")).toBe("ios");
 			expect(variant.querySelector("[data-test-action='save-tip-install']")).toBeNull();
-		});
-
-		it("describes the share sheet, which is how the app captures a page", () => {
-			const text = bodyTextFor(request({ userAgent: IPHONE_SAFARI, iosClient: true }));
-
-			expect(text).toContain("share sheet");
 		});
 	});
 

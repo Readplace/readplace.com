@@ -134,6 +134,35 @@ describe("renderConfirmPopover", () => {
 		expect(CONFIRM_POPOVER_STYLES).toContain(`.${panel.className} {`);
 	});
 
+	it("hands a caller the panel it opens and the control it closes with, which the shell owns", () => {
+		const doc = renderPanel({
+			openBeaconUrl: "/thing/event?utm_content=opened&utm_medium=internal",
+			dismissBeaconUrl: "/thing/event?utm_content=dismissed&utm_medium=internal",
+		});
+
+		const panel = doc.querySelector("[data-test-confirm-popover]");
+		assert(panel, "panel must be rendered");
+		expect(panel.getAttribute("data-beacon-url")).toBe(
+			"/thing/event?utm_content=opened&utm_medium=internal",
+		);
+		const dismiss = doc.querySelector("[data-test-action='thing-dismiss']");
+		assert(dismiss, "the dismiss control must be rendered");
+		expect(dismiss.getAttribute("data-beacon-url")).toBe(
+			"/thing/event?utm_content=dismissed&utm_medium=internal",
+		);
+	});
+
+	it("leaves both beacon attributes off a panel whose caller asked for neither", () => {
+		const doc = renderPanel();
+
+		const panel = doc.querySelector("[data-test-confirm-popover]");
+		assert(panel, "panel must be rendered");
+		expect(panel.hasAttribute("data-beacon-url")).toBe(false);
+		const dismiss = doc.querySelector("[data-test-action='thing-dismiss']");
+		assert(dismiss, "the dismiss control must be rendered");
+		expect(dismiss.hasAttribute("data-beacon-url")).toBe(false);
+	});
+
 	it("renders the caller's actions unescaped so each decision keeps its own controls", () => {
 		const doc = renderPanel();
 

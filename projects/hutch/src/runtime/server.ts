@@ -235,6 +235,7 @@ import {
 import { QuerystringFeatureToggle } from "@packages/web-shell";
 import { buildHomepageArmBody } from "./web/pages/home";
 import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
+import { initSaveTipEventRoute } from "./web/shared/save-tip/save-tip.route";
 import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
@@ -974,6 +975,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	/** Same-origin dismissal endpoint for the site-wide changelog banner; served
 	 * here on $default even when the close button is clicked on a /blog page. */
 	app.use(initChangelogDismissRoute({ secureCookies }));
+	app.use(initSaveTipEventRoute());
 
 	/** Every account-creation path (password, trial, checkout, Google) funnels
 	 * its user creation through these two deps, so wrapping them here provisions
