@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+	MCP_TOOL_OUTCOMES,
+	type McpToolOutcome,
+	UNKNOWN_MCP_TOOL,
+} from "@packages/web-analytics";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type { ArticleStatus } from "@packages/domain/article";
 import type {
@@ -144,8 +149,20 @@ export interface McpServerDeps {
 	 * other tool stays open for a lapsed account. Reads the same effective access
 	 * the web banner does. */
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
+	recordToolCall: RecordMcpToolCall;
 	logError: (message: string, error?: Error) => void;
 }
+
+export interface McpToolCallRecord {
+	readonly tool: string;
+	readonly outcome: McpToolOutcome;
+	readonly userId: AuthenticatedUserId;
+	readonly oauthClientId: string;
+	readonly trialNudgeAppended: boolean;
+	readonly submittedUrl?: string;
+}
+
+export type RecordMcpToolCall = (record: McpToolCallRecord) => void;
 
 /** The authenticated caller a request runs as. Resolved from the OAuth bearer
  * token by the transport before a message reaches the server. */
@@ -678,6 +695,23 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		}
 	}
 
+	function recordCall(call: McpToolCallRecord): void {
+		try {
+			deps.recordToolCall(call);
+		} catch (error) {
+			deps.logError(
+				"MCP tool-call analytics failed",
+				error instanceof Error ? error : undefined,
+			);
+		}
+	}
+
+	function submittedSaveUrl(name: string, rawArgs: unknown): string | undefined {
+		if (name !== SAVE_LINK_TOOL.name) return undefined;
+		const args = SaveLinkArgs.safeParse(rawArgs);
+		return args.success ? args.data.url : undefined;
+	}
+
 	async function handleToolsCall(
 		id: JsonRpcId,
 		params: unknown,
@@ -685,6 +719,13 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 	): Promise<JsonRpcResponse> {
 		const parsed = ToolCallParams.safeParse(params);
 		if (!parsed.success) {
+			recordCall({
+				tool: UNKNOWN_MCP_TOOL,
+				outcome: MCP_TOOL_OUTCOMES.invalidParams,
+				userId: context.userId,
+				oauthClientId: context.oauthClientId,
+				trialNudgeAppended: false,
+			});
 			return failure(id, -32602, "Invalid params: expected { name, arguments }");
 		}
 
@@ -699,18 +740,38 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			access = { state: "ok" };
 		}
 
+		const rawArgs = parsed.data.arguments ?? {};
+		const submittedUrl = submittedSaveUrl(parsed.data.name, rawArgs);
+		const record = (
+			outcome: McpToolOutcome,
+			trialNudgeAppended: boolean,
+		): void => {
+			recordCall({
+				tool: parsed.data.name,
+				outcome,
+				userId: context.userId,
+				oauthClientId: context.oauthClientId,
+				trialNudgeAppended,
+				...(submittedUrl === undefined ? {} : { submittedUrl }),
+			});
+		};
+
 		if (access.state === "inactive" && PAYWALLED_TOOLS.has(parsed.data.name)) {
+			record(MCP_TOOL_OUTCOMES.paywalled, false);
 			return success(id, toolError(access.message));
 		}
 
-		const result = await dispatchTool(
-			parsed.data.name,
-			parsed.data.arguments ?? {},
-			context,
-		);
+		const result = await dispatchTool(parsed.data.name, rawArgs, context);
 		if (!result) {
+			record(MCP_TOOL_OUTCOMES.unknownTool, false);
 			return failure(id, -32602, `Unknown tool: ${parsed.data.name}`);
 		}
+
+		const nudged = access.state === "trial-ending" && !result.isError;
+		record(
+			result.isError ? MCP_TOOL_OUTCOMES.error : MCP_TOOL_OUTCOMES.ok,
+			nudged,
+		);
 
 		return success(
 			id,

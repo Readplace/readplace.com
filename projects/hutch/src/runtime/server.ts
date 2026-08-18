@@ -195,6 +195,7 @@ import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
+import { initRecordMcpToolCall } from "./web/mcp/mcp-analytics";
 import { initMcpArticleOperations } from "./web/mcp/article-operations";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
@@ -480,6 +481,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	const mcpServer = initMcpServer({
 		resolveToolAccess,
+		recordToolCall: initRecordMcpToolCall({
+			analytics: deps.analytics,
+			now: deps.now,
+		}),
 		logError: deps.logError,
 		saveLink: async ({ userId, url, oauthClientId }) => {
 			const access = await resolveSaveAccess(userId);

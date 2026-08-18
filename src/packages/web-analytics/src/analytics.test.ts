@@ -1,7 +1,8 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
+import { UserIdSchema } from "@packages/domain/user";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES, SIGNUP_OUTCOMES } from "./events";
 
 const OWN_HOST = "readplace.test";
@@ -775,6 +776,110 @@ function buildSignup(overrides: { req?: MockReqOverrides; outcome?: SignupAttemp
 		},
 	);
 }
+
+describe("buildMcpToolCalledEvent", () => {
+	const now = () => new Date("2026-04-21T10:00:00.000Z");
+	const userId = UserIdSchema.parse("00000000000000000000000000000001");
+
+	it("builds an mcp_tool_called carrying the tool, outcome, calling client and user, with no article fields for a tool that submits no url", () => {
+		const event = buildMcpToolCalledEvent(
+			{ now },
+			{
+				tool: "list_queue",
+				outcome: "ok",
+				oauthClientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+				userId,
+				trialNudgeAppended: false,
+			},
+		);
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "mcp_tool_called",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			tool: "list_queue",
+			outcome: "ok",
+			oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+			user_id: userId,
+			trial_nudge_appended: 0,
+		});
+	});
+
+	it("records only the submitted url's host and content class, never the url itself — a saved article's full URL is reading history", () => {
+		const event = buildMcpToolCalledEvent(
+			{ now },
+			{
+				tool: "save_link",
+				outcome: "ok",
+				oauthClientId: "chatgpt",
+				userId,
+				trialNudgeAppended: false,
+				submittedUrl: "https://example.com/private/draft-42?token=secret",
+			},
+		);
+		expect(event).toMatchObject({ article_host: "example.com", content_class: "third_party" });
+		const serialized = JSON.stringify(event);
+		expect(serialized).not.toContain("draft-42");
+		expect(serialized).not.toContain("secret");
+	});
+
+	it("omits article_host and content_class when the submitted url does not parse, so a malformed save still records its outcome", () => {
+		const event = buildMcpToolCalledEvent(
+			{ now },
+			{
+				tool: "save_link",
+				outcome: "error",
+				oauthClientId: "chatgpt",
+				userId,
+				trialNudgeAppended: false,
+				submittedUrl: "not a url",
+			},
+		);
+		const serialized = JSON.stringify(event);
+		expect(serialized).not.toContain("article_host");
+		expect(serialized).not.toContain("content_class");
+		expect(event).toMatchObject({ outcome: "error" });
+	});
+
+	it("flags trial_nudge_appended so the trial-ending nudge can be counted where the caller actually sees it", () => {
+		const event = buildMcpToolCalledEvent(
+			{ now },
+			{ tool: "get_article", outcome: "ok", oauthClientId: "chatgpt", userId, trialNudgeAppended: true },
+		);
+		expect(event).toMatchObject({ trial_nudge_appended: 1 });
+	});
+});
+
+describe("buildMcpSaveIntentEvent", () => {
+	const now = () => new Date("2026-04-21T10:00:00.000Z");
+
+	it("puts an MCP save into the same view_save_intent funnel as every other surface, with no visitor identity because a tool call carries no browser cookie", () => {
+		const event = buildMcpSaveIntentEvent(
+			{ now },
+			{ url: "https://example.com/a", path: "/mcp", outcome: SAVE_OUTCOMES.saved },
+		);
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "view_save_intent",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			path: "/mcp",
+			article_host: "example.com",
+			content_class: "third_party",
+			surface: "mcp",
+			outcome: "saved",
+			visitor_hash: null,
+			visitor_id: null,
+			is_authenticated: 1,
+		});
+	});
+
+	it("nulls article_host and content_class when the submitted url does not parse", () => {
+		const event = buildMcpSaveIntentEvent(
+			{ now },
+			{ url: "::not a url::", path: "/mcp", outcome: SAVE_OUTCOMES.error },
+		);
+		expect(event).toMatchObject({ article_host: null, content_class: null, outcome: "error" });
+	});
+});
 
 describe("buildSignupAttemptedEvent", () => {
 	it("builds a signup_attempted event carrying the terminal outcome, the visitor identity (hash + id) that joins to user_created, and is_authenticated=0 because the signup form is only shown to anonymous visitors", () => {

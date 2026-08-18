@@ -24,6 +24,7 @@ function buildApp(): Express {
 		markAsRead: async () => ({ status: "not_found" }),
 		markAsUnread: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
+		recordToolCall: () => {},
 		logError: () => {},
 	});
 	const app = express();

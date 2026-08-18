@@ -5,6 +5,7 @@ import {
 	initMcpServer,
 	type McpArticle,
 	type McpServerDeps,
+	type McpToolCallRecord,
 } from "./mcp-server";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
@@ -21,6 +22,7 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		markAsRead: async () => ({ status: "not_found" }),
 		markAsUnread: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
+		recordToolCall: () => {},
 		logError: () => {},
 		...overrides,
 	};
@@ -1134,6 +1136,114 @@ describe("initMcpServer", () => {
 		expect(response).toMatchObject({
 			id: 13,
 			error: { code: -32602, message: "Unknown tool: delete_everything" },
+		});
+	});
+
+	describe("recordToolCall", () => {
+		function recording(overrides?: Partial<McpServerDeps>) {
+			const records: McpToolCallRecord[] = [];
+			const server = initMcpServer(
+				fakeDeps({ recordToolCall: (record) => { records.push(record); }, ...overrides }),
+			);
+			return { server, records };
+		}
+
+		it("records a successful call with the calling client and user", async () => {
+			const { server, records } = recording();
+			await call(server, 1, "list_queue");
+			expect(records).toEqual([
+				{
+					tool: "list_queue",
+					outcome: "ok",
+					userId,
+					oauthClientId: "dyn-registered-mcp-client",
+					trialNudgeAppended: false,
+				},
+			]);
+		});
+
+		it("records the submitted url of a save_link so the recorder can derive its host", async () => {
+			const { server, records } = recording();
+			await call(server, 1, "save_link", { url: "https://example.com/a" });
+			expect(records[0]).toMatchObject({
+				tool: "save_link",
+				outcome: "ok",
+				submittedUrl: "https://example.com/a",
+			});
+		});
+
+		it("records a tool that returned an error result as outcome=error", async () => {
+			const { server, records } = recording({
+				saveLink: async () => ({ ok: false, message: "nope" }),
+			});
+			await call(server, 1, "save_link", { url: "https://example.com/a" });
+			expect(records[0]).toMatchObject({ tool: "save_link", outcome: "error" });
+		});
+
+		it("distinguishes a save refused by the subscription gate as outcome=paywalled", async () => {
+			const { server, records } = recording({
+				resolveToolAccess: async () => ({ state: "inactive", message: "lapsed" }),
+			});
+			await call(server, 1, "save_link", { url: "https://example.com/a" });
+			expect(records[0]).toMatchObject({
+				tool: "save_link",
+				outcome: "paywalled",
+				submittedUrl: "https://example.com/a",
+			});
+		});
+
+		it("records an unknown tool name so a client calling something we do not serve is visible", async () => {
+			const { server, records } = recording();
+			await call(server, 1, "delete_everything");
+			expect(records[0]).toMatchObject({ tool: "delete_everything", outcome: "unknown_tool" });
+		});
+
+		it("records malformed params under a placeholder name, since no tool name is available", async () => {
+			const { server, records } = recording();
+			await server.handle(
+				{ jsonrpc: "2.0", id: 1, method: "tools/call", params: { wrong: true } },
+				context,
+			);
+			expect(records[0]).toMatchObject({ tool: "(unknown)", outcome: "invalid_params" });
+		});
+
+		it("flags the trial-ending nudge only when it was actually appended to a successful result", async () => {
+			const trialEnding: McpServerDeps["resolveToolAccess"] = async () => ({
+				state: "trial-ending",
+				nudge: "trial ends soon",
+			});
+			const { server, records } = recording({ resolveToolAccess: trialEnding });
+			await call(server, 1, "list_queue");
+			expect(records[0]).toMatchObject({ trialNudgeAppended: true });
+
+			const failing = recording({
+				resolveToolAccess: trialEnding,
+				saveLink: async () => ({ ok: false, message: "nope" }),
+			});
+			await call(failing.server, 2, "save_link", { url: "https://example.com/a" });
+			expect(failing.records[0]).toMatchObject({ outcome: "error", trialNudgeAppended: false });
+		});
+
+		it("never lets a failing analytics write break the tool call, so a recoverable tool error cannot become a JSON-RPC protocol error", async () => {
+			const errors: string[] = [];
+			const server = initMcpServer(
+				fakeDeps({
+					recordToolCall: () => {
+						throw new Error("analytics down");
+					},
+					logError: (message) => { errors.push(message); },
+				}),
+			);
+			const response = await call(server, 1, "list_queue");
+			expect(response).toMatchObject({ id: 1, result: { content: expect.any(Array) } });
+			expect(errors).toEqual(["MCP tool-call analytics failed"]);
+		});
+
+		it("omits submittedUrl when save_link arguments carry no usable url", async () => {
+			const { server, records } = recording();
+			await call(server, 1, "save_link", { wrong: true });
+			expect(records[0]).toMatchObject({ tool: "save_link", outcome: "error" });
+			expect(records[0]).not.toHaveProperty("submittedUrl");
 		});
 	});
 });

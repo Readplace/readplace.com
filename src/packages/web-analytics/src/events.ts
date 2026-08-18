@@ -27,6 +27,7 @@ export const ANALYTICS_EVENTS = {
 	viewSaveIntent: "view_save_intent",
 	signupAttempted: "signup_attempted",
 	firstArticleAutosaved: "first_article_autosaved",
+	mcpToolCalled: "mcp_tool_called",
 } as const;
 
 export const SIGNUP_OUTCOMES = {
@@ -49,7 +50,21 @@ export const SAVE_SURFACES = {
 	readerView: "reader_view",
 	queueSaveBar: "queue_save_bar",
 	extension: "extension",
+	mcp: "mcp",
 } as const;
+
+export const MCP_TOOL_OUTCOMES = {
+	ok: "ok",
+	error: "error",
+	paywalled: "paywalled",
+	unknownTool: "unknown_tool",
+	invalidParams: "invalid_params",
+} as const;
+
+export type McpToolOutcome =
+	(typeof MCP_TOOL_OUTCOMES)[keyof typeof MCP_TOOL_OUTCOMES];
+
+export const UNKNOWN_MCP_TOOL = "(unknown)";
 
 export const SAVE_OUTCOMES = {
 	saved: "saved",

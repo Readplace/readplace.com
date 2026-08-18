@@ -7,6 +7,8 @@ import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 import {
 	ANALYTICS_EVENTS,
 	INTERNAL_CLICK_MEDIUM,
+	type McpToolOutcome,
+	SAVE_SURFACES,
 	type SaveOutcome,
 	type SaveSurface,
 	type SignupOutcome,
@@ -290,6 +292,19 @@ export interface FirstArticleAutosavedEvent {
 	visitor_id?: string;
 }
 
+export interface McpToolCalledEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.mcpToolCalled;
+	timestamp: string;
+	tool: string;
+	outcome: McpToolOutcome;
+	oauth_client_id: string;
+	user_id: UserId;
+	trial_nudge_appended: 0 | 1;
+	article_host?: string;
+	content_class?: ContentClass;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| AnalyticsClick
@@ -301,7 +316,8 @@ export type AnalyticsEvent =
 	| ViewOpenedEvent
 	| ViewSaveIntentEvent
 	| SignupAttemptedEvent
-	| FirstArticleAutosavedEvent;
+	| FirstArticleAutosavedEvent
+	| McpToolCalledEvent;
 
 function isRenderedPageStatus(statusCode: number): boolean {
 	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
@@ -499,6 +515,59 @@ export function buildSaveIntentEvent(
 		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
 		visitor_id: params.req.visitorId,
 		is_authenticated: params.req.userId ? 1 : 0,
+	};
+}
+
+export function buildMcpToolCalledEvent(
+	deps: { now: () => Date },
+	params: {
+		tool: string;
+		outcome: McpToolOutcome;
+		oauthClientId: string;
+		userId: UserId;
+		trialNudgeAppended: boolean;
+		submittedUrl?: string;
+	},
+): McpToolCalledEvent {
+	const articleHost =
+		params.submittedUrl === undefined
+			? null
+			: articleHostFromSubmitted(params.submittedUrl);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.mcpToolCalled,
+		timestamp: deps.now().toISOString(),
+		tool: params.tool,
+		outcome: params.outcome,
+		oauth_client_id: params.oauthClientId,
+		user_id: params.userId,
+		trial_nudge_appended: params.trialNudgeAppended ? 1 : 0,
+		...(articleHost === null
+			? {}
+			: {
+					article_host: articleHost,
+					content_class: classifyContentSource(articleHost),
+				}),
+	};
+}
+
+export function buildMcpSaveIntentEvent(
+	deps: { now: () => Date },
+	params: { url: string; path: string; outcome: SaveOutcome },
+): ViewSaveIntentEvent {
+	const articleHost = articleHostFromSubmitted(params.url);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.viewSaveIntent,
+		timestamp: deps.now().toISOString(),
+		path: params.path,
+		article_host: articleHost,
+		content_class: articleHost === null ? null : classifyContentSource(articleHost),
+		surface: SAVE_SURFACES.mcp,
+		outcome: params.outcome,
+		visitor_hash: null,
+		visitor_id: null,
+		is_authenticated: 1,
 	};
 }
 

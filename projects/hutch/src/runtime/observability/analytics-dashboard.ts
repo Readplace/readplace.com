@@ -1,11 +1,13 @@
 import assert from "node:assert";
 import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
+import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
 import { QUEUE_PATH } from "../web/pages/queue/queue.url";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
 	LOG_GROUPS,
+	MCP_TOOL_OUTCOMES,
 	METRICS,
 	SAVE_OUTCOMES,
 	SAVE_SURFACES,
@@ -890,6 +892,64 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as autosaves by bin(1d)",
 			].join(" "),
 			x: 0, y: 154, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+	);
+
+	// --- Connected AI assistants (MCP) ---
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "MCP tool calls by client × tool × outcome",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, oauth_client_id, tool, outcome",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpToolCalled}"`,
+				"| stats count(*) as calls, count_distinct(user_id) as users by oauth_client_id, tool, outcome",
+				"| sort calls desc",
+				"| limit 50",
+			].join(" "),
+			x: 0, y: 170, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "MCP tool calls per day by outcome",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, outcome",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpToolCalled}"`,
+				"| stats count(*) as calls by bin(1d), outcome",
+			].join(" "),
+			x: 12, y: 170, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+		logWidget({
+			region,
+			title: "MCP users who called a tool but never saved",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields user_id, tool",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpToolCalled}"`,
+				`| stats count(*) as calls, sum(tool = "${SAVE_LINK_TOOL.name}" and outcome = "${MCP_TOOL_OUTCOMES.ok}") as saves by user_id`,
+				"| sort calls desc",
+				"| limit 50",
+			].join(" "),
+			x: 0, y: 178, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Trial-ending nudges delivered in tool results",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpToolCalled}"`,
+				"| filter trial_nudge_appended = 1",
+				"| stats count(*) as nudges, count_distinct(user_id) as users by bin(1d)",
+			].join(" "),
+			x: 12, y: 178, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 	);

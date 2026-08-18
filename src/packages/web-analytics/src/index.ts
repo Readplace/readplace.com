@@ -6,9 +6,12 @@ export {
 	SIGNUP_OUTCOMES,
 	CONTENT_CLASSES,
 	INTERNAL_CLICK_MEDIUM,
+	MCP_TOOL_OUTCOMES,
+	UNKNOWN_MCP_TOOL,
 	type SaveSurface,
 	type SaveOutcome,
 	type SignupOutcome,
+	type McpToolOutcome,
 } from "./events";
 export {
 	OWN_CONTENT_DOMAINS,
@@ -41,7 +44,10 @@ export {
 	classifyBrowser,
 	buildSaveIntentEvent,
 	buildSignupAttemptedEvent,
+	buildMcpToolCalledEvent,
+	buildMcpSaveIntentEvent,
 	type AnalyticsEvent,
+	type McpToolCalledEvent,
 	type SignupAttemptedEvent,
 	type AnalyticsPageview,
 	type AnalyticsClick,

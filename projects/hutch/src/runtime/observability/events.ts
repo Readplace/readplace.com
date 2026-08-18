@@ -7,9 +7,11 @@ export {
 	SAVE_SURFACES,
 	SAVE_OUTCOMES,
 	SIGNUP_OUTCOMES,
+	MCP_TOOL_OUTCOMES,
 	type SaveSurface,
 	type SaveOutcome,
 	type SignupOutcome,
+	type McpToolOutcome,
 } from "@packages/web-analytics";
 
 export const CONVERSION_EVENTS = {
