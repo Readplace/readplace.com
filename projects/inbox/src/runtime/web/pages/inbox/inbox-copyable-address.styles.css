@@ -1,9 +1,7 @@
 .inbox-copyable {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
   min-height: var(--input-height);
-  padding-right: 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--background);
@@ -27,6 +25,7 @@
 
 .inbox-copyable__copy {
   flex: none;
+  margin: 1px;
 }
 
 .inbox-copyable__copy[hidden] {

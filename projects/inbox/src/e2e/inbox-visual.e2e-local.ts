@@ -18,6 +18,43 @@ const RECEIVED_AT = "2026-01-05T10:00:00.000Z";
  * the extracting state would need a poll-freeze seam the app does not yet have. */
 const NO_GEOMETRY = async (): Promise<void> => {};
 
+async function copyButtonSeatedInField(page: Page): Promise<void> {
+	const fields = await page.locator(".inbox-copyable").all();
+	assert.ok(fields.length > 0, "the surface must render at least one copyable address");
+
+	for (const field of fields) {
+		const fieldBox = await field.boundingBox();
+		const buttonBox = await field.locator(".inbox-copyable__copy").boundingBox();
+		assert.ok(fieldBox, "the copyable box must be laid out with a measurable bounding box");
+		assert.ok(buttonBox, "the Copy button must be laid out with a measurable bounding box");
+
+		const minHeight = await field.evaluate((el) => getComputedStyle(el).minHeight);
+		assert.equal(
+			`${fieldBox.height}px`,
+			minHeight,
+			"the copyable box must stay the shared field height, so it lines up with the plain address fields beside it",
+		);
+
+		const afterButton = fieldBox.x + fieldBox.width - (buttonBox.x + buttonBox.width);
+		const aboveButton = buttonBox.y - fieldBox.y;
+		const belowButton = fieldBox.y + fieldBox.height - (buttonBox.y + buttonBox.height);
+		assert.equal(
+			afterButton,
+			aboveButton,
+			`the gap after the Copy button must match the one above it, or the field ends in dead space (after ${afterButton}px, above ${aboveButton}px)`,
+		);
+		assert.equal(
+			afterButton,
+			belowButton,
+			`the gap after the Copy button must match the one below it, or the field ends in dead space (after ${afterButton}px, below ${belowButton}px)`,
+		);
+	}
+}
+
+async function copyableAddressReady(page: Page): Promise<void> {
+	await expect(page.locator(".inbox-copyable__copy").first()).toBeVisible();
+}
+
 async function seedSettledEmail(page: Page): Promise<string> {
 	await page.request.post("/e2e/session");
 	await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
@@ -42,10 +79,12 @@ const emptyInbox: VisualCheckpoint = {
 	name: "inbox-empty",
 	settled: async (page) => {
 		await expect(page.locator("[data-test-inbox-emails-empty]")).toBeVisible();
+		await copyableAddressReady(page);
 	},
 	geometry: async (page) => {
 		const box = await measuredBox(page, "[data-test-inbox-emails-empty]");
 		assert.ok(box.width > 0, "the empty panel must occupy the column");
+		await copyButtonSeatedInField(page);
 	},
 	target: "main",
 	capture: "element",
@@ -59,8 +98,9 @@ const addressesPage: VisualCheckpoint = {
 			"data-test-inbox-addresses-state",
 			"list",
 		);
+		await copyableAddressReady(page);
 	},
-	geometry: NO_GEOMETRY,
+	geometry: copyButtonSeatedInField,
 	target: "main",
 	capture: "element",
 	// The address itself carries a freshly minted random token, so pin it —
