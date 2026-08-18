@@ -217,6 +217,49 @@ describe("renderReaderSlot", () => {
 		}
 	});
 
+	it.each([404, 410])(
+		"routes a crawl the origin answered %s to the not-found variant, which offers no capture",
+		(httpStatus) => {
+			const doc = parse(
+				renderReaderSlot({
+					crawl: {
+						status: "failed",
+						reason: JSON.stringify({ kind: "not-found", httpStatus }),
+					},
+					url: URL,
+					appOrigin: APP_ORIGIN,
+				}),
+			);
+
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("not-found");
+			const actions = Array.from(
+				slot.querySelectorAll("[data-test-reader-action]"),
+			).map((el) => el.getAttribute("data-test-reader-action"));
+			expect(actions).toEqual(["open"]);
+		},
+	);
+
+	it("tells a reader of a deleted page that it is gone, not that the site is blocking us", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
+				},
+				url: URL,
+				appOrigin: APP_ORIGIN,
+				extensionInstallUrl: "/install?client=chrome",
+			}),
+		);
+
+		const text = doc.querySelector(".article-body__reader-notice-text")?.textContent ?? "";
+		expect(text).toMatch(/no longer exists at this address/);
+		expect(doc.body.textContent ?? "").not.toMatch(/blocking automated fetches/);
+		expect(doc.querySelector("[data-test-reader-failed-install]")).toBeNull();
+	});
+
 	it("routes status=unsupported to the unsupported variant with the reassuring title", () => {
 		const doc = parse(
 			renderReaderSlot({

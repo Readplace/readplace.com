@@ -95,6 +95,7 @@ async function pollUntilDone(url: string): Promise<{ status: TerminalReaderStatu
 				case "unsupported":
 				case "unavailable":
 				case "blocked":
+				case "not-found":
 					return { status, html: lastHtml };
 				default: {
 					const _exhaustive: never = status;

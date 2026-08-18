@@ -21,6 +21,7 @@ export interface ReaderFailedInput {
 	 *   - `blocked`: an origin edge refused our servers; a browser on the user's
 	 *     own connection is the only thing that can still fetch it.
 	 *   - `slow`: pending past the poll cap — worker still might land but the user shouldn't wait.
+	 *   - `not-found`: the origin answered 404/410 — nothing can fetch what is gone.
 	 * Same template, the explanation line differs.
 	 */
 	variant: ReaderFailedVariant;
@@ -36,7 +37,18 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	failed: `We couldn't pull the article text. The site may be blocking automated fetches. Save it with ${FULL_PAGE_CAPTURE_PHRASE} instead.`,
 	blocked: `The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — ${FULL_PAGE_CAPTURE_PHRASE} do this in one tap.`,
 	slow: "Reader view is taking longer than usual.",
+	"not-found": "The site says this page no longer exists at this address, so there is no article text to pull in.",
 };
+
+/* Every other variant can still be rescued by capturing the page from a client,
+ * so the pitch is worth making. A page the origin has deleted cannot — pitching
+ * a capture there sells a fix that does not exist. */
+const CAPTURE_PITCH_VARIANTS: ReadonlySet<ReaderFailedVariant> = new Set([
+	"failed",
+	"unsupported",
+	"slow",
+	"blocked",
+]);
 
 export function renderReaderFailed(input: ReaderFailedInput): string {
 	return render(TEMPLATE, {
@@ -46,7 +58,9 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 		explanation: EXPLANATIONS[input.variant],
 		showCapture: input.variant === "blocked",
 		capturePollUrl: input.capturePollUrl,
-		extensionInstallUrl: input.extensionInstallUrl,
+		extensionInstallUrl: CAPTURE_PITCH_VARIANTS.has(input.variant)
+			? input.extensionInstallUrl
+			: undefined,
 		captureSurfaces: FULL_PAGE_CAPTURE_PHRASE,
 		oob: input.oob === true,
 	});

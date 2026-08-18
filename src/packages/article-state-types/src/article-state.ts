@@ -6,7 +6,13 @@ export type SummaryStatus = z.infer<typeof SummaryStatusSchema>;
 export const CrawlStatusSchema = z.enum(["pending", "ready", "failed", "unsupported"]);
 export type CrawlStatus = z.infer<typeof CrawlStatusSchema>;
 
-export const ReaderFailedVariantSchema = z.enum(["failed", "unsupported", "slow", "blocked"]);
+export const ReaderFailedVariantSchema = z.enum([
+	"failed",
+	"unsupported",
+	"slow",
+	"blocked",
+	"not-found",
+]);
 export type ReaderFailedVariant = z.infer<typeof ReaderFailedVariantSchema>;
 
 export const ReaderStatusSchema = z.union([
