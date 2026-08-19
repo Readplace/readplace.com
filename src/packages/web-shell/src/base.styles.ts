@@ -746,6 +746,12 @@ export const TRIAL_COUNTDOWN_STYLES = `
 		.trial-countdown--cancellation-imminent {
 			padding: 4px 10px;
 		}
+
+		.trial-countdown--urgent,
+		.trial-countdown--critical,
+		.trial-countdown--expired {
+			padding: 4px 10px;
+		}
 	}
 `;
 
