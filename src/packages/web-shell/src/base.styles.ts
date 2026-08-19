@@ -370,6 +370,7 @@ export const NAV_STYLES = `
 	}
 
 	.nav__toggle {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
@@ -379,6 +380,7 @@ export const NAV_STYLES = `
 		border: none;
 		cursor: pointer;
 		padding: 0;
+		color: var(--foreground);
 	}
 
 	.nav__toggle-bar {
@@ -386,23 +388,34 @@ export const NAV_STYLES = `
 		height: 2px;
 		background: var(--foreground);
 		border-radius: 1px;
-		transition: transform 0.2s ease, opacity 0.2s ease;
+		transition: opacity 0.2s ease;
+	}
+
+	.nav__toggle-x {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 24px;
+		opacity: 0;
+		transition: opacity 0.2s ease;
+	}
+
+	.header--transparent .nav__toggle {
+		color: var(--color-on-brand);
 	}
 
 	.header--transparent .nav__toggle-bar {
 		background: var(--color-on-brand);
 	}
 
-	.nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(1) {
-		transform: translateY(9px) rotate(45deg);
-	}
-
-	.nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(2) {
+	.nav__toggle[aria-expanded="true"] .nav__toggle-bar {
 		opacity: 0;
 	}
 
-	.nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(3) {
-		transform: translateY(-9px) rotate(-45deg);
+	.nav__toggle[aria-expanded="true"] .nav__toggle-x {
+		opacity: 1;
 	}
 
 	.nav__menu {

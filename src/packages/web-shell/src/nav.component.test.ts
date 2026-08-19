@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { iconSvg } from "@packages/ui-icons";
 import { JSDOM } from "jsdom";
 import { GlobalNav } from "./nav.component";
 import type { TrialDisplay } from "./trial-countdown.format";
@@ -294,5 +295,19 @@ describe("GlobalNav component", () => {
 		const header = doc.querySelector(".header");
 		assert(header, "header element must render");
 		expect(header.classList.contains("header--transparent")).toBe(true);
+	});
+
+	it("renders the collapsed bars and the shared close cross together, so aria-expanded alone flips the toggle", () => {
+		const html = GlobalNav({
+			variant: "default",
+			isAuthenticated: true,
+			accessIsReadOnly: false,
+		});
+
+		const toggle = parse(html).querySelector(".nav__toggle");
+		assert(toggle, "nav toggle must render");
+		expect(toggle.getAttribute("aria-expanded")).toBe("false");
+		expect(toggle.querySelectorAll(".nav__toggle-bar")).toHaveLength(3);
+		expect(html).toContain(`<span class="nav__toggle-x">${iconSvg("x")}</span>`);
 	});
 });

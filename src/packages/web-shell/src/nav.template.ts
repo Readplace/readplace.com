@@ -18,6 +18,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 					<span class="nav__toggle-bar"></span>
 					<span class="nav__toggle-bar"></span>
 					<span class="nav__toggle-bar"></span>
+					<span class="nav__toggle-x">{{icon "x"}}</span>
 				</button>
 				<div id="nav-menu" class="nav__menu" data-test-nav-variant="{{navVariant}}">
 					{{#each navGroups}}
