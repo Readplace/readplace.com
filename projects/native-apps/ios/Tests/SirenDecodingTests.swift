@@ -41,6 +41,35 @@ final class SirenDecodingTests: XCTestCase {
 			"the fixture's savedAt (2026-05-30T10:00:00.000Z) parses to that exact instant")
 	}
 
+	func testAnEnrichedArticleDoesNotEqualItsStubOfTheSameId() throws {
+		let stub = try XCTUnwrap(Article(entity: try decodeEntity(Fixtures.article(
+			title: "Article from example.com",
+			excerpt: "Saved from example.com.",
+			imageUrl: nil
+		))))
+		let enriched = try XCTUnwrap(Article(entity: try decodeEntity(Fixtures.article(
+			title: "The Real Headline",
+			excerpt: "The real excerpt."
+		))))
+
+		XCTAssertEqual(stub.id, enriched.id, "precondition: enrichment keeps the row's identity")
+		XCTAssertNotEqual(
+			stub, enriched,
+			"a row carries its content in its value, so a list that swapped in the enriched page repaints it"
+		)
+	}
+
+	func testTwoDecodesOfTheSameEntityAreEqual() throws {
+		let entity = Fixtures.article()
+		let first = try XCTUnwrap(Article(entity: try decodeEntity(entity)))
+		let second = try XCTUnwrap(Article(entity: try decodeEntity(entity)))
+
+		XCTAssertEqual(
+			first, second,
+			"an unchanged row re-read from the server is the same value, so the list leaves it alone"
+		)
+	}
+
 	func testArticleAffordancesIterateAdvertisedActionsInWireOrder() throws {
 		// One control per advertised, invokable action — built by iterating, never
 		// by matching a known name — so a newly-advertised item action renders.

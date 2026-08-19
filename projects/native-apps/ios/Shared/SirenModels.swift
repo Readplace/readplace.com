@@ -50,7 +50,7 @@ private extension KeyedDecodingContainer {
 /// partial or evolving link never fails the surrounding decode. `title` is the
 /// server's human label for the link, which the client uses verbatim as the
 /// control's label and accessibility text.
-struct SirenLink: Decodable {
+struct SirenLink: Decodable, Hashable {
 	let rel: [String]
 	let href: String?
 	let title: String?
@@ -62,7 +62,7 @@ struct SirenLink: Decodable {
 /// invoker posts it form-/JSON-encoded, but the server may declare it as a JSON
 /// number (e.g. a numeric `page` or `limit`); such a value is coerced to its string
 /// form on decode so it isn't dropped.
-struct SirenField: Decodable {
+struct SirenField: Decodable, Hashable {
 	let name: String
 	let type: String?
 	let value: String?
@@ -94,7 +94,7 @@ extension SirenField {
 /// to `GET` (the Siren default) rather than failing the decode. `title` is the
 /// server's human label, which the client uses verbatim as the control's label
 /// and accessibility text.
-struct SirenAction: Decodable {
+struct SirenAction: Decodable, Hashable {
 	let name: String
 	let href: String?
 	let method: String
@@ -371,9 +371,6 @@ struct Article: Identifiable, Hashable {
 	/// navigable `read` link (the row's primary tap target), distinct from the
 	/// action controls iterated above.
 	let readHref: String?
-
-	static func == (lhs: Article, rhs: Article) -> Bool { lhs.id == rhs.id }
-	func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 extension Article {

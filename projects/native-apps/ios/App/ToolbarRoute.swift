@@ -37,15 +37,3 @@ enum ToolbarRoute: Equatable {
 		}
 	}
 }
-
-extension SirenLink: Equatable {
-	static func == (lhs: SirenLink, rhs: SirenLink) -> Bool {
-		lhs.rel == rhs.rel && lhs.href == rhs.href && lhs.title == rhs.title
-	}
-}
-
-extension SirenAction: Equatable {
-	static func == (lhs: SirenAction, rhs: SirenAction) -> Bool {
-		lhs.name == rhs.name && lhs.href == rhs.href && lhs.method == rhs.method && lhs.title == rhs.title
-	}
-}
