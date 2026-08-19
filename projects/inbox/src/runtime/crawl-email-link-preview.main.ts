@@ -51,6 +51,7 @@ const crawlFetch = initCrawlFetch({
 	personas: CRAWL_PERSONAS,
 	isBlocked: isBlockedIpAddress,
 	logInfo,
+	proxyUrl: undefined,
 });
 // Fail this Lambda's cold start loudly if the curl-impersonate binary is missing,
 // rather than let each crawl that reaches the curl leg die on a per-URL ENOENT

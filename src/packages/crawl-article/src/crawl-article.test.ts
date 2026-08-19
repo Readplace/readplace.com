@@ -69,6 +69,7 @@ function buildCrawlFetch(overrides: {
 		personas: overrides.personas ?? [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
 		isBlocked: () => false,
 		logInfo: () => {},
+		proxyUrl: undefined,
 		fetchCurl: overrides.fetchCurl ?? stubFetchCurl,
 		fetchH2: overrides.fetchH2 ?? stubFetchH2,
 		rateLimitRetryDelaysMs: overrides.rateLimitRetryDelaysMs,

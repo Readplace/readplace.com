@@ -104,8 +104,10 @@ const ocrImageTags = z
 // so one owner beats three copies. Read its ARN via the platform StackReference.
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
 const crawlEgressProxyUrl = getEnv("CRAWL_EGRESS_PROXY_URL");
-const crawlEgressProxyEnvironment: Record<string, string> = crawlEgressProxyUrl
-	? { CRAWL_EGRESS_PROXY_URL: crawlEgressProxyUrl }
+// The proxy URL carries embedded residential-proxy credentials, so it is a
+// secret like deepseekApiKey below — pulumi.secret keeps it encrypted in state.
+const crawlEgressProxyEnvironment: Record<string, pulumi.Input<string>> = crawlEgressProxyUrl
+	? { CRAWL_EGRESS_PROXY_URL: pulumi.secret(crawlEgressProxyUrl) }
 	: {};
 
 // --- Content S3 Bucket ---

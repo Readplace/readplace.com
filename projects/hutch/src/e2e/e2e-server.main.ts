@@ -57,6 +57,7 @@ const crawlFetch = initCrawlFetch({
 	personas: CRAWL_PERSONAS,
 	isBlocked: e2eIsBlocked,
 	logInfo,
+	proxyUrl: undefined,
 	fetchH2: async (url) => {
 		throw new Error(`[e2e] h2 fallback disabled — primary fetch failed for ${url}`)
 	},

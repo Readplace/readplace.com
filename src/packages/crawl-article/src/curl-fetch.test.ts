@@ -279,6 +279,26 @@ describe("fetchCurl error handling", () => {
 		);
 		expect(fake.calls).toHaveLength(0);
 	});
+
+	it("redacts proxy credentials from a curl failure message (execFile embeds the argv)", async () => {
+		// execFile puts the whole command line in the error message, so a failed
+		// proxied curl would otherwise log the credentialed --proxy URL.
+		const fake = makeFakeExec({
+			error: new Error(
+				"Command failed: curl_chrome131 --proxy http://alice:s3cr3t@proxy.example:8080 -- https://example.com/",
+			),
+		});
+		const fetchCurl = createCurlFetch({
+			execCurl: fake.execCurl,
+			resolvePinnedAddress,
+			proxyUrl: "http://alice:s3cr3t@proxy.example:8080",
+		});
+		const error = await fetchCurl("https://example.com/", { signal: live() }).catch((e) => e);
+		expect(error).toBeInstanceOf(Error);
+		expect(error.message).not.toContain("s3cr3t");
+		expect(error.message).not.toContain("alice");
+		expect(error.message).toContain("http://***@proxy.example:8080");
+	});
 });
 
 describe("fetchCurl abort signal handling", () => {

@@ -16,7 +16,7 @@ const ESCALATE_STATUS_CODES = new Set([401, 402, 403, 429]);
 
 const TERMINAL_NETWORK_CODES = new Set(["ENOTFOUND", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH"]);
 
-type LegName = "primary" | "h2" | "curl" | "proxy";
+type LegName = "primary" | "h2" | "curl";
 
 export type LegFetch = (
 	url: string,

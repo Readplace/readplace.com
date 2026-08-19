@@ -101,6 +101,16 @@ export const defaultCurlImpersonateProbe: CurlImpersonateProbe = () => {
  * (argument construction, header title-casing, abort handling, error mapping,
  * response parsing) without spawning a real curl process.
  */
+/**
+ * Node's execFile embeds the whole argv in a spawn error's `message`, so a
+ * failing proxied curl would otherwise write the credentialed `--proxy
+ * http://user:pass@host` straight into CloudWatch. Strip any URL userinfo
+ * before the message reaches a logger.
+ */
+function redactCredentials(text: string): string {
+	return text.replace(/(\/\/)[^/\s@]*@/g, "$1***@");
+}
+
 export function createCurlFetch(deps: {
 	execCurl: ExecCurl;
 	resolvePinnedAddress: ResolvePinnedAddress;
@@ -119,7 +129,7 @@ export function createCurlFetch(deps: {
 			const args = buildCurlArgs({ url, headers: init.headers, hostname: parsed.hostname, port, pinnedAddress, proxyUrl });
 			const child = execCurl(args, (error, stdout) => {
 				if (error) {
-					reject(new Error(`fetchCurl failed for ${url}: ${error.message}`));
+					reject(new Error(redactCredentials(`fetchCurl failed for ${url}: ${error.message}`)));
 					return;
 				}
 				const { status, headers, body } = parseCurlOutput(stdout);

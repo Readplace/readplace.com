@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { Agent, buildConnector } from "undici";
+import { Agent, buildConnector, type Dispatcher, ProxyAgent } from "undici";
 import { initDefaultFetchAia, type PrimaryFetch, withAiaChasing } from "./aia-fetch";
 import {
 	createBlockedAddressLookup,
@@ -13,13 +13,19 @@ import { type CurlFetch, initGuardedCurlFetch } from "./curl-fetch";
 import { type OnRedirect, redirectable } from "./follow-redirects";
 import { type FetchH2, initFetchH2 } from "./h2-fetch";
 import { type Persona, withPersonaFallback } from "./persona-fallback";
+import { withProxiedLadderFallback } from "./proxied-ladder-fallback";
 import { RATE_LIMIT_RETRY_DELAYS_MS, withRateLimitRetry } from "./rate-limit-retry";
-import { type Leg, type LegAttempt, type LegFetch, runTransportLadder } from "./transport-ladder";
+import { type LadderFetch, type Leg, type LegAttempt, runTransportLadder } from "./transport-ladder";
 
 const PRIMARY_LEG_MAX_MS = 25_000;
 const H2_LEG_MAX_MS = 2000;
 const CURL_LEG_MAX_MS = 3000;
-const PROXY_LEG_MAX_MS = 10_000;
+const PROXY_RESERVE_MS = 10_000;
+/* Inside the proxied pass the primary leg is capped well below its direct
+ * 25s so a slow proxied primary cannot starve the curl-impersonate leg — the
+ * one the evidence shows recovers the blocked rows — of its share of the
+ * reserve. */
+const PROXY_PRIMARY_MAX_MS = 5000;
 
 export type CrawlFetchInit = {
 	headers?: Record<string, string>;
@@ -39,7 +45,7 @@ export function initCrawlFetch(deps: {
 	resolve?: ResolveAll;
 	fetchH2?: FetchH2;
 	fetchCurl?: CurlFetch;
-	proxyUrl?: string;
+	proxyUrl: string | undefined;
 	fetchProxyCurl?: CurlFetch;
 	rateLimitRetryDelaysMs?: readonly number[];
 }): CrawlFetch {
@@ -60,58 +66,85 @@ export function initCrawlFetch(deps: {
 			baseConnector(options, callback);
 		},
 	});
-	const followRedirects = redirectable(
-		(url, hopInit) =>
-			deps.fetch(url, {
-				headers: hopInit?.headers,
-				signal: hopInit?.signal,
-				dispatcher,
-				redirect: "manual",
-			}),
-		"fetchPrimary",
-	);
-	const guardedFetch: PrimaryFetch = (url, init) =>
-		followRedirects(url, {
-			headers: init.headers,
-			signal: init.signal,
-			onRedirect: init.onRedirect,
-		});
-	const primaryFetch = withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup, assertHostAllowed }));
+	function buildPrimaryFetch(primaryDispatcher: Dispatcher, opts: { chaseAia: boolean }): PrimaryFetch {
+		const followRedirects = redirectable(
+			(url, hopInit) =>
+				deps.fetch(url, {
+					headers: hopInit?.headers,
+					signal: hopInit?.signal,
+					dispatcher: primaryDispatcher,
+					redirect: "manual",
+				}),
+			"fetchPrimary",
+		);
+		const guardedFetch: PrimaryFetch = (url, init) =>
+			followRedirects(url, {
+				headers: init.headers,
+				signal: init.signal,
+				onRedirect: init.onRedirect,
+			});
+		/* AIA chasing fetches the missing issuer cert directly, so it can't ride
+		 * the proxy tunnel — skip it on the proxied primary and let the proxied
+		 * curl leg cover a chain-broken origin instead. */
+		return opts.chaseAia
+			? withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup, assertHostAllowed }))
+			: guardedFetch;
+	}
 	const fetchH2 = deps.fetchH2 ?? initFetchH2({ lookup, assertHostAllowed });
 	const fetchCurl = deps.fetchCurl ?? initGuardedCurlFetch({ resolve, isBlocked });
-	const fetchProxyCurl =
-		deps.proxyUrl === undefined
-			? undefined
-			: deps.fetchProxyCurl ?? initGuardedCurlFetch({ resolve, isBlocked, proxyUrl: deps.proxyUrl });
-	const primaryLeg: LegFetch = (url, init) =>
-		primaryFetch(url, { headers: init.headers, signal: init.deadline.signal, onRedirect: init.onRedirect });
-	const legs: readonly Leg[] = [
-		{ name: "primary", maxRunMs: PRIMARY_LEG_MAX_MS, fetch: primaryLeg },
+	const primaryLeg = (fetchPrimary: PrimaryFetch, maxRunMs: number): Leg => ({
+		name: "primary",
+		maxRunMs,
+		fetch: (url, init) =>
+			fetchPrimary(url, { headers: init.headers, signal: init.deadline.signal, onRedirect: init.onRedirect }),
+	});
+	const curlLeg = (curlFetch: CurlFetch): Leg => ({
+		name: "curl",
+		maxRunMs: CURL_LEG_MAX_MS,
+		fetch: (url, init) => curlFetch(url, { headers: init.headers, signal: init.deadline.signal }),
+	});
+	const directLegs: readonly Leg[] = [
+		primaryLeg(buildPrimaryFetch(dispatcher, { chaseAia: true }), PRIMARY_LEG_MAX_MS),
 		{
 			name: "h2",
 			maxRunMs: H2_LEG_MAX_MS,
 			fetch: (url, init) => fetchH2(url, { headers: init.headers, signal: init.deadline.signal }),
 		},
-		{
-			name: "curl",
-			maxRunMs: CURL_LEG_MAX_MS,
-			fetch: (url, init) => fetchCurl(url, { headers: init.headers, signal: init.deadline.signal }),
-		},
-		...(fetchProxyCurl === undefined
-			? []
-			: [
-					{
-						name: "proxy",
-						maxRunMs: PROXY_LEG_MAX_MS,
-						fetch: (url, init) => fetchProxyCurl(url, { headers: init.headers, signal: init.deadline.signal }),
-					} satisfies Leg,
-				]),
+		curlLeg(fetchCurl),
 	];
 	const logAttempt = (attempt: LegAttempt) => logInfo(JSON.stringify({ stream: "crawl-legs", ...attempt }));
-	const fetchWithFallback = withRateLimitRetry(
-		withPersonaFallback(runTransportLadder({ legs, logAttempt, now: Date.now }), deps.personas),
+	const directPipeline = withRateLimitRetry(
+		withPersonaFallback(runTransportLadder({ legs: directLegs, logAttempt, now: Date.now }), deps.personas),
 		{ delaysMs: deps.rateLimitRetryDelaysMs ?? RATE_LIMIT_RETRY_DELAYS_MS },
 	);
+	/* Node's http2 has no proxy path and curl-impersonate through the proxy
+	 * already presents a browser h2 fingerprint, so the proxied pass omits the
+	 * h2 leg. */
+	function buildProxyPipeline(): LadderFetch | undefined {
+		const proxyUrl = deps.proxyUrl;
+		if (proxyUrl === undefined) return undefined;
+		const fetchProxyCurl = deps.fetchProxyCurl ?? initGuardedCurlFetch({ resolve, isBlocked, proxyUrl });
+		const proxyLegs: readonly Leg[] = [
+			primaryLeg(buildPrimaryFetch(new ProxyAgent(proxyUrl), { chaseAia: false }), PROXY_PRIMARY_MAX_MS),
+			curlLeg(fetchProxyCurl),
+		];
+		const proxyLogAttempt = (attempt: LegAttempt) =>
+			logInfo(JSON.stringify({ stream: "crawl-legs", via: "proxy", ...attempt }));
+		return withPersonaFallback(
+			runTransportLadder({ legs: proxyLegs, logAttempt: proxyLogAttempt, now: Date.now }),
+			deps.personas,
+		);
+	}
+	const proxyPipeline = buildProxyPipeline();
+	const fetchWithFallback =
+		proxyPipeline === undefined
+			? directPipeline
+			: withProxiedLadderFallback({
+					directFetch: directPipeline,
+					proxyFetch: proxyPipeline,
+					reserveMs: PROXY_RESERVE_MS,
+					now: Date.now,
+				});
 	return async (url, init) => {
 		assert(
 			!(init.referer && init.headers?.referer),

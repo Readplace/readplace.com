@@ -200,6 +200,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
 			logInfo: () => {},
+			proxyUrl: undefined,
 			isBlocked: blocksPrivate,
 			resolve: allHostsResolveTo("10.1.2.3"),
 		});
@@ -218,6 +219,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
 			logInfo: () => {},
+			proxyUrl: undefined,
 			isBlocked: (address) => {
 				checkedAddresses.push(address);
 				return blocksPrivateExceptLoopback(address);
@@ -247,6 +249,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
 			logInfo: () => {},
+			proxyUrl: undefined,
 			isBlocked: blocksPrivate,
 			resolve: allHostsResolveTo("169.254.169.254"),
 		});
