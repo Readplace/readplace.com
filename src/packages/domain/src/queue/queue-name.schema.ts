@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const QUEUE_LABEL_MAX_LENGTH = 24;
 
-export const QUEUE_MAX_PER_USER = 25;
+export const QUEUE_MAX_PER_USER = 12;
 
 export const QueueLabelSchema = z.string().min(1).max(QUEUE_LABEL_MAX_LENGTH);
 
