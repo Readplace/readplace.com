@@ -68,9 +68,12 @@ export function toQueueCardDisplayModel(
 	options: { isFirst: boolean; deviceClass: DeviceClass },
 ): QueueCardDisplayModel {
 	const isProcessing = Boolean(article.cardPollUrl);
-	const readerHref = `/queue/${article.id}/view`;
 	const openReaderLink = (content: string) =>
-		withInternalTracking(readerHref, { source: "queue-card", content, term: options.deviceClass });
+		withInternalTracking(article.readerHref, {
+			source: "queue-card",
+			content,
+			term: options.deviceClass,
+		});
 	return {
 		...article,
 		titleLinkUrl: openReaderLink("open-article-title"),

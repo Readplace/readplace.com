@@ -3,6 +3,8 @@
       <div class="queue__body">
         {{{queueNavHtml}}}
         <div class="queue__content">
+          {{{queueCreateHtml}}}
+          {{#if queueCreatedLabel}}<p class="queue__created-flash" role="status" data-test-queue-created>Created {{queueCreatedLabel}}.</p>{{/if}}
           <div class="queue__header">
             <h1 class="queue__title">{{queueTitle}}</h1>
           </div>
@@ -21,7 +23,7 @@
             {{/if}}
           </aside>
           <div id="status-toast">{{{statusToastHtml}}}</div>
-          <form class="{{saveFormClass}}" method="POST" action="{{track '/queue/save' source='queue' content='save'}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-save-tip="{{saveTipState}}" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
+          <form class="{{saveFormClass}}" method="POST" action="{{saveAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-save-tip="{{saveTipState}}" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
             <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}"{{#if accessIsReadOnly}} disabled{{/if}}>
             <button class="btn btn--primary btn--field queue__save-btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="queue__save-btn-label">Save</span><span class="queue__save-btn-saving">Saving…</span></button>
           </form>

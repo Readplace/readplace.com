@@ -3,6 +3,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
+import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
 import type { UserId } from "@packages/domain/user";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -39,7 +40,7 @@ function makeResult(articles: SavedArticle[]): FindArticlesResult {
 }
 
 const NOW = new Date("2025-06-01T13:00:00Z");
-const DEFAULT_FILTERS = { queue: "default" as const, tab: "queue" as const, order: "desc" as const, page: 1 };
+const DEFAULT_FILTERS = { queue: DEFAULT_QUEUE_SLUG, tab: "queue" as const, order: "desc" as const, page: 1 };
 
 describe("toQueueViewModel", () => {
 	it("should map article fields to view model", () => {
@@ -134,7 +135,7 @@ describe("toQueueViewModel", () => {
 	});
 
 	it("should preserve the filter context in the statusFlash undo URL", () => {
-		const filters = { queue: "default" as const, tab: "done" as const, order: "asc" as const, page: 1 };
+		const filters = { queue: DEFAULT_QUEUE_SLUG, tab: "done" as const, order: "asc" as const, page: 1 };
 		const vm = toQueueViewModel(makeResult([makeArticle({ status: "read" })]), filters, {
 			now: NOW,
 			statusFlash: { message: "Marked as unread", undoArticleId: ARTICLE_ID, undoStatus: "read" },
@@ -288,7 +289,7 @@ describe("toQueueViewModel", () => {
 
 	it("should include return query in action URLs for non-default view", () => {
 		const article = makeArticle({ status: "read" });
-		const filters = { queue: "default" as const, order: "asc" as const, page: 1, tab: "done" as const };
+		const filters = { queue: DEFAULT_QUEUE_SLUG, order: "asc" as const, page: 1, tab: "done" as const };
 		const vm = toQueueViewModel(makeResult([article]), filters, { now: NOW });
 
 		const deleteAction = vm.articles[0].actions.find(a => a.testAction === "delete");
@@ -325,7 +326,7 @@ describe("toQueueViewModel", () => {
 
 	it("should include return query in mark-read URL for non-default view", () => {
 		const article = makeArticle({ status: "unread" });
-		const filters = { queue: "default" as const, order: "asc" as const, page: 1, tab: "queue" as const };
+		const filters = { queue: DEFAULT_QUEUE_SLUG, order: "asc" as const, page: 1, tab: "queue" as const };
 		const vm = toQueueViewModel(makeResult([article]), filters, { now: NOW });
 
 		const markReadAction = vm.articles[0].actions.find(a => a.testAction === "mark-read");
@@ -349,7 +350,7 @@ describe("toQueueViewModel", () => {
 	});
 
 	it("should expose the counts URL for the active filters", () => {
-		const vm = toQueueViewModel(makeResult([]), { queue: "default", tab: "done", order: "asc", page: 2 }, { now: NOW });
+		const vm = toQueueViewModel(makeResult([]), { queue: DEFAULT_QUEUE_SLUG, tab: "done", order: "asc", page: 2 }, { now: NOW });
 
 		expect(vm.countsUrl).toBe("/queue/counts?tab=done&order=asc&page=2");
 	});

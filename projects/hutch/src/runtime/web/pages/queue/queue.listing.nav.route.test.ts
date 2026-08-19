@@ -3,6 +3,8 @@ import { JSDOM } from "jsdom";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 
+type TestAgent = Awaited<ReturnType<typeof loginAgent>>;
+
 const useApp = useTestServer();
 
 function parse(html: string): Document {
@@ -23,7 +25,11 @@ function queueNavLinks(doc: Document): Element[] {
 	return Array.from(nav.querySelectorAll("[data-test-queue]"));
 }
 
+/** Only the queue page's own <main> — the global header nav also links to
+ * /queue, and leaving the queue surface is where a dev toggle is meant to drop. */
 function queueUrlsIn(doc: Document): string[] {
+	const main = doc.querySelector("main.queue");
+	assert(main, "the queue page must render a main landmark");
 	const attributeBySelector = [
 		["a[href]", "href"],
 		["form[action]", "action"],
@@ -31,9 +37,29 @@ function queueUrlsIn(doc: Document): string[] {
 	] as const;
 	return attributeBySelector
 		.flatMap(([selector, attribute]) =>
-			Array.from(doc.querySelectorAll(selector)).map((el) => el.getAttribute(attribute)),
+			Array.from(main.querySelectorAll(selector)).map((el) => el.getAttribute(attribute)),
 		)
 		.filter((url): url is string => Boolean(url?.startsWith("/queue")));
+}
+
+function saveFormAction(doc: Document): string {
+	const form = doc.querySelector('[data-test-form="save-article"]');
+	assert(form, "the queue page must render the save bar");
+	return form.getAttribute("action") ?? "";
+}
+
+function countsUrl(doc: Document): string {
+	const trigger = doc.querySelector("[data-test-queue-counts]");
+	assert(trigger, "the queue page must arm the counts loader");
+	return trigger.getAttribute("hx-get") ?? "";
+}
+
+async function createQueue(agent: TestAgent, label: string): Promise<void> {
+	const response = await agent
+		.post("/queue/queues?feature=queues")
+		.type("form")
+		.send({ label });
+	assert.equal(response.status, 303, `creating the "${label}" queue must redirect to it`);
 }
 
 describe("Queue nav", () => {
@@ -125,27 +151,51 @@ describe("Queue nav", () => {
 			expect(active).toEqual(["read"]);
 		});
 
-		it("should leave the queue and the feature flag out of every link and form the page emits", async () => {
+		it("should carry the queues toggle on every link and form the page emits, so the rail survives a click", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/a" });
 
 			const doc = parse((await agent.get("/queue?feature=queues&queue=default")).text);
 
-			const riding = queueUrlsIn(doc).filter(
-				(url) => url.includes("queue=") || url.includes("feature="),
-			);
-			expect(riding).toEqual([]);
+			const urls = queueUrlsIn(doc);
+			expect(urls.length).toBeGreaterThan(0);
+			expect(urls.filter((url) => !url.includes("feature=queues"))).toEqual([]);
 		});
 
-		it("should drop the named queue when clamping a page past the end of the listing", async () => {
+		it("should leave the default queue unnamed and name every other queue the reader opens", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await createQueue(agent, "Work Reading");
+			await agent
+				.post("/queue/save?feature=queues&queue=work-reading")
+				.type("form")
+				.send({ url: "https://example.com/a" });
+
+			const onDefault = parse((await agent.get("/queue?feature=queues")).text);
+			expect(saveFormAction(onDefault)).toBe(
+				"/queue/save?feature=queues&utm_source=queue&utm_medium=internal&utm_content=save",
+			);
+			expect(countsUrl(onDefault)).toBe("/queue/counts?feature=queues");
+
+			const onWork = parse((await agent.get("/queue?feature=queues&queue=work-reading")).text);
+			expect(saveFormAction(onWork)).toBe(
+				"/queue/save?queue=work-reading&feature=queues&utm_source=queue&utm_medium=internal&utm_content=save",
+			);
+			expect(countsUrl(onWork)).toBe("/queue/counts?queue=work-reading&feature=queues");
+			const cardUrls = queueUrlsIn(onWork).filter((url) => url.includes("/queue/0"));
+			expect(cardUrls.length).toBeGreaterThan(0);
+			expect(cardUrls.filter((url) => !url.includes("queue=work-reading"))).toEqual([]);
+		});
+
+		it("should keep the reader on the flagged view when clamping a page past the end of the listing", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/queue?feature=queues&queue=default&page=2");
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?feature=queues");
 		});
 	});
 

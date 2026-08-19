@@ -2,12 +2,19 @@ import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
+import {
+	QUEUE_MAX_PER_USER,
+	QueueLimitReachedError,
+	QueueSlugSchema,
+} from "@packages/domain/queue";
 import type { UserId } from "@packages/domain/user";
 import type { SaveArticleParams } from "./article-store.types";
 import { initInMemoryArticleStore } from "./in-memory-article-store";
 
 const USER_A = "user-a" as UserId;
 const USER_B = "user-b" as UserId;
+const WORK = QueueSlugSchema.parse("work");
+const LATER = QueueSlugSchema.parse("later");
 
 function makeArticleParams(
 	overrides?: Partial<SaveArticleParams>,
@@ -1032,6 +1039,234 @@ describe("initInMemoryArticleStore", () => {
 		it("getSummaryToggleState returns null when no user-article row exists", async () => {
 			const store = initInMemoryArticleStore();
 			expect(await store.getSummaryToggleState({ userId: USER_A, url: URL })).toBeNull();
+		});
+	});
+
+	describe("multiple queues", () => {
+		it("keeps the same URL as an independent copy in each queue the reader saved it into", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			await store.updateQueueArticleStatus({
+				id: saved.id,
+				userId: USER_A,
+				queue: WORK,
+				status: "read",
+			});
+
+			const inDefault = await store.findArticleById(saved.id, USER_A);
+			const inWork = await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK });
+			expect(inDefault?.status).toBe("unread");
+			expect(inWork?.status).toBe("read");
+		});
+
+		it("deletes only the copy in the queue the reader deleted it from", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			expect(
+				await store.deleteQueueArticle({ id: saved.id, userId: USER_A, queue: WORK }),
+			).toBe(true);
+			expect(
+				await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK }),
+			).toBeNull();
+			expect(await store.findArticleById(saved.id, USER_A)).not.toBeNull();
+		});
+
+		it("answers false when the queue never held the article", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+
+			expect(
+				await store.deleteQueueArticle({ id: saved.id, userId: USER_A, queue: WORK }),
+			).toBe(false);
+			expect(
+				await store.updateQueueArticleStatus({
+					id: saved.id,
+					userId: USER_A,
+					queue: WORK,
+					status: "read",
+				}),
+			).toBeNull();
+		});
+
+		it("keeps queue copies out of the default listing and counts", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			const listing = await store.findArticlesByUser({ userId: USER_A });
+			expect(listing.articles).toEqual([]);
+			expect(await store.countArticlesByUser({ userId: USER_A })).toBe(0);
+			expect(await store.countQueueArticles({ userId: USER_A, queue: WORK })).toBe(1);
+		});
+
+		it("lists only the addressed queue's copies", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({
+				...makeArticleParams({ url: "https://example.com/second" }),
+				queue: WORK,
+			});
+
+			const work = await store.findQueueArticles({ userId: USER_A, queue: WORK });
+			expect(work.articles.map((a) => a.url)).toEqual(["https://example.com/second"]);
+		});
+
+		it("reports every queue holding a URL so a delete can tell the last copy from one of many", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			expect(
+				await store.listUserSavesForUrl({
+					userId: USER_A,
+					url: "https://example.com/article",
+				}),
+			).toEqual([{}, { queue: "work" }]);
+		});
+
+		it("stamps viewedAt on the addressed queue's copy only", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			const at = new Date("2026-08-19T10:00:00.000Z");
+
+			await store.markQueueArticleViewed({
+				userId: USER_A,
+				queue: WORK,
+				url: "https://example.com/article",
+				at,
+			});
+			await store.markQueueArticleViewed({
+				userId: USER_A,
+				queue: LATER,
+				url: "https://example.com/article",
+				at,
+			});
+
+			expect(await store.findUserArticlesByUrl("https://example.com/article")).toEqual([
+				{ userId: USER_A, viewedAt: undefined },
+			]);
+			assert.ok(saved.id);
+		});
+
+		it("keeps a queue copy out of the reader-ready fan-out", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			expect(await store.findUserArticlesByUrl("https://example.com/article")).toEqual([]);
+		});
+
+		it("covers a queue-only URL when listing everything the reader saved", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			expect(await store.listUserArticleUrls(USER_A)).toEqual([
+				"https://example.com/article",
+			]);
+		});
+
+		it("reports a URL held in two queues once", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			expect(await store.listUserArticleUrls(USER_A)).toEqual([
+				"https://example.com/article",
+			]);
+		});
+
+		it("drops every queue copy and definition when the account is deleted", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.createQueueDefinition({
+				userId: USER_A,
+				slug: WORK,
+				label: "Work Reading",
+				createdAt: new Date("2026-08-19T10:00:00.000Z"),
+			});
+
+			await store.deleteAllUserArticles(USER_A);
+
+			expect(await store.findQueueArticles({ userId: USER_A, queue: WORK })).toMatchObject({
+				articles: [],
+			});
+			expect(await store.listQueueDefinitions(USER_A)).toEqual([]);
+		});
+	});
+
+	describe("queue definitions", () => {
+		it("lists a reader's own queues oldest first", async () => {
+			const store = initInMemoryArticleStore();
+			await store.createQueueDefinition({
+				userId: USER_A,
+				slug: LATER,
+				label: "Later",
+				createdAt: new Date("2026-08-19T11:00:00.000Z"),
+			});
+			await store.createQueueDefinition({
+				userId: USER_A,
+				slug: WORK,
+				label: "Work Reading",
+				createdAt: new Date("2026-08-19T10:00:00.000Z"),
+			});
+			await store.createQueueDefinition({
+				userId: USER_B,
+				slug: WORK,
+				label: "Someone else",
+				createdAt: new Date("2026-08-19T09:00:00.000Z"),
+			});
+
+			expect((await store.listQueueDefinitions(USER_A)).map((d) => d.slug)).toEqual([
+				"work",
+				"later",
+			]);
+		});
+
+		it("orders queues created in the same instant by slug", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+			await store.createQueueDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
+
+			expect((await store.listQueueDefinitions(USER_A)).map((d) => d.slug)).toEqual([
+				"later",
+				"work",
+			]);
+		});
+
+		it("refuses a slug the reader already holds", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+
+			expect(
+				await store.createQueueDefinition({
+					userId: USER_A,
+					slug: WORK,
+					label: "Work again",
+					createdAt,
+				}),
+			).toEqual({ created: false });
+		});
+
+		it("raises the limit error at the per-reader cap", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			for (let index = 0; index < QUEUE_MAX_PER_USER; index += 1) {
+				await store.createQueueDefinition({
+					userId: USER_A,
+					slug: QueueSlugSchema.parse(`queue${index}`),
+					label: `Queue ${index}`,
+					createdAt,
+				});
+			}
+
+			await expect(
+				store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt }),
+			).rejects.toThrow(QueueLimitReachedError);
 		});
 	});
 

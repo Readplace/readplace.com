@@ -26,7 +26,10 @@ import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
 	CountArticlesByUser,
+	CountQueueArticles,
+	CreateQueueDefinition,
 	DeleteArticle,
+	DeleteQueueArticle,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -34,12 +37,19 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	FindArticlesResult,
+	FindQueueArticleById,
+	FindQueueArticles,
 	FindSavedUrls,
+	ListQueueDefinitions,
+	ListUserSavesForUrl,
 	MarkArticleViewed,
+	MarkQueueArticleViewed,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
+	SaveQueueArticle,
 	UpdateArticleStatus,
+	UpdateQueueArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
@@ -80,6 +90,7 @@ import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import {
 	initDeleteArticleFromQueue,
+	initPublishLinkDequeuedUnlessSavedElsewhere,
 	initSaveArticleAtQueueTop, initSaveArticleFromUrl,
 	rankNewLinksAbove,
 } from "@packages/save-article";
@@ -110,8 +121,36 @@ import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toSavedArticleEntity } from "../../api/article-siren";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
-import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
-import type { QueueUrlState } from "./queue.url";
+import {
+	parseQueueUrl,
+	buildQueueUrl,
+	QUEUE_PATH,
+	QUEUE_CREATE_PATH,
+	canonicalQueuePageRedirect,
+} from "./queue.url";
+import type { LinkParams } from "./queue.url";
+import {
+	type QueueContext,
+	QUEUES_FEATURE,
+	initResolveQueueContext,
+	mainlineQueueContext,
+} from "./queue-context";
+import { queueScopedStore } from "./queue-scoped-store";
+import {
+	QUEUE_CREATE_ERROR_LIMIT,
+	QUEUE_CREATE_ERROR_NAME,
+	QUEUE_CREATE_ERROR_NAME_TAKEN,
+	buildQueueCreate,
+} from "./queue-create.component";
+import {
+	DEFAULT_QUEUE_SLUG,
+	QueueLimitReachedError,
+	type QueueSlug,
+	parseQueueLabel,
+} from "@packages/domain/queue";
+import type { SaveArticleAtQueueTop } from "@packages/save-article";
+import type { QueueRailViewModel } from "./queue.component";
+import { queueReturnQuery } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
@@ -168,10 +207,6 @@ import type { GetEffectiveAccess } from "@packages/subscription-access";
  * that both requests report the same device class, which a same-browser HTML form
  * submit guarantees by carrying the GET's User-Agent. Preserve that parity if
  * dismissal ever becomes a background request that could drop or alter the UA. */
-function queuesFeature(req: Request): boolean {
-	return req.query.feature === "queues";
-}
-
 function dismissTokenFor(hasClient: boolean): string {
 	return hasClient ? ONBOARDING_VERSION : NO_CLIENT_ONBOARDING_VERSION;
 }
@@ -269,6 +304,16 @@ interface QueueDependencies {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	findQueueArticles: FindQueueArticles;
+	countQueueArticles: CountQueueArticles;
+	findQueueArticleById: FindQueueArticleById;
+	saveQueueArticle: SaveQueueArticle;
+	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	deleteQueueArticle: DeleteQueueArticle;
+	markQueueArticleViewed: MarkQueueArticleViewed;
+	listUserSavesForUrl: ListUserSavesForUrl;
+	listQueueDefinitions: ListQueueDefinitions;
+	createQueueDefinition: CreateQueueDefinition;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	publishLinkSaved: PublishLinkSaved;
@@ -504,6 +549,58 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	});
 	const deleteArticleFromQueue = initDeleteArticleFromQueue(deps);
 
+	const resolveQueueContext = initResolveQueueContext({
+		listQueueDefinitions: deps.listQueueDefinitions,
+		featureToggle: deps.featureToggle,
+	});
+
+	/** Mutation and redirect handlers read the addressed queue from the URL alone.
+	 * A shape-valid queue the reader does not own binds to a partition holding no
+	 * rows, so the write no-ops on its `attribute_exists` condition and the reader
+	 * lands back on a listing the next GET resolves for real. */
+	const requestQueueContext = (req: Request): QueueContext =>
+		deps.featureToggle.isEnabled(req, QUEUES_FEATURE)
+			? {
+					...mainlineQueueContext(req.query),
+					state: parseQueueUrl(req.query),
+					linkParams: [["feature", QUEUES_FEATURE]],
+					railed: true,
+				}
+			: mainlineQueueContext(req.query);
+
+	const publishLinkDequeuedUnlessSavedElsewhere = initPublishLinkDequeuedUnlessSavedElsewhere({
+		listUserSavesForUrl: deps.listUserSavesForUrl,
+		publishLinkDequeued: deps.publishLinkDequeued,
+	});
+
+	/** The one place a request's queue decides which rows it reads and writes.
+	 * The default queue answers with the untouched mainline dependencies, so every
+	 * handler below runs today's code path byte for byte unless a reader addressed
+	 * one of their own queues. */
+	const storeFor = (queue: QueueSlug) => queueScopedStore(deps, queue);
+
+	const saveArticleAtQueueTopFor = (queue: QueueSlug): SaveArticleAtQueueTop => {
+		if (queue === DEFAULT_QUEUE_SLUG) return saveArticleAtQueueTop;
+		const scoped = storeFor(queue);
+		return initSaveArticleAtQueueTop({
+			allocateSavedAt: deps.allocateSavedAt,
+			saveArticleFromUrl: initSaveArticleFromUrl({
+				...deps,
+				saveArticle: scoped.saveArticle,
+				updateArticleStatus: scoped.updateArticleStatus,
+			}),
+		});
+	};
+
+	const deleteArticleFromQueueFor = (queue: QueueSlug) => {
+		if (queue === DEFAULT_QUEUE_SLUG) return deleteArticleFromQueue;
+		return initDeleteArticleFromQueue({
+			...deps,
+			deleteArticle: storeFor(queue).deleteArticle,
+			publishLinkDequeued: publishLinkDequeuedUnlessSavedElsewhere,
+		});
+	};
+
 	/** An onboarding signal is non-essential bookkeeping that sits on the critical
 	 * path of the app's queue load and every save. Unlike the extension's
 	 * equivalent — a Set-Cookie header that cannot fail — these writes hit DynamoDB
@@ -588,11 +685,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		summaryOpen: false,
 		now: deps.now,
 	});
-	const resolveReaderPermalink = initReaderPermalink({
-		findArticleById: deps.findArticleById,
-		findArticleUrlById: deps.findArticleUrlById,
-		findArticleByUrl: deps.findArticleByUrl,
-	});
+	const resolveReaderPermalinkIn = (queue: QueueSlug) =>
+		initReaderPermalink({
+			findArticleById: storeFor(queue).findArticleById,
+			findArticleUrlById: deps.findArticleUrlById,
+			findArticleByUrl: deps.findArticleByUrl,
+		});
 
 	function pollUrlBuilderForId(articleId: string): PollUrlBuilder {
 		return {
@@ -645,7 +743,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const resolveOwnerReader = async (
 		req: Request<{ id: string }>,
 	): Promise<OwnerReaderResolution> => {
-		const result = await resolveReaderPermalink({
+		const readerQueue = requestQueueContext(req).state.queue;
+		const result = await resolveReaderPermalinkIn(readerQueue)({
 			rawId: req.params.id,
 			requesterId: req.userId,
 			query: req.query,
@@ -661,7 +760,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		const ownedArticle = result.article;
 
-		await deps.markArticleViewed({
+		await storeFor(readerQueue).markArticleViewed({
 			userId: ownedArticle.userId,
 			url: ownedArticle.url,
 			at: deps.now(),
@@ -897,18 +996,46 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * tail shared by the top-of-page GET and the card-mutation fallback. Never
 	 * fetches the listing itself, so GET stays single-fetch and the fallback can
 	 * feed it the metadata-only page probe it already holds. */
+	const buildQueueRail = (
+		req: Request,
+		context: QueueContext,
+		accessIsReadOnly: boolean,
+	): QueueRailViewModel | undefined => {
+		if (!context.railed) return undefined;
+		const canCreate = !accessIsReadOnly;
+		const createdSlug = typeof req.query.created === "string" ? req.query.created : undefined;
+		const isCreating = req.query.create === "1" && canCreate;
+		return {
+			queues: context.queues,
+			activeQueue: context.activeQueue,
+			linkParams: context.linkParams,
+			newQueueHref: buildQueueUrl(context.state, [...context.linkParams, ["create", "1"]]),
+			canCreate,
+			createForm: isCreating
+				? buildQueueCreate({
+						action: `${QUEUE_CREATE_PATH}${queueReturnQuery(context.state, context.linkParams)}`,
+						cancelUrl: buildQueueUrl(context.state, context.linkParams),
+						submittedLabel: typeof req.query.name === "string" ? req.query.name : "",
+						errorCode: typeof req.query.error === "string" ? req.query.error : undefined,
+					})
+				: undefined,
+			createdLabel: context.queues.find((queue) => queue.slug === createdSlug)?.label,
+		};
+	};
+
 	const renderQueueListing = async (
 		req: Request,
 		res: Response,
 		input: {
 			userId: UserId;
-			urlState: QueueUrlState;
+			context: QueueContext;
 			result: FindArticlesResult;
 			saveError?: string;
 			importFlash?: string;
 			statusFlash?: StatusFlash;
 			importSkipped?: ImportSkippedViewModel;
 			saveUrl?: string;
+			statusCode?: number;
 		},
 	): Promise<void> => {
 		const [summaryByUrl, crawlByUrl, effectiveAccess] = await Promise.all([
@@ -916,7 +1043,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
 			deps.getEffectiveAccess(input.userId),
 		]);
-		const vm = toQueueViewModel(input.result, input.urlState, {
+		const vm = toQueueViewModel(input.result, input.context.state, {
 			errors: input.saveError ? [{ message: input.saveError }] : undefined,
 			importFlash: input.importFlash,
 			statusFlash: input.statusFlash,
@@ -924,13 +1051,14 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			summaryByUrl,
 			crawlByUrl,
 			effectiveAccess,
+			linkParams: input.context.linkParams,
 			now: deps.now(),
 		});
 		const onboarding = await resolveOnboardingSignals(req, input.userId);
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
+				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -947,14 +1075,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const respondCardStatusSwap = async (
 		req: Request,
 		res: Response,
-		{ userId, statusFlash }: { userId: UserId; statusFlash?: StatusFlash },
+		{ userId, statusFlash, context }: { userId: UserId; statusFlash?: StatusFlash; context: QueueContext },
 	): Promise<void> => {
-		const urlState = parseQueueUrl(req.query);
+		const urlState = context.state;
+		const store = storeFor(urlState.queue);
 		const tab = tabQuery(urlState.tab);
 		const order = urlState.order ?? tab.defaultOrder;
 		const pageSize = queuePageSizeForClient(req.oauthClientId);
 		const probePage = (page: number) =>
-			deps.findArticlesByUser({
+			store.findArticlesByUser({
 				userId,
 				status: tab.status,
 				sort: tab.sort,
@@ -981,14 +1110,14 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			res
 				.status(200)
 				.type("html")
-				.send(renderQueueMutationFragment({ filters: urlState, statusFlash }));
+				.send(renderQueueMutationFragment({ filters: urlState, statusFlash, linkParams: context.linkParams }));
 			return;
 		}
 
 		let renderState = urlState;
 		let renderResult = result;
 		if (statusFlash && rows === 0 && urlState.page > 1) {
-			const total = await deps.countArticlesByUser({ userId, status: tab.status });
+			const total = await store.countArticlesByUser({ userId, status: tab.status });
 			const totalPages = Math.max(1, Math.ceil(total / pageSize));
 			renderState = { ...urlState, page: totalPages };
 			renderResult = await probePage(totalPages);
@@ -999,7 +1128,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.set("HX-Reselect", "main");
 		await renderQueueListing(req, res, {
 			userId,
-			urlState: renderState,
+			context: { ...context, state: renderState },
 			result: renderResult,
 			statusFlash,
 		});
@@ -1016,13 +1145,17 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		if (isIosClient(req)) {
 			await recordOnboardingSignalBestEffort(() => deps.recordIosAnyActivity({ userId }));
 		}
-		const urlState = parseQueueUrl(req.query);
+		const siren = wantsSiren(req);
+		const context = siren
+			? mainlineQueueContext(req.query)
+			: await resolveQueueContext(req, userId);
+		const urlState = context.state;
+		const store = storeFor(urlState.queue);
 		const tab = tabQuery(urlState.tab);
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
 
 		const order = urlState.order ?? tab.defaultOrder;
-		const siren = wantsSiren(req);
-		const result = await deps.findArticlesByUser({
+		const result = await store.findArticlesByUser({
 			userId,
 			status: tab.status,
 			sort: tab.sort,
@@ -1075,9 +1208,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		if (result.articles.length === 0 && urlState.page > 1) {
 			const pageRedirect = canonicalQueuePageRedirect({
 				state: urlState,
-				total: await deps.countArticlesByUser({ userId, status: tab.status }),
+				total: await store.countArticlesByUser({ userId, status: tab.status }),
 				pageSize: result.pageSize,
-				extraParams: [...collectUtmParams(req.query), ...collectStatusFlashParams(req.query)],
+				extraParams: [
+					...collectUtmParams(req.query),
+					...collectStatusFlashParams(req.query),
+					...context.linkParams,
+				],
 			});
 			if (pageRedirect) {
 				res.redirect(302, pageRedirect);
@@ -1091,7 +1228,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const importSkipped = readImportSkippedFlash(req, res);
 		await renderQueueListing(req, res, {
 			userId,
-			urlState,
+			context,
 			result,
 			saveError,
 			importFlash,
@@ -1104,13 +1241,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.get("/counts", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
-		const urlState = parseQueueUrl(req.query);
+		const context = await resolveQueueContext(req, userId);
+		const urlState = context.state;
+		const store = storeFor(urlState.queue);
 		const tab = tabQuery(urlState.tab);
-		const tabTotalPromise = deps.countArticlesByUser({ userId, status: tab.status });
+		const tabTotalPromise = store.countArticlesByUser({ userId, status: tab.status });
 		const unreadCountPromise =
 			tab.status === "unread"
 				? tabTotalPromise
-				: deps.countArticlesByUser({
+				: store.countArticlesByUser({
 						userId,
 						status: "unread",
 						countLimit: UNREAD_BADGE_COUNT_LIMIT,
@@ -1134,7 +1273,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.post("/dismiss-onboarding", (req: Request, res: Response) => {
 		const version = dismissTokenFor(hasInstallableClient(req));
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
-		res.redirect(303, QUEUE_PATH);
+		const context = requestQueueContext(req);
+		res.redirect(303, buildQueueUrl(context.state, context.linkParams));
 	});
 
 	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
@@ -1582,10 +1722,14 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateSaveableUrl(submittedUrl);
 
+		const context = await resolveQueueContext(req, userId);
+		const targetQueue = context.state.queue;
+		const store = storeFor(targetQueue);
+
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
-			const urlState = parseQueueUrl({});
-			const result = await deps.findArticlesByUser({ userId, excludeContent: true });
+			const urlState = parseQueueUrl({ queue: targetQueue });
+			const result = await store.findArticlesByUser({ userId, excludeContent: true });
 			const [summaryByUrl, crawlByUrl] = await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
@@ -1595,27 +1739,71 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				saveErrorCode: validation.error.code,
 				summaryByUrl,
 				crawlByUrl,
+				linkParams: context.linkParams,
 			});
 			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, { ...context, state: urlState }, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
 			return;
 		}
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			await saveArticleAtQueueTop({
+			await saveArticleAtQueueTopFor(targetQueue)({
 				userId,
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
-			res.redirect(303, `${QUEUE_PATH}#latest-saved`);
+			res.redirect(303, `${buildQueueUrl({ queue: targetQueue }, context.linkParams)}#latest-saved`);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, `${QUEUE_PATH}?error_code=save_failed`);
+			res.redirect(303, buildQueueUrl({ queue: targetQueue }, [...context.linkParams, ["error_code", "save_failed"]]));
 		}
+	});
+
+	router.post("/queues", requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const context = await resolveQueueContext(req, userId);
+		const submitted = typeof req.body?.label === "string" ? req.body.label : "";
+		const backTo = (extras: LinkParams): string =>
+			buildQueueUrl(context.state, [...context.linkParams, ...extras]);
+		const rejected = (code: string): string =>
+			backTo([["create", "1"], ["error", code], ["name", submitted]]);
+
+		const named = parseQueueLabel(submitted);
+		if (!named) {
+			res.redirect(303, rejected(QUEUE_CREATE_ERROR_NAME));
+			return;
+		}
+		if (context.queues.some((queue) => queue.slug === named.slug)) {
+			res.redirect(303, rejected(QUEUE_CREATE_ERROR_NAME_TAKEN));
+			return;
+		}
+
+		try {
+			const { created } = await deps.createQueueDefinition({
+				userId,
+				slug: named.slug,
+				label: named.label,
+				createdAt: deps.now(),
+			});
+			if (!created) {
+				res.redirect(303, rejected(QUEUE_CREATE_ERROR_NAME_TAKEN));
+				return;
+			}
+		} catch (error) {
+			if (!(error instanceof QueueLimitReachedError)) throw error;
+			res.redirect(303, rejected(QUEUE_CREATE_ERROR_LIMIT));
+			return;
+		}
+
+		res.redirect(
+			303,
+			buildQueueUrl({ queue: named.slug }, [...context.linkParams, ["created", named.slug]]),
+		);
 	});
 
 	router.get("/:id/summary", async (req: Request, res: Response) => {
@@ -1835,11 +2023,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const parsedStatus = ArticleStatusSchema.safeParse(req.body.status);
+		const context = requestQueueContext(req);
+		const store = storeFor(context.state.queue);
 
 		let statusFlash: StatusFlash | undefined;
 		const flashParams: [string, string][] = [];
 		if (parsedId.success && parsedStatus.success) {
-			const updated = await deps.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
+			const updated = await store.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
 			if (updated) {
 				statusFlash = statusFlashFor({ articleId: req.params.id, changed: parsedStatus.data });
 				flashParams.push(["status_changed", parsedStatus.data]);
@@ -1858,11 +2048,18 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		if (req.get("HX-Request") === "true" && req.query.swap === "card") {
-			await respondCardStatusSwap(req, res, { userId, statusFlash });
+			/** The fallback branch re-renders the whole listing, rail included, so
+			 * that render needs the reader's real queues — the shape-only context
+			 * above knows the addressed slug but not the set it belongs to. */
+			await respondCardStatusSwap(req, res, {
+				userId,
+				statusFlash,
+				context: context.railed ? await resolveQueueContext(req, userId) : context,
+			});
 			return;
 		}
 
-		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query), [...collectUtmParams(req.query), ...flashParams]));
+		res.redirect(303, buildQueueUrl(context.state, [...collectUtmParams(req.query), ...flashParams, ...context.linkParams]));
 	});
 
 	router.post("/:id/delete", async (req: Request, res: Response) => {
@@ -1870,11 +2067,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 
+		const context = requestQueueContext(req);
 		if (parsedId.success) {
-			await deleteArticleFromQueue({ articleId: parsedId.data, userId });
+			await deleteArticleFromQueueFor(context.state.queue)({ articleId: parsedId.data, userId });
 		}
 
-		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));
+		res.redirect(303, buildQueueUrl(context.state, context.linkParams));
 	});
 
 	/** Remove one crawl-version snapshot the viewer authored. Guardless (only

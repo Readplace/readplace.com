@@ -1,5 +1,8 @@
+import type { UserId } from "@packages/domain/user";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { initCountOtherSaversByUrl } from "./count-other-savers-by-url";
+
+const REMOVING_USER = "user-1" as UserId;
 
 /**
  * 1. The DocumentClient `send` is a heavily-overloaded generic the test fake
@@ -32,7 +35,7 @@ describe("initCountOtherSaversByUrl", () => {
 
 		const count = await countOtherSaversByUrl({
 			url: "https://example.com/post",
-			excludeUserId: "user-1",
+			excludeUserId: REMOVING_USER,
 		});
 
 		expect(count).toBe(2);
@@ -41,16 +44,33 @@ describe("initCountOtherSaversByUrl", () => {
 				TableName: TABLE,
 				IndexName: "url-index",
 				KeyConditionExpression: "#url = :url",
-				FilterExpression: "userId <> :excluded",
+				FilterExpression: "userId <> :excluded AND NOT begins_with(userId, :excludedQueues)",
 				ExpressionAttributeNames: { "#url": "url" },
 				ExpressionAttributeValues: {
 					":url": "example.com/post",
 					":excluded": "user-1",
+					":excludedQueues": "user-1#queue/",
 				},
 				Select: "COUNT",
 				ExclusiveStartKey: undefined,
 			},
 		]);
+	});
+
+	it("excludes the removing user's own queue copies so their content is still purged as a sole saver", async () => {
+		const inputs: Record<string, unknown>[] = [];
+		const { countOtherSaversByUrl } = initCountOtherSaversByUrl({
+			client: createFakeDynamo([{ Count: 0 }], (input) => inputs.push(input)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(
+			await countOtherSaversByUrl({
+				url: "https://example.com/post",
+				excludeUserId: REMOVING_USER,
+			}),
+		).toBe(0);
+		expect(inputs[0]?.FilterExpression).toContain("NOT begins_with(userId, :excludedQueues)");
 	});
 
 	it("sums counts across paginated index pages", async () => {
@@ -68,7 +88,7 @@ describe("initCountOtherSaversByUrl", () => {
 
 		const count = await countOtherSaversByUrl({
 			url: "https://example.com/post",
-			excludeUserId: "user-1",
+			excludeUserId: REMOVING_USER,
 		});
 
 		expect(count).toBe(4);

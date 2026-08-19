@@ -1,7 +1,7 @@
 import { render, renderToast, withInternalTracking } from "@packages/web-shell";
 import type { StatusFlash } from "./queue.error";
-import type { QueueUrlState } from "./queue.url";
-import { buildQueueCountsUrl, buildQueueUrl } from "./queue.url";
+import type { LinkParams, QueueUrlState } from "./queue.url";
+import { buildQueueCountsUrl, queueReturnQuery } from "./queue.url";
 
 /** Long enough to read the message and reach for Undo, short enough not to
  * linger; the global toast.client script removes it after this delay. */
@@ -28,12 +28,6 @@ export function renderStatusToast(toast: StatusToastModel): string {
 	});
 }
 
-function returnQueryFor(filters: QueueUrlState): string {
-	const url = buildQueueUrl(filters);
-	const queryIndex = url.indexOf("?");
-	return queryIndex === -1 ? "" : url.slice(queryIndex);
-}
-
 /** The queue's out-of-band counts loader. The queue page renders it inert
  * (`oob` false); the mutation response re-arms an identical span carrying
  * `hx-swap-oob` so htmx re-fires its `load` trigger and the badge/page-count
@@ -54,14 +48,15 @@ export function renderQueueCountsTrigger(input: { countsUrl: string; oob?: boole
 export function renderQueueMutationFragment(input: {
 	filters: QueueUrlState;
 	statusFlash: StatusFlash;
+	linkParams?: LinkParams;
 }): string {
 	const counts = renderQueueCountsTrigger({
-		countsUrl: buildQueueCountsUrl(input.filters),
+		countsUrl: buildQueueCountsUrl(input.filters, input.linkParams),
 		oob: true,
 	});
 	const toast = renderStatusToast({
 		message: input.statusFlash.message,
-		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${returnQueryFor(input.filters)}`,
+		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${queueReturnQuery(input.filters, input.linkParams)}`,
 		undoStatus: input.statusFlash.undoStatus,
 	});
 	return `<div id="status-toast" hx-swap-oob="outerHTML">${toast}</div>${counts}`;

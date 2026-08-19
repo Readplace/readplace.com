@@ -19,13 +19,30 @@ import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-car
 import { renderDeleteConfirm } from "./queue-card/delete-confirm.component";
 import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component";
 import { buildQueueNav, renderQueueNav } from "./queue-nav.component";
-import { QUEUES, queueTitle } from "./queue.nav";
+import { type QueueCreateDisplayModel, renderQueueCreate } from "./queue-create.component";
+import { DEFAULT_QUEUE, type Queue } from "./queue.nav";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
-import { buildQueueUrl } from "./queue.url";
+import {
+	type LinkParams,
+	QUEUE_DISMISS_ONBOARDING_PATH,
+	QUEUE_SAVE_PATH,
+	buildQueueUrl,
+	queueReturnQuery,
+} from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
+
+export interface QueueRailViewModel {
+	queues: readonly Queue[];
+	activeQueue: Queue;
+	linkParams: LinkParams;
+	newQueueHref: string;
+	canCreate: boolean;
+	createForm?: QueueCreateDisplayModel;
+	createdLabel?: string;
+}
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
 
@@ -50,7 +67,10 @@ interface QueueDisplayModel {
 	deleteConfirmsHtml: string;
 	mainClass: string;
 	queueNavHtml: string;
+	queueCreateHtml: string;
+	queueCreatedLabel?: string;
 	queueTitle: string;
+	saveAction: string;
 	filtersHtml: string;
 	sortUrl: string;
 	sortLabel: string;
@@ -85,18 +105,22 @@ export function emptyStateTitle(tab: TabId): string {
 	return EMPTY_STATE_TITLES[tab];
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; queuesFeature: boolean; saveTip: SaveTip }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
+	const linkParams = options.rail?.linkParams ?? [];
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
 	const sort: { label: string; iconName: IconName } =
 		effectiveOrder === "desc"
 			? { label: "Newest first", iconName: "arrow-down" }
 			: { label: "Oldest first", iconName: "arrow-up" };
-	const sortUrl = withInternalTracking(buildQueueUrl({ tab: activeTab, order: nextOrder }), {
-		source: "queue-sort",
-		content: "sort",
-	});
+	const sortUrl = withInternalTracking(
+		buildQueueUrl({ queue: vm.filters.queue, tab: activeTab, order: nextOrder }, linkParams),
+		{
+			source: "queue-sort",
+			content: "sort",
+		},
+	);
 
 	const onboardingHtml = OnboardingChecklist(
 		options.hasInstallableClient
@@ -112,6 +136,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 			dismissed: options.onboardingDismissed,
 			completedBefore: options.onboardingCompletedBefore,
 			completionUnearned: options.onboardingCompletionUnearned,
+			dismissAction: `${QUEUE_DISMISS_ONBOARDING_PATH}${queueReturnQuery(vm.filters, linkParams)}`,
 		},
 	);
 
@@ -142,11 +167,32 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 				renderDeleteConfirm({ confirm: article.deleteConfirm, title: article.title }),
 			)
 			.join("\n"),
-		mainClass: options.queuesFeature ? "queue queue--queues" : "queue",
-		queueNavHtml: options.queuesFeature ? renderQueueNav(buildQueueNav({ queues: QUEUES })) : "",
-		queueTitle: queueTitle(vm.filters.queue),
+		mainClass: options.rail ? "queue queue--queues" : "queue",
+		queueNavHtml: options.rail
+			? renderQueueNav(
+					buildQueueNav({
+						queues: options.rail.queues,
+						activeSlug: options.rail.activeQueue.slug,
+						linkParams: options.rail.linkParams,
+						newQueueHref: options.rail.newQueueHref,
+						canCreate: options.rail.canCreate,
+					}),
+				)
+			: "",
+		queueCreateHtml: options.rail?.createForm ? renderQueueCreate(options.rail.createForm) : "",
+		queueCreatedLabel: options.rail?.createdLabel,
+		queueTitle: options.rail?.activeQueue.label ?? DEFAULT_QUEUE.label,
+		saveAction: withInternalTracking(
+			`${QUEUE_SAVE_PATH}${queueReturnQuery(vm.filters, linkParams)}`,
+			{ source: "queue", content: "save" },
+		),
 		filtersHtml: renderQueueFilters(
-			buildQueueFilters({ activeTab, order: vm.filters.order }),
+			buildQueueFilters({
+				activeTab,
+				order: vm.filters.order,
+				queue: vm.filters.queue,
+				linkParams,
+			}),
 		),
 		countsSpanHtml: renderQueueCountsTrigger({ countsUrl: vm.countsUrl }),
 		sortUrl,
@@ -193,9 +239,9 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; queuesFeature: boolean; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, queuesFeature: options.queuesFeature, saveTip: options.saveTip });
+	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT];
@@ -203,7 +249,7 @@ export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; dev
 
 	return {
 		seo: {
-			title: `${queueTitle(vm.filters.queue)} — Readplace`,
+			title: `${displayModel.queueTitle} — Readplace`,
 			description: "Your saved articles reading queue.",
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",

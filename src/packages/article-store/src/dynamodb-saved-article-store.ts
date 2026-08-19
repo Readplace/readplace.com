@@ -8,8 +8,9 @@ import {
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import type { SavedArticle } from "@packages/domain/article";
+import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { MinutesSchema, ArticleStatusSchema, SaveProvenanceSchema } from "@packages/domain/article";
+import { QueueSlugSchema, type QueueSlug } from "@packages/domain/queue";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
@@ -23,26 +24,43 @@ import type {
 	BumpArticleSavedAt,
 	FindSavedUrls,
 	CountArticlesByUser,
+	CountQueueArticles,
 	DeleteAllUserArticles,
 	DeleteArticle,
+	DeleteQueueArticle,
 	ListUserArticleUrls,
+	ListUserSavesForUrl,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindArticlesQuery,
+	FindArticlesResult,
+	FindQueueArticleById,
+	FindQueueArticles,
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
+	MarkQueueArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
+	SaveArticleParams,
+	SaveQueueArticle,
 	UpdateArticleStatus,
+	UpdateQueueArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
+import {
+	QUEUE_DEFINITION_KEY_PREFIX,
+	decodeUserArticlePartition,
+	queueDefinitionKey,
+	queuePartitionValue,
+} from "./user-queue-partition";
 
 const ArticleContentRow = z.object({
 	content: dynamoField(z.string()),
@@ -188,6 +206,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
 	readContent: ContentProvider;
+	saveQueueArticle: SaveQueueArticle;
+	findQueueArticles: FindQueueArticles;
+	countQueueArticles: CountQueueArticles;
+	findQueueArticleById: FindQueueArticleById;
+	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	deleteQueueArticle: DeleteQueueArticle;
+	markQueueArticleViewed: MarkQueueArticleViewed;
+	listUserSavesForUrl: ListUserSavesForUrl;
 } {
 	const { client, tableName, userArticlesTableName, logger, now } = deps;
 
@@ -205,6 +231,11 @@ export function initDynamoDbSavedArticleStore(deps: {
 		client,
 		tableName: userArticlesTableName,
 		schema: SaveCursorRow,
+	});
+	const queueSlugRows = defineDynamoTable({
+		client,
+		tableName: userArticlesTableName,
+		schema: z.object({ queueSlug: QueueSlugSchema }),
 	});
 
 	const claimWallClockSpan = async (userId: UserId, span: { nowMs: number; endMs: number }): Promise<{ Attributes?: z.infer<typeof SaveCursorRow> }> =>
@@ -274,8 +305,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return items[0] ?? null;
 	}
 
-	async function findUserArticle(userId: UserId, url: string): Promise<z.infer<typeof UserArticleRow> | null> {
-		const row = await userArticles.get({ userId, url });
+	async function findUserArticle(partition: string, url: string): Promise<z.infer<typeof UserArticleRow> | null> {
+		const row = await userArticles.get({ userId: partition, url });
 		return row ?? null;
 	}
 
@@ -331,7 +362,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 		}
 	};
 
-	const initSaveWrite = (userRowCondition: string): SaveArticle => async (params) => {
+	const initSaveWrite = (userRowCondition: string) => async (
+		partition: string,
+		params: SaveArticleParams,
+	) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const globallySavedAt = now();
 
@@ -353,7 +387,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		}> => {
 			try {
 				const priorUserArticle = await userArticles.update({
-					Key: { userId: params.userId, url: articleResourceUniqueId.value },
+					Key: { userId: partition, url: articleResourceUniqueId.value },
 					UpdateExpression:
 						"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
 					ConditionExpression: userRowCondition,
@@ -384,32 +418,51 @@ export function initDynamoDbSavedArticleStore(deps: {
 		// successful save. ConsistentRead makes both reflect the writes above.
 		const [article, userArticle] = await Promise.all([
 			articles.get({ url: articleResourceUniqueId.value }, { consistentRead: true }),
-			userArticles.get({ userId: params.userId, url: articleResourceUniqueId.value }, { consistentRead: true }),
+			userArticles.get({ userId: partition, url: articleResourceUniqueId.value }, { consistentRead: true }),
 		]);
 		assertItem(article, "article must exist immediately after save");
 		assertItem(userArticle, "user article must exist immediately after save");
 
 		return {
-			saved: toSavedArticle(article, userArticle),
+			saved: toSavedArticle(article, { ...userArticle, userId: params.userId }),
 			createdUserArticle,
 			wroteUserArticle,
 		};
 	};
 
-	const saveArticle = initSaveWrite("attribute_not_exists(savedAt) OR savedAt < :savedAt");
-	const saveArticleKeepingPosition = initSaveWrite("attribute_not_exists(savedAt)");
+	const writeSave = initSaveWrite("attribute_not_exists(savedAt) OR savedAt < :savedAt");
+	const writeSaveKeepingPosition = initSaveWrite("attribute_not_exists(savedAt)");
 
-	const findArticleById: FindArticleById = async (routeId, userId) => {
+	const saveArticle: SaveArticle = (params) => writeSave(params.userId, params);
+	const saveArticleKeepingPosition: SaveArticle = (params) =>
+		writeSaveKeepingPosition(params.userId, params);
+	const saveQueueArticle: SaveQueueArticle = ({ queue, ...params }) =>
+		writeSave(queuePartitionValue({ userId: params.userId, queue }), params);
+
+	const findInPartition = async (
+		partition: string,
+		userId: UserId,
+		routeId: ReaderArticleHashId,
+	): Promise<SavedArticle | null> => {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return null;
 
-		const userArticle = await findUserArticle(userId, article.url);
+		const userArticle = await findUserArticle(partition, article.url);
 		if (!userArticle) return null;
 
-		return toSavedArticle(article, userArticle);
+		return toSavedArticle(article, { ...userArticle, userId });
 	};
 
-	const findArticlesByUser: FindArticlesByUser = async (query) => {
+	const findArticleById: FindArticleById = (routeId, userId) =>
+		findInPartition(userId, userId, routeId);
+
+	const findQueueArticleById: FindQueueArticleById = ({ id, userId, queue }) =>
+		findInPartition(queuePartitionValue({ userId, queue }), userId, id);
+
+	const findArticlesInPartition = async (
+		partition: string,
+		query: FindArticlesQuery,
+	): Promise<FindArticlesResult> => {
 		const page = query.page ?? 1;
 		const pageSize = query.pageSize ?? 20;
 		const order = query.order ?? "desc";
@@ -417,7 +470,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const indexName = sort === "readAt" ? "userId-readAt-index" : "userId-savedAt-index";
 
 		const expressionValues: Record<string, unknown> = {
-			":userId": query.userId,
+			":userId": partition,
 		};
 		let filterExpression: string | undefined;
 		let expressionAttributeNames: Record<string, string> | undefined;
@@ -511,15 +564,24 @@ export function initDynamoDbSavedArticleStore(deps: {
 		for (const ua of userArts) {
 			const article = articlesByUrl.get(ua.url);
 			if (article) {
-				result.push(toSavedArticle(article, ua));
+				result.push(toSavedArticle(article, { ...ua, userId: query.userId }));
 			}
 		}
 
 		return { articles: result, total, hasMore, page, pageSize };
 	};
 
-	const countArticlesByUser: CountArticlesByUser = async (query) => {
-		const expressionValues: Record<string, unknown> = { ":userId": query.userId };
+	const findArticlesByUser: FindArticlesByUser = (query) =>
+		findArticlesInPartition(query.userId, query);
+
+	const findQueueArticles: FindQueueArticles = (query) =>
+		findArticlesInPartition(queuePartitionValue({ userId: query.userId, queue: query.queue }), query);
+
+	const countArticlesInPartition = async (
+		partition: string,
+		query: { status?: ArticleStatus; countLimit?: number },
+	): Promise<number> => {
+		const expressionValues: Record<string, unknown> = { ":userId": partition };
 		let filterExpression: string | undefined;
 		let expressionAttributeNames: Record<string, string> | undefined;
 		if (query.status) {
@@ -546,13 +608,22 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return Math.min(total, query.countLimit ?? total);
 	};
 
-	const deleteArticle: DeleteArticle = async (routeId, userId) => {
+	const countArticlesByUser: CountArticlesByUser = (query) =>
+		countArticlesInPartition(query.userId, query);
+
+	const countQueueArticles: CountQueueArticles = (query) =>
+		countArticlesInPartition(queuePartitionValue({ userId: query.userId, queue: query.queue }), query);
+
+	const deleteInPartition = async (
+		partition: string,
+		routeId: ReaderArticleHashId,
+	): Promise<boolean> => {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return false;
 
 		try {
 			await userArticles.delete({
-				Key: { userId, url: article.url },
+				Key: { userId: partition, url: article.url },
 				ConditionExpression: "attribute_exists(savedAt)",
 			});
 		} catch (error) {
@@ -562,19 +633,57 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return true;
 	};
 
-	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
-		await forEachQueryPage(
+	const deleteArticle: DeleteArticle = (routeId, userId) => deleteInPartition(userId, routeId);
+
+	const deleteQueueArticle: DeleteQueueArticle = ({ id, userId, queue }) =>
+		deleteInPartition(queuePartitionValue({ userId, queue }), id);
+
+	const forEachPartitionRow = (
+		partition: string,
+		onPage: (rows: z.infer<typeof UserArticleRow>[]) => Promise<void>,
+	): Promise<void> =>
+		forEachQueryPage(
 			userArticles,
 			{
 				IndexName: "userId-savedAt-index",
 				KeyConditionExpression: "userId = :userId",
-				ExpressionAttributeValues: { ":userId": userId },
+				ExpressionAttributeValues: { ":userId": partition },
+			},
+			onPage,
+		);
+
+	const listUserQueueSlugs = async (userId: UserId): Promise<QueueSlug[]> => {
+		const slugs: QueueSlug[] = [];
+		await forEachQueryPage(
+			queueSlugRows,
+			{
+				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
+				ExpressionAttributeNames: { "#url": "url" },
+				ExpressionAttributeValues: {
+					":userId": userId,
+					":prefix": QUEUE_DEFINITION_KEY_PREFIX,
+				},
 			},
 			async (rows) => {
-				await Promise.all(
-					rows.map((row) => userArticles.delete({ Key: { userId: row.userId, url: row.url } })),
-				);
+				for (const row of rows) slugs.push(row.queueSlug);
 			},
+		);
+		return slugs;
+	};
+
+	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
+		const deletePage = async (rows: z.infer<typeof UserArticleRow>[]) => {
+			await Promise.all(
+				rows.map((row) => userArticles.delete({ Key: { userId: row.userId, url: row.url } })),
+			);
+		};
+		await forEachPartitionRow(userId, deletePage);
+		const slugs = await listUserQueueSlugs(userId);
+		for (const slug of slugs) {
+			await forEachPartitionRow(queuePartitionValue({ userId, queue: slug }), deletePage);
+		}
+		await Promise.all(
+			slugs.map((slug) => userArticles.delete({ Key: { userId, url: queueDefinitionKey(slug) } })),
 		);
 		// The save-cursor sentinel carries no savedAt, so the userId-savedAt-index
 		// sweep above can never see it; without this delete a userId-bearing row
@@ -583,18 +692,15 @@ export function initDynamoDbSavedArticleStore(deps: {
 	};
 
 	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
-		const normalizedUrls: string[] = [];
-		await forEachQueryPage(
-			userArticles,
-			{
-				IndexName: "userId-savedAt-index",
-				KeyConditionExpression: "userId = :userId",
-				ExpressionAttributeValues: { ":userId": userId },
-			},
-			async (rows) => {
-				for (const row of rows) normalizedUrls.push(row.url);
-			},
-		);
+		const seen = new Set<string>();
+		const collect = async (rows: z.infer<typeof UserArticleRow>[]) => {
+			for (const row of rows) seen.add(row.url);
+		};
+		await forEachPartitionRow(userId, collect);
+		for (const slug of await listUserQueueSlugs(userId)) {
+			await forEachPartitionRow(queuePartitionValue({ userId, queue: slug }), collect);
+		}
+		const normalizedUrls = [...seen];
 		if (normalizedUrls.length === 0) return [];
 		// The user-articles row keys the article by its normalized value, which
 		// cannot be re-parsed as an absolute URL — resolve each to its stored
@@ -611,7 +717,12 @@ export function initDynamoDbSavedArticleStore(deps: {
 			.filter((url): url is string => url !== undefined);
 	};
 
-	const updateArticleStatus: UpdateArticleStatus = async (routeId, userId, status) => {
+	const updateStatusInPartition = async (
+		partition: string,
+		userId: UserId,
+		routeId: ReaderArticleHashId,
+		status: ArticleStatus,
+	): Promise<SavedArticle | null> => {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return null;
 
@@ -628,19 +739,25 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 		try {
 			const { Attributes } = await userArticles.update({
-				Key: { userId, url: article.url },
+				Key: { userId: partition, url: article.url },
 				ConditionExpression: "attribute_exists(savedAt)",
 				ExpressionAttributeNames: { "#status": "status" },
 				ReturnValues: "ALL_NEW",
 				...expression,
 			});
 			assertItem(Attributes, "ReturnValues ALL_NEW must return the updated user-article row");
-			return toSavedArticle(article, Attributes);
+			return toSavedArticle(article, { ...Attributes, userId });
 		} catch (error) {
 			if (error instanceof ConditionalCheckFailedException) return null;
 			throw error;
 		}
 	};
+
+	const updateArticleStatus: UpdateArticleStatus = (routeId, userId, status) =>
+		updateStatusInPartition(userId, userId, routeId, status);
+
+	const updateQueueArticleStatus: UpdateQueueArticleStatus = ({ id, userId, queue, status }) =>
+		updateStatusInPartition(queuePartitionValue({ userId, queue }), userId, id, status);
 
 	const findArticleFreshness: FindArticleFreshness = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
@@ -657,7 +774,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	};
 
 	async function stampUserArticleIfStillSaved(stamp: {
-		userId: UserId;
+		partition: string;
 		url: string;
 		updateExpression: string;
 		at: Date;
@@ -666,7 +783,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(stamp.url);
 		try {
 			await userArticles.update({
-				Key: { userId: stamp.userId, url: articleResourceUniqueId.value },
+				Key: { userId: stamp.partition, url: articleResourceUniqueId.value },
 				UpdateExpression: stamp.updateExpression,
 				ConditionExpression: "attribute_exists(savedAt)",
 				ExpressionAttributeValues: { ":at": stamp.at.toISOString(), ...stamp.values },
@@ -692,12 +809,21 @@ export function initDynamoDbSavedArticleStore(deps: {
 	};
 
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
-		await stampUserArticleIfStillSaved({ userId, url, at, updateExpression: "SET viewedAt = :at" });
+		await stampUserArticleIfStillSaved({ partition: userId, url, at, updateExpression: "SET viewedAt = :at" });
+	};
+
+	const markQueueArticleViewed: MarkQueueArticleViewed = async ({ userId, queue, url, at }) => {
+		await stampUserArticleIfStillSaved({
+			partition: queuePartitionValue({ userId, queue }),
+			url,
+			at,
+			updateExpression: "SET viewedAt = :at",
+		});
 	};
 
 	const markSummaryToggled: MarkSummaryToggled = async ({ userId, url, state, at }) => {
 		const attribute = state === "open" ? "lastSummaryOpenedAt" : "lastSummaryClosedAt";
-		await stampUserArticleIfStillSaved({ userId, url, at, updateExpression: `SET ${attribute} = :at` });
+		await stampUserArticleIfStillSaved({ partition: userId, url, at, updateExpression: `SET ${attribute} = :at` });
 	};
 
 	const markRelatedDismissed: MarkRelatedDismissed = async ({
@@ -716,7 +842,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					updateExpression:
 						"SET relatedDismissedAt = :at REMOVE relatedDismissedSuggestionId",
 				};
-		await stampUserArticleIfStillSaved({ userId, url, at, ...expression });
+		await stampUserArticleIfStillSaved({ partition: userId, url, at, ...expression });
 	};
 
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
@@ -735,10 +861,35 @@ export function initDynamoDbSavedArticleStore(deps: {
 			exclusiveStartKey = lastEvaluatedKey;
 		} while (exclusiveStartKey);
 
-		return rows.map((row) => ({
-			userId: row.userId,
-			viewedAt: toOptionalDate(row.viewedAt),
-		}));
+		const savers: { userId: UserId; viewedAt?: Date }[] = [];
+		for (const row of rows) {
+			const { userId, queue } = decodeUserArticlePartition(row.userId);
+			if (queue !== undefined) continue;
+			savers.push({ userId, viewedAt: toOptionalDate(row.viewedAt) });
+		}
+		return savers;
+	};
+
+	const listUserSavesForUrl: ListUserSavesForUrl = async ({ userId, url }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const slugs = await listUserQueueSlugs(userId);
+		const rows = await batchGetFromTable({
+			client,
+			tableName: userArticlesTableName,
+			schema: z.object({ userId: z.string() }),
+			keys: [
+				{ userId, url: articleResourceUniqueId.value },
+				...slugs.map((slug) => ({
+					userId: queuePartitionValue({ userId, queue: slug }),
+					url: articleResourceUniqueId.value,
+				})),
+			],
+			projection: ["userId"],
+		});
+		return rows.map((row) => {
+			const { queue } = decodeUserArticlePartition(row.userId);
+			return queue === undefined ? {} : { queue };
+		});
 	};
 
 	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
@@ -857,5 +1008,13 @@ export function initDynamoDbSavedArticleStore(deps: {
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,
 		readContent,
+		saveQueueArticle,
+		findQueueArticles,
+		countQueueArticles,
+		findQueueArticleById,
+		updateQueueArticleStatus,
+		deleteQueueArticle,
+		markQueueArticleViewed,
+		listUserSavesForUrl,
 	};
 }

@@ -38,6 +38,11 @@ const READ_FILTER_TAB = 'main.queue [data-test-filter="read"]';
 const DEFAULT_QUEUE = "";
 const QUEUES_PANEL = "?feature=queues";
 
+/* A name at the 24-character cap with nothing to break at — the hardest case
+ * the rail has to render in full, so it exercises the wrap and the cap at once. */
+const LONGEST_QUEUE_NAME = "Longestpossiblequeuename";
+const LONGEST_QUEUE_TAB = '[data-test-queue="longestpossiblequeuename"]';
+
 const WCAG_REFLOW_MINIMUM = { width: 320, height: 800 };
 const PHONE = { width: 390, height: 844 };
 const BREAKPOINT = { width: 768, height: 900 };
@@ -452,6 +457,48 @@ test.describe("Queue nav reflow", () => {
 		for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, BREAKPOINT, DESKTOP]) {
 			await page.setViewportSize(viewport);
 			await expect(page.locator(QUEUE_NAV_LINK)).toBeVisible();
+			const overflows = await page.evaluate(pageOverflowsSideways);
+			expect({ width: viewport.width, overflows }).toEqual({
+				width: viewport.width,
+				overflows: false,
+			});
+		}
+	});
+});
+
+test.describe("Queue nav with a long queue name", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("renders a name at the cap in full, wrapping inside the rail it never widens", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-nav-wrap-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
+		const singleLine = await measuredBox(page, QUEUE_NAV_LINK);
+
+		await page.click('[data-test-action="new-queue"]');
+		await page.waitForSelector("#queue-create-label");
+		await page.fill("#queue-create-label", LONGEST_QUEUE_NAME);
+		await page.click('[data-test-action="create-queue"]');
+		await page.waitForSelector(LONGEST_QUEUE_TAB);
+
+		await expect(page.locator(LONGEST_QUEUE_TAB)).toHaveText(LONGEST_QUEUE_NAME);
+		const wrapped = await measuredBox(page, LONGEST_QUEUE_TAB);
+		assert.ok(
+			wrapped.height > singleLine.height,
+			"a name too wide for one line must wrap rather than be clipped",
+		);
+		assert.ok(
+			wrapped.height >= MINIMUM_TOUCH_TARGET,
+			`a queue must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
+		);
+		await railBesideTheListing(page);
+
+		for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, BREAKPOINT, DESKTOP]) {
+			await page.setViewportSize(viewport);
+			await expect(page.locator(LONGEST_QUEUE_TAB)).toBeVisible();
 			const overflows = await page.evaluate(pageOverflowsSideways);
 			expect({ width: viewport.width, overflows }).toEqual({
 				width: viewport.width,

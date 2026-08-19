@@ -8,6 +8,12 @@ import type {
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
+import {
+	DEFAULT_QUEUE_SLUG,
+	QUEUE_MAX_PER_USER,
+	QueueLimitReachedError,
+	type QueueSlug,
+} from "@packages/domain/queue";
 import type { UserId } from "@packages/domain/user";
 import type {
 	AllocateSavedAt,
@@ -16,25 +22,38 @@ import type {
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
+	CountQueueArticles,
+	CreateQueueDefinition,
 	DeleteAllUserArticles,
 	DeleteArticle,
+	DeleteQueueArticle,
+	ListQueueDefinitions,
 	ListUserArticleUrls,
+	ListUserSavesForUrl,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindArticlesQuery,
+	FindArticlesResult,
+	FindQueueArticleById,
+	FindQueueArticles,
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
+	MarkQueueArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	ContentProvider,
 	SaveArticle,
 	SaveArticleGlobally,
+	SaveArticleParams,
+	SaveQueueArticle,
 	UpdateArticleStatus,
+	UpdateQueueArticleStatus,
 } from "@packages/provider-contracts/article-store";
 
 interface GlobalArticle {
@@ -59,6 +78,7 @@ interface GlobalArticle {
 
 interface UserArticle {
 	userId: UserId;
+	queue?: QueueSlug;
 	url: string;
 	status: ArticleStatus;
 	savedAt: Date;
@@ -116,6 +136,16 @@ export function initInMemoryArticleStore(): {
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
+	saveQueueArticle: SaveQueueArticle;
+	findQueueArticles: FindQueueArticles;
+	countQueueArticles: CountQueueArticles;
+	findQueueArticleById: FindQueueArticleById;
+	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	deleteQueueArticle: DeleteQueueArticle;
+	markQueueArticleViewed: MarkQueueArticleViewed;
+	listUserSavesForUrl: ListUserSavesForUrl;
+	createQueueDefinition: CreateQueueDefinition;
+	listQueueDefinitions: ListQueueDefinitions;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
@@ -134,6 +164,7 @@ export function initInMemoryArticleStore(): {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
 	const saveCursors = new Map<UserId, number>();
+	const queueDefinitions = new Map<string, { userId: UserId; slug: QueueSlug; label: string; createdAt: Date }>();
 
 	const allocateSavedAtSequence: AllocateSavedAtSequence = async ({ userId, count }) => {
 		assert(count > 0, "a savedAt sequence allocates at least one instant");
@@ -155,8 +186,12 @@ export function initInMemoryArticleStore(): {
 			userArticles.has(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value)),
 		);
 
-	function userArticleKey(userId: UserId, url: string): string {
-		return `${userId}:${url}`;
+	function userArticleKey(userId: UserId, url: string, queue?: QueueSlug): string {
+		return queue === undefined ? `${userId}:${url}` : `${userId}#queue/${queue}:${url}`;
+	}
+
+	function queueDefinitionKey(userId: UserId, slug: QueueSlug): string {
+		return `${userId}:${slug}`;
 	}
 
 	function findArticleByRouteId(routeId: ReaderArticleHashId): GlobalArticle | undefined {
@@ -193,7 +228,7 @@ export function initInMemoryArticleStore(): {
 		article.savedAt = params.savedAt;
 	};
 
-	const saveArticle: SaveArticle = async (params) => {
+	const saveInto = async (queue: QueueSlug | undefined, params: SaveArticleParams) => {
 		const globallySavedAt = new Date();
 		const { created } = await saveArticleGlobally({
 			url: params.url,
@@ -206,7 +241,7 @@ export function initInMemoryArticleStore(): {
 		}
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 
-		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value);
+		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value, queue);
 		const existing = userArticles.get(uaKey);
 		const newerSaveWon = existing !== undefined && existing.savedAt.getTime() >= params.savedAt.getTime();
 		if (!newerSaveWon) {
@@ -214,6 +249,7 @@ export function initInMemoryArticleStore(): {
 				? { ...existing, savedAt: params.savedAt, provenance: params.provenance }
 				: {
 					userId: params.userId,
+					queue,
 					url: articleResourceUniqueId.value,
 					status: "unread",
 					savedAt: params.savedAt,
@@ -231,6 +267,10 @@ export function initInMemoryArticleStore(): {
 			wroteUserArticle: !newerSaveWon,
 		};
 	};
+
+	const saveArticle: SaveArticle = (params) => saveInto(undefined, params);
+
+	const saveQueueArticle: SaveQueueArticle = ({ queue, ...params }) => saveInto(queue, params);
 
 	const saveArticleKeepingPosition: SaveArticle = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -262,6 +302,16 @@ export function initInMemoryArticleStore(): {
 		return toSavedArticle(article, ua);
 	};
 
+	const findQueueArticleById: FindQueueArticleById = async ({ id, userId, queue }) => {
+		const article = findArticleByRouteId(id);
+		if (!article) return null;
+
+		const ua = userArticles.get(userArticleKey(userId, article.url, queue));
+		if (!ua) return null;
+
+		return toSavedArticle(article, ua);
+	};
+
 	const findArticleUrlById: FindArticleUrlById = async (id) => {
 		const article = findArticleByRouteId(id);
 		return article ? article.originalUrl : null;
@@ -286,14 +336,17 @@ export function initInMemoryArticleStore(): {
 		};
 	};
 
-	const findArticlesByUser: FindArticlesByUser = async (query) => {
+	const listPartition = async (
+		queue: QueueSlug | undefined,
+		query: FindArticlesQuery,
+	): Promise<FindArticlesResult> => {
 		const page = query.page ?? 1;
 		const pageSize = query.pageSize ?? 20;
 		const order = query.order ?? "desc";
 		const sort = query.sort ?? "savedAt";
 
 		let userArts = Array.from(userArticles.values()).filter(
-			(ua) => ua.userId === query.userId,
+			(ua) => ua.userId === query.userId && ua.queue === queue,
 		);
 
 		if (query.status) {
@@ -325,9 +378,16 @@ export function initInMemoryArticleStore(): {
 		return { articles: result, total, hasMore, page, pageSize };
 	};
 
-	const countArticlesByUser: CountArticlesByUser = async (query) => {
+	const findArticlesByUser: FindArticlesByUser = (query) => listPartition(undefined, query);
+
+	const findQueueArticles: FindQueueArticles = (query) => listPartition(query.queue, query);
+
+	const countPartition = (
+		queue: QueueSlug | undefined,
+		query: { userId: UserId; status?: ArticleStatus; countLimit?: number },
+	): number => {
 		let userArts = Array.from(userArticles.values()).filter(
-			(ua) => ua.userId === query.userId,
+			(ua) => ua.userId === query.userId && ua.queue === queue,
 		);
 		if (query.status) {
 			userArts = userArts.filter((ua) => ua.status === query.status);
@@ -335,39 +395,70 @@ export function initInMemoryArticleStore(): {
 		return Math.min(userArts.length, query.countLimit ?? userArts.length);
 	};
 
-	const deleteArticle: DeleteArticle = async (id, userId) => {
+	const countArticlesByUser: CountArticlesByUser = async (query) => countPartition(undefined, query);
+
+	const countQueueArticles: CountQueueArticles = async (query) => countPartition(query.queue, query);
+
+	const deleteFrom = (
+		queue: QueueSlug | undefined,
+		id: ReaderArticleHashId,
+		userId: UserId,
+	): boolean => {
 		const article = findArticleByRouteId(id);
 		if (!article) return false;
 
-		const uaKey = userArticleKey(userId, article.url);
+		const uaKey = userArticleKey(userId, article.url, queue);
 		if (!userArticles.has(uaKey)) return false;
 
 		userArticles.delete(uaKey);
 		return true;
 	};
 
+	const deleteArticle: DeleteArticle = async (id, userId) => deleteFrom(undefined, id, userId);
+
+	const deleteQueueArticle: DeleteQueueArticle = async ({ id, userId, queue }) =>
+		deleteFrom(queue, id, userId);
+
 	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
 		for (const [key, ua] of userArticles) {
 			if (ua.userId === userId) userArticles.delete(key);
+		}
+		for (const [key, definition] of queueDefinitions) {
+			if (definition.userId === userId) queueDefinitions.delete(key);
 		}
 		saveCursors.delete(userId);
 	};
 
 	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
-		const urls: string[] = [];
+		const urls = new Set<string>();
 		for (const ua of userArticles.values()) {
 			if (ua.userId !== userId) continue;
 			const article = articles.get(ua.url);
-			if (article) urls.push(article.originalUrl);
+			if (article) urls.add(article.originalUrl);
 		}
-		return urls;
+		return [...urls];
 	};
 
-	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) => {
+	const listUserSavesForUrl: ListUserSavesForUrl = async ({ userId, url }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const saves: { queue?: QueueSlug }[] = [];
+		for (const ua of userArticles.values()) {
+			if (ua.userId !== userId || ua.url !== articleResourceUniqueId.value) continue;
+			saves.push(ua.queue === undefined ? {} : { queue: ua.queue });
+		}
+		return saves;
+	};
+
+	const updateStatusIn = (
+		queue: QueueSlug | undefined,
+		id: ReaderArticleHashId,
+		userId: UserId,
+		status: ArticleStatus,
+	): SavedArticle | null => {
 		const article = findArticleByRouteId(id);
 		if (!article) return null;
 
-		const uaKey = userArticleKey(userId, article.url);
+		const uaKey = userArticleKey(userId, article.url, queue);
 		const ua = userArticles.get(uaKey);
 		if (!ua) return null;
 
@@ -381,9 +472,43 @@ export function initInMemoryArticleStore(): {
 		return toSavedArticle(article, ua);
 	};
 
+	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) =>
+		updateStatusIn(undefined, id, userId, status);
+
+	const updateQueueArticleStatus: UpdateQueueArticleStatus = async ({ id, userId, queue, status }) =>
+		updateStatusIn(queue, id, userId, status);
+
+	const createQueueDefinition: CreateQueueDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
+		const owned = [...queueDefinitions.values()].filter((d) => d.userId === params.userId);
+		if (owned.length >= QUEUE_MAX_PER_USER) throw new QueueLimitReachedError(QUEUE_MAX_PER_USER);
+		const key = queueDefinitionKey(params.userId, params.slug);
+		if (queueDefinitions.has(key)) return { created: false };
+		queueDefinitions.set(key, {
+			userId: params.userId,
+			slug: params.slug,
+			label: params.label,
+			createdAt: params.createdAt,
+		});
+		return { created: true };
+	};
+
+	const listQueueDefinitions: ListQueueDefinitions = async (userId) =>
+		[...queueDefinitions.values()]
+			.filter((definition) => definition.userId === userId)
+			.map(({ slug, label, createdAt }) => ({ slug, label, createdAt }))
+			.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.slug.localeCompare(b.slug));
+
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		if (!ua) return;
+		ua.viewedAt = at;
+	};
+
+	const markQueueArticleViewed: MarkQueueArticleViewed = async ({ userId, queue, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value, queue));
 		if (!ua) return;
 		ua.viewedAt = at;
 	};
@@ -413,7 +538,7 @@ export function initInMemoryArticleStore(): {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const result: { userId: UserId; viewedAt?: Date }[] = [];
 		for (const ua of userArticles.values()) {
-			if (ua.url === articleResourceUniqueId.value) {
+			if (ua.url === articleResourceUniqueId.value && ua.queue === undefined) {
 				result.push({ userId: ua.userId, viewedAt: ua.viewedAt });
 			}
 		}
@@ -548,6 +673,16 @@ export function initInMemoryArticleStore(): {
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,
+		saveQueueArticle,
+		findQueueArticles,
+		countQueueArticles,
+		findQueueArticleById,
+		updateQueueArticleStatus,
+		deleteQueueArticle,
+		markQueueArticleViewed,
+		listUserSavesForUrl,
+		createQueueDefinition,
+		listQueueDefinitions,
 		getSummaryToggleState,
 		readContent,
 		writeContent,

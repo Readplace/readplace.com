@@ -78,17 +78,24 @@
   font-size: 1rem;
   font-weight: 600;
   line-height: 1.25;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--muted);
+  color: var(--foreground);
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: var(--shadow-sm), inset 0 -4px 6px var(--queue-seam-ink); /* 5 */
+  box-shadow: inset 0 -4px 6px var(--queue-seam-ink); /* 5 */
   transition: background-color 0.15s ease;
+}
+
+.queue-nav__link--active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: var(--shadow-sm), inset 0 -4px 6px var(--queue-seam-ink); /* 5 */
 }
 
 .queue-nav__link:hover,
 .queue-nav__link:active {
   background: var(--primary-fill);
+  color: var(--primary-foreground);
 }
 
 .queue-nav__new {
@@ -890,6 +897,60 @@
  *    defaults to stretching over the full row, and an element as tall as its
  *    scroll container never sticks.
  */
+/**
+ * 7. The name input and its Create button share the shared control height so
+ *    the pair lines up; the button takes that height from `.btn--field`, so it
+ *    is set here on the input alone.
+ */
+.queue-create {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.queue-create__title {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.queue-create__error {
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+  color: var(--error);
+}
+
+.queue-create__form {
+  display: flex;
+  gap: 8px;
+}
+
+.queue-create__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--input-height); /* 7 */
+  padding: var(--input-padding);
+  font-size: var(--input-font-size);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.queue-create__cancel {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.875rem;
+  color: var(--primary);
+}
+
+.queue__created-flash {
+  margin: 0 0 12px;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
 @media (min-width: 768px) {
   .queue.queue--queues {
     max-width: 940px; /* 1 */
@@ -935,10 +996,24 @@
     margin: 0 -1px 0 0; /* 1 */
   }
 
+  /**
+   * 6. The rail is 130px wide and a reader may name a queue anything up to the
+   *    24-character cap, so the label wraps rather than being clipped or cut
+   *    short — a name the reader typed always renders in full. `anywhere`
+   *    covers a name with no spaces to break at, and the lines centre because
+   *    `justify-content` only positions the box, not the text inside it.
+   */
   .queue-nav__link {
     justify-content: center;
     padding: 12px 16px;
     border-radius: var(--radius) 0 0 var(--radius);
+    box-shadow: inset -4px 0 6px var(--queue-seam-ink); /* 5 */
+    white-space: normal; /* 6 */
+    overflow-wrap: anywhere; /* 6 */
+    text-align: center; /* 6 */
+  }
+
+  .queue-nav__link--active {
     box-shadow: var(--shadow-sm), inset -4px 0 6px var(--queue-seam-ink); /* 5 */
   }
 

@@ -1,4 +1,5 @@
-import type { QueueUrlState } from "../queue.url";
+import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
+import type { LinkParams, QueueUrlState } from "../queue.url";
 import { tabQuery } from "../queue.tabs";
 
 /**
@@ -15,9 +16,13 @@ export function buildCardPollUrl(params: {
 	articleId: string;
 	pollCount: number;
 	filters: Partial<QueueUrlState>;
+	extraParams?: LinkParams;
 }): string {
 	const search = new URLSearchParams();
 	search.set("poll", String(params.pollCount));
+	if (params.filters.queue && params.filters.queue !== DEFAULT_QUEUE_SLUG) {
+		search.set("queue", params.filters.queue);
+	}
 	const tab = params.filters.tab ?? "queue";
 	if (tab !== "queue") search.set("tab", tab);
 	const { defaultOrder } = tabQuery(tab);
@@ -26,6 +31,9 @@ export function buildCardPollUrl(params: {
 	}
 	if (params.filters.page && params.filters.page > 1) {
 		search.set("page", String(params.filters.page));
+	}
+	for (const [key, value] of params.extraParams ?? []) {
+		search.append(key, value);
 	}
 	return `/queue/${params.articleId}/card?${search.toString()}`;
 }

@@ -2,9 +2,11 @@
           <ul class="queue-nav__list">
             {{#each items}}
             <li class="queue-nav__item">
-              <a class="queue-nav__link" href="{{href}}" aria-current="page" data-test-queue="{{name}}">{{title}}</a>
+              <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}} data-test-queue="{{name}}">{{title}}</a>
             </li>
             {{/each}}
           </ul>
-          <button class="queue-nav__new" type="button" data-test-action="new-queue">{{icon "plus"}}<span class="sr-only">New queue</span></button>
+          {{#if canCreate}}
+          <a class="queue-nav__new" href="{{newQueueHref}}" data-test-action="new-queue">{{icon "plus"}}<span class="sr-only">New queue</span></a>
+          {{/if}}
         </nav>

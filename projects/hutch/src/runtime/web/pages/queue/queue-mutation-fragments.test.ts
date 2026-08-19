@@ -1,3 +1,4 @@
+import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
@@ -7,8 +8,8 @@ import {
 } from "./queue-mutation-fragments";
 import type { QueueUrlState } from "./queue.url";
 
-const DEFAULT_FILTERS: QueueUrlState = { queue: "default", tab: "queue", page: 1 };
-const DEEP_FILTERS: QueueUrlState = { queue: "default", tab: "done", order: "asc", page: 2 };
+const DEFAULT_FILTERS: QueueUrlState = { queue: DEFAULT_QUEUE_SLUG, tab: "queue", page: 1 };
+const DEEP_FILTERS: QueueUrlState = { queue: DEFAULT_QUEUE_SLUG, tab: "done", order: "asc", page: 2 };
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;

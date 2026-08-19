@@ -3,7 +3,9 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
+import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
+import { queuePartitionPrefix } from "./user-queue-partition";
 
 const UserArticleKeyRow = z.object({
 	userId: z.string(),
@@ -16,7 +18,7 @@ const UserArticleKeyRow = z.object({
  * keep the count above zero. */
 export type CountOtherSaversByUrl = (params: {
 	url: string;
-	excludeUserId: string;
+	excludeUserId: UserId;
 }) => Promise<number>;
 
 export function initCountOtherSaversByUrl(deps: {
@@ -37,11 +39,12 @@ export function initCountOtherSaversByUrl(deps: {
 			const { count, lastEvaluatedKey } = await userArticles.query({
 				IndexName: "url-index",
 				KeyConditionExpression: "#url = :url",
-				FilterExpression: "userId <> :excluded",
+				FilterExpression: "userId <> :excluded AND NOT begins_with(userId, :excludedQueues)",
 				ExpressionAttributeNames: { "#url": "url" },
 				ExpressionAttributeValues: {
 					":url": id.value,
 					":excluded": params.excludeUserId,
+					":excludedQueues": queuePartitionPrefix(params.excludeUserId),
 				},
 				Select: "COUNT",
 				ExclusiveStartKey: startKey,

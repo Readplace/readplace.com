@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
 import { initOnboardingSignals } from "./onboarding-signals/dynamodb-onboarding-signals";
-import { initDynamoDbSavedArticleStore } from "@packages/article-store";
+import { initDynamoDbQueueDefinitions, initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initSubmitFreshness } from "@packages/save-article";
@@ -115,6 +115,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 	const onboardingSignals = initOnboardingSignals({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
+	const queueDefinitions = initDynamoDbQueueDefinitions({ client, userArticlesTableName: userArticlesTable });
 	const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
 	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
 	const readArticleContent = initReadArticleContent({
@@ -269,6 +270,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	return {
 		...auth,
 		...articleStore,
+		...queueDefinitions,
 		readArticleContent,
 		importSessionStore,
 		extractLinksFromPageUrl,

@@ -51,11 +51,14 @@ function allStepsComplete(ctx: InstallableClientOnboarding): boolean {
  * completion-gated checklist would nag forever there — its install step can
  * never tick — so this drops the steps for an honest message, a link to the
  * install options, and a Dismiss button that sticks on this device. */
-function renderNoClientCard(options: { dismissed?: boolean }): string {
+const DISMISS_ONBOARDING_PATH = "/queue/dismiss-onboarding";
+
+function renderNoClientCard(options: { dismissed?: boolean; dismissAction?: string }): string {
 	const stateClass = options.dismissed ? "onboarding--hidden" : "onboarding--visible";
 	return render(ONBOARDING_TEMPLATE, {
 		noClient: true,
 		stateClass,
+		dismissAction: options.dismissAction ?? DISMISS_ONBOARDING_PATH,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		installOptionsUrl: "/install",
 		noClientLede: `Readplace doesn't have an app for this device yet. If you use ${BROWSER_EXTENSIONS_OR} on a computer, or an iPhone, you can install Readplace there.`,
@@ -64,7 +67,12 @@ function renderNoClientCard(options: { dismissed?: boolean }): string {
 
 export function OnboardingChecklist(
 	ctx: OnboardingContext,
-	options: { dismissed?: boolean; completedBefore?: boolean; completionUnearned?: boolean } = {},
+	options: {
+		dismissed?: boolean;
+		completedBefore?: boolean;
+		completionUnearned?: boolean;
+		dismissAction?: string;
+	} = {},
 ): string {
 	if (!ctx.hasInstallableClient) return renderNoClientCard(options);
 	const steps = ONBOARDING_STEPS.map((step) => toStepDisplayModel(step, ctx));
@@ -86,5 +94,6 @@ export function OnboardingChecklist(
 			? "onboarding__success-message onboarding__success-message--hidden"
 			: "onboarding__success-message",
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
+		dismissAction: options.dismissAction ?? DISMISS_ONBOARDING_PATH,
 	});
 }

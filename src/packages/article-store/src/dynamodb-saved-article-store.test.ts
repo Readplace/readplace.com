@@ -4,6 +4,7 @@ import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@p
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
+import { QueueSlugSchema } from "@packages/domain/queue";
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
@@ -1312,11 +1313,14 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		await initStore(client).deleteAllUserArticles(USER);
 
 		const queries = commands.filter((c) => c.name === "QueryCommand");
-		expect(queries).toHaveLength(2);
+		expect(queries).toHaveLength(3);
 		expect(queries[0]?.input.IndexName).toBe("userId-savedAt-index");
 		expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
 		expect((queries[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(USER);
 		expect(queries[1]?.input.ExclusiveStartKey).toEqual({ userId: USER, url: "a" });
+		expect(queries[2]?.input.KeyConditionExpression).toBe(
+			"userId = :userId AND begins_with(#url, :prefix)",
+		);
 
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
@@ -1379,7 +1383,9 @@ describe("initDynamoDbSavedArticleStore listUserArticleUrls", () => {
 
 	it("skips a normalized row whose global original URL is missing (legacy row)", async () => {
 		const { client } = createFakeClient({
-			QueryCommand: { default: { Items: [userArticleItem({ url: "example.com/legacy" })], Count: 1 } },
+			QueryCommand: {
+				queue: [{ Items: [userArticleItem({ url: "example.com/legacy" })], Count: 1 }],
+			},
 			BatchGetCommand: { default: { Responses: { articles: [{}] } } },
 		});
 
@@ -1688,5 +1694,259 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		const content = await initStore(client).readContent(ArticleResourceUniqueId.parse(URL));
 
 		expect(content).toBeUndefined();
+	});
+});
+
+const WORK = QueueSlugSchema.parse("work");
+const WORK_PARTITION = `${USER}#queue/work`;
+
+function queueDefinitionItem(slug = "work"): Record<string, unknown> {
+	return { userId: USER, url: `readplace:queue-def/${slug}`, queueSlug: slug };
+}
+
+describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
+	it("saveQueueArticle keys the copy on the queue partition and answers with the base user id", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem({ userId: WORK_PARTITION }) }],
+			},
+		});
+
+		const { saved } = await initStore(client).saveQueueArticle({
+			userId: USER,
+			queue: WORK,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+		});
+
+		const userRowUpdate = commands.find(
+			(c) => c.name === "UpdateCommand" && c.input.ReturnValues === "ALL_OLD",
+		);
+		expect(userRowUpdate?.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
+		expect(userRowUpdate?.input.ConditionExpression).toBe(
+			"attribute_not_exists(savedAt) OR savedAt < :savedAt",
+		);
+		expect(saved.userId).toBe(USER);
+	});
+
+	it("updateQueueArticleStatus writes the copy's row and answers with the base user id", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			UpdateCommand: {
+				default: {
+					Attributes: userArticleItem({
+						userId: WORK_PARTITION,
+						status: "read",
+						readAt: "2026-05-30T12:00:00.000Z",
+					}),
+				},
+			},
+		});
+
+		const saved = await initStore(client).updateQueueArticleStatus({
+			id: ReaderArticleHashId.fromHash(ROUTE_ID),
+			userId: USER,
+			queue: WORK,
+			status: "read",
+		});
+
+		const update = commands.find((c) => c.name === "UpdateCommand");
+		expect(update?.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(saved?.userId).toBe(USER);
+		expect(saved?.status).toBe("read");
+	});
+
+	it("deleteQueueArticle removes only the copy's row", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+		});
+
+		expect(
+			await initStore(client).deleteQueueArticle({
+				id: ReaderArticleHashId.fromHash(ROUTE_ID),
+				userId: USER,
+				queue: WORK,
+			}),
+		).toBe(true);
+		expect(commands.find((c) => c.name === "DeleteCommand")?.input.Key).toEqual({
+			userId: WORK_PARTITION,
+			url: RESOURCE_ID,
+		});
+	});
+
+	it("markQueueArticleViewed stamps the copy's row", async () => {
+		const { client, commands } = createFakeClient();
+
+		await initStore(client).markQueueArticleViewed({
+			userId: USER,
+			queue: WORK,
+			url: URL,
+			at: new Date("2026-05-30T12:00:00.000Z"),
+		});
+
+		const update = commands.find((c) => c.name === "UpdateCommand");
+		expect(update?.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
+		expect(update?.input.UpdateExpression).toBe("SET viewedAt = :at");
+	});
+});
+
+describe("initDynamoDbSavedArticleStore queue-scoped reads", () => {
+	it("findQueueArticles queries the queue partition on the existing savedAt index", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				default: { Items: [userArticleItem({ userId: WORK_PARTITION })], Count: 1 },
+			},
+			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
+		});
+
+		const result = await initStore(client).findQueueArticles({
+			userId: USER,
+			queue: WORK,
+			pageSize: 20,
+		});
+
+		const query = commands.find((c) => c.name === "QueryCommand");
+		expect(query?.input.IndexName).toBe("userId-savedAt-index");
+		expect((query?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(
+			WORK_PARTITION,
+		);
+		expect(result.articles.map((a) => a.userId)).toEqual([USER]);
+	});
+
+	it("countQueueArticles counts the queue partition", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [], Count: 4 } },
+		});
+
+		expect(await initStore(client).countQueueArticles({ userId: USER, queue: WORK })).toBe(4);
+		expect(
+			(countQueries(commands)[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[
+				":userId"
+			],
+		).toBe(WORK_PARTITION);
+	});
+
+	it("findQueueArticleById reads the copy's row and reports the base user id", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem({ userId: WORK_PARTITION }) } },
+		});
+
+		const found = await initStore(client).findQueueArticleById({
+			id: ReaderArticleHashId.fromHash(ROUTE_ID),
+			userId: USER,
+			queue: WORK,
+		});
+
+		expect(commands.find((c) => c.name === "GetCommand")?.input.Key).toEqual({
+			userId: WORK_PARTITION,
+			url: RESOURCE_ID,
+		});
+		expect(found?.userId).toBe(USER);
+	});
+
+	it("findQueueArticleById answers null when the queue holds no copy of the article", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+		});
+
+		expect(
+			await initStore(client).findQueueArticleById({
+				id: ReaderArticleHashId.fromHash(ROUTE_ID),
+				userId: USER,
+				queue: WORK,
+			}),
+		).toBeNull();
+	});
+});
+
+describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
+	it("findUserArticlesByUrl reports the savers of the default queue and skips queue copies", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				default: {
+					Items: [
+						userArticleItem({ viewedAt: "2026-05-30T09:30:00.000Z" }),
+						userArticleItem({ userId: WORK_PARTITION }),
+						userArticleItem({ userId: "other-user" }),
+					],
+					Count: 3,
+				},
+			},
+		});
+
+		expect(await initStore(client).findUserArticlesByUrl(URL)).toEqual([
+			{ userId: USER, viewedAt: new Date("2026-05-30T09:30:00.000Z") },
+			{ userId: "other-user", viewedAt: undefined },
+		]);
+	});
+
+	it("listUserSavesForUrl reads the default row and one key per queue the user owns", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [queueDefinitionItem()], Count: 1 } },
+			BatchGetCommand: {
+				default: {
+					Responses: { "user-articles": [{ userId: USER }, { userId: WORK_PARTITION }] },
+				},
+			},
+		});
+
+		const saves = await initStore(client).listUserSavesForUrl({ userId: USER, url: URL });
+
+		expect(saves).toEqual([{}, { queue: "work" }]);
+		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
+		expect(
+			(batchGet?.input.RequestItems as Record<string, { Keys: Record<string, string>[] }>)[
+				"user-articles"
+			]?.Keys,
+		).toEqual([
+			{ userId: USER, url: RESOURCE_ID },
+			{ userId: WORK_PARTITION, url: RESOURCE_ID },
+		]);
+	});
+
+	it("deleteAllUserArticles sweeps every queue partition and removes the definition rows", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [userArticleItem({ url: "a" })], Count: 1 },
+					{ Items: [queueDefinitionItem()], Count: 1 },
+					{ Items: [userArticleItem({ userId: WORK_PARTITION, url: "b" })], Count: 1 },
+				],
+			},
+		});
+
+		await initStore(client).deleteAllUserArticles(USER);
+
+		expect(commands.filter((c) => c.name === "DeleteCommand").map((d) => d.input.Key)).toEqual([
+			{ userId: USER, url: "a" },
+			{ userId: WORK_PARTITION, url: "b" },
+			{ userId: USER, url: "readplace:queue-def/work" },
+			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+		]);
+	});
+
+	it("listUserArticleUrls covers a URL the user only ever saved into a queue", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [], Count: 0 },
+					{ Items: [queueDefinitionItem()], Count: 1 },
+					{ Items: [userArticleItem({ userId: WORK_PARTITION, url: "example.com/only" })], Count: 1 },
+				],
+			},
+			BatchGetCommand: {
+				default: { Responses: { articles: [{ originalUrl: "https://example.com/only" }] } },
+			},
+		});
+
+		expect(await initStore(client).listUserArticleUrls(USER)).toEqual([
+			"https://example.com/only",
+		]);
+		expect(batchGetKeys(commands)).toEqual([{ url: "example.com/only" }]);
 	});
 });

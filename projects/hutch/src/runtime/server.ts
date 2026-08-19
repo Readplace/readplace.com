@@ -91,6 +91,16 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
+	FindQueueArticles,
+	CountQueueArticles,
+	FindQueueArticleById,
+	SaveQueueArticle,
+	UpdateQueueArticleStatus,
+	DeleteQueueArticle,
+	MarkQueueArticleViewed,
+	ListUserSavesForUrl,
+	ListQueueDefinitions,
+	CreateQueueDefinition,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
@@ -307,6 +317,16 @@ interface AppDependencies {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	findQueueArticles: FindQueueArticles;
+	countQueueArticles: CountQueueArticles;
+	findQueueArticleById: FindQueueArticleById;
+	saveQueueArticle: SaveQueueArticle;
+	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	deleteQueueArticle: DeleteQueueArticle;
+	markQueueArticleViewed: MarkQueueArticleViewed;
+	listUserSavesForUrl: ListUserSavesForUrl;
+	listQueueDefinitions: ListQueueDefinitions;
+	createQueueDefinition: CreateQueueDefinition;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	sendEmail: SendEmail;
@@ -1146,6 +1166,16 @@ export function createApp(dependencies: AppDependencies): Express {
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,
 		markArticleViewed: deps.markArticleViewed,
+		findQueueArticles: deps.findQueueArticles,
+		countQueueArticles: deps.countQueueArticles,
+		findQueueArticleById: deps.findQueueArticleById,
+		saveQueueArticle: deps.saveQueueArticle,
+		updateQueueArticleStatus: deps.updateQueueArticleStatus,
+		deleteQueueArticle: deps.deleteQueueArticle,
+		markQueueArticleViewed: deps.markQueueArticleViewed,
+		listUserSavesForUrl: deps.listUserSavesForUrl,
+		listQueueDefinitions: deps.listQueueDefinitions,
+		createQueueDefinition: deps.createQueueDefinition,
 		markSummaryToggled: deps.markSummaryToggled,
 		markRelatedDismissed: deps.markRelatedDismissed,
 		publishLinkSaved: deps.publishLinkSaved,

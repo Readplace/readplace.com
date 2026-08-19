@@ -5,6 +5,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ReaderArticleHashId } from "@packages/domain/article";
+import type { QueueSlug } from "@packages/domain/queue";
 import type { UserId } from "@packages/domain/user";
 
 export interface SaveArticleParams {
@@ -238,3 +239,69 @@ export type DeleteAllUserArticles = (userId: UserId) => Promise<void>;
  * global content is purged. Returns the original URLs (not the normalized
  * partition-key form) so they can be fed back into the URL-keyed content ops. */
 export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;
+
+export interface QueueDefinitionData {
+	slug: QueueSlug;
+	label: string;
+	createdAt: Date;
+}
+
+export type CreateQueueDefinition = (params: {
+	userId: UserId;
+	slug: QueueSlug;
+	label: string;
+	createdAt: Date;
+}) => Promise<{ created: boolean }>;
+
+export type ListQueueDefinitions = (userId: UserId) => Promise<QueueDefinitionData[]>;
+
+export interface SaveQueueArticleParams extends SaveArticleParams {
+	queue: QueueSlug;
+}
+
+export type SaveQueueArticle = (
+	params: SaveQueueArticleParams,
+) => Promise<{ saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean }>;
+
+export interface FindQueueArticlesQuery extends FindArticlesQuery {
+	queue: QueueSlug;
+}
+
+export type FindQueueArticles = (query: FindQueueArticlesQuery) => Promise<FindArticlesResult>;
+
+export interface CountQueueArticlesQuery extends CountArticlesQuery {
+	queue: QueueSlug;
+}
+
+export type CountQueueArticles = (query: CountQueueArticlesQuery) => Promise<number>;
+
+export type FindQueueArticleById = (params: {
+	id: ReaderArticleHashId;
+	userId: UserId;
+	queue: QueueSlug;
+}) => Promise<SavedArticle | null>;
+
+export type UpdateQueueArticleStatus = (params: {
+	id: ReaderArticleHashId;
+	userId: UserId;
+	queue: QueueSlug;
+	status: ArticleStatus;
+}) => Promise<SavedArticle | null>;
+
+export type DeleteQueueArticle = (params: {
+	id: ReaderArticleHashId;
+	userId: UserId;
+	queue: QueueSlug;
+}) => Promise<boolean>;
+
+export type MarkQueueArticleViewed = (params: {
+	userId: UserId;
+	queue: QueueSlug;
+	url: string;
+	at: Date;
+}) => Promise<void>;
+
+export type ListUserSavesForUrl = (params: {
+	userId: UserId;
+	url: string;
+}) => Promise<{ queue?: QueueSlug }[]>;

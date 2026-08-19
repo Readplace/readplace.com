@@ -3,8 +3,9 @@ import { join } from "node:path";
 import { formatTabCountLabel, render, withInternalTracking } from "@packages/web-shell";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
 
+import type { QueueSlug } from "@packages/domain/queue";
 import { QUEUE_TABS, type TabId, tabLabel } from "./queue.tabs";
-import { buildQueueUrl } from "./queue.url";
+import { type LinkParams, buildQueueUrl } from "./queue.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "queue-filters.template.html"), "utf-8");
 
@@ -32,14 +33,19 @@ export interface QueueFiltersDisplayModel {
 export function buildQueueFilters(input: {
 	activeTab: TabId;
 	order?: SortOrder;
+	queue?: QueueSlug;
+	linkParams?: LinkParams;
 }): QueueFiltersDisplayModel {
 	return {
 		tabs: QUEUE_TABS.map((tab) => ({
 			linkClass: filterLinkClass(tab.id === input.activeTab),
-			href: withInternalTracking(buildQueueUrl({ tab: tab.id, order: input.order }), {
-				source: "queue-filters",
-				content: tab.trackingContent,
-			}),
+			href: withInternalTracking(
+				buildQueueUrl({ queue: input.queue, tab: tab.id, order: input.order }, input.linkParams),
+				{
+					source: "queue-filters",
+					content: tab.trackingContent,
+				},
+			),
 			label: tab.label,
 			testFilter: tab.testFilter,
 			labelId: tab.labelId,

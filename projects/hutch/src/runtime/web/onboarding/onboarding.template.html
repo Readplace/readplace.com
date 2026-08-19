@@ -13,7 +13,7 @@
     {{> intro lede=noClientLede}}
     <div class="onboarding__actions">
       <a href="{{installOptionsUrl}}" class="btn btn--primary btn--compact" data-test-onboarding-action="{{installOptionsUrl}}">See install options</a>
-      <form method="POST" action="/queue/dismiss-onboarding">
+      <form method="POST" action="{{dismissAction}}">
         <button type="submit" class="onboarding__dismiss-text" data-test-onboarding-dismiss>Dismiss</button>
       </form>
     </div>
@@ -21,7 +21,7 @@
   {{else}}
   {{#if allComplete}}
   <div class="onboarding__success" data-test-onboarding-success>
-    <form method="POST" action="/queue/dismiss-onboarding" class="onboarding__dismiss-form">
+    <form method="POST" action="{{dismissAction}}" class="onboarding__dismiss-form">
       <button type="submit" class="onboarding__dismiss" aria-label="Dismiss" data-test-onboarding-dismiss>{{icon "x"}}</button>
     </form>
     <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">

@@ -67,6 +67,16 @@ import type {
 	FindSubscriptionByUserId,
 	FindSubscriptionNextCharge,
 	FindUserArticleNotificationState,
+	SaveQueueArticle,
+	FindQueueArticles,
+	CountQueueArticles,
+	FindQueueArticleById,
+	UpdateQueueArticleStatus,
+	DeleteQueueArticle,
+	MarkQueueArticleViewed,
+	ListUserSavesForUrl,
+	CreateQueueDefinition,
+	ListQueueDefinitions,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
@@ -299,6 +309,16 @@ export interface ArticleStoreBundle {
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
+	saveQueueArticle: SaveQueueArticle;
+	findQueueArticles: FindQueueArticles;
+	countQueueArticles: CountQueueArticles;
+	findQueueArticleById: FindQueueArticleById;
+	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	deleteQueueArticle: DeleteQueueArticle;
+	markQueueArticleViewed: MarkQueueArticleViewed;
+	listUserSavesForUrl: ListUserSavesForUrl;
+	createQueueDefinition: CreateQueueDefinition;
+	listQueueDefinitions: ListQueueDefinitions;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
 		lastSummaryClosedAt?: Date;

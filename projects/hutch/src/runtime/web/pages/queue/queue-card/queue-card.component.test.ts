@@ -27,6 +27,7 @@ function makeViewModel(
 			popoverId: "queue-delete-confirm-abc123",
 			url: "/queue/abc123/delete",
 		},
+		readerHref: "/queue/abc123/view",
 		isStalePending: false,
 		...overrides,
 	};

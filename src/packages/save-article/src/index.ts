@@ -17,3 +17,8 @@ export {
 	type SubmitFreshnessDependencies,
 } from "./submit-freshness";
 export { rankNewLinksAbove } from "./rank-new-links-above";
+export {
+	bindArticleStoreToQueue,
+	initPublishLinkDequeuedUnlessSavedElsewhere,
+	type QueueBoundArticleStoreDependencies,
+} from "./queue-bound-article-store";

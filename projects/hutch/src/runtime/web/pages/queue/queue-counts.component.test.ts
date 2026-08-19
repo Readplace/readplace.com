@@ -1,3 +1,4 @@
+import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
 import assert from "node:assert/strict";
 import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
@@ -14,7 +15,7 @@ function displayModelFor(input: {
 	tabTotal?: number;
 }) {
 	return toQueueCountsDisplayModel({
-		filters: { queue: "default", tab: "queue", page: 1, ...input.filters },
+		filters: { queue: DEFAULT_QUEUE_SLUG, tab: "queue", page: 1, ...input.filters },
 		unreadCount: input.unreadCount ?? 0,
 		tabTotal: input.tabTotal ?? 0,
 		pageSize: PAGE_SIZE,
@@ -124,7 +125,7 @@ describe("queue counts fragment against the initial render", () => {
 			filters,
 			{ now: new Date("2026-01-01T00:00:00.000Z") },
 		);
-		const doc = parseFragment(QueuePage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", queuesFeature: false, saveTip: { state: "due", html: "" } }).content.html);
+		const doc = parseFragment(QueuePage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", saveTip: { state: "due", html: "" } }).content.html);
 		const label = doc.querySelector("#queue-unread-label");
 		assert(label, "the queue page must render the label the counts fragment refreshes");
 		return label;
@@ -142,10 +143,10 @@ describe("queue counts fragment against the initial render", () => {
 	}
 
 	it.each<QueueUrlState>([
-		{ queue: "default", tab: "queue", page: 1 },
-		{ queue: "default", tab: "done", page: 1 },
-		{ queue: "default", tab: "queue", order: "asc", page: 2 },
-		{ queue: "default", tab: "done", order: "asc", page: 3 },
+		{ queue: DEFAULT_QUEUE_SLUG, tab: "queue", page: 1 },
+		{ queue: DEFAULT_QUEUE_SLUG, tab: "done", page: 1 },
+		{ queue: DEFAULT_QUEUE_SLUG, tab: "queue", order: "asc", page: 2 },
+		{ queue: DEFAULT_QUEUE_SLUG, tab: "done", order: "asc", page: 3 },
 	])("should refresh the label the render preserves, for %o", (filters) => {
 		expect(initialUnreadLabel(filters).hasAttribute("hx-preserve")).toBe(true);
 
@@ -155,7 +156,7 @@ describe("queue counts fragment against the initial render", () => {
 	});
 
 	it("should replace the countless initial label with the counted one", () => {
-		const filters: QueueUrlState = { queue: "default", tab: "queue", page: 1 };
+		const filters: QueueUrlState = { queue: DEFAULT_QUEUE_SLUG, tab: "queue", page: 1 };
 
 		expect(initialUnreadLabel(filters).textContent).toBe("To Read");
 		expect(swappedUnreadLabel(filters, 3).textContent).toBe("To Read (3)");

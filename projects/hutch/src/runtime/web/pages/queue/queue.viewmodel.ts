@@ -16,8 +16,8 @@ import {
 	type DeleteConfirmViewModel,
 } from "./queue-card/delete-confirm.component";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
-import type { QueueUrlState } from "./queue.url";
-import { buildQueueCountsUrl, buildQueueUrl } from "./queue.url";
+import type { LinkParams, QueueUrlState } from "./queue.url";
+import { buildQueueCountsUrl, buildQueueUrl, queueReturnQuery } from "./queue.url";
 import type { StatusFlash } from "./queue.error";
 import type { EffectiveAccess } from "@packages/subscription-access";
 
@@ -64,6 +64,7 @@ export interface QueueArticleViewModel {
 	 * stops ticking. See isCardTerminal for the rules.
 	 */
 	cardPollUrl?: string;
+	readerHref: string;
 	/**
 	 * True when the card stopped polling because the poll cap was reached
 	 * (not because the pipelines hit a terminal state). The card is sitting
@@ -186,6 +187,7 @@ export function toQueueArticleViewModel(params: {
 	filters: QueueUrlState;
 	pollCount?: number;
 	maxPolls: number;
+	linkParams?: LinkParams;
 }): QueueArticleViewModel {
 	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
 	const pollCount = params.pollCount ?? 1;
@@ -194,7 +196,7 @@ export function toQueueArticleViewModel(params: {
 	const cardPollUrl =
 		reachedTerminal || pollCount > maxPolls
 			? undefined
-			: buildCardPollUrl({ articleId: id, pollCount, filters });
+			: buildCardPollUrl({ articleId: id, pollCount, filters, extraParams: params.linkParams });
 	const isStalePending = !reachedTerminal && pollCount > maxPolls;
 	const deleteAction = toDeleteAction({ articleId: id, returnQuery });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
@@ -218,6 +220,7 @@ export function toQueueArticleViewModel(params: {
 			url: deleteAction.url,
 		},
 		cardPollUrl,
+		readerHref: `/queue/${id}/view${queueReturnQuery({ queue: filters.queue }, params.linkParams)}`,
 		isStalePending,
 	};
 }
@@ -235,12 +238,12 @@ export function toQueueViewModel(
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		effectiveAccess?: EffectiveAccess;
+		linkParams?: LinkParams;
 	},
 ): QueueViewModel {
 	const now = options?.now ?? new Date();
-	const queueUrl = buildQueueUrl(filters);
-	const queryIndex = queueUrl.indexOf("?");
-	const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
+	const linkParams = options?.linkParams;
+	const returnQuery = queueReturnQuery(filters, linkParams);
 
 	/** When effectiveAccess is omitted the caller is a server-side render path
 	 * that has no authenticated user (Siren API, public reader permalink, etc.)
@@ -263,19 +266,20 @@ export function toQueueViewModel(
 				crawl: options?.crawlByUrl?.get(a.url),
 				filters,
 				maxPolls: MAX_POLLS,
+				linkParams,
 			}),
 		),
 		filters,
 		isEmpty: result.articles.length === 0,
 		currentPage: result.page,
-		countsUrl: buildQueueCountsUrl(filters),
+		countsUrl: buildQueueCountsUrl(filters, linkParams),
 		paginationUrls: {
 			prev:
 				result.page > 1
-					? buildQueueUrl({ ...filters, page: result.page - 1 })
+					? buildQueueUrl({ ...filters, page: result.page - 1 }, linkParams)
 					: undefined,
 			next: result.hasMore
-				? buildQueueUrl({ ...filters, page: result.page + 1 })
+				? buildQueueUrl({ ...filters, page: result.page + 1 }, linkParams)
 				: undefined,
 		},
 		errors: options?.errors,
