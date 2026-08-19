@@ -385,10 +385,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 		expect(publishEvent).not.toHaveBeenCalled();
-		expect(logParseError).toHaveBeenCalledWith({
-			url: "https://example.com/gone.pdf",
-			reason: "crawl-not-found: HTTP 404",
-		});
+		expect(logParseError).toHaveBeenCalledTimes(0);
 	});
 
 	it("consumes the message (empty batchItemFailures, no SQS retry) and terminalises via markCrawlBlocked with cause edge-block when the origin's edge refuses this egress IP", async () => {

@@ -132,7 +132,6 @@ export function initSaveLinkWork(deps: {
 		}
 
 		if (result.status === "not-found") {
-			logParseError({ url, reason: `crawl-not-found: HTTP ${result.httpStatus}` });
 			await emitTier1FailureOutcome({ url });
 			await transitionAndPersist(markCrawlNotFound, {
 				url,

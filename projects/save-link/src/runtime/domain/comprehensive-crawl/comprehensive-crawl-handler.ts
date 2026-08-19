@@ -186,7 +186,6 @@ export function initComprehensiveCrawlHandler(deps: {
 				return { via: "committed-in-process" };
 			}
 			case "not-found": {
-				logParseError({ url, reason: `crawl-not-found: HTTP ${crawlResult.httpStatus}` });
 				await emitTier1FailureOutcome({ url });
 				await transitionAndPersist(markCrawlNotFound, {
 					url,

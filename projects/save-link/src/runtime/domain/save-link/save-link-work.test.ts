@@ -72,17 +72,23 @@ describe("initSaveLinkWork", () => {
 		});
 	});
 
-	it("reports the dead link via logParseError with the HTTP status so the parse-errors dashboard distinguishes gone pages from crawler defects", async () => {
+	it("keeps the dead link off the parse-errors stream, which the forwarder routes to the error dashboard regardless of level — the terminal row already records a gone page, and it is not a crawler defect", async () => {
 		const logParseError = jest.fn();
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
-		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: notFoundCrawl(404), logParseError });
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle: notFoundCrawl(404),
+			logParseError,
+			transitionAndPersist,
+		});
 
 		await saveLinkWork("https://example.com/gone");
 
-		expect(logParseError).toHaveBeenCalledWith({
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
 			url: "https://example.com/gone",
-			reason: "crawl-not-found: HTTP 404",
+			input: { reason: { kind: "not-found", httpStatus: 404 } },
 		});
+		expect(logParseError).toHaveBeenCalledTimes(0);
 	});
 
 	it("emits a tier-1 failure crawl-outcome for the dead link, reflecting the other tier's snapshot at emission time", async () => {
