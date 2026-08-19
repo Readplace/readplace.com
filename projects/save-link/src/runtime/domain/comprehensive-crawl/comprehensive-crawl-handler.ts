@@ -197,7 +197,7 @@ export function initComprehensiveCrawlHandler(deps: {
 				const finalized = await finalizeArticle({
 					url,
 					html: crawlResult.html,
-					preFetchedThumbnail: crawlResult.thumbnailImage,
+					resolvedThumbnail: crawlResult.thumbnail,
 				});
 				if (!finalized.ok) {
 					logParseError({ url, reason: finalized.reason });

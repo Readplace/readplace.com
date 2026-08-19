@@ -28,11 +28,14 @@ describe("parseImageFromBuffer", () => {
 			status: "fetched",
 			mediaType: "image",
 			html: '<figure><img src="https://example.com/photo.jpg?cb=1" alt=""></figure>',
-			thumbnailImage: {
-				body: JPEG_BYTES,
-				contentType: "image/jpeg",
-				url: "https://example.com/photo.jpg?cb=1",
-				extension: ".jpg",
+			thumbnail: {
+				image: {
+					body: JPEG_BYTES,
+					contentType: "image/jpeg",
+					url: "https://example.com/photo.jpg?cb=1",
+					extension: ".jpg",
+				},
+				provenUnusable: [],
 			},
 			etag: '"img-1"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",

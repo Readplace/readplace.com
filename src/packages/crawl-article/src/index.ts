@@ -16,6 +16,7 @@ export type {
 	CrawlArticle,
 	CrawlArticleResult,
 	ComprehensiveCrawlProgress,
+	ThumbnailCascade,
 	ThumbnailImage,
 } from "./crawl-article.types";
 export { initCrawlFetch } from "./crawl-fetch";

@@ -140,7 +140,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	});
 
 	it("threads the crawler's html + pre-fetched thumbnail into finalizeArticle (same algorithm every path uses)", async () => {
-		const preFetchedThumbnail = {
+		const resolvedImage = {
 			body: Buffer.from([0xff]),
 			contentType: "image/jpeg",
 			url: "https://example.com/og.jpg",
@@ -149,7 +149,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const crawlArticle: CrawlArticle = async () => ({
 			status: "fetched",
 			html: "<html><body>X</body></html>",
-			thumbnailImage: preFetchedThumbnail,
+			thumbnail: { image: resolvedImage, provenUnusable: [] },
 			bodyHash: "a".repeat(64),
 		});
 		const finalizeArticle = jest.fn(okFinalize);
@@ -161,7 +161,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
 			html: "<html><body>X</body></html>",
-			preFetchedThumbnail,
+			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
 		});
 	});
 

@@ -1,7 +1,7 @@
 import { parseHTML } from "linkedom";
 import type { CrawlFetch } from "./crawl-fetch";
 import { extensionFromContentType } from "./extension-from-content-type";
-import type { ThumbnailImage } from "./crawl-article.types";
+import type { ThumbnailCascade, ThumbnailImage } from "./crawl-article.types";
 import { initLogFetchFailure, type LogFetchFailure } from "./log-fetch-failure";
 import { BodyTooLargeError, readBodyWithCap } from "./read-capped-body";
 
@@ -68,7 +68,7 @@ function isValidHttpUrl(url: string): boolean {
 export type FetchThumbnailImage = (params: {
 	candidates: readonly string[];
 	referer: string;
-}) => Promise<ThumbnailImage | undefined>;
+}) => Promise<ThumbnailCascade>;
 
 /**
  * Walks the candidate list and returns the first image that downloads cleanly
@@ -85,12 +85,32 @@ export function initFetchThumbnailImage(deps: {
 	const { crawlFetch, logError, logInfo } = deps;
 	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
 	return async ({ candidates, referer }) => {
+		const provenUnusable: string[] = [];
+		let image: ThumbnailImage | undefined;
 		for (const candidateUrl of candidates) {
-			const result = await tryFetchImage({ crawlFetch, logError, logFetchFailure, url: candidateUrl, referer });
-			if (result) return result;
+			const outcome = await tryFetchImage({ crawlFetch, logError, logFetchFailure, url: candidateUrl, referer });
+			if (outcome.verdict === "image") {
+				image = outcome.image;
+				break;
+			}
+			if (outcome.verdict === "proven-unusable") provenUnusable.push(candidateUrl);
 		}
-		return undefined;
+		return { image, provenUnusable };
 	};
+}
+
+type CandidateOutcome =
+	| { verdict: "image"; image: ThumbnailImage }
+	| { verdict: "proven-unusable" }
+	| { verdict: "unproven" };
+
+const PROVEN_UNUSABLE: CandidateOutcome = { verdict: "proven-unusable" };
+const UNPROVEN: CandidateOutcome = { verdict: "unproven" };
+const RESOURCE_ABSENT_STATUSES: ReadonlySet<number> = new Set([404, 410]);
+
+function outcomeForAbsentStatus(status: number): CandidateOutcome {
+	if (RESOURCE_ABSENT_STATUSES.has(status)) return PROVEN_UNUSABLE;
+	return UNPROVEN;
 }
 
 async function tryFetchImage(args: {
@@ -99,7 +119,7 @@ async function tryFetchImage(args: {
 	logFetchFailure: LogFetchFailure;
 	url: string;
 	referer: string;
-}): Promise<ThumbnailImage | undefined> {
+}): Promise<CandidateOutcome> {
 	const { crawlFetch, logError, logFetchFailure, url, referer } = args;
 	try {
 		const response = await crawlFetch(url, {
@@ -108,29 +128,32 @@ async function tryFetchImage(args: {
 			referer,
 		});
 		if (!response.ok) {
-			/* c8 ignore next 4 -- V8 block-coverage phantom: the tail of `return undefined` gets a spurious zero-count sub-range that spills onto the closing brace even though the non-ok-response tests exercise this block; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
+			/* c8 ignore next 4 -- V8 block-coverage phantom: the tail of this block's `return` gets a spurious zero-count sub-range that spills onto the closing brace even though the non-ok-response tests exercise it; the status branch itself stays enforced inside `outcomeForAbsentStatus`. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 			const message = `[CrawlArticle] Thumbnail HTTP ${response.status} for ${url}`;
 			logFetchFailure({ status: response.status, message });
-			return undefined;
+			return outcomeForAbsentStatus(response.status);
 		}
 		const contentType = response.headers.get("content-type") ?? "";
 		if (!contentType.startsWith("image/")) {
 			logError(`[CrawlArticle] Thumbnail unexpected Content-Type "${contentType}" for ${url}`);
-			return undefined;
+			return PROVEN_UNUSABLE;
 		}
 		const contentLength = response.headers.get("content-length");
 		if (contentLength && Number.parseInt(contentLength, 10) > MAX_THUMBNAIL_BYTES) {
 			logError(`[CrawlArticle] Thumbnail too large (${contentLength} bytes) for ${url}`);
-			return undefined;
+			return PROVEN_UNUSABLE;
 		}
 		const body = await readBodyWithCap(response, MAX_THUMBNAIL_BYTES);
-		return { body, contentType, url, extension: extensionFromContentType({ contentType, url }) };
+		return {
+			verdict: "image",
+			image: { body, contentType, url, extension: extensionFromContentType({ contentType, url }) },
+		};
 	} catch (error) {
 		if (error instanceof BodyTooLargeError) {
 			logError(`[CrawlArticle] Thumbnail too large for ${url}`);
-			return undefined;
+			return PROVEN_UNUSABLE;
 		}
 		logError(`[CrawlArticle] Thumbnail network error for ${url}`, error instanceof Error ? error : undefined);
-		return undefined;
+		return UNPROVEN;
 	}
 }

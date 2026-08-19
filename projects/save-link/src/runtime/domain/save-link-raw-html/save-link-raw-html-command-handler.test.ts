@@ -92,7 +92,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		});
 	});
 
-	it("threads the captured rawHtml through finalizeArticle without preFetchedThumbnail (the raw-html path has no inline crawler image)", async () => {
+	it("threads the captured rawHtml through finalizeArticle without a resolvedThumbnail (the raw-html path has no inline crawler image)", async () => {
 		const rawHtml = "<html><body><article><p>Body</p></article></body></html>";
 		const finalizeArticle = jest.fn(okFinalize);
 

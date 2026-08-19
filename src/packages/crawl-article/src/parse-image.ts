@@ -6,7 +6,7 @@ import { escapeHtmlText } from "./pdf-html-helpers";
 
 /**
  * Image body → article result. The crawler already holds the decoded bytes, so
- * it carries them on `thumbnailImage` for the finalizer to upload to the CDN
+ * it carries them on `thumbnail.image` for the finalizer to upload to the CDN
  * (no second fetch) and tags the result `mediaType:"image"` so the finalizer
  * synthesises an `<img>` body rather than running Readability — which returns
  * null for a text-free document and would otherwise persist empty content. The
@@ -35,11 +35,14 @@ export function parseImageFromBuffer(input: {
 		status: "fetched",
 		mediaType: "image",
 		html: `<figure><img src="${escapeHtmlText(input.url)}" alt=""></figure>`,
-		thumbnailImage: {
-			body: input.buffer,
-			contentType: input.contentType,
-			url: input.url,
-			extension: extensionFromContentType({ contentType: input.contentType, url: input.url }),
+		thumbnail: {
+			image: {
+				body: input.buffer,
+				contentType: input.contentType,
+				url: input.url,
+				extension: extensionFromContentType({ contentType: input.contentType, url: input.url }),
+			},
+			provenUnusable: [],
 		},
 		etag: headerOrUndefined(input.response.headers, "etag"),
 		lastModified: headerOrUndefined(input.response.headers, "last-modified"),

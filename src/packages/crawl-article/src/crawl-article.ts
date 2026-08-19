@@ -266,7 +266,7 @@ export async function parseHtmlFromBuffer(input: {
 	const candidates = extractThumbnailCandidates({ html, baseUrl: url });
 	const thumbnailUrl = candidates[0];
 	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
-	const thumbnailImage = fetchThumbnail
+	const thumbnail = fetchThumbnail
 		? await fetchThumbnailImage({ candidates, referer: url })
 		: undefined;
 	const result: CrawlArticleResult & { status: "fetched" } = {
@@ -277,7 +277,7 @@ export async function parseHtmlFromBuffer(input: {
 		bodyHash,
 	};
 	if (thumbnailUrl) result.thumbnailUrl = thumbnailUrl;
-	if (thumbnailImage) result.thumbnailImage = thumbnailImage;
+	if (thumbnail) result.thumbnail = thumbnail;
 	return result;
 }
 

@@ -470,7 +470,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		assertFetched(result);
 		expect(result.mediaType).toBe("image");
-		expect(result.thumbnailImage).toEqual({
+		expect(result.thumbnail?.image).toEqual({
 			body: imageBytes,
 			contentType: "image/jpeg",
 			url: "https://example.com/photo.jpg",
@@ -838,7 +838,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const result = await crawlArticle({ url: "https://example.com/article", fetchThumbnail: true });
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toEqual({
+		expect(result.thumbnail?.image).toEqual({
 			body: imageBytes,
 			contentType: "image/jpeg",
 			url: "https://cdn.example.com/thumb.jpg",
@@ -1308,10 +1308,10 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		assertFetched(result);
 		expect(calls).toBe(0);
 		expect(result.thumbnailUrl).toBe("https://cdn.example.com/thumb.jpg");
-		expect(result.thumbnailImage).toBeUndefined();
+		expect(result.thumbnail?.image).toBeUndefined();
 	});
 
-	it("returns thumbnailImage when the og:image fetches successfully", async () => {
+	it("returns thumbnail.image when the og:image fetches successfully", async () => {
 		const crawlFetch = imageCrawlFetch((url) => {
 			expect(url).toBe("https://cdn.example.com/thumb.jpg");
 			return new Response(imageBytes, {
@@ -1322,7 +1322,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		const result = await parseWithImage({ crawlFetch });
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toEqual({
+		expect(result.thumbnail?.image).toEqual({
 			body: imageBytes,
 			contentType: "image/jpeg",
 			url: "https://cdn.example.com/thumb.jpg",
@@ -1341,7 +1341,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		expect(thumbnailInit?.headers?.accept).toBe("image/*,*/*;q=0.8");
 	});
 
-	it("returns thumbnailImage undefined when the article has no thumbnail URL", async () => {
+	it("returns thumbnail.image undefined when the article has no thumbnail URL", async () => {
 		const crawlFetch: CrawlFetch = async () => { throw new Error("should not fetch"); };
 		const result = await parseWithImage({
 			html: "<html><head><title>No image</title></head><body></body></html>",
@@ -1349,7 +1349,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		});
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toBeUndefined();
+		expect(result.thumbnail?.image).toBeUndefined();
 	});
 
 	it("logs at info and returns undefined when the thumbnail request fails with a non-recoverable 403", async () => {
@@ -1359,7 +1359,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		const result = await parseWithImage({ crawlFetch, logError, logInfo });
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toBeUndefined();
+		expect(result.thumbnail?.image).toBeUndefined();
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] Thumbnail HTTP 403 for https://cdn.example.com/thumb.jpg");
 		expect(logError).not.toHaveBeenCalled();
 	});
@@ -1370,7 +1370,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		const result = await parseWithImage({ crawlFetch, logError });
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toBeUndefined();
+		expect(result.thumbnail?.image).toBeUndefined();
 		expect(logError).toHaveBeenCalledWith('[CrawlArticle] Thumbnail unexpected Content-Type "text/html" for https://cdn.example.com/thumb.jpg');
 	});
 
@@ -1384,7 +1384,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		const result = await parseWithImage({ crawlFetch, logError });
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toBeUndefined();
+		expect(result.thumbnail?.image).toBeUndefined();
 		expect(logError).toHaveBeenCalledWith(`[CrawlArticle] Thumbnail too large (${oversizedLength} bytes) for https://cdn.example.com/thumb.jpg`);
 	});
 
@@ -1395,7 +1395,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		const result = await parseWithImage({ crawlFetch, logError });
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toBeUndefined();
+		expect(result.thumbnail?.image).toBeUndefined();
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Thumbnail too large for https://cdn.example.com/thumb.jpg");
 	});
 
@@ -1406,7 +1406,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		const result = await parseWithImage({ crawlFetch, logError });
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toBeUndefined();
+		expect(result.thumbnail?.image).toBeUndefined();
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Thumbnail network error for https://cdn.example.com/thumb.jpg", networkError);
 	});
 
@@ -1416,7 +1416,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		const result = await parseWithImage({ crawlFetch, logError });
 
 		assertFetched(result);
-		expect(result.thumbnailImage).toBeUndefined();
+		expect(result.thumbnail?.image).toBeUndefined();
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Thumbnail network error for https://cdn.example.com/thumb.jpg", undefined);
 	});
 
@@ -1434,7 +1434,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 
 		assertFetched(result);
 		expect(result.thumbnailUrl).toBe("https://dead.example.com/og.jpg");
-		expect(result.thumbnailImage).toEqual({
+		expect(result.thumbnail?.image).toEqual({
 			body: imageBytes,
 			contentType: "image/jpeg",
 			url: "https://cdn.example.com/body.jpg",

@@ -212,7 +212,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(finalizeArticle).toHaveBeenCalledTimes(0);
 	});
 
-	it("threads the crawler's pre-fetched thumbnailImage into finalizeArticle so no second image fetch fires", async () => {
+	it("threads the crawler's resolved thumbnail cascade into finalizeArticle so no second image fetch fires", async () => {
 		const preFetched: ThumbnailImage = {
 			body: Buffer.from([0xff, 0xd8, 0xff]),
 			contentType: "image/jpeg",
@@ -225,7 +225,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 				status: "fetched",
 				html: "<html></html>",
 				thumbnailUrl: "https://example.com/og.jpg",
-				thumbnailImage: preFetched,
+				thumbnail: { image: preFetched, provenUnusable: [] },
 				bodyHash: "a".repeat(64),
 			}),
 			finalizeArticle,
@@ -236,8 +236,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			html: "<html></html>",
-			preFetchedThumbnail: preFetched,
-			thumbnailAlreadyResolved: true,
+			resolvedThumbnail: { image: preFetched, provenUnusable: [] },
 			mediaType: undefined,
 		});
 	});
@@ -255,7 +254,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 				status: "fetched",
 				mediaType: "image",
 				html: '<figure><img src="https://example.com/photo.jpg" alt=""></figure>',
-				thumbnailImage: imageBytes,
+				thumbnail: { image: imageBytes, provenUnusable: [] },
 				bodyHash: "a".repeat(64),
 			}),
 			finalizeArticle,
@@ -266,8 +265,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			html: '<figure><img src="https://example.com/photo.jpg" alt=""></figure>',
-			preFetchedThumbnail: imageBytes,
-			thumbnailAlreadyResolved: true,
+			resolvedThumbnail: { image: imageBytes, provenUnusable: [] },
 			mediaType: "image",
 		});
 	});

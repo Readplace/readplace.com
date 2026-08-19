@@ -23,7 +23,10 @@ const stubParseHtml: ParseHtml = (params) => ({
 
 const noopDownloadMedia: DownloadMedia = async () => [];
 const noopProcessContent: ProcessContent = async ({ html }) => html;
-const noopFetchThumbnailImage: FetchThumbnailImage = async () => undefined;
+const noopFetchThumbnailImage: FetchThumbnailImage = async ({ candidates }) => ({
+	image: undefined,
+	provenUnusable: candidates.slice(0, 0),
+});
 const noopPutImageObject: PutImageObject = async () => {};
 
 function createFinalize(overrides: {
@@ -85,8 +88,8 @@ describe("initFinalizeArticle", () => {
 		});
 	});
 
-	it("skips the standalone fetchThumbnailImage call when the caller supplied a preFetchedThumbnail (avoids a redundant network fetch on the SimpleCrawl path)", async () => {
-		const preFetchedThumbnail: ThumbnailImage = {
+	it("skips the standalone fetchThumbnailImage call when the caller supplied a resolvedThumbnail image (avoids a redundant network fetch on the SimpleCrawl path)", async () => {
+		const resolvedImage: ThumbnailImage = {
 			body: Buffer.from([0xff, 0xd8, 0xff]),
 			contentType: "image/jpeg",
 			url: "https://example.com/og.jpg",
@@ -99,11 +102,11 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.jpg">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, html, preFetchedThumbnail });
+		const result = await finalize({ url: URL_UNDER_TEST, html, resolvedThumbnail: { image: resolvedImage, provenUnusable: [] } });
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
 		expect(putImageObject).toHaveBeenCalledWith(expect.objectContaining({
-			body: preFetchedThumbnail.body,
+			body: resolvedImage.body,
 			contentType: "image/jpeg",
 		}));
 		expect(result.ok).toBe(true);
@@ -112,14 +115,14 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
-	it("fetches the og:image cascade itself when no preFetchedThumbnail is supplied (raw-HTML and comprehensive paths)", async () => {
+	it("fetches the og:image cascade itself when no resolvedThumbnail is supplied (raw-HTML and comprehensive paths)", async () => {
 		const fetchedThumbnail: ThumbnailImage = {
 			body: Buffer.from([0xff, 0xd8, 0xff]),
 			contentType: "image/jpeg",
 			url: "https://example.com/og.jpg",
 			extension: ".jpg",
 		};
-		const fetchThumbnailImage = jest.fn().mockResolvedValue(fetchedThumbnail);
+		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetchedThumbnail, provenUnusable: [] });
 		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
 		const finalize = createFinalize({ fetchThumbnailImage, putImageObject });
 		const html = `<html><head>
@@ -139,9 +142,9 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
-	it("falls back to the parser's raw imageUrl when fetchThumbnailImage returns undefined (origin blocked the hotlinked image)", async () => {
+	it("falls back to the parser's raw imageUrl when the cascade found no image but disproved nothing (origin blocked the hotlinked image)", async () => {
 		const finalize = createFinalize({
-			fetchThumbnailImage: async () => undefined,
+			fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }),
 		});
 		const html = `<html><head>
 			<meta property="og:image" content="https://example.com/og.jpg">
@@ -155,6 +158,66 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
+	it("does not persist a candidate the cascade proved unusable, and picks the next candidate instead", async () => {
+		const finalize = createFinalize({
+			fetchThumbnailImage: async () => ({
+				image: undefined,
+				provenUnusable: ["https://example.com/not-an-image"],
+			}),
+		});
+		const html = `<html><head>
+			<meta property="og:image" content="https://example.com/not-an-image">
+			<meta name="twitter:image" content="https://example.com/maybe.png">
+		</head><body><p>Body</p></body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, html });
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.metadata.imageUrl).toBe("https://example.com/maybe.png");
+		}
+	});
+
+	it("persists no thumbnail at all when every candidate was proved unusable", async () => {
+		const finalize = createFinalize({
+			fetchThumbnailImage: async () => ({
+				image: undefined,
+				provenUnusable: ["https://example.com/not-an-image"],
+			}),
+		});
+		const html = `<html><head>
+			<meta property="og:image" content="https://example.com/not-an-image">
+		</head><body><p>Body</p></body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, html });
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.metadata.imageUrl).toBeUndefined();
+		}
+	});
+
+	it("honours the crawler's own verdicts, so a candidate it disproved is not persisted by the finalizer either", async () => {
+		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
+		const finalize = createFinalize({ fetchThumbnailImage });
+		const html = `<html><head>
+			<meta property="og:image" content="https://example.com/not-an-image">
+			<meta name="twitter:image" content="https://example.com/maybe.png">
+		</head><body><p>Body</p></body></html>`;
+
+		const result = await finalize({
+			url: URL_UNDER_TEST,
+			html,
+			resolvedThumbnail: { image: undefined, provenUnusable: ["https://example.com/not-an-image"] },
+		});
+
+		expect(fetchThumbnailImage).not.toHaveBeenCalled();
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.metadata.imageUrl).toBe("https://example.com/maybe.png");
+		}
+	});
+
 	it("does not re-fetch when the crawler already resolved the thumbnail and found nothing (no duplicate fetch on the failure path)", async () => {
 		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
 		const finalize = createFinalize({ fetchThumbnailImage });
@@ -162,7 +225,7 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.jpg">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, html, thumbnailAlreadyResolved: true });
+		const result = await finalize({ url: URL_UNDER_TEST, html, resolvedThumbnail: { image: undefined, provenUnusable: [] } });
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
 		expect(result.ok).toBe(true);
@@ -186,7 +249,7 @@ describe("initFinalizeArticle", () => {
 		const result = await finalize({
 			url: URL_UNDER_TEST,
 			html: "<html><body></body></html>",
-			preFetchedThumbnail: thumbnail,
+			resolvedThumbnail: { image: thumbnail, provenUnusable: [] },
 		});
 
 		expect(putImageObject).toHaveBeenCalledWith(expect.objectContaining({
@@ -242,7 +305,7 @@ describe("initFinalizeArticle", () => {
 	});
 
 	it("hosts the pre-fetched image and stores an <img> body without running Readability (mediaType:image)", async () => {
-		const preFetchedThumbnail: ThumbnailImage = {
+		const resolvedImage: ThumbnailImage = {
 			body: Buffer.from([0xff, 0xd8, 0xff]),
 			contentType: "image/jpeg",
 			url: "https://example.com/lean-engineering-638.jpg",
@@ -257,13 +320,13 @@ describe("initFinalizeArticle", () => {
 			url: "https://example.com/lean-engineering-638.jpg",
 			html: "<figure><img src=\"https://example.com/lean-engineering-638.jpg\" alt=\"\"></figure>",
 			mediaType: "image",
-			preFetchedThumbnail,
+			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
 		});
 
 		expect(parseHtml).not.toHaveBeenCalled();
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
 		expect(putImageObject).toHaveBeenCalledWith(expect.objectContaining({
-			body: preFetchedThumbnail.body,
+			body: resolvedImage.body,
 			contentType: "image/jpeg",
 		}));
 		expect(result.ok).toBe(true);
@@ -288,7 +351,7 @@ describe("initFinalizeArticle", () => {
 			extension: ".jpg",
 		};
 		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(throwingParseHtml);
-		const fetchThumbnailImage = jest.fn().mockResolvedValue(fetched);
+		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetched, provenUnusable: [] });
 		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
 		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
 		const html = `<html><head><title>photo.jpg (638×359)</title></head><body><img src="https://example.com/photo.jpg"></body></html>`;
@@ -318,7 +381,7 @@ describe("initFinalizeArticle", () => {
 			extension: ".jpg",
 		};
 		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(throwingParseHtml);
-		const fetchThumbnailImage = jest.fn().mockResolvedValue(fetched);
+		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetched, provenUnusable: [] });
 		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
 		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
 		const html = `<html><head><title>F1ab (638×359)</title></head><body><img src="https://example.com/media/F1ab?format=jpg"></body></html>`;
@@ -341,7 +404,7 @@ describe("initFinalizeArticle", () => {
 	});
 
 	it("falls back to the origin image URL when hosting the image fails (origin blocked the fetch)", async () => {
-		const finalize = createFinalize({ fetchThumbnailImage: async () => undefined });
+		const finalize = createFinalize({ fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }) });
 		const html = `<html><body><img src="https://example.com/photo.jpg"></body></html>`;
 
 		const result = await finalize({ url: "https://example.com/photo.jpg", html, mediaType: "image" });
@@ -364,7 +427,7 @@ describe("initFinalizeArticle", () => {
 			url: "https://example.com/photo.jpg",
 			html,
 			mediaType: "image",
-			thumbnailAlreadyResolved: true,
+			resolvedThumbnail: { image: undefined, provenUnusable: [] },
 		});
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
@@ -375,7 +438,7 @@ describe("initFinalizeArticle", () => {
 	});
 
 	it("falls back to the page URL as the <img> src when there is no image to host and no candidate", async () => {
-		const finalize = createFinalize({ fetchThumbnailImage: async () => undefined });
+		const finalize = createFinalize({ fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }) });
 
 		const result = await finalize({
 			url: "https://example.com/photo.jpg",
@@ -393,7 +456,7 @@ describe("initFinalizeArticle", () => {
 	});
 
 	it("titles the image from the hostname when the URL has no filename segment", async () => {
-		const preFetchedThumbnail: ThumbnailImage = {
+		const resolvedImage: ThumbnailImage = {
 			body: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
 			contentType: "image/png",
 			url: "https://example.com/",
@@ -405,7 +468,7 @@ describe("initFinalizeArticle", () => {
 			url: "https://example.com/",
 			html: "<html></html>",
 			mediaType: "image",
-			preFetchedThumbnail,
+			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
 		});
 
 		expect(result.ok).toBe(true);

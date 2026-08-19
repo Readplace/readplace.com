@@ -76,11 +76,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 		const finalized = await finalizeArticle({
 			url: params.url,
 			html: crawlResult.html,
-			preFetchedThumbnail: crawlResult.thumbnailImage,
-			// The crawl above ran with fetchThumbnail:true, so an absent
-			// thumbnailImage means the cascade already ran and found nothing —
-			// don't let the finalizer re-run the identical (already-failed) fetch.
-			thumbnailAlreadyResolved: true,
+			resolvedThumbnail: crawlResult.thumbnail,
 			mediaType: crawlResult.mediaType,
 		});
 		if (!finalized.ok) return { status: "failed", reason: finalized.reason, finalUrl: crawlResult.finalUrl };

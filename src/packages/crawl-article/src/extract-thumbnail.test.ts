@@ -1,5 +1,5 @@
 import type { CrawlFetch } from "./crawl-fetch";
-import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
+import { extractThumbnailCandidates, initFetchThumbnailImage, MAX_THUMBNAIL_BYTES } from "./extract-thumbnail";
 
 describe("extractThumbnailCandidates", () => {
 	it("returns the og:image URL first when present", () => {
@@ -133,7 +133,7 @@ describe("initFetchThumbnailImage", () => {
 				referer: "https://example.com/article",
 			});
 
-			expect(result).toBeUndefined();
+			expect(result.image).toBeUndefined();
 			expect(infoLogs).toContain(`[CrawlArticle] Thumbnail HTTP ${status} for https://example.com/missing.png`);
 			expect(errorLogs).toEqual([]);
 		},
@@ -154,8 +154,99 @@ describe("initFetchThumbnailImage", () => {
 			referer: "https://example.com/article",
 		});
 
-		expect(result).toBeUndefined();
+		expect(result.image).toBeUndefined();
 		expect(errorLogs).toContain("[CrawlArticle] Thumbnail HTTP 500 for https://example.com/broken.png");
 		expect(infoLogs).toEqual([]);
+	});
+	it.each([403, 500])(
+		"leaves a candidate that answered %i unproven, because the origin may still serve the image to a reader's own browser",
+		async (status) => {
+			const crawlFetch: CrawlFetch = async () => new Response("refused", { status });
+			const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+
+			const result = await fetchThumbnail({
+				candidates: ["https://example.com/hotlink-blocked.png"],
+				referer: "https://example.com/article",
+			});
+
+			expect(result.provenUnusable).toEqual([]);
+		},
+	);
+
+	it.each([404, 410])(
+		"proves a candidate unusable when the origin answers %i, because the resource is gone for every client",
+		async (status) => {
+			const crawlFetch: CrawlFetch = async () => new Response("<html>not found</html>", { status });
+			const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+
+			const result = await fetchThumbnail({
+				candidates: ["https://zserge.com/logo.png"],
+				referer: "https://example.com/article",
+			});
+
+			expect(result.provenUnusable).toEqual(["https://zserge.com/logo.png"]);
+		},
+	);
+
+	it("leaves a candidate that failed in transport unproven, because no answer is no evidence", async () => {
+		const crawlFetch: CrawlFetch = async () => {
+			throw new Error("socket hang up");
+		};
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: ["https://example.com/unreachable.png"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.provenUnusable).toEqual([]);
+	});
+
+	it("proves a candidate unusable when the origin answers a non-image Content-Type", async () => {
+		const crawlFetch: CrawlFetch = async () =>
+			new Response("<html>redirect loop</html>", {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: ["https://www.cia.gov/readingroom/docs/Figure%203"],
+			referer: "https://www.cia.gov/readingroom/docs/report.pdf",
+		});
+
+		expect(result.provenUnusable).toEqual(["https://www.cia.gov/readingroom/docs/Figure%203"]);
+	});
+
+	it("proves a candidate unusable when the origin declares a body over the size cap", async () => {
+		const crawlFetch: CrawlFetch = async () =>
+			new Response("bytes", {
+				status: 200,
+				headers: { "content-type": "image/png", "content-length": String(MAX_THUMBNAIL_BYTES + 1) },
+			});
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: ["https://qsf.cf2.quoracdn.net/huge.png"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.provenUnusable).toEqual(["https://qsf.cf2.quoracdn.net/huge.png"]);
+	});
+
+	it("walks past a disproved candidate to the next one and reports only what it disproved", async () => {
+		const crawlFetch: CrawlFetch = async (url) =>
+			url === "https://example.com/not-an-image"
+				? new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } })
+				: new Response(Buffer.from("png-bytes"), { status: 200, headers: { "content-type": "image/png" } });
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: ["https://example.com/not-an-image", "https://example.com/real.png"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image?.url).toBe("https://example.com/real.png");
+		expect(result.provenUnusable).toEqual(["https://example.com/not-an-image"]);
 	});
 });

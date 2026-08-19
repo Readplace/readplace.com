@@ -4,6 +4,7 @@ import {
 	escapeHtmlText,
 	extractThumbnailCandidates,
 	type FetchThumbnailImage,
+	type ThumbnailCascade,
 	type ThumbnailImage,
 } from "@packages/crawl-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
@@ -35,19 +36,14 @@ export type FinalizeArticleResult =
 export type FinalizeArticle = (input: {
 	url: string;
 	html: string;
-	/** Image bytes that the crawler already fetched inline (SimpleCrawl with
-	 * `fetchThumbnail: true`). When present, skip the re-fetch and just upload.
-	 * When absent (raw-HTML save, comprehensive crawl), the finalizer fetches
-	 * the cascade of og:image / twitter:image / first-<img> candidates itself. */
-	preFetchedThumbnail?: ThumbnailImage;
-	/** True when the crawler already ran the thumbnail cascade, so an absent
-	 * `preFetchedThumbnail` means "attempted and found nothing", not "never
-	 * tried". Without this the finalizer cannot tell the two apart and re-runs
-	 * the identical cascade — a second, failure-gated fetch of the same URLs that
-	 * doubles outbound requests and error volume exactly when an origin is
-	 * already failing. Left unset by raw-HTML / comprehensive callers, which
-	 * genuinely have not fetched and still need the finalizer to. */
-	thumbnailAlreadyResolved?: boolean;
+	/** The cascade the crawler already ran (SimpleCrawl with
+	 * `fetchThumbnail: true`). Its presence is what tells the finalizer the
+	 * candidates have already been walked, so an absent `image` means "attempted
+	 * and found nothing", not "never tried" — without it the finalizer re-runs
+	 * the identical cascade, doubling outbound requests and error volume exactly
+	 * when an origin is already failing. Left unset by raw-HTML / comprehensive
+	 * callers, which genuinely have not fetched and still need the finalizer to. */
+	resolvedThumbnail?: ThumbnailCascade;
 	/** Set by the crawler when the fetched body was itself an image. Routes the
 	 * save to image synthesis (host the image, store an `<img>` body, skip
 	 * Readability). The browser-extension raw-HTML save leaves this unset; the
@@ -65,8 +61,8 @@ export type FinalizeArticle = (input: {
  * A resource is one of two shapes:
  *   - An HTML body → parseHtml → downloadMedia → processContent → fetch
  *     og:image (if not pre-fetched) → uploadThumbnail, so metadata.imageUrl
- *     always either points to the Readplace CDN (image fetch succeeded) or
- *     falls back to the raw og:image URL, never silently goes missing.
+ *     points to the Readplace CDN when the image fetch succeeded, and otherwise
+ *     to the first candidate the cascade did not prove unusable.
  *   - An image (the crawler tagged it `mediaType:"image"`, or the captured
  *     body is a bare-image page) → host the image on the CDN and store an
  *     `<img>` body with synthesised metadata. Readability is skipped: it
@@ -100,15 +96,16 @@ export function initFinalizeArticle(deps: {
 			return finalizeImageArticle({
 				url: input.url,
 				candidates,
-				preFetchedThumbnail: input.preFetchedThumbnail,
-				thumbnailAlreadyResolved: input.thumbnailAlreadyResolved === true,
+				resolvedThumbnail: input.resolvedThumbnail,
 				fetchThumbnailImage,
 				putImageObject,
 				imagesCdnBaseUrl,
 			});
 		}
 
-		const thumbnailUrl = candidates[0] ?? null;
+		const thumbnail =
+			input.resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: input.url }));
+		const thumbnailUrl = firstUsableCandidate({ candidates, thumbnail }) ?? null;
 
 		const parseResult = parseHtml({
 			url: input.url,
@@ -133,11 +130,7 @@ export function initFinalizeArticle(deps: {
 		});
 		const html = await processContent({ html: content, media });
 
-		let thumbnailImage = input.preFetchedThumbnail;
-		if (!thumbnailImage && !input.thumbnailAlreadyResolved) {
-			thumbnailImage = await fetchThumbnailImage({ candidates, referer: input.url });
-		}
-
+		const thumbnailImage = thumbnail.image;
 		const imageUrl = thumbnailImage
 			? await uploadThumbnail({
 					thumbnailImage,
@@ -177,24 +170,21 @@ export function initFinalizeArticle(deps: {
 async function finalizeImageArticle(args: {
 	url: string;
 	candidates: string[];
-	preFetchedThumbnail: ThumbnailImage | undefined;
-	thumbnailAlreadyResolved: boolean;
+	resolvedThumbnail: ThumbnailCascade | undefined;
 	fetchThumbnailImage: FetchThumbnailImage;
 	putImageObject: PutImageObject;
 	imagesCdnBaseUrl: string;
 }): Promise<{ ok: true; article: FinalizedArticle }> {
-	const { url, candidates, preFetchedThumbnail, thumbnailAlreadyResolved, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
+	const { url, candidates, resolvedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
 	const { hostname, pathname } = new URL(url);
 	const title = imageTitleFromPathname(pathname) || hostname;
 	const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 
-	let image = preFetchedThumbnail;
-	if (!image && !thumbnailAlreadyResolved) {
-		image = await fetchThumbnailImage({ candidates, referer: url });
-	}
+	const thumbnail = resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: url }));
+	const image = thumbnail.image;
 	const imageUrl = image
 		? await uploadThumbnail({ thumbnailImage: image, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl })
-		: (candidates[0] ?? url);
+		: (firstUsableCandidate({ candidates, thumbnail }) ?? url);
 
 	return {
 		ok: true,
@@ -210,6 +200,14 @@ async function finalizeImageArticle(args: {
 			},
 		},
 	};
+}
+
+function firstUsableCandidate(args: {
+	candidates: readonly string[];
+	thumbnail: ThumbnailCascade;
+}): string | undefined {
+	const { candidates, thumbnail } = args;
+	return candidates.find((candidate) => !thumbnail.provenUnusable.includes(candidate));
 }
 
 /** Filename of the URL's last path segment, extension dropped and separators

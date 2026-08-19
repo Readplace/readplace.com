@@ -7,17 +7,22 @@ export type ThumbnailImage = {
 	extension: string;
 };
 
+export type ThumbnailCascade = {
+	image: ThumbnailImage | undefined;
+	provenUnusable: readonly string[];
+};
+
 export type CrawlArticleResult =
 	| {
 			status: "fetched";
 			html: string;
 			/* Set only when the fetched body was itself an image. Signals the
-			 * finalizer to synthesise an `<img>` body from `thumbnailImage`
+			 * finalizer to synthesise an `<img>` body from `thumbnail.image`
 			 * instead of running Readability (which extracts no text from an
 			 * image and would persist an empty content body). */
 			mediaType?: "image";
 			thumbnailUrl?: string;
-			thumbnailImage?: ThumbnailImage;
+			thumbnail?: ThumbnailCascade;
 			etag?: string;
 			lastModified?: string;
 			/* SHA-256 of the raw response body. Always populated on `fetched`.
