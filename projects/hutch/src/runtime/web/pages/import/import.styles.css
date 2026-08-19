@@ -237,6 +237,7 @@
 .import__dropzone-meta {
   font-size: 0.8125rem;
   color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 .import__dropzone--has-file .import__dropzone-primary {
@@ -272,6 +273,7 @@
   line-height: 1.3;
   margin: 0 0 16px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .import__steps,
@@ -283,6 +285,7 @@
   font-size: 0.9375rem;
   line-height: 1.6;
   color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 .import__steps strong,
@@ -306,6 +309,7 @@
   font-weight: 600;
   margin: 0 0 4px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .import__faq-answer {
@@ -313,6 +317,7 @@
   font-size: 0.9375rem;
   line-height: 1.6;
   color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 /* ---------- Review page ---------- */
@@ -329,6 +334,7 @@
   border-radius: var(--radius);
   font-size: 0.9375rem;
   margin: 0 0 20px;
+  text-wrap: pretty;
 }
 
 .import__toolbar {
