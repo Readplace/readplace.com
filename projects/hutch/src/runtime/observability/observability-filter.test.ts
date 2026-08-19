@@ -68,6 +68,7 @@ describe("observability filter", () => {
 			...ERROR_STREAMS.map((s) => `{"stream":"${s}","reason":"x"}`),
 			'{"level":"ERROR","message":"boom"}',
 			...RUNTIME_FAILURE_MARKERS.map((m) => `req-1 ${m} detail`),
+			'2026-08-12T10:11:12.000Z\treq-1\tERROR\tInvoke Error \t{"errorType":"Error","errorMessage":"tesseract exited 1: Image too large"}',
 		];
 		for (const line of claimed) {
 			expect(classifyForwardedLine({ message: line, analyticsStreams: FORWARDED_STREAMS })).toBeDefined();

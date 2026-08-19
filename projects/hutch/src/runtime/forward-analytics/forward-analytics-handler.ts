@@ -77,6 +77,7 @@ export function classifyForwardedLine(input: {
 		) {
 			return "errors";
 		}
+		return message.includes(LAMBDA_RUNTIME_ERROR_PREAMBLE) ? "errors" : undefined;
 	}
 	// Not our JSON shape at all: the runtime's own plain-text failure output, which
 	// carries no `level` field and is exactly what the text filter exists to catch.
@@ -90,6 +91,8 @@ const CONTROL_MESSAGE = "CONTROL_MESSAGE";
 /** Widened from the literal tuple so an arbitrary stream string can be tested
  * against it — `readonly ["parse-errors"]` would narrow the argument instead. */
 const errorStreamNames: readonly string[] = ERROR_STREAMS;
+
+const LAMBDA_RUNTIME_ERROR_PREAMBLE = "\tERROR\t";
 
 
 /** Only the two fields classification reads. Everything else on the line is

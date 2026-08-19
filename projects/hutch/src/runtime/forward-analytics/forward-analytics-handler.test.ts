@@ -86,11 +86,35 @@ describe("classifyForwardedLine", () => {
 		expect(classify(line)).toBe("errors");
 	});
 
+	it.each([
+		["Invoke Error", '{"errorType":"Error","errorMessage":"tesseract exited 1: Image too large","stack":["Error: tesseract exited 1: Image too large"]}'],
+		["Uncaught Exception", '{"errorType":"AssertionError","errorMessage":"HTTP/2 stream ended without :status","stack":["AssertionError: HTTP/2 stream ended without :status"]}'],
+	])(
+		"routes a Lambda %s crash to the errors funnel — its payload is valid JSON carrying no level, so only the preamble tags it",
+		(label, payload) => {
+			expect(classify(`2026-08-12T10:11:12.000Z\treq-1\tERROR\t${label} \t${payload}`)).toBe("errors");
+		},
+	);
+
 	// The subscription filter is a coarse text match by necessity, so it forwards
 	// lines neither funnel wants. Dropping them here is what keeps a saved article
 	// whose title contains "ERROR" out of the operator's error table.
 	it("claims nothing for an ordinary info line", () => {
 		expect(classify('{"stream":"crawl-outcomes","outcome":"ok"}')).toBeUndefined();
+	});
+
+	it("claims nothing for an info-level crawl-legs attempt whose error text contains an uppercase ERROR code", () => {
+		expect(
+			classify(
+				'2026-08-12T10:11:12.000Z\treq-1\tINFO\t{"stream":"crawl-legs","leg":"h2","outcome":"escalated","elapsedMs":23,"error":"Stream closed with error code NGHTTP2_INTERNAL_ERROR"}',
+			),
+		).toBeUndefined();
+	});
+
+	it("claims nothing for a parsed line carrying an ERROR substring but no runtime preamble", () => {
+		expect(
+			classify('{"stream":"crawl-legs","leg":"curl","outcome":"answered","elapsedMs":95,"error":"PROTOCOL_ERROR"}'),
+		).toBeUndefined();
 	});
 
 	it("claims nothing for a line that is not JSON and carries no failure marker", () => {
