@@ -24,10 +24,6 @@
 .inbox-emails__manage {
   font-size: 0.875rem;
   color: var(--primary);
-  text-decoration: none;
-}
-
-.inbox-emails__manage:hover {
   text-decoration: underline;
 }
 

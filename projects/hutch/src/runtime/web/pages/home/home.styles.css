@@ -1330,6 +1330,10 @@ hydration doesn't jump it. */
   flex-wrap: wrap;
 }
 
+.home-cta__ways {
+  margin: 16px 0 0;
+}
+
 .home-cta__link {
   color: var(--primary);
   text-decoration: underline;
