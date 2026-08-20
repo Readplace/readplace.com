@@ -179,7 +179,7 @@ describe("fetchCurl argument construction", () => {
 		expect(args[args.indexOf("--resolve") + 1]).toBe("example.com:8443:[2606:4700:4700::1111]");
 	});
 
-	it("routes through --proxy and drops the --resolve pin when a proxyUrl is set", async () => {
+	it("routes through --proxy, relaxes target-cert verification, and drops the --resolve pin when a proxyUrl is set", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({
 			execCurl: fake.execCurl,
@@ -189,7 +189,15 @@ describe("fetchCurl argument construction", () => {
 		await fetchCurl("https://example.com/page", { signal: live() });
 		const args = fake.calls[0].args;
 		expect(args[args.indexOf("--proxy") + 1]).toBe("http://user:pass@proxy.example:8080");
+		expect(args).toContain("--insecure");
 		expect(args).not.toContain("--resolve");
+	});
+
+	it("keeps target-cert verification on the direct (unproxied) leg", async () => {
+		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
+		await fetchCurl("https://example.com/page", { signal: live() });
+		expect(fake.calls[0].args).not.toContain("--insecure");
 	});
 
 	it("still runs the SSRF resolve check before spawning a proxied fetch", async () => {

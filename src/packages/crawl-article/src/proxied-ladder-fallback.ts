@@ -13,24 +13,33 @@ import type { LadderFetch } from "./transport-ladder";
  * page is genuinely gone — better information than the datacenter block); a
  * proxied transport failure surfaces the direct outcome instead.
  */
+/* The direct pass is never shortened below this: it is the free path and it
+ * answers the overwhelming majority of URLs. */
+const DIRECT_PASS_FLOOR_MILLISECONDS = 15_000;
+/* Below this the proxied pass cannot seat even a median unlocker fetch, so
+ * spending metered egress on it would only buy a timeout. */
+const PROXY_ATTEMPT_FLOOR_MILLISECONDS = 12_000;
+
 export function withProxiedLadderFallback(deps: {
 	directFetch: LadderFetch;
 	proxyFetch: LadderFetch;
-	reserveMs: number;
+	proxyReserveMilliseconds: number;
 	now: () => number;
 }): LadderFetch {
-	const { directFetch, proxyFetch, reserveMs, now } = deps;
+	const { directFetch, proxyFetch, proxyReserveMilliseconds, now } = deps;
 	return async (url, init) => {
 		const { budget, headers, onRedirect } = init;
-		/* A budget too small to seat a full direct pass plus the reserve runs
-		 * direct-only at full budget — that keeps the small thumbnail / oembed /
+		/* Carve the reserve out of what is left after the direct pass keeps its
+		 * floor, then run direct-only when what remains cannot seat a useful
+		 * proxied attempt — which is what keeps the small thumbnail / oembed /
 		 * media crawls on their pre-proxy budget and off metered egress. */
-		if (budget.remainingMs() < 2 * reserveMs) {
+		const reserve = Math.min(proxyReserveMilliseconds, budget.remainingMs() - DIRECT_PASS_FLOOR_MILLISECONDS);
+		if (reserve < PROXY_ATTEMPT_FLOOR_MILLISECONDS) {
 			return directFetch(url, { headers, onRedirect, budget });
 		}
 		const directBudget = createCrawlBudget({
 			signal: budget.deadline.signal,
-			totalMs: budget.remainingMs() - reserveMs,
+			totalMs: budget.remainingMs() - reserve,
 			now,
 		});
 		let directOutcome: { response: Response } | { thrown: unknown };

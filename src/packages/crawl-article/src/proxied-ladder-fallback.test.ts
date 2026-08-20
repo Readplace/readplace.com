@@ -2,7 +2,7 @@ import { createCrawlBudget } from "./crawl-budget";
 import { withProxiedLadderFallback } from "./proxied-ladder-fallback";
 import type { LadderFetch } from "./transport-ladder";
 
-const RESERVE_MS = 10_000;
+const RESERVE_MILLISECONDS = 45_000;
 
 type Harness = {
 	fetchIt: (init?: { headers?: Record<string, string>; totalMs?: number }) => Promise<Response>;
@@ -33,14 +33,14 @@ function makeHarness(opts: {
 	const fetchWithProxy = withProxiedLadderFallback({
 		directFetch,
 		proxyFetch,
-		reserveMs: RESERVE_MS,
+		proxyReserveMilliseconds: RESERVE_MILLISECONDS,
 		now: Date.now,
 	});
 	return {
 		fetchIt: (init) =>
 			fetchWithProxy("https://example.com/article", {
 				headers: init?.headers ?? {},
-				budget: createCrawlBudget({ signal: controller.signal, totalMs: init?.totalMs ?? 30_000, now: Date.now }),
+				budget: createCrawlBudget({ signal: controller.signal, totalMs: init?.totalMs ?? 90_000, now: Date.now }),
 			}),
 		directBudgets,
 		proxyBudgets,
@@ -176,10 +176,10 @@ describe("withProxiedLadderFallback", () => {
 			direct: async () => new Response("denied", { status: 403 }),
 			proxy: async () => new Response("via proxy", { status: 200 }),
 		});
-		await harness.fetchIt({ totalMs: 30_000 });
-		// 30s − 10s reserve = 20s for the direct pass; the proxy pass gets a real slice.
-		expect(harness.directBudgets[0]).toBeGreaterThan(19_000);
-		expect(harness.directBudgets[0]).toBeLessThanOrEqual(20_000);
+		await harness.fetchIt({ totalMs: 90_000 });
+		// 90s − 45s reserve = 45s for the direct pass; the proxy pass gets the rest.
+		expect(harness.directBudgets[0]).toBeGreaterThan(44_000);
+		expect(harness.directBudgets[0]).toBeLessThanOrEqual(45_000);
 		expect(harness.proxyBudgets[0]).toBeGreaterThan(0);
 	});
 

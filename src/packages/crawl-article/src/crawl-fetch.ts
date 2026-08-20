@@ -20,12 +20,13 @@ import { type LadderFetch, type Leg, type LegAttempt, runTransportLadder } from 
 const PRIMARY_LEG_MAX_MS = 25_000;
 const H2_LEG_MAX_MS = 2000;
 const CURL_LEG_MAX_MS = 3000;
-const PROXY_RESERVE_MS = 10_000;
-/* Inside the proxied pass the primary leg is capped well below its direct
- * 25s so a slow proxied primary cannot starve the curl-impersonate leg — the
- * one the evidence shows recovers the blocked rows — of its share of the
- * reserve. */
-const PROXY_PRIMARY_MAX_MS = 5000;
+/* An unlocker proxy solves the challenge before answering, so it is far slower
+ * than a direct fetch: measured against the blocked-row set, successes ran a
+ * 12.6s median and a 37.2s 90th percentile. A reserve that cannot seat those
+ * turns recoverable rows into timeouts, so the proxied pass is budgeted for the
+ * 90th percentile rather than the median. */
+const PROXY_RESERVE_MILLISECONDS = 45_000;
+const PROXY_PRIMARY_MAX_MILLISECONDS = 40_000;
 
 export type CrawlFetchInit = {
 	headers?: Record<string, string>;
@@ -124,8 +125,13 @@ export function initCrawlFetch(deps: {
 		const proxyUrl = deps.proxyUrl;
 		if (proxyUrl === undefined) return undefined;
 		const fetchProxyCurl = deps.fetchProxyCurl ?? initGuardedCurlFetch({ resolve, isBlocked, proxyUrl });
+		/* Same TLS-termination reason as the proxied curl leg: the unlocker
+		 * presents its own certificate, so verification is relaxed here and only
+		 * here — the direct dispatcher above keeps the SSRF-guarded connector and
+		 * full verification. */
+		const proxyDispatcher = new ProxyAgent({ uri: proxyUrl, requestTls: { rejectUnauthorized: false } });
 		const proxyLegs: readonly Leg[] = [
-			primaryLeg(buildPrimaryFetch(new ProxyAgent(proxyUrl), { chaseAia: false }), PROXY_PRIMARY_MAX_MS),
+			primaryLeg(buildPrimaryFetch(proxyDispatcher, { chaseAia: false }), PROXY_PRIMARY_MAX_MILLISECONDS),
 			curlLeg(fetchProxyCurl),
 		];
 		const proxyLogAttempt = (attempt: LegAttempt) =>
@@ -142,7 +148,7 @@ export function initCrawlFetch(deps: {
 			: withProxiedLadderFallback({
 					directFetch: directPipeline,
 					proxyFetch: proxyPipeline,
-					reserveMs: PROXY_RESERVE_MS,
+					proxyReserveMilliseconds: PROXY_RESERVE_MILLISECONDS,
 					now: Date.now,
 				});
 	return async (url, init) => {

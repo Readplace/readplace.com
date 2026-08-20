@@ -227,7 +227,11 @@ function buildCurlArgs(params: {
 		args.push("--resolve", `${params.hostname}:${params.port}:${pinnedForCurl}`);
 	}
 	if (params.proxyUrl !== undefined) {
-		args.push("--proxy", params.proxyUrl);
+		/* An unlocker proxy terminates TLS to rewrite the request, so the client
+		 * sees the proxy's certificate rather than the origin's and verification
+		 * cannot succeed. Scoped to the proxied leg: the direct legs keep full
+		 * certificate verification. */
+		args.push("--proxy", params.proxyUrl, "--insecure");
 	}
 	if (params.headers) {
 		for (const [key, value] of Object.entries(params.headers)) {
