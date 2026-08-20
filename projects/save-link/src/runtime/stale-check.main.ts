@@ -23,7 +23,7 @@ import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
 import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packages/refresh-article-content";
 import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
-import { getEnv, requireEnv } from "@packages/require-env";
+import { requireEnv } from "@packages/require-env";
 
 // Must match the staleness TTL the reading path applies. Reads of an article older than this
 // trigger a conditional GET against the source (304 → noop, 200 → re-extract).
@@ -45,7 +45,7 @@ const now = () => new Date();
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const parser = initParserDepBundle({
-	proxyUrl: getEnv("CRAWL_EGRESS_PROXY_URL"),
+	proxyUrl: requireEnv("CRAWL_EGRESS_PROXY_URL"),
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,

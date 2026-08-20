@@ -48,7 +48,7 @@ export function initParserDepBundle(deps: {
 	logError: LogError;
 	logInfo: LogInfo;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
-	proxyUrl: string | undefined;
+	proxyUrl: string;
 }): ParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
@@ -93,7 +93,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	logInfo: LogInfo;
 	extractPdf: ExtractPdf;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
-	proxyUrl: string | undefined;
+	proxyUrl: string;
 }): ComprehensiveParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,

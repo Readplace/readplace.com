@@ -9,7 +9,7 @@ function makeBundle() {
 		logError: () => {},
 		logInfo: () => {},
 		findAdoptedFetchUrl: async () => undefined,
-		proxyUrl: undefined,
+		proxyUrl: "http://proxy.test:8080",
 	});
 	const articleStore = initArticleStoreDepBundle({
 		s3Client: new S3Client({ region: "us-east-1" }),

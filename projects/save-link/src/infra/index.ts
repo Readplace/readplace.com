@@ -43,7 +43,7 @@ import {
 	SAVE_LINK_DLQ_SOURCES,
 	SAVE_LINK_LAMBDA_NAMES,
 } from "@packages/hutch-infra-components";
-import { getEnv, requireEnv } from "@packages/require-env";
+import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
@@ -103,12 +103,11 @@ const ocrImageTags = z
 // published once by the platform stack — inbox and hutch need the same binary,
 // so one owner beats three copies. Read its ARN via the platform StackReference.
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
-const crawlEgressProxyUrl = getEnv("CRAWL_EGRESS_PROXY_URL");
-// The proxy URL carries embedded residential-proxy credentials, so it is a
-// secret like deepseekApiKey below — pulumi.secret keeps it encrypted in state.
-const crawlEgressProxyEnvironment: Record<string, pulumi.Input<string>> = crawlEgressProxyUrl
-	? { CRAWL_EGRESS_PROXY_URL: pulumi.secret(crawlEgressProxyUrl) }
-	: {};
+// The proxy URL carries embedded credentials, so it is a secret like
+// deepseekApiKey below — pulumi.secret keeps it encrypted in state.
+const crawlEgressProxyEnvironment: Record<string, pulumi.Input<string>> = {
+	CRAWL_EGRESS_PROXY_URL: pulumi.secret(requireEnv("CRAWL_EGRESS_PROXY_URL")),
+};
 
 // --- Content S3 Bucket ---
 

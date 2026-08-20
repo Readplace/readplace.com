@@ -4,7 +4,7 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { getEnv, requireEnv } from "@packages/require-env";
+import { requireEnv } from "@packages/require-env";
 import { validateSaveableUrl } from "@packages/domain/article";
 import {
 	initCanonicalAliasStore,
@@ -41,7 +41,7 @@ const now = () => new Date();
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const parser = initParserDepBundle({
-	proxyUrl: getEnv("CRAWL_EGRESS_PROXY_URL"),
+	proxyUrl: requireEnv("CRAWL_EGRESS_PROXY_URL"),
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,

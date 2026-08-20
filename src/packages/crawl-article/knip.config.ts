@@ -10,6 +10,9 @@ export default {
 		// and the tier-1-plus-crawl-pipeline-health workflow.
 		"scripts/tier-1-plus-pipeline-health.ts",
 		"scripts/health-sources.ts",
+		// Credential canary invoked by the nx `health-egress-proxy` target, which
+		// save-link's post-deploy runs.
+		"scripts/health-egress-proxy.ts",
 	],
 	ignoreBinaries: [
 		"knip",
