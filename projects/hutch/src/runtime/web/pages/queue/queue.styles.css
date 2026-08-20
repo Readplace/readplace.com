@@ -109,15 +109,22 @@
   color: var(--primary-foreground);
 }
 
-.queue-nav__new {
+.queue-nav__new-form {
   flex: 0 0 auto; /* 4 */
+  display: flex;
+  margin-bottom: -1px; /* 1 */
+}
+
+.queue-nav__new {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   min-width: 44px;
   min-height: 44px;
-  margin-bottom: -1px; /* 1 */
   padding: var(--button-padding-xs);
+  font: inherit;
+  appearance: none;
   border: 1px dashed var(--border);
   border-radius: var(--radius) var(--radius) 0 0;
   background: transparent;
@@ -136,6 +143,17 @@
 .queue-nav__new svg {
   width: 1rem;
   height: 1rem;
+}
+
+.queue-nav__link--editing {
+  min-width: 44px;
+  cursor: text;
+  caret-color: currentColor;
+}
+
+.queue-nav__link--editing:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .queue--queues .queue__content {
@@ -908,58 +926,16 @@
  *    defaults to stretching over the full row, and an element as tall as its
  *    scroll container never sticks.
  */
-/**
- * 7. The name input and its Create button share the shared control height so
- *    the pair lines up; the button takes that height from `.btn--field`, so it
- *    is set here on the input alone.
- */
-.queue-create {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.queue-create__title {
-  font-family: var(--font-serif);
-  font-size: 1.125rem;
-  font-weight: 700;
-  margin: 0 0 8px;
-}
-
-.queue-create__error {
-  margin: 0 0 8px;
-  font-size: 0.875rem;
-  color: var(--error);
-}
-
-.queue-create__form {
-  display: flex;
-  gap: 8px;
-}
-
-.queue-create__input {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: var(--input-height); /* 7 */
-  padding: var(--input-padding);
-  font-size: var(--input-font-size);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.queue-create__cancel {
-  display: inline-block;
-  margin-top: 8px;
-  font-size: 0.875rem;
-  color: var(--primary);
-}
-
 .queue__created-flash {
   margin: 0 0 12px;
   font-size: 0.875rem;
   color: var(--muted-foreground);
+}
+
+.queue__error-flash {
+  margin: 0 0 12px;
+  font-size: 0.875rem;
+  color: var(--error);
 }
 
 @media (min-width: 768px) {
@@ -1019,9 +995,12 @@
     box-shadow: var(--shadow-sm), inset -4px 0 6px var(--queue-seam-ink); /* 5 */
   }
 
+  .queue-nav__new-form {
+    margin: 0 -1px 0 0;
+  }
+
   .queue-nav__new {
     border-radius: var(--radius) 0 0 var(--radius);
-    margin: 0 -1px 0 0;
     box-shadow: inset -4px 0 6px var(--queue-seam-ink); /* 5 */
   }
 }

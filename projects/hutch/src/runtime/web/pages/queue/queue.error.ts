@@ -1,7 +1,41 @@
+import {
+	QUEUE_LABEL_MAX_LENGTH,
+	QUEUE_MAX_PER_USER,
+	type QueueRenameRejection,
+} from "@packages/domain/queue";
 import type { Request } from "express";
 
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
 	save_failed: "Could not save article. Please try again.",
+};
+
+export const QUEUE_ERROR_LIMIT = "limit";
+
+const QUEUE_ERROR_MESSAGES: Record<string, string> = {
+	[QUEUE_ERROR_LIMIT]: `You can keep up to ${QUEUE_MAX_PER_USER} queues.`,
+};
+
+export const QUEUE_RENAME_REJECTIONS: Record<
+	QueueRenameRejection,
+	{ status: number; error: QueueRenameRejection; message: string }
+> = {
+	"unknown-queue": {
+		status: 404,
+		error: "unknown-queue",
+		message: "That queue no longer exists.",
+	},
+	"invalid-name": {
+		status: 422,
+		error: "invalid-name",
+		message: `Give the queue a name of ${QUEUE_LABEL_MAX_LENGTH} characters or fewer.`,
+	},
+};
+
+export type QueueErrorFlashMapping = (query: Record<string, unknown>) => string | undefined;
+
+export const queueErrorFlashMapping: QueueErrorFlashMapping = (query) => {
+	const errorCode = typeof query.queue_error === "string" ? query.queue_error : undefined;
+	return errorCode ? QUEUE_ERROR_MESSAGES[errorCode] : undefined;
 };
 
 export type HttpErrorMessageMapping = (query: Record<string, unknown>) => string | undefined;

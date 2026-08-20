@@ -77,6 +77,7 @@ import type {
 	ListUserSavesForUrl,
 	CreateQueueDefinition,
 	ListQueueDefinitions,
+	RenameQueueDefinition,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
@@ -319,6 +320,7 @@ export interface ArticleStoreBundle {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	createQueueDefinition: CreateQueueDefinition;
 	listQueueDefinitions: ListQueueDefinitions;
+	renameQueueDefinition: RenameQueueDefinition;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
 		lastSummaryClosedAt?: Date;

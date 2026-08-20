@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { QueueSlugSchema } from "@packages/domain/queue";
+import { QUEUE_LABEL_MAX_LENGTH, QueueSlugSchema } from "@packages/domain/queue";
 import { JSDOM } from "jsdom";
 import { buildQueueNav, renderQueueNav } from "./queue-nav.component";
 import { DEFAULT_QUEUE, type Queue } from "./queue.nav";
@@ -12,7 +12,7 @@ function renderNav(overrides: Partial<Parameters<typeof buildQueueNav>[0]> = {})
 		queues: QUEUES,
 		activeSlug: DEFAULT_QUEUE.slug,
 		linkParams: [["feature", "queues"]] as const,
-		newQueueHref: "/queue?feature=queues&create=1",
+		newQueueAction: "/queue/queues?feature=queues",
 		canCreate: true,
 		...overrides,
 	};
@@ -104,14 +104,23 @@ describe("buildQueueNav", () => {
 		expect(items).toEqual(["default", "work"]);
 	});
 
-	it("should offer a way to start a new queue, named for assistive tech and beside the list", () => {
+	it("should start a new queue by posting, so the queue exists before it is named", () => {
 		const doc = renderNav();
 
-		const control = doc.querySelector('nav.queue-nav > [data-test-action="new-queue"]');
-		assert(control, "the new-queue control must sit beside the queue list, not inside it");
-		expect({ label: control.textContent, href: control.getAttribute("href") }).toEqual({
+		const form = doc.querySelector("nav.queue-nav > form.queue-nav__new-form");
+		assert(form, "the new-queue control must sit beside the queue list, not inside it");
+		const control = form.querySelector('[data-test-action="new-queue"]');
+		assert(control, "the new-queue control must submit the create form");
+		expect({
+			method: form.getAttribute("method"),
+			action: form.getAttribute("action"),
+			type: control.getAttribute("type"),
+			label: control.textContent,
+		}).toEqual({
+			method: "POST",
+			action: "/queue/queues?feature=queues",
+			type: "submit",
 			label: "New queue",
-			href: "/queue?feature=queues&create=1",
 		});
 	});
 
@@ -120,6 +129,61 @@ describe("buildQueueNav", () => {
 
 		expect(doc.querySelector('[data-test-action="new-queue"]')).toBeNull();
 		expect(doc.querySelectorAll("[data-test-queue]")).toHaveLength(2);
+	});
+
+	it("should hand the just-created queue's tab to the reader to name in place", () => {
+		const doc = renderNav({
+			activeSlug: WORK.slug,
+			naming: { slug: WORK.slug, action: "/queue/queues/work/rename" },
+		});
+
+		const tab = queueLink(doc, "work");
+		expect({
+			tagName: tab.tagName,
+			action: tab.getAttribute("data-queue-rename"),
+			field: tab.getAttribute("data-queue-rename-field"),
+			max: tab.getAttribute("data-queue-label-max"),
+			current: tab.getAttribute("aria-current"),
+			title: tab.textContent,
+		}).toEqual({
+			tagName: "SPAN",
+			action: "/queue/queues/work/rename",
+			field: "label",
+			max: String(QUEUE_LABEL_MAX_LENGTH),
+			current: "page",
+			title: "Work Reading",
+		});
+	});
+
+	it("should leave every other queue a link while one is being named", () => {
+		const doc = renderNav({
+			activeSlug: WORK.slug,
+			naming: { slug: WORK.slug, action: "/queue/queues/work/rename" },
+		});
+
+		const other = queueLink(doc, "default");
+		expect(other.tagName).toBe("A");
+		expect(hrefParts(other).path).toBe("/queue");
+	});
+
+	it("should render a queue as a link once its naming moment has passed", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		const tab = queueLink(doc, "work");
+		expect(tab.tagName).toBe("A");
+		expect(hrefParts(tab).params.get("queue")).toBe("work");
+	});
+
+	it("should not open naming for a reader who cannot write", () => {
+		const doc = renderNav({
+			canCreate: false,
+			activeSlug: WORK.slug,
+			naming: { slug: WORK.slug, action: "/queue/queues/work/rename" },
+		});
+
+		const tab = queueLink(doc, "work");
+		expect(tab.tagName).toBe("A");
+		expect(hrefParts(tab).params.get("queue")).toBe("work");
 	});
 
 	it("should name the landmark so it is distinguishable from the page's other navs", () => {

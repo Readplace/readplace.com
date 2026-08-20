@@ -2,11 +2,17 @@
           <ul class="queue-nav__list">
             {{#each items}}
             <li class="queue-nav__item">
+              {{#if isNaming}}
+              <span class="{{linkClass}}" aria-current="page" data-queue-rename="{{renameAction}}" data-queue-rename-field="{{renameField}}" data-queue-label-max="{{maxLength}}" data-test-queue="{{name}}">{{title}}</span>
+              {{else}}
               <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}} data-test-queue="{{name}}">{{title}}</a>
+              {{/if}}
             </li>
             {{/each}}
           </ul>
           {{#if canCreate}}
-          <a class="queue-nav__new" href="{{newQueueHref}}" data-test-action="new-queue">{{icon "plus"}}<span class="sr-only">New queue</span></a>
+          <form class="queue-nav__new-form" method="POST" action="{{newQueueAction}}">
+            <button class="queue-nav__new" type="submit" data-test-action="new-queue">{{icon "plus"}}<span class="sr-only">New queue</span></button>
+          </form>
           {{/if}}
         </nav>

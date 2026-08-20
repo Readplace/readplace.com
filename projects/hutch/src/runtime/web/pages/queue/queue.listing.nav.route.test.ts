@@ -54,12 +54,12 @@ function countsUrl(doc: Document): string {
 	return trigger.getAttribute("hx-get") ?? "";
 }
 
-async function createQueue(agent: TestAgent, label: string): Promise<void> {
-	const response = await agent
-		.post("/queue/queues?feature=queues")
-		.type("form")
-		.send({ label });
-	assert.equal(response.status, 303, `creating the "${label}" queue must redirect to it`);
+async function createQueue(agent: TestAgent): Promise<string> {
+	const response = await agent.post("/queue/queues?feature=queues");
+	assert.equal(response.status, 303, "creating a queue must redirect to it");
+	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("created");
+	assert.ok(slug, "creating a queue must land the reader on it");
+	return slug;
 }
 
 describe("Queue nav", () => {
@@ -166,9 +166,9 @@ describe("Queue nav", () => {
 		it("should leave the default queue unnamed and name every other queue the reader opens", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await createQueue(agent, "Work Reading");
+			const queue = await createQueue(agent);
 			await agent
-				.post("/queue/save?feature=queues&queue=work-reading")
+				.post(`/queue/save?feature=queues&queue=${queue}`)
 				.type("form")
 				.send({ url: "https://example.com/a" });
 
@@ -178,14 +178,14 @@ describe("Queue nav", () => {
 			);
 			expect(countsUrl(onDefault)).toBe("/queue/counts?feature=queues");
 
-			const onWork = parse((await agent.get("/queue?feature=queues&queue=work-reading")).text);
+			const onWork = parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text);
 			expect(saveFormAction(onWork)).toBe(
-				"/queue/save?queue=work-reading&feature=queues&utm_source=queue&utm_medium=internal&utm_content=save",
+				`/queue/save?queue=${queue}&feature=queues&utm_source=queue&utm_medium=internal&utm_content=save`,
 			);
-			expect(countsUrl(onWork)).toBe("/queue/counts?queue=work-reading&feature=queues");
+			expect(countsUrl(onWork)).toBe(`/queue/counts?queue=${queue}&feature=queues`);
 			const cardUrls = queueUrlsIn(onWork).filter((url) => url.includes("/queue/0"));
 			expect(cardUrls.length).toBeGreaterThan(0);
-			expect(cardUrls.filter((url) => !url.includes("queue=work-reading"))).toEqual([]);
+			expect(cardUrls.filter((url) => !url.includes(`queue=${queue}`))).toEqual([]);
 		});
 
 		it("should keep the reader on the flagged view when clamping a page past the end of the listing", async () => {

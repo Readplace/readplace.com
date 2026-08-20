@@ -18,8 +18,7 @@ import { renderQueueCountsTrigger, renderStatusToast } from "./queue-mutation-fr
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderDeleteConfirm } from "./queue-card/delete-confirm.component";
 import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component";
-import { buildQueueNav, renderQueueNav } from "./queue-nav.component";
-import { type QueueCreateDisplayModel, renderQueueCreate } from "./queue-create.component";
+import { type QueueNaming, buildQueueNav, renderQueueNav } from "./queue-nav.component";
 import { DEFAULT_QUEUE, type Queue } from "./queue.nav";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
@@ -38,10 +37,11 @@ export interface QueueRailViewModel {
 	queues: readonly Queue[];
 	activeQueue: Queue;
 	linkParams: LinkParams;
-	newQueueHref: string;
+	newQueueAction: string;
 	canCreate: boolean;
-	createForm?: QueueCreateDisplayModel;
+	naming?: QueueNaming;
 	createdLabel?: string;
+	errorFlash?: string;
 }
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
@@ -67,8 +67,8 @@ interface QueueDisplayModel {
 	deleteConfirmsHtml: string;
 	mainClass: string;
 	queueNavHtml: string;
-	queueCreateHtml: string;
 	queueCreatedLabel?: string;
+	queueErrorFlash?: string;
 	queueTitle: string;
 	saveAction: string;
 	filtersHtml: string;
@@ -174,13 +174,14 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 						queues: options.rail.queues,
 						activeSlug: options.rail.activeQueue.slug,
 						linkParams: options.rail.linkParams,
-						newQueueHref: options.rail.newQueueHref,
+						newQueueAction: options.rail.newQueueAction,
 						canCreate: options.rail.canCreate,
+						naming: options.rail.naming,
 					}),
 				)
 			: "",
-		queueCreateHtml: options.rail?.createForm ? renderQueueCreate(options.rail.createForm) : "",
 		queueCreatedLabel: options.rail?.createdLabel,
+		queueErrorFlash: options.rail?.errorFlash,
 		queueTitle: options.rail?.activeQueue.label ?? DEFAULT_QUEUE.label,
 		saveAction: withInternalTracking(
 			`${QUEUE_SAVE_PATH}${queueReturnQuery(vm.filters, linkParams)}`,
@@ -223,6 +224,9 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 	};
 }
 
+const QUEUE_RENAME_SCRIPT =
+	'<script src="/client-dist/queue-rename.client.js" defer></script>';
+
 const autoSubmitScript = (cspNonce: CspNonce) => `
 <script nonce="${cspNonce}">
 	(function () {
@@ -245,6 +249,7 @@ export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; dev
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT];
+	if (options.rail) scriptParts.push(QUEUE_RENAME_SCRIPT);
 	if (saveUrl) scriptParts.push(autoSubmitScript(options.cspNonce));
 
 	return {

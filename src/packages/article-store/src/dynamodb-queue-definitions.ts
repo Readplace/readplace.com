@@ -14,6 +14,7 @@ import {
 import type {
 	CreateQueueDefinition,
 	ListQueueDefinitions,
+	RenameQueueDefinition,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
 import { QUEUE_DEFINITION_KEY_PREFIX, queueDefinitionKey } from "./user-queue-partition";
@@ -30,6 +31,7 @@ export function initDynamoDbQueueDefinitions(deps: {
 }): {
 	createQueueDefinition: CreateQueueDefinition;
 	listQueueDefinitions: ListQueueDefinitions;
+	renameQueueDefinition: RenameQueueDefinition;
 } {
 	const queueDefinitions = defineDynamoTable({
 		client: deps.client,
@@ -91,5 +93,22 @@ export function initDynamoDbQueueDefinitions(deps: {
 		}
 	};
 
-	return { createQueueDefinition, listQueueDefinitions };
+	const renameQueueDefinition: RenameQueueDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
+		try {
+			await queueDefinitions.update({
+				Key: { userId: params.userId, url: queueDefinitionKey(params.slug) },
+				UpdateExpression: "SET #label = :label",
+				ConditionExpression: "attribute_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url", "#label": "queueLabel" },
+				ExpressionAttributeValues: { ":label": params.label },
+			});
+			return { renamed: true };
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return { renamed: false };
+			throw error;
+		}
+	};
+
+	return { createQueueDefinition, listQueueDefinitions, renameQueueDefinition };
 }

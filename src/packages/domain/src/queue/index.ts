@@ -6,6 +6,12 @@ export {
 	type QueueSlug,
 	DEFAULT_QUEUE_SLUG,
 	QueueLimitReachedError,
-	type NamedQueue,
 	parseQueueLabel,
 } from "./queue-name.schema";
+export { generateQueueSlug } from "./generate-queue-slug";
+export { defaultQueueLabel } from "./default-queue-label";
+export {
+	decideQueueRename,
+	type QueueRenameDecision,
+	type QueueRenameRejection,
+} from "./queue-rename";

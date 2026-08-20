@@ -1237,6 +1237,42 @@ describe("initInMemoryArticleStore", () => {
 			]);
 		});
 
+		it("renames a queue in place, leaving its address and position alone", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+			await store.createQueueDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
+
+			expect(
+				await store.renameQueueDefinition({ userId: USER_A, slug: WORK, label: "Deep Work" }),
+			).toEqual({ renamed: true });
+			expect(
+				(await store.listQueueDefinitions(USER_A)).map((d) => [d.slug, d.label]),
+			).toEqual([
+				["later", "Later"],
+				["work", "Deep Work"],
+			]);
+		});
+
+		it("reports a queue the reader does not hold as unrenamed", async () => {
+			const store = initInMemoryArticleStore();
+
+			expect(
+				await store.renameQueueDefinition({ userId: USER_A, slug: WORK, label: "Deep Work" }),
+			).toEqual({ renamed: false });
+		});
+
+		it("never renames another reader's queue of the same name", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createQueueDefinition({ userId: USER_B, slug: WORK, label: "Theirs", createdAt });
+
+			expect(
+				await store.renameQueueDefinition({ userId: USER_A, slug: WORK, label: "Mine" }),
+			).toEqual({ renamed: false });
+			expect((await store.listQueueDefinitions(USER_B)).map((d) => d.label)).toEqual(["Theirs"]);
+		});
+
 		it("refuses a slug the reader already holds", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");

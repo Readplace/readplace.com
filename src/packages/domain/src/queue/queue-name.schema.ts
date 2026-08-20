@@ -23,25 +23,7 @@ export class QueueLimitReachedError extends Error {
 	}
 }
 
-export interface NamedQueue {
-	slug: QueueSlug;
-	label: string;
-}
-
-function slugFromLabel(label: string): QueueSlug | undefined {
-	const normalized = label
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.slice(0, QUEUE_LABEL_MAX_LENGTH)
-		.replace(/^-+|-+$/g, "");
-	const parsed = QueueSlugSchema.safeParse(normalized);
+export function parseQueueLabel(raw: string): string | undefined {
+	const parsed = QueueLabelSchema.safeParse(raw.trim());
 	return parsed.success ? parsed.data : undefined;
-}
-
-export function parseQueueLabel(raw: string): NamedQueue | undefined {
-	const parsedLabel = QueueLabelSchema.safeParse(raw.trim());
-	if (!parsedLabel.success) return undefined;
-	const slug = slugFromLabel(parsedLabel.data);
-	if (!slug) return undefined;
-	return { label: parsedLabel.data, slug };
 }

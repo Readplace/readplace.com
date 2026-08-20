@@ -28,6 +28,7 @@ import type {
 	DeleteArticle,
 	DeleteQueueArticle,
 	ListQueueDefinitions,
+	RenameQueueDefinition,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	FindArticleById,
@@ -146,6 +147,7 @@ export function initInMemoryArticleStore(): {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	createQueueDefinition: CreateQueueDefinition;
 	listQueueDefinitions: ListQueueDefinitions;
+	renameQueueDefinition: RenameQueueDefinition;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
@@ -493,6 +495,14 @@ export function initInMemoryArticleStore(): {
 		return { created: true };
 	};
 
+	const renameQueueDefinition: RenameQueueDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
+		const definition = queueDefinitions.get(queueDefinitionKey(params.userId, params.slug));
+		if (!definition) return { renamed: false };
+		definition.label = params.label;
+		return { renamed: true };
+	};
+
 	const listQueueDefinitions: ListQueueDefinitions = async (userId) =>
 		[...queueDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
@@ -683,6 +693,7 @@ export function initInMemoryArticleStore(): {
 		listUserSavesForUrl,
 		createQueueDefinition,
 		listQueueDefinitions,
+		renameQueueDefinition,
 		getSummaryToggleState,
 		readContent,
 		writeContent,

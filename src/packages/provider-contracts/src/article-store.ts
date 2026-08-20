@@ -255,6 +255,12 @@ export type CreateQueueDefinition = (params: {
 
 export type ListQueueDefinitions = (userId: UserId) => Promise<QueueDefinitionData[]>;
 
+export type RenameQueueDefinition = (params: {
+	userId: UserId;
+	slug: QueueSlug;
+	label: string;
+}) => Promise<{ renamed: boolean }>;
+
 export interface SaveQueueArticleParams extends SaveArticleParams {
 	queue: QueueSlug;
 }

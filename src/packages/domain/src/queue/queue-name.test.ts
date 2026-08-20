@@ -4,56 +4,34 @@ import {
 	QUEUE_LABEL_MAX_LENGTH,
 	QUEUE_MAX_PER_USER,
 	QueueLimitReachedError,
-	QueueSlugSchema,
 	parseQueueLabel,
 } from "./queue-name.schema";
 
 describe("parseQueueLabel", () => {
-	it("keeps the label as typed and derives a lowercase-dashed slug", () => {
-		assert.deepEqual(parseQueueLabel("Work Reading"), {
-			label: "Work Reading",
-			slug: "work-reading",
-		});
+	it("keeps the name as typed", () => {
+		assert.equal(parseQueueLabel("Work Reading"), "Work Reading");
 	});
 
-	it("trims the label before deriving the slug", () => {
-		assert.deepEqual(parseQueueLabel("  Deep Work  "), {
-			label: "Deep Work",
-			slug: "deep-work",
-		});
+	it("trims the name the reader typed", () => {
+		assert.equal(parseQueueLabel("  Deep Work  "), "Deep Work");
 	});
 
-	it("collapses runs of non-alphanumerics into a single hyphen and trims the edges", () => {
-		assert.deepEqual(parseQueueLabel("Q&A   reads!!"), {
-			label: "Q&A   reads!!",
-			slug: "q-a-reads",
-		});
-		assert.deepEqual(parseQueueLabel("--weird__name--"), {
-			label: "--weird__name--",
-			slug: "weird-name",
-		});
-	});
-
-	it("accepts a label at the visible-width cap", () => {
+	it("accepts a name at the visible-width cap", () => {
 		const label = "a".repeat(QUEUE_LABEL_MAX_LENGTH);
-		assert.deepEqual(parseQueueLabel(label), { label, slug: label });
+		assert.equal(parseQueueLabel(label), label);
 	});
 
-	it("rejects a label past the cap rather than truncating it to a name the reader never typed", () => {
+	it("rejects a name past the cap rather than truncating it to one the reader never typed", () => {
 		assert.equal(parseQueueLabel("a".repeat(QUEUE_LABEL_MAX_LENGTH + 1)), undefined);
 	});
 
-	it("rejects a label that carries no characters a slug can be built from", () => {
+	it("rejects a name with no characters in it", () => {
 		assert.equal(parseQueueLabel(""), undefined);
 		assert.equal(parseQueueLabel("   "), undefined);
-		assert.equal(parseQueueLabel("🎉🎉"), undefined);
-		assert.equal(parseQueueLabel("!!!"), undefined);
 	});
 
-	it("produces a slug the slug schema accepts", () => {
-		const named = parseQueueLabel("Morning Reads");
-		assert.ok(named);
-		assert.equal(QueueSlugSchema.parse(named.slug), named.slug);
+	it("takes a name made only of emoji, which the queue's own id addresses", () => {
+		assert.equal(parseQueueLabel("🎉🎉"), "🎉🎉");
 	});
 });
 

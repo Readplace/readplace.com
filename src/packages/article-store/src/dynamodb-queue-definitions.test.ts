@@ -241,3 +241,61 @@ describe("createQueueDefinition", () => {
 		).rejects.toThrow("throttled");
 	});
 });
+
+describe("renameQueueDefinition", () => {
+	it("writes only the label, on a row that must already exist", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { renameQueueDefinition } = initDynamoDbQueueDefinitions({
+			client: createFakeDynamo([{}], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await renameQueueDefinition({ userId: USER, slug: WORK, label: "Deep Work" })).toEqual({
+			renamed: true,
+		});
+		expect(commands[0].name).toBe("UpdateCommand");
+		expect(commands[0].input).toMatchObject({
+			TableName: TABLE,
+			Key: { userId: USER, url: "readplace:queue-def/work" },
+			ExpressionAttributeValues: { ":label": "Deep Work" },
+		});
+		expect(String(commands[0].input.UpdateExpression)).toContain("SET #label = :label");
+		expect(String(commands[0].input.ConditionExpression)).toContain("attribute_exists(#url)");
+	});
+
+	it("reports a queue that no longer has a definition row", async () => {
+		const { renameQueueDefinition } = initDynamoDbQueueDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw conditionalCheckFailed();
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await renameQueueDefinition({ userId: USER, slug: WORK, label: "Deep Work" })).toEqual({
+			renamed: false,
+		});
+	});
+
+	it("lets an unexpected storage failure surface", async () => {
+		const { renameQueueDefinition } = initDynamoDbQueueDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw new Error("throttled");
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		await expect(
+			renameQueueDefinition({ userId: USER, slug: WORK, label: "Deep Work" }),
+		).rejects.toThrow("throttled");
+	});
+});

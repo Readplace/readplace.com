@@ -368,6 +368,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			listUserSavesForUrl: articleStoreMemory.listUserSavesForUrl,
 			createQueueDefinition: articleStoreMemory.createQueueDefinition,
 			listQueueDefinitions: articleStoreMemory.listQueueDefinitions,
+			renameQueueDefinition: articleStoreMemory.renameQueueDefinition,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
 			readArticleContent: (url) =>
 				articleStoreMemory.readContent(ArticleResourceUniqueId.parse(url)),

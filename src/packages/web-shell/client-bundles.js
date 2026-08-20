@@ -119,7 +119,7 @@ const SHARED_CLIENT_BUNDLES = [
       "Toast.initToastDismiss({",
       "  document: window.document,",
       "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); document.body.addEventListener('htmx:oobAfterSwap', cb); },",
+      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); document.body.addEventListener('htmx:oobAfterSwap', cb); document.body.addEventListener('readplace:toast', cb); },",
       "  addBeforeRequestListener: function (cb) { document.body.addEventListener('htmx:beforeRequest', cb); },",
       "  addAfterSettleListener: function (cb) { document.body.addEventListener('htmx:afterSettle', cb); }",
       "});",

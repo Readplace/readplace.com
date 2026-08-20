@@ -41,6 +41,7 @@ import type {
 	FindQueueArticles,
 	FindSavedUrls,
 	ListQueueDefinitions,
+	RenameQueueDefinition,
 	ListUserSavesForUrl,
 	MarkArticleViewed,
 	MarkQueueArticleViewed,
@@ -128,7 +129,6 @@ import {
 	QUEUE_CREATE_PATH,
 	canonicalQueuePageRedirect,
 } from "./queue.url";
-import type { LinkParams } from "./queue.url";
 import {
 	type QueueContext,
 	QUEUES_FEATURE,
@@ -137,26 +137,24 @@ import {
 } from "./queue-context";
 import { queueScopedStore } from "./queue-scoped-store";
 import {
-	QUEUE_CREATE_ERROR_LIMIT,
-	QUEUE_CREATE_ERROR_NAME,
-	QUEUE_CREATE_ERROR_NAME_TAKEN,
-	buildQueueCreate,
-} from "./queue-create.component";
-import {
 	DEFAULT_QUEUE_SLUG,
 	QueueLimitReachedError,
+	QueueSlugSchema,
+	type QueueRenameRejection,
 	type QueueSlug,
-	parseQueueLabel,
+	decideQueueRename,
+	defaultQueueLabel,
+	generateQueueSlug,
 } from "@packages/domain/queue";
 import type { SaveArticleAtQueueTop } from "@packages/save-article";
 import type { QueueRailViewModel } from "./queue.component";
-import { queueReturnQuery } from "./queue.url";
+import { queueRenamePath, queueReturnQuery } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./queue.error";
-import { collectStatusFlashParams, importFlashMapping, statusFlashMapping, statusFlashFor } from "./queue.error";
+import { QUEUE_ERROR_LIMIT, QUEUE_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, queueErrorFlashMapping, statusFlashMapping, statusFlashFor } from "./queue.error";
 import { renderQueueMutationFragment } from "./queue-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -314,6 +312,7 @@ interface QueueDependencies {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listQueueDefinitions: ListQueueDefinitions;
 	createQueueDefinition: CreateQueueDefinition;
+	renameQueueDefinition: RenameQueueDefinition;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	publishLinkSaved: PublishLinkSaved;
@@ -1004,22 +1003,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		if (!context.railed) return undefined;
 		const canCreate = !accessIsReadOnly;
 		const createdSlug = typeof req.query.created === "string" ? req.query.created : undefined;
-		const isCreating = req.query.create === "1" && canCreate;
+		const created = context.queues.find((queue) => queue.slug === createdSlug);
 		return {
 			queues: context.queues,
 			activeQueue: context.activeQueue,
 			linkParams: context.linkParams,
-			newQueueHref: buildQueueUrl(context.state, [...context.linkParams, ["create", "1"]]),
+			newQueueAction: `${QUEUE_CREATE_PATH}${queueReturnQuery(context.state, context.linkParams)}`,
 			canCreate,
-			createForm: isCreating
-				? buildQueueCreate({
-						action: `${QUEUE_CREATE_PATH}${queueReturnQuery(context.state, context.linkParams)}`,
-						cancelUrl: buildQueueUrl(context.state, context.linkParams),
-						submittedLabel: typeof req.query.name === "string" ? req.query.name : "",
-						errorCode: typeof req.query.error === "string" ? req.query.error : undefined,
-					})
-				: undefined,
-			createdLabel: context.queues.find((queue) => queue.slug === createdSlug)?.label,
+			naming: created && {
+				slug: created.slug,
+				action: `${queueRenamePath(created.slug)}${queueReturnQuery({}, context.linkParams)}`,
+			},
+			createdLabel: created?.label,
+			errorFlash: queueErrorFlashMapping(req.query),
 		};
 	};
 
@@ -1767,44 +1763,84 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const context = await resolveQueueContext(req, userId);
-		const submitted = typeof req.body?.label === "string" ? req.body.label : "";
-		const backTo = (extras: LinkParams): string =>
-			buildQueueUrl(context.state, [...context.linkParams, ...extras]);
-		const rejected = (code: string): string =>
-			backTo([["create", "1"], ["error", code], ["name", submitted]]);
-
-		const named = parseQueueLabel(submitted);
-		if (!named) {
-			res.redirect(303, rejected(QUEUE_CREATE_ERROR_NAME));
+		if (!context.railed) {
+			res.status(404).type("html").send("");
 			return;
 		}
-		if (context.queues.some((queue) => queue.slug === named.slug)) {
-			res.redirect(303, rejected(QUEUE_CREATE_ERROR_NAME_TAKEN));
-			return;
-		}
+		const slug = generateQueueSlug();
+		const label = defaultQueueLabel(context.queues.map((queue) => queue.label));
 
 		try {
 			const { created } = await deps.createQueueDefinition({
 				userId,
-				slug: named.slug,
-				label: named.label,
+				slug,
+				label,
 				createdAt: deps.now(),
 			});
 			if (!created) {
-				res.redirect(303, rejected(QUEUE_CREATE_ERROR_NAME_TAKEN));
+				res.redirect(303, buildQueueUrl({ queue: slug }, context.linkParams));
 				return;
 			}
 		} catch (error) {
 			if (!(error instanceof QueueLimitReachedError)) throw error;
-			res.redirect(303, rejected(QUEUE_CREATE_ERROR_LIMIT));
+			res.redirect(
+				303,
+				buildQueueUrl(context.state, [
+					...context.linkParams,
+					["queue_error", QUEUE_ERROR_LIMIT],
+				]),
+			);
 			return;
 		}
 
 		res.redirect(
 			303,
-			buildQueueUrl({ queue: named.slug }, [...context.linkParams, ["created", named.slug]]),
+			buildQueueUrl({ queue: slug }, [...context.linkParams, ["created", slug]]),
 		);
 	});
+
+	router.post(
+		"/queues/:slug/rename",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const reject = (reason: QueueRenameRejection): void => {
+				const { status, error, message } = QUEUE_RENAME_REJECTIONS[reason];
+				res.status(status).json({ error, message });
+			};
+			if (!deps.featureToggle.isEnabled(req, QUEUES_FEATURE)) {
+				reject("unknown-queue");
+				return;
+			}
+			const requested = QueueSlugSchema.safeParse(req.params.slug);
+			if (!requested.success) {
+				reject("unknown-queue");
+				return;
+			}
+			const definitions = await deps.listQueueDefinitions(userId);
+			const decision = decideQueueRename({
+				slug: requested.data,
+				label: typeof req.body?.label === "string" ? req.body.label : "",
+				ownedSlugs: definitions.map((definition) => definition.slug),
+			});
+			if (!decision.ok) {
+				reject(decision.reason);
+				return;
+			}
+			const { renamed } = await deps.renameQueueDefinition({
+				userId,
+				slug: decision.slug,
+				label: decision.label,
+			});
+			if (!renamed) {
+				reject("unknown-queue");
+				return;
+			}
+			res.json({ slug: decision.slug, label: decision.label });
+		},
+	);
 
 	router.get("/:id/summary", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");

@@ -1,4 +1,44 @@
-import { collectStatusFlashParams, httpErrorMessageMapping, statusFlashMapping } from "./queue.error";
+import { QUEUE_LABEL_MAX_LENGTH, QUEUE_MAX_PER_USER } from "@packages/domain/queue";
+import {
+	QUEUE_RENAME_REJECTIONS,
+	collectStatusFlashParams,
+	httpErrorMessageMapping,
+	queueErrorFlashMapping,
+	statusFlashMapping,
+} from "./queue.error";
+
+describe("queueErrorFlashMapping", () => {
+	it("returns undefined when queue_error is absent", () => {
+		expect(queueErrorFlashMapping({})).toBeUndefined();
+	});
+
+	it("returns undefined when queue_error is not a string", () => {
+		expect(queueErrorFlashMapping({ queue_error: 42 })).toBeUndefined();
+	});
+
+	it("returns undefined for an unknown queue error code", () => {
+		expect(queueErrorFlashMapping({ queue_error: "something_else" })).toBeUndefined();
+	});
+
+	it("names the cap when the reader has run out of queues", () => {
+		expect(queueErrorFlashMapping({ queue_error: "limit" })).toBe(
+			`You can keep up to ${QUEUE_MAX_PER_USER} queues.`,
+		);
+	});
+});
+
+describe("QUEUE_RENAME_REJECTIONS", () => {
+	it("answers a missing queue as not-found and a bad name as unprocessable", () => {
+		expect(QUEUE_RENAME_REJECTIONS["unknown-queue"].status).toBe(404);
+		expect(QUEUE_RENAME_REJECTIONS["invalid-name"].status).toBe(422);
+	});
+
+	it("carries copy the client can show the reader verbatim", () => {
+		expect(QUEUE_RENAME_REJECTIONS["invalid-name"].message).toBe(
+			`Give the queue a name of ${QUEUE_LABEL_MAX_LENGTH} characters or fewer.`,
+		);
+	});
+});
 
 describe("httpErrorMessageMapping", () => {
 	it("returns undefined when error_code is absent", () => {

@@ -79,6 +79,10 @@ export const QUEUE_CREATE_PATH = `${QUEUE_PATH}/queues`;
 
 export const QUEUE_DISMISS_ONBOARDING_PATH = `${QUEUE_PATH}/dismiss-onboarding`;
 
+export function queueRenamePath(queue: QueueSlug): string {
+	return `${QUEUE_CREATE_PATH}/${queue}/rename`;
+}
+
 export function buildQueueCountsUrl(
 	state: Partial<QueueUrlState>,
 	extraParams: LinkParams = [],

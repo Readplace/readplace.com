@@ -41,7 +41,8 @@ const QUEUES_PANEL = "?feature=queues";
 /* A name at the 24-character cap with nothing to break at — the hardest case
  * the rail has to render in full, so it exercises the wrap and the cap at once. */
 const LONGEST_QUEUE_NAME = "Longestpossiblequeuename";
-const LONGEST_QUEUE_TAB = '[data-test-queue="longestpossiblequeuename"]';
+const NAMING_TAB = "[data-queue-rename]";
+const ACTIVE_QUEUE_TAB = "main.queue .queue-nav__link--active";
 
 const WCAG_REFLOW_MINIMUM = { width: 320, height: 800 };
 const PHONE = { width: 390, height: 844 };
@@ -479,13 +480,13 @@ test.describe("Queue nav with a long queue name", () => {
 		const singleLine = await measuredBox(page, QUEUE_NAV_LINK);
 
 		await page.click('[data-test-action="new-queue"]');
-		await page.waitForSelector("#queue-create-label");
-		await page.fill("#queue-create-label", LONGEST_QUEUE_NAME);
-		await page.click('[data-test-action="create-queue"]');
-		await page.waitForSelector(LONGEST_QUEUE_TAB);
+		await page.waitForSelector(NAMING_TAB);
+		await page.keyboard.type(LONGEST_QUEUE_NAME);
+		await page.keyboard.press("Enter");
 
-		await expect(page.locator(LONGEST_QUEUE_TAB)).toHaveText(LONGEST_QUEUE_NAME);
-		const wrapped = await measuredBox(page, LONGEST_QUEUE_TAB);
+		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText(LONGEST_QUEUE_NAME);
+		await expect(page.locator(QUEUE_TITLE)).toHaveText(LONGEST_QUEUE_NAME);
+		const wrapped = await measuredBox(page, ACTIVE_QUEUE_TAB);
 		assert.ok(
 			wrapped.height > singleLine.height,
 			"a name too wide for one line must wrap rather than be clipped",
@@ -498,13 +499,36 @@ test.describe("Queue nav with a long queue name", () => {
 
 		for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, BREAKPOINT, DESKTOP]) {
 			await page.setViewportSize(viewport);
-			await expect(page.locator(LONGEST_QUEUE_TAB)).toBeVisible();
+			await expect(page.locator(ACTIVE_QUEUE_TAB)).toBeVisible();
 			const overflows = await page.evaluate(pageOverflowsSideways);
 			expect({ width: viewport.width, overflows }).toEqual({
 				width: viewport.width,
 				overflows: false,
 			});
 		}
+	});
+});
+
+test.describe("Naming a queue the reader just made", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("keeps the default name when the reader backs out, and does not ask again", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-nav-name-esc-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
+
+		await page.click('[data-test-action="new-queue"]');
+		await page.waitForSelector(NAMING_TAB);
+		await page.keyboard.type(LONGEST_QUEUE_NAME);
+		await page.keyboard.press("Escape");
+
+		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText("New Queue 1");
+		await page.reload({ waitUntil: "domcontentloaded" });
+		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText("New Queue 1");
+		await expect(page.locator(NAMING_TAB)).toHaveCount(0);
 	});
 });
 
