@@ -10,6 +10,7 @@ import {
 	initFetchPinnedCrawl,
 	initXTwitterSiteRules,
 	CRAWL_PERSONAS,
+	PROXIED_FETCH_TIMEOUTS,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import {
@@ -63,7 +64,13 @@ export function initParserDepBundle(deps: {
 	];
 	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
 	const crawlArticle = initFetchPinnedCrawl({
-		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError, logInfo: deps.logInfo }),
+		crawlArticle: initCrawlArticle({
+			crawlFetch,
+			siteRules,
+			logError: deps.logError,
+			logInfo: deps.logInfo,
+			fetchTimeouts: PROXIED_FETCH_TIMEOUTS,
+		}),
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
 	});
 	const { parseHtml } = initReadabilityParser({
@@ -114,6 +121,7 @@ export function initComprehensiveParserDepBundle(deps: {
 			extractPdf: deps.extractPdf,
 			logError: deps.logError,
 			logInfo: deps.logInfo,
+			fetchTimeouts: PROXIED_FETCH_TIMEOUTS,
 		}),
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
 	});

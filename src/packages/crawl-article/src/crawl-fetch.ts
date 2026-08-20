@@ -28,6 +28,16 @@ const CURL_LEG_MAX_MS = 3000;
 const PROXY_RESERVE_MILLISECONDS = 45_000;
 const PROXY_PRIMARY_MAX_MILLISECONDS = 40_000;
 
+/**
+ * The header budget a crawl must be given when its ladder may run a proxied
+ * second pass: the direct ladder's own ceiling plus the reserve held back for
+ * the proxy. A smaller budget silently clamps the reserve — production ran a
+ * 30s budget and the proxied legs aborted at ~14s, discarding fetches the
+ * unlocker completes at a 12.6s median and a 37.2s 90th percentile.
+ */
+export const PROXIED_CRAWL_HEADERS_MILLISECONDS =
+	PRIMARY_LEG_MAX_MS + H2_LEG_MAX_MS + CURL_LEG_MAX_MS + PROXY_RESERVE_MILLISECONDS;
+
 export type CrawlFetchInit = {
 	headers?: Record<string, string>;
 	budgetMs: number;

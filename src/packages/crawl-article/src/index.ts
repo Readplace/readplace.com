@@ -4,6 +4,7 @@ export {
 	parsePdfFromBuffer,
 	DEFAULT_CRAWL_HEADERS,
 	CRAWL_PERSONAS,
+	PROXIED_FETCH_TIMEOUTS,
 } from "./crawl-article";
 export type { Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";

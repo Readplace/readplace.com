@@ -4,7 +4,7 @@ import type {
 	CrawlArticle,
 	CrawlArticleResult,
 } from "./crawl-article.types";
-import type { CrawlFetch } from "./crawl-fetch";
+import { type CrawlFetch, PROXIED_CRAWL_HEADERS_MILLISECONDS } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { initLogFetchFailure } from "./log-fetch-failure";
@@ -28,6 +28,17 @@ import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
  * 240 s timeout (30 + 180 = 210 s worst case).
  */
 const DEFAULT_FETCH_TIMEOUTS = { headersMs: 30000, bodyMs: 180000 } as const;
+
+/**
+ * Timeouts for a crawler whose fetch is configured with an egress proxy. Only
+ * the header budget differs: it has to seat the direct ladder and the proxied
+ * second pass, where the default leaves no room for the latter. Reading the
+ * body is unaffected by which egress delivered it.
+ */
+export const PROXIED_FETCH_TIMEOUTS = {
+	headersMs: PROXIED_CRAWL_HEADERS_MILLISECONDS,
+	bodyMs: DEFAULT_FETCH_TIMEOUTS.bodyMs,
+} as const;
 
 const MAX_SITE_RULE_REDIRECTS = 3;
 
@@ -355,8 +366,10 @@ export function initCrawlArticle(deps: {
 	extractPdf?: ExtractPdf;
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
-	/** Test seam: production callers take the defaults; tests inject
-	 * millisecond-scale budgets so the timer-abort paths run for real. */
+	/** Omitted, an unproxied crawler's budget applies. A composition root that
+	 * configures an egress proxy passes PROXIED_FETCH_TIMEOUTS, whose header
+	 * budget seats the proxied second pass; tests inject millisecond-scale
+	 * budgets so the timer-abort paths run for real. */
 	fetchTimeouts?: FetchTimeouts;
 }): CrawlArticle {
 	const { crawlFetch, siteRules, extractPdf, logError, logInfo } = deps;
