@@ -63,19 +63,21 @@ describe("EXCLUDE_PATTERNS — internal-network hostnames", () => {
 	}
 });
 
-describe("EXCLUDE_PATTERNS — reddit.com entry", () => {
+describe("EXCLUDE_PATTERNS — reddit.com entries", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
-		{ url: "https://www.reddit.com/r/javascript/comments/abc/title/", excluded: true, label: "www.reddit.com /comments/ URL" },
+		// `/r/<sub>/comments/` resolves through the proxied crawl, so it must
+		// surface: a failure there is a regression, not known-broken noise.
+		{ url: "https://www.reddit.com/r/javascript/comments/abc/title/", excluded: false, label: "www.reddit.com /comments/ URL (now crawlable)" },
+		{ url: "https://reddit.com/r/javascript/comments/abc", excluded: false, label: "apex /comments/ (now crawlable)" },
 		{ url: "https://old.reddit.com/r/javascript/", excluded: true, label: "old.reddit.com subreddit front" },
+		{ url: "https://old.reddit.com/r/js/comments/abc", excluded: true, label: "old.reddit.com /comments/" },
 		{ url: "https://m.reddit.com/user/jay/", excluded: true, label: "m.reddit.com user page" },
+		{ url: "https://www.reddit.com/user/jay/comments/abc/x/", excluded: true, label: "www user page" },
 		{ url: "https://np.reddit.com/r/javascript/s/3GQafG3qjy", excluded: true, label: "np.reddit.com /s/ shortlink" },
-		{ url: "https://reddit.com/r/javascript/comments/abc", excluded: true, label: "apex reddit.com" },
-		{ url: "http://reddit.com/foo", excluded: true, label: "http scheme" },
-		{ url: "https://reddit.com:443/foo", excluded: true, label: "explicit port" },
-		{ url: "https://reddit.com?q=1", excluded: true, label: "query immediately after host" },
-		{ url: "https://notreddit.com/foo", excluded: false, label: "prefixed similar host (should NOT match)" },
-		{ url: "https://reddit.com.evil.com/foo", excluded: false, label: "subdomain trick (should NOT match)" },
-		{ url: "https://other.test/reddit.com/foo", excluded: false, label: "reddit.com inside a path" },
+		{ url: "https://www.reddit.com/r/coding/s/cQA6NT9Bvo", excluded: true, label: "www /s/ shortlink" },
+		{ url: "https://notreddit.com/user/foo", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://reddit.com.evil.com/user/foo", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://other.test/reddit.com/user/foo", excluded: false, label: "reddit.com inside a path" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
@@ -106,17 +108,12 @@ describe("EXCLUDE_PATTERNS — stackoverflow.com entry", () => {
 	}
 });
 
-describe("EXCLUDE_PATTERNS — bizjournals.com entry", () => {
+describe("EXCLUDE_PATTERNS — bizjournals.com is no longer excluded", () => {
+	// The site-wide Cloudflare challenge that motivated the host-wide entry is
+	// answered by the proxied crawl, so these rows must surface again.
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
-		{ url: "https://www.bizjournals.com/tampabay/news/2026/07/22/rays-tampa-ballpark-early-construction.html?rel=plus", excluded: true, label: "stored row shape — www article with ?rel=plus" },
-		{ url: "https://www.bizjournals.com/triad/news/2026/07/20/first-horizon-coliseum-complex-greensboro-beard-nc.html?rel=plus&__readwiseLocation=", excluded: true, label: "stored row shape — www article with a readwise suffix" },
-		{ url: "https://bizjournals.com/boston/news/2026/07/17/opinion-what-the-world-cup-taught-massachusetts.html", excluded: true, label: "apex bizjournals.com" },
-		{ url: "http://bizjournals.com/washington/news", excluded: true, label: "http scheme" },
-		{ url: "https://bizjournals.com:443/boston", excluded: true, label: "explicit port" },
-		{ url: "https://www.bizjournals.com?q=1", excluded: true, label: "query immediately after host" },
-		{ url: "https://notbizjournals.com/boston", excluded: false, label: "prefixed similar host (should NOT match)" },
-		{ url: "https://bizjournals.com.evil.com/boston", excluded: false, label: "subdomain trick (should NOT match)" },
-		{ url: "https://other.test/bizjournals.com/boston", excluded: false, label: "bizjournals.com inside a path" },
+		{ url: "https://www.bizjournals.com/tampabay/news/2026/07/22/rays-tampa-ballpark-early-construction.html?rel=plus", excluded: false, label: "stored row shape — www article with ?rel=plus" },
+		{ url: "https://bizjournals.com/boston/news/2026/07/17/opinion-what-the-world-cup-taught-massachusetts.html", excluded: false, label: "apex bizjournals.com" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
@@ -380,19 +377,9 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			label: "same directory different file",
 		},
 		{
-			url: "https://www.wsj.com/world/china/tightly-choreographed-visit-masks-big-differences-between-u-s-and-china-afa01180?mod=hp_lead_pos1",
-			excluded: true,
-			label: "wsj china piece exact",
-		},
-		{
 			url: "https://www.wsj.com/world/china/tightly-choreographed-visit-masks-big-differences-between-u-s-and-china-afa01180",
 			excluded: false,
 			label: "wsj china piece without the mod query param",
-		},
-		{
-			url: "https://www.nytimes.com/2026/05/06/business/media/bbc-guy-goma-interview.html",
-			excluded: true,
-			label: "nyt bbc-guy-goma article exact",
 		},
 		{
 			url: "https://www.nytimes.com/2026/05/06/business/media/bbc-guy-goma-interview",
@@ -568,11 +555,6 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		},
 		{ url: "https://www.microservices.com/", excluded: false, label: "microservices.com root — should NOT match" },
 		{
-			url: "https://thcsdaoduytu.edu.vn/gv-ngu-van-truong-thcs-dao-duy-tu-goi-y-mot-dan-chung-thuong-dung-trong-van-nghi-luan-xa-hoi-phan_",
-			excluded: true,
-			label: "thcsdaoduytu Vietnamese-school article (Cloudflare challenge, issue #961)",
-		},
-		{
 			url: "https://thcsdaoduytu.edu.vn/gv-ngu-van-truong-thcs-dao-duy-tu-goi-y-mot-dan-chung-thuong-dung-trong-van-nghi-luan-xa-hoi-phan_?zarsrc=30&utm_source=zalo&utm_medium=zalo&utm_campaign=zalo&gidzl=gzlKVx88OtQZnDnxknLbUQF4sNIj4pPtwCJRAVuHRIg_mz8d_XWuAUVFW2Ab6pSfuypVAp8WueuwkWfYV0",
 			excluded: false,
 			label: "thcsdaoduytu query-string variant (extension-saved, ready) — must NOT be hidden",
@@ -625,29 +607,14 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		},
 		// (g) Redirect-variant duplicates of working canonical URLs.
 		{
-			url: "https://hynek.me/articles/what-to-mock-in-5-mins",
-			excluded: true,
-			label: "hynek no-trailing-slash variant (301s to the working article)",
-		},
-		{
 			url: "https://hynek.me/articles/what-to-mock-in-5-mins/",
 			excluded: false,
 			label: "hynek canonical trailing-slash article — must NOT be hidden",
 		},
 		{
-			url: "https://developer.android.com/reference/android/webkit/WebView.html",
-			excluded: true,
-			label: "android .html legacy variant (oauth redirect loop)",
-		},
-		{
 			url: "https://developer.android.com/reference/android/webkit/WebView",
 			excluded: false,
 			label: "android canonical no-.html reference — must NOT be hidden",
-		},
-		{
-			url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks",
-			excluded: true,
-			label: "thehill slashless variant (308s to the '/' article, Fastly edge-blocks datacenter egress)",
 		},
 		{
 			url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks/",
@@ -660,11 +627,6 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			label: "different thehill article — must NOT be hidden",
 		},
 		// Operator-curated excludes.
-		{
-			url: "https://npmjs.com/package/jquery",
-			excluded: true,
-			label: "npmjs package-registry page (not article content)",
-		},
 		{
 			url: "https://npmjs.com/package/react",
 			excluded: false,
@@ -747,16 +709,6 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		},
 		// (i) web.archive.org captures behind datacenter throttling.
 		{
-			url: "https://web.archive.org/web/20180322015406/http://www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
-			excluded: true,
-			label: "wayback TODAY capture uncollapsed embedded scheme (http://)",
-		},
-		{
-			url: "https://web.archive.org/web/20180322015406/http:/www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
-			excluded: true,
-			label: "wayback TODAY capture collapsed embedded scheme (http:/)",
-		},
-		{
 			url: "https://web.archive.org/web/20180630105838/https://www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
 			excluded: false,
 			label: "the later TODAY capture the 302 lands on — must NOT be hidden",
@@ -770,16 +722,6 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			url: "https://web.archive.org/web/20180630081250/https:/www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
 			excluded: true,
 			label: "wayback ABU press-page capture (collapsed scheme)",
-		},
-		{
-			url: "https://web.archive.org/web/20180322015139/http://www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
-			excluded: true,
-			label: "wayback ABU press-page 2018-03-22 capture, uncollapsed embedded scheme (http://)",
-		},
-		{
-			url: "https://web.archive.org/web/20180322015139/http:/www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
-			excluded: true,
-			label: "wayback ABU press-page 2018-03-22 capture, collapsed embedded scheme (http:/)",
 		},
 		{
 			url: "https://web.archive.org/web/20200101000000/https://www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
@@ -810,16 +752,6 @@ describe("EXCLUDE_PATTERNS — news.ycombinator.com/item soft-404", () => {
 
 describe("EXCLUDE_PATTERNS — javascriptweekly.com link trackers", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
-		{ url: "https://javascriptweekly.com/link/188519/8babea547d", excluded: true, label: "tracker 188519 exact" },
-		{ url: "https://javascriptweekly.com/link/188518/8babea547d", excluded: true, label: "tracker 188518 exact" },
-		{ url: "https://javascriptweekly.com/link/188764/8babea547d", excluded: true, label: "tracker 188764 exact" },
-		{ url: "https://javascriptweekly.com/link/189074/8babea547d", excluded: true, label: "tracker 189074 exact" },
-		{ url: "https://javascriptweekly.com/link/189088/8babea547d", excluded: true, label: "tracker 189088 exact" },
-		{ url: "https://javascriptweekly.com/link/189105/8babea547d", excluded: true, label: "tracker 189105 exact" },
-		{ url: "https://javascriptweekly.com/link/189106/8babea547d", excluded: true, label: "tracker 189106 exact" },
-		{ url: "https://javascriptweekly.com/link/189107/8babea547d", excluded: true, label: "tracker 189107 exact" },
-		{ url: "https://javascriptweekly.com/link/189108/8babea547d", excluded: true, label: "tracker 189108 exact" },
-		{ url: "https://javascriptweekly.com/link/189109/8babea547d", excluded: true, label: "tracker 189109 exact" },
 		{ url: "https://javascriptweekly.com/link/189106/8babea547d?utm_source=x", excluded: false, label: "tracker 189106 with a query suffix — anchored exact, should NOT match" },
 		{ url: "https://javascriptweekly.com/link/189110/8babea547d", excluded: false, label: "adjacent tracker id from the same batch — must NOT be hidden" },
 		{ url: "https://javascriptweekly.com/link/188519/8babea547d?utm_source=x", excluded: false, label: "tracker 188519 with a query suffix — anchored exact, should NOT match" },
@@ -836,11 +768,6 @@ describe("EXCLUDE_PATTERNS — javascriptweekly.com link trackers", () => {
 
 describe("EXCLUDE_PATTERNS — programmingdigest.net link tracker", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
-		{
-			url: "https://programmingdigest.net/links/22961/2554a8ea-e370-42e6-a26f-1c86375ee7a7/email",
-			excluded: true,
-			label: "stored row shape — exact tracker link id",
-		},
 		{
 			url: "https://programmingdigest.net/links/22961/2554a8ea-e370-42e6-a26f-1c86375ee7a7/email?utm_source=x",
 			excluded: false,

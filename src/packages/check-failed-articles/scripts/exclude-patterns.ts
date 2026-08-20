@@ -49,20 +49,22 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// rejection. The crawler can never fetch these; intake now blocks them.
 	/^chrome:\/\//i,
 	/^about:/i,
-	// Reddit — any subdomain, any path. The generic crawl path gets blocked
-	// by Reddit's `snooserv` 403 from AWS-range IPs across every persona we
-	// have. Surfacing these in the failed-articles canary produces noise the
-	// operator cannot act on without a residential proxy; exclude them at the
-	// canary boundary.
-	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com(?:[/:?#]|$)/i,
+	// Reddit, narrowed to the shapes the proxied crawl still cannot reach.
+	// `www.reddit.com/r/<sub>/comments/…` now resolves, so it is deliberately
+	// no longer excluded — a failure there is a regression worth surfacing.
+	// These three remain unreachable: the proxy vendor refuses them for
+	// robots.txt reasons until the account completes its verification, so they
+	// stay noise the operator cannot act on.
+	/(?:^|\/\/)old\.reddit\.com(?:[/:?#]|$)/i,
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com\/user\//i,
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com\/r\/[^/]+\/s\//i,
 	// Stack Overflow — any subdomain, any path. A site-wide Cloudflare managed
 	// challenge answers every request 403 `cf-mitigated=challenge`, from a
 	// residential address as readily as from AWS, so it is a browser-integrity
 	// check no egress change and no curl-impersonate persona passes — only a
 	// client that executes the challenge JS. Same unactionable-noise rationale as
-	// the reddit.com entry above.
+	// the reddit.com entries above.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*stackoverflow\.com(?:[/:?#]|$)/i,
-	/(?:^|\/\/)(?:[a-z0-9-]+\.)*bizjournals\.com(?:[/:?#]|$)/i,
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*archive\.ph(?:[/:?#]|$)/i,
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*onlinelibrary\.wiley\.com(?:[/:?#]|$)/i,
 	// Time-limited presigned URLs — permanently dead once the signature lapses.
@@ -93,10 +95,6 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// `....` (display truncation that leaked into the saved URL).
 	/^https:\/\/www\.theinformation\.{0,4}$/i,
 	/^https:\/\/web\.eecs\.umich\.edu\/~weimerw\/2018-481\/readings\/mythical-man-month\.pdf$/i,
-	// Paywalled: WSJ rejects the crawler past the article-card metadata.
-	/^https:\/\/www\.wsj\.com\/world\/china\/tightly-choreographed-visit-masks-big-differences-between-u-s-and-china-afa01180\?mod=hp_lead_pos1$/i,
-	// Paywalled: NYT shows a registration wall.
-	/^https:\/\/www\.nytimes\.com\/2026\/05\/06\/business\/media\/bbc-guy-goma-interview\.html$/i,
 	// Substack `legacy-no-content` rows — content was never persisted under
 	// these exact tracking-suffixed URLs and the originals are gated behind
 	// a paid newsletter.
@@ -181,14 +179,6 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/blogs\.oracle\.com\/ravello\/beware-http-requests-automatic-retries$/i,
 	/^https:\/\/kernel-recipes\.org\/en\/2016\/talks\/patches-carved-into-stone-tablets\/$/i,
 	/^https:\/\/www\.microservices\.com\/talks\/dont-build-a-distributed-monolith\/$/i,
-	// thcsdaoduytu.edu.vn (Vietnamese school site) sits behind a Cloudflare
-	// managed challenge: datacenter egress gets a 403 `cf-mitigated=challenge`
-	// that survives the h2 + curl-impersonate fallback, so the AWS crawler can
-	// never land the page (issue #961). The readable content is already saved
-	// via the tier-0 extension path under the `?gidzl=…&zarsrc=30` URL variant,
-	// making this bare-URL row a residential-egress-only duplicate. Anchored to
-	// the bare form so the query-string variant still surfaces if it ever fails.
-	/^https:\/\/thcsdaoduytu\.edu\.vn\/gv-ngu-van-truong-thcs-dao-duy-tu-goi-y-mot-dan-chung-thuong-dung-trong-van-nghi-luan-xa-hoi-phan_$/i,
 	// (f) Login/subscription wall — the origin serves a registration/login page
 	// instead of the article body to anonymous datacenter fetches, so the crawler
 	// exhausts retries without ever reaching content. academia.edu requires a free
@@ -202,41 +192,12 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// can never be re-fetched. Matches the dead PDF path with or without a query.
 	/^https:\/\/d1wqtxts1xzle7\.cloudfront\.net\/49645891\/sce\.373067020820161016-1490-16axao2\.pdf(?:\?|$)/i,
 	/^https:\/\/academic\.oup\.com\/qje\/article-abstract\/101\/4\/729\/1840176(?:\?login=false)?$/i,
-	// WSJ paywall, same failure as the `/world/china/…` entry above: the article
-	// answers anonymous datacenter fetches with a bare 401 and no redirect at all,
-	// so the crawler exhausts retries without ever reaching the body. Anchored to
-	// the exact saved URL (including the `?mod=` referrer suffix) so other WSJ
-	// articles still surface.
-	/^https:\/\/www\.wsj\.com\/business\/parasitic-outbreak-puts-big-lettuce-in-pr-crisis-mode-db62f6f6\?mod=hp_lead_pos11$/i,
 	// leadershipintech.com newsletter link-tracker. The tracker resolves correctly
 	// (one 30x to a reuters.com article) — the wall is at the destination, which
 	// 401s anonymous datacenter fetches, so the crawl exhausts retries one hop past
 	// the redirect. Anchored to the exact saved link id, not the `/links/` prefix,
 	// so trackers pointing at unwalled hosts still surface.
 	/^https:\/\/leadershipintech\.com\/links\/22782\/4ce2871f-13aa-412f-8757-8bdf7060c9a1\/email$/i,
-	// (g) Redirect-variant of a working canonical URL — the saved form 30x-redirects
-	// to a different URL the AWS crawler can't follow (datacenter edge block, or an
-	// auth redirect loop), so the variant stays crawl-failed while the canonical
-	// form the reader actually uses renders normally. Excluded as a duplicate.
-	//
-	// hynek.me 301s the slashless form to the trailing-slash article, then edge-
-	// blocks datacenter egress on the fetch; the slash form is the live article.
-	/^https:\/\/hynek\.me\/articles\/what-to-mock-in-5-mins$/i,
-	// developer.android.com serves reference pages without the legacy `.html`; the
-	// `.html` form 302-loops through `/oauth2authorize` for anonymous fetchers,
-	// while the slashless `…/WebView` is the canonical page.
-	/^https:\/\/developer\.android\.com\/reference\/android\/webkit\/WebView\.html$/i,
-	// thehill.com 308s the slashless form to the trailing-slash article, then
-	// Fastly edge-blocks datacenter egress (AWS IP + curl-impersonate JA3), so the
-	// slashless variant exhausts retries as crawl-failed. The "/" form is the live
-	// article the reader actually serves (extension-saved + the /view trailing-slash
-	// fallback), so the slashless save is a redirect-variant duplicate. Anchored to
-	// the slashless form only — the "/" canonical must still surface if it fails.
-	/^https:\/\/thehill\.com\/changing-america\/enrichment\/arts-culture\/578724-5-points-for-anger-1-for-a-like-how-facebooks$/i,
-	// npmjs.com package-registry page — a package listing, not the readable
-	// article content the product renders; the crawl exhausts retries and there
-	// is nothing worth re-saving behind it.
-	/^https:\/\/npmjs\.com\/package\/jquery$/i,
 	// itnext.io is a Medium-hosted publication; Medium bot-walls datacenter
 	// egress (the same residential-egress requirement as the medium.com and
 	// edge-firewall entries above), so the AWS crawler exhausts retries.
@@ -288,45 +249,11 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// timestamp so other snapshots of the same page still surface;
 	// `\/{1,2}` tolerates the embedded scheme whether upstream normalization
 	// left one slash or two.
-	//
-	// The 2018-03-22 TODAY capture additionally 302s to a later capture
-	// (20180630105838), so the saved form never lands even when wayback
-	// answers — and the underlying article is the delisted TODAY page above.
-	/^https:\/\/web\.archive\.org\/web\/20180322015406\/http:\/{1,2}www\.todayonline\.com\/singapore\/channel-newsasia-opens-bureau-myanmar$/i,
 	// ABU press-page capture: fetchable on a quiet day (the row has crawled
 	// successfully) but exhausts retries whenever wayback throttles, so it
 	// recurs as canary noise on bulk imports.
 	/^https:\/\/web\.archive\.org\/web\/20180630081250\/https:\/{1,2}www\.abu\.org\.my\/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia\.aspx$/i,
-	// An earlier capture of the same ABU press page (2018-03-22, embedded
-	// `http://` scheme) — same wayback-throttling failure mode as the June
-	// capture above. Anchored per timestamp so other snapshots still surface.
-	/^https:\/\/web\.archive\.org\/web\/20180322015139\/http:\/{1,2}www\.abu\.org\.my\/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia\.aspx$/i,
 	/^https:\/\/news\.ycombinator\.com\/item$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/188519\/8babea547d$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/188518\/8babea547d$/i,
-	// Third JS Weekly tracker, different destination class from the two above:
-	// it 301s to npmjs.com/package/postcss, a package-registry listing rather
-	// than readable article content (same rationale as the npmjs.com/package/jquery
-	// entry), and npmjs.com additionally answers a Cloudflare managed challenge —
-	// 403 `cf-mitigated=challenge` to a residential browser-UA client as readily as
-	// to AWS — so no egress change or curl-impersonate persona reaches it either.
-	// Anchored per link id so the other trackers on this host still surface.
-	/^https:\/\/javascriptweekly\.com\/link\/188764\/8babea547d$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/189074\/8babea547d$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/189088\/8babea547d$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/189105\/8babea547d$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/189106\/8babea547d$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/189107\/8babea547d$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/189108\/8babea547d$/i,
-	/^https:\/\/javascriptweekly\.com\/link\/189109\/8babea547d$/i,
-	// programmingdigest.net newsletter link-tracker, same shape as the
-	// leadershipintech.com entry above: the tracker 30x's once to a karboosx.net
-	// post and the crawl exhausts retries past the hop. Both hops answer 200 to
-	// residential egress with any UA (curl default, none, browser), so the wall is
-	// the datacenter egress path and no crawler change reaches it. Anchored to the
-	// exact saved link id, not the `/links/` prefix, so trackers pointing at
-	// reachable hosts still surface.
-	/^https:\/\/programmingdigest\.net\/links\/22961\/2554a8ea-e370-42e6-a26f-1c86375ee7a7\/email$/i,
 	// (j) Paths that never existed, minted by an anonymous `/view` first visit
 	// rather than by anyone saving them (issue #1066). fagnerbrack.com is Medium
 	// on a custom domain and resolves a post only by its trailing 12-hex id, so
