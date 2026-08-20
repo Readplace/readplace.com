@@ -65,7 +65,6 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// client that executes the challenge JS. Same unactionable-noise rationale as
 	// the reddit.com entries above.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*stackoverflow\.com(?:[/:?#]|$)/i,
-	/(?:^|\/\/)(?:[a-z0-9-]+\.)*archive\.ph(?:[/:?#]|$)/i,
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*onlinelibrary\.wiley\.com(?:[/:?#]|$)/i,
 	// Time-limited presigned URLs — permanently dead once the signature lapses.
 	// TTLs are minutes, so the crawl fetch lands at or after expiry and the
@@ -173,9 +172,6 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// PDF entry above, so the AWS-egress crawler can never resolve them.
 	/^https:\/\/(?:www\.)?agilealliance\.org\/glossary\/pairing\/$/i,
 	/^https:\/\/unsplash\.com\/@metelevan\?utm_source=medium&utm_medium=referral$/i,
-	// The gallery landing page saved with a Medium referral suffix — not an
-	// article, and 401-bot-walled like the profile above.
-	/^https:\/\/unsplash\.com\/\?utm_source=medium&utm_medium=referral$/i,
 	/^https:\/\/blogs\.oracle\.com\/ravello\/beware-http-requests-automatic-retries$/i,
 	/^https:\/\/kernel-recipes\.org\/en\/2016\/talks\/patches-carved-into-stone-tablets\/$/i,
 	/^https:\/\/www\.microservices\.com\/talks\/dont-build-a-distributed-monolith\/$/i,
@@ -191,7 +187,6 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// past), so the CDN returns 403 for the object regardless of signature and it
 	// can never be re-fetched. Matches the dead PDF path with or without a query.
 	/^https:\/\/d1wqtxts1xzle7\.cloudfront\.net\/49645891\/sce\.373067020820161016-1490-16axao2\.pdf(?:\?|$)/i,
-	/^https:\/\/academic\.oup\.com\/qje\/article-abstract\/101\/4\/729\/1840176(?:\?login=false)?$/i,
 	// leadershipintech.com newsletter link-tracker. The tracker resolves correctly
 	// (one 30x to a reuters.com article) — the wall is at the destination, which
 	// 401s anonymous datacenter fetches, so the crawl exhausts retries one hop past

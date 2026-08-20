@@ -122,19 +122,12 @@ describe("EXCLUDE_PATTERNS — bizjournals.com is no longer excluded", () => {
 	}
 });
 
-describe("EXCLUDE_PATTERNS — archive.ph entry", () => {
+describe("EXCLUDE_PATTERNS — archive.ph is no longer excluded", () => {
+	// The wayback throttling that motivated the host-wide entry is outlasted by
+	// the proxied crawl's budget, so these captures must surface again.
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
-		{ url: "https://archive.ph/moksj", excluded: true, label: "stored row shape — short capture id" },
-		{ url: "https://archive.ph/d9pPq", excluded: true, label: "stored row shape — mixed-case capture id" },
-		{ url: "https://archive.ph", excluded: true, label: "apex with no path" },
-		{ url: "http://archive.ph/7F8rl", excluded: true, label: "http scheme" },
-		{ url: "https://archive.ph?q=1", excluded: true, label: "query immediately after host" },
-		{ url: "https://archive.md/moksj", excluded: false, label: "archive.md sibling mirror — scoped to the saved host, must still surface" },
-		{ url: "https://archive.today/moksj", excluded: false, label: "archive.today sibling mirror — scoped to the saved host, must still surface" },
-		{ url: "https://archive.photo/moksj", excluded: false, label: "longer TLD without a host boundary (should NOT match)" },
-		{ url: "https://myarchive.ph/moksj", excluded: false, label: "prefixed similar host (should NOT match)" },
-		{ url: "https://archive.ph.evil.com/moksj", excluded: false, label: "subdomain trick (should NOT match)" },
-		{ url: "https://web.archive.org/web/2020/https://example.org/a", excluded: false, label: "web.archive.org capture — a different service" },
+		{ url: "https://archive.ph/moksj", excluded: false, label: "saved capture" },
+		{ url: "https://archive.md/moksj", excluded: false, label: "archive.md sibling mirror" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
@@ -530,11 +523,6 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: true,
 			label: "unsplash metelevan profile with tracking suffix (401 bot-check)",
 		},
-		{
-			url: "https://unsplash.com/?utm_source=medium&utm_medium=referral",
-			excluded: true,
-			label: "unsplash gallery landing page with Medium referral suffix (stored shape)",
-		},
 		{ url: "https://unsplash.com/@metelevan", excluded: false, label: "unsplash profile without tracking suffix — different stored value" },
 		{
 			url: "https://blogs.oracle.com/ravello/beware-http-requests-automatic-retries",
@@ -574,16 +562,6 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			url: "https://www.academia.edu/4749776/",
 			excluded: false,
 			label: "academia.edu paper id without the slug — should NOT match",
-		},
-		{
-			url: "https://academic.oup.com/qje/article-abstract/101/4/729/1840176?login=false",
-			excluded: true,
-			label: "oup QJE article-abstract with ?login=false (login wall)",
-		},
-		{
-			url: "https://academic.oup.com/qje/article-abstract/101/4/729/1840176",
-			excluded: true,
-			label: "oup QJE article-abstract bare URL (stored shape) — login wall",
 		},
 		{
 			url: "https://academic.oup.com/qje/article-abstract/101/4/729/9999999",
