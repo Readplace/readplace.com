@@ -12,6 +12,7 @@ export {
 	captureCheckpoint,
 	initCaptureCheckpoint,
 	measuredBox,
+	snapToWholePixels,
 } from "./visual-checkpoint";
 export { ciArtifactPaths } from "./ci-artifact-paths";
 export { createPlaywrightConfig } from "./playwright-config";

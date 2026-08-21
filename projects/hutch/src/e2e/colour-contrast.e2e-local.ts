@@ -10,6 +10,7 @@ const BASE_URL = `http://localhost:${E2E_PORT}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
 const VIEWPORT = { width: 1280, height: 900 };
 const QUEUE_ROOT = "main.queue";
+const READER_ROOT = "main.reader";
 const SETTLE_MS = 45000;
 
 const NORMAL_TEXT_MINIMUM = 4.5;
@@ -119,13 +120,13 @@ async function markNewestArticleRead(page: Page): Promise<void> {
  * taken mid-fade reads a blend that belongs to no state the guidelines cover —
  * the delete icon measured 2.76:1 against its own half-faded hover fill. Two
  * identical consecutive reads mean every transition has landed. */
-async function stableMeasurements(page: Page): Promise<RenderedInk[]> {
+async function stableMeasurements(page: Page, root: string): Promise<RenderedInk[]> {
 	let measurements: RenderedInk[] = [];
 	let previous = "";
 	await expect
 		.poll(
 			async () => {
-				measurements = await page.evaluate(collectRenderedInk, QUEUE_ROOT);
+				measurements = await page.evaluate(collectRenderedInk, root);
 				const current = JSON.stringify(measurements);
 				const settled = current === previous;
 				previous = current;
@@ -137,23 +138,44 @@ async function stableMeasurements(page: Page): Promise<RenderedInk[]> {
 	return measurements;
 }
 
+function assertContrast(
+	measurements: readonly RenderedInk[],
+	where: { theme: string; view: string },
+): void {
+	for (const measured of measurements) {
+		const ratio = contrastRatio({ ink: measured.ink, surface: measured.surface });
+		assert.ok(ratio >= minimumRatio(measured), shortfall(measured, where));
+	}
+}
+
 async function auditQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
 	await page.waitForSelector("body.page-queue");
 	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
 	await waitForCardsSettled(page);
 	await page.mouse.move(0, 0);
 
-	const measurements = await stableMeasurements(page);
+	const measurements = await stableMeasurements(page, QUEUE_ROOT);
 	assert.ok(
 		measurements.length > 0,
 		`${where.theme}/${where.view}: the audit measured nothing inside ${QUEUE_ROOT}`,
 	);
-	for (const measured of measurements) {
-		const ratio = contrastRatio({ ink: measured.ink, surface: measured.surface });
-		assert.ok(ratio >= minimumRatio(measured), shortfall(measured, where));
-	}
+	assertContrast(measurements, where);
 
 	await auditDeleteConfirmation(page, where);
+}
+
+async function auditReader(page: Page, where: { theme: string; view: string }): Promise<void> {
+	await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', {
+		timeout: SETTLE_MS,
+	});
+	await page.mouse.move(0, 0);
+
+	const measurements = await stableMeasurements(page, READER_ROOT);
+	assert.ok(
+		measurements.length > 0,
+		`${where.theme}/${where.view}: the audit measured nothing inside ${READER_ROOT}`,
+	);
+	assertContrast(measurements, where);
 }
 
 /** A closed popover has a zero rect, so the delete confirmation is invisible to
@@ -173,11 +195,8 @@ async function auditDeleteConfirmation(
 	// solid red; measuring that would audit a state the guidelines exempt.
 	await page.mouse.move(0, 0);
 
-	const measurements = await stableMeasurements(page);
-	for (const measured of measurements) {
-		const ratio = contrastRatio({ ink: measured.ink, surface: measured.surface });
-		assert.ok(ratio >= minimumRatio(measured), shortfall(measured, { ...where, view: `${where.view}/delete-confirm` }));
-	}
+	const measurements = await stableMeasurements(page, QUEUE_ROOT);
+	assertContrast(measurements, { ...where, view: `${where.view}/delete-confirm` });
 
 	await page.keyboard.press("Escape");
 	await expect(page.locator('[data-test-action="delete-confirm"]').first()).toBeHidden({
@@ -195,17 +214,32 @@ test.describe("Queue colour roles hold their WCAG contrast in both themes", () =
 		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-read=${run}`, 2);
 		await markNewestArticleRead(page);
 
+		const readerHref = await page
+			.locator("[data-test-article-title]")
+			.first()
+			.getAttribute("href");
+		assert(readerHref, "a saved card must link to its own reader");
+		const readerUrl = new URL(readerHref, BASE_URL).toString();
+
 		const viewUrls = {
 			"to-read": `${BASE_URL}/queue`,
 			done: `${BASE_URL}/queue?tab=done`,
 			tabs: `${BASE_URL}/queue?feature=queues`,
+			"save-error": `${BASE_URL}/queue?error_code=save_failed`,
 		} as const;
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			for (const view of ["to-read", "done", "tabs"] as const) {
+			for (const view of ["to-read", "done", "tabs", "save-error"] as const) {
 				await page.goto(viewUrls[view], { waitUntil: "domcontentloaded" });
+				if (view === "save-error") {
+					await expect(page.locator("[data-test-save-error]")).toBeVisible({
+						timeout: SETTLE_MS,
+					});
+				}
 				await auditQueue(page, { theme, view });
 			}
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await auditReader(page, { theme, view: "reader" });
 		}
 	});
 });

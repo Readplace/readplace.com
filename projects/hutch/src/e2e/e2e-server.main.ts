@@ -269,6 +269,7 @@ const SeedCrawledArticleBody = z.object({
 		.default([]),
 	savedByUserId: UserIdSchema.optional(),
 	wordCount: z.number().int().positive().default(500),
+	imageUrl: z.string().optional(),
 	savedAt: z.string().optional(),
 	provenance: SaveProvenanceSchema.default({ kind: 'web' }),
 	excerpt: z.string().default('Seeded for the crawl-bookmark visual test.'),
@@ -288,13 +289,14 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		crawlVersions,
 		savedByUserId,
 		wordCount,
+		imageUrl,
 		savedAt,
 		provenance,
 		excerpt,
 		generatedSummary,
 	} = parsed.data
 	const hostname = new URL(url).hostname
-	const metadata = { title, siteName: hostname, excerpt, wordCount }
+	const metadata = { title, siteName: hostname, excerpt, wordCount, ...(imageUrl ? { imageUrl } : {}) }
 	const estimatedReadTime = calculateReadTime(wordCount)
 	await fixture.articleStore.saveArticleGlobally({
 		url,

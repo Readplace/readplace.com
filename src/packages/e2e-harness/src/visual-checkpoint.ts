@@ -22,7 +22,7 @@ export async function measuredBox(
 	return box;
 }
 
-async function snapToWholePixels(page: Page, selector: string): Promise<void> {
+export async function snapToWholePixels(page: Page, selector: string): Promise<void> {
 	await page.evaluate((sel) => {
 		const el = document.querySelector<HTMLElement>(sel);
 		if (!el) throw new Error(`snap target "${sel}" matched nothing`);
