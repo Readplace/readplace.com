@@ -263,7 +263,7 @@
 }
 
 .queue__save-error {
-  color: var(--error);
+  color: var(--error-text);
   font-size: 0.875rem;
   margin-top: -16px;
   margin-bottom: 16px;
@@ -460,22 +460,14 @@
 }
 
 /**
- * 1. visibility (not display) reserves the thumbnail box before the bitmap
- *    loads — the img is sized by width + aspect-ratio — so the body height is
- *    fixed at first paint and never jumps on load or on the 3s self-swap.
- * 2. padding-left is the (clickable) gutter to the text column; align-self
+ * 1. padding-left is the (clickable) gutter to the text column; align-self
  *    stretches the link to the full body height so the whole strip beside and
  *    below the image opens the reader too — no unclickable area next to it.
  */
 .queue-article__thumbnail-link {
   flex: 0 0 auto;
-  visibility: hidden; /* 1 */
-  padding-left: clamp(12px, 3vw, 16px); /* 2 */
-  align-self: stretch; /* 2 */
-}
-
-.queue-article__thumbnail-link--loaded {
-  visibility: visible;
+  padding-left: clamp(12px, 3vw, 16px); /* 1 */
+  align-self: stretch; /* 1 */
 }
 
 .queue-article__thumbnail {
@@ -705,18 +697,14 @@
   font-weight: 600;
 }
 
-.queue-article__action-btn--status:hover {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  opacity: 0.9;
-}
-
+.queue-article__action-btn--status:hover,
 .queue-article__action-btn--status:active {
-  opacity: 0.8;
+  background: var(--primary-fill);
+  color: var(--primary-foreground);
 }
 
 .queue-article__action-btn--status:disabled:hover {
-  background: var(--primary);
+  background: var(--primary-fill);
   color: var(--primary-foreground);
   opacity: 0.5;
 }

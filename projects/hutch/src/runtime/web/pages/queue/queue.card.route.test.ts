@@ -148,7 +148,7 @@ describe("Queue routes", () => {
 			expect(card.querySelectorAll(".queue-article__thumbnail-link").length).toBe(0);
 		});
 
-		it("should hide thumbnail wrapper until image loads successfully", async () => {
+		it("should render the thumbnail with no script hook to reveal it", async () => {
 			const crawlArticle = async () => ({
 				status: "fetched" as const,
 				html: `<html><head><meta property="og:image" content="https://example.com/thumb.jpg"></head></html>`,
@@ -195,71 +195,11 @@ describe("Queue routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const thumbnail = doc.querySelector(".queue-article__thumbnail");
-			const link = thumbnail?.closest("a");
-			expect(link?.classList.contains("queue-article__thumbnail-link")).toBe(true);
-			expect(link?.classList.contains("queue-article__thumbnail-link--loaded")).toBe(false);
-		});
-
-		it("should reveal thumbnail wrapper when image load event fires", async () => {
-			const crawlArticle = async () => ({
-				status: "fetched" as const,
-				html: `<html><head><meta property="og:image" content="https://example.com/thumb.jpg"></head></html>`,
-				thumbnailUrl: "https://example.com/thumb.jpg",
-				bodyHash: "a".repeat(64),
-			});
-
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], logError: createNoopLogError() });
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: { parseArticle, crawlArticle },
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "https://example.com/article" });
-
-			const response = await agent.get("/queue");
-			const dom = new JSDOM(response.text, {
-				runScripts: "dangerously",
-				beforeParse(window) {
-					Object.assign(window, { htmx: { config: {} } });
-				},
-			});
-			const thumbnail = dom.window.document.querySelector<HTMLImageElement>(".queue-article__thumbnail");
-			const link = thumbnail?.closest("a");
-			expect(link?.classList.contains("queue-article__thumbnail-link--loaded")).toBe(false);
-
-			thumbnail?.dispatchEvent(new dom.window.Event("load"));
-
-			expect(link?.classList.contains("queue-article__thumbnail-link--loaded")).toBe(true);
-
-			dom.window.close();
+			assert(thumbnail, "an article with an og:image must render a thumbnail");
+			const link = thumbnail.closest("a");
+			assert(link, "the thumbnail must sit inside its wrapper link");
+			expect(link.getAttribute("class")).toBe("queue-article__thumbnail-link");
+			expect(thumbnail.getAttribute("onload")).toBeNull();
 		});
 
 		it("should remove thumbnail wrapper when image error event fires", async () => {

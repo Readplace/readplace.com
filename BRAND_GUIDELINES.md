@@ -73,8 +73,8 @@ Every raster asset is generated — never hand-rendered — by `projects/hutch/s
 
 | Role | Colour | Hex / HSL | CSS variable | Usage |
 |---|---|---|---|---|
-| **Warm amber** (Primary) | Warm terracotta/amber-brown | `#c8702a` / `hsl(27 65% 47%)` | `--color-brand`, `--primary`, `--accent` | Interactive elements, CTAs, default header brand text, links |
-| **Amber dark** | Darker amber | `#a85a1e` | `--color-brand-dark`, `--primary-fill` | Brand text on a light page (via `--primary-text`); the hover/active fill of every button (via `--primary-fill`, which is pinned to this value in **both** themes). Never reach for `--color-brand-dark` directly as a hover fill — it flips to a *lighter* `#e89a55` in dark mode, so the hover would darken on a white page and lighten on a dark one |
+| **Warm amber** (Primary) | Warm terracotta/amber-brown | `#c8702a` / `hsl(27 65% 47%)` | `--color-brand`, `--primary`, `--accent` | Interactive elements, CTAs, default header brand text. Not text ink on a light page: it is 3.62:1 on white |
+| **Amber dark** | Darker amber | `#a85a1e` | `--color-brand-dark`, `--primary-fill` | Brand text and links on a light page (via `--primary-text`); the hover/active fill of every button (via `--primary-fill`, which is pinned to this value in **both** themes). Never reach for `--color-brand-dark` directly as a hover fill — it flips to a *lighter* `#e89a55` in dark mode, so the hover would darken on a white page and lighten on a dark one |
 | **Amber light** | Pale amber tint | `#f5e6d3` | `--color-brand-light` | Subtle brand-tinted backgrounds |
 | **Warm amber highlight** | Warm gold — the logo dot colour | `#c8923c` | `--color-highlight` | Highlight words in the wordmark and copy (see Highlight Words below) |
 | **Navy** (Secondary) | Deep navy blue | `#2B3A55` | — | Hero background, manifest theme colour, meta tags, extension icon background, extension active states |
@@ -121,7 +121,7 @@ In dark mode, the brand colours shift slightly warmer and lighter to maintain co
 - **Warm amber on dark backgrounds** is the signature brand combination. When in doubt, lead with this pairing.
 - **Reading surfaces should be neutral.** The amber appears in chrome and UI — never as the background behind article text. Article content sits on white/off-white (light) or dark grey (dark).
 - **Hero gradient:** `linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%)` — a deep navy gradient that mirrors the logo tile. Warm amber highlights (`--color-highlight`) sit directly on this background.
-- **Inline text links use one token — `--primary`.** Do not introduce a second amber (`--color-highlight`, `--color-brand`, `--primary-text`) for a link, and do not redeclare link colour per block. Emphasis inside a link comes from weight (`<strong>`), never a different hue. There is no global bare-`<a>` reset, so an unstyled link renders browser-default blue — that is a styling gap, not a choice; every body-copy link must set `color: var(--primary)`.
+- **Inline text links use one token — `--primary-text`.** Light `--primary` is 3.62:1 on white, under the 4.5:1 floor the non-negotiable legibility rule in [Typography Rules](#typography-rules) implies, so the link token is the darker amber that clears it (5.06:1 light, 6.34:1 dark). `--primary` keeps the fills it already carries; it is not a link colour. Do not introduce a third amber (`--color-highlight`, `--color-brand`) for a link, and do not redeclare link colour per block. Emphasis inside a link comes from weight (`<strong>`), never a different hue. There is no global bare-`<a>` reset, so an unstyled link renders browser-default blue — that is a styling gap, not a choice; every body-copy link must set `color: var(--primary-text)`.
 
 ### Browser Extension Palette
 
@@ -211,7 +211,7 @@ There is **one** button in the product. Every call to action is `.btn` plus exac
 
 `primary` **always** means the amber CTA. The `--brand`, `--light` and `--dark` aliases are retired: a variant whose name contradicts this table is naming drift, not a choice. `on-dark` and `on-dark-ghost` carry theme-stable values because the navy hero is navy in both themes.
 
-A **tertiary** action is not a button — it is a plain inline link (`color: var(--primary)`, underlined) per [Colour Rules](#colour-rules). Do not render it as a `.btn`, and do not put one beside a button (see Pairing).
+A **tertiary** action is not a button — it is a plain inline link (`color: var(--primary-text)`, underlined) per [Colour Rules](#colour-rules). Do not render it as a `.btn`, and do not put one beside a button (see Pairing).
 
 A **destructive** action (delete, remove, unsave — muted red outline, red text, solid on hover) is still styled per page (`.account-card__action--destructive`) and has not been folded into this system.
 
