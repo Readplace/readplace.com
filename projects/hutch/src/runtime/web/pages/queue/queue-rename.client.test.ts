@@ -7,24 +7,28 @@ interface RenameCall {
 	init: RequestInit;
 }
 
-const RENAME_ACTION = "/queue/queues/new-queue-1/rename";
+const RENAME_ACTION = "/queue/queues/new-queue/rename";
 
-function tabMarkup(label = "New Queue 1"): string {
-	return `<nav class="queue-nav"><ul class="queue-nav__list"><li><a class="queue-nav__link" href="/queue">My Queue</a></li><li><span class="queue-nav__link queue-nav__link--active" data-queue-rename="${RENAME_ACTION}" data-queue-rename-field="label" data-queue-label-max="24" data-test-queue="new-queue-1">${label}</span></li></ul></nav>`;
+function tabMarkup(label = "New Queue"): string {
+	return `<nav class="queue-nav"><ul class="queue-nav__list"><li><a class="queue-nav__link" href="/queue">My Queue</a></li><li><span class="queue-nav__link queue-nav__link--active" data-queue-rename="${RENAME_ACTION}" data-queue-rename-field="label" data-queue-label-max="24" data-test-queue="new-queue">${label}</span></li></ul></nav>`;
 }
 
 function pageMarkup(label?: string): string {
-	return `${tabMarkup(label)}<p class="queue__created-flash">Created New Queue 1.</p><h1 class="queue__title">New Queue 1</h1><div id="status-toast"></div><div class="sr-only" id="toast-live-region"></div>`;
+	return `${tabMarkup(label)}<p class="queue__created-flash">Created New Queue.</p><h1 class="queue__title">New Queue</h1><div id="status-toast"></div><div class="sr-only" id="toast-live-region"></div>`;
 }
 
 function init(
 	bodyHtml: string,
-	respond: (call: RenameCall) => Promise<QueueRenameResponse> = () =>
-		Promise.resolve({ status: 200, json: () => Promise.resolve({}) }),
+	respond: (call: RenameCall) => Promise<QueueRenameResponse> = (call) =>
+		Promise.resolve({
+			status: 200,
+			json: () =>
+				Promise.resolve({ label: new URLSearchParams(String(call.init.body)).get("label") }),
+		}),
 ) {
 	const dom = new JSDOM(
-		`<!DOCTYPE html><html><head><title>New Queue 1 — Readplace</title></head><body>${bodyHtml}</body></html>`,
-		{ url: "https://readplace.test/queue?feature=queues&created=new-queue-1" },
+		`<!DOCTYPE html><html><head><title>New Queue — Readplace</title></head><body>${bodyHtml}</body></html>`,
+		{ url: "https://readplace.test/queue?feature=queues&created=new-queue" },
 	);
 	const document = dom.window.document;
 	const calls: RenameCall[] = [];
@@ -52,7 +56,7 @@ function init(
 		},
 	});
 	function tab(): HTMLElement {
-		const element = document.querySelector<HTMLElement>('[data-test-queue="new-queue-1"]');
+		const element = document.querySelector<HTMLElement>('[data-test-queue="new-queue"]');
 		assert(element, "the created queue's tab must be in the document");
 		return element;
 	}
@@ -144,6 +148,39 @@ describe("initQueueRename", () => {
 		expect(page.calls).toHaveLength(1);
 	});
 
+	it("shows the name the server stored, not the one the reader typed", async () => {
+		const page = init(pageMarkup(), () =>
+			Promise.resolve({ status: 200, json: () => Promise.resolve({ label: "Work Reading 2" }) }),
+		);
+		page.type("Work Reading");
+
+		page.press("Enter");
+		await settled();
+
+		expect(page.tab().textContent).toBe("Work Reading 2");
+		expect(page.document.querySelector(".queue__title")?.textContent).toBe("Work Reading 2");
+		expect(page.document.title).toBe("Work Reading 2 — Readplace");
+		expect(page.document.querySelector("#toast-live-region")?.textContent).toBe(
+			"Queue renamed to Work Reading 2.",
+		);
+	});
+
+	it("asks the reader to try again when the answer carries no name to show", async () => {
+		const page = init(pageMarkup(), () =>
+			Promise.resolve({ status: 200, json: () => Promise.resolve({}) }),
+		);
+		page.type("Work Reading");
+
+		page.press("Enter");
+		await settled();
+
+		expect(page.document.querySelector(".toast__message")?.textContent).toBe(
+			"Couldn't rename the queue.",
+		);
+		expect(page.tab().textContent).toBe("Work Reading");
+		expect(page.tab().getAttribute("contenteditable")).toBe("true");
+	});
+
 	it("shows the new name everywhere the old one was, once the server confirms it", async () => {
 		const page = init(pageMarkup());
 		page.type("Work Reading");
@@ -170,7 +207,7 @@ describe("initQueueRename", () => {
 		page.press("Escape");
 		await settled();
 
-		expect(page.tab().textContent).toBe("New Queue 1");
+		expect(page.tab().textContent).toBe("New Queue");
 		expect(page.tab().getAttribute("contenteditable")).toBeNull();
 		expect(page.calls).toEqual([]);
 	});
@@ -182,7 +219,7 @@ describe("initQueueRename", () => {
 		page.blur();
 		await settled();
 
-		expect(page.tab().textContent).toBe("New Queue 1");
+		expect(page.tab().textContent).toBe("New Queue");
 		expect(page.calls).toEqual([]);
 	});
 

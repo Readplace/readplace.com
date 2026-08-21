@@ -29,6 +29,12 @@ export const QUEUE_RENAME_REJECTIONS: Record<
 		error: "invalid-name",
 		message: `Give the queue a name of ${QUEUE_LABEL_MAX_LENGTH} characters or fewer.`,
 	},
+	"name-taken": {
+		status: 422,
+		error: "name-taken",
+		message:
+			"You already have a queue with that name, and it's too long to number. Try a shorter one.",
+	},
 };
 
 export type QueueErrorFlashMapping = (query: Record<string, unknown>) => string | undefined;

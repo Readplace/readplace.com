@@ -525,9 +525,9 @@ test.describe("Naming a queue the reader just made", () => {
 		await page.keyboard.type(LONGEST_QUEUE_NAME);
 		await page.keyboard.press("Escape");
 
-		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText("New Queue 1");
+		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText("New Queue");
 		await page.reload({ waitUntil: "domcontentloaded" });
-		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText("New Queue 1");
+		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText("New Queue");
 		await expect(page.locator(NAMING_TAB)).toHaveCount(0);
 	});
 });

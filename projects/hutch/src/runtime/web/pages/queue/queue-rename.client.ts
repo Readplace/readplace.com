@@ -44,9 +44,9 @@ function attributeOf(element: HTMLElement, name: string): string {
 	return value;
 }
 
-function messageOf(body: unknown): string | undefined {
-	const message = Reflect.get(Object(body), "message");
-	return typeof message === "string" ? message : undefined;
+function stringField(body: unknown, field: string): string | undefined {
+	const value = Reflect.get(Object(body), field);
+	return typeof value === "string" ? value : undefined;
 }
 
 function renameRequest(field: string, label: string): RequestInit {
@@ -140,6 +140,15 @@ export function initQueueRename(deps: QueueRenameDeps): void {
 			tab.focus();
 		}
 
+		function applyAnswer(status: number, body: unknown): void {
+			const stored = stringField(body, "label");
+			if (status === 200 && stored) {
+				succeed(stored);
+				return;
+			}
+			fail(stringField(body, "message"));
+		}
+
 		function apply(): void {
 			if (settled) return;
 			const label = textOf(tab).trim();
@@ -154,16 +163,11 @@ export function initQueueRename(deps: QueueRenameDeps): void {
 			}
 			settled = true;
 			deps.fetchFn(action, renameRequest(field, label)).then(
-				(response) => {
-					if (response.status === 200) {
-						succeed(label);
-						return;
-					}
-					return response.json().then(
-						(body) => fail(messageOf(body)),
-						() => fail(undefined),
-					);
-				},
+				(response) =>
+					response.json().then(
+						(body) => applyAnswer(response.status, body),
+						() => applyAnswer(response.status, undefined),
+					),
 				() => fail(undefined),
 			);
 		}

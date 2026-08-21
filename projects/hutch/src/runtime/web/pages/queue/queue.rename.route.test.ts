@@ -62,7 +62,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		);
 	});
 
-	it("lets a queue keep the name it already has", async () => {
+	it("lets a queue keep the name it already has, rather than numbering it against itself", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueue(agent);
@@ -74,7 +74,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		expect(response.body.label).toBe("Work Reading");
 	});
 
-	it("lets two queues carry the same name, telling them apart by their ids", async () => {
+	it("numbers a name the reader's other queue already carries", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const first = await createQueue(agent);
@@ -84,16 +84,57 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const response = await renameQueue(agent, second, "Work Reading");
 
 		expect(response.status).toBe(200);
-		expect(response.body).toEqual({ slug: second, label: "Work Reading" });
+		expect(response.body).toEqual({ slug: second, label: "Work Reading 2" });
 		const doc = parse((await agent.get("/queue?feature=queues")).text);
 		expect(queueTab(doc, first).textContent).toBe("Work Reading");
-		expect(queueTab(doc, second).textContent).toBe("Work Reading");
+		expect(queueTab(doc, second).textContent).toBe("Work Reading 2");
 		expect(queueTab(doc, first).getAttribute("href")).not.toBe(
 			queueTab(doc, second).getAttribute("href"),
 		);
 	});
 
-	it("lets a queue take the name the built-in queue carries", async () => {
+	it("hands back the name it stored, so the tab can show what actually landed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const first = await createQueue(agent);
+		await renameQueue(agent, first, "Work Reading");
+		const second = await createQueue(agent);
+
+		const response = await renameQueue(agent, second, "Work Reading");
+
+		expect(response.body.label).toBe("Work Reading 2");
+		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		expect(queueTab(doc, second).textContent).toBe("Work Reading 2");
+	});
+
+	it("matches a taken name whatever its capitalisation, storing the casing the reader typed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const first = await createQueue(agent);
+		await renameQueue(agent, first, "Work");
+		const second = await createQueue(agent);
+
+		const response = await renameQueue(agent, second, "work");
+
+		expect(response.status).toBe(200);
+		expect(response.body.label).toBe("work 2");
+	});
+
+	it("refuses a name with no room left for the number that tells it apart", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const longest = "a".repeat(QUEUE_LABEL_MAX_LENGTH);
+		const first = await createQueue(agent);
+		await renameQueue(agent, first, longest);
+		const second = await createQueue(agent);
+
+		const response = await renameQueue(agent, second, longest);
+
+		expect(response.status).toBe(422);
+		expect(response.body.error).toBe("name-taken");
+	});
+
+	it("numbers a name the built-in queue carries", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueue(agent);
@@ -108,7 +149,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 				),
 				(el) => el.textContent,
 			),
-		).toEqual(["My Queue", "My Queue"]);
+		).toEqual(["My Queue", "My Queue 2"]);
 	});
 
 	it("refuses a name too long to render in full", async () => {
@@ -213,7 +254,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		expect(response.status).toBe(404);
 		expect(response.body.error).toBe("unknown-queue");
 		expect(queueTab(parse((await agent.get("/queue?feature=queues")).text), queue).textContent).toBe(
-			"New Queue 1",
+			"New Queue",
 		);
 	});
 

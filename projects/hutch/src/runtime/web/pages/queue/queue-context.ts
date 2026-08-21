@@ -1,6 +1,9 @@
 import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
 import type { UserId } from "@packages/domain/user";
-import type { ListQueueDefinitions } from "@packages/provider-contracts/article-store";
+import type {
+	ListQueueDefinitions,
+	QueueDefinitionData,
+} from "@packages/provider-contracts/article-store";
 import type { FeatureToggleSource, QuerystringFeatureToggle } from "@packages/web-shell";
 import { DEFAULT_QUEUE, type Queue } from "./queue.nav";
 import { type LinkParams, type QueueUrlState, parseQueueUrl } from "./queue.url";
@@ -18,6 +21,10 @@ export interface QueueContext {
 }
 
 const MAINLINE_QUEUES: readonly Queue[] = [DEFAULT_QUEUE];
+
+export function readerQueues(definitions: readonly QueueDefinitionData[]): readonly Queue[] {
+	return [DEFAULT_QUEUE, ...definitions.map(({ slug, label }) => ({ slug, label }))];
+}
 
 export function mainlineQueueContext(query: Record<string, unknown>): QueueContext {
 	return {
@@ -41,10 +48,7 @@ export function initResolveQueueContext(deps: {
 			return mainlineQueueContext(req.query);
 		}
 		const definitions = await deps.listQueueDefinitions(userId);
-		const queues: readonly Queue[] = [
-			DEFAULT_QUEUE,
-			...definitions.map((definition) => ({ slug: definition.slug, label: definition.label })),
-		];
+		const queues = readerQueues(definitions);
 		const requested = parseQueueUrl(req.query);
 		const activeQueue = queues.find((queue) => queue.slug === requested.queue) ?? DEFAULT_QUEUE;
 		return {

@@ -10,7 +10,7 @@ describe("generateQueueSlug", () => {
 		assert.ok(slug.length <= QUEUE_LABEL_MAX_LENGTH);
 	});
 
-	it("gives every queue its own id, so two queues may share a name", () => {
+	it("gives every queue its own id, which is how a queue is addressed", () => {
 		const slugs = new Set(Array.from({ length: 50 }, () => generateQueueSlug()));
 
 		assert.equal(slugs.size, 50);

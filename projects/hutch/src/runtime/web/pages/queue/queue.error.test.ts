@@ -38,6 +38,13 @@ describe("QUEUE_RENAME_REJECTIONS", () => {
 			`Give the queue a name of ${QUEUE_LABEL_MAX_LENGTH} characters or fewer.`,
 		);
 	});
+
+	it("tells a reader whose name is taken why the number would not fit", () => {
+		expect(QUEUE_RENAME_REJECTIONS["name-taken"].status).toBe(422);
+		expect(QUEUE_RENAME_REJECTIONS["name-taken"].message).toBe(
+			"You already have a queue with that name, and it's too long to number. Try a shorter one.",
+		);
+	});
 });
 
 describe("httpErrorMessageMapping", () => {

@@ -70,10 +70,10 @@ describe("POST /queue/queues", () => {
 			`/queue?queue=${slug}&feature=queues&created=${slug}`,
 		);
 		const doc = parse((await agent.get(response.headers.location)).text);
-		expect(queueLabels(doc)).toEqual(["My Queue", "New Queue 1"]);
+		expect(queueLabels(doc)).toEqual(["My Queue", "New Queue"]);
 		expect(doc.querySelector("[data-test-empty-queue]")).not.toBeNull();
 		expect(doc.querySelector("[data-test-queue-created]")?.textContent).toBe(
-			"Created New Queue 1.",
+			"Created New Queue.",
 		);
 	});
 
@@ -87,7 +87,7 @@ describe("POST /queue/queues", () => {
 		expect(second).not.toBe(first);
 		expect(queueLabels(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
 			"My Queue",
-			"New Queue 1",
+			"New Queue",
 			"New Queue 2",
 		]);
 	});

@@ -134,6 +134,7 @@ import {
 	QUEUES_FEATURE,
 	initResolveQueueContext,
 	mainlineQueueContext,
+	readerQueues,
 } from "./queue-context";
 import { queueScopedStore } from "./queue-scoped-store";
 import {
@@ -1823,7 +1824,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const decision = decideQueueRename({
 				slug: requested.data,
 				label: typeof req.body?.label === "string" ? req.body.label : "",
-				ownedSlugs: definitions.map((definition) => definition.slug),
+				queues: readerQueues(definitions),
 			});
 			if (!decision.ok) {
 				reject(decision.reason);
