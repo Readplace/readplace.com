@@ -22,6 +22,7 @@ export interface QueueFilterTab {
 	href: string;
 	label: string;
 	testFilter: string;
+	isActive: boolean;
 	labelId?: string;
 	widestLabel?: string;
 }
@@ -48,6 +49,7 @@ export function buildQueueFilters(input: {
 			),
 			label: tab.label,
 			testFilter: tab.testFilter,
+			isActive: tab.id === input.activeTab,
 			labelId: tab.labelId,
 			widestLabel:
 				tab.labelId === undefined ? undefined : formatUnreadLabel(Number.MAX_SAFE_INTEGER),

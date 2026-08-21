@@ -77,6 +77,13 @@ describe("buildQueueFilters", () => {
 		expect(active).toEqual(["read"]);
 	});
 
+	it("should announce the tab being viewed as the current page", () => {
+		const doc = renderTabs({ activeTab: "done" });
+
+		expect(tabLink(doc, "read").getAttribute("aria-current")).toBe("page");
+		expect(tabLink(doc, "unread").getAttribute("aria-current")).toBeNull();
+	});
+
 	it("should point each tab at its own listing with its own tracking token", () => {
 		const doc = renderTabs({ activeTab: "queue" });
 
