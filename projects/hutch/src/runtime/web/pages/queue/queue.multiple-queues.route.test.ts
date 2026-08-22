@@ -37,15 +37,21 @@ async function createQueue(agent: TestAgent) {
 	return agent.post("/queue/queues?feature=queues");
 }
 
-function createdSlug(location: string): string {
-	const slug = new URL(location, TEST_APP_ORIGIN).searchParams.get("created");
-	assert(slug, "creating a queue must land the reader on it, ready to name");
+function openedSlug(location: string): string {
+	const slug = new URL(location, TEST_APP_ORIGIN).searchParams.get("queue");
+	assert(slug, "creating a queue must land the reader on it");
 	return slug;
+}
+
+function renameable(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-queue-rename]"), (el) =>
+		el.getAttribute("data-test-queue"),
+	);
 }
 
 async function createQueueAndOpen(agent: TestAgent): Promise<string> {
 	const response = await createQueue(agent);
-	return createdSlug(response.headers.location);
+	return openedSlug(response.headers.location);
 }
 
 function queueLabels(doc: Document): (string | null)[] {
@@ -58,23 +64,18 @@ async function saveInto(agent: TestAgent, queue: string | undefined, url: string
 }
 
 describe("POST /queue/queues", () => {
-	it("creates the queue on the spot and lands the reader on it, ready to name", async () => {
+	it("creates the queue on the spot and lands the reader on it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const response = await createQueue(agent);
 
 		expect(response.status).toBe(303);
-		const slug = createdSlug(response.headers.location);
-		expect(response.headers.location).toBe(
-			`/queue?queue=${slug}&feature=queues&created=${slug}`,
-		);
+		const slug = openedSlug(response.headers.location);
+		expect(response.headers.location).toBe(`/queue?queue=${slug}&feature=queues`);
 		const doc = parse((await agent.get(response.headers.location)).text);
 		expect(queueLabels(doc)).toEqual(["My Queue", "New Queue"]);
 		expect(doc.querySelector("[data-test-empty-queue]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-queue-created]")?.textContent).toBe(
-			"Created New Queue.",
-		);
 	});
 
 	it("numbers each new queue past the default names already in use", async () => {
@@ -101,16 +102,19 @@ describe("POST /queue/queues", () => {
 		expect(slug).toMatch(/^[a-f0-9]{16}$/);
 	});
 
-	it("hands the new queue's tab over to be named in place, with the script that does it", async () => {
+	it("offers the queue the reader is on for renaming, with the script that does it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const response = await createQueue(agent);
 
-		const slug = createdSlug(response.headers.location);
+		const slug = openedSlug(response.headers.location);
 		const doc = parse((await agent.get(response.headers.location)).text);
 		const tab = doc.querySelector(`[data-test-queue="${slug}"]`);
 		assert(tab, "the created queue must render a tab");
+		expect(tab.tagName).toBe("A");
+		expect(tab.getAttribute("href")).toContain(`queue=${slug}`);
+		expect(tab.getAttribute("hx-boost")).toBe("false");
 		expect(tab.getAttribute("data-queue-rename")).toBe(
 			`/queue/queues/${slug}/rename?feature=queues`,
 		);
@@ -118,17 +122,46 @@ describe("POST /queue/queues", () => {
 		expect(doc.querySelector('script[src="/client-dist/queue-rename.client.js"]')).not.toBeNull();
 	});
 
-	it("leaves the tab a plain link once the naming moment has passed", async () => {
+	it("keeps offering the rename however the reader arrives at the queue", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createQueueAndOpen(agent);
 
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get(`/queue?queue=${slug}&feature=queues`)).text);
 
-		const tab = doc.querySelector(`[data-test-queue="${slug}"]`);
-		assert(tab, "the created queue must render a tab");
-		expect(tab.tagName).toBe("A");
-		expect(tab.getAttribute("href")).toContain(`queue=${slug}`);
+		expect(renameable(doc)).toEqual([slug]);
+	});
+
+	it("withholds the rename from a reader who has lost write access", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createQueueAndOpen(agent);
+		const lookup = await harness.auth.findUserByEmail("test@example.com");
+		assert(lookup, "the logged-in reader must exist");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId: lookup.userId,
+			trialEndsAt: new Date(Date.now() - 86_400_000).toISOString(),
+		});
+
+		const doc = parse((await agent.get(`/queue?queue=${slug}&feature=queues`)).text);
+
+		expect(renameable(doc)).toEqual([]);
+		expect(doc.querySelector('[data-test-action="new-queue"]')).toBeNull();
+		expect(doc.querySelector(`[data-test-queue="${slug}"]`)?.getAttribute("href")).toContain(
+			`queue=${slug}`,
+		);
+	});
+
+	it("never offers the queue every reader is given for renaming", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createQueueAndOpen(agent);
+
+		const onDefault = parse((await agent.get("/queue?feature=queues")).text);
+		const onCreated = parse((await agent.get(`/queue?queue=${slug}&feature=queues`)).text);
+
+		expect(renameable(onDefault)).toEqual([]);
+		expect(renameable(onCreated)).toEqual([slug]);
 	});
 
 	it("stops the reader at the per-account queue cap and says so", async () => {
@@ -145,23 +178,6 @@ describe("POST /queue/queues", () => {
 		const flash = doc.querySelector("[data-test-queue-error]");
 		assert(flash, "the cap must be explained where the reader pressed the control");
 		expect(flash.textContent).toBe(`You can keep up to ${QUEUE_MAX_PER_USER} queues.`);
-	});
-
-	it("hands a second press of the control to the queue the first one made", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp({
-			...fixture,
-			articleStore: {
-				...fixture.articleStore,
-				createQueueDefinition: async () => ({ created: false }),
-			},
-		});
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await createQueue(agent);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toMatch(/^\/queue\?queue=[a-f0-9]{16}&feature=queues$/);
 	});
 
 	it("does not exist for a reader who never turned the queues feature on", async () => {

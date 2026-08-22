@@ -18,7 +18,7 @@ import { renderQueueCountsTrigger, renderStatusToast } from "./queue-mutation-fr
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderDeleteConfirm } from "./queue-card/delete-confirm.component";
 import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component";
-import { type QueueNaming, buildQueueNav, renderQueueNav } from "./queue-nav.component";
+import { buildQueueNav, renderQueueNav } from "./queue-nav.component";
 import { DEFAULT_QUEUE, type Queue } from "./queue.nav";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
@@ -39,8 +39,6 @@ export interface QueueRailViewModel {
 	linkParams: LinkParams;
 	newQueueAction: string;
 	canCreate: boolean;
-	naming?: QueueNaming;
-	createdLabel?: string;
 	errorFlash?: string;
 }
 
@@ -67,7 +65,6 @@ interface QueueDisplayModel {
 	deleteConfirmsHtml: string;
 	mainClass: string;
 	queueNavHtml: string;
-	queueCreatedLabel?: string;
 	queueErrorFlash?: string;
 	queueTitle: string;
 	saveAction: string;
@@ -176,11 +173,9 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 						linkParams: options.rail.linkParams,
 						newQueueAction: options.rail.newQueueAction,
 						canCreate: options.rail.canCreate,
-						naming: options.rail.naming,
-					}),
+							}),
 				)
 			: "",
-		queueCreatedLabel: options.rail?.createdLabel,
 		queueErrorFlash: options.rail?.errorFlash,
 		queueTitle: options.rail?.activeQueue.label ?? DEFAULT_QUEUE.label,
 		saveAction: withInternalTracking(

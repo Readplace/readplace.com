@@ -2,11 +2,7 @@
           <ul class="queue-nav__list">
             {{#each items}}
             <li class="queue-nav__item">
-              {{#if isNaming}}
-              <span class="{{linkClass}}" aria-current="page" data-queue-rename="{{renameAction}}" data-queue-rename-field="{{renameField}}" data-queue-label-max="{{maxLength}}" data-test-queue="{{name}}">{{title}}</span>
-              {{else}}
-              <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}} data-test-queue="{{name}}">{{title}}</a>
-              {{/if}}
+              <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}}{{#if isRenameable}} hx-boost="false" aria-label="Rename {{title}}" data-queue-rename="{{renameAction}}" data-queue-rename-field="{{renameField}}" data-queue-label-max="{{maxLength}}"{{/if}} data-test-queue="{{name}}"><span class="queue-nav__label">{{title}}</span>{{#if isRenameable}}{{icon "pencil"}}{{/if}}</a>
             </li>
             {{/each}}
           </ul>

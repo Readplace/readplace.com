@@ -15,7 +15,7 @@ function parse(html: string): Document {
 
 async function createQueue(agent: TestAgent): Promise<string> {
 	const response = await agent.post("/queue/queues?feature=queues");
-	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("created");
+	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a queue must land the reader on it, ready to name");
 	return slug;
 }

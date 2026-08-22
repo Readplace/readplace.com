@@ -41,8 +41,10 @@ const QUEUES_PANEL = "?feature=queues";
 /* A name at the 24-character cap with nothing to break at — the hardest case
  * the rail has to render in full, so it exercises the wrap and the cap at once. */
 const LONGEST_QUEUE_NAME = "Longestpossiblequeuename";
-const NAMING_TAB = "[data-queue-rename]";
+const RENAMEABLE_TAB = "[data-queue-rename]";
+const EDITING_TAB = "main.queue .queue-nav__link--editing";
 const ACTIVE_QUEUE_TAB = "main.queue .queue-nav__link--active";
+const ACTIVE_QUEUE_LABEL = "main.queue .queue-nav__link--active .queue-nav__label";
 
 const WCAG_REFLOW_MINIMUM = { width: 320, height: 800 };
 const PHONE = { width: 390, height: 844 };
@@ -135,6 +137,13 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-queue");
+}
+
+/* A tap puts the caret where the reader touched, so replacing the whole name is
+ * the reader's own select-all — the same keystroke they would use themselves. */
+async function replaceOpenName(page: Page, name: string): Promise<void> {
+	await page.keyboard.press("ControlOrMeta+A");
+	await page.keyboard.type(name);
 }
 
 async function openQueue(page: Page, search: string): Promise<void> {
@@ -480,11 +489,13 @@ test.describe("Queue nav with a long queue name", () => {
 		const singleLine = await measuredBox(page, QUEUE_NAV_LINK);
 
 		await page.click('[data-test-action="new-queue"]');
-		await page.waitForSelector(NAMING_TAB);
-		await page.keyboard.type(LONGEST_QUEUE_NAME);
+		await page.waitForSelector(RENAMEABLE_TAB);
+		await page.click(RENAMEABLE_TAB);
+		await expect(page.locator(EDITING_TAB)).toHaveCount(1);
+		await replaceOpenName(page, LONGEST_QUEUE_NAME);
 		await page.keyboard.press("Enter");
 
-		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText(LONGEST_QUEUE_NAME);
+		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText(LONGEST_QUEUE_NAME);
 		await expect(page.locator(QUEUE_TITLE)).toHaveText(LONGEST_QUEUE_NAME);
 		const wrapped = await measuredBox(page, ACTIVE_QUEUE_TAB);
 		assert.ok(
@@ -521,14 +532,73 @@ test.describe("Naming a queue the reader just made", () => {
 		await openQueue(page, QUEUES_PANEL);
 
 		await page.click('[data-test-action="new-queue"]');
-		await page.waitForSelector(NAMING_TAB);
-		await page.keyboard.type(LONGEST_QUEUE_NAME);
+		await page.waitForSelector(RENAMEABLE_TAB);
+		await page.click(RENAMEABLE_TAB);
+		await replaceOpenName(page, LONGEST_QUEUE_NAME);
 		await page.keyboard.press("Escape");
 
-		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText("New Queue");
+		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("New Queue");
 		await page.reload({ waitUntil: "domcontentloaded" });
-		await expect(page.locator(ACTIVE_QUEUE_TAB)).toHaveText("New Queue");
-		await expect(page.locator(NAMING_TAB)).toHaveCount(0);
+		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("New Queue");
+		await expect(page.locator(RENAMEABLE_TAB)).toHaveCount(1);
+	});
+
+	test("lets the reader rename the same queue again without a page load", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-nav-rename-twice-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
+		await page.click('[data-test-action="new-queue"]');
+		await page.waitForSelector(RENAMEABLE_TAB);
+
+		await page.click(RENAMEABLE_TAB);
+		await replaceOpenName(page, "Work Reading");
+		await page.keyboard.press("Enter");
+		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("Work Reading");
+
+		await page.click(RENAMEABLE_TAB);
+		await replaceOpenName(page, "Deep Work");
+		await page.keyboard.press("Enter");
+
+		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("Deep Work");
+		await page.reload({ waitUntil: "domcontentloaded" });
+		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("Deep Work");
+	});
+
+	test("keeps the rename working after the listing has been swapped", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-nav-rename-swap-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
+		await page.click('[data-test-action="new-queue"]');
+		await page.waitForSelector(RENAMEABLE_TAB);
+
+		await page.click(READ_FILTER_TAB);
+		await expect(page.locator(RENAMEABLE_TAB)).toHaveCount(1);
+		await page.click(RENAMEABLE_TAB);
+		await replaceOpenName(page, "Work Reading");
+		await page.keyboard.press("Enter");
+
+		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("Work Reading");
+	});
+
+	test("never offers the queue every reader is given for renaming", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-nav-rename-default-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
+
+		await expect(page.locator(RENAMEABLE_TAB)).toHaveCount(0);
+
+		await page.click('[data-test-action="new-queue"]');
+
+		await expect(page.locator(RENAMEABLE_TAB)).toHaveCount(1);
 	});
 });
 
@@ -660,3 +730,4 @@ test.describe("Queue status tabs", () => {
 		);
 	});
 });
+

@@ -6,30 +6,42 @@ export interface QueueRenameResponse {
 export interface QueueRenameDeps {
 	document: Document;
 	fetchFn: (url: string, init: RequestInit) => Promise<QueueRenameResponse>;
-	currentUrl: () => string;
-	replaceUrl: (url: string) => void;
-	selectAllIn: (element: HTMLElement) => void;
 	placeCaretAtEnd: (element: HTMLElement) => void;
 	announceToast: (toast: Element) => void;
 	addSwapListener: (listener: () => void) => void;
 }
 
-const RENAME_SELECTOR = "[data-queue-rename]";
 const ACTION_ATTR = "data-queue-rename";
 const FIELD_ATTR = "data-queue-rename-field";
 const MAX_ATTR = "data-queue-label-max";
+const RENAME_SELECTOR = `[${ACTION_ATTR}]`;
+const LABEL_SELECTOR = ".queue-nav__label";
 const EDITING_CLASS = "queue-nav__link--editing";
 const TITLE_SELECTOR = ".queue__title";
-const CREATED_FLASH_SELECTOR = ".queue__created-flash";
 const TOAST_MOUNT_SELECTOR = "#status-toast";
 const LIVE_REGION_SELECTOR = "#toast-live-region";
-const CREATED_PARAM = "created";
 const TOAST_DISMISS_MS = 6000;
 const GENERIC_FAILURE = "Couldn't rename the queue.";
 const SITE_TITLE_SUFFIX = " — Readplace";
 
+interface QueueRenameEdit {
+	tab: HTMLElement;
+	label: HTMLElement;
+	href: string;
+	action: string;
+	field: string;
+	max: number;
+	openedWith: string;
+	pending: boolean;
+	handBackFocus: boolean;
+}
+
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
+}
+
+function isElement(node: EventTarget | null): node is Element {
+	return typeof Reflect.get(Object(node), "closest") === "function";
 }
 
 function textOf(element: HTMLElement): string {
@@ -65,16 +77,11 @@ function renameRequest(field: string, label: string): RequestInit {
 }
 
 export function initQueueRename(deps: QueueRenameDeps): void {
-	const bound = new WeakSet<Element>();
+	let editing: QueueRenameEdit | null = null;
 
 	function setText(selector: string, text: string): void {
 		const nodes = deps.document.querySelectorAll(selector);
 		for (let i = 0; i < nodes.length; i++) nodes[i].textContent = text;
-	}
-
-	function removeNodes(selector: string): void {
-		const nodes = deps.document.querySelectorAll(selector);
-		for (let i = 0; i < nodes.length; i++) nodes[i].remove();
 	}
 
 	function showToast(message: string): void {
@@ -93,120 +100,141 @@ export function initQueueRename(deps: QueueRenameDeps): void {
 		}
 	}
 
-	function forgetCreatedParam(): void {
-		const url = new URL(deps.currentUrl());
-		url.searchParams.delete(CREATED_PARAM);
-		deps.replaceUrl(`${url.pathname}${url.search}${url.hash}`);
-	}
-
-	function bind(tab: HTMLElement): void {
-		if (bound.has(tab)) return;
-		bound.add(tab);
-
-		const action = attributeOf(tab, ACTION_ATTR);
-		const field = attributeOf(tab, FIELD_ATTR);
-		const max = Number(attributeOf(tab, MAX_ATTR));
-
-		const defaultLabel = textOf(tab);
-		let settled = false;
-
-		function stopEditing(): void {
-			tab.removeAttribute(ACTION_ATTR);
-			tab.removeAttribute("contenteditable");
-			tab.removeAttribute("role");
-			tab.removeAttribute("aria-label");
-			tab.removeAttribute("spellcheck");
-			tab.classList.remove(EDITING_CLASS);
-		}
-
-		function revert(): void {
-			settled = true;
-			tab.textContent = defaultLabel;
-			stopEditing();
-		}
-
-		function succeed(label: string): void {
-			setText(TITLE_SELECTOR, label);
-			removeNodes(CREATED_FLASH_SELECTOR);
-			deps.document.title = `${label}${SITE_TITLE_SUFFIX}`;
-			setText(LIVE_REGION_SELECTOR, `Queue renamed to ${label}.`);
-			tab.textContent = label;
-			stopEditing();
-		}
-
-		function fail(message: string | undefined): void {
-			settled = false;
-			showToast(message ?? GENERIC_FAILURE);
-			tab.focus();
-		}
-
-		function applyAnswer(status: number, body: unknown): void {
-			const stored = stringField(body, "label");
-			if (status === 200 && stored) {
-				succeed(stored);
-				return;
-			}
-			fail(stringField(body, "message"));
-		}
-
-		function apply(): void {
-			if (settled) return;
-			const label = textOf(tab).trim();
-			if (label === "") {
-				revert();
-				return;
-			}
-			if (label === defaultLabel) {
-				settled = true;
-				stopEditing();
-				return;
-			}
-			settled = true;
-			deps.fetchFn(action, renameRequest(field, label)).then(
-				(response) =>
-					response.json().then(
-						(body) => applyAnswer(response.status, body),
-						() => applyAnswer(response.status, undefined),
-					),
-				() => fail(undefined),
-			);
-		}
-
-		tab.addEventListener("keydown", (event) => {
-			if (event.key === "Enter") {
-				event.preventDefault();
-				apply();
-				return;
-			}
-			if (event.key === "Escape") {
-				event.preventDefault();
-				revert();
-			}
-		});
-		tab.addEventListener("blur", apply);
-		tab.addEventListener("input", () => {
-			const text = textOf(tab);
-			if (text.length <= max) return;
-			tab.textContent = text.slice(0, max);
-			deps.placeCaretAtEnd(tab);
-		});
-
-		tab.setAttribute("contenteditable", "true");
-		tab.setAttribute("role", "textbox");
-		tab.setAttribute("aria-label", "Queue name");
-		tab.setAttribute("spellcheck", "false");
-		tab.setAttribute("tabindex", "-1");
+	function startEditing(tab: HTMLElement): void {
+		const label = tab.querySelector<HTMLElement>(LABEL_SELECTOR);
+		assert(label, "a renameable queue tab must carry its name in an element of its own");
+		editing = {
+			tab,
+			label,
+			href: attributeOf(tab, "href"),
+			action: attributeOf(tab, ACTION_ATTR),
+			field: attributeOf(tab, FIELD_ATTR),
+			max: Number(attributeOf(tab, MAX_ATTR)),
+			openedWith: textOf(label),
+			pending: false,
+			handBackFocus: false,
+		};
+		label.setAttribute("contenteditable", "true");
+		label.setAttribute("role", "textbox");
+		label.setAttribute("aria-label", "Queue name");
+		label.setAttribute("spellcheck", "false");
+		label.focus();
+		tab.removeAttribute("href");
 		tab.classList.add(EDITING_CLASS);
-		forgetCreatedParam();
-		tab.focus();
-		deps.selectAllIn(tab);
 	}
 
-	function scan(): void {
-		const tabs = deps.document.querySelectorAll<HTMLElement>(RENAME_SELECTOR);
-		for (let i = 0; i < tabs.length; i++) bind(tabs[i]);
+	function finishEditing(): void {
+		const edit = editing;
+		if (edit === null) return;
+		editing = null;
+		edit.label.removeAttribute("contenteditable");
+		edit.label.removeAttribute("role");
+		edit.label.removeAttribute("aria-label");
+		edit.label.removeAttribute("spellcheck");
+		edit.tab.setAttribute("href", edit.href);
+		edit.tab.classList.remove(EDITING_CLASS);
+		if (edit.handBackFocus) edit.tab.focus();
 	}
 
-	scan();
-	deps.addSwapListener(scan);
+	function revert(): void {
+		const edit = editing;
+		if (edit === null) return;
+		edit.label.textContent = edit.openedWith;
+		finishEditing();
+	}
+
+	function succeed(action: string, label: string): void {
+		setText(`[${ACTION_ATTR}="${action}"] ${LABEL_SELECTOR}`, label);
+		setText(TITLE_SELECTOR, label);
+		setText(LIVE_REGION_SELECTOR, `Queue renamed to ${label}.`);
+		deps.document.title = `${label}${SITE_TITLE_SUFFIX}`;
+		finishEditing();
+	}
+
+	function fail(edit: QueueRenameEdit, message: string | undefined): void {
+		edit.pending = false;
+		showToast(message ?? GENERIC_FAILURE);
+		edit.label.focus();
+	}
+
+	function answer(edit: QueueRenameEdit, status: number, body: unknown): void {
+		const stored = stringField(body, "label");
+		if (status === 200 && stored) {
+			succeed(edit.action, stored);
+			return;
+		}
+		fail(edit, stringField(body, "message"));
+	}
+
+	function commit(): void {
+		const edit = editing;
+		if (edit === null) return;
+		if (edit.pending) return;
+		const label = textOf(edit.label).trim();
+		if (label === "") {
+			revert();
+			return;
+		}
+		if (label === edit.openedWith) {
+			finishEditing();
+			return;
+		}
+		edit.pending = true;
+		deps.fetchFn(edit.action, renameRequest(edit.field, label)).then(
+			(response) =>
+				response.json().then(
+					(body) => answer(edit, response.status, body),
+					() => answer(edit, response.status, undefined),
+				),
+			() => fail(edit, undefined),
+		);
+	}
+
+	deps.document.addEventListener("click", (event) => {
+		if ([event.metaKey, event.ctrlKey, event.shiftKey, event.altKey].includes(true)) return;
+		const target = event.target;
+		if (!isElement(target)) return;
+		const tab = target.closest<HTMLElement>(RENAME_SELECTOR);
+		if (tab === null) return;
+		if (editing !== null) return;
+		event.preventDefault();
+		startEditing(tab);
+	});
+
+	deps.document.addEventListener("keydown", (event) => {
+		const edit = editing;
+		if (edit === null) return;
+		if (event.key === "Enter") {
+			event.preventDefault();
+			edit.handBackFocus = true;
+			commit();
+			return;
+		}
+		if (event.key === "Escape") {
+			event.preventDefault();
+			edit.handBackFocus = true;
+			revert();
+		}
+	});
+
+	deps.document.addEventListener("input", () => {
+		const edit = editing;
+		if (edit === null) return;
+		const text = textOf(edit.label);
+		if (text.length <= edit.max) return;
+		edit.label.textContent = text.slice(0, edit.max);
+		deps.placeCaretAtEnd(edit.label);
+	});
+
+	deps.document.addEventListener("focusout", (event) => {
+		const edit = editing;
+		if (edit === null) return;
+		if (event.target !== edit.label) return;
+		edit.handBackFocus = false;
+		commit();
+	});
+
+	deps.addSwapListener(() => {
+		editing = null;
+	});
 }

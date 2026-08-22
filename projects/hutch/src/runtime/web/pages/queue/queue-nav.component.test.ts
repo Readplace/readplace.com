@@ -25,6 +25,18 @@ function queueLink(doc: Document, testQueue: string): Element {
 	return link;
 }
 
+function queueLabel(doc: Document, testQueue: string): string | null {
+	const label = queueLink(doc, testQueue).querySelector(".queue-nav__label");
+	assert(label, `the ${testQueue} queue must carry its name in an element of its own`);
+	return label.textContent;
+}
+
+function renameable(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-queue-rename]"), (el) =>
+		el.getAttribute("data-test-queue"),
+	);
+}
+
 function hrefParts(link: Element): { path: string; params: URLSearchParams } {
 	const url = new URL(link.getAttribute("href") ?? "", "https://internal.invalid");
 	return { path: url.pathname, params: url.searchParams };
@@ -131,11 +143,8 @@ describe("buildQueueNav", () => {
 		expect(doc.querySelectorAll("[data-test-queue]")).toHaveLength(2);
 	});
 
-	it("should hand the just-created queue's tab to the reader to name in place", () => {
-		const doc = renderNav({
-			activeSlug: WORK.slug,
-			naming: { slug: WORK.slug, action: "/queue/queues/work/rename" },
-		});
+	it("should offer the queue the reader is on for renaming, in place", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
 
 		const tab = queueLink(doc, "work");
 		expect({
@@ -144,46 +153,61 @@ describe("buildQueueNav", () => {
 			field: tab.getAttribute("data-queue-rename-field"),
 			max: tab.getAttribute("data-queue-label-max"),
 			current: tab.getAttribute("aria-current"),
-			title: tab.textContent,
+			queue: hrefParts(tab).params.get("queue"),
 		}).toEqual({
-			tagName: "SPAN",
-			action: "/queue/queues/work/rename",
+			tagName: "A",
+			action: "/queue/queues/work/rename?feature=queues",
 			field: "label",
 			max: String(QUEUE_LABEL_MAX_LENGTH),
 			current: "page",
-			title: "Work Reading",
+			queue: "work",
 		});
 	});
 
-	it("should leave every other queue a link while one is being named", () => {
-		const doc = renderNav({
-			activeSlug: WORK.slug,
-			naming: { slug: WORK.slug, action: "/queue/queues/work/rename" },
-		});
+	it("should opt the renameable tab out of boosting so the reader's own tap opens the editor", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
 
-		const other = queueLink(doc, "default");
-		expect(other.tagName).toBe("A");
-		expect(hrefParts(other).path).toBe("/queue");
+		expect(queueLink(doc, "work").getAttribute("hx-boost")).toBe("false");
+		expect(queueLink(doc, "default").getAttribute("hx-boost")).toBeNull();
 	});
 
-	it("should render a queue as a link once its naming moment has passed", () => {
+	it("should keep a queue's name in an element of its own, so editing cannot swallow the pencil", () => {
 		const doc = renderNav({ activeSlug: WORK.slug });
 
 		const tab = queueLink(doc, "work");
-		expect(tab.tagName).toBe("A");
-		expect(hrefParts(tab).params.get("queue")).toBe("work");
+		expect(queueLabel(doc, "work")).toBe("Work Reading");
+		expect(tab.querySelectorAll("svg")).toHaveLength(1);
 	});
 
-	it("should not open naming for a reader who cannot write", () => {
-		const doc = renderNav({
-			canCreate: false,
-			activeSlug: WORK.slug,
-			naming: { slug: WORK.slug, action: "/queue/queues/work/rename" },
-		});
+	it("should say what the pencil does for a reader who cannot see it", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
 
 		const tab = queueLink(doc, "work");
-		expect(tab.tagName).toBe("A");
-		expect(hrefParts(tab).params.get("queue")).toBe("work");
+		expect(tab.getAttribute("aria-label")).toBe("Rename Work Reading");
+		expect(tab.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+	});
+
+	it("should leave every queue the reader is not on a plain link with nothing to rename", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		expect(renameable(doc)).toEqual(["work"]);
+		expect(hrefParts(queueLink(doc, "default")).path).toBe("/queue");
+	});
+
+	it("should never offer the built-in queue for renaming, even when the reader is on it", () => {
+		const doc = renderNav({ activeSlug: DEFAULT_QUEUE.slug });
+
+		const tab = queueLink(doc, "default");
+		expect(renameable(doc)).toEqual([]);
+		expect(tab.getAttribute("aria-current")).toBe("page");
+		expect(hrefParts(tab).path).toBe("/queue");
+	});
+
+	it("should withhold renaming from a reader who cannot write", () => {
+		const doc = renderNav({ canCreate: false, activeSlug: WORK.slug });
+
+		expect(renameable(doc)).toEqual([]);
+		expect(hrefParts(queueLink(doc, "work")).params.get("queue")).toBe("work");
 	});
 
 	it("should name the landmark so it is distinguishable from the page's other navs", () => {

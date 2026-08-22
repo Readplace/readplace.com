@@ -149,7 +149,7 @@ import {
 } from "@packages/domain/queue";
 import type { SaveArticleAtQueueTop } from "@packages/save-article";
 import type { QueueRailViewModel } from "./queue.component";
-import { queueRenamePath, queueReturnQuery } from "./queue.url";
+import { queueReturnQuery } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
@@ -1003,19 +1003,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	): QueueRailViewModel | undefined => {
 		if (!context.railed) return undefined;
 		const canCreate = !accessIsReadOnly;
-		const createdSlug = typeof req.query.created === "string" ? req.query.created : undefined;
-		const created = context.queues.find((queue) => queue.slug === createdSlug);
 		return {
 			queues: context.queues,
 			activeQueue: context.activeQueue,
 			linkParams: context.linkParams,
 			newQueueAction: `${QUEUE_CREATE_PATH}${queueReturnQuery(context.state, context.linkParams)}`,
 			canCreate,
-			naming: created && {
-				slug: created.slug,
-				action: `${queueRenamePath(created.slug)}${queueReturnQuery({}, context.linkParams)}`,
-			},
-			createdLabel: created?.label,
 			errorFlash: queueErrorFlashMapping(req.query),
 		};
 	};
@@ -1772,16 +1765,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const label = defaultQueueLabel(context.queues.map((queue) => queue.label));
 
 		try {
-			const { created } = await deps.createQueueDefinition({
+			await deps.createQueueDefinition({
 				userId,
 				slug,
 				label,
 				createdAt: deps.now(),
 			});
-			if (!created) {
-				res.redirect(303, buildQueueUrl({ queue: slug }, context.linkParams));
-				return;
-			}
 		} catch (error) {
 			if (!(error instanceof QueueLimitReachedError)) throw error;
 			res.redirect(
@@ -1794,10 +1783,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		res.redirect(
-			303,
-			buildQueueUrl({ queue: slug }, [...context.linkParams, ["created", slug]]),
-		);
+		res.redirect(303, buildQueueUrl({ queue: slug }, context.linkParams));
 	});
 
 	router.post(

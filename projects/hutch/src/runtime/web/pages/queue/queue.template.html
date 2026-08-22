@@ -3,7 +3,6 @@
       <div class="queue__body">
         {{{queueNavHtml}}}
         <div class="queue__content">
-          {{#if queueCreatedLabel}}<p class="queue__created-flash" role="status" data-test-queue-created>Created {{queueCreatedLabel}}.</p>{{/if}}
           {{#if queueErrorFlash}}<p class="queue__error-flash" role="alert" data-test-queue-error>{{queueErrorFlash}}</p>{{/if}}
           <div class="queue__header">
             <h1 class="queue__title">{{queueTitle}}</h1>

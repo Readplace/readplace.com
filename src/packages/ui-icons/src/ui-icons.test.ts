@@ -5,6 +5,10 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("arrow-right")).toBe(iconSvg("arrow-right"));
 	});
 
+	it("draws the pencil the queue rail names its rename affordance with", () => {
+		expect(findIconSvg("pencil")).toBe(iconSvg("pencil"));
+	});
+
 	it("reports an unknown name rather than drawing nothing, so a caller can fail a typo", () => {
 		expect(findIconSvg("fa-solid fa-inbox")).toBeUndefined();
 	});
