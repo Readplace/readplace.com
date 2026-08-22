@@ -33,6 +33,13 @@
   color: var(--foreground);
 }
 
+.account__email {
+  margin-top: 4px;
+  font-size: 0.9375rem;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
 /* The sheet is presented with .ignoresSafeArea() and the chromeless <head> sets no
  * viewport-fit=cover, so env(safe-area-inset-bottom) resolves to 0 inside this
  * WKWebView — the pad has to be hard-coded to clear the home indicator, the same

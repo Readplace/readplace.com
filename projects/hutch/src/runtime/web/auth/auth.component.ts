@@ -8,6 +8,8 @@ import { renderFoundingProgress } from "../shared/founding-progress/founding-pro
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import type { ComponentError } from "../shared/component-error.types";
 import { AUTH_STYLES } from "./auth.styles";
+import { renderAuthProviders } from "./auth-providers.component";
+import type { LastAuthProvider } from "../last-auth-provider";
 
 const LOGIN_TEMPLATE = readFileSync(join(__dirname, "login.template.html"), "utf-8");
 const SIGNUP_TEMPLATE = readFileSync(join(__dirname, "signup.template.html"), "utf-8");
@@ -24,6 +26,7 @@ interface AuthFormData {
 	pendingSaveHost?: string;
 	userCount: number;
 	foundingAllocation: FoundingAllocation;
+	lastUsedProvider?: LastAuthProvider;
 }
 
 interface SignupFormData extends AuthFormData {
@@ -54,7 +57,12 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 		email,
 		globalError: errors?.find((e) => !e.fieldName)?.message,
 		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
-		chooseAccount: data.chooseAccount,
+		authProvidersHtml: renderAuthProviders({
+			intent: "sign-in",
+			returnUrl: data.returnUrl,
+			chooseAccount: data.chooseAccount,
+			lastUsedProvider: data.lastUsedProvider,
+		}),
 		pendingSaveHost: data.pendingSaveHost,
 		subtitle: data.pendingSaveHost
 			? "Sign in and this article is saved to your queue"
@@ -123,8 +131,11 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
 		submitLabel: `Join Readplace`,
-		googleLabel: `Sign up with Google`,
-		appleLabel: `Sign up with Apple`,
+		authProvidersHtml: renderAuthProviders({
+			intent: "sign-up",
+			returnUrl: data.returnUrl,
+			lastUsedProvider: data.lastUsedProvider,
+		}),
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
 			foundingAllocation: data.foundingAllocation,

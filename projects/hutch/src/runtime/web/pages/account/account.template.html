@@ -4,6 +4,7 @@
         <a class="account__back" href="{{backLink.href}}" data-test-account-back-link>{{icon "arrow-left"}} {{backLink.label}}</a>
         {{/if}}
         <h1 class="account__title">{{heading}}</h1>
+        <p class="account__email" data-test-account-email>Signed in as <strong>{{email}}</strong></p>
       </div>
       {{{cardHtml}}}
       {{#if showCardSection}}

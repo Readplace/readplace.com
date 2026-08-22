@@ -38,8 +38,9 @@ export function renderAccountCard(vm: AccountViewModel): string {
 export function AccountPage(
 	vm: AccountViewModel,
 	cardSection: CardSectionViewModel,
-	surface?: AccountSurface,
+	page: { email: string; surface?: AccountSurface },
 ): PageBody {
+	const surface = page.surface;
 	return {
 		seo: {
 			title: "Account — Readplace",
@@ -54,6 +55,7 @@ export function AccountPage(
 				...vm,
 				cardSection,
 				cardHtml: renderAccountCard(vm),
+				email: page.email,
 				exportHref: EXPORT_HREF,
 				backLink: surface?.backLink,
 			}),

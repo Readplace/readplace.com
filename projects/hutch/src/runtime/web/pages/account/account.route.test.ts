@@ -269,6 +269,34 @@ describe("GET /account (next-charge line)", () => {
 	});
 });
 
+describe("GET /account (which account am I in?)", () => {
+	it("names the signed-in email so a reader can tell two accounts apart", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "reader@example.com");
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const identity = doc.querySelector("[data-test-account-email]");
+		assert(identity, "the account page must name the signed-in email");
+		expect(identity.textContent).toBe("Signed in as reader@example.com");
+	});
+
+	it("names it on the app shell too, the only surface the iOS app renders", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "ios-reader@example.com");
+
+		const response = await agent.get("/account?platform=ios&shell=app");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const identity = doc.querySelector("[data-test-account-email]");
+		assert(identity, "the app-shell account page must name the signed-in email");
+		expect(identity.textContent).toBe("Signed in as ios-reader@example.com");
+	});
+});
+
 describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () => {
 	it("hides the Subscribe CTA and the payment-methods section for a trialing user, keeping status + danger zone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

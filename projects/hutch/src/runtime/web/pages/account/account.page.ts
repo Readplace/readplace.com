@@ -168,6 +168,9 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			nextCharge: SubscriptionNextCharge | undefined;
 		},
 	): Promise<void> {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const email = await deps.findEmailByUserId(req.userId);
+		assert(email, "an authenticated account page must resolve an email");
 		const webVm = toAccountViewModel(
 			input.access,
 			parseAccountQuery(req.query),
@@ -183,7 +186,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				req, res,
 				ChromelessPage(
 					AccountPage(withoutCommerce(webVm, { appShell: true }), input.cardSection, {
-						backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label },
+						email,
+						surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
 					}),
 					{ cspNonce: requireCspNonce(req) },
 				),
@@ -192,7 +196,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		}
 		const vm = isIosSurface(req) ? withoutCommerce(webVm, { appShell: false }) : webVm;
 		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
-		sendComponent(req, res, Base(AccountPage(vm, input.cardSection), bannerState));
+		sendComponent(req, res, Base(AccountPage(vm, input.cardSection, { email }), bannerState));
 	}
 
 	router.get("/", async (req: Request, res: Response) => {

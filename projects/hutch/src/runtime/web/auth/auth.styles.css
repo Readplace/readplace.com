@@ -183,23 +183,19 @@
   height: 1px;
   background: var(--border);
 }
+.auth-provider-section + .auth-provider-section {
+  margin-top: 12px;
+}
 
-/**
- * Colors, typography, and padding below are hardcoded (not theme variables) because
- * Google Identity's "Sign in with Google" branding guidelines mandate specific values
- * for each approved light/dark variant. Do not swap for var(--card) / var(--foreground).
- */
-.auth-google-button {
+.auth-provider-button {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   height: var(--input-height);
   padding: 0 var(--button-padding-x);
-  border: 1px solid #747775;
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  background: #ffffff;
-  color: #1f1f1f;
   font-size: 0.9375rem;
   font-weight: 500;
   letter-spacing: 0.25px;
@@ -208,7 +204,7 @@
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.auth-google-button__logo {
+.auth-provider-button__logo {
   position: absolute;
   left: 12px;
   width: 18px;
@@ -216,24 +212,51 @@
   flex-shrink: 0;
 }
 
-.auth-google-button__label {
+.auth-provider-button__label {
   display: inline-block;
 }
 
-.auth-google-button:hover {
+.auth-provider-button__last-used {
+  position: absolute;
+  top: 0;
+  right: 12px;
+  transform: translateY(-50%);
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--error-fill);
+  color: var(--error-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/**
+ * Colors, typography, and padding below are hardcoded (not theme variables) because
+ * Google Identity's "Sign in with Google" branding guidelines mandate specific values
+ * for each approved light/dark variant. Do not swap for var(--card) / var(--foreground).
+ */
+.auth-provider-button--google {
+  border-color: #747775;
+  background: #ffffff;
+  color: #1f1f1f;
+}
+
+.auth-provider-button--google:hover {
   background: #f8f9fa;
   border-color: #d2e3fc;
   box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
-  .auth-google-button {
+  .auth-provider-button--google {
     border-color: #8e918f;
     background: #131314;
     color: #e3e3e3;
   }
 
-  .auth-google-button:hover {
+  .auth-provider-button--google:hover {
     background: #1e1f20;
     border-color: #8e918f;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -245,54 +268,25 @@
  * Interface Guidelines mandate the black-on-light / white-on-dark "Sign in with
  * Apple" button variants. Do not swap for var(--card) / var(--foreground).
  */
-.auth-apple-section {
-  margin-top: 12px;
-}
-
-.auth-apple-button {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--input-height);
-  padding: 0 var(--button-padding-x);
-  border: 1px solid #000000;
-  border-radius: var(--radius);
+.auth-provider-button--apple {
+  border-color: #000000;
   background: #000000;
   color: #ffffff;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  letter-spacing: 0.25px;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.auth-apple-button__logo {
-  position: absolute;
-  left: 12px;
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.auth-apple-button__label {
-  display: inline-block;
-}
-
-.auth-apple-button:hover {
+.auth-provider-button--apple:hover {
   background: #1a1a1a;
   border-color: #1a1a1a;
 }
 
 @media (prefers-color-scheme: dark) {
-  .auth-apple-button {
+  .auth-provider-button--apple {
     border-color: #ffffff;
     background: #ffffff;
     color: #000000;
   }
 
-  .auth-apple-button:hover {
+  .auth-provider-button--apple:hover {
     background: #f0f0f0;
     border-color: #f0f0f0;
   }

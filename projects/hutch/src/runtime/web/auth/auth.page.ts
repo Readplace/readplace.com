@@ -56,6 +56,7 @@ import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { pendingSaveHostFrom } from "./pending-save-host";
 import { suppressClickCount } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { readLastAuthProvider } from "../last-auth-provider";
 import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
@@ -181,7 +182,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		// the Google button's href (it forces Google's own account chooser).
 		const chooseAccount = req.query.prompt === "select_account" && returnUrl !== undefined;
 		const userCount = await fetchUserCount();
-		sendComponent(req, res, Base(LoginPage({ returnUrl, chooseAccount, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(LoginPage({ returnUrl, chooseAccount, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation, lastUsedProvider: readLastAuthProvider(req) }), bannerStateFromRequest(req)));
 	});
 
 	const loginRateLimit = createRateLimitMiddleware({
@@ -204,6 +205,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						pendingSaveHost,
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
+						lastUsedProvider: readLastAuthProvider(req),
 						email: req.body?.email,
 						errors: flattenZodErrors(parsed.error.issues),
 					},
@@ -237,6 +239,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						pendingSaveHost,
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
+						lastUsedProvider: readLastAuthProvider(req),
 						email,
 						errors: [{ message: "Invalid email or password" }],
 					},
@@ -260,7 +263,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const userCount = await fetchUserCount();
 		const parsed = SignupQuerySchema.safeParse(req.query);
 		const email = parsed.success ? parsed.data.email : undefined;
-		sendComponent(req, res, Base(SignupPage({ returnUrl, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(SignupPage({ returnUrl, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation, lastUsedProvider: readLastAuthProvider(req), loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
 	});
 
 	const signupRateLimit = createRateLimitMiddleware({
@@ -288,6 +291,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						pendingSaveHost,
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
+						lastUsedProvider: readLastAuthProvider(req),
 						loadedAt: deps.now().getTime(),
 						email,
 						errors,
@@ -436,7 +440,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
-				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), errors: [{ message: params.message }] }, { statusCode: params.statusCode }), bannerStateFromRequest(req)),
+				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, lastUsedProvider: readLastAuthProvider(req), loadedAt: deps.now().getTime(), errors: [{ message: params.message }] }, { statusCode: params.statusCode }), bannerStateFromRequest(req)),
 			);
 		};
 

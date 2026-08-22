@@ -15,6 +15,7 @@ import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 import { SIGNUP_MIN_SUBMIT_MS } from "./validate-signup";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
+import { LAST_AUTH_PROVIDER_COOKIE_NAME } from "../last-auth-provider";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
@@ -54,8 +55,8 @@ describe("Auth routes", () => {
 			const card = doc.querySelector(".auth-card");
 			assert(card, "auth card must be rendered");
 			const children = Array.from(card.children);
-			const googleIndex = children.findIndex((el) => el.matches("[data-test-google-section]"));
-			const appleIndex = children.findIndex((el) => el.matches("[data-test-apple-section]"));
+			const googleIndex = children.findIndex((el) => el.matches('[data-test-auth-provider-section="google"]'));
+			const appleIndex = children.findIndex((el) => el.matches('[data-test-auth-provider-section="apple"]'));
 			const dividerIndex = children.findIndex((el) => el.matches(".auth-divider"));
 			const formIndex = children.findIndex((el) => el.matches('[data-test-form="login"]'));
 			expect(googleIndex).toBeGreaterThanOrEqual(0);
@@ -108,11 +109,11 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			const googleHref = doc.querySelector('[data-test-auth-provider="google"]')?.getAttribute("href");
 			expect(googleHref).toContain("return=");
 			expect(googleHref).toContain("prompt=select_account");
 			// Apple already shows its own switcher, so it is not tagged.
-			const appleHref = doc.querySelector(".auth-apple-button")?.getAttribute("href");
+			const appleHref = doc.querySelector('[data-test-auth-provider="apple"]')?.getAttribute("href");
 			expect(appleHref).not.toContain("prompt=select_account");
 		});
 
@@ -122,7 +123,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			const googleHref = doc.querySelector('[data-test-auth-provider="google"]')?.getAttribute("href");
 			expect(googleHref).not.toContain("prompt=select_account");
 		});
 
@@ -132,7 +133,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			const googleHref = doc.querySelector('[data-test-auth-provider="google"]')?.getAttribute("href");
 			expect(googleHref).not.toContain("prompt=select_account");
 		});
 	});
@@ -410,8 +411,8 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-google-section] .auth-google-button")?.getAttribute("href")).toBe("/auth/google?utm_source=auth-page&utm_medium=internal&utm_content=google-signup-btn&return=%2Fqueue");
-			expect(doc.querySelector("[data-test-apple-section] .auth-apple-button")?.getAttribute("href")).toBe("/auth/apple?utm_source=auth-page&utm_medium=internal&utm_content=apple-signup-btn&return=%2Fqueue");
+			expect(doc.querySelector('[data-test-auth-provider-section="google"] [data-test-auth-provider="google"]')?.getAttribute("href")).toBe("/auth/google?utm_source=auth-page&utm_medium=internal&utm_content=google-signup-btn&return=%2Fqueue");
+			expect(doc.querySelector('[data-test-auth-provider-section="apple"] [data-test-auth-provider="apple"]')?.getAttribute("href")).toBe("/auth/apple?utm_source=auth-page&utm_medium=internal&utm_content=apple-signup-btn&return=%2Fqueue");
 		});
 
 		it("should pass return URL to login link", async () => {
@@ -1630,6 +1631,21 @@ describe("Auth routes", () => {
 			);
 		});
 
+		it("should keep the last-used hint through logout so a returning reader still sees it", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/logout")
+				.set("Cookie", `${LAST_AUTH_PROVIDER_COOKIE_NAME}=google`);
+
+			const setCookie = response.headers["set-cookie"];
+			const cookies = Array.isArray(setCookie) ? setCookie : [];
+			const clearedNames = cookies
+				.filter((c) => c.includes("=;"))
+				.map((c) => c.slice(0, c.indexOf("=")));
+			expect(clearedNames).toEqual([SESSION_COOKIE_NAME, "hutch_lastview"]);
+		});
+
 		it("should handle logout when no session cookie exists", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
@@ -1728,9 +1744,9 @@ describe("Auth routes", () => {
 	describe("Google sign-in button", () => {
 		function getGoogleButton(html: string) {
 			const doc = new JSDOM(html).window.document;
-			const section = doc.querySelector("[data-test-google-section]");
+			const section = doc.querySelector('[data-test-auth-provider-section="google"]');
 			assert(section, "google section must be rendered");
-			const link = section.querySelector(".auth-google-button");
+			const link = section.querySelector('[data-test-auth-provider="google"]');
 			assert(link, "google button must be rendered");
 			return link;
 		}
@@ -1741,8 +1757,8 @@ describe("Auth routes", () => {
 
 			const link = getGoogleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/google");
-			expect(link.querySelector(".auth-google-button__label")?.textContent).toBe("Sign in with Google");
-			const logo = link.querySelector("svg.auth-google-button__logo");
+			expect(link.querySelector(".auth-provider-button__label")?.textContent).toBe("Sign in with Google");
+			const logo = link.querySelector("svg.auth-provider-button__logo");
 			assert(logo, "google logo must be rendered");
 			expect(logo.getAttribute("viewBox")).toBe("0 0 18 18");
 			expect(logo.getAttribute("aria-hidden")).toBe("true");
@@ -1766,19 +1782,19 @@ describe("Auth routes", () => {
 
 			const link = getGoogleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/google?utm_source=auth-page&utm_medium=internal&utm_content=google-signup-btn");
-			assert(link.querySelector("svg.auth-google-button__logo"), "google logo must be rendered");
+			assert(link.querySelector("svg.auth-provider-button__logo"), "google logo must be rendered");
 		});
 	});
 
 	describe("Apple sign-in button", () => {
 		function appleSection(html: string) {
-			return new JSDOM(html).window.document.querySelector("[data-test-apple-section]");
+			return new JSDOM(html).window.document.querySelector('[data-test-auth-provider-section="apple"]');
 		}
 
 		function getAppleButton(html: string) {
 			const section = appleSection(html);
 			assert(section, "apple section must be rendered");
-			const link = section.querySelector(".auth-apple-button");
+			const link = section.querySelector('[data-test-auth-provider="apple"]');
 			assert(link, "apple button must be rendered");
 			return link;
 		}
@@ -1789,8 +1805,8 @@ describe("Auth routes", () => {
 
 			const link = getAppleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/apple");
-			expect(link.querySelector(".auth-apple-button__label")?.textContent).toBe("Sign in with Apple");
-			const logo = link.querySelector("svg.auth-apple-button__logo");
+			expect(link.querySelector(".auth-provider-button__label")?.textContent).toBe("Sign in with Apple");
+			const logo = link.querySelector("svg.auth-provider-button__logo");
 			assert(logo, "apple logo must be rendered");
 			expect(logo.getAttribute("aria-hidden")).toBe("true");
 			expect(logo.querySelectorAll('path[fill="currentColor"]').length).toBe(1);
@@ -1810,8 +1826,8 @@ describe("Auth routes", () => {
 
 			const link = getAppleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/apple?utm_source=auth-page&utm_medium=internal&utm_content=apple-signup-btn");
-			expect(link.querySelector(".auth-apple-button__label")?.textContent).toBe("Sign up with Apple");
-			assert(link.querySelector("svg.auth-apple-button__logo"), "apple logo must be rendered");
+			expect(link.querySelector(".auth-provider-button__label")?.textContent).toBe("Sign up with Apple");
+			assert(link.querySelector("svg.auth-provider-button__logo"), "apple logo must be rendered");
 		});
 
 		// Fail-closed guard for App Store 5.1.1(v): Sign in with Apple and the
@@ -1841,6 +1857,73 @@ describe("Auth routes", () => {
 			const appleRefreshTokenPersisted = "refresh_token" in appleExchange.data;
 
 			expect(siwaReachableByDefault).toBe(appleRefreshTokenPersisted);
+		});
+	});
+
+	describe('"Last used" sign-in hint', () => {
+		function lastUsedState(html: string, key: "google" | "apple"): string | null {
+			const doc = new JSDOM(html).window.document;
+			const link = doc.querySelector(`[data-test-auth-provider="${key}"]`);
+			assert(link, `${key} button must be rendered`);
+			return link.getAttribute("data-test-last-used");
+		}
+
+		function badgeCount(html: string): number {
+			const doc = new JSDOM(html).window.document;
+			return doc.querySelectorAll(".auth-provider-button__last-used").length;
+		}
+
+		it.each(["/login", "/signup"])(
+			"marks only the provider this browser last signed in with on %s",
+			async (path) => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+				const response = await request(harness.server)
+					.get(path)
+					.set("Cookie", `${LAST_AUTH_PROVIDER_COOKIE_NAME}=apple`);
+
+				expect(lastUsedState(response.text, "apple")).toBe("true");
+				expect(lastUsedState(response.text, "google")).toBe("false");
+				expect(badgeCount(response.text)).toBe(1);
+			},
+		);
+
+		it("labels the marked provider without displacing its sign-in label", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.get("/login")
+				.set("Cookie", `${LAST_AUTH_PROVIDER_COOKIE_NAME}=google`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const link = doc.querySelector('[data-test-auth-provider="google"]');
+			assert(link, "google button must be rendered");
+			expect(link.querySelector(".auth-provider-button__last-used")?.textContent).toBe("Last used");
+			expect(link.querySelector(".auth-provider-button__label")?.textContent).toBe(
+				"Sign in with Google",
+			);
+		});
+
+		it("marks neither provider on a browser that has never signed in", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get("/login");
+
+			expect(lastUsedState(response.text, "google")).toBe("false");
+			expect(lastUsedState(response.text, "apple")).toBe("false");
+			expect(badgeCount(response.text)).toBe(0);
+		});
+
+		it("ignores a provider name outside the set the server issues", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.get("/login")
+				.set("Cookie", `${LAST_AUTH_PROVIDER_COOKIE_NAME}=facebook`);
+
+			expect(lastUsedState(response.text, "google")).toBe("false");
+			expect(lastUsedState(response.text, "apple")).toBe("false");
+			expect(badgeCount(response.text)).toBe(0);
 		});
 	});
 

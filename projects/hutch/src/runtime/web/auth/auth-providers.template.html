@@ -1,0 +1,9 @@
+{{#each providers}}
+<div class="auth-provider-section" data-test-auth-provider-section="{{key}}">
+          <a class="{{buttonClass}}" href="{{href}}" data-test-auth-provider="{{key}}" data-test-last-used="{{isLastUsed}}">
+            {{{logoSvg}}}
+            <span class="auth-provider-button__label">{{label}}</span>
+            {{#each badges}}<span class="auth-provider-button__last-used">{{text}}</span>{{/each}}
+          </a>
+        </div>
+{{/each}}

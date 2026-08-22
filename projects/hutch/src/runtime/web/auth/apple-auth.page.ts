@@ -35,6 +35,7 @@ import { initFetchUserCount } from "./fetch-user-count";
 import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
 import { PENDING_SAVE_COOKIE_NAME, readPendingSaveId } from "../pending-save";
 import { LAST_VIEW_COOKIE_NAME, readLastViewUrl } from "../last-view";
+import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider";
 import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
@@ -98,6 +99,10 @@ interface AppleAuthDependencies {
 export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 	const router = express.Router();
 	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
+	const signIn = (res: Response, sessionId: string): void => {
+		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		setLastAuthProvider({ res, secure: deps.secureCookies }, "apple");
+	};
 	// The state cookie must survive the cross-site form_post callback, where a
 	// SameSite=Lax cookie would not be sent — so it is SameSite=None (implying
 	// Secure). Clearing it later uses the matching sameSite/secure attributes.
@@ -181,7 +186,12 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				req,
 				res,
 				Base(LoginPage(
-					{ userCount, foundingAllocation: deps.foundingAllocation, errors: [{ message }] },
+					{
+						userCount,
+						foundingAllocation: deps.foundingAllocation,
+						lastUsedProvider: readLastAuthProvider(req),
+						errors: [{ message }],
+					},
 					{ statusCode: 400 },
 				), bannerStateFromRequest(req)),
 			);
@@ -232,7 +242,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				await deps.markEmailVerified(tokenResult.email);
 			}
 			const sessionId = await deps.createSession({ userId: existing.userId, emailVerified: true });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+			signIn(res, sessionId);
 			res.redirect(303, parseReturnUrl({ return: stateData.returnUrl }));
 			return;
 		}
@@ -279,7 +289,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 						await deps.markEmailVerified(tokenResult.email);
 					}
 					const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-					res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+					signIn(res, sessionId);
 					res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 					return;
 				}
@@ -288,7 +298,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			}
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+			signIn(res, sessionId);
 			clearPendingSave();
 			clearLastView();
 			sendWelcomeEmail(tokenResult.email);
@@ -328,7 +338,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 					await deps.markEmailVerified(tokenResult.email);
 				}
 				const sessionIdRace = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-				res.cookie(SESSION_COOKIE_NAME, sessionIdRace, sessionCookieOptions);
+				signIn(res, sessionIdRace);
 				res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 				return;
 			}
@@ -347,7 +357,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		});
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		signIn(res, sessionId);
 		clearPendingSave();
 		clearLastView();
 		sendWelcomeEmail(tokenResult.email);

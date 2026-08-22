@@ -4,6 +4,7 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { AppleIdSchema } from "@packages/test-fixtures/providers/apple-auth";
 import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
+import { LAST_AUTH_PROVIDER_COOKIE_NAME } from "../last-auth-provider";
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
 
@@ -132,6 +133,31 @@ describe.each(SOCIAL_LOGIN_PROVIDERS)(
 			const cookie = setCookieNamed(callback, SESSION_COOKIE_NAME);
 			assert(cookie, `the ${provider.name} callback must set ${SESSION_COOKIE_NAME}`);
 			expect(cookie).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
+		});
+
+		it("records itself as the provider this browser last signed in with", async () => {
+			const harness = useApp(provider.withProvider(createDefaultTestAppFixture(TEST_APP_ORIGIN)));
+
+			const callback = await provider.signIn({ harness, returnUrl: IOS_AUTHORIZE_RETURN });
+
+			const cookie = setCookieNamed(callback, LAST_AUTH_PROVIDER_COOKIE_NAME);
+			assert(cookie, `the ${provider.name} callback must set ${LAST_AUTH_PROVIDER_COOKIE_NAME}`);
+			expect(cookieValue({ header: cookie, name: LAST_AUTH_PROVIDER_COOKIE_NAME })).toBe(
+				provider.name,
+			);
+		});
+
+		it("keeps the last-used hint far longer than the session it was minted beside", async () => {
+			const harness = useApp(provider.withProvider(createDefaultTestAppFixture(TEST_APP_ORIGIN)));
+
+			const callback = await provider.signIn({ harness, returnUrl: IOS_AUTHORIZE_RETURN });
+
+			const cookie = setCookieNamed(callback, LAST_AUTH_PROVIDER_COOKIE_NAME);
+			assert(cookie, `the ${provider.name} callback must set ${LAST_AUTH_PROVIDER_COOKIE_NAME}`);
+			expect(cookie).toContain("Max-Age=31536000;");
+			expect(cookie).toContain("HttpOnly");
+			expect(cookie).toContain("SameSite=Lax");
+			expect(cookie).toContain("Path=/");
 		});
 
 		it("expires the sign-in state cookie in minutes, not for the session's lifetime", async () => {
