@@ -9,8 +9,7 @@ export interface RenderedInk {
 
 export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 	/* A queue tab is an anchor, but it paints an opaque brand fill and carries its
-	 * label on that fill exactly as a button does, so it is audited as a filled
-	 * control rather than as text on a surface. */
+	 * label on that fill exactly as a button does. */
 	const FILLED_CONTROL = "button, .btn, .queue-nav__link";
 	const OPAQUE = 1;
 	const TRANSPARENT = 0;
@@ -69,13 +68,22 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 		return layers.reduceRight((under, over) => flatten({ over, under }), canvas);
 	}
 
-	function opaqueBackdrop(start: Element): Element | null {
-		let node: Element | null = start;
-		while (node) {
-			if (parseColour(getComputedStyle(node).backgroundColor).alpha === OPAQUE) return node;
-			node = node.parentElement;
+	/** 1.4.11 asks 3:1 of "visual information required to identify a component".
+	 * A button carrying a rendered word is identified by that word, which the
+	 * text pass below measures against this very fill at the 4.5:1 text floor —
+	 * a stricter bar than the boundary would be. Only an icon-only control has
+	 * nothing but its fill to be found by. An .sr-only label is a hairline box,
+	 * so it does not count as rendered. */
+	function labelledByText(control: Element): boolean {
+		const walker = document.createTreeWalker(control, NodeFilter.SHOW_TEXT);
+		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+			if (!(node.textContent ?? "").trim()) continue;
+			const holder = node.parentElement;
+			if (!holder) continue;
+			const box = holder.getBoundingClientRect();
+			if (box.width > HAIRLINE_PX && box.height > HAIRLINE_PX) return true;
 		}
-		return null;
+		return false;
 	}
 
 	function nameOf(el: Element): string {
@@ -118,7 +126,7 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 		const fontWeight = Number(style.fontWeight);
 		const ownBackground = parseColour(style.backgroundColor);
 
-		if (el.matches(FILLED_CONTROL) && ownBackground.alpha === OPAQUE) {
+		if (el.matches(FILLED_CONTROL) && ownBackground.alpha === OPAQUE && !labelledByText(el)) {
 			const behind = surfaceUnder(el.parentElement);
 			collected.push({
 				name: nameOf(el),
@@ -128,7 +136,6 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 				fontSizePx,
 				fontWeight,
 			});
-			continue;
 		}
 
 		const ownText = Array.from(el.childNodes)
@@ -143,9 +150,6 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 			parseColour(marker.backgroundColor).alpha > TRANSPARENT &&
 			Number.parseFloat(marker.width) > 0;
 		if (!ownText && !paintsIcon && !paintsShape) continue;
-
-		const backdrop = opaqueBackdrop(el);
-		if (backdrop?.matches(FILLED_CONTROL)) continue;
 
 		const surface = surfaceUnder(el);
 		collected.push({

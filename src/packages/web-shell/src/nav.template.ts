@@ -14,12 +14,13 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 				aria-atomic="true"
 				data-test-trial-countdown>{{trialDisplayText}}</a>
 			<nav class="nav" aria-label="Main">
-				<button class="nav__toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-menu">
+				<details class="nav__disclosure">
+				<summary class="nav__toggle" aria-label="Toggle navigation">
 					<span class="nav__toggle-bar"></span>
 					<span class="nav__toggle-bar"></span>
 					<span class="nav__toggle-bar"></span>
 					<span class="nav__toggle-x">{{icon "x"}}</span>
-				</button>
+				</summary>
 				<div id="nav-menu" class="nav__menu" data-test-nav-variant="{{navVariant}}">
 					{{#each navGroups}}
 					<div class="nav__group" data-test-nav-group="{{key}}">
@@ -51,6 +52,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 					{{#if @last}}</ul>{{/if}}
 					{{/each}}
 				</div>
+				</details>
 			</nav>
 		</div>
 	</header>

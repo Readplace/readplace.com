@@ -97,4 +97,19 @@ test.describe("The queue is whole without client JavaScript", () => {
 			timeout: SETTLE_MS,
 		});
 	});
+
+	test("the nav opens and signs the reader out with no script", async ({ page }, testInfo) => {
+		const email = await seedArticleWithThumbnail(page, `${testInfo.workerIndex}-${Date.now()}-nav`);
+		await loginAs(page, email);
+
+		const menu = page.locator("#nav-menu");
+		await expect(menu).toBeHidden();
+
+		await page.locator(".nav__toggle").click();
+		await expect(menu).toBeVisible({ timeout: SETTLE_MS });
+
+		await page.locator('[data-test-nav-item="logout"]').click();
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator('[data-test-form="login"]')).toBeVisible({ timeout: SETTLE_MS });
+	});
 });

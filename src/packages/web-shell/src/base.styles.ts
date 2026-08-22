@@ -19,12 +19,15 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--color-error": "#C45C5C",
 	"--shadow-sm": "0 1px 2px rgba(0,0,0,0.05)",
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.07)",
-	"--primary": "hsl(27 65% 47%)",
+	/** Amber dark enough to carry --primary-foreground at 4.61:1 — the lightest
+	* step of hsl(27 65% L%) that clears 4.5:1, so the CTA stays as warm as the
+	* label allows. Pinned across both themes for the same reason --primary-fill
+	* is: a fill and a text colour need opposite lightness as the page darkens,
+	* and --primary-text is the one that follows the page. */
+	"--primary": "hsl(27 65% 41%)",
 	"--primary-text": "var(--color-brand-dark)",
-	/** Amber dark enough to carry --primary-foreground at 5.06:1, so it is pinned
-	* across both themes: a fill and a text colour need opposite lightness as the
-	* page darkens, and --primary-text follows the page. */
-	"--primary-fill": "#A85A1E",
+	/** The hover/active step below --primary, at 6.49:1, pinned the same way. */
+	"--primary-fill": "hsl(27 65% 33%)",
 	"--primary-foreground": "hsl(0 0% 100%)",
 	"--secondary": "hsl(27 30% 95%)",
 	"--secondary-foreground": "hsl(27 65% 35%)",
@@ -97,15 +100,14 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--color-error": "#D46B6B",
 	"--shadow-sm": "0 1px 2px rgba(0,0,0,0.3)",
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.4)",
-	"--primary": "hsl(27 65% 52%)",
-	"--primary-text": "var(--color-brand)",
+	"--primary-text": "hsl(27 65% 58%)",
 	"--secondary": "hsl(27 15% 18%)",
 	"--secondary-foreground": "hsl(27, 65%, 35%)",
 	"--accent": "hsl(27 65% 52%)",
 	"--ring": "hsl(27 65% 52%)",
 	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
 	"--success-text": "var(--color-success)",
-	"--error-text": "var(--color-error)",
+	"--error-text": "hsl(0 43% 68%)",
 	"--error-bg": "hsl(0 43% 56% / 0.15)",
 	"--warning-bg": "hsl(37 62% 56% / 0.18)",
 	"--header-brand-stem": "var(--color-text-primary)",
@@ -381,6 +383,11 @@ export const NAV_STYLES = `
 		cursor: pointer;
 		padding: 0;
 		color: var(--foreground);
+		list-style: none;
+	}
+
+	.nav__toggle::-webkit-details-marker {
+		display: none;
 	}
 
 	.nav__toggle-bar {
@@ -410,11 +417,11 @@ export const NAV_STYLES = `
 		background: var(--color-on-brand);
 	}
 
-	.nav__toggle[aria-expanded="true"] .nav__toggle-bar {
+	.nav__disclosure[open] .nav__toggle-bar {
 		opacity: 0;
 	}
 
-	.nav__toggle[aria-expanded="true"] .nav__toggle-x {
+	.nav__disclosure[open] .nav__toggle-x {
 		opacity: 1;
 	}
 
@@ -437,7 +444,7 @@ export const NAV_STYLES = `
 		transition: transform 0.25s ease, visibility 0s linear 0.25s;
 	}
 
-	.nav__menu--open {
+	.nav__disclosure[open] .nav__menu {
 		transform: translateX(0);
 		visibility: visible;
 		transition: transform 0.25s ease, visibility 0s;
@@ -525,7 +532,7 @@ export const NAV_STYLES = `
 		.header {
 			overflow-x: clip;
 		}
-		.nav-hidden .header:has(.nav__menu--open) {
+		.nav-hidden .header:has(.nav__disclosure[open]) {
 			transform: none;
 		}
 		.header--transparent .nav__link {
@@ -539,6 +546,21 @@ export const NAV_STYLES = `
 	@media (min-width: 768px) {
 		.nav__toggle {
 			display: none;
+		}
+
+		/**
+		* 1. A closed <details> hides its content, and the two engines do it
+		*    differently — older Chromium/Firefox via a UA display rule on the
+		*    non-summary children, current Chromium via content-visibility on
+		*    ::details-content. The bar is never rendered at this width, so the
+		*    menu has to show whatever the open state happens to be.
+		*/
+		.nav__disclosure {
+			display: contents; /* 1 */
+		}
+
+		.nav__disclosure::details-content {
+			content-visibility: visible; /* 1 */
 		}
 
 		.nav__menu {

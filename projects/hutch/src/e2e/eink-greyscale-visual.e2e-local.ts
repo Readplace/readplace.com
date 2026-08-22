@@ -118,6 +118,35 @@ async function seedReaderAndQueue(page: Page, stamp: string): Promise<{ email: s
 	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
 }
 
+/** Omitting generatedSummary leaves the row's summary pending, which is the one
+ * state that renders the animated ellipsis. */
+async function seedPendingSummary(
+	page: Page,
+	stamp: string,
+): Promise<{ email: string; readerUrl: string }> {
+	const email = `eink-greyscale-${stamp}@example.com`;
+	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+		data: { email, password: PASSWORD, verified: true },
+	});
+	assert.equal(created.status(), 201, "the e2e user fixture must create the owner");
+	const { userId } = CreatedUser.parse(await created.json());
+
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+		data: {
+			url: `https://example.com/eink-greyscale-${stamp}`,
+			title: "A summary that has not landed yet",
+			content: READER_BODY,
+			contentFetchedAt: FETCHED_AT,
+			savedAt: "2026-07-12T09:14:00.000Z",
+			savedByUserId: userId,
+		},
+	});
+	assert.equal(seeded.status(), 201, "the seed endpoint must create the reader article");
+	const { articleId } = SeededArticle.parse(await seeded.json());
+
+	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
+}
+
 async function loginAs(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
@@ -152,7 +181,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 	for (const theme of ["light", "dark"] as const) {
 		test(`the reader keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await pinThumbnail(page);
-			await page.emulateMedia({ colorScheme: theme });
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email, readerUrl } = await seedReaderAndQueue(
 				page,
 				`reader-${theme}-${testInfo.workerIndex}-${Date.now()}`,
@@ -170,7 +199,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 		test(`the queue keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await pinThumbnail(page);
-			await page.emulateMedia({ colorScheme: theme });
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email } = await seedReaderAndQueue(
 				page,
 				`queue-${theme}-${testInfo.workerIndex}-${Date.now()}`,
@@ -187,4 +216,26 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 		});
 	}
+
+	test("a summary still says it is working when the panel refuses motion", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		const { email, readerUrl } = await seedPendingSummary(
+			page,
+			`dots-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		await loginAs(page, email);
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+
+		const dots = page.locator(".article-body__summary-loading");
+		await expect(dots).toBeVisible();
+		const painted = await dots.evaluate((el) => {
+			const after = getComputedStyle(el, "::after");
+			return { animationName: after.animationName, content: after.content };
+		});
+
+		assert.equal(painted.animationName, "none", "a panel that refuses motion must not animate");
+		assert.equal(painted.content, '"..."', "the dots the animation drew must still be painted");
+	});
 });

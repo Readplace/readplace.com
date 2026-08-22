@@ -397,12 +397,8 @@
 .queue__filter-link--active {
   background: var(--card);
   border-bottom-color: var(--card);
-  color: var(--primary-text);
+  color: var(--foreground);
   font-weight: 600;
-}
-
-.queue__filter-link--active:hover {
-  color: var(--primary-text);
 }
 
 .queue__listing {
@@ -510,7 +506,8 @@
 .queue-article__url {
   min-width: 0;
   color: var(--muted-foreground);
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -637,7 +634,7 @@
 }
 
 .queue-article__status--unread {
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 .queue-article__status--read {
@@ -725,8 +722,8 @@
 }
 
 .queue-article__action-btn--delete {
-  color: var(--error);
-  border-color: var(--error);
+  color: var(--error-text);
+  border-color: var(--error-text);
 }
 
 .queue-article__action-btn--delete svg {

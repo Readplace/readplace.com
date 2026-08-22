@@ -297,7 +297,7 @@ describe("GlobalNav component", () => {
 		expect(header.classList.contains("header--transparent")).toBe(true);
 	});
 
-	it("renders the collapsed bars and the shared close cross together, so aria-expanded alone flips the toggle", () => {
+	it("renders the collapsed bars and the shared close cross together, so the open state alone flips the toggle", () => {
 		const html = GlobalNav({
 			variant: "default",
 			isAuthenticated: true,
@@ -306,8 +306,21 @@ describe("GlobalNav component", () => {
 
 		const toggle = parse(html).querySelector(".nav__toggle");
 		assert(toggle, "nav toggle must render");
-		expect(toggle.getAttribute("aria-expanded")).toBe("false");
+		expect(toggle.tagName.toLowerCase()).toBe("summary");
 		expect(toggle.querySelectorAll(".nav__toggle-bar")).toHaveLength(3);
 		expect(html).toContain(`<span class="nav__toggle-x">${iconSvg("x")}</span>`);
+	});
+
+	it("hangs the menu off a closed disclosure, so the bar opens it with no script", () => {
+		const html = GlobalNav({
+			variant: "default",
+			isAuthenticated: true,
+			accessIsReadOnly: false,
+		});
+
+		const disclosure = parse(html).querySelector(".nav__disclosure");
+		assert(disclosure, "nav disclosure must render");
+		expect(disclosure.hasAttribute("open")).toBe(false);
+		expect(disclosure.querySelector("#nav-menu")?.className).toBe("nav__menu");
 	});
 });

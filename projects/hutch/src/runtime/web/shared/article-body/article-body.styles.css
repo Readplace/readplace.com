@@ -157,10 +157,6 @@
   margin-top: 0.5rem;
   font-size: 0.875rem;
   color: var(--primary-text);
-  text-decoration: none;
-}
-
-.article-body__original-link:hover {
   text-decoration: underline;
 }
 
@@ -398,6 +394,22 @@
   width: 0.4em;
   margin-left: 0.3em;
   animation: article-body-summary-dots 1.4s steps(4, end) infinite;
+}
+
+/**
+ * 1. The animation is what paints the dots at all, so stopping it alone leaves
+ *    the label reading "Summarising" with nothing after it. width is sized for
+ *    the animation's widest frame, which the static string overflows.
+ * 2. A media query carries no extra specificity, so this has to follow both
+ *    animation declarations to win against them.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .article-body__summary-loading::after,
+  .article-body__reader-loading::after { /* 2 */
+    animation: none;
+    content: "..."; /* 1 */
+    width: auto; /* 1 */
+  }
 }
 
 .article-body__reader-loading-subtitle {

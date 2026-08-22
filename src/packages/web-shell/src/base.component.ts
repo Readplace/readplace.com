@@ -46,21 +46,14 @@ function renderFooter(): string {
 const navScript = (cspNonce: CspNonce) => `
 <script nonce="${cspNonce}">
 (function() {
+	var disclosure = document.querySelector('.nav__disclosure');
 	var toggle = document.querySelector('.nav__toggle');
-	var menu = document.querySelector('.nav__menu');
-	if (!toggle || !menu) return;
-
-	toggle.addEventListener('click', function() {
-		var expanded = this.getAttribute('aria-expanded') === 'true';
-		this.setAttribute('aria-expanded', String(!expanded));
-		menu.classList.toggle('nav__menu--open', !expanded);
-	});
+	if (!disclosure || !toggle) return;
 
 	document.addEventListener('click', function(e) {
 		var isToggleVisible = window.getComputedStyle(toggle).display !== 'none';
 		if (isToggleVisible && !e.target.closest('.nav')) {
-			toggle.setAttribute('aria-expanded', 'false');
-			menu.classList.remove('nav__menu--open');
+			disclosure.open = false;
 		}
 	});
 })();

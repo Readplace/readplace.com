@@ -11,6 +11,7 @@ const PASSWORD = "Sup3r-Secret-Pw!";
 const VIEWPORT = { width: 1280, height: 900 };
 const QUEUE_ROOT = "main.queue";
 const READER_ROOT = "main.reader";
+const AUTH_ROOT = "main.auth-page";
 const SETTLE_MS = 45000;
 
 const NORMAL_TEXT_MINIMUM = 4.5;
@@ -138,13 +139,38 @@ async function stableMeasurements(page: Page, root: string): Promise<RenderedInk
 	return measurements;
 }
 
+/** CSS `filter: grayscale(1)` is `feColorMatrix type="saturate" values="0"`
+ * evaluated in sRGB, so it weights the gamma-encoded channels — not the
+ * linearised ones WCAG's relative luminance uses. The two disagree by up to
+ * 0.7:1, in both directions, so clearing a minimum in colour does not clear it
+ * once the panel drops hue. */
+function greyscale(colour: Rgb): Rgb {
+	const ink =
+		RED_LUMINANCE * colour.red + GREEN_LUMINANCE * colour.green + BLUE_LUMINANCE * colour.blue;
+	return { red: ink, green: ink, blue: ink };
+}
+
+const LENSES = {
+	colour: (colour: Rgb): Rgb => colour,
+	greyscale,
+} as const;
+
 function assertContrast(
 	measurements: readonly RenderedInk[],
 	where: { theme: string; view: string },
 ): void {
 	for (const measured of measurements) {
-		const ratio = contrastRatio({ ink: measured.ink, surface: measured.surface });
-		assert.ok(ratio >= minimumRatio(measured), shortfall(measured, where));
+		for (const [lens, project] of Object.entries(LENSES)) {
+			const seen = {
+				...measured,
+				ink: project(measured.ink),
+				surface: project(measured.surface),
+			};
+			assert.ok(
+				contrastRatio(seen) >= minimumRatio(seen),
+				shortfall(seen, { ...where, view: `${where.view}/${lens}` }),
+			);
+		}
 	}
 }
 
@@ -174,6 +200,17 @@ async function auditReader(page: Page, where: { theme: string; view: string }): 
 	assert.ok(
 		measurements.length > 0,
 		`${where.theme}/${where.view}: the audit measured nothing inside ${READER_ROOT}`,
+	);
+	assertContrast(measurements, where);
+}
+
+async function auditAuth(page: Page, where: { theme: string; view: string }): Promise<void> {
+	await page.mouse.move(0, 0);
+
+	const measurements = await stableMeasurements(page, AUTH_ROOT);
+	assert.ok(
+		measurements.length > 0,
+		`${where.theme}/${where.view}: the audit measured nothing inside ${AUTH_ROOT}`,
 	);
 	assertContrast(measurements, where);
 }
@@ -240,6 +277,39 @@ test.describe("Queue colour roles hold their WCAG contrast in both themes", () =
 			}
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 			await auditReader(page, { theme, view: "reader" });
+		}
+	});
+});
+
+test.describe("Auth colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("every rendered auth surface clears its contrast minimum", async ({ page }) => {
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+
+			for (const view of ["login", "signup", "forgot-password"] as const) {
+				await page.goto(`${BASE_URL}/${view}`, { waitUntil: "domcontentloaded" });
+				await page.waitForSelector(`body.page-${view}`);
+				await auditAuth(page, { theme, view });
+			}
+
+			await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+			await page.locator("#email").fill("nobody@example.com");
+			await page.locator("#password").fill("Wr0ng-Password!");
+			await page.locator('[data-test-form="login"] button[type="submit"]').click();
+			await expect(page.locator("[data-test-global-error]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditAuth(page, { theme, view: "login/global-error" });
+
+			await page.goto(`${BASE_URL}/signup`, { waitUntil: "domcontentloaded" });
+			await page.locator("#email").fill("someone@0-mail.com");
+			await page.locator("#password").fill(PASSWORD);
+			await page.locator('input[name="loadedAt"]').evaluate((el: HTMLInputElement) => {
+				el.value = String(Date.now() - 5000);
+			});
+			await page.locator('[data-test-action="signup"]').click();
+			await expect(page.locator('[data-test-error="email"]')).toBeVisible({ timeout: SETTLE_MS });
+			await auditAuth(page, { theme, view: "signup/field-error" });
 		}
 	});
 });
