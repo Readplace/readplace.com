@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
 import {
 	EXPERIMENT_RESULT_STREAM,
 	RELATED_PAST_READS_EXPERIMENT,
@@ -15,6 +16,24 @@ function buildBody(excludedVisitorHashes: readonly string[] = [EXCLUDED_HASH]) {
 		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
 		excludedVisitorHashes,
 	});
+}
+
+function engagementQuery(): string {
+	const query = logQueries().find((candidate) => candidate.includes(") as engagement"));
+
+	assert(query, "a widget must count engagement by card mode");
+	return query;
+}
+
+function engagementLabels(): Map<string, string> {
+	const branches = /case\((.*)\) as engagement/.exec(engagementQuery());
+
+	assert(branches?.[1], "engagement must be a case() over utm_content");
+	const labels = new Map<string, string>();
+	for (const [, element, label] of branches[1].matchAll(/utm_content = "([^"]+)", "([^"]+)"/g)) {
+		labels.set(element, label);
+	}
+	return labels;
 }
 
 function logQueries(): string[] {
@@ -59,6 +78,47 @@ describe("buildRelatedPastReadsDashboardBody", () => {
 		]) {
 			assert(engagement.includes(`"${element}"`), `${element} must be plotted`);
 		}
+	});
+
+	it("names the card mode a click happened in, so a dismissal is readable without decoding the element", () => {
+		const labels = engagementLabels();
+
+		expect(labels.get(NEXT_READ_TRACKING.unread.clickContent)).toBe("Unread pick — opened");
+		expect(labels.get(NEXT_READ_TRACKING.unread.dismissContent)).toBe("Unread pick — dismissed");
+		expect(labels.get(NEXT_READ_TRACKING.read.clickContent)).toBe("Past read — opened");
+		expect(labels.get(NEXT_READ_TRACKING.read.dismissContent)).toBe("Past read — dismissed");
+	});
+
+	it("groups engagement by that label rather than by the raw element", () => {
+		const query = engagementQuery();
+
+		expect(query).toContain("| stats count(*) as clicks by engagement");
+		expect(query).not.toContain("| stats count(*) as clicks by utm_content");
+	});
+
+	it("labels every element it lets through the filter, so no click lands in an empty bar", () => {
+		const labels = engagementLabels();
+		const filtered = /filter utm_content in \[([^\]]+)\]/.exec(engagementQuery());
+
+		assert(filtered?.[1], "the engagement widget must filter to the card's own elements");
+		const elements = filtered[1].split(", ").map((quoted) => quoted.slice(1, -1));
+		expect(elements.filter((element) => !labels.has(element))).toEqual([]);
+		expect(new Set(labels.keys())).toEqual(new Set(elements));
+	});
+
+	it("spells out what each dismiss element records, so the two are not read as one event", () => {
+		const markdown = String(buildBody().widgets[0]?.properties.markdown);
+
+		assert(
+			markdown.includes(`\`${NEXT_READ_TRACKING.unread.dismissContent}\``),
+			"the legend must name the unread dismissal",
+		);
+		assert(
+			markdown.includes(`\`${NEXT_READ_TRACKING.read.dismissContent}\``),
+			"the legend must name the past-read dismissal",
+		);
+		expect(markdown).toContain(`returns after ${NEXT_READ_SNOOZE_MS / (60 * 60 * 1000)}h`);
+		expect(markdown).toContain("never returns");
 	});
 
 	it("reads the shipped feature off the click event the analytics middleware already emits", () => {
