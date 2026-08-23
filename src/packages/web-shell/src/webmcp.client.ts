@@ -36,6 +36,9 @@ interface WebMcpDeps {
 	navigateTo: (url: string) => void;
 }
 
+const SAVE_SURFACE_QUERY = "save_surface";
+const WEBMCP_SAVE_SURFACE = "webmcp";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
@@ -85,7 +88,9 @@ export function buildReadplaceTools(
 						isError: true,
 					};
 				}
-				navigateTo(`/save?url=${encodeURIComponent(url)}`);
+				navigateTo(
+					`/save?url=${encodeURIComponent(url)}&${SAVE_SURFACE_QUERY}=${WEBMCP_SAVE_SURFACE}`,
+				);
 				return {
 					content: [
 						{ type: "text", text: `Saving ${url} to your Readplace queue.` },

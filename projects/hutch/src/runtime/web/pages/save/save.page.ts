@@ -7,8 +7,8 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
-import { buildSaveIntentEvent, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
-import { SAVE_OUTCOMES, SAVE_SURFACES } from "../../../observability/events";
+import { buildSaveIntentEvent, deriveSaveSurface, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
+import { SAVE_OUTCOMES } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
 import { setPendingSaveId } from "../../pending-save";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
@@ -62,7 +62,7 @@ export function initSaveRoutes(deps: {
 								req,
 								url,
 								path: req.baseUrl,
-								surface: SAVE_SURFACES.readerView,
+								surface: deriveSaveSurface(req),
 								outcome: SAVE_OUTCOMES.promptedToSignUp,
 								client: saveClientOf(req),
 								pendingSaveId,

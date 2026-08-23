@@ -20,6 +20,7 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 import { calculateReadTime } from "@packages/domain/article";
 import { MAX_POLLS } from "@packages/web-shell";
 import type { ViewOpenedEvent } from "@packages/web-analytics";
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 const READPLACE_IOS = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1971,6 +1972,29 @@ describe("View routes", () => {
 			assert(counter, "expiry element must be rendered");
 			expect(counter.getAttribute("data-expiry-state")).toBe("expired");
 			expect(counter.textContent).toBe("Public access has expired.");
+		});
+
+		it("names the article body's own Save call to action as the reader-view surface, alongside the utm params it already carries", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: LONG_ARTICLE_WORD_COUNT },
+				estimatedReadTime: calculateReadTime(LONG_ARTICLE_WORD_COUNT),
+				savedAt: new Date("2026-05-03T13:00:00.000Z"),
+			});
+
+			const response = await request(harness.server).get(
+				`/view/${CANONICAL_PATH}?utm_source=medium`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const href = ctaAction(doc).getAttribute("href");
+			assert(href, "Save action must carry an href");
+			const parsed = new URL(href, "http://localhost");
+			expect(parsed.searchParams.get(SAVE_SURFACE_QUERY)).toBe(SAVE_SURFACES.readerView);
+			expect(parsed.searchParams.get("utm_source")).toBe("medium");
+			expect(parsed.searchParams.get("utm_content")).toBe("2d_13h_left");
 		});
 
 		it("stamps utm_content=Xd_Yh_left on the Save link when counting", async () => {

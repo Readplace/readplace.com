@@ -2,8 +2,8 @@ import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
-import { SAVE_CLIENTS, SAVE_OUTCOMES, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
+import { SAVE_CLIENTS, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1029,5 +1029,38 @@ describe("isBotUserAgent", () => {
 
 	it("still reports a build segment that is not the integer CFBundleVersion carries as a bot", () => {
 		expect(isBotUserAgent("Readplace/beta CFNetwork/1.0 Darwin/1.0")).toBe(true);
+	});
+});
+
+describe("deriveSaveSurface", () => {
+	function surfaceFor(value: unknown): string {
+		return deriveSaveSurface(createReq({ query: { [SAVE_SURFACE_QUERY]: value } }) as Request);
+	}
+
+	it.each(SAVE_LINK_SURFACES)("carries through the %s marker a Save link is allowed to declare", (surface) => {
+		expect(surfaceFor(surface)).toBe(surface);
+	});
+
+	it("records a Save link that declares nothing as unknown, rather than assuming the reader view it used to be hard-coded to", () => {
+		expect(deriveSaveSurface(createReq() as Request)).toBe(SAVE_SURFACES.unknown);
+	});
+
+	it("records an empty marker as unknown", () => {
+		expect(surfaceFor("")).toBe(SAVE_SURFACES.unknown);
+	});
+
+	it.each([SAVE_SURFACES.queueSaveBar, SAVE_SURFACES.extension, SAVE_SURFACES.mcp])(
+		"refuses %s, a surface the server assigns to its own emissions, so a link claiming it records as unknown",
+		(forged) => {
+			expect(surfaceFor(forged)).toBe(SAVE_SURFACES.unknown);
+		},
+	);
+
+	it("records a repeated marker — which express hands over as an array — as unknown", () => {
+		expect(surfaceFor([SAVE_SURFACES.readerView, SAVE_SURFACES.homepageHero])).toBe(SAVE_SURFACES.unknown);
+	});
+
+	it("records arbitrary junk as unknown", () => {
+		expect(surfaceFor("reader_view'; DROP")).toBe(SAVE_SURFACES.unknown);
 	});
 });

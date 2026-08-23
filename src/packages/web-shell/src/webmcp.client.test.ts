@@ -17,7 +17,7 @@ describe("buildReadplaceTools", () => {
 			const [saveLink] = buildReadplaceTools(navigateTo);
 			const result = await saveLink.execute({ url: "https://example.com/post?x=1" });
 			expect(navigateTo).toHaveBeenCalledWith(
-				`/save?url=${encodeURIComponent("https://example.com/post?x=1")}`,
+				`/save?url=${encodeURIComponent("https://example.com/post?x=1")}&save_surface=webmcp`,
 			);
 			expect(result).toMatchObject({
 				content: [{ type: "text", text: expect.stringContaining("Saving") }],

@@ -32,7 +32,7 @@ import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
-import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
+import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
 import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
 
@@ -316,6 +316,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		}
 
 		const saveParams = new URLSearchParams([["url", articleUrl], ...utmParams]);
+		saveParams.set(SAVE_SURFACE_QUERY, SAVE_SURFACES.readerView);
 		const msLeft = expiresAt === null ? null : expiresAt.getTime() - now.getTime();
 		const counting = msLeft !== null && msLeft > 0;
 		if (counting) saveParams.set("utm_content", formatSaveUtmContent(decomposeTimeLeft(msLeft)));

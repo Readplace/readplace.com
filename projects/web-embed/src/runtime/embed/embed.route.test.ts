@@ -131,7 +131,7 @@ describe("GET /embed", () => {
 		assert(demo, "hero demo container must be rendered");
 		const anchor = demo.querySelector("a");
 		assert(anchor, "hero demo must contain an anchor");
-		expect(anchor.getAttribute("href")).toBe("https://readplace.com/save?url=https://readplace.com/embed/");
+		expect(anchor.getAttribute("href")).toBe("https://readplace.com/save?url=https://readplace.com/embed/&save_surface=embed");
 	});
 
 	it("should render the quotable privacy statement", async () => {

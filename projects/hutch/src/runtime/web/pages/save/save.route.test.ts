@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent, BROWSER_REQUEST_HEADERS } from "../../../test-app";
-import type { ViewSaveIntentEvent } from "@packages/web-analytics";
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES, type ViewSaveIntentEvent } from "@packages/web-analytics";
 
 import {
 	TEST_APP_ORIGIN,
@@ -233,7 +233,7 @@ describe("Save routes", () => {
 				path: "/save",
 				article_host: "example.com",
 				content_class: "third_party",
-				surface: "reader_view",
+				surface: "unknown",
 				outcome: "prompted_to_sign_up",
 				is_authenticated: 0,
 			});
@@ -336,14 +336,14 @@ describe("Save routes", () => {
 				.get("/save?url=https://example.com/article")
 				.set(BROWSER_REQUEST_HEADERS);
 
-			expect(saveIntents(harness)[0]).toMatchObject({ client: "web", surface: "reader_view" });
+			expect(saveIntents(harness)[0]).toMatchObject({ client: "web", surface: "unknown" });
 		});
 
 		it("records a save from the app's in-app web sheet as the iOS client, without moving its surface", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			await request(harness.server)
-				.get("/save?url=https://example.com/article&shell=app")
+				.get("/save?url=https://example.com/article&save_surface=reader_view&shell=app")
 				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(saveIntents(harness)[0]).toMatchObject({ client: "ios_app", surface: "reader_view" });
@@ -357,6 +357,64 @@ describe("Save routes", () => {
 
 			expect(response.status).toBe(303);
 			assert.equal(saveIntents(harness).length, 0, "no view_save_intent when already authenticated");
+		});
+	});
+
+	describe("save surface derivation", () => {
+		async function surfaceOf(marker?: string): Promise<string | undefined> {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const query = marker === undefined ? "" : `&${SAVE_SURFACE_QUERY}=${encodeURIComponent(marker)}`;
+
+			const response = await request(harness.server)
+				.get(`/save?url=https://example.com/article${query}`)
+				.set(BROWSER_REQUEST_HEADERS);
+
+			expect(response.status).toBe(303);
+			return saveIntents(harness)[0]?.surface;
+		}
+
+		it("records the marker the Save link it came from declared, so a homepage-hero save is no longer filed as a reader-view one", async () => {
+			expect(await surfaceOf(SAVE_SURFACES.homepageHero)).toBe(SAVE_SURFACES.homepageHero);
+		});
+
+		it("records a Save link that declares no surface as unknown, rather than the reader view every anonymous save used to be filed under", async () => {
+			expect(await surfaceOf()).toBe(SAVE_SURFACES.unknown);
+		});
+
+		it("records an unrecognised marker as unknown, so a stale or forged value never lands on a real surface", async () => {
+			expect(await surfaceOf("not-a-surface")).toBe(SAVE_SURFACES.unknown);
+		});
+
+		it("records a link claiming a surface only the server assigns to its own emissions as unknown", async () => {
+			expect(await surfaceOf(SAVE_SURFACES.extension)).toBe(SAVE_SURFACES.unknown);
+		});
+
+		it("carries the surface into the signup return url, so a save that round-trips through signup lands back on the surface it started from", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.get(`/save?url=https://example.com/article&${SAVE_SURFACE_QUERY}=${SAVE_SURFACES.homepageHero}`)
+				.set(BROWSER_REQUEST_HEADERS);
+
+			const returnUrl = new URL(`http://localhost${response.headers.location}`).searchParams.get("return");
+			assert(returnUrl, "the signup redirect must carry a return url");
+			expect(new URL(`http://localhost${returnUrl}`).searchParams.get(SAVE_SURFACE_QUERY)).toBe(
+				SAVE_SURFACES.homepageHero,
+			);
+		});
+
+		it("drops the surface from the queue redirect an authenticated save takes, the way it drops every other non-utm param", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent
+				.get(`/save?url=https://example.com/article&utm_source=medium&${SAVE_SURFACE_QUERY}=${SAVE_SURFACES.readerView}`)
+				.set(BROWSER_REQUEST_HEADERS);
+
+			const location = new URL(`http://localhost${response.headers.location}`);
+			expect(location.pathname).toBe("/queue");
+			expect(location.searchParams.get("utm_source")).toBe("medium");
+			expect(location.searchParams.get(SAVE_SURFACE_QUERY)).toBeNull();
 		});
 	});
 

@@ -5,6 +5,7 @@ import type { Server } from "node:http";
 import type { Test } from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { useTestServer } from "../../../test-app";
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
 import { HOME_B_CONTENT } from "./home-b.content";
 
 const useApp = useTestServer();
@@ -126,6 +127,9 @@ describe("GET / arm B arrival treatment", () => {
 		expect(saveForm.querySelector('input[name="url"]')?.getAttribute("value")).toBe(
 			"https://example.com/article",
 		);
+		expect(
+			saveForm.querySelector(`input[name="${SAVE_SURFACE_QUERY}"]`)?.getAttribute("value"),
+		).toBe(SAVE_SURFACES.homepageHero);
 	});
 
 	it("shows no eyebrow and offers the paste-a-link reader form for a cold visitor", async () => {

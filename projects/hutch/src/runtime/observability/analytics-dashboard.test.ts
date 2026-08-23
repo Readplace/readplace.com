@@ -13,6 +13,7 @@ import {
 	LAMBDA_NAMES,
 	LOG_GROUPS,
 	METRICS,
+	SAVE_SURFACES,
 	STREAMS,
 	SUBSCRIPTION_EVENTS,
 } from "./events";
@@ -202,6 +203,29 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(clicks).toContain('coalesce(utm_source, "-") as section');
 		expect(clicks).toContain('coalesce(utm_content, "-") as element');
 		expect(clicks).toContain("stats count(*) as clicks by section, element");
+	});
+
+	it("names both reader save surfaces in the reader funnel, so narrowing reader_view to the article body did not silently drop the expired-paywall CTA", () => {
+		const queries = widgetQueries();
+		const funnel = queries.find((q) => q.includes(`event = "${ANALYTICS_EVENTS.viewOpened}"`) && q.includes(`event = "${ANALYTICS_EVENTS.viewSaveIntent}"`));
+		expect(funnel).toBeDefined();
+		expect(funnel).toContain(`surface in ["${SAVE_SURFACES.readerView}", "${SAVE_SURFACES.readerPaywall}"]`);
+		expect(funnel).toContain("not ispresent(surface)");
+	});
+
+	it("scopes the anonymous reader outcome widget to the same two reader surfaces the funnel uses", () => {
+		const queries = widgetQueries();
+		const outcomes = queries.find((q) => q.includes("stats count(*) as attempts by outcome"));
+		expect(outcomes).toBeDefined();
+		expect(outcomes).toContain(`surface in ["${SAVE_SURFACES.readerView}", "${SAVE_SURFACES.readerPaywall}"]`);
+		expect(outcomes).toContain("is_authenticated = 0");
+	});
+
+	it("leaves the by-surface breakdown unscoped, so every new save surface shows up as its own row without a dashboard change", () => {
+		const queries = widgetQueries();
+		const breakdown = queries.find((q) => q.includes("stats count(*) as saves by surface, save_client, content_class"));
+		expect(breakdown).toBeDefined();
+		expect(breakdown).not.toContain("surface in [");
 	});
 
 	it("the errors widget is a latest-first table over the errors funnel", () => {

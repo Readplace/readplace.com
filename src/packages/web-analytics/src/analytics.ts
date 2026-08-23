@@ -2,6 +2,7 @@ import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { isbot } from "isbot";
+import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 import {
@@ -9,6 +10,8 @@ import {
 	INTERNAL_CLICK_MEDIUM,
 	type McpToolOutcome,
 	SAVE_CLIENTS,
+	SAVE_LINK_SURFACES,
+	SAVE_SURFACE_QUERY,
 	SAVE_SURFACES,
 	type SaveClient,
 	type SaveOutcome,
@@ -490,6 +493,13 @@ export function hashIp(deps: { ip: string | undefined; salt: string }): string |
 		.update(deps.ip + deps.salt)
 		.digest("hex")
 		.slice(0, 16);
+}
+
+const SaveLinkSurfaceSchema = z.enum(SAVE_LINK_SURFACES);
+
+export function deriveSaveSurface(req: Request): SaveSurface {
+	const parsed = SaveLinkSurfaceSchema.safeParse(req.query[SAVE_SURFACE_QUERY]);
+	return parsed.success ? parsed.data : SAVE_SURFACES.unknown;
 }
 
 /**

@@ -11,6 +11,7 @@ import { decomposeTimeLeft, formatCounter } from "@packages/time-left";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { requireEnv } from "@packages/require-env";
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
 import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -58,6 +59,7 @@ const VIEW_PAYWALL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const PARSE_ORIGIN = "https://internal.invalid";
 const PAYWALL_TRACKING_SOURCE = "view-paywall";
 const PAYWALL_REFERRAL_SOURCE = "readplace";
 const PAYWALL_REFERRAL_MEDIUM = "referral";
@@ -70,6 +72,12 @@ function paywallOriginalHref(originalUrl: URL): string {
 	return tagged.toString();
 }
 
+function paywallSaveHref(saveHref: string): string {
+	const url = new URL(saveHref, PARSE_ORIGIN);
+	url.searchParams.set(SAVE_SURFACE_QUERY, SAVE_SURFACES.readerPaywall);
+	return `${url.pathname}${url.search}`;
+}
+
 function renderViewPaywall(input: {
 	saveHref: string;
 	originalUrl: string;
@@ -78,7 +86,7 @@ function renderViewPaywall(input: {
 }): string {
 	const originalUrl = new URL(input.originalUrl);
 	return render(VIEW_PAYWALL_TEMPLATE, {
-		saveHref: withInternalTracking(input.saveHref, {
+		saveHref: withInternalTracking(paywallSaveHref(input.saveHref), {
 			source: PAYWALL_TRACKING_SOURCE,
 			content: "save-to-queue",
 		}),

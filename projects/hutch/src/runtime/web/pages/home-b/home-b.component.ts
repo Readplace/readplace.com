@@ -4,6 +4,7 @@ import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
 import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
@@ -119,7 +120,7 @@ export function HomeVariantBPage(params: {
 		? renderAction({
 				key: "hero-save-last-view",
 				label: hero.saveLastViewLabel,
-				href: `/save?url=${encodeURIComponent(lastViewUrl)}`,
+				href: `/save?url=${encodeURIComponent(lastViewUrl)}&${SAVE_SURFACE_QUERY}=${SAVE_SURFACES.homepageHero}`,
 				content: "hero-save-last-view",
 				cssClass: "btn--secondary",
 			})

@@ -123,6 +123,13 @@ function excludeVisitorHashesClause(excludedVisitorHashes: readonly string[]): s
 	return [`| filter (not ispresent(visitor_hash)) or (visitor_hash not in [${list}])`];
 }
 
+const READER_SAVE_SURFACES = [SAVE_SURFACES.readerView, SAVE_SURFACES.readerPaywall] as const;
+
+function readerSaveSurfaceClause(): string {
+	const list = READER_SAVE_SURFACES.map((surface) => `"${surface}"`).join(", ");
+	return `(surface in [${list}] or not ispresent(surface))`;
+}
+
 function logWidget(params: {
 	region: string;
 	title: string;
@@ -454,18 +461,11 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 		logWidget({
 			region,
-			title: "Try → Save-intent → Signup (unique visitors by event)",
+			title: "Try → Save-intent (reader CTAs only) → Signup (unique visitors by event)",
 			logGroupNames: analyticsSource,
-			/**
-			 * The save-intent leg is pinned to the anonymous reader surface so this
-			 * funnel counts only anonymous reader saves; `view_save_intent` also
-			 * fires for authenticated saves on the queue/extension surfaces.
-			 * `not ispresent(surface)` keeps events that have no
-			 * surface field (all anonymous reader saves) in the count.
-			 */
 			query: [
 				"fields visitor_id",
-				`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewOpened}") or (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and (surface = "${SAVE_SURFACES.readerView}" or not ispresent(surface))) or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}")`,
+				`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewOpened}") or (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and ${readerSaveSurfaceClause()}) or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}")`,
 				"| filter ispresent(visitor_id)",
 				...exclude,
 				"| stats count_distinct(visitor_id) as visitors by event",
@@ -542,12 +542,12 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 		logWidget({
 			region,
-			title: "Anonymous reader-view save attempts by outcome",
+			title: "Anonymous reader save attempts by outcome (reader_view + reader_paywall)",
 			logGroupNames: analyticsSource,
 			query: [
 				`fields coalesce(outcome, "${SAVE_OUTCOMES.promptedToSignUp}") as outcome`,
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}"`,
-				`| filter (surface = "${SAVE_SURFACES.readerView}" or not ispresent(surface)) and is_authenticated = 0`,
+				`| filter ${readerSaveSurfaceClause()} and is_authenticated = 0`,
 				...exclude,
 				"| stats count(*) as attempts by outcome",
 				"| sort attempts desc",

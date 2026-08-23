@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import { calculateReadTime } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
 import { buildExpiryFields, ViewPage, type ViewPageInput } from "./view.component";
 import { sharedUserIdFrom } from "./view-expiry";
 
@@ -34,6 +35,7 @@ const baseInput: ViewPageInput = {
 };
 
 const CSP_NONCE = generateCspNonce();
+const PARSE_ORIGIN = "https://internal.invalid";
 
 function render(input = baseInput) {
 	const html = Base(ViewPage(input), { isAuthenticated: false, emailVerified: undefined, cspNonce: CSP_NONCE }).to("text/html").body;
@@ -627,7 +629,7 @@ describe("ViewPage", () => {
 			assert(save, "paywall save button must be rendered");
 			assert.equal(
 				save.getAttribute("href"),
-				"/save?url=https%3A%2F%2Fexample.com%2Fpost&utm_source=view-paywall&utm_medium=internal&utm_content=save-to-queue",
+				"/save?url=https%3A%2F%2Fexample.com%2Fpost&save_surface=reader_paywall&utm_source=view-paywall&utm_medium=internal&utm_content=save-to-queue",
 			);
 			assert.equal(save.textContent, "Save to My Queue");
 			assert(
@@ -701,6 +703,42 @@ describe("ViewPage", () => {
 			assert.equal(slot.getAttribute("data-reader-status"), "failed");
 
 			assert.equal(doc.querySelectorAll("[data-test-view-paywall]").length, 0);
+		});
+
+		it("names the expired-paywall modal as its own save surface, so a click on the modal is not counted as a click in the article body", () => {
+			const doc = render({ ...readyInput, expiresAt: new Date("2026-04-30T23:59:59.000Z"), now });
+
+			const save = doc.querySelector("[data-test-view-paywall-save]");
+			assert(save, "paywall save button must be rendered");
+			const href = save.getAttribute("href");
+			assert(href, "paywall save button must carry an href");
+			assert.equal(
+				new URL(href, PARSE_ORIGIN).searchParams.get(SAVE_SURFACE_QUERY),
+				SAVE_SURFACES.readerPaywall,
+			);
+		});
+
+		it("replaces the reader-view marker the article body's Save link already carries, so the paywall link never sends two of them", () => {
+			const doc = render({
+				...readyInput,
+				actions: [
+					{
+						name: "Save to My Queue",
+						href: `/save?url=https%3A%2F%2Fexample.com%2Fpost&${SAVE_SURFACE_QUERY}=${SAVE_SURFACES.readerView}`,
+						variant: "primary",
+					},
+				],
+				expiresAt: new Date("2026-04-30T23:59:59.000Z"),
+				now,
+			});
+
+			const save = doc.querySelector("[data-test-view-paywall-save]");
+			assert(save, "paywall save button must be rendered");
+			const href = save.getAttribute("href");
+			assert(href, "paywall save button must carry an href");
+			expect(new URL(href, PARSE_ORIGIN).searchParams.getAll(SAVE_SURFACE_QUERY)).toEqual([
+				SAVE_SURFACES.readerPaywall,
+			]);
 		});
 
 		it("omits the paywall for a permanent (non-expiring) article", () => {

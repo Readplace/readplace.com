@@ -48,10 +48,17 @@ export type SignupOutcome = (typeof SIGNUP_OUTCOMES)[keyof typeof SIGNUP_OUTCOME
  */
 export const SAVE_SURFACES = {
 	readerView: "reader_view",
+	readerPaywall: "reader_paywall",
+	homepageHero: "homepage_hero",
+	embed: "embed",
+	webmcp: "webmcp",
+	unknown: "unknown",
 	queueSaveBar: "queue_save_bar",
 	extension: "extension",
 	mcp: "mcp",
 } as const;
+
+export const SAVE_SURFACE_QUERY = "save_surface";
 
 export const SAVE_CLIENTS = {
 	web: "web",
@@ -86,6 +93,14 @@ export const CONTENT_CLASSES = {
 export type SaveSurface = (typeof SAVE_SURFACES)[keyof typeof SAVE_SURFACES];
 export type SaveClient = (typeof SAVE_CLIENTS)[keyof typeof SAVE_CLIENTS];
 export type SaveOutcome = (typeof SAVE_OUTCOMES)[keyof typeof SAVE_OUTCOMES];
+
+export const SAVE_LINK_SURFACES = [
+	SAVE_SURFACES.readerView,
+	SAVE_SURFACES.readerPaywall,
+	SAVE_SURFACES.homepageHero,
+	SAVE_SURFACES.embed,
+	SAVE_SURFACES.webmcp,
+] as const satisfies readonly SaveSurface[];
 
 /**
  * `utm_medium` value stamped on every in-site link and action button so a click
