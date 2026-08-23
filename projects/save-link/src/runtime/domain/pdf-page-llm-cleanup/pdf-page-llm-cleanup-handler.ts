@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { estimateOutputTokens } from "@packages/ai-message";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { evaluateGuardrails } from "./guardrails";
 import { httpStatusTag } from "./http-status-tag";
@@ -17,15 +18,10 @@ const InputSchema = z.object({
 	ocrText: z.string(),
 });
 
-/**
- * Cap the requested model output at 2× the input character count divided by
- * a rough 4-chars-per-token approximation. Stays well within DeepSeek's 8K
- * output ceiling for any single page (a 30K-character page would request
- * ~15K tokens — capped to 8K downstream by the SDK wrapper).
- */
-function estimateMaxOutputTokens(ocrText: string): number {
-	return Math.max(256, Math.ceil((ocrText.length * 2) / 4));
-}
+/* Stage 1 returns the same text with corrections applied, so its output tracks
+ * its input almost one-for-one and a 2× multiple is ample. Final cap to the
+ * DeepSeek 8192 output ceiling happens at the adapter layer. */
+const CLEANUP_TOKEN_HEADROOM = 2;
 
 export function initPdfPageLlmCleanupHandler(deps: {
 	cleanupPageWithLlm: CleanupPageWithLlm;
@@ -51,7 +47,7 @@ export function initPdfPageLlmCleanupHandler(deps: {
 			result = await cleanupPageWithLlm({
 				systemPrompt: CLEANUP_PROMPT,
 				userText: input.ocrText,
-				maxTokens: estimateMaxOutputTokens(input.ocrText),
+				maxTokens: estimateOutputTokens({ text: input.ocrText, headroom: CLEANUP_TOKEN_HEADROOM }),
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

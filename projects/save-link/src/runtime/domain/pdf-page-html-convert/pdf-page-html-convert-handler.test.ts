@@ -218,7 +218,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		expect(captured).toContain("Output ONLY the HTML5 fragment");
 	});
 
-	it("computes maxTokens proportional to input length with a 256-token floor", async () => {
+	it("computes maxTokens from the weighted character estimate, with extra headroom for markup", async () => {
 		const captured: number[] = [];
 		const handler = initPdfPageHtmlConvertHandler({
 			convertPageToHtmlWithLlm: async ({ userText, maxTokens }) => {
@@ -232,7 +232,22 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		await handler({ pageIndex: 0, pageText: "x".repeat(1200) });
 		await handler({ pageIndex: 0, pageText: "x".repeat(6000) });
 
-		expect(captured).toEqual([256, 600, 3000]);
+		expect(captured).toEqual([256, 1080, 5400]);
+	});
+
+	it("budgets 931 tokens for the 1,034-character page that truncated at a 517-token cap", async () => {
+		const captured: number[] = [];
+		const handler = initPdfPageHtmlConvertHandler({
+			convertPageToHtmlWithLlm: async ({ userText, maxTokens }) => {
+				captured.push(maxTokens);
+				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1 } };
+			},
+			logger: noopLogger,
+		});
+
+		await handler({ pageIndex: 0, pageText: "x".repeat(1034) });
+
+		expect(captured[0]).toBe(931);
 	});
 
 	it("strips dangerous tags via the shared sanitiser before the guardrail runs", async () => {

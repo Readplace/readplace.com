@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { estimateOutputTokens } from "@packages/ai-message";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { escapeHtmlText } from "@packages/crawl-article";
 import { sanitizeFragment } from "../article-parser/sanitize-fragment";
@@ -18,14 +19,13 @@ const InputSchema = z.object({
 	pageText: z.string(),
 });
 
-/* Tokens budget: emitting HTML around the same text inflates output ~30–60 %
- * (tags, attributes, entities). 2× input chars / 4 chars-per-token gives the
- * model headroom for table-heavy or list-heavy pages; clamped to a 256-token
- * floor for very short pages. Final cap to the DeepSeek 8192 output ceiling
- * happens at the adapter layer. */
-function estimateMaxOutputTokens(pageText: string): number {
-	return Math.max(256, Math.ceil((pageText.length * 2) / 4));
-}
+/* Stage 3 wraps the text in markup, so its output is always longer than its
+ * input implies: tags, attributes and entities add 30-60% on prose and more on
+ * table- or list-heavy pages. A 2x multiple measured short — a 1,034-character
+ * Adobe sample page truncated at exactly its 517-token cap — so the multiple
+ * has to cover the markup as well as the text. Final cap to the DeepSeek 8192
+ * output ceiling happens at the adapter layer. */
+const HTML_CONVERT_TOKEN_HEADROOM = 3;
 
 /* Minimum fraction of the input's visible text that must survive in the
  * sanitised HTML's text content. Anything below this and we assume the
@@ -54,7 +54,7 @@ export function initPdfPageHtmlConvertHandler(deps: {
 			result = await convertPageToHtmlWithLlm({
 				systemPrompt: CONVERT_PROMPT,
 				userText: input.pageText,
-				maxTokens: estimateMaxOutputTokens(input.pageText),
+				maxTokens: estimateOutputTokens({ text: input.pageText, headroom: HTML_CONVERT_TOKEN_HEADROOM }),
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

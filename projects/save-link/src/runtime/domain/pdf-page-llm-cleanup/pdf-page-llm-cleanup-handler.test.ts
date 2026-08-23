@@ -164,7 +164,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		await expect(handler({ pageIndex: 0 })).rejects.toThrow();
 	});
 
-	it("computes maxTokens proportional to input length, with a 256-token floor", async () => {
+	it("computes maxTokens from the weighted character estimate, with a 256-token floor", async () => {
 		const captured: number[] = [];
 		const handler = initPdfPageLlmCleanupHandler({
 			cleanupPageWithLlm: async ({ userText, maxTokens }) => {
@@ -174,14 +174,27 @@ describe("initPdfPageLlmCleanupHandler", () => {
 			logger: noopLogger,
 		});
 
-		// 40 chars → 2*40/4 = 20 → bumped to the 256 floor.
 		await handler({ pageIndex: 0, ocrText: "x".repeat(40) });
-		// 1200 chars → 2*1200/4 = 600 → above the floor, used directly.
 		await handler({ pageIndex: 0, ocrText: "x".repeat(1200) });
-		// 6000 chars → 2*6000/4 = 3000 → above the floor, scales linearly.
 		await handler({ pageIndex: 0, ocrText: "x".repeat(6000) });
 
-		expect(captured).toEqual([256, 600, 3000]);
+		expect(captured).toEqual([256, 720, 3600]);
+	});
+
+	it("budgets a CJK page above an ASCII page of the same length, which the old flat estimate did not", async () => {
+		const captured: number[] = [];
+		const handler = initPdfPageLlmCleanupHandler({
+			cleanupPageWithLlm: async ({ userText, maxTokens }) => {
+				captured.push(maxTokens);
+				return { text: userText, tokens: { input: 1, output: 1 } };
+			},
+			logger: noopLogger,
+		});
+
+		await handler({ pageIndex: 0, ocrText: "x".repeat(1200) });
+		await handler({ pageIndex: 0, ocrText: "\u8ba1".repeat(1200) });
+
+		expect(captured).toEqual([720, 1440]);
 	});
 
 	it("passes the loaded prompt to the LLM call as the system prompt", async () => {
