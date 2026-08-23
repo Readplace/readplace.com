@@ -23,34 +23,76 @@ export interface TesseractChildProcess {
  * Tesseract install. */
 export type SpawnTesseractProcess = (args: readonly string[]) => TesseractChildProcess;
 
-/* Tesseract loads every script pack passed via `-l` and `--psm 1` then runs
- * OSD across all of them to decide which model to apply per region. With ~35
- * packs the OSD step becomes the bottleneck — p50 per-page wall clock on a
- * dense math/print PDF was 277-313 s, well past the 900 s Lambda ceiling, so
- * the comprehensive-crawl orchestrator was reliably timing out on born-digital
- * LaTeX (yellow paper) and scanned multi-column print (CIA reading room).
- * Narrow to a small explicit allowlist that covers our actual corpus; OSD
- * with one script is fast and brings per-page back to ~20-30 s. Extending the
- * allowlist is a one-line edit when a real non-Latin corpus shows up. */
-const RUNTIME_SCRIPTS = ["Latin"] as const;
+/* Joining every installed pack into one `-l` flag makes Tesseract evaluate all
+ * of them per region, and the cost scales with the pack count: a Greek page
+ * measured 1,532 ms with its own pack and 18,003 ms with all 37 joined. That is
+ * what drove per-page wall clock past the 900 s Lambda budget. Detecting the
+ * script first and recognising with one pack costs ~426 ms per page instead. */
+type ScriptPack = (typeof SUPPORTED_SCRIPTS)[number];
 
-export function discoverInstalledScripts(tessdataDir: string): readonly string[] {
+/** Packs measured end-to-end against a scan-degraded page per script. The list
+ * stops well short of the 37 tessdata ships because OSD is the limit rather
+ * than the packs: it can name 17 scripts, and for anything else it answers
+ * confidently and wrongly, so a Georgian page comes back as Arabic. Shipping a
+ * pack nothing can route to is weight behind a door with no handle. */
+const SUPPORTED_SCRIPTS = [
+	"Arabic",
+	"Bengali",
+	"Cyrillic",
+	"Devanagari",
+	"Greek",
+	"HanS",
+	"Hangul",
+	"Hebrew",
+	"Japanese",
+	"Kannada",
+	"Latin",
+	"Malayalam",
+	"Tamil",
+	"Telugu",
+	"Thai",
+] as const;
+
+const FALLBACK_SCRIPT: ScriptPack = "Latin";
+
+/** OSD reports names that are not all pack names. `Han` is the one that bites:
+ * it covers both Chinese variants and there is no `Han.traineddata`. Simplified
+ * is the default because OSD cannot tell the two apart, and traditional text
+ * still scores 0.70 against it where a missing pack scores 0. */
+const SCRIPT_PACK_ALIASES: Readonly<Record<string, ScriptPack>> = {
+	Han: "HanS",
+	Korean: "Hangul",
+	Common: FALLBACK_SCRIPT,
+};
+
+/** Asserts rather than filters: the container ships this exact set, so a pack
+ * missing from disk means the image and this list have drifted apart. Filtering
+ * would route that script to Latin and return plausible noise with no error. */
+export function discoverInstalledScripts(tessdataDir: string): readonly ScriptPack[] {
 	const scriptDir = resolve(tessdataDir, "script");
-	for (const name of RUNTIME_SCRIPTS) {
-		const file = resolve(scriptDir, `${name}.traineddata`);
+	for (const script of SUPPORTED_SCRIPTS) {
+		const file = resolve(scriptDir, `${script}.traineddata`);
 		assert(existsSync(file), `Required tessdata script pack missing: ${file}`);
 	}
-	return RUNTIME_SCRIPTS;
+	return SUPPORTED_SCRIPTS;
 }
 
-/* Build the `-l` flag value Tesseract expects: `+`-separated entries of
- * the form `script/<Name>`. Tesseract's `--psm 1` runs OSD ahead of
- * recognition to pick the right script model per region, so a single
- * invocation can OCR an English paragraph, a Chinese sidebar, and an
- * Arabic footnote on the same page without any per-language code path. */
-export function buildLanguageFlag(installedScripts: readonly string[]): string {
-	assert(installedScripts.length > 0, "buildLanguageFlag requires at least one installed script");
-	return installedScripts.map((script) => `script/${script}`).join("+");
+function resolveScriptPack(params: {
+	detectedScript: string;
+	installedScripts: readonly ScriptPack[];
+}): string {
+	const aliased = SCRIPT_PACK_ALIASES[params.detectedScript];
+	const candidate = aliased ?? params.detectedScript;
+	const pack = params.installedScripts.find((script) => script === candidate) ?? FALLBACK_SCRIPT;
+	return `script/${pack}`;
+}
+
+/** A page with no script-bearing region prints no `Script:` line at all, so
+ * both fields are optional and the caller decides the fallback. */
+function parseOsdOutput(stdout: string): { script?: string; rotate?: number } {
+	const script = /^Script:\s*(\S+)\s*$/m.exec(stdout)?.[1];
+	const rotate = /^Rotate:\s*(\d+)\s*$/m.exec(stdout)?.[1];
+	return { script, rotate: rotate === undefined ? undefined : Number(rotate) };
 }
 
 export function initTesseractOcr(deps: {
@@ -58,12 +100,16 @@ export function initTesseractOcr(deps: {
 	spawnTesseractProcess: SpawnTesseractProcess;
 }): RunPageOcr {
 	const installedScripts = discoverInstalledScripts(deps.tessdataDir);
-	const languageFlag = buildLanguageFlag(installedScripts);
-	return createOcrClosure({ languageFlag, spawnTesseractProcess: deps.spawnTesseractProcess });
+	return createOcrClosure({
+		installedScripts,
+		tessdataDir: deps.tessdataDir,
+		spawnTesseractProcess: deps.spawnTesseractProcess,
+	});
 }
 
 function createOcrClosure(deps: {
-	languageFlag: string;
+	installedScripts: readonly ScriptPack[];
+	tessdataDir: string;
 	spawnTesseractProcess: SpawnTesseractProcess;
 }): RunPageOcr {
 	return async ({ images }) => {
@@ -77,7 +123,8 @@ function createOcrClosure(deps: {
 
 async function ocrOneImage(params: {
 	pngBuffer: Buffer;
-	languageFlag: string;
+	installedScripts: readonly ScriptPack[];
+	tessdataDir: string;
 	spawnTesseractProcess: SpawnTesseractProcess;
 }): Promise<string> {
 	const text = await runTesseract(params);
@@ -86,54 +133,70 @@ async function ocrOneImage(params: {
 
 async function runTesseract(params: {
 	pngBuffer: Buffer;
-	languageFlag: string;
+	installedScripts: readonly ScriptPack[];
+	tessdataDir: string;
 	spawnTesseractProcess: SpawnTesseractProcess;
 }): Promise<string> {
+	const { installedScripts, tessdataDir, spawnTesseractProcess } = params;
 	const scratchDir = resolve(tmpdir(), `tesseract-${randomUUID()}`);
 	const pngPath = resolve(scratchDir, "page.png");
 	await mkdir(scratchDir, { recursive: true });
 	await writeFile(pngPath, params.pngBuffer);
 	try {
-		return await spawnTesseract({
-			pngPath,
-			languageFlag: params.languageFlag,
-			spawnTesseractProcess: params.spawnTesseractProcess,
+		// A detect failure is not a page failure: fall back to Latin rather than
+		// losing a page Tesseract could still have read.
+		const detect = await spawnTesseract({
+			args: [pngPath, "-", "--psm", "0", "--tessdata-dir", tessdataDir],
+			spawnTesseractProcess,
 		});
+		const osd = detect.exitCode === 0 ? parseOsdOutput(detect.stdout) : {};
+		const pack = resolveScriptPack({
+			detectedScript: osd.script ?? FALLBACK_SCRIPT,
+			installedScripts,
+		});
+		// `--psm 3` cannot correct orientation, so a rotated page goes back to
+		// `--psm 1`, which re-runs OSD and applies the rotation itself.
+		const segmentationMode = (osd.rotate ?? 0) === 0 ? "3" : "1";
+		// `--oem 1` pins the LSTM engine. The default `--oem 3` means "best
+		// available" and would silently change behaviour if the package ever
+		// shipped with the legacy engine enabled.
+		const recognise = await spawnTesseract({
+			args: [
+				pngPath, "-",
+				"--psm", segmentationMode,
+				"--oem", "1",
+				"-l", pack,
+				"--tessdata-dir", tessdataDir,
+			],
+			spawnTesseractProcess,
+		});
+		assert(
+			recognise.exitCode === 0,
+			`tesseract exited ${recognise.exitCode}: ${recognise.stderr}`,
+		);
+		return recognise.stdout;
 	} finally {
 		await rm(scratchDir, { recursive: true, force: true });
 	}
 }
 
 function spawnTesseract(params: {
-	pngPath: string;
-	languageFlag: string;
+	args: readonly string[];
 	spawnTesseractProcess: SpawnTesseractProcess;
-}): Promise<string> {
-	const { pngPath, languageFlag, spawnTesseractProcess } = params;
+}): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
 	return new Promise((resolvePromise, rejectPromise) => {
-		// --psm 1: auto page segmentation with OSD (orientation + script detection).
-		// --oem 1: pin the OCR engine to the LSTM neural net (the default `--oem 3`
-		//   means "best available" and resolves to LSTM in Tesseract 5.x, but pinning
-		//   makes the choice explicit and avoids surprises if the EPEL package ever
-		//   ships without the legacy engine deselected).
-		// -l <languageFlag>: every installed script pack as `script/<Name>`, joined
-		//   with `+`. One pack covers every language in that script — Latin handles
-		//   English/Portuguese/German/etc. — so the flag is short and the recogniser
-		//   only loads the script needed per region (tessdata is mmapped lazily).
-		// `-` as output base writes recognised text to stdout.
-		const child = spawnTesseractProcess([pngPath, "-", "--psm", "1", "--oem", "1", "-l", languageFlag]);
+		const child = params.spawnTesseractProcess(params.args);
 		const stdoutChunks: Buffer[] = [];
 		const stderrChunks: Buffer[] = [];
 		child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
 		child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
 		child.on("error", rejectPromise);
 		child.on("close", (exitCode) => {
-			if (exitCode !== 0) {
-				const stderr = Buffer.concat(stderrChunks).toString("utf8");
-				rejectPromise(new Error(`tesseract exited ${exitCode}: ${stderr}`));
-				return;
-			}
-			resolvePromise(Buffer.concat(stdoutChunks).toString("utf8"));
+			resolvePromise({
+				exitCode,
+				stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+				stderr: Buffer.concat(stderrChunks).toString("utf8"),
+			});
 		});
 	});
 }

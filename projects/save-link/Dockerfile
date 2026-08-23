@@ -16,22 +16,21 @@
 #
 # Install set:
 #   - `tesseract` — the binary + shared libs (EPEL 9).
-#   - `osd.traineddata` — orientation/script detector required by `--psm 1`,
-#     which routes each page region to the matching script model.
-#   - `script/*.traineddata` — only the script bundles, not the 100+
-#     individual-language packs. Each `script/<Name>.traineddata` already
-#     covers every language in that script (`script/Latin` recognises
-#     English, Portuguese, German, French, Vietnamese, etc. from one file).
-#     The individual `<lang>.traineddata` files are redundant when scripts
-#     are installed and only inflate the image.
+#   - `osd.traineddata` — the orientation/script detector the runtime runs
+#     first to decide which script model a page needs.
+#   - `script/<Name>.traineddata` for the scripts the runtime allowlist can
+#     route to. One script pack covers every language written in it
+#     (`script/Latin` recognises English, Portuguese, German, Vietnamese and
+#     the rest from one file), so the 100+ per-language packs are redundant.
+#     The remaining script packs are omitted because the detector recognises
+#     far fewer scripts than tessdata ships and cannot ask for them.
 #
 # The traineddata files come from upstream tesseract-ocr/tessdata_fast at a
-# pinned tag, fetched via a partial+sparse clone so we only download
-# `osd.traineddata` + `script/*` (~190 MB) instead of the full ~400 MB
+# pinned tag, fetched via a partial+sparse clone rather than the full ~400 MB
 # repository. EPEL 9 removed the `tesseract-langpack-osd` and
 # `tesseract-langpack-script_*` subpackages, so the upstream repo is now
 # the canonical source. `tessdata_fast` is the integer-quantised LSTM
-# variant — same neural recogniser as `tessdata_best`, ~5× smaller — which
+# variant — same neural recogniser as `tessdata_best`, ~5x smaller — which
 # is the right tradeoff for a Lambda container's cold-start budget.
 FROM rockylinux:9 AS tesseract-stage
 ARG TESSDATA_VERSION=4.1.0
@@ -46,7 +45,9 @@ RUN dnf install -y epel-release && \
     git -C /tmp/tessdata checkout && \
     mkdir -p /opt/tesseract/tessdata/script && \
     cp /tmp/tessdata/osd.traineddata /opt/tesseract/tessdata/ && \
-    cp /tmp/tessdata/script/*.traineddata /opt/tesseract/tessdata/script/ && \
+    for s in Arabic Bengali Cyrillic Devanagari Greek HanS Hangul Hebrew Japanese Kannada Latin Malayalam Tamil Telugu Thai; do \
+      cp "/tmp/tessdata/script/$s.traineddata" /opt/tesseract/tessdata/script/; \
+    done && \
     rm -rf /tmp/tessdata && \
     mkdir -p /opt/tesseract-lib && \
     ldd /usr/bin/tesseract \
