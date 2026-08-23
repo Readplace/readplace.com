@@ -53,6 +53,12 @@ export const SAVE_SURFACES = {
 	mcp: "mcp",
 } as const;
 
+export const SAVE_CLIENTS = {
+	web: "web",
+	iosApp: "ios_app",
+	mcp: "mcp",
+} as const;
+
 export const MCP_TOOL_OUTCOMES = {
 	ok: "ok",
 	error: "error",
@@ -78,6 +84,7 @@ export const CONTENT_CLASSES = {
 } as const;
 
 export type SaveSurface = (typeof SAVE_SURFACES)[keyof typeof SAVE_SURFACES];
+export type SaveClient = (typeof SAVE_CLIENTS)[keyof typeof SAVE_CLIENTS];
 export type SaveOutcome = (typeof SAVE_OUTCOMES)[keyof typeof SAVE_OUTCOMES];
 
 /**

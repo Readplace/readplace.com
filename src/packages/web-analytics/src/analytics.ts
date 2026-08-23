@@ -8,7 +8,9 @@ import {
 	ANALYTICS_EVENTS,
 	INTERNAL_CLICK_MEDIUM,
 	type McpToolOutcome,
+	SAVE_CLIENTS,
 	SAVE_SURFACES,
+	type SaveClient,
 	type SaveOutcome,
 	type SaveSurface,
 	type SignupOutcome,
@@ -140,7 +142,7 @@ export type DeviceClass =
 
 const NATIVE_CLIENT_USER_AGENT = /^(?:Readplace|ShareExtension)\/\d+ CFNetwork\/[\d.]+ Darwin\/[\d.]+$/;
 
-function isReadplaceNativeClient(userAgent: string | undefined): boolean {
+export function isReadplaceNativeClient(userAgent: string | undefined): boolean {
 	return userAgent !== undefined && NATIVE_CLIENT_USER_AGENT.test(userAgent);
 }
 
@@ -265,6 +267,7 @@ export interface ViewSaveIntentEvent {
 	content_class: ContentClass | null;
 	surface: SaveSurface;
 	outcome: SaveOutcome;
+	client: SaveClient;
 	referrer_host?: string;
 	pending_save_id?: string;
 	visitor_hash: string | null;
@@ -506,6 +509,7 @@ export function buildSaveIntentEvent(
 		path: string;
 		surface: SaveSurface;
 		outcome: SaveOutcome;
+		client: SaveClient;
 		pendingSaveId?: string;
 	},
 ): ViewSaveIntentEvent {
@@ -521,6 +525,7 @@ export function buildSaveIntentEvent(
 		content_class: articleHost === null ? null : classifyContentSource(articleHost),
 		surface: params.surface,
 		outcome: params.outcome,
+		client: params.client,
 		...(referrerHost ? { referrer_host: referrerHost } : {}),
 		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
 		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
@@ -574,6 +579,7 @@ export function buildMcpSaveIntentEvent(
 		content_class: articleHost === null ? null : classifyContentSource(articleHost),
 		surface: SAVE_SURFACES.mcp,
 		outcome: params.outcome,
+		client: SAVE_CLIENTS.mcp,
 		visitor_hash: null,
 		visitor_id: null,
 		is_authenticated: 1,

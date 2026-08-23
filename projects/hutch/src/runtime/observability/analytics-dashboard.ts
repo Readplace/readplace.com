@@ -500,23 +500,26 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
-	// --- Save funnel (content class × surface × outcome) ---
+	// --- Save funnel ---
 	// Driven by the enriched view_save_intent event. content_class is derived
 	// from the article's own domain (never the referrer). coalesce() folds
 	// pre-enrichment events — which carried no surface/outcome and were all
 	// anonymous reader saves — into the reader_view / prompted_to_sign_up
 	// buckets so historical data still reads correctly.
+	// Aliased to `save_client`, not `client`: Logs Insights drops the column
+	// when `coalesce(x, …) as x` self-aliases a field absent from every record
+	// in range — which is all history before this event carried one.
 
 	widgets.push(
 		logWidget({
 			region,
-			title: "Save-intent by surface × content class",
+			title: "Save-intent by surface × client × content class",
 			logGroupNames: analyticsSource,
 			query: [
-				`fields coalesce(surface, "${SAVE_SURFACES.readerView}") as surface, coalesce(content_class, "unclassified") as content_class`,
+				`fields coalesce(surface, "${SAVE_SURFACES.readerView}") as surface, coalesce(client, "unclassified") as save_client, coalesce(content_class, "unclassified") as content_class`,
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}"`,
 				...exclude,
-				"| stats count(*) as saves by surface, content_class",
+				"| stats count(*) as saves by surface, save_client, content_class",
 				"| sort saves desc",
 				"| limit 50",
 			].join(" "),

@@ -9,6 +9,7 @@ import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
 import { buildSaveIntentEvent, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES } from "../../../observability/events";
+import { saveClientOf } from "../../shared/save-client";
 import { setPendingSaveId } from "../../pending-save";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { SaveErrorPage } from "./save-error.component";
@@ -63,6 +64,7 @@ export function initSaveRoutes(deps: {
 								path: req.baseUrl,
 								surface: SAVE_SURFACES.readerView,
 								outcome: SAVE_OUTCOMES.promptedToSignUp,
+								client: saveClientOf(req),
 								pendingSaveId,
 							},
 						),

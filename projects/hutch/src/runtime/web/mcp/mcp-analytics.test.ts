@@ -63,6 +63,7 @@ describe("initRecordMcpToolCall", () => {
 			event: "view_save_intent",
 			surface: "mcp",
 			outcome: "saved",
+			client: "mcp",
 			article_host: "example.com",
 			path: "/mcp",
 		});

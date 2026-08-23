@@ -14,6 +14,7 @@ import type { UserId } from "@packages/domain/user";
 import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
+import { saveClientOf } from "../../shared/save-client";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	decodeImportSkippedCookie,
@@ -640,7 +641,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		surface: SaveSurface;
 		outcome: SaveOutcome;
 	}): void => {
-		deps.analytics.info(buildSaveIntentEvent({ now: deps.now, salt: deps.salt }, params));
+		deps.analytics.info(
+			buildSaveIntentEvent({ now: deps.now, salt: deps.salt }, { ...params, client: saveClientOf(params.req) }),
+		);
 	};
 
 	const saveContentMedia: Record<string, SaveContentMedia> = {

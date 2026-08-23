@@ -10,6 +10,7 @@ import {
 	type TestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
 
 const TEST_USER_ID = "test-user-save-intent" as UserId;
 
@@ -72,6 +73,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				content_class: "third_party",
 				surface: "queue_save_bar",
 				outcome: "saved",
+				client: "web",
 				is_authenticated: 1,
 			});
 			expect(intents[0].pending_save_id).toBeUndefined();
@@ -149,8 +151,24 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				surface: "extension",
 				outcome: "saved",
 				content_class: "third_party",
+				client: "web",
 				is_authenticated: 1,
 			});
+		});
+
+		it("records the iPhone app's save of the same shape as the ios_app client, which is the only thing telling it apart from a browser extension save", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+				.send({ url: "https://example.com/article" });
+
+			expect(response.status).toBe(201);
+			expect(saveIntents(harness)[0]).toMatchObject({ surface: "extension", client: "ios_app" });
 		});
 
 		it("emits extension / error when the save throws", async () => {

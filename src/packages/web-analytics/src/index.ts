@@ -2,6 +2,7 @@ export {
 	STREAMS,
 	ANALYTICS_EVENTS,
 	SAVE_SURFACES,
+	SAVE_CLIENTS,
 	SAVE_OUTCOMES,
 	SIGNUP_OUTCOMES,
 	CONTENT_CLASSES,
@@ -9,6 +10,7 @@ export {
 	MCP_TOOL_OUTCOMES,
 	UNKNOWN_MCP_TOOL,
 	type SaveSurface,
+	type SaveClient,
 	type SaveOutcome,
 	type SignupOutcome,
 	type McpToolOutcome,
@@ -37,6 +39,7 @@ export { utmValidationMiddleware } from "./utm-validation.middleware";
 export {
 	createAnalyticsMiddleware,
 	isBotUserAgent,
+	isReadplaceNativeClient,
 	isCountableBrowserRequest,
 	hashIp,
 	suppressClickCount,

@@ -326,6 +326,27 @@ describe("Save routes", () => {
 				"a save from our own app must mint the pending-save cookie so signup attribution survives",
 			);
 			assert.equal(saveIntents(harness).length, 1, "a save from our own app is a real save intent");
+			expect(saveIntents(harness)[0]).toMatchObject({ client: "ios_app" });
+		});
+
+		it("records a plain browser save as the web client", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server)
+				.get("/save?url=https://example.com/article")
+				.set(BROWSER_REQUEST_HEADERS);
+
+			expect(saveIntents(harness)[0]).toMatchObject({ client: "web", surface: "reader_view" });
+		});
+
+		it("records a save from the app's in-app web sheet as the iOS client, without moving its surface", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server)
+				.get("/save?url=https://example.com/article&shell=app")
+				.set(BROWSER_REQUEST_HEADERS);
+
+			expect(saveIntents(harness)[0]).toMatchObject({ client: "ios_app", surface: "reader_view" });
 		});
 
 		it("does not emit view_save_intent for an authenticated save (that path goes straight to the queue, not the funnel)", async () => {

@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
-import { SAVE_OUTCOMES, SAVE_SURFACES, SIGNUP_OUTCOMES } from "./events";
+import { SAVE_CLIENTS, SAVE_OUTCOMES, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -715,7 +715,7 @@ describe("classifyBrowser", () => {
 
 const VALID_VISITOR_ID = "550e8400-e29b-41d4-a716-446655440000";
 
-function buildIntent(overrides: { req?: MockReqOverrides; url?: string; pendingSaveId?: string } = {}): ViewSaveIntentEvent {
+function buildIntent(overrides: { req?: MockReqOverrides; url?: string; pendingSaveId?: string; client?: SaveClient } = {}): ViewSaveIntentEvent {
 	return buildSaveIntentEvent(
 		{ now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" },
 		{
@@ -724,6 +724,7 @@ function buildIntent(overrides: { req?: MockReqOverrides; url?: string; pendingS
 			path: "/save",
 			surface: SAVE_SURFACES.readerView,
 			outcome: SAVE_OUTCOMES.promptedToSignUp,
+			client: overrides.client ?? SAVE_CLIENTS.web,
 			pendingSaveId: overrides.pendingSaveId,
 		},
 	);
@@ -741,6 +742,7 @@ describe("buildSaveIntentEvent", () => {
 			content_class: "third_party",
 			surface: "reader_view",
 			outcome: "prompted_to_sign_up",
+			client: "web",
 			visitor_hash: expect.any(String),
 			visitor_id: VALID_VISITOR_ID,
 			is_authenticated: 0,
@@ -778,6 +780,11 @@ describe("buildSaveIntentEvent", () => {
 	it("stamps is_authenticated=1 when the request carries an authenticated userId (the queue save bar and extension save an already-signed-in user)", () => {
 		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, userId: "user-1" } });
 		expect(event.is_authenticated).toBe(1);
+	});
+
+	it("records the client the caller states, so a save the iOS app made over an extension-shaped route is not filed as a web save", () => {
+		expect(buildIntent({ client: SAVE_CLIENTS.iosApp })).toMatchObject({ client: "ios_app" });
+		expect(buildIntent({ client: SAVE_CLIENTS.web })).toMatchObject({ client: "web" });
 	});
 
 	it("throws when the visitor-id middleware has not run (req.visitorId unset) — a save surface must never emit view_save_intent without a visitor identity to join the conversion on", () => {
@@ -855,7 +862,6 @@ describe("buildMcpToolCalledEvent", () => {
 		expect(serialized).not.toContain("content_class");
 		expect(event).toMatchObject({ outcome: "error" });
 	});
-
 });
 
 describe("buildMcpSaveIntentEvent", () => {
@@ -875,6 +881,7 @@ describe("buildMcpSaveIntentEvent", () => {
 			content_class: "third_party",
 			surface: "mcp",
 			outcome: "saved",
+			client: "mcp",
 			visitor_hash: null,
 			visitor_id: null,
 			is_authenticated: 1,
