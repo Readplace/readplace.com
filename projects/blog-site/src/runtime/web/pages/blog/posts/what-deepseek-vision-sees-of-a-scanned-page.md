@@ -24,7 +24,7 @@ The question was whether to point a vision model at Readplace's scanned PDFs.
 
 ## What the pipeline does now
 
-A scanned PDF has no text layer, so the pixels are all there is. [Readplace renders each page and runs Tesseract on it](/blog/pdf-ocr-pipeline-tesseract-llm-hybrid) inside a Lambda container, then layers 3 DeepSeek text calls on top for error cleanup, cross-page diff review, and semantic HTML.
+A scanned PDF has no text layer, so the pixels are all there is. [Readplace renders each page and runs Tesseract on it](/blog/readplace-now-reads-scans-in-15-languages) inside a Lambda container, then layers 3 DeepSeek text calls on top for error cleanup, cross-page diff review, and semantic HTML.
 
 Pages render at 300 dots per inch. That number is not decoration. An A/B on the same 31-page scan moved the render from 150 to 300, and word recovery went from 21,335 to 23,719.
 

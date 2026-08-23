@@ -67,7 +67,7 @@ else: ok | Saved | Over the budget the file doesn't ride the request: it gets a 
 
 ## The ones you most want held
 
-The ceiling now is 500 megabytes for a PDF, up to 300 pages, which covers the scanned book, the filing, and the proceedings. A web page's HTML gets 40 megabytes, well past the length of any article. Once a big PDF lands, it goes through [the same read a small one gets](/blog/pdf-ocr-pipeline-tesseract-llm-hybrid), turning scanned pages into text you can read and search.
+The ceiling now is 500 megabytes for a PDF, up to 300 pages, which covers the scanned book, the filing, and the proceedings. A web page's HTML gets 40 megabytes, well past the length of any article. Once a big PDF lands, it goes through [the same read a small one gets](/blog/readplace-now-reads-scans-in-15-languages), turning scanned pages into text you can read and search.
 
 [The browser extension](/blog/save-pdfs-straight-from-your-browser) takes the upload route too. A heavy capture straight off a tab now travels the same road, up to half a gigabyte, instead of stopping at the old few-megabyte cap. It keeps the extension awake through the upload so a slow file finishes rather than dies partway.
 
