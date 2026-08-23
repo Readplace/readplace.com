@@ -120,7 +120,7 @@ logger.info("[recovery] Starting…");
 
 ### Comments
 
-Comment policy — when a comment may exist, the human-approval gate for adding or keeping one, the allowed formats, and the *why*-not-*what*/*how* rule — lives in the [code-comments skill](.claude/skills/code-comments/SKILL.md). Default stance: prefer code that explains its own why (a clearer name, a type, an `assert`, a test); remove comments freely and more often than you add.
+Comment policy — when a comment may exist, the human-approval gate that must be cleared *before* one is written, the allowed formats, and the *why*-not-*what*/*how* rule — lives in the [code-comments skill](.claude/skills/code-comments/SKILL.md). Default stance: prefer code that explains its own why (a clearer name, a type, an `assert`, a test); remove comments freely and more often than you add.
 
 ### Unused Variables
 

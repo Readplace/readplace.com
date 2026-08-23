@@ -1,6 +1,6 @@
 ---
 name: code-comments
-description: When a code comment may exist and the human-approval gate for adding or keeping one. Use when adding, editing, retaining, or removing any code comment (`//`, `/* */`, `/** */`, `<!-- -->`, `{{!-- --}}`, `#`), when reviewing a diff that touches comments, or when asked to clean up / trim / de-stale / de-time-bind comments. This is the single source of truth for comment policy across the repo.
+description: When a code comment may exist and the human-approval gate that must be cleared before one is written. Use when adding, editing, retaining, or removing any code comment (`//`, `/* */`, `/** */`, `<!-- -->`, `{{!-- --}}`, `#`), when reviewing a diff that touches comments, or when asked to clean up / trim / de-stale / de-time-bind comments. This is the single source of truth for comment policy across the repo.
 
 ---
 
@@ -15,9 +15,15 @@ Prefer code that explains its own why — a clearer name, a type, an `assert`, o
 
 Every other comment — including all *what* and *how* comments — does not belong in the code.
 
-## Human approval is mandatory
+## Ask before writing, never after
 
-Adding **or** keeping any comment — a why-comment, a hack-comment, or anything else — requires explicit human approval in the working session. There is no category of comment you may introduce unprompted. Removing a comment never needs approval.
+Adding any comment — a why-comment, a hack-comment, or anything else — requires explicit human approval in the working session, obtained **before the comment is written**. There is no category of comment you may introduce unprompted. Removing a comment never needs approval.
+
+Ask with the `AskUserQuestion` tool, quoting the exact comment text you propose and the line it would sit on, so the human approves the wording rather than the idea of a comment. Batch every proposed comment in a change into one question; do not ask per comment.
+
+Write the code without the comment first. If approval is refused, or the tool is unavailable, the change ships without it — a missing comment is never a blocker.
+
+Writing a comment and then asking whether to keep it is the wrong order and is not permitted: it makes the human a reviewer of work already done rather than the person who decided it should exist, and an unanswered question leaves an unapproved comment sitting in the diff.
 
 ## Never
 
