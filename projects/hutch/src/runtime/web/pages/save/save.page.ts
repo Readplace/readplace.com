@@ -2,13 +2,12 @@ import assert from "node:assert";
 import type { Router } from "express";
 import express from "express";
 import { z } from "zod";
-import { isbot } from "isbot";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
-import { buildSaveIntentEvent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
+import { buildSaveIntentEvent, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES } from "../../../observability/events";
 import { setPendingSaveId } from "../../pending-save";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
@@ -47,7 +46,7 @@ export function initSaveRoutes(deps: {
 		}
 
 		if (!req.userId) {
-			if (!isbot(req.get("user-agent"))) {
+			if (!isBotUserAgent(req.get("user-agent"))) {
 				assert(req.visitorId, "visitor-id middleware must run before /save");
 				const pendingSaveId = deps.generatePendingSaveId();
 				setPendingSaveId({ res, secure: deps.secureCookies }, pendingSaveId);

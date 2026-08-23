@@ -22,6 +22,7 @@ import { MAX_POLLS } from "@packages/web-shell";
 import type { ViewOpenedEvent } from "@packages/web-analytics";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
+const READPLACE_IOS = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 
 // A word count whose estimated read time clears the paywall's read-minutes
 // threshold, so seeds using it still exercise the expiry window and paywall.
@@ -871,6 +872,30 @@ describe("View routes", () => {
 			const response = await request(harness.server)
 				.get(`/view/${CANONICAL_PATH}`)
 				.set("User-Agent", GOOGLEBOT);
+
+			expect(response.status).toBe(200);
+			expect(lastViewCookie(response)).toBeUndefined();
+		});
+
+		it("sets hutch_lastview for our own iOS client, whose CFNetwork User-Agent isbot() reports as a crawler", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("User-Agent", READPLACE_IOS);
+
+			expect(response.status).toBe(200);
+			const cookie = lastViewCookie(response);
+			assert(cookie, "an open from our own app must set hutch_lastview");
+			expect(decodeURIComponent(cookie.slice("hutch_lastview=".length).split(";")[0])).toBe(ARTICLE_URL);
+		});
+
+		it("does not set hutch_lastview for a prefetch from our own iOS client — exempting the client from the bot half must not exempt it from the prefetch half", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set({ "User-Agent": READPLACE_IOS, "Sec-Purpose": "prefetch" });
 
 			expect(response.status).toBe(200);
 			expect(lastViewCookie(response)).toBeUndefined();

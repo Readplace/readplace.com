@@ -10,6 +10,7 @@ import {
 } from "@packages/test-fixtures";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
+const READPLACE_IOS = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 
 function saveIntents(harness: { analytics: { events: Array<{ event: string }> } }): ViewSaveIntentEvent[] {
 	return harness.analytics.events.filter(
@@ -307,6 +308,24 @@ describe("Save routes", () => {
 
 			expect(response.status).toBe(303);
 			assert.equal(saveIntents(harness).length, 0, "no view_save_intent for a bot");
+		});
+
+		it("mints the pending-save cookie and emits view_save_intent for our own iOS client, whose CFNetwork User-Agent isbot() reports as a crawler", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.get("/save?url=https://example.com/article")
+				.set({ "User-Agent": READPLACE_IOS, "Accept-Language": "en-AU,en;q=0.9" });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location.startsWith("/signup")).toBe(true);
+			const setCookieHeader: string | string[] = response.headers["set-cookie"];
+			const setCookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+			assert(
+				setCookies.find((c) => c.startsWith("hutch_psid=")),
+				"a save from our own app must mint the pending-save cookie so signup attribution survives",
+			);
+			assert.equal(saveIntents(harness).length, 1, "a save from our own app is a real save intent");
 		});
 
 		it("does not emit view_save_intent for an authenticated save (that path goes straight to the queue, not the funnel)", async () => {

@@ -2,8 +2,11 @@ import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES, SIGNUP_OUTCOMES } from "./events";
+
+const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
+const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 
 const OWN_HOST = "readplace.test";
 
@@ -531,6 +534,18 @@ describe("classifyDeviceClass", () => {
 		expect(classifyDeviceClass("Googlebot/2.1 (+http://www.google.com/bot.html)")).toBe("bot");
 	});
 
+	it("returns 'mobile_ios' for our own iPhone-only app, whose CFNetwork User-Agent isbot() reports as a crawler", () => {
+		expect(classifyDeviceClass(NATIVE_APP_USER_AGENT)).toBe("mobile_ios");
+	});
+
+	it("returns 'mobile_ios' for our own share extension, which carries no iPhone token and would otherwise fall through to desktop", () => {
+		expect(classifyDeviceClass(SHARE_EXTENSION_USER_AGENT)).toBe("mobile_ios");
+	});
+
+	it("returns 'desktop', not 'mobile_ios', for a desktop browser User-Agent carrying our native token, since the native match is anchored to the whole User-Agent", () => {
+		expect(classifyDeviceClass("Mozilla/5.0 (Windows NT 10.0) Chrome/145.0 Readplace/94 CFNetwork/1.0 Darwin/1.0")).toBe("desktop");
+	});
+
 	it("returns 'tablet' for an iPad", () => {
 		expect(
 			classifyDeviceClass(
@@ -588,6 +603,11 @@ describe("classifyBrowser", () => {
 				"Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
 			),
 		).toBe("other");
+	});
+
+	it("returns 'other' for our own native clients, which are not browsers and must never report a browser family", () => {
+		expect(classifyBrowser(NATIVE_APP_USER_AGENT)).toBe("other");
+		expect(classifyBrowser(SHARE_EXTENSION_USER_AGENT)).toBe("other");
 	});
 
 	it("returns 'edge' for desktop Edge (Edg/ token on a UA that also carries Chrome/ and Safari/)", () => {
@@ -947,5 +967,60 @@ describe("isCountableBrowserRequest", () => {
 
 	it("counts a non-navigation request shape: navigation is a pageview-only rule, so completing this predicate with it would zero out every HTMX-boosted click", () => {
 		expect(run({ headers: { "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" } })).toBe(true);
+	});
+
+	it("counts our own iOS app, whose CFNetwork User-Agent isbot() reports as a crawler because it starts with \"read\"", () => {
+		expect(run({ headers: { "user-agent": NATIVE_APP_USER_AGENT, "sec-ch-ua": undefined } })).toBe(true);
+	});
+
+	it("counts our own share extension, so a save from the iPhone share sheet is not silently uncounted", () => {
+		expect(run({ headers: { "user-agent": SHARE_EXTENSION_USER_AGENT, "sec-ch-ua": undefined } })).toBe(true);
+	});
+
+	it("does not turn the native-client exemption into a blanket bypass: a native User-Agent with no Accept-Language is still rejected", () => {
+		expect(run({ headers: { "user-agent": NATIVE_APP_USER_AGENT, "accept-language": undefined } })).toBe(false);
+	});
+
+	it("still drops a prefetch and an own-host referral from the native client, which the exemption must not outrank", () => {
+		expect(run({ headers: { "user-agent": NATIVE_APP_USER_AGENT, "sec-purpose": "prefetch" } })).toBe(false);
+		expect(run({ headers: { "user-agent": NATIVE_APP_USER_AGENT, referer: `https://${OWN_HOST}/queue` } })).toBe(false);
+	});
+});
+
+describe("isBotUserAgent", () => {
+	it("reports a crawler as a bot", () => {
+		expect(isBotUserAgent("Googlebot/2.1 (+http://www.google.com/bot.html)")).toBe(true);
+	});
+
+	it("does not report our own iPhone app as a bot, which is the whole reason this predicate exists rather than a bare isbot", () => {
+		expect(isBotUserAgent(NATIVE_APP_USER_AGENT)).toBe(false);
+	});
+
+	it("does not report our own share extension as a bot, whose User-Agent isbot() happens to spare today and must keep being spared", () => {
+		expect(isBotUserAgent(SHARE_EXTENSION_USER_AGENT)).toBe(false);
+	});
+
+	it("does not report a real browser as a bot", () => {
+		expect(
+			isBotUserAgent(
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+			),
+		).toBe(false);
+	});
+
+	it("matches isbot on a missing User-Agent so a caller swapping to this predicate changes nothing but the native-client case", () => {
+		expect(isBotUserAgent(undefined)).toBe(false);
+	});
+
+	it("still reports our own User-Agent with anything appended to it as a bot, so the exemption cannot be worn by a request that merely opens with it", () => {
+		expect(isBotUserAgent(`${NATIVE_APP_USER_AGENT} extra`)).toBe(true);
+	});
+
+	it("still reports a User-Agent that merely starts with our product name as a bot", () => {
+		expect(isBotUserAgent("ReadplaceBot/94 CFNetwork/3860.700.1 Darwin/25.6.0")).toBe(true);
+	});
+
+	it("still reports a build segment that is not the integer CFBundleVersion carries as a bot", () => {
+		expect(isBotUserAgent("Readplace/beta CFNetwork/1.0 Darwin/1.0")).toBe(true);
 	});
 });

@@ -36,6 +36,7 @@ export {
 export { utmValidationMiddleware } from "./utm-validation.middleware";
 export {
 	createAnalyticsMiddleware,
+	isBotUserAgent,
 	isCountableBrowserRequest,
 	hashIp,
 	suppressClickCount,

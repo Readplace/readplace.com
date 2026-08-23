@@ -28,10 +28,9 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { articleHostFrom, hashIp, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
+import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
@@ -112,7 +111,7 @@ function isPrefetch(req: Request): boolean {
 
 function isPrefetchOrBot(req: Request): boolean {
 	if (isPrefetch(req)) return true;
-	return isbot(req.get("user-agent"));
+	return isBotUserAgent(req.get("user-agent"));
 }
 
 function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
@@ -276,7 +275,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// Deliberately outside the analytics gate: hutch_lastview is the only input
 		// to the post-signup first-article autosave, so a reader whose headers the
 		// analytics gate rejects must still get the cookie or they sign up and land
-		// on an empty queue. isPrefetchOrBot already subsumes the isbot check.
+		// on an empty queue.
 		if (req.userId === undefined && !isPrefetchOrBot(req)) {
 			setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
 		}

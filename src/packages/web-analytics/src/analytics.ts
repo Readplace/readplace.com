@@ -138,6 +138,17 @@ export type DeviceClass =
 	| "bot"
 	| "other";
 
+const NATIVE_CLIENT_USER_AGENT = /^(?:Readplace|ShareExtension)\/\d+ CFNetwork\/[\d.]+ Darwin\/[\d.]+$/;
+
+function isReadplaceNativeClient(userAgent: string | undefined): boolean {
+	return userAgent !== undefined && NATIVE_CLIENT_USER_AGENT.test(userAgent);
+}
+
+export function isBotUserAgent(userAgent: string | undefined): boolean {
+	if (isReadplaceNativeClient(userAgent)) return false;
+	return isbot(userAgent);
+}
+
 /**
  * Derives a `DeviceClass` from the request User-Agent. Only the class is ever
  * returned or logged — the raw UA is discarded here, preserving the no-raw-UA /
@@ -146,6 +157,7 @@ export type DeviceClass =
  */
 export function classifyDeviceClass(userAgent: string | undefined): DeviceClass {
 	if (!userAgent) return "other";
+	if (isReadplaceNativeClient(userAgent)) return "mobile_ios";
 	if (isbot(userAgent)) return "bot";
 	const isAndroid = userAgent.includes("Android");
 	if (userAgent.includes("iPad") || (isAndroid && !userAgent.includes("Mobile"))) return "tablet";
@@ -356,7 +368,7 @@ function isTopLevelNavigation(req: Request): boolean {
  * stay countable, which is what keeps genuine acquisition traffic measurable.
  */
 export function isCountableBrowserRequest(params: { req: Request; ownHost: string }): boolean {
-	if (isbot(params.req.get("user-agent"))) return false;
+	if (isBotUserAgent(params.req.get("user-agent"))) return false;
 	if (isPrefetch(params.req)) return false;
 	if (extractReferrerHost(params.req) === params.ownHost) return false;
 	return isBrowserClient(params.req);
