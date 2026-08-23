@@ -8,12 +8,10 @@ module.exports = {
       timeout: 10000,
     },
     {
-      // e2e flag — integration tests in this project hit real AWS (DynamoDB,
-      // S3) via createDynamoDocumentClient() and require AWS credentials sourced
-      // from .envrc. Skipping under CLAUDE_CODE_REMOTE=true keeps `pnpm check`
-      // credential-free on sandboxed CI and Claude Code sessions. See the
-      // test-driven-design skill for the wrapper-tested-via-fake-client
-      // convention that replaces these for the cases checked in today.
+      // e2e flag — integration tests here need binaries the sandbox lacks
+      // (tesseract, pdftoppm) or real AWS credentials. Each suite also skips
+      // itself when its own prerequisite is missing, so a developer without
+      // them still gets a green run rather than a failure they cannot act on.
       type: 'node-test',
       name: 'Running integration tests',
       glob: 'dist/**/*.integration.js',

@@ -4,7 +4,9 @@ const path = require('path')
 const SRC_DIR = path.join(__dirname, '../src')
 const DIST_DIR = path.join(__dirname, '../dist')
 
-const EXTENSIONS = ['.md', '.html']
+// Tests run from dist/, so any fixture they read has to be copied alongside
+// the compiled test rather than resolved back into src/.
+const EXTENSIONS = ['.md', '.html', '.pdf', '.json']
 
 function shouldCopy(filePath) {
   return EXTENSIONS.some(ext => filePath.endsWith(ext))

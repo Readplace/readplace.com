@@ -9,7 +9,10 @@ export default {
 		"**/*.main.ts",
 		"tools/*.mjs",
 	],
-	ignore: [],
+	// Spread the base ignores rather than replacing them: the base already
+	// declares `**/*.integration.ts` as an entry point, matching how the
+	// integration phase in run-tests.config.js discovers them.
+	ignore: [...(baseConfig.ignore || [])],
 	ignoreBinaries: [
 		// knip + nx are used in package.json scripts
 		"knip",
