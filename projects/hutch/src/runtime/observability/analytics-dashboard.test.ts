@@ -73,9 +73,22 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 41 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 42 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(41);
+		expect(body.widgets).toHaveLength(42);
+	});
+
+	it("carries oauth_client_id on the recent-conversions table so a consent-screen signup names the client that sent it", () => {
+		const recent = widgetQueries().find((q) => q.includes("landing_path, first_seen_at"));
+		assert(recent, "the recent-conversions widget must exist");
+		expect(recent).toContain("oauth_client_id");
+	});
+
+	it("buckets every signup by the OAuth client that drove it, keeping the consent-screen share readable against the organic \"none\" bucket", () => {
+		const query = widgetQueries().find((q) => q.includes("as signups by client"));
+		assert(query, "the dashboard must aggregate user_created by OAuth client");
+		expect(query).toContain('coalesce(oauth_client_id, "none") as client');
+		expect(query).toContain(`event = "${CONVERSION_EVENTS.userCreated}"`);
 	});
 
 	it("the first-article-autosave widget counts the discrete first_article_autosaved event per day — a 1:1 activation signal independent of the utm_source marker — excluding internal visitors, whose single test signup would skew a day at this event's volume", () => {

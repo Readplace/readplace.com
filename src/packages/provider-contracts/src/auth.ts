@@ -160,4 +160,5 @@ export interface ConversionEvent {
 	 * be traced to the account it eventually created. Absent when the signup did
 	 * not follow a pending save. */
 	pending_save_id?: string;
+	oauth_client_id?: string;
 }

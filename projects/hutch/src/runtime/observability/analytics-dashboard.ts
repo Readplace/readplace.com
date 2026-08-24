@@ -321,7 +321,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			title: "Recent Conversions",
 			logGroupNames: analyticsSource,
 			query: [
-				"fields @timestamp, user_id, method, tier, homepage_variant, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path, first_seen_at",
+				"fields @timestamp, user_id, method, tier, oauth_client_id, homepage_variant, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path, first_seen_at",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
 				"| sort @timestamp desc",
 				"| limit 50",
@@ -955,6 +955,23 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| limit 50",
 			].join(" "),
 			x: 0, y: 178, width: 12, height: 8,
+			view: "table",
+		}),
+	);
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Signups by OAuth client (consent-screen acquisition)",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, coalesce(oauth_client_id, \"none\") as client, method, tier",
+				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
+				"| stats count(*) as signups by client, method, tier",
+				"| sort signups desc",
+				"| limit 50",
+			].join(" "),
+			x: 12, y: 178, width: 12, height: 8,
 			view: "table",
 		}),
 	);

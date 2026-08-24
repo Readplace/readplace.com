@@ -54,6 +54,7 @@ import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { pendingSaveHostFrom } from "./pending-save-host";
+import { oauthClientIdFrom } from "./oauth-client-id";
 import { suppressClickCount } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { readLastAuthProvider } from "../last-auth-provider";
@@ -370,6 +371,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					visitorId: req.visitorId,
 					homepageVariant: readHomepageVariantSlug(req),
 					pendingSaveId: consumePendingSaveId({ req, res }),
+					oauthClientId: oauthClientIdFrom(returnUrl),
 				},
 			);
 			const lastViewUrl = consumeLastViewUrl({ req, res });
@@ -414,6 +416,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				visitorId: req.visitorId,
 				homepageVariant: readHomepageVariantSlug(req),
 				pendingSaveId: consumePendingSaveId({ req, res }),
+				oauthClientId: oauthClientIdFrom(returnUrl),
 			},
 		);
 		const lastViewUrl = consumeLastViewUrl({ req, res });

@@ -25,6 +25,7 @@ import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
+import { oauthClientIdFrom } from "./oauth-client-id";
 import { baseCookieOptions } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { persistentSessionCookieOptions } from "./session-cookie-options";
@@ -234,6 +235,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					visitorId: req.visitorId,
 					homepageVariant: readHomepageVariantSlug(req),
 					pendingSaveId: consumePendingSaveId({ req, res }),
+					oauthClientId: oauthClientIdFrom(safeReturnUrl),
 				},
 			);
 			const lastViewUrl = consumeLastViewUrl({ req, res });
@@ -290,6 +292,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				visitorId: req.visitorId,
 				homepageVariant: readHomepageVariantSlug(req),
 				pendingSaveId: consumePendingSaveId({ req, res }),
+				oauthClientId: oauthClientIdFrom(safeReturnUrl),
 			},
 		);
 		const lastViewUrl = consumeLastViewUrl({ req, res });

@@ -690,5 +690,56 @@ describe("Apple auth routes", () => {
 
 			expect(cookiesFrom(postResponse).join(";")).toContain("hutch_psid=");
 		});
+
+		it("carries the OAuth client id through the cross-site form_post callback without logging state or the PKCE challenge", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "consent-apple@example.com" })) });
+			const state = signState(
+				freshState({
+					returnUrl:
+						"/oauth/authorize?client_id=ios-app&response_type=code" +
+						"&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&state=xyz",
+				}),
+			);
+
+			const response = await postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+			});
+
+			expect(response.status).toBe(303);
+			const event = harness.conversions.events.find((e) => e.method === "apple");
+			assert(event, "Apple signup must emit a conversion event");
+			expect(event.tier).toBe("free");
+			expect(event.oauth_client_id).toBe("ios-app");
+			const emitted = JSON.stringify(event);
+			expect(emitted).not.toContain("xyz");
+			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+		});
+
+		it("carries the OAuth client id onto the Apple trial branch's conversion too, once the founding allocation is exhausted", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				apple: appleWith(stubExchange({ email: "consent-apple-trial@example.com" })),
+			});
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			const state = signState(
+				freshState({ returnUrl: "/oauth/authorize?client_id=hutch-firefox-extension&response_type=code&state=xyz" }),
+			);
+
+			const response = await postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+			});
+
+			expect(response.status).toBe(303);
+			const event = harness.conversions.events.find((e) => e.method === "apple" && e.tier === "trial");
+			assert(event, "Apple trial signup must emit a conversion event");
+			expect(event.oauth_client_id).toBe("hutch-firefox-extension");
+			expect(JSON.stringify(event)).not.toContain("xyz");
+		}, 30000);
 	});
 });

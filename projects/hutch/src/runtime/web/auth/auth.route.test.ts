@@ -639,6 +639,72 @@ describe("Auth routes", () => {
 			expect(conversions.events[0].user_id).toBeDefined();
 		});
 
+		it("carries the OAuth client id from the consent return URL onto user_created", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { conversions } = harness;
+			const returnUrl =
+				"/oauth/authorize?client_id=ios-app&redirect_uri=readplace%3A%2F%2Foauth-callback&response_type=code" +
+				"&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&state=abc123";
+
+			const response = await request(harness.server)
+				.post(`/signup?return=${encodeURIComponent(returnUrl)}`)
+				.type("form")
+				.send({
+					email: "consent-signup@example.com",
+					password: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(response.status).toBe(303);
+			expect(conversions.events[0]).toMatchObject({ tier: "free", oauth_client_id: "ios-app" });
+			const emitted = JSON.stringify(conversions.events[0]);
+			expect(emitted).not.toContain("abc123");
+			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+		});
+
+		it("carries the OAuth client id onto the trial branch's user_created too, once the founding allocation is exhausted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, conversions } = harness;
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			const returnUrl =
+				"/oauth/authorize?client_id=hutch-chrome-extension&response_type=code" +
+				"&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&state=abc123";
+
+			const response = await request(harness.server)
+				.post(`/signup?return=${encodeURIComponent(returnUrl)}`)
+				.type("form")
+				.send({
+					email: "consent-trial@example.com",
+					password: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(response.status).toBe(303);
+			expect(conversions.events[0]).toMatchObject({
+				tier: "trial",
+				oauth_client_id: "hutch-chrome-extension",
+			});
+			const emitted = JSON.stringify(conversions.events[0]);
+			expect(emitted).not.toContain("abc123");
+			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+		}, 30000);
+
+		it("omits oauth_client_id when the signup did not start at a consent screen", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { conversions } = harness;
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "organic-conversion@example.com",
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(conversions.events[0]).not.toHaveProperty("oauth_client_id");
+		});
+
 		it("persists the hutch_click acquisition attribution on the user row at signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, conversions } = harness;

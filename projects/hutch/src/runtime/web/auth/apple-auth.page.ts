@@ -26,6 +26,7 @@ import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
+import { oauthClientIdFrom } from "./oauth-client-id";
 import { baseCookieOptions } from "@packages/web-analytics";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
@@ -259,6 +260,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			visitorId: stateData.visitorId,
 			homepageVariant: stateData.homepageVariant,
 			pendingSaveId: stateData.pendingSaveId,
+			oauthClientId: oauthClientIdFrom(safeReturnUrl),
 		};
 		/* hutch_psid is same-site so it is not sent on this cross-site POST, but
 		 * the response Set-Cookie still applies to readplace.com — clear it so the

@@ -34,6 +34,7 @@ describe("emitUserCreated", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				oauthClientId: undefined,
 			},
 		);
 
@@ -60,6 +61,7 @@ describe("emitUserCreated", () => {
 				method: "email",
 				tier: "trial",
 				attribution: undefined,
+				oauthClientId: undefined,
 			},
 		);
 
@@ -86,6 +88,7 @@ describe("emitUserCreated", () => {
 				tier: "free",
 				attribution: undefined,
 				visitorId: "550e8400-e29b-41d4-a716-446655440000",
+				oauthClientId: undefined,
 			},
 		);
 
@@ -113,6 +116,7 @@ describe("emitUserCreated", () => {
 				method: "email",
 				tier: "free",
 				attribution,
+				oauthClientId: undefined,
 			},
 		);
 
@@ -137,6 +141,7 @@ describe("emitUserCreated", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				oauthClientId: undefined,
 			},
 		);
 		emitUserCreated(
@@ -147,6 +152,7 @@ describe("emitUserCreated", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				oauthClientId: undefined,
 			},
 		);
 
@@ -164,6 +170,7 @@ describe("emitUserCreated", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				oauthClientId: undefined,
 			},
 		);
 
@@ -190,6 +197,7 @@ describe("emitUserCreated", () => {
 				tier: "trial",
 				attribution: undefined,
 				homepageVariant: "variant-b",
+				oauthClientId: undefined,
 			},
 		);
 
@@ -210,6 +218,7 @@ describe("emitUserCreated", () => {
 				tier: "free",
 				attribution: undefined,
 				pendingSaveId: "9f1c0c8e-3b2a-4d6e-8c1f-2a7b5d4e6f10",
+				oauthClientId: undefined,
 			},
 		);
 
@@ -218,7 +227,25 @@ describe("emitUserCreated", () => {
 		});
 	});
 
-	it("omits pending_save_id when the signup did not follow a pending save", () => {
+	it("includes oauth_client_id so a consent-screen conversion names the client that produced it", () => {
+		const { logger, captured } = createCapturingLogger();
+
+		emitUserCreated(
+			{ logger, now: TEST_NOW },
+			{
+				userId: TEST_USER_ID,
+				email: "connector@example.com",
+				method: "email",
+				tier: "free",
+				attribution: undefined,
+				oauthClientId: "ios-app",
+			},
+		);
+
+		expect(captured[0]).toMatchObject({ oauth_client_id: "ios-app" });
+	});
+
+	it("omits pending_save_id and oauth_client_id when the signup followed neither a pending save nor a consent screen", () => {
 		const { logger, captured } = createCapturingLogger();
 
 		emitUserCreated(
@@ -229,6 +256,7 @@ describe("emitUserCreated", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				oauthClientId: undefined,
 			},
 		);
 

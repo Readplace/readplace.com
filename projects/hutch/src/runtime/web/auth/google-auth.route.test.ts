@@ -498,6 +498,68 @@ describe("Google auth routes", () => {
 			assert(conversionEvent, "Google trial signup must emit a user_created conversion event with tier=trial");
 		}, 30000);
 
+		it("carries the OAuth client id through the signed state, which the callback never reads off the query", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "consent-google@example.com" }),
+					clientId: TEST_CLIENT_ID,
+					clientSecret: TEST_CLIENT_SECRET,
+				},
+			});
+			const state = signState(
+				freshState({
+					returnUrl: "/oauth/authorize?client_id=hutch-chrome-extension&response_type=code&state=xyz",
+				}),
+			);
+
+			const response = await request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(303);
+			const event = harness.conversions.events.find((e) => e.method === "google");
+			assert(event, "Google signup must emit a conversion event");
+			expect(event.tier).toBe("free");
+			expect(event.oauth_client_id).toBe("hutch-chrome-extension");
+			expect(JSON.stringify(event)).not.toContain("xyz");
+		});
+
+		it("carries the OAuth client id onto the Google trial branch's conversion too, once the founding allocation is exhausted", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "consent-google-trial@example.com" }),
+					clientId: TEST_CLIENT_ID,
+					clientSecret: TEST_CLIENT_SECRET,
+				},
+			});
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			const state = signState(
+				freshState({
+					returnUrl:
+						"/oauth/authorize?client_id=ios-app&response_type=code" +
+						"&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&state=xyz",
+				}),
+			);
+
+			const response = await request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(303);
+			const event = harness.conversions.events.find((e) => e.method === "google" && e.tier === "trial");
+			assert(event, "Google trial signup must emit a conversion event");
+			expect(event.oauth_client_id).toBe("ios-app");
+			const emitted = JSON.stringify(event);
+			expect(emitted).not.toContain("xyz");
+			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+		}, 30000);
+
 		it("preserves the return URL through Google trial signup when the founding allocation is exhausted", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
