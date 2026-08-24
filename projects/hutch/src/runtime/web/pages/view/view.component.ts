@@ -160,7 +160,7 @@ export interface ViewPageInput {
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
-	const actions = RegularReader({ actionBtns: {} });
+	const actions = RegularReader({ actionBtns: { queuePicker: undefined } });
 	const innerContent = renderArticleBody({
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,

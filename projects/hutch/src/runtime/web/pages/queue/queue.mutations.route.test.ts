@@ -922,6 +922,35 @@ describe("Queue routes", () => {
 			assert.equal(counts.getAttribute("hx-trigger"), "load");
 		});
 
+		it("spends no queue-definitions read on the card fast path, only on the fallback", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let definitionReads = 0;
+			const harness = useApp({
+				...fixture,
+				articleStore: {
+					...fixture.articleStore,
+					listQueueDefinitions: async (userId) => {
+						definitionReads += 1;
+						return fixture.articleStore.listQueueDefinitions(userId);
+					},
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveArticles(agent, 2);
+			const id = await firstCardId(agent);
+
+			definitionReads = 0;
+			const fastPath = await cardStatus(agent, id).type("form").send({ status: "read" });
+			assert.equal(fastPath.status, 200);
+			assert.equal(definitionReads, 0, "the card removal answers without resolving the rail");
+
+			const lastId = await firstCardId(agent);
+			definitionReads = 0;
+			const fallback = await cardStatus(agent, lastId).type("form").send({ status: "read" });
+			assert.equal(fallback.headers["hx-retarget"], "main");
+			assert.equal(definitionReads, 1, "the full-listing fallback resolves the rail once");
+		});
+
 		it("the last row on the page answers with the full-listing fallback retargeted to main", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);

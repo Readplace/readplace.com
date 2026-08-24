@@ -18,6 +18,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { ProgressTick, SaveProvenance } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
+import type { ReaderQueueTags } from "../article-body/article-header/article-header.component";
 
 export interface ArticleReaderDeps {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -134,4 +135,5 @@ export interface HandlePollParams {
 	 * `extensionInstallUrl`.
 	 */
 	provenance: SaveProvenance | undefined;
+	queueTags: ReaderQueueTags | undefined;
 }

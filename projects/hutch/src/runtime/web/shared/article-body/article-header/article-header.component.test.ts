@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
+import { QueueSlugSchema } from "@packages/domain/queue";
 import {
 	renderArticleHeader,
 	renderArticleHeaderOob,
@@ -13,6 +14,7 @@ const baseInput = {
 	estimatedReadTime: 3 as Minutes,
 	url: "https://example.com/post",
 	provenance: undefined,
+	queueTags: undefined,
 };
 
 function parse(html: string): Document {
@@ -52,6 +54,43 @@ describe("renderArticleHeader (inline)", () => {
 		const header = doc.querySelector("#article-header");
 		assert(header, "header must render");
 		expect(header.querySelector(".article-body__actions--top")).toBe(null);
+	});
+});
+
+describe("queue tags", () => {
+	it("renders a removable chip per queue holding the article", () => {
+		const doc = parse(
+			renderArticleHeader({
+				...baseInput,
+				queueTags: {
+					unassignUrl: "/queue/abc123/unassign",
+					returnTo: "/queue/abc123/view",
+					tags: [{ slug: QueueSlugSchema.parse("work"), label: "Work" }],
+				},
+			}),
+		);
+
+		const tag = doc.querySelector('[data-test-queue-tag="work"]');
+		assert(tag, "the queue tag must render in the meta row");
+		expect(tag.textContent).toContain("Work");
+		const form = tag.querySelector("form");
+		assert(form, "the tag must carry its un-assign form");
+		expect(form.getAttribute("action")).toBe("/queue/abc123/unassign");
+		expect(form.querySelector('input[name="queue"]')?.getAttribute("value")).toBe("work");
+		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
+			"/queue/abc123/view",
+		);
+		const remove = form.querySelector('[data-test-unassign-queue="work"]');
+		assert(remove, "the tag must carry its remove button");
+	});
+
+	it("renders no chip for an article that lives only in the default queue", () => {
+		const doc = parse(renderArticleHeader(baseInput));
+
+		const tags = Array.from(doc.querySelectorAll("[data-test-queue-tag]"), (el) =>
+			el.getAttribute("data-test-queue-tag"),
+		);
+		expect(tags).toEqual([]);
 	});
 });
 

@@ -44,10 +44,11 @@ export function initResolveQueueContext(deps: {
 	userId: UserId,
 ) => Promise<QueueContext> {
 	return async (req, userId) => {
-		if (!deps.featureToggle.isEnabled(req, QUEUES_FEATURE)) {
+		const flagged = deps.featureToggle.isEnabled(req, QUEUES_FEATURE);
+		const definitions = await deps.listQueueDefinitions(userId);
+		if (!flagged && definitions.length === 0) {
 			return mainlineQueueContext(req.query);
 		}
-		const definitions = await deps.listQueueDefinitions(userId);
 		const queues = readerQueues(definitions);
 		const requested = parseQueueUrl(req.query);
 		const activeQueue = queues.find((queue) => queue.slug === requested.queue) ?? DEFAULT_QUEUE;
@@ -55,7 +56,7 @@ export function initResolveQueueContext(deps: {
 			state: { ...requested, queue: activeQueue.slug },
 			activeQueue,
 			queues,
-			linkParams: QUEUES_LINK_PARAMS,
+			linkParams: flagged ? QUEUES_LINK_PARAMS : [],
 			railed: true,
 		};
 	};

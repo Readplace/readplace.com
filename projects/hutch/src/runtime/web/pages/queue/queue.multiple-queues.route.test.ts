@@ -15,14 +15,6 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-const PER_REQUEST_NONCE = /nonce="[^"]*"/g;
-
-function mainMarkup(doc: Document): string {
-	const main = doc.querySelector("main.queue");
-	assert(main, "the queue page must render a main landmark");
-	return main.innerHTML.replace(PER_REQUEST_NONCE, 'nonce="[normalised]"');
-}
-
 function articleIds(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll("[data-test-article]"), (el) =>
 		el.getAttribute("data-test-article"),
@@ -103,6 +95,35 @@ describe("POST /queue/queues", () => {
 		expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain(
 			"Nothing saved yet",
 		);
+	});
+
+	it("creates another queue without the flag once the reader owns one", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await createQueue(agent);
+
+		const response = await agent.post("/queue/queues");
+
+		expect(response.status).toBe(303);
+		const slug = openedSlug(response.headers.location);
+		expect(response.headers.location).toBe(`/queue?queue=${slug}`);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual([
+			"My Queue",
+			"New Queue",
+			"New Queue 2",
+		]);
+	});
+
+	it("does not create a first queue without the flag", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.post("/queue/queues");
+
+		expect(response.status).toBe(404);
+		expect(queueLabels(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
+			"My Queue",
+		]);
 	});
 
 	it("numbers each new queue past the default names already in use", async () => {
@@ -306,6 +327,32 @@ describe("a URL saved into more than one queue", () => {
 		await agent.post(`/queue/${articleId}/delete`);
 		expect(dequeued).toEqual(["https://example.com/a"]);
 	});
+
+	it("keeps the link announced when the default copy goes first and a queue still holds it", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const dequeued: string[] = [];
+		const harness = useApp({
+			...fixture,
+			events: {
+				...fixture.events,
+				publishLinkDequeued: async ({ url }) => {
+					dequeued.push(url);
+				},
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const queue = await createQueueAndOpen(agent);
+		await save(agent, "https://example.com/a");
+		await seedInto(harness, queue, "https://example.com/a");
+		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
+		assert(articleId, "the saved article must render a card");
+
+		await agent.post(`/queue/${articleId}/delete`);
+		expect(dequeued).toEqual([]);
+
+		await agent.post(`/queue/${articleId}/delete?feature=queues&queue=${queue}`);
+		expect(dequeued).toEqual(["https://example.com/a"]);
+	});
 });
 
 describe("a queue the reader opened", () => {
@@ -370,37 +417,56 @@ describe("a queue the reader opened", () => {
 });
 
 describe("a reader who never turned the queues feature on", () => {
-	it("sees the same page whether or not they own other queues", async () => {
+	it("keeps the plain page until they own another queue", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await save(agent, "https://example.com/a");
-		const before = parse((await agent.get("/queue")).text);
-
-		const queue = await createQueueAndOpen(agent);
-		await seedInto(harness, queue, "https://example.com/work-only");
-
-		const after = parse((await agent.get("/queue")).text);
-		expect(mainMarkup(after)).toBe(mainMarkup(before));
-	});
-
-	it("is never offered the rail or the create control", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		await createQueue(agent);
 
 		const doc = parse((await agent.get("/queue")).text);
 
-		expect(doc.querySelector("[data-test-queue-nav]")).toBeNull();
-		expect(doc.querySelector('[data-test-action="new-queue"]')).toBeNull();
-		expect(doc.querySelector("main.queue")?.className).toBe("queue");
+		const main = doc.querySelector("main.queue");
+		assert(main, "the queue page must render a main landmark");
+		expect(main.className).toBe("queue");
+		expect(main.querySelectorAll("[data-test-queue]")).toHaveLength(0);
 	});
 
-	it("keeps the save bar on a queue URL the flag never opened", async () => {
+	it("is offered the rail without the flag once they own another queue", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const queue = await createQueueAndOpen(agent);
+		await seedInto(harness, queue, "https://example.com/work-only");
+
+		const doc = parse((await agent.get("/queue")).text);
+
+		expect(queueLabels(doc)).toEqual(["My Queue", "New Queue"]);
+		const workTab = doc.querySelector(`[data-test-queue="${queue}"]`);
+		assert(workTab, "the owned queue must render its tab without the flag");
+		expect(workTab.getAttribute("href")).toBe(
+			`/queue?queue=${queue}&utm_source=queue-nav&utm_medium=internal&utm_content=queue-${queue}`,
+		);
+
+		const onWork = parse((await agent.get(`/queue?queue=${queue}`)).text);
+		expect(
+			Array.from(onWork.querySelectorAll("[data-test-article-title]"), (el) => el.textContent),
+		).toEqual(["https://example.com/work-only"]);
+	});
+
+	it("hides the save bar on an owned queue's URL even without the flag", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
 
 		const doc = parse((await agent.get(`/queue?queue=${queue}`)).text);
+
+		expect(saveFormClasses(doc)).toContain("queue__save-form--hidden");
+	});
+
+	it("keeps the save bar on a queue URL that was never minted", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await createQueueAndOpen(agent);
+
+		const doc = parse((await agent.get("/queue?queue=never-minted")).text);
 
 		expect(saveFormClasses(doc)).toContain("queue__save-form--visible");
 	});

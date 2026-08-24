@@ -8,6 +8,7 @@ import { HtmlPage } from "@packages/web-shell";
 import type { Component } from "@packages/web-shell";
 
 import {
+	type ReaderQueueTags,
 	renderArticleHeaderOob,
 	renderDocumentTitleOob,
 } from "../article-body/article-header/article-header.component";
@@ -287,6 +288,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		article: GlobalArticleData | null,
 		displayUrl: string,
 		provenance: SaveProvenance | undefined,
+		queueTags: ReaderQueueTags | undefined,
 	): string {
 		if (!article) return "";
 		const headerOob = renderArticleHeaderOob({
@@ -295,6 +297,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			estimatedReadTime: article.estimatedReadTime,
 			url: displayUrl,
 			provenance,
+			queueTags,
 		});
 		const titleOob = renderDocumentTitleOob(
 			deps.formatDocumentTitle(article.metadata.title),
@@ -328,7 +331,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, displayUrl, params.provenance),
+			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.queueTags),
 			appOrigin: deps.appOrigin,
 		}));
 	}
@@ -359,7 +362,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, displayUrl, params.provenance),
+			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.queueTags),
 			appOrigin: deps.appOrigin,
 		}));
 	}

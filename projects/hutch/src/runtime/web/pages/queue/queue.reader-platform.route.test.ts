@@ -246,7 +246,7 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		const capture = slot.querySelector("[data-reader-capture]");
 		assert(capture, "the blocked notice must offer the in-app capture control");
 		expect(capture.getAttribute("data-reader-capture-poll")).toBe(
-			`/queue/${articleId}/reader?poll=1&capturing=1`,
+			`/queue/${articleId}/reader?poll=1&capturing=1&platform=ios`,
 		);
 	});
 

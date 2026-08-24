@@ -40,6 +40,7 @@ import type {
 	FindArticlesResult,
 	FindQueueArticleById,
 	FindQueueArticles,
+	AssignSavedArticleToQueue,
 	FindSavedUrls,
 	ListQueueDefinitions,
 	RenameQueueDefinition,
@@ -148,6 +149,10 @@ import {
 	generateQueueSlug,
 } from "@packages/domain/queue";
 import { DEFAULT_QUEUE } from "./queue.nav";
+import {
+	type ReaderQueueFiling,
+	buildReaderQueueFiling,
+} from "./reader-queue-filing";
 import type { QueueRailViewModel } from "./queue.component";
 import { queueReturnQuery } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
@@ -184,7 +189,13 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
-import { hasBackgroundSaveContinuity, isIosClient, isIosSurface } from "../../onboarding/ios-client";
+import {
+	IOS_CLIENT_VALUE,
+	IOS_PLATFORM_QUERY,
+	hasBackgroundSaveContinuity,
+	isIosClient,
+	isIosSurface,
+} from "../../onboarding/ios-client";
 import { setSirenCollectionCaching } from "../../siren-discovery-cache";
 import { APP_BACK_LINK } from "../../shared/ios-app-links";
 import type {
@@ -310,6 +321,7 @@ interface QueueDependencies {
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	listQueueDefinitions: ListQueueDefinitions;
 	createQueueDefinition: CreateQueueDefinition;
 	renameQueueDefinition: RenameQueueDefinition;
@@ -546,7 +558,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		...deps,
 		saveArticle: deps.saveArticleKeepingPosition,
 	});
-	const deleteArticleFromQueue = initDeleteArticleFromQueue(deps);
 
 	const resolveQueueContext = initResolveQueueContext({
 		listQueueDefinitions: deps.listQueueDefinitions,
@@ -557,15 +568,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * A shape-valid queue the reader does not own binds to a partition holding no
 	 * rows, so the write no-ops on its `attribute_exists` condition and the reader
 	 * lands back on a listing the next GET resolves for real. */
-	const requestQueueContext = (req: Request): QueueContext =>
-		deps.featureToggle.isEnabled(req, QUEUES_FEATURE)
-			? {
-					...mainlineQueueContext(req.query),
-					state: parseQueueUrl(req.query),
-					linkParams: [["feature", QUEUES_FEATURE]],
-					railed: true,
-				}
-			: mainlineQueueContext(req.query);
+	const requestQueueContext = (req: Request): QueueContext => {
+		const flagged = deps.featureToggle.isEnabled(req, QUEUES_FEATURE);
+		return {
+			...mainlineQueueContext(req.query),
+			state: parseQueueUrl(req.query),
+			linkParams: flagged ? [["feature", QUEUES_FEATURE]] : [],
+			railed: flagged,
+		};
+	};
 
 	const publishLinkDequeuedUnlessSavedElsewhere = initPublishLinkDequeuedUnlessSavedElsewhere({
 		listUserSavesForUrl: deps.listUserSavesForUrl,
@@ -578,14 +589,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * one of their own queues. */
 	const storeFor = (queue: QueueSlug) => queueScopedStore(deps, queue);
 
-	const deleteArticleFromQueueFor = (queue: QueueSlug) => {
-		if (queue === DEFAULT_QUEUE_SLUG) return deleteArticleFromQueue;
-		return initDeleteArticleFromQueue({
+	const deleteArticleFromQueueFor = (queue: QueueSlug) =>
+		initDeleteArticleFromQueue({
 			...deps,
 			deleteArticle: storeFor(queue).deleteArticle,
 			publishLinkDequeued: publishLinkDequeuedUnlessSavedElsewhere,
 		});
-	};
 
 	/** An onboarding signal is non-essential bookkeeping that sits on the critical
 	 * path of the app's queue load and every save. Unlike the extension's
@@ -680,13 +689,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			findArticleByUrl: deps.findArticleByUrl,
 		});
 
-	function pollUrlBuilderForId(articleId: string): PollUrlBuilder {
+	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
+		const platform = isIosPlatform(req) ? `&${IOS_PLATFORM_QUERY}=${IOS_CLIENT_VALUE}` : "";
 		return {
-			summary: (n) => `${QUEUE_PATH}/${articleId}/summary?poll=${n}`,
+			summary: (n) => `${QUEUE_PATH}/${articleId}/summary?poll=${n}${platform}`,
 			reader: (n, capturing) =>
-				`${QUEUE_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}`,
+				`${QUEUE_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${platform}`,
 		};
 	}
+
+	const readerReturnPath = (req: Request, articleId: string): string =>
+		isIosPlatform(req)
+			? `${QUEUE_PATH}/${articleId}/view?${IOS_PLATFORM_QUERY}=${IOS_CLIENT_VALUE}`
+			: `${QUEUE_PATH}/${articleId}/view`;
 
 	const parseCapturingFlag = (raw: unknown): boolean =>
 		z.literal("1").safeParse(raw).success;
@@ -710,6 +725,23 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(301, `${QUEUE_PATH}/${req.params.id}/view${queryString}`);
 	});
 
+	const readerQueueFilingFor = async (params: {
+		userId: UserId;
+		article: SavedArticle;
+		returnTo: string;
+	}): Promise<ReaderQueueFiling> => {
+		const [definitions, saves] = await Promise.all([
+			deps.listQueueDefinitions(params.userId),
+			deps.listUserSavesForUrl({ userId: params.userId, url: params.article.url }),
+		]);
+		return buildReaderQueueFiling({
+			articleId: params.article.id.value,
+			definitions,
+			saves,
+			returnTo: params.returnTo,
+		});
+	};
+
 	type ResolvedReaderState = Awaited<ReturnType<typeof reader.resolveReaderState>>;
 	type OwnerReaderResolution =
 		| { kind: "redirect"; redirect: Redirect }
@@ -720,6 +752,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				state: ResolvedReaderState;
 				related: RelatedArticles;
 				relatedPollUrl: string | undefined;
+				queueFiling: ReaderQueueFiling;
 			};
 
 	/** Ownership/access (owner → reader; non-owner or anonymous → permalink
@@ -753,7 +786,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			at: deps.now(),
 		});
 
-		const [related, state] = await Promise.all([
+		const [related, state, queueFiling] = await Promise.all([
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
 			reader.resolveReaderState({
 				article: {
@@ -761,8 +794,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					metadata: ownedArticle.metadata,
 					estimatedReadTime: ownedArticle.estimatedReadTime,
 				},
-				pollUrlBuilder: pollUrlBuilderForId(ownedArticle.id.value),
+				pollUrlBuilder: pollUrlBuilderFor(req, ownedArticle.id.value),
 				capturing: false,
+			}),
+			readerQueueFilingFor({
+				userId: ownedArticle.userId,
+				article: ownedArticle,
+				returnTo: readerReturnPath(req, ownedArticle.id.value),
 			}),
 		]);
 		const relatedPollUrl =
@@ -776,6 +814,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			state,
 			related,
 			relatedPollUrl,
+			queueFiling,
 		};
 	};
 
@@ -791,7 +830,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		const { article: ownedArticle, state, related, relatedPollUrl } = resolved;
+		const { article: ownedArticle, state, related, relatedPollUrl, queueFiling } = resolved;
 
 		if (isIosPlatform(req)) {
 			const cspNonce = requireCspNonce(req);
@@ -810,6 +849,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				extensionInstallUrl: undefined,
 				backLink: APP_BACK_LINK,
 				renderActions: deps.chromelessReader,
+				queueFiling,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -873,6 +913,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
 				renderActions: deps.stickyReader,
+				queueFiling,
 				crawlVersions: state.crawlVersions,
 				crawlBookmarkRemoval,
 				exitMarkReadConfirm: true,
@@ -1066,7 +1107,17 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const respondCardStatusSwap = async (
 		req: Request,
 		res: Response,
-		{ userId, statusFlash, context }: { userId: UserId; statusFlash?: StatusFlash; context: QueueContext },
+		{
+			userId,
+			statusFlash,
+			context,
+			resolveFullContext,
+		}: {
+			userId: UserId;
+			statusFlash?: StatusFlash;
+			context: QueueContext;
+			resolveFullContext: () => Promise<QueueContext>;
+		},
 	): Promise<void> => {
 		const urlState = context.state;
 		const store = storeFor(urlState.queue);
@@ -1119,7 +1170,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.set("HX-Reselect", "main");
 		await renderQueueListing(req, res, {
 			userId,
-			context: { ...context, state: renderState },
+			context: { ...(await resolveFullContext()), state: renderState },
 			result: renderResult,
 			statusFlash,
 		});
@@ -1801,10 +1852,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				const { status, error, message } = QUEUE_RENAME_REJECTIONS[reason];
 				res.status(status).json({ error, message });
 			};
-			if (!deps.featureToggle.isEnabled(req, QUEUES_FEATURE)) {
-				reject("unknown-queue");
-				return;
-			}
 			const requested = QueueSlugSchema.safeParse(req.params.slug);
 			if (!requested.success) {
 				reject("unknown-queue");
@@ -1849,14 +1896,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
+		const queueFiling = await readerQueueFilingFor({
+			userId,
+			article,
+			returnTo: readerReturnPath(req, article.id.value),
+		});
 		const component = await reader.handleSummaryPoll({
 			articleUrl: article.url,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
+			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
 			capturing: parseCapturingFlag(req.query.capturing),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
 			provenance: article.provenance,
+			queueTags: queueFiling.tags,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -1877,14 +1930,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
+		const queueFiling = await readerQueueFilingFor({
+			userId,
+			article,
+			returnTo: readerReturnPath(req, article.id.value),
+		});
 		const component = await reader.handleReaderPoll({
 			articleUrl: article.url,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
+			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
 			capturing: parseCapturingFlag(req.query.capturing),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
 			provenance: article.provenance,
+			queueTags: queueFiling.tags,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -2081,7 +2140,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			await respondCardStatusSwap(req, res, {
 				userId,
 				statusFlash,
-				context: context.railed ? await resolveQueueContext(req, userId) : context,
+				context,
+				resolveFullContext: () => resolveQueueContext(req, userId),
 			});
 			return;
 		}
@@ -2100,6 +2160,50 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		res.redirect(303, buildQueueUrl(context.state, context.linkParams));
+	});
+
+	router.post(
+		"/:id/assign",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request<{ id: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+			const parsedQueue = QueueSlugSchema.safeParse(req.body?.queue);
+			if (!parsedId.success || !parsedQueue.success || parsedQueue.data === DEFAULT_QUEUE_SLUG) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const definitions = await deps.listQueueDefinitions(userId);
+			const target = definitions.find((definition) => definition.slug === parsedQueue.data);
+			if (!target) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const article = await deps.findArticleById(parsedId.data, userId);
+			if (article) {
+				const savedAt = await deps.allocateSavedAt({ userId });
+				await deps.assignSavedArticleToQueue({
+					userId,
+					queue: target.slug,
+					url: article.url,
+					savedAt,
+				});
+			}
+			res.redirect(303, safeReturnPath(req.body.returnTo));
+		},
+	);
+
+	router.post("/:id/unassign", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const parsedQueue = QueueSlugSchema.safeParse(req.body?.queue);
+		if (parsedId.success && parsedQueue.success && parsedQueue.data !== DEFAULT_QUEUE_SLUG) {
+			await deleteArticleFromQueueFor(parsedQueue.data)({ articleId: parsedId.data, userId });
+		}
+		res.redirect(303, safeReturnPath(req.body.returnTo));
 	});
 
 	/** Remove one crawl-version snapshot the viewer authored. Guardless (only

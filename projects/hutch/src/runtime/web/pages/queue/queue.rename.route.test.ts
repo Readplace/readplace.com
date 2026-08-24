@@ -241,7 +241,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		expect(response.body.error).toBe("unknown-queue");
 	});
 
-	it("does not exist for a reader who never turned the queues feature on", async () => {
+	it("renames without the flag once the reader owns the queue", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueue(agent);
@@ -251,11 +251,23 @@ describe("POST /queue/queues/:slug/rename", () => {
 			.type("form")
 			.send({ label: "Work Reading" });
 
+		expect(response.status).toBe(200);
+		expect(queueTab(parse((await agent.get("/queue")).text), queue).textContent).toBe(
+			"Work Reading",
+		);
+	});
+
+	it("does not exist for a reader who owns no queues", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post("/queue/queues/some-queue/rename")
+			.type("form")
+			.send({ label: "Work Reading" });
+
 		expect(response.status).toBe(404);
 		expect(response.body.error).toBe("unknown-queue");
-		expect(queueTab(parse((await agent.get("/queue?feature=queues")).text), queue).textContent).toBe(
-			"New Queue",
-		);
 	});
 
 	it("sends a signed-out visitor to log in rather than renaming anything", async () => {

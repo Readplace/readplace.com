@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { QueueSlugSchema } from "@packages/domain/queue";
 import {
 	type ActionButtons,
 	ChromelessReader,
@@ -14,6 +15,7 @@ const BACK = {
 };
 
 const ACTION_BTNS: ActionButtons = {
+	queuePicker: undefined,
 	backLink: BACK,
 	markReadActions: [
 		{
@@ -34,6 +36,53 @@ const ACTION_BTNS: ActionButtons = {
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
+
+describe("queue picker", () => {
+	it("renders one assign form per offered queue inside an anchored disclosure", () => {
+		const { top } = StickyReader({
+			actionBtns: {
+				...ACTION_BTNS,
+				queuePicker: {
+					assignUrl: "/queue/abc/assign",
+					returnTo: "/queue/abc/view",
+					options: [
+						{ slug: QueueSlugSchema.parse("work"), label: "Work" },
+						{ slug: QueueSlugSchema.parse("later"), label: "Later" },
+					],
+				},
+			},
+		});
+		const doc = parse(top.to("text/html").body);
+
+		const slot = doc.querySelector("[data-test-queues-slot]");
+		assert(slot, "the queues slot must render");
+		expect(slot.classList.contains("article-body__queues-slot--visible")).toBe(true);
+		assert(doc.querySelector("[data-test-queues-trigger]"), "the trigger must render");
+		const forms = Array.from(doc.querySelectorAll(".article-body__queues-form"));
+		expect(forms.map((form) => form.getAttribute("action"))).toEqual([
+			"/queue/abc/assign",
+			"/queue/abc/assign",
+		]);
+		expect(
+			forms.map((form) => form.querySelector('input[name="queue"]')?.getAttribute("value")),
+		).toEqual(["work", "later"]);
+		expect(
+			forms.map((form) => form.querySelector('input[name="returnTo"]')?.getAttribute("value")),
+		).toEqual(["/queue/abc/view", "/queue/abc/view"]);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-assign-queue]"), (el) => el.textContent),
+		).toEqual(["Work", "Later"]);
+	});
+
+	it("keeps the slot in the bar, hidden, when there is nothing to offer", () => {
+		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+		const doc = parse(top.to("text/html").body);
+
+		const slot = doc.querySelector("[data-test-queues-slot]");
+		assert(slot, "the queues slot must render");
+		expect(slot.classList.contains("article-body__queues-slot--hidden")).toBe(true);
+	});
+});
 
 describe("RegularReader", () => {
 	it("renders inline top and bottom bars with back links and mark-read forms", () => {
@@ -76,7 +125,7 @@ describe("RegularReader", () => {
 	});
 
 	it("renders hidden slots when given no action buttons (ViewPage/AdminRecrawl parity)", () => {
-		const { top, bottom } = RegularReader({ actionBtns: {} });
+		const { top, bottom } = RegularReader({ actionBtns: { queuePicker: undefined } });
 		const topDoc = parse(top.to("text/html").body);
 		const bottomDoc = parse(bottom.to("text/html").body);
 

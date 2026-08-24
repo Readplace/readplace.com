@@ -1127,6 +1127,64 @@ describe("initInMemoryArticleStore", () => {
 			).toEqual([{}, { queue: "work" }]);
 		});
 
+		it("assigns the default copy into a queue keeping its read state", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.updateArticleStatus(saved.id, USER_A, "read");
+
+			const result = await store.assignSavedArticleToQueue({
+				userId: USER_A,
+				queue: WORK,
+				url: "https://example.com/article",
+				savedAt: new Date("2026-08-24T10:00:00.000Z"),
+			});
+
+			expect(result).toEqual({ assigned: true });
+			const copy = await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK });
+			assert(copy, "the queue must hold the assigned copy");
+			expect(copy.status).toBe("read");
+			expect(copy.savedAt).toEqual(new Date("2026-08-24T10:00:00.000Z"));
+			expect(
+				await store.listUserSavesForUrl({ userId: USER_A, url: "https://example.com/article" }),
+			).toEqual([{}, { queue: "work" }]);
+		});
+
+		it("does not assign what the default queue does not hold", async () => {
+			const store = initInMemoryArticleStore();
+
+			const result = await store.assignSavedArticleToQueue({
+				userId: USER_A,
+				queue: WORK,
+				url: "https://example.com/article",
+				savedAt: new Date("2026-08-24T10:00:00.000Z"),
+			});
+
+			expect(result).toEqual({ assigned: false });
+		});
+
+		it("keeps the first copy when the same queue is assigned twice", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.assignSavedArticleToQueue({
+				userId: USER_A,
+				queue: WORK,
+				url: "https://example.com/article",
+				savedAt: new Date("2026-08-24T10:00:00.000Z"),
+			});
+
+			const again = await store.assignSavedArticleToQueue({
+				userId: USER_A,
+				queue: WORK,
+				url: "https://example.com/article",
+				savedAt: new Date("2026-08-24T11:00:00.000Z"),
+			});
+
+			expect(again).toEqual({ assigned: false });
+			const copy = await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK });
+			assert(copy, "the queue must hold the assigned copy");
+			expect(copy.savedAt).toEqual(new Date("2026-08-24T10:00:00.000Z"));
+		});
+
 		it("stamps viewedAt on the addressed queue's copy only", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());

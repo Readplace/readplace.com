@@ -96,7 +96,7 @@ export interface AdminRecrawlPageInput {
  * column and surface as "(legacy)".
  */
 export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
-	const actions = RegularReader({ actionBtns: {} });
+	const actions = RegularReader({ actionBtns: { queuePicker: undefined } });
 	const innerContent = renderArticleBody({
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,

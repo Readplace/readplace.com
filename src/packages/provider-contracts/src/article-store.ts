@@ -307,6 +307,13 @@ export type MarkQueueArticleViewed = (params: {
 	at: Date;
 }) => Promise<void>;
 
+export type AssignSavedArticleToQueue = (params: {
+	userId: UserId;
+	queue: QueueSlug;
+	url: string;
+	savedAt: Date;
+}) => Promise<{ assigned: boolean }>;
+
 export type ListUserSavesForUrl = (params: {
 	userId: UserId;
 	url: string;

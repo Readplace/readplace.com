@@ -21,6 +21,7 @@ import assert from "node:assert";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
+	AssignSavedArticleToQueue,
 	BumpArticleSavedAt,
 	FindSavedUrls,
 	CountArticlesByUser,
@@ -214,6 +215,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 } {
 	const { client, tableName, userArticlesTableName, logger, now } = deps;
 
@@ -892,6 +894,35 @@ export function initDynamoDbSavedArticleStore(deps: {
 		});
 	};
 
+	const assignSavedArticleToQueue: AssignSavedArticleToQueue = async ({
+		userId,
+		queue,
+		url,
+		savedAt,
+	}) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const source = await findUserArticle(userId, articleResourceUniqueId.value);
+		if (!source) return { assigned: false };
+		try {
+			await userArticles.put({
+				Item: {
+					userId: queuePartitionValue({ userId, queue }),
+					url: articleResourceUniqueId.value,
+					status: source.status,
+					savedAt: savedAt.toISOString(),
+					...(source.readAt === undefined ? {} : { readAt: source.readAt }),
+					...(source.provenance === undefined ? {} : { provenance: source.provenance }),
+				},
+				ConditionExpression: "attribute_not_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url" },
+			});
+			return { assigned: true };
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return { assigned: false };
+			throw error;
+		}
+	};
+
 	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		try {
@@ -1016,5 +1047,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		deleteQueueArticle,
 		markQueueArticleViewed,
 		listUserSavesForUrl,
+		assignSavedArticleToQueue,
 	};
 }

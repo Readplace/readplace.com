@@ -15,6 +15,7 @@ import type {
 	MarkReadAction,
 	RenderReaderActions,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
+import type { ReaderQueueFiling } from "../queue/reader-queue-filing";
 import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
@@ -93,6 +94,7 @@ export function ReaderPage(
 		 * same toolbar; the variant carries the page body class that decides where it
 		 * pins, so the markup and the CSS that pins it can never drift apart. */
 		renderActions: RenderReaderActions;
+		queueFiling: ReaderQueueFiling;
 		crawlVersions?: LocalTime[];
 		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 		exitMarkReadConfirm?: boolean;
@@ -110,7 +112,13 @@ export function ReaderPage(
 			fields: [{ name: "status", value: markReadStatus }],
 		},
 	];
-	const actions = options.renderActions({ actionBtns: { backLink: options.backLink, markReadActions } });
+	const actions = options.renderActions({
+		actionBtns: {
+			backLink: options.backLink,
+			markReadActions,
+			queuePicker: options.queueFiling.picker,
+		},
+	});
 	const innerContent = renderArticleBody({
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
@@ -119,6 +127,7 @@ export function ReaderPage(
 		// the share path below stays on `article.url` (the /view identity).
 		url: article.displayUrl ?? article.url,
 		provenance: article.provenance,
+		queueTags: options.queueFiling.tags,
 		content: article.content,
 		crawl: options.crawl,
 		readerPollUrl: options.readerPollUrl,

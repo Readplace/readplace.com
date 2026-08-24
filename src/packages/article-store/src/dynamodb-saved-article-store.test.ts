@@ -1885,6 +1885,117 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		]);
 	});
 
+	it("assignSavedArticleToQueue copies the default row's state into the queue partition at the given savedAt", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				default: {
+					Item: userArticleItem({
+						status: "read",
+						readAt: "2026-06-01T08:00:00.000Z",
+						provenance: { kind: "client", clientName: "chrome" },
+					}),
+				},
+			},
+		});
+
+		const result = await initStore(client).assignSavedArticleToQueue({
+			userId: USER,
+			queue: QueueSlugSchema.parse("work"),
+			url: URL,
+			savedAt: new Date("2026-08-24T10:00:00.000Z"),
+		});
+
+		expect(result).toEqual({ assigned: true });
+		const put = commands.find((c) => c.name === "PutCommand");
+		assert(put, "the copy must be written with a Put");
+		expect(put.input.Item).toEqual({
+			userId: WORK_PARTITION,
+			url: RESOURCE_ID,
+			status: "read",
+			savedAt: "2026-08-24T10:00:00.000Z",
+			readAt: "2026-06-01T08:00:00.000Z",
+			provenance: { kind: "client", clientName: "chrome" },
+		});
+		expect(put.input.ConditionExpression).toContain("attribute_not_exists");
+	});
+
+	it("assignSavedArticleToQueue writes no readAt or provenance the default row does not carry", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const result = await initStore(client).assignSavedArticleToQueue({
+			userId: USER,
+			queue: QueueSlugSchema.parse("work"),
+			url: URL,
+			savedAt: new Date("2026-08-24T10:00:00.000Z"),
+		});
+
+		expect(result).toEqual({ assigned: true });
+		const put = commands.find((c) => c.name === "PutCommand");
+		assert(put, "the copy must be written with a Put");
+		expect(put.input.Item).toEqual({
+			userId: WORK_PARTITION,
+			url: RESOURCE_ID,
+			status: "unread",
+			savedAt: "2026-08-24T10:00:00.000Z",
+		});
+	});
+
+	it("assignSavedArticleToQueue writes nothing when the default row is gone", async () => {
+		const { client, commands } = createFakeClient();
+
+		const result = await initStore(client).assignSavedArticleToQueue({
+			userId: USER,
+			queue: QueueSlugSchema.parse("work"),
+			url: URL,
+			savedAt: new Date("2026-08-24T10:00:00.000Z"),
+		});
+
+		expect(result).toEqual({ assigned: false });
+		expect(commands.filter((c) => c.name === "PutCommand")).toEqual([]);
+	});
+
+	it("assignSavedArticleToQueue surfaces a write failure that is not the copy already existing", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem() } },
+			PutCommand: {
+				default: () => {
+					throw new Error("throughput exceeded");
+				},
+			},
+		});
+
+		await expect(
+			initStore(client).assignSavedArticleToQueue({
+				userId: USER,
+				queue: QueueSlugSchema.parse("work"),
+				url: URL,
+				savedAt: new Date("2026-08-24T10:00:00.000Z"),
+			}),
+		).rejects.toThrow("throughput exceeded");
+	});
+
+	it("assignSavedArticleToQueue reports an already-filed article without rewriting it", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem() } },
+			PutCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+				},
+			},
+		});
+
+		const result = await initStore(client).assignSavedArticleToQueue({
+			userId: USER,
+			queue: QueueSlugSchema.parse("work"),
+			url: URL,
+			savedAt: new Date("2026-08-24T10:00:00.000Z"),
+		});
+
+		expect(result).toEqual({ assigned: false });
+	});
+
 	it("listUserSavesForUrl reads the default row and one key per queue the user owns", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [queueDefinitionItem()], Count: 1 } },

@@ -18,6 +18,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
+	AssignSavedArticleToQueue,
 	FindSavedUrls,
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
@@ -145,6 +146,7 @@ export function initInMemoryArticleStore(): {
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	createQueueDefinition: CreateQueueDefinition;
 	listQueueDefinitions: ListQueueDefinitions;
 	renameQueueDefinition: RenameQueueDefinition;
@@ -441,6 +443,21 @@ export function initInMemoryArticleStore(): {
 		return [...urls];
 	};
 
+	const assignSavedArticleToQueue: AssignSavedArticleToQueue = async ({
+		userId,
+		queue,
+		url,
+		savedAt,
+	}) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const source = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		if (!source) return { assigned: false };
+		const targetKey = userArticleKey(userId, articleResourceUniqueId.value, queue);
+		if (userArticles.has(targetKey)) return { assigned: false };
+		userArticles.set(targetKey, { ...source, queue, savedAt });
+		return { assigned: true };
+	};
+
 	const listUserSavesForUrl: ListUserSavesForUrl = async ({ userId, url }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const saves: { queue?: QueueSlug }[] = [];
@@ -691,6 +708,7 @@ export function initInMemoryArticleStore(): {
 		deleteQueueArticle,
 		markQueueArticleViewed,
 		listUserSavesForUrl,
+		assignSavedArticleToQueue,
 		createQueueDefinition,
 		listQueueDefinitions,
 		renameQueueDefinition,

@@ -97,6 +97,7 @@ import type {
 	UpdateQueueArticleStatus,
 	DeleteQueueArticle,
 	MarkQueueArticleViewed,
+	AssignSavedArticleToQueue,
 	ListUserSavesForUrl,
 	ListQueueDefinitions,
 	RenameQueueDefinition,
@@ -324,6 +325,7 @@ interface AppDependencies {
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	listQueueDefinitions: ListQueueDefinitions;
 	renameQueueDefinition: RenameQueueDefinition;
 	createQueueDefinition: CreateQueueDefinition;
@@ -1173,6 +1175,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		deleteQueueArticle: deps.deleteQueueArticle,
 		markQueueArticleViewed: deps.markQueueArticleViewed,
 		listUserSavesForUrl: deps.listUserSavesForUrl,
+		assignSavedArticleToQueue: deps.assignSavedArticleToQueue,
 		listQueueDefinitions: deps.listQueueDefinitions,
 		renameQueueDefinition: deps.renameQueueDefinition,
 		createQueueDefinition: deps.createQueueDefinition,

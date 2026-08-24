@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { QueueSlug } from "@packages/domain/queue";
 import { type Component, HtmlPage, render } from "@packages/web-shell";
 
 const TOP_TEMPLATE = readFileSync(join(__dirname, "reader-actions-top.template.html"), "utf-8");
@@ -12,9 +13,16 @@ export interface MarkReadAction {
 	fields: ReadonlyArray<{ name: string; value: string }>;
 }
 
+export interface ReaderQueuePicker {
+	assignUrl: string;
+	returnTo: string;
+	options: readonly { slug: QueueSlug; label: string }[];
+}
+
 export interface ActionButtons {
 	backLink?: { topHref: string; bottomHref?: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
+	queuePicker: ReaderQueuePicker | undefined;
 }
 
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
@@ -36,6 +44,7 @@ function topBar(actionBtns: ActionButtons): string {
 		backLink: actionBtns.backLink
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
+		queuePicker: actionBtns.queuePicker,
 		markRead: markReadFields(actionBtns.markReadActions?.find((action) => action.position === "top")),
 	});
 }
