@@ -733,7 +733,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				kind: "ready";
 				article: SavedArticle;
 				state: ResolvedReaderState;
-				audioEnabled: boolean;
 				related: RelatedArticles;
 				relatedPollUrl: string | undefined;
 			};
@@ -769,7 +768,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			at: deps.now(),
 		});
 
-		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
 		const [related, state] = await Promise.all([
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
 			reader.resolveReaderState({
@@ -791,7 +789,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			kind: "ready",
 			article: ownedArticle,
 			state,
-			audioEnabled,
 			related,
 			relatedPollUrl,
 		};
@@ -809,7 +806,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		const { article: ownedArticle, state, audioEnabled, related, relatedPollUrl } = resolved;
+		const { article: ownedArticle, state, related, relatedPollUrl } = resolved;
 
 		if (isIosPlatform(req)) {
 			const cspNonce = requireCspNonce(req);
@@ -821,7 +818,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				readerPollUrl: state.readerPollUrl,
 				capturePollUrl: state.capturePollUrl,
 				progress: state.progress,
-				audioEnabled,
 				related,
 				relatedPollUrl,
 				currentPath: req.originalUrl,
@@ -885,7 +881,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				readerPollUrl: state.readerPollUrl,
 				capturePollUrl: state.capturePollUrl,
 				progress: state.progress,
-				audioEnabled,
 				related,
 				relatedPollUrl,
 				currentPath: req.originalUrl,

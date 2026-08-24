@@ -117,37 +117,6 @@ describe("renderArticleBody", () => {
 		expect(html.indexOf("data-test-bottom-actions")).toBeGreaterThan(html.indexOf("data-test-reader-content"));
 	});
 
-	it("marks the audio slot as visible when audioEnabled is true", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-			audioEnabled: true,
-		});
-		const doc = parse(html);
-
-		const slot = doc.querySelector("[data-test-audio-player]");
-		assert(slot, "audio slot must be rendered");
-		expect(slot.classList.contains("article-body__audio-slot--visible")).toBe(
-			true,
-		);
-		const audio = slot.querySelector("[data-audio-element]");
-		assert(audio, "audio element must be rendered when audioEnabled");
-	});
-
-	it("marks the audio slot as hidden when audioEnabled is absent", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-		});
-		const doc = parse(html);
-
-		const slot = doc.querySelector("[data-test-audio-player]");
-		assert(slot, "audio slot must be rendered");
-		expect(slot.classList.contains("article-body__audio-slot--hidden")).toBe(
-			true,
-		);
-	});
-
 	it("renders the reader-pending slot when content is undefined and no crawl status is provided (read-after-write race)", () => {
 		const html = renderArticleBody({
 			...baseInput,

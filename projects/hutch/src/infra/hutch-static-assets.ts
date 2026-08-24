@@ -21,7 +21,6 @@ const CONTENT_TYPES: Record<string, string> = {
 	".webmanifest": "application/manifest+json",
 	".xml": "application/xml",
 	".mp4": "video/mp4",
-	".opus": "audio/ogg",
 };
 
 function contentTypeFor(key: string): string {

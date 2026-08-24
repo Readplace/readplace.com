@@ -82,7 +82,6 @@ export function ReaderPage(
 		readerPollUrl?: string;
 		capturePollUrl?: string;
 		progress?: ProgressTick;
-		audioEnabled?: boolean;
 		related?: RelatedArticles;
 		relatedPollUrl?: string;
 		currentPath: string;
@@ -129,7 +128,6 @@ export function ReaderPage(
 		summaryOpen: false,
 		summaryToggleUrl: `/queue/${articleId}/summary-toggle`,
 		progress: options.progress,
-		audioEnabled: options.audioEnabled,
 		appOrigin: options.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,

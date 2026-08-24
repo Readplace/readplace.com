@@ -92,7 +92,7 @@ export const HOME_B_CONTENT = {
 		lede: "I'd rather you find this out here than on day three.",
 		items: [
 			"No full-text search, tags, folders, highlights, or notes.",
-			"No offline reading. No Android, Safari extension, audio, or RSS.",
+			"No offline reading. No Android, Safari extension, or RSS.",
 			"The Firefox extension is a download from this site, not addons.mozilla.org.",
 			"Export is a JSON file of your URLs, titles, excerpts and read history — not the article text.",
 			"Source-available is not open source: you can read the code, but no licence grants you the right to reuse it.",

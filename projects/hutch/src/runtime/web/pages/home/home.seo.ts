@@ -212,7 +212,7 @@ export function buildHomeSeo(input: {
 						name: "What features does Readplace have?",
 						acceptedAnswer: {
 							"@type": "Answer",
-							text: `Readplace saves from browser extensions for ${BROWSER_EXTENSIONS_AND}, an iPhone app on the App Store that saves from the share sheet, an MCP server that lets ChatGPT, Claude and Gemini save links and read your queue back, a link pasted on the homepage, and a bulk import of bookmark or Pocket export files that works before you make an account. Every account also gets a per-newsletter forwarding address, so newsletters land in Readplace with their article links pulled out. It also has a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, real Tesseract OCR for PDFs, dark mode, and secure OAuth with PKCE. Planned features include a 'what to read next' view that sorts and filters your unread pile, and listening to saved articles as audio.`,
+							text: `Readplace saves from browser extensions for ${BROWSER_EXTENSIONS_AND}, an iPhone app on the App Store that saves from the share sheet, an MCP server that lets ChatGPT, Claude and Gemini save links and read your queue back, a link pasted on the homepage, and a bulk import of bookmark or Pocket export files that works before you make an account. Every account also gets a per-newsletter forwarding address, so newsletters land in Readplace with their article links pulled out. It also has a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, real Tesseract OCR for PDFs, dark mode, and secure OAuth with PKCE. A planned feature is a 'what to read next' view that sorts and filters your unread pile.`,
 						},
 					},
 					{

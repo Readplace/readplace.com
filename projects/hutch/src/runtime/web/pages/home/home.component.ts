@@ -269,11 +269,6 @@ export function HomePage(params: HomePageParams): PageBody {
 					description:
 						"Sort and filter your unread pile by recently saved, reading time, and tags, so the time you have goes to what matters most.",
 				},
-				{
-					name: "Listen to Articles",
-					description:
-						"Play any saved article as audio — for the commute, the walk, or doing chores.",
-				},
 			],
 			trustItems: [
 				{
