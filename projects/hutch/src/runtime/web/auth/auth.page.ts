@@ -382,7 +382,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		const created = await deps.createUserWithPasswordHash({ email, passwordHash });
+		const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution });
 		if (!created.ok) {
 			logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
 			await renderFailure(email, [{ message: "An account with this email already exists" }]);
@@ -410,7 +410,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				email,
 				method: "email",
 				tier: "trial",
-				attribution: readClickAttribution(req),
+				attribution,
 				visitorId: req.visitorId,
 				homepageVariant: readHomepageVariantSlug(req),
 				pendingSaveId: consumePendingSaveId({ req, res }),

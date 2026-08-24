@@ -93,7 +93,7 @@ describe("initInMemoryAuth", () => {
 			const auth = makeAuth();
 			const passwordHash = await hashPassword("password123");
 
-			const result = await auth.createUserWithPasswordHash({ email: "hashed@example.com", passwordHash });
+			const result = await auth.createUserWithPasswordHash({ email: "hashed@example.com", passwordHash, attribution: undefined });
 
 			expect(result.ok).toBe(true);
 			const verified = await auth.verifyCredentials({ email: "hashed@example.com", password: "password123" });
@@ -105,7 +105,7 @@ describe("initInMemoryAuth", () => {
 			const passwordHash = await hashPassword("password123");
 			await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
 
-			const result = await auth.createUserWithPasswordHash({ email: "johndoe@gmail.com", passwordHash });
+			const result = await auth.createUserWithPasswordHash({ email: "johndoe@gmail.com", passwordHash, attribution: undefined });
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
 		});

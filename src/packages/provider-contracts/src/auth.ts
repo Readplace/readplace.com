@@ -34,7 +34,7 @@ export type CreateUser = (credentials: {
 export type CreateUserWithPasswordHash = (credentials: {
 	email: string;
 	passwordHash: string;
-	attribution?: UserAcquisitionAttribution;
+	attribution: UserAcquisitionAttribution | undefined;
 }) => Promise<CreateUserResult>;
 
 export type VerifyCredentials = (credentials: {
