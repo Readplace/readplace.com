@@ -3,7 +3,7 @@ import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
 import { QUEUE_PATH } from "../web/pages/queue/queue.url";
-import { excludeInternalVisitorsClauses } from "./excluded-identities";
+import { type ExcludedIdentities, excludeInternalVisitorsClauses } from "./excluded-identities";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -29,7 +29,7 @@ export interface DashboardBody {
 	widgets: DashboardWidget[];
 }
 
-export interface BuildAnalyticsDashboardDeps {
+export interface BuildAnalyticsDashboardDeps extends ExcludedIdentities {
 	region: string;
 	hutchLogGroupName: string;
 	/** The never-expire destination group every analytics widget reads from. The
@@ -42,8 +42,6 @@ export interface BuildAnalyticsDashboardDeps {
 	 * anyone remembering to register a project — and what keeps the widget under
 	 * the 50-log-group Logs Insights cap the account has already outgrown. */
 	errorsLogGroupName: string;
-	excludedVisitorHashes: readonly string[];
-	excludedVisitorIds: readonly string[];
 }
 
 /**
@@ -153,15 +151,8 @@ function logWidget(params: {
 }
 
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {
-	const {
-		region,
-		hutchLogGroupName,
-		analyticsLogGroupName,
-		errorsLogGroupName,
-		excludedVisitorHashes,
-		excludedVisitorIds,
-	} = deps;
-	const exclude = excludeInternalVisitorsClauses({ excludedVisitorHashes, excludedVisitorIds });
+	const { region, hutchLogGroupName, analyticsLogGroupName, errorsLogGroupName } = deps;
+	const exclude = excludeInternalVisitorsClauses(deps);
 	const widgets: DashboardWidget[] = [];
 
 	/** Every analytics widget reads the single never-expire destination group. The

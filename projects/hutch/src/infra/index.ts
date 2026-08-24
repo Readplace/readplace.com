@@ -20,6 +20,7 @@ import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/p
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import {
+	assertExcludedUserIds,
 	assertExcludedVisitorHashes,
 	assertExcludedVisitorIds,
 } from "../runtime/observability/excluded-identities";
@@ -970,6 +971,9 @@ assertExcludedVisitorHashes(excludedVisitorHashes);
 const excludedVisitorIds = config.requireObject<string[]>("excludedVisitorIds");
 assertExcludedVisitorIds(excludedVisitorIds);
 
+const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
+assertExcludedUserIds(excludedUserIds);
+
 new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	name: "imports-completed",
 	logGroupName: lambda.logGroupName,
@@ -1180,6 +1184,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 			errorsLogGroupName,
 			excludedVisitorHashes,
 			excludedVisitorIds,
+			excludedUserIds,
 		})),
 	),
 }, {
@@ -1203,6 +1208,7 @@ new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 			analyticsLogGroupName,
 			excludedVisitorHashes,
 			excludedVisitorIds,
+			excludedUserIds,
 		})),
 	),
 }, { dependsOn: [analyticsLogGroup] });

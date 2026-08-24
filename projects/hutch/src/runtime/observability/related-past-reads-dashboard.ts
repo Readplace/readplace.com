@@ -6,14 +6,12 @@ import {
 } from "@packages/hutch-infra-components";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, STREAMS } from "./events";
-import { excludeInternalVisitorsClauses } from "./excluded-identities";
+import { type ExcludedIdentities, excludeInternalVisitorsClauses } from "./excluded-identities";
 import type { DashboardBody, DashboardWidget } from "./analytics-dashboard";
 
-export interface BuildRelatedPastReadsDashboardDeps {
+export interface BuildRelatedPastReadsDashboardDeps extends ExcludedIdentities {
 	region: string;
 	analyticsLogGroupName: string;
-	excludedVisitorHashes: readonly string[];
-	excludedVisitorIds: readonly string[];
 }
 
 function sourceClause(logGroupNames: readonly string[]): string {
@@ -114,8 +112,8 @@ function engagementExpression(): string {
 export function buildRelatedPastReadsDashboardBody(
 	deps: BuildRelatedPastReadsDashboardDeps,
 ): DashboardBody {
-	const { region, analyticsLogGroupName, excludedVisitorHashes, excludedVisitorIds } = deps;
-	const exclude = excludeInternalVisitorsClauses({ excludedVisitorHashes, excludedVisitorIds });
+	const { region, analyticsLogGroupName } = deps;
+	const exclude = excludeInternalVisitorsClauses(deps);
 	const analyticsSource = [analyticsLogGroupName];
 	const widgets: DashboardWidget[] = [];
 

@@ -6,22 +6,20 @@ import {
 } from "@packages/hutch-infra-components";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, STREAMS } from "./events";
+import type { ExcludedIdentities } from "./excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "./related-past-reads-dashboard";
 
 const EXCLUDED_HASH = "deadbeefcafef00d";
 const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
+const EXCLUDED_USER_ID = "22222222222222222222222222222222";
 
-function buildBody(
-	overrides: Partial<{
-		excludedVisitorHashes: readonly string[];
-		excludedVisitorIds: readonly string[];
-	}> = {},
-) {
+function buildBody(overrides: Partial<ExcludedIdentities> = {}) {
 	return buildRelatedPastReadsDashboardBody({
 		region: "ap-southeast-2",
 		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
 		excludedVisitorHashes: overrides.excludedVisitorHashes ?? [EXCLUDED_HASH],
 		excludedVisitorIds: overrides.excludedVisitorIds ?? [EXCLUDED_VISITOR_ID],
+		excludedUserIds: overrides.excludedUserIds ?? [EXCLUDED_USER_ID],
 	});
 }
 
@@ -194,18 +192,19 @@ describe("buildRelatedPastReadsDashboardBody", () => {
 		expect(String(first.properties.markdown)).toContain("Similar past reads");
 	});
 
-	it("drops the internal visitor by the durable visitor_id cookie on exactly the widgets the rotating IP hash already covers, so the card's own reader counts cannot keep one key and lose the other", () => {
+	it("drops the internal visitor by every configured key on exactly the widgets the rotating IP hash already covers, so the card's own reader counts cannot keep one key and lose another", () => {
 		const queries = logQueries();
 		const byHash = queries.filter((query) => query.includes(EXCLUDED_HASH));
-		const byVisitorId = queries.filter((query) => query.includes(EXCLUDED_VISITOR_ID));
 
-		expect(byVisitorId.length).toBeGreaterThan(0);
-		expect(byVisitorId).toEqual(byHash);
+		expect(byHash.length).toBeGreaterThan(0);
+		expect(queries.filter((query) => query.includes(EXCLUDED_VISITOR_ID))).toEqual(byHash);
+		expect(queries.filter((query) => query.includes(EXCLUDED_USER_ID))).toEqual(byHash);
 	});
 
 	it.each([
 		{ name: "no visitor hash", overrides: { excludedVisitorHashes: [] }, absent: "visitor_hash not in" },
 		{ name: "no visitor id", overrides: { excludedVisitorIds: [] }, absent: "visitor_id not in" },
+		{ name: "no user id", overrides: { excludedUserIds: [] }, absent: "user_id not in" },
 	])("emits no exclude clause for a list that is empty ($name)", ({ overrides, absent }) => {
 		const queries = buildBody(overrides)
 			.widgets.filter((widget) => widget.type === "log")
@@ -214,9 +213,9 @@ describe("buildRelatedPastReadsDashboardBody", () => {
 		expect(queries.filter((query) => query.includes(absent))).toEqual([]);
 	});
 
-	it("guards every exclusion clause with its own not-ispresent half, so an event carrying neither key survives", () => {
+	it("guards every exclusion clause with its own not-ispresent half, so an event carrying none of the keys survives", () => {
 		const emitted = logQueries().flatMap((query) =>
-			[...query.matchAll(/\| filter [^|]*?(?:visitor_hash|visitor_id) not in \[[^\]]*\]\)/g)].map(
+			[...query.matchAll(/\| filter [^|]*?(?:visitor_hash|visitor_id|user_id) not in \[[^\]]*\]\)/g)].map(
 				(match) => match[0].trim(),
 			),
 		);

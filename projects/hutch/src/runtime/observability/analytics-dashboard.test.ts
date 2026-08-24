@@ -18,20 +18,17 @@ import {
 	SUBSCRIPTION_EVENTS,
 } from "./events";
 import { buildAnalyticsDashboardBody } from "./analytics-dashboard";
+import type { ExcludedIdentities } from "./excluded-identities";
 
 const EXCLUDED_HASH = "deadbeefcafef00d";
 const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
+const EXCLUDED_USER_ID = "22222222222222222222222222222222";
 
 const ANY_STREAM_RE = /\bstream\s*=\s*"([a-z][a-z0-9_-]*)"/g;
 const ANY_EVENT_RE = /\bevent\s*=\s*"([a-z][a-z0-9_]*)"/g;
 const EVENT_IN_LIST_RE = /\bevent\s+in\s+\[([^\]]+)\]/g;
 
-function buildBody(
-	overrides: Partial<{
-		excludedVisitorHashes: readonly string[];
-		excludedVisitorIds: readonly string[];
-	}> = {},
-) {
+function buildBody(overrides: Partial<ExcludedIdentities> = {}) {
 	return buildAnalyticsDashboardBody({
 		region: "ap-southeast-2",
 		hutchLogGroupName: LOG_GROUPS.hutchHandler,
@@ -39,6 +36,7 @@ function buildBody(
 		errorsLogGroupName: ERRORS_LOG_GROUP,
 		excludedVisitorHashes: overrides.excludedVisitorHashes ?? [EXCLUDED_HASH],
 		excludedVisitorIds: overrides.excludedVisitorIds ?? [EXCLUDED_VISITOR_ID],
+		excludedUserIds: overrides.excludedUserIds ?? [EXCLUDED_USER_ID],
 	});
 }
 
@@ -490,6 +488,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 
 	const HASH_CLAUSE = `| filter (not ispresent(visitor_hash)) or (visitor_hash not in ["${EXCLUDED_HASH}"]) `;
 	const VISITOR_ID_CLAUSE = `| filter (not ispresent(visitor_id)) or (visitor_id not in ["${EXCLUDED_VISITOR_ID}"]) `;
+	const USER_ID_CLAUSE = `| filter (not ispresent(user_id)) or (user_id not in ["${EXCLUDED_USER_ID}"]) `;
 
 	function queriesOf(body: ReturnType<typeof buildBody>): string[] {
 		return body.widgets
@@ -502,21 +501,26 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		overrides: Parameters<typeof buildBody>[0];
 		stripped: readonly string[];
 	}[] = [
-		{ name: "both lists configured", overrides: {}, stripped: [] },
+		{ name: "all three lists configured", overrides: {}, stripped: [] },
 		{
 			name: "hashes only",
-			overrides: { excludedVisitorIds: [] },
-			stripped: [VISITOR_ID_CLAUSE],
+			overrides: { excludedVisitorIds: [], excludedUserIds: [] },
+			stripped: [VISITOR_ID_CLAUSE, USER_ID_CLAUSE],
 		},
 		{
 			name: "visitor ids only",
-			overrides: { excludedVisitorHashes: [] },
-			stripped: [HASH_CLAUSE],
+			overrides: { excludedVisitorHashes: [], excludedUserIds: [] },
+			stripped: [HASH_CLAUSE, USER_ID_CLAUSE],
 		},
 		{
-			name: "neither list configured",
+			name: "user ids only",
 			overrides: { excludedVisitorHashes: [], excludedVisitorIds: [] },
 			stripped: [HASH_CLAUSE, VISITOR_ID_CLAUSE],
+		},
+		{
+			name: "no list configured",
+			overrides: { excludedVisitorHashes: [], excludedVisitorIds: [], excludedUserIds: [] },
+			stripped: [HASH_CLAUSE, VISITOR_ID_CLAUSE, USER_ID_CLAUSE],
 		},
 	];
 
@@ -537,18 +541,27 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		},
 	);
 
-	it("prunes the owner by the durable visitor_id cookie on exactly the widgets the rotating IP hash already covers, so neither key can reach a widget the other misses", () => {
+	it("prunes the owner by every configured key on exactly the widgets the rotating IP hash already covers, so no key can reach a widget the others miss", () => {
 		const queries = queriesOf(buildBody());
 		const byHash = queries.filter((q) => q.includes("visitor_hash not in"));
-		const byVisitorId = queries.filter((q) => q.includes("visitor_id not in"));
 
-		expect(byVisitorId.length).toBeGreaterThan(0);
-		expect(byVisitorId).toEqual(byHash);
+		expect(byHash.length).toBeGreaterThan(0);
+		expect(queries.filter((q) => q.includes("visitor_id not in"))).toEqual(byHash);
+		expect(queries.filter((q) => q.includes("user_id not in"))).toEqual(byHash);
+	});
+
+	it("reaches article_read and summary_toggled through the user_id key — both carry a user_id on every row and no visitor_id at all, so the visitor keys cannot prune an internal account from them", () => {
+		for (const event of [ANALYTICS_EVENTS.articleRead, ANALYTICS_EVENTS.summaryToggled]) {
+			const queries = queriesOf(buildBody()).filter((q) => q.includes(`event = "${event}"`));
+
+			expect(queries.length).toBeGreaterThan(0);
+			for (const q of queries) expect(q).toContain(USER_ID_CLAUSE.trim());
+		}
 	});
 
 	it("guards every exclusion clause with its own not-ispresent half — Logs Insights reads a null field as absent, so a bare not-in would drop the whole anonymous population instead of the owner", () => {
 		const emitted = queriesOf(buildBody()).flatMap((q) =>
-			[...q.matchAll(/\| filter [^|]*?(?:visitor_hash|visitor_id) not in \[[^\]]*\]\)/g)].map((m) =>
+			[...q.matchAll(/\| filter [^|]*?(?:visitor_hash|visitor_id|user_id) not in \[[^\]]*\]\)/g)].map((m) =>
 				m[0].trim(),
 			),
 		);

@@ -67,4 +67,5 @@ config:
   hutch:foundingMemberLimit: '5'
   hutch:excludedVisitorHashes: []
   hutch:excludedVisitorIds: []
+  hutch:excludedUserIds: []
 encryptionsalt: v1:fILgDgnVVEY=:v1:sFKytKYEpZU4Qs+9:o/Q+JSj6rS/qo7p6WyjaekWrgFAk5A==

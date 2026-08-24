@@ -110,4 +110,13 @@ config:
     eb37c63f-6dd2-4865-b64b-4a9145d61171,
     e59a19ac-aa60-4789-98e9-27070f4068bc
   ]
+  hutch:excludedUserIds: [
+    f19792f1a14cf1d500de060278ab4bc3,
+    e3beff4964016ab1da42b1a5fc388899,
+    10252a1a47854d98878ff42d30be0f30,
+    4e72063954f1e2753ace07d4084dbfd1,
+    d62e199d47a5b1d9c419c94ddf74d712,
+    c6f587a1e604f02595c1032a764543d7,
+    342d72290cd7570617cc1f99d8e1bc30
+  ]
 encryptionsalt: v1:l9Qbc2Rjk0w=:v1:atrW398hQVu5eMhu:NQ2XG9vAOXAa+XxkU2+ksKYFAJJLTA==
