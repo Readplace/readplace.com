@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { MinutesSchema } from "@packages/domain/article";
+import { QueueSlugSchema } from "@packages/domain/queue";
 import { JSDOM } from "jsdom";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 
 type TestAgent = Awaited<ReturnType<typeof loginAgent>>;
+type TestHarness = ReturnType<typeof useApp>;
 
 const useApp = useTestServer();
 
@@ -46,6 +49,20 @@ function saveFormAction(doc: Document): string {
 	const form = doc.querySelector('[data-test-form="save-article"]');
 	assert(form, "the queue page must render the save bar");
 	return form.getAttribute("action") ?? "";
+}
+
+async function seedInto(harness: TestHarness, queue: string, url: string) {
+	const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+	assert(userId, "seeded login user must exist");
+	return harness.articleStore.saveQueueArticle({
+		userId,
+		queue: QueueSlugSchema.parse(queue),
+		url,
+		metadata: { title: url, siteName: "example.com", excerpt: "", wordCount: 0 },
+		estimatedReadTime: MinutesSchema.parse(0),
+		provenance: { kind: "web" },
+		savedAt: new Date(),
+	});
 }
 
 function countsUrl(doc: Document): string {
@@ -167,25 +184,30 @@ describe("Queue nav", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const queue = await createQueue(agent);
-			await agent
-				.post(`/queue/save?feature=queues&queue=${queue}`)
-				.type("form")
-				.send({ url: "https://example.com/a" });
+			await seedInto(harness, queue, "https://example.com/a");
 
 			const onDefault = parse((await agent.get("/queue?feature=queues")).text);
-			expect(saveFormAction(onDefault)).toBe(
-				"/queue/save?feature=queues&utm_source=queue&utm_medium=internal&utm_content=save",
-			);
 			expect(countsUrl(onDefault)).toBe("/queue/counts?feature=queues");
 
 			const onWork = parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text);
-			expect(saveFormAction(onWork)).toBe(
-				`/queue/save?queue=${queue}&feature=queues&utm_source=queue&utm_medium=internal&utm_content=save`,
-			);
 			expect(countsUrl(onWork)).toBe(`/queue/counts?queue=${queue}&feature=queues`);
 			const cardUrls = queueUrlsIn(onWork).filter((url) => url.includes("/queue/0"));
 			expect(cardUrls.length).toBeGreaterThan(0);
 			expect(cardUrls.filter((url) => !url.includes(`queue=${queue}`))).toEqual([]);
+		});
+
+		it("should point the save bar at the default queue from every queue the reader opens", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const queue = await createQueue(agent);
+
+			const onDefault = parse((await agent.get("/queue?feature=queues")).text);
+			const onWork = parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text);
+
+			const unqueuedAction =
+				"/queue/save?feature=queues&utm_source=queue&utm_medium=internal&utm_content=save";
+			expect(saveFormAction(onDefault)).toBe(unqueuedAction);
+			expect(saveFormAction(onWork)).toBe(unqueuedAction);
 		});
 
 		it("should keep the reader on the flagged view when clamping a page past the end of the listing", async () => {

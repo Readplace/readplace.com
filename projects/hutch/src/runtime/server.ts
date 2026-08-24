@@ -94,7 +94,6 @@ import type {
 	FindQueueArticles,
 	CountQueueArticles,
 	FindQueueArticleById,
-	SaveQueueArticle,
 	UpdateQueueArticleStatus,
 	DeleteQueueArticle,
 	MarkQueueArticleViewed,
@@ -321,7 +320,6 @@ interface AppDependencies {
 	findQueueArticles: FindQueueArticles;
 	countQueueArticles: CountQueueArticles;
 	findQueueArticleById: FindQueueArticleById;
-	saveQueueArticle: SaveQueueArticle;
 	updateQueueArticleStatus: UpdateQueueArticleStatus;
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
@@ -1171,7 +1169,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		findQueueArticles: deps.findQueueArticles,
 		countQueueArticles: deps.countQueueArticles,
 		findQueueArticleById: deps.findQueueArticleById,
-		saveQueueArticle: deps.saveQueueArticle,
 		updateQueueArticleStatus: deps.updateQueueArticleStatus,
 		deleteQueueArticle: deps.deleteQueueArticle,
 		markQueueArticleViewed: deps.markQueueArticleViewed,

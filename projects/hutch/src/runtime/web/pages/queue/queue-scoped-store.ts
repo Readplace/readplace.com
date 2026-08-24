@@ -8,7 +8,6 @@ import type {
 	FindQueueArticles,
 	MarkArticleViewed,
 	MarkQueueArticleViewed,
-	SaveArticle,
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import {
@@ -22,7 +21,6 @@ export interface QueueScopedStore {
 	findArticleById: FindArticleById;
 	updateArticleStatus: UpdateArticleStatus;
 	deleteArticle: DeleteArticle;
-	saveArticle: SaveArticle;
 	markArticleViewed: MarkArticleViewed;
 }
 
@@ -44,7 +42,6 @@ export function queueScopedStore(
 		findArticleById: deps.findArticleById,
 		updateArticleStatus: deps.updateArticleStatus,
 		deleteArticle: deps.deleteArticle,
-		saveArticle: deps.saveArticle,
 		markArticleViewed: deps.markArticleViewed,
 	};
 	if (queue === DEFAULT_QUEUE_SLUG) return mainline;

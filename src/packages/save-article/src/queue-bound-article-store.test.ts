@@ -24,14 +24,10 @@ const savedArticle: SavedArticle = {
 };
 
 describe("bindArticleStoreToQueue", () => {
-	it("routes every write the save and delete flows make into the bound queue", async () => {
+	it("routes every read and write the status and delete flows make into the bound queue", async () => {
 		const calls: Record<string, unknown>[] = [];
 		const bound = bindArticleStoreToQueue(
 			{
-				saveQueueArticle: async (params) => {
-					calls.push({ op: "save", queue: params.queue });
-					return { saved: savedArticle, createdUserArticle: true, wroteUserArticle: true };
-				},
 				updateQueueArticleStatus: async (params) => {
 					calls.push({ op: "status", queue: params.queue, status: params.status });
 					return savedArticle;
@@ -48,20 +44,11 @@ describe("bindArticleStoreToQueue", () => {
 			WORK,
 		);
 
-		await bound.saveArticle({
-			userId: USER,
-			url: URL,
-			metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 1 },
-			estimatedReadTime: ONE_MINUTE,
-			provenance: { kind: "web" },
-			savedAt: new Date("2026-08-19T10:00:00.000Z"),
-		});
 		await bound.updateArticleStatus(ARTICLE_ID, USER, "read");
 		await bound.deleteArticle(ARTICLE_ID, USER);
 		await bound.findArticleById(ARTICLE_ID, USER);
 
 		expect(calls).toEqual([
-			{ op: "save", queue: "work" },
 			{ op: "status", queue: "work", status: "read" },
 			{ op: "delete", queue: "work" },
 			{ op: "find", queue: "work" },

@@ -232,9 +232,16 @@
 }
 
 .queue__save-form {
-  display: flex;
   gap: 8px;
   margin-bottom: clamp(16px, 4vw, 24px);
+}
+
+.queue__save-form--visible {
+  display: flex;
+}
+
+.queue__save-form--hidden {
+  display: none;
 }
 
 .queue__save-input {

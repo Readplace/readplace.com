@@ -89,6 +89,9 @@ interface QueueDisplayModel {
 	cancellationEffectiveAt?: LocalTime;
 	accessIsReadOnly: boolean;
 	saveFormClass: string;
+	saveBarHidden: boolean;
+	defaultQueueUrl: string;
+	defaultQueueLabel: string;
 	saveTipState: SaveTipState;
 	saveTipHtml: string;
 }
@@ -105,6 +108,7 @@ export function emptyStateTitle(tab: TabId): string {
 function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
 	const linkParams = options.rail?.linkParams ?? [];
+	const saveBarHidden = vm.filters.queue !== DEFAULT_QUEUE.slug;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
 	const sort: { label: string; iconName: IconName } =
@@ -179,7 +183,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		queueErrorFlash: options.rail?.errorFlash,
 		queueTitle: options.rail?.activeQueue.label ?? DEFAULT_QUEUE.label,
 		saveAction: withInternalTracking(
-			`${QUEUE_SAVE_PATH}${queueReturnQuery(vm.filters, linkParams)}`,
+			`${QUEUE_SAVE_PATH}${queueReturnQuery({ ...vm.filters, queue: DEFAULT_QUEUE.slug }, linkParams)}`,
 			{ source: "queue", content: "save" },
 		),
 		filtersHtml: renderQueueFilters(
@@ -213,7 +217,14 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		trialDaysLeftWord: banner.state === "trial-countdown" ? banner.daysLeftWord : undefined,
 		cancellationEffectiveAt: banner.state === "cancellation-scheduled" ? banner.cancellationEffectiveAt : undefined,
 		accessIsReadOnly: vm.accessIsReadOnly,
-		saveFormClass: vm.accessIsReadOnly ? "queue__save-form queue__save-form--disabled" : "queue__save-form",
+		saveFormClass: [
+			"queue__save-form",
+			saveBarHidden ? "queue__save-form--hidden" : "queue__save-form--visible",
+			...(vm.accessIsReadOnly ? ["queue__save-form--disabled"] : []),
+		].join(" "),
+		saveBarHidden,
+		defaultQueueUrl: buildQueueUrl({}, linkParams),
+		defaultQueueLabel: DEFAULT_QUEUE.label,
 		saveTipState: options.saveTip.state,
 		saveTipHtml: options.saveTip.html,
 	};

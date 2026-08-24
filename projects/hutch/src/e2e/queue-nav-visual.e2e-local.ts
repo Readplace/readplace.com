@@ -25,11 +25,12 @@ const PASSWORD = "password123";
 const QUEUE_NAV = "main.queue .queue-nav";
 const QUEUE_NAV_LINK = '[data-test-queue="default"]';
 const QUEUE_CONTENT = "main.queue .queue__content";
-const QUEUE_PANEL_INNER = "main.queue .queue__save-form";
 const QUEUE_LIST = "[data-test-article-list]";
 const QUEUE_TITLE = "main.queue .queue__title";
 const QUEUE_FILTERS = "main.queue .queue__filters";
 const QUEUE_LISTING = "main.queue .queue__listing";
+const QUEUE_SAVE_FORM = "main.queue .queue__save-form";
+const QUEUE_EMPTY = "main.queue [data-test-empty-queue]";
 const OPEN_FILTER_TAB = "main.queue .queue__filter-link--active";
 const UNREAD_FILTER_TAB = 'main.queue [data-test-filter="unread"]';
 const UNREAD_FILTER_LABEL = "main.queue #queue-unread-label";
@@ -146,6 +147,12 @@ async function replaceOpenName(page: Page, name: string): Promise<void> {
 	await page.keyboard.type(name);
 }
 
+async function openNewQueue(page: Page): Promise<void> {
+	await openQueue(page, QUEUES_PANEL);
+	await page.click('[data-test-action="new-queue"]');
+	await page.waitForSelector(RENAMEABLE_TAB);
+}
+
 async function openQueue(page: Page, search: string): Promise<void> {
 	await page.goto(`${BASE_URL}/queue${search}`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-queue");
@@ -200,7 +207,7 @@ async function railBesideTheListing(page: Page): Promise<void> {
 		"past the breakpoint the queue must move left of the listing, joined only at the tab's base",
 	);
 	assert.equal(nav.y, content.y, "the rail and the listing must start on the same line");
-	const listing = await measuredBox(page, QUEUE_PANEL_INNER);
+	const listing = await measuredBox(page, QUEUE_LISTING);
 	assert.equal(
 		listing.width,
 		DESKTOP_LISTING_WIDTH,
@@ -238,6 +245,31 @@ async function defaultQueueSettled(page: Page): Promise<void> {
 	await expect(page.locator(QUEUE_TITLE)).toHaveText("My Queue");
 	await waitForImagePixels(page, "main.queue .onboarding__avatar");
 	await seededQueueSettled(page);
+}
+
+async function madeQueueSettled(page: Page): Promise<void> {
+	await page.waitForSelector("body.page-queue");
+	await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("New Queue");
+	await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(formatTabCountLabel({ label: "To Read", count: 0 }));
+	await expect(page.locator(QUEUE_EMPTY)).toHaveCount(1);
+	await waitForImagePixels(page, "main.queue .onboarding__avatar");
+	await page.evaluate(neutraliseVolatileChrome, {
+		volatile: VOLATILE_CHROME,
+		times: PINNED_SAVED_TIMES,
+	});
+}
+
+async function madeQueueGeometry(page: Page): Promise<void> {
+	await expect(page.locator(QUEUE_SAVE_FORM)).toBeHidden();
+	const overflows = await page.evaluate(pageOverflowsSideways);
+	assert.equal(overflows, false, "the queue page must never scroll sideways");
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "a whole-page capture needs a fixed viewport to size its clip");
+	const listing = await measuredBox(page, QUEUE_LISTING);
+	assert.ok(
+		listing.y + listing.height <= viewport.height,
+		`the whole-page clip runs to ${Math.ceil(listing.y + listing.height)}px, past the ${viewport.height}px viewport a clip can reach`,
+	);
 }
 
 async function wholeQueueGeometry(page: Page): Promise<void> {
@@ -360,6 +392,33 @@ const DEFAULT_QUEUE_MOBILE_LIGHT: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const MADE_QUEUE_DESKTOP_LIGHT: VisualCheckpoint = {
+	name: "queue-page-made-desktop-light",
+	settled: madeQueueSettled,
+	geometry: madeQueueGeometry,
+	target: QUEUE_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const MADE_QUEUE_DESKTOP_DARK: VisualCheckpoint = {
+	name: "queue-page-made-desktop-dark",
+	settled: madeQueueSettled,
+	geometry: madeQueueGeometry,
+	target: QUEUE_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const MADE_QUEUE_MOBILE_LIGHT: VisualCheckpoint = {
+	name: "queue-page-made-mobile-light",
+	settled: madeQueueSettled,
+	geometry: madeQueueGeometry,
+	target: QUEUE_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
 /* The strip's own box ends on the listing's border row, because that is what the
  * -1px join means — so an element capture of the strip is the close-up of the
  * seam, the same way the rail's element capture frames its join. */
@@ -450,6 +509,48 @@ test.describe("Queue page (mobile)", () => {
 		await openQueue(page, QUEUES_PANEL);
 
 		await captureCheckpoint(page, WHOLE_QUEUE_MOBILE_LIGHT);
+	});
+});
+
+test.describe("Queue the reader made", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
+
+	test("stands empty with no save bar, pointing back at the default queue (light)", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-page-made-desktop-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openNewQueue(page);
+
+		await captureCheckpoint(page, MADE_QUEUE_DESKTOP_LIGHT);
+	});
+
+	test("stands empty with no save bar, pointing back at the default queue (dark)", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-page-made-desktop-dark-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await page.emulateMedia({ colorScheme: "dark" });
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openNewQueue(page);
+
+		await captureCheckpoint(page, MADE_QUEUE_DESKTOP_DARK);
+	});
+});
+
+test.describe("Queue the reader made (mobile)", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE_TALL });
+
+	test("stands empty with no save bar, pointing back at the default queue", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-page-made-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openNewQueue(page);
+
+		await captureCheckpoint(page, MADE_QUEUE_MOBILE_LIGHT);
 	});
 });
 

@@ -49,7 +49,6 @@ import type {
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
-	SaveQueueArticle,
 	UpdateArticleStatus,
 	UpdateQueueArticleStatus,
 } from "@packages/provider-contracts/article-store";
@@ -148,7 +147,7 @@ import {
 	defaultQueueLabel,
 	generateQueueSlug,
 } from "@packages/domain/queue";
-import type { SaveArticleAtQueueTop } from "@packages/save-article";
+import { DEFAULT_QUEUE } from "./queue.nav";
 import type { QueueRailViewModel } from "./queue.component";
 import { queueReturnQuery } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
@@ -307,7 +306,6 @@ interface QueueDependencies {
 	findQueueArticles: FindQueueArticles;
 	countQueueArticles: CountQueueArticles;
 	findQueueArticleById: FindQueueArticleById;
-	saveQueueArticle: SaveQueueArticle;
 	updateQueueArticleStatus: UpdateQueueArticleStatus;
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
@@ -579,19 +577,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * handler below runs today's code path byte for byte unless a reader addressed
 	 * one of their own queues. */
 	const storeFor = (queue: QueueSlug) => queueScopedStore(deps, queue);
-
-	const saveArticleAtQueueTopFor = (queue: QueueSlug): SaveArticleAtQueueTop => {
-		if (queue === DEFAULT_QUEUE_SLUG) return saveArticleAtQueueTop;
-		const scoped = storeFor(queue);
-		return initSaveArticleAtQueueTop({
-			allocateSavedAt: deps.allocateSavedAt,
-			saveArticleFromUrl: initSaveArticleFromUrl({
-				...deps,
-				saveArticle: scoped.saveArticle,
-				updateArticleStatus: scoped.updateArticleStatus,
-			}),
-		});
-	};
 
 	const deleteArticleFromQueueFor = (queue: QueueSlug) => {
 		if (queue === DEFAULT_QUEUE_SLUG) return deleteArticleFromQueue;
@@ -1711,18 +1696,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const validation = deps.validateSaveableUrl(submittedUrl);
 
 		const context = await resolveQueueContext(req, userId);
-		const targetQueue = context.state.queue;
-		const store = storeFor(targetQueue);
+		const saveContext: QueueContext = {
+			...context,
+			state: parseQueueUrl({}),
+			activeQueue: DEFAULT_QUEUE,
+		};
 
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
-			const urlState = parseQueueUrl({ queue: targetQueue });
-			const result = await store.findArticlesByUser({ userId, excludeContent: true });
+			const result = await deps.findArticlesByUser({ userId, excludeContent: true });
 			const [summaryByUrl, crawlByUrl] = await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
 			]);
-			const vm = toQueueViewModel(result, urlState, {
+			const vm = toQueueViewModel(result, saveContext.state, {
 				errors: [{ message: validation.error.message }],
 				saveErrorCode: validation.error.code,
 				summaryByUrl,
@@ -1730,24 +1717,24 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				linkParams: context.linkParams,
 			});
 			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, { ...context, state: urlState }, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
 			return;
 		}
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			await saveArticleAtQueueTopFor(targetQueue)({
+			await saveArticleAtQueueTop({
 				userId,
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
-			res.redirect(303, `${buildQueueUrl({ queue: targetQueue }, context.linkParams)}#latest-saved`);
+			res.redirect(303, `${buildQueueUrl(saveContext.state, context.linkParams)}#latest-saved`);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, buildQueueUrl({ queue: targetQueue }, [...context.linkParams, ["error_code", "save_failed"]]));
+			res.redirect(303, buildQueueUrl(saveContext.state, [...context.linkParams, ["error_code", "save_failed"]]));
 		}
 	});
 

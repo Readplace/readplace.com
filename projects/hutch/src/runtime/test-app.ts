@@ -160,7 +160,6 @@ function flattenFixtureToAppDependencies(
 		findQueueArticles: fixture.articleStore.findQueueArticles,
 		countQueueArticles: fixture.articleStore.countQueueArticles,
 		findQueueArticleById: fixture.articleStore.findQueueArticleById,
-		saveQueueArticle: fixture.articleStore.saveQueueArticle,
 		updateQueueArticleStatus: fixture.articleStore.updateQueueArticleStatus,
 		deleteQueueArticle: fixture.articleStore.deleteQueueArticle,
 		markQueueArticleViewed: fixture.articleStore.markQueueArticleViewed,

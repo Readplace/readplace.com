@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { QUEUE_LABEL_MAX_LENGTH, QUEUE_MAX_PER_USER } from "@packages/domain/queue";
+import { MinutesSchema } from "@packages/domain/article";
+import { QUEUE_LABEL_MAX_LENGTH, QUEUE_MAX_PER_USER, QueueSlugSchema } from "@packages/domain/queue";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -8,6 +9,7 @@ import { loginAgent, useTestServer } from "../../../test-app";
 const useApp = useTestServer();
 
 type TestAgent = Awaited<ReturnType<typeof loginAgent>>;
+type TestHarness = ReturnType<typeof useApp>;
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
@@ -58,9 +60,32 @@ function queueLabels(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-queue]"), (el) => el.textContent);
 }
 
-async function saveInto(agent: TestAgent, queue: string | undefined, url: string) {
-	const action = queue === undefined ? "/queue/save" : `/queue/save?feature=queues&queue=${queue}`;
-	return agent.post(action).type("form").send({ url });
+async function save(agent: TestAgent, url: string) {
+	return agent.post("/queue/save").type("form").send({ url });
+}
+
+async function saveFrom(agent: TestAgent, queue: string, url: string) {
+	return agent.post(`/queue/save?feature=queues&queue=${queue}`).type("form").send({ url });
+}
+
+async function seedInto(harness: TestHarness, queue: string, url: string) {
+	const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+	assert(userId, "seeded login user must exist");
+	return harness.articleStore.saveQueueArticle({
+		userId,
+		queue: QueueSlugSchema.parse(queue),
+		url,
+		metadata: { title: url, siteName: "example.com", excerpt: "", wordCount: 0 },
+		estimatedReadTime: MinutesSchema.parse(0),
+		provenance: { kind: "web" },
+		savedAt: new Date(),
+	});
+}
+
+function saveFormClasses(doc: Document): string[] {
+	const form = doc.querySelector('[data-test-form="save-article"]');
+	assert(form, "the queue page must render the save bar");
+	return form.className.split(" ");
 }
 
 describe("POST /queue/queues", () => {
@@ -209,8 +234,8 @@ describe("a URL saved into more than one queue", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
-		await saveInto(agent, undefined, "https://example.com/a");
-		await saveInto(agent, queue, "https://example.com/a");
+		await save(agent, "https://example.com/a");
+		await seedInto(harness, queue, "https://example.com/a");
 
 		const onDefault = parse((await agent.get("/queue")).text);
 		const onWork = parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text);
@@ -223,8 +248,8 @@ describe("a URL saved into more than one queue", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
-		await saveInto(agent, undefined, "https://example.com/a");
-		await saveInto(agent, queue, "https://example.com/a");
+		await save(agent, "https://example.com/a");
+		await seedInto(harness, queue, "https://example.com/a");
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
@@ -242,8 +267,8 @@ describe("a URL saved into more than one queue", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
-		await saveInto(agent, undefined, "https://example.com/a");
-		await saveInto(agent, queue, "https://example.com/a");
+		await save(agent, "https://example.com/a");
+		await seedInto(harness, queue, "https://example.com/a");
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
@@ -268,8 +293,8 @@ describe("a URL saved into more than one queue", () => {
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
-		await saveInto(agent, undefined, "https://example.com/a");
-		await saveInto(agent, queue, "https://example.com/a");
+		await save(agent, "https://example.com/a");
+		await seedInto(harness, queue, "https://example.com/a");
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
@@ -286,8 +311,8 @@ describe("a queue the reader opened", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
-		await saveInto(agent, undefined, "https://example.com/default-only");
-		await saveInto(agent, queue, "https://example.com/work-only");
+		await save(agent, "https://example.com/default-only");
+		await seedInto(harness, queue, "https://example.com/work-only");
 
 		const onWork = parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text);
 		expect(
@@ -299,23 +324,38 @@ describe("a queue the reader opened", () => {
 		expect(counts.text).toContain("To Read (1)");
 	});
 
-	it("takes the save bar's link even when the reader never touched the default queue", async () => {
+	it("drops the save into the default queue however the request names another", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
 
-		const response = await saveInto(agent, queue, "https://example.com/only-here");
+		const response = await saveFrom(agent, queue, "https://example.com/only-here");
 
-		expect(response.headers.location).toBe(`/queue?queue=${queue}&feature=queues#latest-saved`);
-		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([]);
-		expect(articleIds(parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text))).toHaveLength(1);
+		expect(response.headers.location).toBe("/queue?feature=queues#latest-saved");
+		expect(articleIds(parse((await agent.get("/queue")).text))).toHaveLength(1);
+		expect(articleIds(parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text))).toEqual([]);
+	});
+
+	it("hides the save bar and points the empty state at the default queue", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const queue = await createQueueAndOpen(agent);
+
+		const onWork = parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text);
+		const onDefault = parse((await agent.get("/queue?feature=queues")).text);
+
+		expect(saveFormClasses(onWork)).toContain("queue__save-form--hidden");
+		expect(saveFormClasses(onDefault)).toContain("queue__save-form--visible");
+		const empty = onWork.querySelector("[data-test-empty-queue]");
+		assert(empty, "an untouched queue must render its empty state");
+		expect(empty.textContent).toContain("Every link you save lands in My Queue");
 	});
 
 	it("opens the owner reader for an article only that queue holds", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
-		await saveInto(agent, queue, "https://example.com/only-here");
+		await seedInto(harness, queue, "https://example.com/only-here");
 		const doc = parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text);
 		const readerHref = doc.querySelector("[data-test-article-title]")?.getAttribute("href");
 		assert(readerHref, "the card title must link to the reader");
@@ -331,11 +371,11 @@ describe("a reader who never turned the queues feature on", () => {
 	it("sees the same page whether or not they own other queues", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		await saveInto(agent, undefined, "https://example.com/a");
+		await save(agent, "https://example.com/a");
 		const before = parse((await agent.get("/queue")).text);
 
 		const queue = await createQueueAndOpen(agent);
-		await saveInto(agent, queue, "https://example.com/work-only");
+		await seedInto(harness, queue, "https://example.com/work-only");
 
 		const after = parse((await agent.get("/queue")).text);
 		expect(mainMarkup(after)).toBe(mainMarkup(before));
@@ -353,11 +393,21 @@ describe("a reader who never turned the queues feature on", () => {
 		expect(doc.querySelector("main.queue")?.className).toBe("queue");
 	});
 
+	it("keeps the save bar on a queue URL the flag never opened", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const queue = await createQueueAndOpen(agent);
+
+		const doc = parse((await agent.get(`/queue?queue=${queue}`)).text);
+
+		expect(saveFormClasses(doc)).toContain("queue__save-form--visible");
+	});
+
 	it("counts and lists only the default queue", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
-		await saveInto(agent, queue, "https://example.com/work-only");
+		await seedInto(harness, queue, "https://example.com/work-only");
 
 		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([]);
 		expect((await agent.get("/queue/counts")).text).not.toContain("To Read (1)");
