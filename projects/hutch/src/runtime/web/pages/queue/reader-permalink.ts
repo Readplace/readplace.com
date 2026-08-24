@@ -8,7 +8,6 @@ import type {
 	FindArticleUrlById,
 } from "@packages/provider-contracts/article-store";
 import type { Redirect } from "../../redirect.component";
-import { shareUserIdPrefix } from "../../shared/share-user-id";
 import { collectUtmParams } from "../../shared/utm";
 import { viewPathFor } from "../view/view-path";
 import {
@@ -42,14 +41,10 @@ const REDIRECT_TO_QUEUE: ReaderPermalinkResult = {
 /** UTM params on the /view redirect let analytics distinguish shared
  * /read clicks from organic /view traffic. Preserve any incoming UTM
  * (e.g. a campaign-tagged share URL) over the defaults so external
- * attribution survives the redirect. When the requester is logged in,
- * `utm_content` is overridden with their userId prefix so the receiving
- * `/view` page treats the link as permanent (no expiry); a re-shared
- * link therefore carries the latest sharer's trace, not the original. */
+ * attribution survives the redirect. */
 function buildShareRedirectUrl(
 	articleUrl: string,
 	query: Request["query"],
-	requesterId: UserId | undefined,
 ): string {
 	const incomingUtm = collectUtmParams(query);
 	const params = new URLSearchParams(
@@ -61,9 +56,6 @@ function buildShareRedirectUrl(
 				["utm_campaign", "read-permalink"],
 			],
 	);
-	if (requesterId !== undefined) {
-		params.set("utm_content", shareUserIdPrefix(requesterId));
-	}
 	return `${viewPathFor(articleUrl)}?${params.toString()}`;
 }
 
@@ -122,7 +114,7 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 			kind: "redirect",
 			redirect: {
 				statusCode: 302,
-				location: buildShareRedirectUrl(articleUrl, input.query, input.requesterId),
+				location: buildShareRedirectUrl(articleUrl, input.query),
 			},
 		};
 	};

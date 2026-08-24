@@ -543,7 +543,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 		logWidget({
 			region,
-			title: "Anonymous reader save attempts by outcome (reader_view + reader_paywall)",
+			title: "Anonymous reader save prompts (reader_view, retired reader_paywall, pre-surface history)",
 			logGroupNames: analyticsSource,
 			query: [
 				`fields coalesce(outcome, "${SAVE_OUTCOMES.promptedToSignUp}") as outcome`,

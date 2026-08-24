@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { UserIdPrefixSchema } from "@packages/domain/user";
 import { renderShareBalloon } from "./share-balloon.component";
 
 function parse(html: string): Document {
@@ -25,21 +24,7 @@ function copyUrl(doc: Document): URL {
 }
 
 describe("renderShareBalloon", () => {
-	it("stamps utm_content with the sharer prefix on both share and copy URLs when provided", () => {
-		const html = renderShareBalloon({
-			shareUrl: "https://readplace.com/view/x",
-			shareTitle: "A title",
-			shareHint: "share me",
-			shareSource: "reader-internal",
-			sharerUserIdPrefix: UserIdPrefixSchema.parse("abcdef"),
-		});
-		const doc = parse(html);
-
-		assert.equal(shareUrl(doc).searchParams.get("utm_content"), "abcdef");
-		assert.equal(copyUrl(doc).searchParams.get("utm_content"), "abcdef");
-	});
-
-	it("omits utm_content when no sharer prefix is provided", () => {
+	it("carries only source, medium and campaign on the share and copy URLs", () => {
 		const html = renderShareBalloon({
 			shareUrl: "https://readplace.com/view/x",
 			shareTitle: "A title",

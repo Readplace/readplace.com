@@ -28,7 +28,6 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
@@ -52,10 +51,6 @@ import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
-import type { FindUserIdsByPrefix } from "@packages/provider-contracts/auth";
-import type { GetEffectiveAccess } from "@packages/subscription-access";
-import { resolveSharerPublicAccess } from "./sharer-access";
-import { PERMANENT_ARTICLE_DOMAINS, PERMANENT_REFERRER_DOMAINS, computePublicViewExpiry, isPermanentReferrer, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams } from "./view-expiry";
 import { parseViewPath, viewPathFor } from "./view-path";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
 
@@ -78,8 +73,6 @@ interface ViewDependencies {
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	consumeRateLimit: ConsumeRateLimit;
 	viewCrawlRateLimit: RateLimitRule;
-	findUserIdsByPrefix: FindUserIdsByPrefix;
-	getEffectiveAccess: GetEffectiveAccess;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
@@ -281,45 +274,9 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		}
 
 		const utmParams = collectUtmParams(req.query);
-		const utmContent = typeof req.query.utm_content === "string" ? req.query.utm_content : undefined;
-		const now = deps.now();
-
-		let expiresAt: Date | null = null;
-		let sharerInactive = false;
-		if (req.userId === undefined) {
-			const sharerPrefix = sharedUserIdFromQueryParams(utmContent);
-			const sharerAccess = sharerPrefix === null
-				? "unknown"
-				: await resolveSharerPublicAccess(
-						{
-							findUserIdsByPrefix: deps.findUserIdsByPrefix,
-							getEffectiveAccess: deps.getEffectiveAccess,
-						},
-						sharerPrefix,
-					);
-			// A sharer whose subscription lapsed keeps no perk — the link expires
-			// on the normal schedule — but the paywall says why, which a link that
-			// never named a sharer cannot.
-			sharerInactive = sharerAccess === "inactive";
-			const articleDomain = new URL(articleUrl).hostname;
-			({ expiresAt } = computePublicViewExpiry({
-				savedAt: snapshot.savedAt,
-				articleDomain,
-				permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
-				isValidSharer: sharerAccess === "valid",
-				isPermanentReferrer: isPermanentReferrer({
-					referrer: req.get("referer"),
-					permanentReferrerDomains: PERMANENT_REFERRER_DOMAINS,
-				}),
-				estimatedReadTime,
-			}));
-		}
 
 		const saveParams = new URLSearchParams([["url", articleUrl], ...utmParams]);
 		saveParams.set(SAVE_SURFACE_QUERY, SAVE_SURFACES.readerView);
-		const msLeft = expiresAt === null ? null : expiresAt.getTime() - now.getTime();
-		const counting = msLeft !== null && msLeft > 0;
-		if (counting) saveParams.set("utm_content", formatSaveUtmContent(decomposeTimeLeft(msLeft)));
 
 		const saveTip = buildSaveTip(req, { kind: "article", mode: "gating" });
 		const actions: ViewAction[] = [
@@ -327,7 +284,6 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				name: "Save to My Queue",
 				href: `/save?${saveParams.toString()}`,
 				variant: "primary",
-				expirySaveLink: counting,
 				saveTipState: saveTip.state,
 			},
 			{
@@ -341,8 +297,6 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			crawlStatus: state.crawl?.status,
 			summaryStatus: state.summary?.status,
 		});
-
-		const sharerUserIdPrefix = req.userId ? sharedUserIdFrom(req.userId) : undefined;
 
 		sendComponent(
 			req, res,
@@ -362,10 +316,6 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					actions,
 					saveTip,
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
-					expiresAt,
-					now,
-					sharerInactive,
-					sharerUserIdPrefix,
 					crawlVersions: state.crawlVersions,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },

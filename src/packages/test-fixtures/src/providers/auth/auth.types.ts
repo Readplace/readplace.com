@@ -12,7 +12,6 @@ export type {
 	FindUserById,
 	FindUserByIdResult,
 	FindUserContactByUserId,
-	FindUserIdsByPrefix,
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,

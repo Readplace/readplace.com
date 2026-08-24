@@ -82,7 +82,6 @@ import type {
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
-	FindUserIdsByPrefix,
 	ForceMarkCrawlPending,
 	GetOnboardingSignals,
 	GetSessionUserId,
@@ -192,7 +191,6 @@ export interface AuthBundle {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
-	findUserIdsByPrefix: FindUserIdsByPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;

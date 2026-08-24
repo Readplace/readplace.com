@@ -27,7 +27,6 @@ import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
-import { shareUserIdPrefix } from "../../shared/share-balloon/share-user-id-prefix";
 import { viewPathFor } from "../view/view-path";
 import { renderExitConfirm } from "./reader-exit-confirm.component";
 import { READER_STYLES } from "./reader.styles";
@@ -149,7 +148,6 @@ export function ReaderPage(
 		shareTitle: article.metadata.title,
 		shareHint: "Click here to share this post!",
 		shareSource: "reader-internal",
-		sharerUserIdPrefix: shareUserIdPrefix(article.userId),
 	});
 	const nextRead = renderNextRead({
 		related: options.related

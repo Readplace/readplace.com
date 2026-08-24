@@ -4,7 +4,6 @@ import type { UserId } from "@packages/domain/user";
 import {
 	UserIdSchema,
 	authenticatedUserIdFrom,
-	userIdPrefixFrom,
 	normalizeEmail,
 	gmailIdentityKey,
 } from "@packages/domain/user";
@@ -23,7 +22,6 @@ import type {
 	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
-	FindUserIdsByPrefix,
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -71,7 +69,6 @@ export function initInMemoryAuth(opts: {
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
-	findUserIdsByPrefix: FindUserIdsByPrefix;
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
@@ -276,14 +273,6 @@ export function initInMemoryAuth(opts: {
 		return users.has(normalizedEmail);
 	};
 
-	const findUserIdsByPrefix: FindUserIdsByPrefix = async (prefix) => {
-		const userIds: UserId[] = [];
-		for (const user of users.values()) {
-			if (userIdPrefixFrom(user.id) === prefix) userIds.push(user.id);
-		}
-		return userIds;
-	};
-
 	const findEmailByUserId: FindEmailByUserId = async (userId) => {
 		for (const user of users.values()) {
 			if (user.id === userId) return user.email;
@@ -351,7 +340,6 @@ export function initInMemoryAuth(opts: {
 		markEmailVerified,
 		markSessionEmailVerified,
 		userExistsByEmail,
-		findUserIdsByPrefix,
 		updatePassword,
 		findEmailByUserId,
 		findUserContactByUserId,

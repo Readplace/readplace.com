@@ -13,7 +13,6 @@ import {
 import { z } from "zod";
 import {
 	UserIdSchema,
-	userIdPrefixFrom,
 	normalizeEmail,
 	canonicalizeEmail,
 	gmailIdentityKey,
@@ -38,7 +37,6 @@ import type {
 	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
-	FindUserIdsByPrefix,
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -60,8 +58,6 @@ const UserRow = z.object({
 	/* Optional in the schema so reads of pre-backfill rows don't throw; new writes always set it. */
 	registeredAt: dynamoField(z.string()),
 	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
-	userIdPrefix: dynamoField(z.string()),
-	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
 	canonicalEmail: dynamoField(z.string()),
 	/* Acquisition attribution captured from the hutch_click cookie at signup.
 	 * All optional via dynamoField: organic landings carry only first_seen_at /
@@ -77,8 +73,8 @@ const UserRow = z.object({
 
 /* Gmail uniqueness claims live in the users table under this PK prefix. Zod
  * rejects "#" in emails, so a claim PK can never collide with a delivery-email
- * PK. Claim items carry ownerUserId (never userId/userIdPrefix), keeping them
- * out of both GSIs and out of countUsers' attribute_exists(userId) filter. */
+ * PK. Claim items carry ownerUserId (never userId), keeping them out of the
+ * GSI and out of countUsers' attribute_exists(userId) filter. */
 const CLAIM_PK_PREFIX = "canonical#";
 
 export function initDynamoDbAuth(deps: {
@@ -103,7 +99,6 @@ export function initDynamoDbAuth(deps: {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
-	findUserIdsByPrefix: FindUserIdsByPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
@@ -125,14 +120,6 @@ export function initDynamoDbAuth(deps: {
 		tableName: deps.sessionsTableName,
 		schema: z.object({ sessionId: z.string() }),
 	});
-	/* Matches the KEYS_ONLY projection of the users userIdPrefix-index, which
-	 * carries only the table key (email) — never userId, which UserRow requires. */
-	const userKeysByPrefix = defineDynamoTable({
-		client: deps.client,
-		tableName: deps.usersTableName,
-		schema: z.object({ email: z.string() }),
-	});
-
 	/** Persists a new user row, guarded by attribute_not_exists(email). For Gmail
 	 * mailboxes it also writes the canonical claim item in the same transaction so
 	 * the two-key uniqueness commit is atomic; a lost race on either key cancels
@@ -206,7 +193,6 @@ export function initDynamoDbAuth(deps: {
 				passwordHash,
 				emailVerified: false,
 				registeredAt: new Date().toISOString(),
-				userIdPrefix: userIdPrefixFrom(userId),
 				canonicalEmail: canonicalizeEmail(email),
 				...(attribution ?? {}),
 			},
@@ -228,7 +214,6 @@ export function initDynamoDbAuth(deps: {
 				passwordHash,
 				emailVerified: false,
 				registeredAt: new Date().toISOString(),
-				userIdPrefix: userIdPrefixFrom(userId),
 				canonicalEmail: canonicalizeEmail(email),
 				...(attribution ?? {}),
 			},
@@ -264,7 +249,6 @@ export function initDynamoDbAuth(deps: {
 				userId,
 				emailVerified: true,
 				registeredAt: new Date().toISOString(),
-				userIdPrefix: userIdPrefixFrom(userId),
 				canonicalEmail: canonicalizeEmail(email),
 				...(appleRefreshToken === undefined ? {} : { appleRefreshToken }),
 				...(attribution ?? {}),
@@ -464,23 +448,6 @@ export function initDynamoDbAuth(deps: {
 		};
 	};
 
-	const findUserIdsByPrefix: FindUserIdsByPrefix = async (prefix) => {
-		// The index yields emails only, so each match needs a second read to
-		// recover the userId the subscription lookup is keyed by. A 6-hex prefix
-		// makes more than one match vanishingly rare.
-		const { items } = await userKeysByPrefix.query({
-			IndexName: "userIdPrefix-index",
-			KeyConditionExpression: "userIdPrefix = :prefix",
-			ExpressionAttributeValues: { ":prefix": prefix },
-		});
-		const userIds: UserId[] = [];
-		for (const item of items) {
-			const user = await findUserByEmail(item.email);
-			if (user) userIds.push(user.userId);
-		}
-		return userIds;
-	};
-
 	const updatePassword: UpdatePassword = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const passwordHash = await hashPassword(password);
@@ -510,7 +477,6 @@ export function initDynamoDbAuth(deps: {
 		markEmailVerified,
 		markSessionEmailVerified,
 		userExistsByEmail,
-		findUserIdsByPrefix,
 		updatePassword,
 		findEmailByUserId,
 		findUserContactByUserId,

@@ -1,5 +1,3 @@
-import { PAYWALL_REVEALED_EVENT } from "../paywall-revealed-event";
-
 interface ShareBalloonWindow {
 	readonly scrollY: number;
 	addEventListener(
@@ -124,7 +122,6 @@ export function initShareBalloon(
 	let openTimerId: ShareTimerId | null = null;
 	let fadeTimerId: ShareTimerId | null = null;
 	let scrollListener: (() => void) | null = null;
-	let paywallRevealListener: (() => void) | null = null;
 	let attached = false;
 
 	function isArticleReady(): boolean {
@@ -138,14 +135,9 @@ export function initShareBalloon(
 		return slot.getAttribute("data-reader-status") === "ready";
 	}
 
-	function isPaywallActive(): boolean {
-		return deps.document.querySelector('[data-paywall-active="true"]') !== null;
-	}
-
 	function openBalloon() {
 		openTimerId = null;
 		assert(page, "an open can only be scheduled while a balloon is adopted");
-		if (isPaywallActive()) return;
 		page.wrap.classList.add(OPEN_CLASS);
 	}
 
@@ -167,16 +159,6 @@ export function initShareBalloon(
 		if (scrollListener !== null) {
 			deps.window.removeEventListener("scroll", scrollListener);
 			scrollListener = null;
-		}
-	}
-
-	function stopPaywallWatch() {
-		if (paywallRevealListener !== null) {
-			deps.document.removeEventListener(
-				PAYWALL_REVEALED_EVENT,
-				paywallRevealListener,
-			);
-			paywallRevealListener = null;
 		}
 	}
 
@@ -234,7 +216,6 @@ export function initShareBalloon(
 		assert(page, "a close can only be requested while a balloon is adopted");
 		cancelPendingOpen();
 		stopScrollWatch();
-		stopPaywallWatch();
 		page.wrap.classList.remove(OPEN_CLASS);
 	}
 
@@ -248,7 +229,6 @@ export function initShareBalloon(
 		cancelPendingOpen();
 		cancelPendingFade();
 		stopScrollWatch();
-		stopPaywallWatch();
 		const released = page;
 		if (released === null) return;
 		page = null;
@@ -270,11 +250,6 @@ export function initShareBalloon(
 		if (readDismissed()) return;
 		scrollListener = onScroll;
 		deps.window.addEventListener("scroll", scrollListener, { passive: true });
-		paywallRevealListener = closeAndStopReopening;
-		deps.document.addEventListener(
-			PAYWALL_REVEALED_EVENT,
-			paywallRevealListener,
-		);
 		onScroll();
 	}
 

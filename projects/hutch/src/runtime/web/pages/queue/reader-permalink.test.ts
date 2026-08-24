@@ -6,7 +6,6 @@ import { initReaderPermalink, type ReaderPermalinkDeps } from "./reader-permalin
 
 const OWNER_ID = UserIdSchema.parse("owner-user");
 const STRANGER_ID = UserIdSchema.parse("stranger-user");
-const STRANGER_ID_PREFIX = "strang";
 const ARTICLE_URL = "https://example.com/shared-article";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL);
 const UNKNOWN_HASH = "0".repeat(32);
@@ -81,7 +80,7 @@ describe("resolveReaderPermalink", () => {
 		expect(result).toEqual({ kind: "not-found" });
 	});
 
-	it("redirects a logged-in non-owner to the public /view permalink, stamping utm_content with the first 6 chars of their userId so /view treats the link as a permanent share", async () => {
+	it("redirects a logged-in non-owner to the public /view permalink", async () => {
 		const resolve = initReaderPermalink(createDeps({
 			findArticleById: async () => null,
 			findArticleUrlById: async (id) =>
@@ -94,12 +93,12 @@ describe("resolveReaderPermalink", () => {
 			kind: "redirect",
 			redirect: {
 				statusCode: 302,
-				location: `/view/example.com/shared-article?${DEFAULT_UTM}&utm_content=${STRANGER_ID_PREFIX}`,
+				location: `/view/example.com/shared-article?${DEFAULT_UTM}`,
 			},
 		});
 	});
 
-	it("redirects an anonymous visitor to the public /view permalink without consulting findArticleById, and without stamping utm_content so /view applies the standard 3-day public window", async () => {
+	it("redirects an anonymous visitor to the public /view permalink without consulting findArticleById", async () => {
 		let ownerLookupCalls = 0;
 		const resolve = initReaderPermalink(createDeps({
 			findArticleById: async () => {
@@ -172,7 +171,7 @@ describe("resolveReaderPermalink", () => {
 		});
 	});
 
-	it("preserves incoming UTM params from a logged-in requester but stamps utm_content with the requester's userId prefix", async () => {
+	it("preserves incoming UTM params from a logged-in requester", async () => {
 		const resolve = initReaderPermalink(createDeps({
 			findArticleUrlById: async () => ARTICLE_URL,
 		}));
@@ -187,7 +186,7 @@ describe("resolveReaderPermalink", () => {
 		const location = new URL(result.redirect.location, "https://example.test");
 		expect(location.searchParams.get("utm_source")).toBe("newsletter");
 		expect(location.searchParams.get("utm_campaign")).toBe("weekly");
-		expect(location.searchParams.get("utm_content")).toBe(STRANGER_ID_PREFIX);
+		expect(location.searchParams.get("utm_content")).toBe(null);
 	});
 
 	it("redirects a logged-out visitor arriving via the reader-ready email marker to /login, returning to the marked private reader after login", async () => {
@@ -289,12 +288,12 @@ describe("resolveReaderPermalink", () => {
 			kind: "redirect",
 			redirect: {
 				statusCode: 302,
-				location: `/view/example.com/shared-article?${DEFAULT_UTM}&utm_content=${STRANGER_ID_PREFIX}`,
+				location: `/view/example.com/shared-article?${DEFAULT_UTM}`,
 			},
 		});
 	});
 
-	it("overrides an incoming utm_content with the current sharer's userId prefix so a re-shared link traces back to the latest sharer, not the original", async () => {
+	it("passes an incoming utm_content through untouched", async () => {
 		const resolve = initReaderPermalink(createDeps({
 			findArticleUrlById: async () => ARTICLE_URL,
 		}));
@@ -311,7 +310,6 @@ describe("resolveReaderPermalink", () => {
 		assert(result.kind === "redirect");
 		const location = new URL(result.redirect.location, "https://example.test");
 		expect(location.searchParams.get("utm_source")).toBe("newsletter");
-		expect(location.searchParams.get("utm_content")).toBe(STRANGER_ID_PREFIX);
-		expect(location.searchParams.getAll("utm_content")).toEqual([STRANGER_ID_PREFIX]);
+		expect(location.searchParams.getAll("utm_content")).toEqual(["abcdef"]);
 	});
 });

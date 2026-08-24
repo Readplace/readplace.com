@@ -396,9 +396,7 @@ export function createQueueActions(
 				expect(onReader).toBe(true)
 
 				// Trigger the share balloon, click Copy, then visit the produced
-				// /view link in a fresh anonymous browser context. Regression guard
-				// for a 500 from findUserIdsByPrefix when the share URL carries a
-				// utm_content prefix that hits the KEYS_ONLY userIdPrefix-index GSI.
+				// /view link in a fresh anonymous browser context.
 				await page.evaluate(() => {
 					const article = document.querySelector<HTMLElement>('[data-article-body]')
 					const height = article ? article.offsetHeight : 0

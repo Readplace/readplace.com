@@ -96,7 +96,6 @@ export type SaveOutcome = (typeof SAVE_OUTCOMES)[keyof typeof SAVE_OUTCOMES];
 
 export const SAVE_LINK_SURFACES = [
 	SAVE_SURFACES.readerView,
-	SAVE_SURFACES.readerPaywall,
 	SAVE_SURFACES.homepageHero,
 	SAVE_SURFACES.embed,
 	SAVE_SURFACES.webmcp,

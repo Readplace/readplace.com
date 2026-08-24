@@ -232,7 +232,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 
 	it("scopes the anonymous reader outcome widget to the same two reader surfaces the funnel uses", () => {
 		const queries = widgetQueries();
-		const outcomes = queries.find((q) => q.includes("stats count(*) as attempts by outcome"));
+		const outcomes = queries.find((q) => q.includes("stats count(*) as attempts by outcome") && q.includes("is_authenticated = 0"));
 		expect(outcomes).toBeDefined();
 		expect(outcomes).toContain(`surface in ["${SAVE_SURFACES.readerView}", "${SAVE_SURFACES.readerPaywall}"]`);
 		expect(outcomes).toContain("is_authenticated = 0");

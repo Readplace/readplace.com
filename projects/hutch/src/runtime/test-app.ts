@@ -138,7 +138,6 @@ function flattenFixtureToAppDependencies(
 		markSessionEmailVerified: fixture.auth.markSessionEmailVerified,
 		findUserById: fixture.auth.findUserById,
 		userExistsByEmail: fixture.auth.userExistsByEmail,
-		findUserIdsByPrefix: fixture.auth.findUserIdsByPrefix,
 		updatePassword: fixture.auth.updatePassword,
 		findEmailByUserId: fixture.auth.findEmailByUserId,
 		findArticleById: fixture.articleStore.findArticleById,

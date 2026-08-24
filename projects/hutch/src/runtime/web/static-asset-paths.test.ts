@@ -4,7 +4,6 @@ describe("isStaticAssetRequestPath", () => {
 	it.each([
 		"/client-dist",
 		"/client-dist/toast.client.js",
-		"/client-dist/view-paywall.client.js.map",
 		"/toast.client.js",
 		"/extension-suggestion-banner.client.js",
 		"/progress-bar.client.js.map",

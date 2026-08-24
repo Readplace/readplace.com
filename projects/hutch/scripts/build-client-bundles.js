@@ -263,24 +263,6 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
-      "src/runtime/web/pages/view/expiry-counter.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "expiry-counter.client.js"),
-    globalName: "ExpiryCounter",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  ExpiryCounter.initExpiryCounter({",
-      "    document: window.document,",
-      "    now: function () { return Date.now(); },",
-      "    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
-      "    clearIntervalFn: function (id) { window.clearInterval(id); }",
-      "  });",
-      "});",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
       "src/runtime/web/pages/save/save-error.client.ts",
     ),
     outfile: path.join(OUT_DIR, "save-error.client.js"),
@@ -291,26 +273,6 @@ const BUNDLES = [
       "    document: window.document,",
       "    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
       "    clearIntervalFn: function (id) { window.clearInterval(id); }",
-      "  });",
-      "});",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
-      "src/runtime/web/pages/view/view-paywall.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "view-paywall.client.js"),
-    globalName: "ViewPaywall",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  ViewPaywall.initViewPaywall({",
-      "    document: window.document,",
-      "    window: window,",
-      "    now: function () { return Date.now(); },",
-      "    setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "    clearTimeoutFn: function (id) { window.clearTimeout(id); },",
-      "    dispatchDocumentEvent: function (type) { window.document.dispatchEvent(new Event(type)); }",
       "  });",
       "});",
     ].join("\n"),

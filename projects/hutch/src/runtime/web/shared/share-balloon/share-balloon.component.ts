@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { UserIdPrefix } from "@packages/domain/user";
 import { requireEnv } from "@packages/require-env";
 import { render } from "@packages/web-shell";
 import { COPY_ICON_SVG } from "./copy-icon";
@@ -24,10 +23,6 @@ export interface ShareBalloonInput {
 	shareTitle: string;
 	shareHint: string;
 	shareSource: ShareBalloonSource;
-	/** First 6 hex chars of the authenticated sharer's UserId. When present,
-	 * stamped into utm_content so recipients hit the permanent-share branch
-	 * of {@link computePublicViewExpiry} and skip the expiry counter. */
-	sharerUserIdPrefix?: UserIdPrefix;
 }
 
 function withUtm(
@@ -35,16 +30,12 @@ function withUtm(
 	params: {
 		medium: "copy" | "share";
 		campaign: ShareBalloonSource;
-		content?: string;
 	},
 ): string {
 	const url = new URL(baseUrl);
 	url.searchParams.set("utm_source", "share-balloon");
 	url.searchParams.set("utm_medium", params.medium);
 	url.searchParams.set("utm_campaign", params.campaign);
-	if (params.content !== undefined) {
-		url.searchParams.set("utm_content", params.content);
-	}
 	return url.toString();
 }
 
@@ -53,12 +44,10 @@ export function renderShareBalloon(input: ShareBalloonInput): string {
 		shareUrlCopy: withUtm(input.shareUrl, {
 			medium: "copy",
 			campaign: input.shareSource,
-			content: input.sharerUserIdPrefix,
 		}),
 		shareUrlShare: withUtm(input.shareUrl, {
 			medium: "share",
 			campaign: input.shareSource,
-			content: input.sharerUserIdPrefix,
 		}),
 		shareTitle: input.shareTitle,
 		shareHint: input.shareHint,

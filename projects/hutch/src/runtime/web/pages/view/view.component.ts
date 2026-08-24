@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
@@ -7,12 +6,10 @@ import type {
 	Minutes,
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
-import { decomposeTimeLeft, formatCounter } from "@packages/time-left";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { requireEnv } from "@packages/require-env";
-import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
-import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
@@ -24,7 +21,6 @@ import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
-import type { SharedUserId } from "./view-expiry";
 import { viewPathFor } from "./view-path";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
@@ -32,8 +28,6 @@ import { VIEW_STYLES } from "./view.styles";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
-const EXPIRY_COUNTER_SCRIPT = `<script src="/client-dist/expiry-counter.client.js" defer></script>`;
-const VIEW_PAYWALL_SCRIPT = `<script src="/client-dist/view-paywall.client.js" defer></script>`;
 
 const DEFAULT_OG_IMAGE = `${STATIC_BASE_URL}/og-image-1200x630.png`;
 const DEFAULT_TWITTER_IMAGE = `${STATIC_BASE_URL}/twitter-card-1200x600.png`;
@@ -54,84 +48,13 @@ const VIEW_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-const VIEW_PAYWALL_TEMPLATE = readFileSync(
-	join(__dirname, "view-paywall.template.html"),
-	"utf-8",
-);
-
-const PARSE_ORIGIN = "https://internal.invalid";
-const PAYWALL_TRACKING_SOURCE = "view-paywall";
-const PAYWALL_REFERRAL_SOURCE = "readplace";
-const PAYWALL_REFERRAL_MEDIUM = "referral";
-
-function paywallOriginalHref(originalUrl: URL): string {
-	const tagged = new URL(originalUrl);
-	tagged.searchParams.set("utm_source", PAYWALL_REFERRAL_SOURCE);
-	tagged.searchParams.set("utm_medium", PAYWALL_REFERRAL_MEDIUM);
-	tagged.searchParams.set("utm_content", "read-original");
-	return tagged.toString();
-}
-
-function paywallSaveHref(saveHref: string): string {
-	const url = new URL(saveHref, PARSE_ORIGIN);
-	url.searchParams.set(SAVE_SURFACE_QUERY, SAVE_SURFACES.readerPaywall);
-	return `${url.pathname}${url.search}`;
-}
-
-function renderViewPaywall(input: {
-	saveHref: string;
-	originalUrl: string;
-	expiresAtIso: string;
-	sharerInactive: boolean;
-}): string {
-	const originalUrl = new URL(input.originalUrl);
-	return render(VIEW_PAYWALL_TEMPLATE, {
-		saveHref: withInternalTracking(paywallSaveHref(input.saveHref), {
-			source: PAYWALL_TRACKING_SOURCE,
-			content: "save-to-queue",
-		}),
-		originalUrl: paywallOriginalHref(originalUrl),
-		originalHostname: originalUrl.hostname,
-		expiresAtIso: input.expiresAtIso,
-		sharerInactive: input.sharerInactive,
-	});
-}
-
 export interface ViewAction {
 	name: string;
 	href: string;
 	variant: "primary" | "secondary";
-	expirySaveLink?: boolean;
 	/** Present on the action the save-tip panel holds back, so the client script
 	 * can tell it apart from the actions it must leave alone. */
 	saveTipState?: SaveTipState;
-}
-
-export type ExpiryState = "permanent" | "counting" | "expired";
-
-export interface ExpiryFields {
-	state: ExpiryState;
-	message: string;
-	expiresAtIso?: string;
-}
-
-/** Public /view pages can be permanent (founder syndication or authenticated
- * sharer), counting down to expiry, or already expired. The counter text uses
- * day/hour/minute/second resolution so the urgency feels live without leaking
- * sub-second jitter into the SSR markup. */
-export function buildExpiryFields(
-	expiresAt: Date | null,
-	now: Date,
-): ExpiryFields {
-	if (expiresAt === null) return { state: "permanent", message: "" };
-	const msLeft = expiresAt.getTime() - now.getTime();
-	const expiresAtIso = expiresAt.toISOString();
-	if (msLeft <= 0) return { state: "expired", message: "Public access has expired.", expiresAtIso };
-	return {
-		state: "counting",
-		message: `Public access will expire in ${formatCounter(decomposeTimeLeft(msLeft))}`,
-		expiresAtIso,
-	};
 }
 
 export interface ViewPageInput {
@@ -152,10 +75,6 @@ export interface ViewPageInput {
 	actions: ViewAction[];
 	saveTip: SaveTip;
 	extensionInstallUrl?: string;
-	expiresAt: Date | null;
-	now: Date;
-	sharerInactive: boolean;
-	sharerUserIdPrefix?: SharedUserId;
 	crawlVersions?: LocalTime[];
 }
 
@@ -190,30 +109,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		shareTitle: input.metadata.title,
 		shareHint: "Click here to share this view!",
 		shareSource: "reader-public",
-		sharerUserIdPrefix: input.sharerUserIdPrefix,
 	});
-
-	const expiry = buildExpiryFields(input.expiresAt, input.now);
-
-	const primarySaveAction = input.actions.find(
-		(action) => action.variant === "primary",
-	);
-	assert(primarySaveAction, "view must render a primary Save action");
-
-	/* The paywall only exists for a non-permanent, fully-rendered reader: a
-	 * permanent page (prod, authenticated, founder syndication, valid sharer)
-	 * emits nothing new, and a pending/failed crawl already shows its own
-	 * "Your link is saved" reframe that must not be blurred. */
-	let paywall = "";
-	if (expiry.state !== "permanent" && input.crawl?.status === "ready") {
-		assert(expiry.expiresAtIso, "a non-permanent expiry must carry an ISO deadline");
-		paywall = renderViewPaywall({
-			saveHref: primarySaveAction.href,
-			originalUrl: input.displayUrl ?? input.articleUrl,
-			expiresAtIso: expiry.expiresAtIso,
-			sharerInactive: input.sharerInactive,
-		});
-	}
 
 	const content = render(VIEW_TEMPLATE, {
 		innerContent,
@@ -221,10 +117,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		actions: input.actions,
 		saveTipHtml: input.saveTip.html,
 		shareBalloon,
-		paywall,
-		expiryState: expiry.state,
-		expiryMessage: expiry.message,
-		expiresAtIso: expiry.expiresAtIso,
 	});
 
 	const ogImage = input.metadata.imageUrl ?? DEFAULT_OG_IMAGE;
@@ -268,8 +160,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			page:
 				SHARE_BALLOON_SCRIPT +
 				PROGRESS_BAR_SCRIPT +
-				EXPIRY_COUNTER_SCRIPT +
-				VIEW_PAYWALL_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
 				SAVE_TIP_SCRIPT,
 		}),
