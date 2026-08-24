@@ -279,7 +279,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- Conversions ---
-	// No exclude clause because conversion events carry no visitor_hash.
 
 	widgets.push(
 		logWidget({

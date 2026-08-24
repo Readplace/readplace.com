@@ -987,7 +987,7 @@ describe("buildSignupAttemptedEvent", () => {
 		});
 	});
 
-	it("stamps visitor_hash as the salted hash of the request ip so the dashboard owner-exclusion filter can drop the maintainer's own attempts", () => {
+	it("stamps visitor_hash as the salted hash of the request ip", () => {
 		const event = buildSignup({ req: { visitorId: VALID_VISITOR_ID, ip: "9.9.9.9" } });
 		expect(event.visitor_hash).toBe(hashIp({ ip: "9.9.9.9", salt: "test-salt" }));
 	});

@@ -207,7 +207,7 @@ Two failure modes this arrangement introduces, both of which reached production 
 
 `.envrc` supplies placeholder values for secrets that only CI holds — inspect it for which. A local `pulumi up` therefore writes those placeholders over the deployed values, and the preview shows it as ordinary drift among real changes.
 
-**Why it is worth a rule:** the damage is silent and not a deploy failure. Overwriting an analytics salt re-keys every visitor hash, so returning visitors read as new and any configured hash exclusion list stops matching — a data-quality bug with no error anywhere.
+**Why it is worth a rule:** the damage is silent and not a deploy failure. Overwriting an analytics salt re-keys every visitor hash, so returning visitors read as new — a data-quality bug with no error anywhere.
 
 `pulumi preview`, `pulumi state`, and `pulumi import` are safe: they never push config. Only `up` does. CI holds the real secrets; CI deploys.
 

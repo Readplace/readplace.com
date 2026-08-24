@@ -224,8 +224,7 @@ export interface ArticleReadEvent {
  * (the public reader doesn't record anonymous toggles). `state` distinguishes
  * open from close so the dashboard can count engagement vs dismissals. The
  * durable per-user row holds the latest state; this event carries the 30-day
- * history. `user_id` joins per cohort; `visitor_hash` applies the dashboard's
- * exclusion list.
+ * history. `user_id` joins per cohort.
  */
 export interface SummaryToggledEvent {
 	stream: typeof STREAMS.analytics;
@@ -300,9 +299,7 @@ export interface SignupAttemptedEvent {
  * marker surviving on the post-signup `/queue` pageview — a reload, share, or
  * bookmark of that URL would recount the marker, but this event fires only at
  * the signup redirect decision. `user_id` joins to the resulting `article_read`;
- * `visitor_id` joins to the follow-on `view_save_intent` that persists the save;
- * `visitor_hash` applies the dashboard's exclusion list, which matters at this
- * event's volume — a single internal test signup would skew a day's count.
+ * `visitor_id` joins to the follow-on `view_save_intent` that persists the save.
  */
 export interface FirstArticleAutosavedEvent {
 	stream: typeof STREAMS.analytics;
@@ -510,10 +507,9 @@ export function deriveSaveSurface(req: Request): SaveSurface {
  * Builds a `view_save_intent` event for any save surface. Centralizing the
  * derivation keeps `article_host` (and therefore `content_class`) normalized
  * identically across surfaces and joinable with `view_opened`, and keeps the
- * dedup/exclusion identifiers (`visitor_hash`, `visitor_id`) consistent so the
- * same dashboard exclusions apply to every emission. `referrer_host` is the
- * traffic source, captured separately from `article_host` and never used for
- * `content_class`.
+ * dedup/exclusion identifier (`visitor_id`) consistent so the same dashboard
+ * exclusions apply to every emission. `referrer_host` is the traffic source,
+ * captured separately from `article_host` and never used for `content_class`.
  */
 export function buildSaveIntentEvent(
 	deps: { now: () => Date; salt: string },

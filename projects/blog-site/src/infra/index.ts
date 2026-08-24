@@ -56,7 +56,7 @@ const lambda = new HutchLambda(BLOG_SITE_LAMBDA_NAME, {
 		STATIC_BASE_URL: staticBaseUrl,
 		DYNAMODB_SESSIONS_TABLE: sessionsTableName,
 		// Same deploy-env secret hutch's infra reads: visitor_hash must match
-		// across blog + app so the dashboard's owner-exclusion list applies to both.
+		// across blog + app.
 		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
 		// The blog is served same-origin under hutch (readplace.com/blog), so
 		// hutch's origin is the origin the blog is served on.

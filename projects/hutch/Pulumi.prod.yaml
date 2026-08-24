@@ -71,34 +71,6 @@ config:
       - google-site-verification=zdl9VpwRUFtND0VHDIbtCglJaj-IYCxSVFonNTV6qPg
     dkimRecord: "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4xjtwz2Zg6qhFYQ4YyzPhvLPpe1llWuz6ZqitCnYBbfw2n1cUgmof5nOf37ZxZNQN3QqVK0jBCVwtKTKNFn411CeIKEuOtAVcMrfTQ1oIvz5pNrUHX3BYPo5e6xYRnReEwrGrZ/NFq6RUcR3xObh7vZim6XEl5GyJ5/iXu2CUYs0/4jLvFLn88sfQ2FEpv+IyUN7Mo2Yc1Gxq37OhQEzUCb+BpvfJqdifQcr9H+Gzzqp/XzHNoUIyHYFDDgm8KP6+6SVfT6kepxohPrpkEs3nWr1i/9vHYyyyQq4vuPGC5yIIr5ABjkOIXfAt0oTSA0+uGv+agkTSQE1YLrvQBjDGwIDAQAB"
   hutch:foundingMemberLimit: '50'
-  hutch:excludedVisitorHashes: [
-    b4248a499303636a,
-    cae1bf1ec4181321,
-    41174e927f157da7,
-    4b7117ffaf8a8d4c,
-    275464cfd65e28a7,
-    b83406f00fd64b21,
-    48c6982510e6bcc9,
-    88594160212cdbdf,
-    f5921c92dcd21618,
-    f16b53a0519b3632,
-    2860ed8349a9326a,
-    e9dd888c93de4608,
-    a4406141f80be403,
-    43fb748de42b9620,
-    06b078573bbaf6f3,
-    573c2ff2b7939f2f,
-    a1814fdfe4229a14,
-    b4a154b234943575,
-    c754c936e8fdeec6,
-    362e13462b08322b,
-    f9c1a522f591fcf1,
-    3ed5982c96b1e184,
-    ced21dd8e16cf221,
-    583b92ae3a8d2bea,
-    e39b171d9e2b7fdf,
-    ac278da65b1433b6
-  ]
   hutch:excludedVisitorIds: [
     293b32c4-898e-485d-8a92-3f2f32f53289,
     d1ed4498-77f2-4d8b-b139-920d06b064b6,
