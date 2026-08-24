@@ -24,6 +24,7 @@ import {
 	classifyContentSource,
 	type ContentClass,
 } from "./content-source";
+import { gatewayRequestIdOf } from "./gateway-request-id";
 import { isSkippedPath } from "./skip-paths";
 
 declare global {
@@ -275,6 +276,7 @@ export interface ViewSaveIntentEvent {
 	browser: BrowserFamily;
 	referrer_host?: string;
 	pending_save_id?: string;
+	request_id?: string;
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
@@ -529,6 +531,7 @@ export function buildSaveIntentEvent(
 	const articleHost = articleHostFromSubmitted(params.url);
 	const referrerHost = extractReferrerHost(params.req);
 	const userAgent = params.req.get("user-agent");
+	const gatewayRequestId = gatewayRequestIdOf(params.req);
 	return {
 		stream: STREAMS.analytics,
 		event: ANALYTICS_EVENTS.viewSaveIntent,
@@ -543,6 +546,7 @@ export function buildSaveIntentEvent(
 		browser: classifyBrowser(userAgent),
 		...(referrerHost ? { referrer_host: referrerHost } : {}),
 		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
+		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
 		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
 		visitor_id: params.req.visitorId,
 		is_authenticated: params.req.userId ? 1 : 0,

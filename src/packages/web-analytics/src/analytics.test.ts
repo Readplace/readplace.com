@@ -30,6 +30,7 @@ interface MockReqOverrides {
 	ip?: string;
 	query?: Record<string, unknown>;
 	headers?: Record<string, string | undefined>;
+	requestContext?: { requestId: string };
 	visitorId?: string;
 	userId?: string;
 }
@@ -49,6 +50,7 @@ function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
 		ip: overrides.ip ?? "1.2.3.4",
 		query: overrides.query ?? {},
 		headers,
+		requestContext: overrides.requestContext,
 		visitorId: overrides.visitorId,
 		userId: overrides.userId,
 		get(name: string): string | undefined { return headers[name.toLowerCase()]; },
@@ -820,6 +822,42 @@ describe("buildSaveIntentEvent", () => {
 	it("records the client the caller states, so a save the iOS app made over an extension-shaped route is not filed as a web save", () => {
 		expect(buildIntent({ client: SAVE_CLIENTS.iosApp })).toMatchObject({ client: "ios_app" });
 		expect(buildIntent({ client: SAVE_CLIENTS.web })).toMatchObject({ client: "web" });
+	});
+
+	it("records the API Gateway request id the Lambda adapter attaches to the request, so an event joins its access-log row on an exact key instead of a fuzzy timestamp window that leaves some events unmatched and others ambiguous", () => {
+		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, requestContext: { requestId: "Abc123=" } } });
+		expect(event).toMatchObject({ request_id: "Abc123=" });
+	});
+
+	it("never records a client-supplied request-id header — the id comes from the invocation context, which no HTTP request can set, so the same code is unforgeable in Lambda, the dev server and the test app alike", () => {
+		const event = buildIntent({
+			req: {
+				visitorId: VALID_VISITOR_ID,
+				headers: { "x-gateway-request-id": "forged", "x-request-id": "forged" },
+			},
+		});
+		expect("request_id" in event).toBe(false);
+		expect(JSON.stringify(event)).not.toContain("forged");
+	});
+
+	it("records the gateway's own id even when the request also carries a conflicting x-request-id header, which serverless-http lets a client win", () => {
+		const event = buildIntent({
+			req: {
+				visitorId: VALID_VISITOR_ID,
+				headers: { "x-request-id": "forged" },
+				requestContext: { requestId: "Abc123=" },
+			},
+		});
+		expect(event).toMatchObject({ request_id: "Abc123=" });
+	});
+
+	it("omits request_id entirely where there is no gateway — an absent key rather than an empty string a Logs Insights join would treat as a real id", () => {
+		expect("request_id" in buildIntent()).toBe(false);
+	});
+
+	it("omits request_id when the invocation context carries an empty request id, rather than stamping a blank join key", () => {
+		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, requestContext: { requestId: "" } } });
+		expect("request_id" in event).toBe(false);
 	});
 
 	it("throws when the visitor-id middleware has not run (req.visitorId unset) — a save surface must never emit view_save_intent without a visitor identity to join the conversion on", () => {

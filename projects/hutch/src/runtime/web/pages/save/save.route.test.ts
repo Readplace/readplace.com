@@ -242,6 +242,23 @@ describe("Save routes", () => {
 			expect(typeof intents[0].pending_save_id).toBe("string");
 		});
 
+		it("records no request_id for a save whose client forged x-gateway-request-id and x-request-id — the id is read from the invocation context the Lambda adapter attaches to the request object, which an HTTP request has no way to set, so no ingress is left with a header to erase", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server)
+				.get("/save?url=https://example.com/article")
+				.set({
+					...BROWSER_REQUEST_HEADERS,
+					"x-gateway-request-id": "forged",
+					"x-request-id": "forged",
+				});
+
+			const intent = saveIntents(harness)[0];
+			assert(intent, "the anonymous save must still emit a view_save_intent");
+			expect("request_id" in intent).toBe(false);
+			expect(JSON.stringify(intent)).not.toContain("forged");
+		});
+
 		it("mints a pending-save cookie carrying the same id as the event so the blocked save links to the eventual signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
