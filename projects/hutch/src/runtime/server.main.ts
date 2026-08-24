@@ -1,7 +1,7 @@
 import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-port";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { requireEnv } from "@packages/require-env";
-import { createDevHutchApp } from "./dev-app";
+import { createDevReadplaceApp } from "./dev-app";
 import { PORT } from "./server";
 
 const logger = HutchLogger.from(consoleLogger);
@@ -24,7 +24,7 @@ async function main(): Promise<void> {
 	const appOrigin = new URL(requireEnv("APP_ORIGIN"));
 	appOrigin.port = String(port);
 
-	const { app } = createDevHutchApp({ appOrigin: appOrigin.origin });
+	const { app } = createDevReadplaceApp({ appOrigin: appOrigin.origin });
 	app.listen(port).on("listening", () => {
 		logger.info(`Server is running on ${appOrigin.origin}`);
 	});

@@ -168,7 +168,7 @@ const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/s
 
 const changelogBannerForRequest = new AsyncLocalStorage<ChangelogBanner>()
 
-const { app: hutchApp, auth, email } = createTestApp({
+const { app: readplaceApp, auth, email } = createTestApp({
 	...fixture,
 	// The default fixture allowlist is empty (fail-closed); the admin
 	// extend-trial flow signs in as this address to pass the /admin gate.
@@ -408,7 +408,7 @@ server.use((req, _res, next) => {
 	changelogBannerForRequest.run(E2E_CHANGELOG_BANNER, next)
 })
 
-server.use(hutchApp)
+server.use(readplaceApp)
 
 // Graceful shutdown so V8 writes coverage data to NODE_V8_COVERAGE directory
 process.on('SIGTERM', () => process.exit(0))

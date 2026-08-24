@@ -39,7 +39,7 @@ type AssemblyProvidedKeys =
 	| "analytics"
 	| "salt"
 	| "foundingAllocation";
-export type HutchProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
+export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
 
 function parseAdminEmails(raw: string): readonly string[] {
 	return raw
@@ -48,9 +48,9 @@ function parseAdminEmails(raw: string): readonly string[] {
 		.filter((s) => s.length > 0);
 }
 
-export function assembleHutchApp(input: {
+export function assembleReadplaceApp(input: {
 	appOrigin: string;
-	initProviders: (deps: { appOrigin: string }) => HutchProviders;
+	initProviders: (deps: { appOrigin: string }) => ReadplaceProviders;
 }) {
 	const { appOrigin } = input;
 	const providers = input.initProviders({ appOrigin });
@@ -111,8 +111,8 @@ export function assembleHutchApp(input: {
 	return { app, analyticsLogger };
 }
 
-export function createHutchApp() {
-	return assembleHutchApp({ appOrigin: requireEnv("APP_ORIGIN"), initProviders: initProdProviders });
+export function createReadplaceApp() {
+	return assembleReadplaceApp({ appOrigin: requireEnv("APP_ORIGIN"), initProviders: initProdProviders });
 }
 
 export const localServer = (expressApp: Express, logger: Logger): void => {
