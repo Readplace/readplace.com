@@ -6,23 +6,19 @@ import {
 } from "@packages/hutch-infra-components";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, STREAMS } from "./events";
+import { excludeInternalVisitorsClauses } from "./excluded-identities";
 import type { DashboardBody, DashboardWidget } from "./analytics-dashboard";
 
 export interface BuildRelatedPastReadsDashboardDeps {
 	region: string;
 	analyticsLogGroupName: string;
 	excludedVisitorHashes: readonly string[];
+	excludedVisitorIds: readonly string[];
 }
 
 function sourceClause(logGroupNames: readonly string[]): string {
 	assert(logGroupNames.length > 0, "sourceClause requires at least one log group name");
 	return logGroupNames.map((n) => `SOURCE '${n}'`).join(" | ");
-}
-
-function excludeVisitorHashesClause(excludedVisitorHashes: readonly string[]): string[] {
-	if (excludedVisitorHashes.length === 0) return [];
-	const list = excludedVisitorHashes.map((h) => `"${h}"`).join(", ");
-	return [`| filter (not ispresent(visitor_hash)) or (visitor_hash not in [${list}])`];
 }
 
 function logWidget(params: {
@@ -118,8 +114,8 @@ function engagementExpression(): string {
 export function buildRelatedPastReadsDashboardBody(
 	deps: BuildRelatedPastReadsDashboardDeps,
 ): DashboardBody {
-	const { region, analyticsLogGroupName, excludedVisitorHashes } = deps;
-	const exclude = excludeVisitorHashesClause(excludedVisitorHashes);
+	const { region, analyticsLogGroupName, excludedVisitorHashes, excludedVisitorIds } = deps;
+	const exclude = excludeInternalVisitorsClauses({ excludedVisitorHashes, excludedVisitorIds });
 	const analyticsSource = [analyticsLogGroupName];
 	const widgets: DashboardWidget[] = [];
 

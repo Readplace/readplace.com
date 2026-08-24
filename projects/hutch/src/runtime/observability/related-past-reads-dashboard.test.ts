@@ -9,12 +9,19 @@ import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, STREAMS } from "./events";
 import { buildRelatedPastReadsDashboardBody } from "./related-past-reads-dashboard";
 
 const EXCLUDED_HASH = "deadbeefcafef00d";
+const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
 
-function buildBody(excludedVisitorHashes: readonly string[] = [EXCLUDED_HASH]) {
+function buildBody(
+	overrides: Partial<{
+		excludedVisitorHashes: readonly string[];
+		excludedVisitorIds: readonly string[];
+	}> = {},
+) {
 	return buildRelatedPastReadsDashboardBody({
 		region: "ap-southeast-2",
 		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-		excludedVisitorHashes,
+		excludedVisitorHashes: overrides.excludedVisitorHashes ?? [EXCLUDED_HASH],
+		excludedVisitorIds: overrides.excludedVisitorIds ?? [EXCLUDED_VISITOR_ID],
 	});
 }
 
@@ -187,11 +194,38 @@ describe("buildRelatedPastReadsDashboardBody", () => {
 		expect(String(first.properties.markdown)).toContain("Similar past reads");
 	});
 
-	it("emits no exclude clause when no visitor is excluded", () => {
-		const queries = buildBody([])
+	it("drops the internal visitor by the durable visitor_id cookie on exactly the widgets the rotating IP hash already covers, so the card's own reader counts cannot keep one key and lose the other", () => {
+		const queries = logQueries();
+		const byHash = queries.filter((query) => query.includes(EXCLUDED_HASH));
+		const byVisitorId = queries.filter((query) => query.includes(EXCLUDED_VISITOR_ID));
+
+		expect(byVisitorId.length).toBeGreaterThan(0);
+		expect(byVisitorId).toEqual(byHash);
+	});
+
+	it.each([
+		{ name: "no visitor hash", overrides: { excludedVisitorHashes: [] }, absent: "visitor_hash not in" },
+		{ name: "no visitor id", overrides: { excludedVisitorIds: [] }, absent: "visitor_id not in" },
+	])("emits no exclude clause for a list that is empty ($name)", ({ overrides, absent }) => {
+		const queries = buildBody(overrides)
 			.widgets.filter((widget) => widget.type === "log")
 			.map((widget) => String(widget.properties.query));
 
-		expect(queries.filter((query) => query.includes("visitor_hash not in"))).toEqual([]);
+		expect(queries.filter((query) => query.includes(absent))).toEqual([]);
+	});
+
+	it("guards every exclusion clause with its own not-ispresent half, so an event carrying neither key survives", () => {
+		const emitted = logQueries().flatMap((query) =>
+			[...query.matchAll(/\| filter [^|]*?(?:visitor_hash|visitor_id) not in \[[^\]]*\]\)/g)].map(
+				(match) => match[0].trim(),
+			),
+		);
+
+		expect(emitted.length).toBeGreaterThan(0);
+		for (const clause of emitted) {
+			const field = /\((\w+) not in \[/.exec(clause)?.[1];
+			expect(field).toBeDefined();
+			expect(clause).toContain(`(not ispresent(${field})) or`);
+		}
 	});
 });

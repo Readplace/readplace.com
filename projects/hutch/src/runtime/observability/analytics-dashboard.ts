@@ -3,6 +3,7 @@ import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
 import { QUEUE_PATH } from "../web/pages/queue/queue.url";
+import { excludeInternalVisitorsClauses } from "./excluded-identities";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -42,6 +43,7 @@ export interface BuildAnalyticsDashboardDeps {
 	 * the 50-log-group Logs Insights cap the account has already outgrown. */
 	errorsLogGroupName: string;
 	excludedVisitorHashes: readonly string[];
+	excludedVisitorIds: readonly string[];
 }
 
 /**
@@ -117,12 +119,6 @@ function anyOriginClause(logGroupNames: readonly string[]): string {
  */
 const READER_VIEW_PATH_PATTERN = `/^${QUEUE_PATH.replaceAll("/", "\\/")}\\/[^\\/]+\\/view$/`;
 
-function excludeVisitorHashesClause(excludedVisitorHashes: readonly string[]): string[] {
-	if (excludedVisitorHashes.length === 0) return [];
-	const list = excludedVisitorHashes.map((h) => `"${h}"`).join(", ");
-	return [`| filter (not ispresent(visitor_hash)) or (visitor_hash not in [${list}])`];
-}
-
 const READER_SAVE_SURFACES = [SAVE_SURFACES.readerView, SAVE_SURFACES.readerPaywall] as const;
 
 function readerSaveSurfaceClause(): string {
@@ -157,8 +153,15 @@ function logWidget(params: {
 }
 
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {
-	const { region, hutchLogGroupName, analyticsLogGroupName, errorsLogGroupName, excludedVisitorHashes } = deps;
-	const exclude = excludeVisitorHashesClause(excludedVisitorHashes);
+	const {
+		region,
+		hutchLogGroupName,
+		analyticsLogGroupName,
+		errorsLogGroupName,
+		excludedVisitorHashes,
+		excludedVisitorIds,
+	} = deps;
+	const exclude = excludeInternalVisitorsClauses({ excludedVisitorHashes, excludedVisitorIds });
 	const widgets: DashboardWidget[] = [];
 
 	/** Every analytics widget reads the single never-expire destination group. The
@@ -751,9 +754,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// utm_content spread from hutch_click, which would otherwise bin the signup
 	// under a phantom arm (e.g. an ad's utm_content). SRM check:
 	// the two `pageview` bars must stay within a few percent — a skew means an arm
-	// is erroring and the read is void. (The internal-visitor exclude filters on
-	// visitor_hash, which conversions do not carry, so it prunes the pageview
-	// denominator but not the signup numerator — keep test signups off prod.)
+	// is erroring and the read is void.
 	widgets.push(
 		logWidget({
 			region,

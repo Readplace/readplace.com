@@ -19,17 +19,26 @@ import {
 } from "./events";
 import { buildAnalyticsDashboardBody } from "./analytics-dashboard";
 
+const EXCLUDED_HASH = "deadbeefcafef00d";
+const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
+
 const ANY_STREAM_RE = /\bstream\s*=\s*"([a-z][a-z0-9_-]*)"/g;
 const ANY_EVENT_RE = /\bevent\s*=\s*"([a-z][a-z0-9_]*)"/g;
 const EVENT_IN_LIST_RE = /\bevent\s+in\s+\[([^\]]+)\]/g;
 
-function buildBody() {
+function buildBody(
+	overrides: Partial<{
+		excludedVisitorHashes: readonly string[];
+		excludedVisitorIds: readonly string[];
+	}> = {},
+) {
 	return buildAnalyticsDashboardBody({
 		region: "ap-southeast-2",
 		hutchLogGroupName: LOG_GROUPS.hutchHandler,
 		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
 		errorsLogGroupName: ERRORS_LOG_GROUP,
-		excludedVisitorHashes: ["deadbeefcafef00d"],
+		excludedVisitorHashes: overrides.excludedVisitorHashes ?? [EXCLUDED_HASH],
+		excludedVisitorIds: overrides.excludedVisitorIds ?? [EXCLUDED_VISITOR_ID],
 	});
 }
 
@@ -479,22 +488,76 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(Object.keys(LOG_GROUPS).sort()).toEqual(Object.keys(LAMBDA_NAMES).sort());
 	});
 
-	it("omits the visitor_hash exclusion clause from every widget query when no hashes are configured — each query equals the configured-hash query with the exclusion clause stripped", () => {
-		const excludeClause = `| filter (not ispresent(visitor_hash)) or (visitor_hash not in ["deadbeefcafef00d"]) `;
-		const withExclusion = buildBody();
-		const withoutExclusion = buildAnalyticsDashboardBody({
-			region: "ap-southeast-2",
-			hutchLogGroupName: LOG_GROUPS.hutchHandler,
-			analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-			errorsLogGroupName: ERRORS_LOG_GROUP,
-			excludedVisitorHashes: [],
-		});
-		expect(withoutExclusion.widgets).toHaveLength(withExclusion.widgets.length);
-		for (let i = 0; i < withoutExclusion.widgets.length; i++) {
-			const configured = withExclusion.widgets[i].properties.query;
-			const omitted = withoutExclusion.widgets[i].properties.query;
-			if (typeof configured !== "string" || typeof omitted !== "string") continue;
-			expect(omitted).toBe(configured.split(excludeClause).join(""));
+	const HASH_CLAUSE = `| filter (not ispresent(visitor_hash)) or (visitor_hash not in ["${EXCLUDED_HASH}"]) `;
+	const VISITOR_ID_CLAUSE = `| filter (not ispresent(visitor_id)) or (visitor_id not in ["${EXCLUDED_VISITOR_ID}"]) `;
+
+	function queriesOf(body: ReturnType<typeof buildBody>): string[] {
+		return body.widgets
+			.map((w) => w.properties.query)
+			.filter((q): q is string => typeof q === "string");
+	}
+
+	const CLAUSE_CASES: {
+		name: string;
+		overrides: Parameters<typeof buildBody>[0];
+		stripped: readonly string[];
+	}[] = [
+		{ name: "both lists configured", overrides: {}, stripped: [] },
+		{
+			name: "hashes only",
+			overrides: { excludedVisitorIds: [] },
+			stripped: [VISITOR_ID_CLAUSE],
+		},
+		{
+			name: "visitor ids only",
+			overrides: { excludedVisitorHashes: [] },
+			stripped: [HASH_CLAUSE],
+		},
+		{
+			name: "neither list configured",
+			overrides: { excludedVisitorHashes: [], excludedVisitorIds: [] },
+			stripped: [HASH_CLAUSE, VISITOR_ID_CLAUSE],
+		},
+	];
+
+	it.each(CLAUSE_CASES)(
+		"emits each exclusion clause only when its own list is configured, and is otherwise byte-identical ($name)",
+		({ overrides, stripped }) => {
+			const configured = queriesOf(buildBody());
+			const actual = queriesOf(buildBody(overrides));
+			expect(actual).toHaveLength(configured.length);
+			for (let i = 0; i < actual.length; i++) {
+				let expected = configured[i];
+				for (const clause of stripped) expected = expected.split(clause).join("");
+				expect(actual[i]).toBe(expected);
+			}
+			for (const clause of stripped) {
+				for (const query of actual) expect(query).not.toContain(clause.trim());
+			}
+		},
+	);
+
+	it("prunes the owner by the durable visitor_id cookie on exactly the widgets the rotating IP hash already covers, so neither key can reach a widget the other misses", () => {
+		const queries = queriesOf(buildBody());
+		const byHash = queries.filter((q) => q.includes("visitor_hash not in"));
+		const byVisitorId = queries.filter((q) => q.includes("visitor_id not in"));
+
+		expect(byVisitorId.length).toBeGreaterThan(0);
+		expect(byVisitorId).toEqual(byHash);
+	});
+
+	it("guards every exclusion clause with its own not-ispresent half — Logs Insights reads a null field as absent, so a bare not-in would drop the whole anonymous population instead of the owner", () => {
+		const emitted = queriesOf(buildBody()).flatMap((q) =>
+			[...q.matchAll(/\| filter [^|]*?(?:visitor_hash|visitor_id) not in \[[^\]]*\]\)/g)].map((m) =>
+				m[0].trim(),
+			),
+		);
+
+		expect(emitted.length).toBeGreaterThan(0);
+		for (const clause of emitted) {
+			const field = /\((\w+) not in \[/.exec(clause)?.[1];
+			expect(field).toBeDefined();
+			expect(clause).toContain(`(not ispresent(${field})) or`);
 		}
 	});
 });

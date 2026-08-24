@@ -19,6 +19,10 @@ import {
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
+import {
+	assertExcludedVisitorHashes,
+	assertExcludedVisitorIds,
+} from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
 import { DomainRegistration } from "./domain-registration";
@@ -961,9 +965,10 @@ eventBus.subscribe(SendTrialFeedbackEmailCommand, sendTrialFeedbackEmailWithSQS)
 const region = aws.config.requireRegion();
 
 const excludedVisitorHashes = config.requireObject<string[]>("excludedVisitorHashes");
-for (const hash of excludedVisitorHashes) {
-	assert(/^[a-f0-9]+$/.test(hash), `excludedVisitorHashes entries must be lowercase hex (got: ${hash})`);
-}
+assertExcludedVisitorHashes(excludedVisitorHashes);
+
+const excludedVisitorIds = config.requireObject<string[]>("excludedVisitorIds");
+assertExcludedVisitorIds(excludedVisitorIds);
 
 new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	name: "imports-completed",
@@ -1174,6 +1179,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 			analyticsLogGroupName,
 			errorsLogGroupName,
 			excludedVisitorHashes,
+			excludedVisitorIds,
 		})),
 	),
 }, {
@@ -1196,6 +1202,7 @@ new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 			region,
 			analyticsLogGroupName,
 			excludedVisitorHashes,
+			excludedVisitorIds,
 		})),
 	),
 }, { dependsOn: [analyticsLogGroup] });
