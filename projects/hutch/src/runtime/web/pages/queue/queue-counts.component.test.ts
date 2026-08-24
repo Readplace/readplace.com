@@ -125,7 +125,7 @@ describe("queue counts fragment against the initial render", () => {
 			filters,
 			{ now: new Date("2026-01-01T00:00:00.000Z") },
 		);
-		const doc = parseFragment(QueuePage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", saveTip: { state: "due", html: "" } }).content.html);
+		const doc = parseFragment(QueuePage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", queueHoldsArticles: false, saveTip: { state: "due", html: "" } }).content.html);
 		const label = doc.querySelector("#queue-unread-label");
 		assert(label, "the queue page must render the label the counts fragment refreshes");
 		return label;

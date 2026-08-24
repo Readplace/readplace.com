@@ -831,7 +831,7 @@ describe("Queue routes", () => {
 
 			const afterDeleteResponse = await agent.get("/queue");
 			const afterDoc = new JSDOM(afterDeleteResponse.text).window.document;
-			expect(afterDoc.querySelector("[data-test-empty-queue]")?.textContent).toContain("There are no more articles to read");
+			expect(afterDoc.querySelector("[data-test-empty-queue]")?.textContent).toContain("Nothing saved yet");
 		});
 
 		it("should redirect preserving queue view state from query params", async () => {
@@ -936,7 +936,13 @@ describe("Queue routes", () => {
 			assert.equal(res.headers["hx-reselect"], "main");
 			const doc = new JSDOM(res.text).window.document;
 			assert(doc.querySelector("main"), "the fallback re-renders the whole listing");
-			assert(doc.querySelector("[data-test-empty-queue]"), "the unread tab is now empty");
+			const empty = doc.querySelector("[data-test-empty-queue]");
+			assert(empty, "the unread tab is now empty");
+			assert.match(
+				empty.textContent ?? "",
+				/There are no more articles to read/,
+				"the queue still holds the article that was just marked read",
+			);
 			assert(doc.querySelector("[data-test-toast]"), "the Undo toast survives the fallback");
 		});
 

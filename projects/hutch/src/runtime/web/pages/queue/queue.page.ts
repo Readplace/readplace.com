@@ -996,6 +996,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		};
 	};
 
+	const queueHoldsAnyArticle = async (params: {
+		userId: UserId;
+		queue: QueueSlug;
+		result: FindArticlesResult;
+	}): Promise<boolean> => {
+		if (params.result.articles.length > 0) return true;
+		const held = await storeFor(params.queue).countArticlesByUser({
+			userId: params.userId,
+			countLimit: 1,
+		});
+		return held > 0;
+	};
+
 	const renderQueueListing = async (
 		req: Request,
 		res: Response,
@@ -1011,10 +1024,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			statusCode?: number;
 		},
 	): Promise<void> => {
-		const [summaryByUrl, crawlByUrl, effectiveAccess] = await Promise.all([
+		const [summaryByUrl, crawlByUrl, effectiveAccess, queueHoldsArticles] = await Promise.all([
 			loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
 			loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
 			deps.getEffectiveAccess(input.userId),
+			queueHoldsAnyArticle({
+				userId: input.userId,
+				queue: input.context.state.queue,
+				result: input.result,
+			}),
 		]);
 		const vm = toQueueViewModel(input.result, input.context.state, {
 			errors: input.saveError ? [{ message: input.saveError }] : undefined,
@@ -1031,7 +1049,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
+				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), queueHoldsArticles, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -1705,9 +1723,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
 			const result = await deps.findArticlesByUser({ userId, excludeContent: true });
-			const [summaryByUrl, crawlByUrl] = await Promise.all([
+			const [summaryByUrl, crawlByUrl, queueHoldsArticles] = await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
+				queueHoldsAnyArticle({ userId, queue: saveContext.state.queue, result }),
 			]);
 			const vm = toQueueViewModel(result, saveContext.state, {
 				errors: [{ message: validation.error.message }],
@@ -1717,7 +1736,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				linkParams: context.linkParams,
 			});
 			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), queueHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
 			return;
 		}
 

@@ -98,14 +98,16 @@ interface QueueDisplayModel {
 
 const EMPTY_STATE_TITLES: Record<TabId, string> = {
 	queue: "There are no more articles to read",
-	done: "Your queue is empty",
+	done: "Nothing read yet",
 };
 
-export function emptyStateTitle(tab: TabId): string {
-	return EMPTY_STATE_TITLES[tab];
+const NOTHING_SAVED_TITLE = "Nothing saved yet";
+
+export function emptyStateTitle(input: { tab: TabId; queueHoldsArticles: boolean }): string {
+	return input.queueHoldsArticles ? EMPTY_STATE_TITLES[input.tab] : NOTHING_SAVED_TITLE;
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: boolean; installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
 	const linkParams = options.rail?.linkParams ?? [];
 	const saveBarHidden = vm.filters.queue !== DEFAULT_QUEUE.slug;
@@ -151,7 +153,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
 		isEmpty: vm.isEmpty,
-		emptyTitle: emptyStateTitle(activeTab),
+		emptyTitle: emptyStateTitle({ tab: activeTab, queueHoldsArticles: options.queueHoldsArticles }),
 		saveSurfacesShort: SAVE_SURFACES_SHORT_PHRASE,
 		hasArticles: !vm.isEmpty,
 		onboardingHtml,
@@ -249,9 +251,9 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; queueHoldsArticles: boolean; rail?: QueueRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
+	const displayModel = toQueueDisplayModel(vm, { queueHoldsArticles: options.queueHoldsArticles, installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT];

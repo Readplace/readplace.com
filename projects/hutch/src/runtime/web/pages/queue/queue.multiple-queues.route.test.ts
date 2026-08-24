@@ -100,7 +100,9 @@ describe("POST /queue/queues", () => {
 		expect(response.headers.location).toBe(`/queue?queue=${slug}&feature=queues`);
 		const doc = parse((await agent.get(response.headers.location)).text);
 		expect(queueLabels(doc)).toEqual(["My Queue", "New Queue"]);
-		expect(doc.querySelector("[data-test-empty-queue]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain(
+			"Nothing saved yet",
+		);
 	});
 
 	it("numbers each new queue past the default names already in use", async () => {

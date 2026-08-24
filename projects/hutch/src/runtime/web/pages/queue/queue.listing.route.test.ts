@@ -39,13 +39,27 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("There are no more articles to read");
+			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("Nothing saved yet");
 			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain(
 				"set up one-tap saving from your browser, iPhone, or AI assistant.",
 			);
 			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save?utm_source=queue&utm_medium=internal&utm_content=save");
 			expect(response.text).toContain(
 				'<script src="/client-dist/reader-nav.client.js" defer></script>',
+			);
+		});
+
+		it("should tell a reader with only unread saves that nothing is read yet", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+
+			const response = await agent.get("/queue?tab=done");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain(
+				"Nothing read yet",
 			);
 		});
 	});
