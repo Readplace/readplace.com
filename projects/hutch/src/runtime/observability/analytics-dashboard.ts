@@ -288,6 +288,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, user_id, coalesce(utm_source, referrer_host, \"direct\") as source",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
+				...exclude,
 				"| stats count_distinct(user_id) as unique_users by source",
 				"| sort unique_users desc",
 				"| limit 20",
@@ -302,6 +303,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, user_id, coalesce(utm_source, referrer_host, \"direct\") as source, tier",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
+				...exclude,
 				"| stats count_distinct(user_id) as unique_users by source, tier",
 				"| sort unique_users desc",
 				"| limit 30",
@@ -316,6 +318,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, user_id, method, tier, oauth_client_id, homepage_variant, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path, first_seen_at",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
+				...exclude,
 				"| sort @timestamp desc",
 				"| limit 50",
 			].join(" "),
@@ -377,6 +380,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"fields @timestamp, event",
 				`| filter stream = "${STREAMS.analytics}"`,
 				`| filter event in ["${ANALYTICS_EVENTS.importUploaded}", "${ANALYTICS_EVENTS.importFromUrlAcquired}", "${ANALYTICS_EVENTS.importCommitted}"]`,
+				...exclude,
 				"| stats count(*) as imports by bin(1d), event",
 			].join(" "),
 			x: 0, y: 52, width: 24, height: 6,
@@ -395,6 +399,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"fields @timestamp, event",
 				`| filter stream = "${STREAMS.subscriptions}"`,
 				`| filter event in ["${SUBSCRIPTION_EVENTS.chargeSucceeded}", "${SUBSCRIPTION_EVENTS.chargeFailed}"]`,
+				...exclude,
 				"| stats count(*) as charges by bin(1d), event",
 			].join(" "),
 			x: 0, y: 58, width: 12, height: 8,
@@ -407,6 +412,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, reason",
 				`| filter stream = "${STREAMS.subscriptions}" and event = "${SUBSCRIPTION_EVENTS.cancelled}"`,
+				...exclude,
 				"| stats count(*) as cancels by reason",
 				"| sort cancels desc",
 			].join(" "),
@@ -424,6 +430,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				// admits every origin nobody thought about, and the analytics group now
 				// receives lines from every project in the fleet.
 				anyOriginClause(SUBSCRIPTION_EVENT_ORIGINS),
+				...exclude,
 				"| sort @timestamp desc",
 				"| limit 50",
 			].join(" "),
@@ -768,6 +775,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, user_id, homepage_variant, tier",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant)`,
+				...exclude,
 				"| stats count_distinct(user_id) as signups by homepage_variant, tier",
 				"| sort signups desc",
 			].join(" "),
@@ -850,6 +858,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, event",
 				...checkoutFunnelFilter,
+				...exclude,
 				"| stats count_distinct(user_id) as users, count(*) as events by bin(1d), event",
 			].join(" "),
 			x: 0, y: 138, width: 12, height: 8,
@@ -862,6 +871,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, event, variant, reason",
 				...checkoutFunnelFilter,
+				...exclude,
 				`| stats count(*) as n by event, coalesce(variant, reason, "-") as detail`,
 				"| sort n desc",
 			].join(" "),
@@ -880,6 +890,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"fields @timestamp, event, paid_now",
 				`| filter stream = "${STREAMS.subscriptions}"`,
 				`| filter event in ["${SUBSCRIPTION_EVENTS.checkoutCompleted}", "${SUBSCRIPTION_EVENTS.resubscribeCompleted}"]`,
+				...exclude,
 				"| stats count_distinct(user_id) as users by bin(1d), event, paid_now",
 			].join(" "),
 			x: 0, y: 146, width: 12, height: 8,
@@ -915,6 +926,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, oauth_client_id, tool, outcome",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpToolCalled}"`,
+				...exclude,
 				"| stats count(*) as calls, count_distinct(user_id) as users by oauth_client_id, tool, outcome",
 				"| sort calls desc",
 				"| limit 50",
@@ -929,6 +941,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, outcome",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpToolCalled}"`,
+				...exclude,
 				"| stats count(*) as calls by bin(1d), outcome",
 			].join(" "),
 			x: 12, y: 170, width: 12, height: 8,
@@ -941,6 +954,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields user_id, tool",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpToolCalled}"`,
+				...exclude,
 				`| stats count(*) as calls, sum(tool = "${SAVE_LINK_TOOL.name}" and outcome = "${MCP_TOOL_OUTCOMES.ok}") as saves by user_id`,
 				"| sort calls desc",
 				"| limit 50",
@@ -958,6 +972,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, coalesce(oauth_client_id, \"none\") as client, method, tier",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
+				...exclude,
 				"| stats count(*) as signups by client, method, tier",
 				"| sort signups desc",
 				"| limit 50",
