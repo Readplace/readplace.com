@@ -29,6 +29,9 @@ interface UnfilteredWidget {
 const OFFLINE_HARNESS_REASON =
 	"Offline prompt-arm harness output. An arm-result line describes one model run against a stored anchor, not a person, so ExperimentArmResultEvent carries neither visitor_id nor user_id for a clause to match.";
 
+const METRIC_COUNTER_REASON =
+	"Renders a CloudWatch metric filled by a LogMetricFilter, which matches a line at ingest and increments a counter. The exclusion is expressible in that pattern language, and it fits: factored as ($.visitor_id NOT EXISTS || ($.visitor_id != \"…\" && …)), today's 9 visitor and 7 user ids come to 988 of the 1,024 characters CloudWatch allows, and aws logs test-metric-filter confirms that pattern drops an internal visitor while keeping both an ordinary visitor and a line carrying no visitor_id. It is left off by choice rather than by that ceiling. A filter pattern applies at ingest and never retroactively, so each identity added would silently redefine what the series had been counting, turning a config edit into a step change nobody could distinguish from real traffic — and the list has grown three times in recent work, with no room for another id of either kind before the pattern crosses 1,024 regardless. A constant, disclosed overcount beats a series whose definition moves.";
+
 const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 	{
 		title: "Recent errors (logError + parse-errors, whole fleet)",
@@ -39,6 +42,18 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 		title: "Imports completed (lifetime)",
 		reason:
 			"Renders a CloudWatch metric, and a datapoint has no field a Logs Insights clause could filter on. The import_committed event feeding the metric filter carries neither visitor_id nor user_id either, so there is no identity anywhere in that chain to prune — the counter includes internal imports and no dashboard-layer change can alter that.",
+	},
+	{
+		title: "Pageviews (lifetime metric, internal traffic included)",
+		reason: `${METRIC_COUNTER_REASON} Measured over the life of /readplace/analytics, the exclusion list removes 20.1% of pageview lines (12,119 of 60,208), so this counter reads about a quarter above the Logs Insights pageview widgets beside it — which is why the title says so on the widget's face.`,
+	},
+	{
+		title: "Save intents (lifetime metric, internal traffic included)",
+		reason: `${METRIC_COUNTER_REASON} Measured over the same window, the exclusion list removes 8.1% of view_save_intent lines (374 of 4,593).`,
+	},
+	{
+		title: "Signups (lifetime metric, internal traffic included)",
+		reason: `${METRIC_COUNTER_REASON} No excluded identity has produced a user_created line so far (0 of 24), but that is an accident of who has signed up, not a property of the counter — an internal signup would land in it.`,
 	},
 ];
 

@@ -18,6 +18,7 @@ import {
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { assertExcludedUserIds, assertExcludedVisitorIds } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
@@ -997,6 +998,21 @@ const accountId = pulumi.output(aws.getCallerIdentity({})).accountId;
 const analyticsLogGroup = new aws.cloudwatch.LogGroup("analytics-log-group", {
 	name: ANALYTICS_LOG_GROUP,
 }, { retainOnDelete: true });
+
+for (const [key, filter] of Object.entries(ANALYTICS_METRIC_FILTERS)) {
+	new aws.cloudwatch.LogMetricFilter(`analytics-${key}-filter`, {
+		name: `analytics-${filter.event}`,
+		logGroupName: analyticsLogGroup.name,
+		pattern: analyticsMetricFilterPattern(filter),
+		metricTransformation: {
+			name: filter.metricName,
+			namespace: ANALYTICS_METRIC_NAMESPACE,
+			value: "1",
+			defaultValue: "0",
+			unit: "Count",
+		},
+	});
+}
 
 // The single group the dashboard's error widget reads. It exists because Logs
 // Insights caps a query at 50 log groups and the account already holds 71 —

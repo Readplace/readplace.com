@@ -15,6 +15,7 @@ import {
 	STREAMS,
 	SUBSCRIPTION_EVENTS,
 } from "./events";
+import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
 
 export interface DashboardWidget {
 	type: string;
@@ -980,6 +981,23 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 12, y: 178, width: 12, height: 8,
 			view: "table",
 		}),
+	);
+
+	widgets.push(
+		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
+			type: "metric",
+			x: index * 8, y: 186, width: 8, height: 4,
+			properties: {
+				region,
+				title: filter.widgetTitle,
+				metrics: [[ANALYTICS_METRIC_NAMESPACE, filter.metricName, { stat: "Sum" }]],
+				period: 86400,
+				stat: "Sum",
+				view: "singleValue",
+				sparkline: true,
+				setPeriodToTimeRange: true,
+			},
+		})),
 	);
 
 	return { widgets };

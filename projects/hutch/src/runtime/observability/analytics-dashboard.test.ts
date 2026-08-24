@@ -17,8 +17,9 @@ import {
 	STREAMS,
 	SUBSCRIPTION_EVENTS,
 } from "./events";
-import { buildAnalyticsDashboardBody } from "./analytics-dashboard";
+import { buildAnalyticsDashboardBody, type DashboardWidget } from "./analytics-dashboard";
 import type { ExcludedIdentities } from "./excluded-identities";
+import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
 
 const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
 const EXCLUDED_USER_ID = "22222222222222222222222222222222";
@@ -78,9 +79,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 42 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 45 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 3 key-event-counters) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(42);
+		expect(body.widgets).toHaveLength(45);
 	});
 
 	it("carries oauth_client_id on the recent-conversions table so a consent-screen signup names the client that sent it", () => {
@@ -354,13 +355,49 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(unknown).toEqual([]);
 	});
 
+	function metricWidgetsIn(widgets: readonly DashboardWidget[], namespace: string) {
+		return widgets.filter(
+			(w) =>
+				w.type === "metric" &&
+				Array.isArray(w.properties.metrics) &&
+				w.properties.metrics.some((m) => Array.isArray(m) && m[0] === namespace),
+		);
+	}
+
 	it("references the Readplace/Imports metric so the singleValue widget is wired to the LogMetricFilter", () => {
-		const body = buildBody();
-		const metricWidget = body.widgets.find((w) => w.type === "metric");
-		expect(metricWidget).toBeDefined();
-		const metrics = metricWidget?.properties.metrics;
-		expect(metrics).toEqual([
+		const metricWidgets = metricWidgetsIn(buildBody().widgets, METRICS.importsCompleted.namespace);
+		expect(metricWidgets).toHaveLength(1);
+		expect(metricWidgets[0]?.properties.metrics).toEqual([
 			[METRICS.importsCompleted.namespace, METRICS.importsCompleted.name, { stat: "Sum" }],
+		]);
+	});
+
+	it("gives every analytics metric filter its own counter widget, so a filter whose pattern stops matching reads as a visible flat zero instead of silently going missing from the dashboard", () => {
+		const metricWidgets = metricWidgetsIn(buildBody().widgets, ANALYTICS_METRIC_NAMESPACE);
+		expect(
+			metricWidgets.map((w) => [w.properties.title, w.properties.metrics]),
+		).toEqual(
+			Object.values(ANALYTICS_METRIC_FILTERS).map((filter) => [
+				filter.widgetTitle,
+				[[ANALYTICS_METRIC_NAMESPACE, filter.metricName, { stat: "Sum" }]],
+			]),
+		);
+	});
+
+	it("lays the counter row out below every other widget and across the full 24-column grid, so moving the row cannot park it on top of the row above", () => {
+		const widgets = buildBody().widgets;
+		const counters = metricWidgetsIn(widgets, ANALYTICS_METRIC_NAMESPACE);
+		const rowTop = Math.min(...counters.map((w) => w.y));
+		const bottomOfTheRest = Math.max(
+			...widgets.filter((w) => !counters.includes(w)).map((w) => w.y + w.height),
+		);
+
+		expect(new Set(counters.map((w) => w.y)).size).toBe(1);
+		expect(rowTop).toBeGreaterThanOrEqual(bottomOfTheRest);
+		expect(counters.map((w) => [w.x, w.x + w.width])).toEqual([
+			[0, 8],
+			[8, 16],
+			[16, 24],
 		]);
 	});
 
