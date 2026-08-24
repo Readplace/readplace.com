@@ -3,6 +3,7 @@ title: "A Sign-in Page Assumes an Account That Isn't There"
 description: "A logged-out reader who tapped Save to My Queue on a Readplace article used to land on the sign-in page, built for people who already signed up. It routes to signup now, so the newest reader meets a form that has somewhere for them to go, and the saved link still rides through to the queue."
 slug: "save-button-sent-new-readers-to-sign-in"
 date: "2026-07-09"
+lastModified: "2026-08-24"
 author: "Fayner Brack"
 keywords: "save article without an account, read it later save before signup, save to read later no account, save a link you were sent, save button sign in vs sign up, save to my queue readplace, keep a shared article, read it later signup flow, save link route to signup, read it later no account needed"
 ---
@@ -24,7 +25,7 @@ For months, the button a logged-out reader tapped to keep a Readplace article se
 
 Readplace serves a clean reader view of an article at a public address, the kind of link you can [send to anyone and have the preview come out clean](/blog/share-a-clean-article-link). Open one and the article is there, stripped to text, no login asked for. Next to it sits a button, Save to My Queue. For a first-time visitor that button is the whole point of the page: read the clean copy, decide you want it, and put it in a queue of your own.
 
-The visitor tapping it is the warmest one Readplace gets. They are not skimming a marketing page. They are inside the product, reading a real article on it, reaching for the save. When public access to a shared reader runs out, a small panel offers the same button and the same trade: save the link and read it without the expiry. Same button, same warm second.
+The visitor tapping it is the warmest one Readplace gets. They are not skimming a marketing page. They are inside the product, reading a real article on it, reaching for the save.
 
 Tap it while logged out and Readplace sent you to `/login`. Two fields, an email and a password, for an account you never made, because you do not have one here yet.
 

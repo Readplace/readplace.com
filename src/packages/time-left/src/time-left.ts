@@ -16,12 +16,3 @@ export function decomposeTimeLeft(ms: number): TimeLeft {
 	const days = Math.floor(totalHours / 24);
 	return { days, hours, minutes, seconds };
 }
-
-export function formatCounter(timeLeft: TimeLeft): string {
-	const parts: string[] = [];
-	if (timeLeft.days > 0) parts.push(`${timeLeft.days}d`);
-	if (timeLeft.days > 0 || timeLeft.hours > 0) parts.push(`${timeLeft.hours}h`);
-	if (timeLeft.days > 0 || timeLeft.hours > 0 || timeLeft.minutes > 0) parts.push(`${timeLeft.minutes}m`);
-	parts.push(`${timeLeft.seconds}s`);
-	return parts.join(" ");
-}
