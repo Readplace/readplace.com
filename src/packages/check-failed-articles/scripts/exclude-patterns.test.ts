@@ -860,3 +860,38 @@ describe("EXCLUDE_PATTERNS — never-existed /view-minted paths (issue #1066)", 
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — git smart-HTTP probes (issue #1073)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://github.com/js-cookie/js-cookie/info/refs", excluded: true, label: "dumb-http refs endpoint" },
+		{ url: "https://github.com/js-cookie/js-cookie/info/refs?service=git-upload-pack", excluded: true, label: "smart-http refs endpoint with service query" },
+		{ url: "github.com/jquery/jquery/info/refs", excluded: true, label: "schemeless legacy row" },
+		{ url: "https://www.github.com/anthropics/skills/info/refs", excluded: true, label: "www host" },
+		{ url: "https://github.com/js-cookie/js-cookie", excluded: false, label: "the real repo page — must NOT be hidden" },
+		{ url: "https://github.com/js-cookie/js-cookie/blob/main/info/refs", excluded: false, label: "a repo file that happens to be named info/refs" },
+		{ url: "https://notgithub.com/a/b/info/refs", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://github.com.evil.com/a/b/info/refs", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://other.test/github.com/a/b/info/refs", excluded: false, label: "github.com inside a path" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
+describe("EXCLUDE_PATTERNS — unreachable origins drained from issue #1073", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://jkm.dev/posts/how-2004-runescape-fit-a-multiplayer-rpg-into-56k-dialup/", excluded: true, label: "jkm.dev post behind a 530 origin" },
+		{ url: "https://jkm.dev/posts/another-post/", excluded: false, label: "a different jkm.dev post — must still surface" },
+		{ url: "https://www.reddit.com/r/programming/comments/1vqukkf/nothing_like_a_monday_morning_github_outage/", excluded: true, label: "pre-proxy reddit block" },
+		{ url: "https://www.reddit.com/r/programming/comments/1vqukkf/some_other_thread/", excluded: false, label: "a different /r/programming thread — must still surface" },
+		{ url: "https://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster-than-processing-an-unsorted-array", excluded: true, label: "cloudflare-challenged question" },
+		{ url: "https://stackoverflow.com/questions/927358/how-do-i-undo-the-most-recent-local-commits-in-git", excluded: false, label: "a different question — must still surface" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});

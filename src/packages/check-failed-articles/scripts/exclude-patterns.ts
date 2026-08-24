@@ -49,6 +49,15 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// rejection. The crawler can never fetch these; intake now blocks them.
 	/^chrome:\/\//i,
 	/^about:/i,
+	// Git smart-HTTP probes, minted by an anonymous `/view` first visit rather
+	// than by anyone saving them (issue #1073): pointing `git` at a
+	// `/view/<github-url>` link makes it append `/info/refs`, which the splat
+	// route materialises as an article. GitHub answers dumb-http with a
+	// deterministic 403 from every IP, so a recrawl can never drain it, and each
+	// attempt spends metered proxy egress on the refusal. Anchored to the
+	// owner/repo shape so real repo pages still surface; the trailing group
+	// tolerates `?service=git-upload-pack`.
+	/^(?:https?:\/\/)?(?:www\.)?github\.com\/[^/]+\/[^/]+\/info\/refs(?:[?#]|$)/i,
 	// Reddit, narrowed to the shapes the proxied crawl still cannot reach.
 	// `www.reddit.com/r/<sub>/comments/…` now resolves, so it is deliberately
 	// no longer excluded — a failure there is a regression worth surfacing.
@@ -168,6 +177,16 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/blogs\.oracle\.com\/ravello\/beware-http-requests-automatic-retries$/i,
 	/^https:\/\/kernel-recipes\.org\/en\/2016\/talks\/patches-carved-into-stone-tablets\/$/i,
 	/^https:\/\/www\.microservices\.com\/talks\/dont-build-a-distributed-monolith\/$/i,
+	// Reddit 403s datacenter egress from its own edge. This row failed 21 minutes
+	// before the proxied second pass existed, so it records a crawler that no
+	// longer runs. Anchored exact: other `/r/<sub>/comments/` URLs must still
+	// surface as regressions.
+	/^https:\/\/www\.reddit\.com\/r\/programming\/comments\/1vqukkf\/nothing_like_a_monday_morning_github_outage\/$/i,
+	// Cloudflare answers this question with a challenge (403) to datacenter and
+	// residential egress alike. The row still holds content and a summary from an
+	// earlier successful crawl; a recrawl is what made it terminal, so listing it
+	// only invites repeating that.
+	/^https:\/\/stackoverflow\.com\/questions\/11227809\/why-is-processing-a-sorted-array-faster-than-processing-an-unsorted-array$/i,
 	// (f) Login/subscription wall — the origin serves a registration/login page
 	// instead of the article body to anonymous datacenter fetches, so the crawler
 	// exhausts retries without ever reaching content. academia.edu requires a free
@@ -257,6 +276,11 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// and any future genuine block of them, still surface.
 	/^https:\/\/fagnerbrack\.com\/x$/i,
 	/^https:\/\/fagnerbrack\.com\/business-success$/i,
+	// (k) Origin unreachable behind its CDN: Cloudflare answers 530 for every
+	// request, from datacenter and residential egress alike, so no crawl can
+	// land. Stored as `exhausted-retries` because a 530 is neither a block nor a
+	// 404, which makes an origin outage read as a crawler defect.
+	/^https:\/\/jkm\.dev\/posts\/how-2004-runescape-fit-a-multiplayer-rpg-into-56k-dialup\/$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
