@@ -4,7 +4,14 @@ import { render, withInternalTracking } from "@packages/web-shell";
 
 import type { Queue } from "./queue.nav";
 import { DEFAULT_QUEUE_SLUG, QUEUE_LABEL_MAX_LENGTH, type QueueSlug } from "@packages/domain/queue";
-import { type LinkParams, buildQueueUrl, queueRenamePath, queueReturnQuery } from "./queue.url";
+import { queueDeleteConfirmPopoverId } from "./queue-delete-confirm.component";
+import {
+	type LinkParams,
+	buildQueueUrl,
+	queueDeletePath,
+	queueRenamePath,
+	queueReturnQuery,
+} from "./queue.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "queue-nav.template.html"), "utf-8");
 
@@ -17,7 +24,13 @@ interface QueueNavRename {
 	maxLength?: number;
 }
 
-export interface QueueNavItem extends QueueNavRename {
+interface QueueNavDelete {
+	isDeletable: boolean;
+	deleteAction?: string;
+	deletePopoverId?: string;
+}
+
+export interface QueueNavItem extends QueueNavRename, QueueNavDelete {
 	href: string;
 	title: string;
 	name: string;
@@ -52,6 +65,22 @@ function navRename(input: {
 	};
 }
 
+function navDelete(input: {
+	slug: QueueSlug;
+	isActive: boolean;
+	canDelete: boolean;
+	linkParams: LinkParams;
+}): QueueNavDelete {
+	const isDeletable =
+		input.canDelete && input.isActive && input.slug !== DEFAULT_QUEUE_SLUG;
+	if (!isDeletable) return { isDeletable: false };
+	return {
+		isDeletable: true,
+		deleteAction: `${queueDeletePath(input.slug)}${queueReturnQuery({}, input.linkParams)}`,
+		deletePopoverId: queueDeleteConfirmPopoverId(input.slug),
+	};
+}
+
 export function buildQueueNav(input: {
 	queues: readonly Queue[];
 	activeSlug: QueueSlug;
@@ -75,6 +104,12 @@ export function buildQueueNav(input: {
 					slug: queue.slug,
 					isActive,
 					canRename: input.canCreate,
+					linkParams: input.linkParams,
+				}),
+				...navDelete({
+					slug: queue.slug,
+					isActive,
+					canDelete: input.canCreate,
 					linkParams: input.linkParams,
 				}),
 			};

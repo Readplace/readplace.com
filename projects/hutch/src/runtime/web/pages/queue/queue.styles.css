@@ -39,7 +39,8 @@
  *    its geometry and its theme pair are restated against the seam instead.
  */
 .queue-nav {
-  --queue-seam-ink: rgb(0 0 0 / 0.07); /* 5 */
+  --queue-seam-ink: rgb(0 0 0 / 0.07);
+  --queue-delete-nub: 32px; /* 5 */
   display: flex;
   align-items: flex-end;
   gap: 6px;
@@ -118,6 +119,58 @@
 .queue-nav__link:active {
   background: var(--primary-fill);
   color: var(--primary-foreground);
+}
+
+.queue-nav__item--deletable {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: var(--shadow-sm), inset 0 -4px 6px var(--queue-seam-ink); /* 5 */
+}
+
+.queue-nav__item--deletable .queue-nav__link,
+.queue-nav__item--deletable .queue-nav__link:hover,
+.queue-nav__item--deletable .queue-nav__link:active {
+  border-radius: var(--radius) 0 0 0;
+  padding-right: 8px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.queue-nav__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 44px;
+  padding: 0 12px 0 0;
+  font: inherit;
+  appearance: none;
+  border: 0;
+  border-radius: 0 var(--radius) 0 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.queue-nav__delete svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.queue-nav__delete:hover,
+.queue-nav__delete:active {
+  background: var(--error);
+  color: var(--error-foreground);
+}
+
+.queue-nav__delete-fallback {
+  display: flex;
 }
 
 .queue-nav__new-form {
@@ -896,6 +949,20 @@
   }
 }
 
+.queue-nav__confirm-trigger {
+  display: none; /* 1 */
+}
+
+@supports selector(:popover-open) {
+  .queue-nav__confirm-trigger {
+    display: inline-flex;
+  }
+
+  .queue-nav__delete-fallback {
+    display: none;
+  }
+}
+
 /* Per-page destructive button, deliberately not `.btn`: a page stylesheet may
  * add layout to a .btn and nothing else (BRAND_GUIDELINES.md:200), and
  * destructive is styled per page by design (:215). Hover swaps the fill rather
@@ -996,6 +1063,42 @@
     box-shadow: var(--shadow-sm), inset -4px 0 6px var(--queue-seam-ink); /* 5 */
   }
 
+  .queue-nav__list {
+    padding-left: var(--queue-delete-nub);
+    margin-left: calc(-1 * var(--queue-delete-nub));
+  }
+
+  .queue-nav__item--deletable {
+    position: relative;
+    border-radius: var(--radius) 0 0 var(--radius);
+    box-shadow: var(--shadow-sm), inset -4px 0 6px var(--queue-seam-ink); /* 5 */
+  }
+
+  .queue-nav__item--deletable .queue-nav__link,
+  .queue-nav__item--deletable .queue-nav__link:hover,
+  .queue-nav__item--deletable .queue-nav__link:active {
+    border-radius: inherit;
+    padding: 12px 16px;
+  }
+
+  .queue-nav__item--deletable .queue-nav__delete-fallback,
+  .queue-nav__item--deletable .queue-nav__confirm-trigger {
+    position: absolute;
+    right: 100%;
+    top: 0;
+    bottom: 0;
+  }
+
+  .queue-nav__delete {
+    height: 100%;
+    width: var(--queue-delete-nub);
+    min-width: 0;
+    padding: 0;
+    border-radius: var(--radius) 0 0 var(--radius);
+    background: var(--primary);
+    box-shadow: var(--shadow-sm);
+  }
+
   .queue-nav__new-form {
     margin: 0 -1px 0 0;
   }
@@ -1003,5 +1106,26 @@
   .queue-nav__new {
     border-radius: var(--radius) 0 0 var(--radius);
     box-shadow: inset -4px 0 6px var(--queue-seam-ink); /* 5 */
+  }
+}
+
+@media (min-width: 768px) and (hover: hover) {
+  .queue-nav__item--deletable .queue-nav__delete-fallback,
+  .queue-nav__item--deletable .queue-nav__confirm-trigger {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .queue-nav__item--deletable:hover .queue-nav__delete-fallback,
+  .queue-nav__item--deletable:hover .queue-nav__confirm-trigger,
+  .queue-nav__item--deletable:focus-within .queue-nav__delete-fallback,
+  .queue-nav__item--deletable:focus-within .queue-nav__confirm-trigger {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .queue-nav__item--deletable:hover,
+  .queue-nav__item--deletable:focus-within {
+    border-radius: 0 0 0 0;
   }
 }

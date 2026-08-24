@@ -20,6 +20,10 @@ import { renderDeleteConfirm } from "./queue-card/delete-confirm.component";
 import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component";
 import { buildQueueNav, renderQueueNav } from "./queue-nav.component";
 import { DEFAULT_QUEUE, type Queue } from "./queue.nav";
+import {
+	queueDeleteConfirmPopoverId,
+	renderQueueDeleteConfirm,
+} from "./queue-delete-confirm.component";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
@@ -29,6 +33,7 @@ import {
 	QUEUE_DISMISS_ONBOARDING_PATH,
 	QUEUE_SAVE_PATH,
 	buildQueueUrl,
+	queueDeletePath,
 	queueReturnQuery,
 } from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
@@ -63,6 +68,7 @@ interface QueueDisplayModel {
 	 * at page level rather than in the card because a pending card replaces its
 	 * own subtree every 3s and would rip an open confirmation out mid-decision. */
 	deleteConfirmsHtml: string;
+	queueDeleteConfirmHtml: string;
 	mainClass: string;
 	queueNavHtml: string;
 	queueErrorFlash?: string;
@@ -105,6 +111,17 @@ const NOTHING_SAVED_TITLE = "Nothing saved yet";
 
 export function emptyStateTitle(input: { tab: TabId; queueHoldsArticles: boolean }): string {
 	return input.queueHoldsArticles ? EMPTY_STATE_TITLES[input.tab] : NOTHING_SAVED_TITLE;
+}
+
+function queueDeleteConfirmPanel(rail: QueueRailViewModel | undefined): string {
+	if (!rail?.canCreate) return "";
+	const active = rail.activeQueue;
+	if (active.slug === DEFAULT_QUEUE.slug) return "";
+	return renderQueueDeleteConfirm({
+		popoverId: queueDeleteConfirmPopoverId(active.slug),
+		url: `${queueDeletePath(active.slug)}${queueReturnQuery({}, rail.linkParams)}`,
+		label: active.label,
+	});
 }
 
 function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: boolean; installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip }): QueueDisplayModel {
@@ -170,6 +187,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: 
 				renderDeleteConfirm({ confirm: article.deleteConfirm, title: article.title }),
 			)
 			.join("\n"),
+		queueDeleteConfirmHtml: queueDeleteConfirmPanel(options.rail),
 		mainClass: options.rail ? "queue queue--queues" : "queue",
 		queueNavHtml: options.rail
 			? renderQueueNav(

@@ -101,6 +101,7 @@ import type {
 	ListQueueDefinitions,
 	RenameQueueDefinition,
 	CreateQueueDefinition,
+	DeleteQueueDefinition,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
@@ -328,6 +329,7 @@ interface AppDependencies {
 	listQueueDefinitions: ListQueueDefinitions;
 	renameQueueDefinition: RenameQueueDefinition;
 	createQueueDefinition: CreateQueueDefinition;
+	deleteQueueDefinition: DeleteQueueDefinition;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	sendEmail: SendEmail;
@@ -1177,6 +1179,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		listQueueDefinitions: deps.listQueueDefinitions,
 		renameQueueDefinition: deps.renameQueueDefinition,
 		createQueueDefinition: deps.createQueueDefinition,
+		deleteQueueDefinition: deps.deleteQueueDefinition,
 		markSummaryToggled: deps.markSummaryToggled,
 		markRelatedDismissed: deps.markRelatedDismissed,
 		publishLinkSaved: deps.publishLinkSaved,

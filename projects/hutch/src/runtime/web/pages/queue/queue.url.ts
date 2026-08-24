@@ -83,6 +83,10 @@ export function queueRenamePath(queue: QueueSlug): string {
 	return `${QUEUE_CREATE_PATH}/${queue}/rename`;
 }
 
+export function queueDeletePath(queue: QueueSlug): string {
+	return `${QUEUE_CREATE_PATH}/${queue}/delete`;
+}
+
 export function buildQueueCountsUrl(
 	state: Partial<QueueUrlState>,
 	extraParams: LinkParams = [],

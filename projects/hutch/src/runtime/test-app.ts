@@ -167,6 +167,7 @@ function flattenFixtureToAppDependencies(
 		listQueueDefinitions: fixture.articleStore.listQueueDefinitions,
 		renameQueueDefinition: fixture.articleStore.renameQueueDefinition,
 		createQueueDefinition: fixture.articleStore.createQueueDefinition,
+		deleteQueueDefinition: fixture.articleStore.deleteQueueDefinition,
 		markSummaryToggled: fixture.articleStore.markSummaryToggled,
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,

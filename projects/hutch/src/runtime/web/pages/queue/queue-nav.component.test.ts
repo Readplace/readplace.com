@@ -37,6 +37,18 @@ function renameable(doc: Document): (string | null)[] {
 	);
 }
 
+function deletable(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll('[data-test-action="queue-delete"]'), (el) =>
+		el.getAttribute("popovertarget"),
+	);
+}
+
+function deleteFallbackActions(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll(".queue-nav__delete-fallback"), (el) =>
+		el.getAttribute("action"),
+	);
+}
+
 function hrefParts(link: Element): { path: string; params: URLSearchParams } {
 	const url = new URL(link.getAttribute("href") ?? "", "https://internal.invalid");
 	return { path: url.pathname, params: url.searchParams };
@@ -208,6 +220,54 @@ describe("buildQueueNav", () => {
 
 		expect(renameable(doc)).toEqual([]);
 		expect(hrefParts(queueLink(doc, "work")).params.get("queue")).toBe("work");
+	});
+
+	it("should offer the queue the reader is on for deleting, from its own trigger", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		expect(deletable(doc)).toEqual(["queue-remove-confirm-work"]);
+	});
+
+	it("should back the delete trigger with a plain post for a reader with no popover", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		expect(deleteFallbackActions(doc)).toEqual(["/queue/queues/work/delete?feature=queues"]);
+	});
+
+	it("should keep the delete trigger outside the tab so a tap cannot open the name editor", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		const trigger = doc.querySelector('[data-test-action="queue-delete"]');
+		assert(trigger, "the queue the reader is on must offer a delete trigger");
+		expect(trigger.closest("[data-queue-rename]")).toBeNull();
+		expect(trigger.closest(".queue-nav__item")).toBe(queueLink(doc, "work").parentElement);
+	});
+
+	it("should say which queue the delete control removes, for a reader who cannot see it", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		const label = doc.querySelector('[data-test-action="queue-delete"] .sr-only');
+		assert(label, "the delete trigger must name its queue for assistive tech");
+		expect(label.textContent).toBe("Delete Work Reading");
+	});
+
+	it("should leave every queue the reader is not on with nothing to delete", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		expect(deletable(doc)).toEqual(["queue-remove-confirm-work"]);
+		expect(queueLink(doc, "default").parentElement?.className).toBe("queue-nav__item");
+	});
+
+	it("should never offer the built-in queue for deleting, even when the reader is on it", () => {
+		const doc = renderNav({ activeSlug: DEFAULT_QUEUE.slug });
+
+		expect(deletable(doc)).toEqual([]);
+	});
+
+	it("should withhold deleting from a reader who cannot write", () => {
+		const doc = renderNav({ canCreate: false, activeSlug: WORK.slug });
+
+		expect(deletable(doc)).toEqual([]);
 	});
 
 	it("should name the landmark so it is distinguishable from the page's other navs", () => {

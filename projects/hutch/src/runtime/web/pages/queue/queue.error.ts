@@ -11,8 +11,11 @@ const SAVE_ERROR_MESSAGES: Record<string, string> = {
 
 export const QUEUE_ERROR_LIMIT = "limit";
 
+export const QUEUE_ERROR_UNKNOWN_QUEUE = "unknown_queue";
+
 const QUEUE_ERROR_MESSAGES: Record<string, string> = {
 	[QUEUE_ERROR_LIMIT]: `You can keep up to ${QUEUE_MAX_PER_USER} queues.`,
+	[QUEUE_ERROR_UNKNOWN_QUEUE]: "That queue no longer exists.",
 };
 
 export const QUEUE_RENAME_REJECTIONS: Record<

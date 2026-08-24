@@ -29,6 +29,7 @@ import type {
 	CountArticlesByUser,
 	CountQueueArticles,
 	CreateQueueDefinition,
+	DeleteQueueDefinition,
 	DeleteArticle,
 	DeleteQueueArticle,
 	FindArticleById,
@@ -144,6 +145,7 @@ import {
 	QueueSlugSchema,
 	type QueueRenameRejection,
 	type QueueSlug,
+	decideQueueDelete,
 	decideQueueRename,
 	defaultQueueLabel,
 	generateQueueSlug,
@@ -160,7 +162,7 @@ import { tabQuery } from "./queue.tabs";
 import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./queue.error";
-import { QUEUE_ERROR_LIMIT, QUEUE_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, queueErrorFlashMapping, statusFlashMapping, statusFlashFor } from "./queue.error";
+import { QUEUE_ERROR_LIMIT, QUEUE_ERROR_UNKNOWN_QUEUE, QUEUE_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, queueErrorFlashMapping, statusFlashMapping, statusFlashFor } from "./queue.error";
 import { renderQueueMutationFragment } from "./queue-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -325,6 +327,7 @@ interface QueueDependencies {
 	listQueueDefinitions: ListQueueDefinitions;
 	createQueueDefinition: CreateQueueDefinition;
 	renameQueueDefinition: RenameQueueDefinition;
+	deleteQueueDefinition: DeleteQueueDefinition;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	publishLinkSaved: PublishLinkSaved;
@@ -463,6 +466,8 @@ async function loadRelatedArticles(
 	}
 }
 
+const QUEUE_PURGE_PAGE_SIZE = 25;
+
 const SAVE_ROUTE = {
 	saveArticle: "/",
 	saveArticles: "/save-articles",
@@ -588,6 +593,25 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * handler below runs today's code path byte for byte unless a reader addressed
 	 * one of their own queues. */
 	const storeFor = (queue: QueueSlug) => queueScopedStore(deps, queue);
+
+	const purgeQueueArticles = async (params: {
+		userId: UserId;
+		queue: QueueSlug;
+	}): Promise<void> => {
+		const deleteOne = deleteArticleFromQueueFor(params.queue);
+		for (;;) {
+			const { articles } = await deps.findQueueArticles({
+				userId: params.userId,
+				queue: params.queue,
+				pageSize: QUEUE_PURGE_PAGE_SIZE,
+				excludeContent: true,
+			});
+			if (articles.length === 0) return;
+			for (const article of articles) {
+				await deleteOne({ articleId: article.id, userId: params.userId });
+			}
+		}
+	};
 
 	const deleteArticleFromQueueFor = (queue: QueueSlug) =>
 		initDeleteArticleFromQueue({
@@ -1877,6 +1901,50 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				return;
 			}
 			res.json({ slug: decision.slug, label: decision.label });
+		},
+	);
+
+	router.post(
+		"/queues/:slug/delete",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const context = await resolveQueueContext(req, userId);
+			const unknownQueue = () => {
+				res.redirect(
+					303,
+					buildQueueUrl({}, [
+						...context.linkParams,
+						["queue_error", QUEUE_ERROR_UNKNOWN_QUEUE],
+					]),
+				);
+			};
+			if (!context.railed) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const requested = QueueSlugSchema.safeParse(req.params.slug);
+			if (!requested.success) {
+				unknownQueue();
+				return;
+			}
+			const decision = decideQueueDelete({
+				slug: requested.data,
+				queues: context.queues,
+			});
+			if (!decision.ok) {
+				unknownQueue();
+				return;
+			}
+			await purgeQueueArticles({ userId, queue: decision.slug });
+			const { deleted } = await deps.deleteQueueDefinition({ userId, slug: decision.slug });
+			if (!deleted) {
+				unknownQueue();
+				return;
+			}
+			res.redirect(303, buildQueueUrl({}, context.linkParams));
 		},
 	);
 

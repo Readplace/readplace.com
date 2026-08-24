@@ -1320,6 +1320,37 @@ describe("initInMemoryArticleStore", () => {
 			).toEqual({ renamed: false });
 		});
 
+		it("drops the definition it deletes and leaves the reader's others", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+			await store.createQueueDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
+
+			expect(await store.deleteQueueDefinition({ userId: USER_A, slug: WORK })).toEqual({
+				deleted: true,
+			});
+			expect((await store.listQueueDefinitions(USER_A)).map((d) => d.slug)).toEqual(["later"]);
+		});
+
+		it("reports a queue the reader does not hold as undeleted", async () => {
+			const store = initInMemoryArticleStore();
+
+			expect(await store.deleteQueueDefinition({ userId: USER_A, slug: WORK })).toEqual({
+				deleted: false,
+			});
+		});
+
+		it("never deletes another reader's queue of the same name", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createQueueDefinition({ userId: USER_B, slug: WORK, label: "Theirs", createdAt });
+
+			expect(await store.deleteQueueDefinition({ userId: USER_A, slug: WORK })).toEqual({
+				deleted: false,
+			});
+			expect((await store.listQueueDefinitions(USER_B)).map((d) => d.label)).toEqual(["Theirs"]);
+		});
+
 		it("never renames another reader's queue of the same name", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");

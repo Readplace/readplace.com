@@ -299,3 +299,59 @@ describe("renameQueueDefinition", () => {
 		).rejects.toThrow("throttled");
 	});
 });
+
+describe("deleteQueueDefinition", () => {
+	it("drops the row, on a row that must already exist", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { deleteQueueDefinition } = initDynamoDbQueueDefinitions({
+			client: createFakeDynamo([{}], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await deleteQueueDefinition({ userId: USER, slug: WORK })).toEqual({
+			deleted: true,
+		});
+		expect(commands[0].name).toBe("DeleteCommand");
+		expect(commands[0].input).toMatchObject({
+			TableName: TABLE,
+			Key: { userId: USER, url: "readplace:queue-def/work" },
+		});
+		expect(String(commands[0].input.ConditionExpression)).toContain("attribute_exists(#url)");
+	});
+
+	it("reports a queue that no longer has a definition row", async () => {
+		const { deleteQueueDefinition } = initDynamoDbQueueDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw conditionalCheckFailed();
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await deleteQueueDefinition({ userId: USER, slug: WORK })).toEqual({
+			deleted: false,
+		});
+	});
+
+	it("lets an unexpected storage failure surface", async () => {
+		const { deleteQueueDefinition } = initDynamoDbQueueDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw new Error("throttled");
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		await expect(deleteQueueDefinition({ userId: USER, slug: WORK })).rejects.toThrow(
+			"throttled",
+		);
+	});
+});

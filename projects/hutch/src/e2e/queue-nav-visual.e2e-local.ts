@@ -23,6 +23,7 @@ const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
 
 const QUEUE_NAV = "main.queue .queue-nav";
+const QUEUE_NAV_LIST = "main.queue .queue-nav__list";
 const QUEUE_NAV_LINK = '[data-test-queue="default"]';
 const QUEUE_CONTENT = "main.queue .queue__content";
 const QUEUE_LIST = "[data-test-article-list]";
@@ -30,6 +31,7 @@ const QUEUE_TITLE = "main.queue .queue__title";
 const QUEUE_FILTERS = "main.queue .queue__filters";
 const QUEUE_LISTING = "main.queue .queue__listing";
 const QUEUE_SAVE_FORM = "main.queue .queue__save-form";
+const QUEUE_DELETE_TRIGGER = 'main.queue [data-test-action="queue-delete"]';
 const QUEUE_EMPTY = "main.queue [data-test-empty-queue]";
 const OPEN_FILTER_TAB = "main.queue .queue__filter-link--active";
 const UNREAD_FILTER_TAB = 'main.queue [data-test-filter="unread"]';
@@ -247,8 +249,48 @@ async function defaultQueueSettled(page: Page): Promise<void> {
 	await seededQueueSettled(page);
 }
 
+async function madeRailSettled(page: Page): Promise<void> {
+	await page.waitForSelector("body.page-queue");
+	await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("New Queue");
+	await page.mouse.move(DESKTOP.width - 5, 5);
+	await expect(page.locator(QUEUE_DELETE_TRIGGER)).toHaveCSS("opacity", "0");
+	await page.locator(ACTIVE_QUEUE_TAB).hover();
+	await expect(page.locator(QUEUE_DELETE_TRIGGER)).toHaveCSS("opacity", "1");
+}
+
+async function railOffersDelete(page: Page): Promise<void> {
+	await railBesideTheListing(page);
+	const [tab, trigger] = await measurePair(page, [ACTIVE_QUEUE_TAB, QUEUE_DELETE_TRIGGER]);
+	assert.ok(
+		trigger.height >= MINIMUM_TOUCH_TARGET,
+		`the delete control must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
+	);
+	assert.equal(
+		trigger.y,
+		tab.y,
+		"the delete control must sit on the tab it deletes, never on a row of its own",
+	);
+	assert.equal(
+		trigger.x + trigger.width,
+		tab.x,
+		"in the rail the delete control must meet the tab's leading edge from outside it",
+	);
+
+	await page.mouse.move(DESKTOP.width - 5, 5);
+	await expect(page.locator(QUEUE_DELETE_TRIGGER)).toHaveCSS("opacity", "0");
+	const resting = await measuredBox(page, ACTIVE_QUEUE_TAB);
+	assert.deepEqual(
+		{ x: resting.x, y: resting.y, width: resting.width, height: resting.height },
+		{ x: tab.x, y: tab.y, width: tab.width, height: tab.height },
+		"revealing the delete control must not resize the tab it belongs to",
+	);
+	await page.locator(ACTIVE_QUEUE_TAB).hover();
+	await expect(page.locator(QUEUE_DELETE_TRIGGER)).toHaveCSS("opacity", "1");
+}
+
 async function madeQueueSettled(page: Page): Promise<void> {
 	await page.waitForSelector("body.page-queue");
+	await page.mouse.move(5, 5);
 	await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("New Queue");
 	await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(formatTabCountLabel({ label: "To Read", count: 0 }));
 	await expect(page.locator(QUEUE_EMPTY)).toHaveCount(1);
@@ -392,6 +434,15 @@ const DEFAULT_QUEUE_MOBILE_LIGHT: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const MADE_RAIL_DESKTOP_LIGHT: VisualCheckpoint = {
+	name: "queue-nav-rail-made-desktop-light",
+	settled: madeRailSettled,
+	geometry: railOffersDelete,
+	target: QUEUE_NAV_LIST,
+	capture: "element",
+	pinnedText: [],
+};
+
 const MADE_QUEUE_DESKTOP_LIGHT: VisualCheckpoint = {
 	name: "queue-page-made-desktop-light",
 	settled: madeQueueSettled,
@@ -509,6 +560,21 @@ test.describe("Queue page (mobile)", () => {
 		await openQueue(page, QUEUES_PANEL);
 
 		await captureCheckpoint(page, WHOLE_QUEUE_MOBILE_LIGHT);
+	});
+});
+
+test.describe("Queue the reader made, in the rail", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("offers the queue it is on for deleting, on the tab's leading edge", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-nav-made-rail-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewQueue(page);
+
+		await captureCheckpoint(page, MADE_RAIL_DESKTOP_LIGHT);
 	});
 });
 

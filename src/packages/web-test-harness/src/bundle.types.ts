@@ -77,6 +77,7 @@ import type {
 	AssignSavedArticleToQueue,
 	ListUserSavesForUrl,
 	CreateQueueDefinition,
+	DeleteQueueDefinition,
 	ListQueueDefinitions,
 	RenameQueueDefinition,
 	FindUserArticlesByUrl,
@@ -319,6 +320,7 @@ export interface ArticleStoreBundle {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	createQueueDefinition: CreateQueueDefinition;
+	deleteQueueDefinition: DeleteQueueDefinition;
 	listQueueDefinitions: ListQueueDefinitions;
 	renameQueueDefinition: RenameQueueDefinition;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{

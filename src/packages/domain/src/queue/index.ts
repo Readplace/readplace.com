@@ -11,6 +11,11 @@ export {
 export { generateQueueSlug } from "./generate-queue-slug";
 export { defaultQueueLabel } from "./default-queue-label";
 export {
+	decideQueueDelete,
+	type QueueDeleteDecision,
+	type QueueDeleteRejection,
+} from "./queue-delete";
+export {
 	decideQueueRename,
 	type QueueRenameDecision,
 	type QueueRenameRejection,

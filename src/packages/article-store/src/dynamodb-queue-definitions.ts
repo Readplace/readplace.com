@@ -13,6 +13,7 @@ import {
 } from "@packages/hutch-storage-client";
 import type {
 	CreateQueueDefinition,
+	DeleteQueueDefinition,
 	ListQueueDefinitions,
 	RenameQueueDefinition,
 } from "@packages/provider-contracts/article-store";
@@ -30,6 +31,7 @@ export function initDynamoDbQueueDefinitions(deps: {
 	userArticlesTableName: string;
 }): {
 	createQueueDefinition: CreateQueueDefinition;
+	deleteQueueDefinition: DeleteQueueDefinition;
 	listQueueDefinitions: ListQueueDefinitions;
 	renameQueueDefinition: RenameQueueDefinition;
 } {
@@ -110,5 +112,20 @@ export function initDynamoDbQueueDefinitions(deps: {
 		}
 	};
 
-	return { createQueueDefinition, listQueueDefinitions, renameQueueDefinition };
+	const deleteQueueDefinition: DeleteQueueDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
+		try {
+			await queueDefinitions.delete({
+				Key: { userId: params.userId, url: queueDefinitionKey(params.slug) },
+				ConditionExpression: "attribute_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url" },
+			});
+			return { deleted: true };
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return { deleted: false };
+			throw error;
+		}
+	};
+
+	return { createQueueDefinition, deleteQueueDefinition, listQueueDefinitions, renameQueueDefinition };
 }

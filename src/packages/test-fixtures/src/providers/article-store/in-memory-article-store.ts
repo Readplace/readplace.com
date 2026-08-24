@@ -25,6 +25,7 @@ import type {
 	CountArticlesByUser,
 	CountQueueArticles,
 	CreateQueueDefinition,
+	DeleteQueueDefinition,
 	DeleteAllUserArticles,
 	DeleteArticle,
 	DeleteQueueArticle,
@@ -148,6 +149,7 @@ export function initInMemoryArticleStore(): {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	createQueueDefinition: CreateQueueDefinition;
+	deleteQueueDefinition: DeleteQueueDefinition;
 	listQueueDefinitions: ListQueueDefinitions;
 	renameQueueDefinition: RenameQueueDefinition;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
@@ -520,6 +522,11 @@ export function initInMemoryArticleStore(): {
 		return { renamed: true };
 	};
 
+	const deleteQueueDefinition: DeleteQueueDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
+		return { deleted: queueDefinitions.delete(queueDefinitionKey(params.userId, params.slug)) };
+	};
+
 	const listQueueDefinitions: ListQueueDefinitions = async (userId) =>
 		[...queueDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
@@ -710,6 +717,7 @@ export function initInMemoryArticleStore(): {
 		listUserSavesForUrl,
 		assignSavedArticleToQueue,
 		createQueueDefinition,
+		deleteQueueDefinition,
 		listQueueDefinitions,
 		renameQueueDefinition,
 		getSummaryToggleState,

@@ -261,6 +261,11 @@ export type RenameQueueDefinition = (params: {
 	label: string;
 }) => Promise<{ renamed: boolean }>;
 
+export type DeleteQueueDefinition = (params: {
+	userId: UserId;
+	slug: QueueSlug;
+}) => Promise<{ deleted: boolean }>;
+
 export interface SaveQueueArticleParams extends SaveArticleParams {
 	queue: QueueSlug;
 }
