@@ -914,7 +914,7 @@ hydration doesn't jump it. */
   font-weight: 500;
 }
 
-.comparison-table__hutch {
+.comparison-table__readplace {
   background: var(--color-brand-light);
   font-weight: 600;
   color: var(--color-brand-dark);
