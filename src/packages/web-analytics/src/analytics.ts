@@ -271,6 +271,8 @@ export interface ViewSaveIntentEvent {
 	surface: SaveSurface;
 	outcome: SaveOutcome;
 	client: SaveClient;
+	device_class: DeviceClass;
+	browser: BrowserFamily;
 	referrer_host?: string;
 	pending_save_id?: string;
 	visitor_hash: string | null;
@@ -526,6 +528,7 @@ export function buildSaveIntentEvent(
 	assert(params.req.visitorId, "visitor-id middleware must run before a save surface emits view_save_intent");
 	const articleHost = articleHostFromSubmitted(params.url);
 	const referrerHost = extractReferrerHost(params.req);
+	const userAgent = params.req.get("user-agent");
 	return {
 		stream: STREAMS.analytics,
 		event: ANALYTICS_EVENTS.viewSaveIntent,
@@ -536,6 +539,8 @@ export function buildSaveIntentEvent(
 		surface: params.surface,
 		outcome: params.outcome,
 		client: params.client,
+		device_class: classifyDeviceClass(userAgent),
+		browser: classifyBrowser(userAgent),
 		...(referrerHost ? { referrer_host: referrerHost } : {}),
 		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
 		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
@@ -590,6 +595,8 @@ export function buildMcpSaveIntentEvent(
 		surface: SAVE_SURFACES.mcp,
 		outcome: params.outcome,
 		client: SAVE_CLIENTS.mcp,
+		device_class: classifyDeviceClass(undefined),
+		browser: classifyBrowser(undefined),
 		visitor_hash: null,
 		visitor_id: null,
 		is_authenticated: 1,

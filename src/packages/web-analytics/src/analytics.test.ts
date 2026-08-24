@@ -743,6 +743,8 @@ describe("buildSaveIntentEvent", () => {
 			surface: "reader_view",
 			outcome: "prompted_to_sign_up",
 			client: "web",
+			device_class: "desktop",
+			browser: "chrome",
 			visitor_hash: expect.any(String),
 			visitor_id: VALID_VISITOR_ID,
 			is_authenticated: 0,
@@ -780,6 +782,39 @@ describe("buildSaveIntentEvent", () => {
 	it("stamps is_authenticated=1 when the request carries an authenticated userId (the queue save bar and extension save an already-signed-in user)", () => {
 		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, userId: "user-1" } });
 		expect(event.is_authenticated).toBe(1);
+	});
+
+	it("carries the same derived device_class and browser the pageview stream already records, so the client behind an anonymous save is identifiable from the event itself instead of a fuzzy timestamp join against an access log that expires", () => {
+		const event = buildIntent({
+			req: {
+				visitorId: VALID_VISITOR_ID,
+				headers: { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
+			},
+		});
+		expect(event).toMatchObject({ device_class: "mobile_ios", browser: "safari" });
+	});
+
+	it("records device_class and browser as 'other' when the request carries no User-Agent at all, the shape a scripted client sends", () => {
+		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, headers: { "user-agent": undefined } } });
+		expect(event).toMatchObject({ device_class: "other", browser: "other" });
+	});
+
+	it("labels a save from our own iPhone app as mobile_ios with no browser family, rather than the desktop its CFNetwork User-Agent would otherwise fall through to", () => {
+		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, headers: { "user-agent": SHARE_EXTENSION_USER_AGENT } } });
+		expect(event).toMatchObject({ device_class: "mobile_ios", browser: "other" });
+	});
+
+	it("labels a save from a self-declared crawler as device_class bot — unlike pageview, no bot gate drops a save intent, so the crawler population that produced 3,577 anonymous save prompts stays countable", () => {
+		const event = buildIntent({
+			req: { visitorId: VALID_VISITOR_ID, headers: { "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" } },
+		});
+		expect(event).toMatchObject({ device_class: "bot", browser: "other" });
+	});
+
+	it("never carries the raw User-Agent anywhere in the emitted payload — only the derived class and family, matching the pageview privacy posture", () => {
+		const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, headers: { "user-agent": userAgent } } });
+		expect(JSON.stringify(event)).not.toContain(userAgent);
 	});
 
 	it("records the client the caller states, so a save the iOS app made over an extension-shaped route is not filed as a web save", () => {
@@ -882,6 +917,8 @@ describe("buildMcpSaveIntentEvent", () => {
 			surface: "mcp",
 			outcome: "saved",
 			client: "mcp",
+			device_class: "other",
+			browser: "other",
 			visitor_hash: null,
 			visitor_id: null,
 			is_authenticated: 1,

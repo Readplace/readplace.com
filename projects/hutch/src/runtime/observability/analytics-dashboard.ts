@@ -573,6 +573,21 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 12, y: 146, width: 12, height: 8,
 			view: "bar",
 		}),
+		logWidget({
+			region,
+			title: "Anonymous save-intent by device class / browser",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, concat(coalesce(device_class, \"unclassified\"), \" / \", coalesce(browser, \"-\")) as device_browser",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and is_authenticated = 0`,
+				...exclude,
+				"| stats count(*) as save_intents by device_browser",
+				"| sort save_intents desc",
+				"| limit 10",
+			].join(" "),
+			x: 12, y: 154, width: 12, height: 8,
+			view: "bar",
+		}),
 	);
 
 	// --- Summary (TL;DR) engagement ---

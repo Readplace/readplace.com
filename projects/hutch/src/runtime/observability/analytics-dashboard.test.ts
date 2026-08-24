@@ -73,9 +73,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 40 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 4 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 41 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(40);
+		expect(body.widgets).toHaveLength(41);
 	});
 
 	it("the first-article-autosave widget counts the discrete first_article_autosaved event per day — a 1:1 activation signal independent of the utm_source marker — excluding internal visitors, whose single test signup would skew a day at this event's volume", () => {
@@ -219,6 +219,21 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(outcomes).toBeDefined();
 		expect(outcomes).toContain(`surface in ["${SAVE_SURFACES.readerView}", "${SAVE_SURFACES.readerPaywall}"]`);
 		expect(outcomes).toContain("is_authenticated = 0");
+	});
+
+	it("breaks anonymous save-intent down by the device_class / browser the event now carries, so the client behind an anonymous save prompt is readable off the dashboard instead of a fuzzy timestamp join against an access log that expires", () => {
+		const deviceBreakdown = widgetQueries().find((q) => q.includes("stats count(*) as save_intents by device_browser"));
+		assert(deviceBreakdown, "the anonymous save-intent device breakdown widget must exist");
+		expect(deviceBreakdown).toContain(`event = "${ANALYTICS_EVENTS.viewSaveIntent}"`);
+		expect(deviceBreakdown).toContain("is_authenticated = 0");
+		expect(deviceBreakdown).toContain('concat(coalesce(device_class, "unclassified"), " / ", coalesce(browser, "-")) as device_browser');
+	});
+
+	it("keeps the bot and no-User-Agent buckets in the anonymous save-intent breakdown — unlike pageview, no bot gate drops a save intent, and those two buckets are exactly the crawler population the widget exists to expose", () => {
+		const deviceBreakdown = widgetQueries().find((q) => q.includes("stats count(*) as save_intents by device_browser"));
+		assert(deviceBreakdown, "the anonymous save-intent device breakdown widget must exist");
+		expect(deviceBreakdown).not.toContain('device_class != "other"');
+		expect(deviceBreakdown).not.toContain("ispresent(device_class)");
 	});
 
 	it("leaves the by-surface breakdown unscoped, so every new save surface shows up as its own row without a dashboard change", () => {
