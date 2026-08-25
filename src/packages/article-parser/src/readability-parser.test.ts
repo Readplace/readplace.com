@@ -84,7 +84,7 @@ describe("initReadabilityParser", () => {
 		</article></body></html>`;
 		const { parseHtml } = initParser();
 
-		const result = parseHtml({ url: "https://techhut.tv/windows-lite-ltsc-microsoft", html, thumbnailUrl: null });
+		const result = parseHtml({ url: "https://techhut.tv/windows-lite-ltsc-microsoft", documentUrl: "https://techhut.tv/windows-lite-ltsc-microsoft", html, thumbnailUrl: null });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -109,7 +109,7 @@ describe("initReadabilityParser", () => {
 		</article></body></html>`;
 		const { parseHtml } = initParser();
 
-		const result = parseHtml({ url: "https://example.com/playlist-post", html, thumbnailUrl: null });
+		const result = parseHtml({ url: "https://example.com/playlist-post", documentUrl: "https://example.com/playlist-post", html, thumbnailUrl: null });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -263,6 +263,7 @@ describe("initReadabilityParser", () => {
 		const { parseHtml } = initParser();
 		const result = parseHtml({
 			url: "https://blog.example.com/post",
+			documentUrl: "https://blog.example.com/post",
 			html: htmlWithRelativeImg,
 			thumbnailUrl: null,
 		});
@@ -270,6 +271,77 @@ describe("initReadabilityParser", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.article.content).toContain('src="https://blog.example.com/images/diagram.jpg"');
+		}
+	});
+
+	it("resolves relative image URLs against the document url, so a tracker that redirected never reaches the persisted body", () => {
+		const htmlWithRelativeImg = `
+		<html><head><title>Post</title></head>
+		<body><article>
+			<h1>Post</h1>
+			<p>Enough content to be parsed by readability as a real article with several words.</p>
+			<img src="qcrack.webp" alt="Diagram">
+			<p>Another paragraph with additional text for the parser.</p>
+		</article></body></html>`;
+
+		const { parseHtml } = initParser();
+		const result = parseHtml({
+			url: "https://wrapper.example/links/23045/8babea547d",
+			documentUrl: "https://dest.example/quake_shareware_cd/index.html",
+			html: htmlWithRelativeImg,
+			thumbnailUrl: null,
+		});
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.content).toContain('src="https://dest.example/quake_shareware_cd/qcrack.webp"');
+		}
+	});
+
+	it("resolves relative link hrefs against the document url", () => {
+		const htmlWithRelativeLink = `
+		<html><head><title>Post</title></head>
+		<body><article>
+			<h1>Post</h1>
+			<p>Enough content to be parsed by readability as a real article with several words.</p>
+			<p>See <a href="/other-post">this other post</a> for more details.</p>
+			<p>Another paragraph with additional text for the parser.</p>
+		</article></body></html>`;
+
+		const { parseHtml } = initParser();
+		const result = parseHtml({
+			url: "https://wrapper.example/links/23045/8babea547d",
+			documentUrl: "https://dest.example/quake_shareware_cd/index.html",
+			html: htmlWithRelativeLink,
+			thumbnailUrl: null,
+		});
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.content).toContain('href="https://dest.example/other-post"');
+		}
+	});
+
+	it("keeps siteName on the saved url when the crawl redirected", () => {
+		const htmlWithoutSiteName = `
+		<html><head><title>Post</title></head>
+		<body><article>
+			<h1>Post</h1>
+			<p>Enough content to be parsed by readability as a real article with several words.</p>
+			<p>Another paragraph with additional text for the parser.</p>
+		</article></body></html>`;
+
+		const { parseHtml } = initParser();
+		const result = parseHtml({
+			url: "https://wrapper.example/links/23045/8babea547d",
+			documentUrl: "https://dest.example/quake_shareware_cd/index.html",
+			html: htmlWithoutSiteName,
+			thumbnailUrl: null,
+		});
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.siteName).toBe("wrapper.example");
 		}
 	});
 
@@ -286,6 +358,7 @@ describe("initReadabilityParser", () => {
 		const { parseHtml } = initParser();
 		const result = parseHtml({
 			url: "https://blog.example.com/post",
+			documentUrl: "https://blog.example.com/post",
 			html: htmlWithRelativeLink,
 			thumbnailUrl: null,
 		});
@@ -300,6 +373,7 @@ describe("initReadabilityParser", () => {
 		const { parseHtml } = initParser();
 		const result = parseHtml({
 			url: "not-a-url",
+			documentUrl: "not-a-url",
 			html: "<html><body></body></html>",
 			thumbnailUrl: null,
 		});
@@ -315,6 +389,7 @@ describe("initReadabilityParser", () => {
 		const { parseHtml } = initParser();
 		const result = parseHtml({
 			url: "https://example.com/page",
+			documentUrl: "https://example.com/page",
 			html: minimalHtml,
 			thumbnailUrl: null,
 		});
@@ -354,6 +429,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://matching.example.com/article",
+				documentUrl: "https://matching.example.com/article",
 				html: "<html><body><nav>nav nav nav</nav><p>Original body that should be replaced.</p></body></html>",
 				thumbnailUrl: null,
 			});
@@ -392,6 +468,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: "<html><body><p>Original.</p></body></html>",
 				thumbnailUrl: null,
 			});
@@ -415,6 +492,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: `<html><head><title>Real Title</title></head><body><article><p>Real article body with enough words for readability to extract successfully as the main content.</p></article></body></html>`,
 				thumbnailUrl: null,
 			});
@@ -442,6 +520,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: `<html><body><article><p>Original body that remains after the throwing pre-parser was swallowed, with enough words for readability to score it.</p></article></body></html>`,
 				thumbnailUrl: null,
 			});
@@ -471,6 +550,7 @@ describe("initReadabilityParser", () => {
 
 			parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: `<html><body><article><p>Body with enough words for readability extraction to succeed even when the pre-parser fails.</p></article></body></html>`,
 				thumbnailUrl: null,
 			});
@@ -492,6 +572,7 @@ describe("initReadabilityParser", () => {
 			const { parseHtml } = initParser({ siteRules: [transforming] });
 			parseHtml({
 				url: "https://transform.example.com/article",
+				documentUrl: "https://transform.example.com/article",
 				html: ARTICLE_HTML,
 				thumbnailUrl: null,
 			});
@@ -511,6 +592,7 @@ describe("initReadabilityParser", () => {
 			const { parseHtml } = initParser({ siteRules: [transforming] });
 			parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: ARTICLE_HTML,
 				thumbnailUrl: null,
 			});
@@ -534,6 +616,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: ARTICLE_HTML,
 				thumbnailUrl: null,
 			});
@@ -556,6 +639,7 @@ describe("initReadabilityParser", () => {
 
 				const result = parseHtml({
 					url: "https://example.com/article",
+					documentUrl: "https://example.com/article",
 					html: ARTICLE_HTML,
 					thumbnailUrl: null,
 				});
@@ -580,6 +664,7 @@ describe("initReadabilityParser", () => {
 
 				const result = parseHtml({
 					url: "https://example.com/article",
+					documentUrl: "https://example.com/article",
 					html: ARTICLE_HTML,
 					thumbnailUrl: null,
 				});
@@ -596,7 +681,7 @@ describe("initReadabilityParser", () => {
 		it("reports the missing <html> element when the body has no elements at all (linkedom returns documentElement=null for empty HTML)", () => {
 			const { parseHtml } = initParser();
 
-			const result = parseHtml({ url: "https://example.com/article", html: "", thumbnailUrl: null });
+			const result = parseHtml({ url: "https://example.com/article", documentUrl: "https://example.com/article", html: "", thumbnailUrl: null });
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -610,6 +695,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://news.ycombinator.com/item",
+				documentUrl: "https://news.ycombinator.com/item",
 				html,
 				thumbnailUrl: null,
 			});
@@ -635,6 +721,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: ARTICLE_HTML,
 				thumbnailUrl: null,
 			});
@@ -663,6 +750,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://hex.ooo/library/last_question.html",
+				documentUrl: "https://hex.ooo/library/last_question.html",
 				html,
 				thumbnailUrl: null,
 			});
@@ -690,6 +778,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://unplannedobsolescence.com/blog/prolog-basics-pokemon/",
+				documentUrl: "https://unplannedobsolescence.com/blog/prolog-basics-pokemon/",
 				html,
 				thumbnailUrl: null,
 			});
@@ -716,6 +805,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://performance.dev/posts/how-is-linear-so-fast",
+				documentUrl: "https://performance.dev/posts/how-is-linear-so-fast",
 				html: htmlWithVideo,
 				thumbnailUrl: null,
 			});
@@ -746,6 +836,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://example.com/many",
+				documentUrl: "https://example.com/many",
 				html: htmlWithVideos,
 				thumbnailUrl: null,
 			});
@@ -764,6 +855,7 @@ describe("initReadabilityParser", () => {
 
 			const result = parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: ARTICLE_HTML,
 				thumbnailUrl: null,
 			});
@@ -791,6 +883,7 @@ describe("initReadabilityParser", () => {
 			const { parseHtml } = initParser({ siteRules: [site] });
 			const result = parseHtml({
 				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
 				html: "<html><body></body></html>",
 				thumbnailUrl: null,
 			});

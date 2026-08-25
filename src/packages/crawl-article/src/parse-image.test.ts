@@ -20,6 +20,7 @@ describe("parseImageFromBuffer", () => {
 			bodyHash: hashOf(JPEG_BYTES),
 			response: response({ etag: '"img-1"', "last-modified": "Wed, 21 Oct 2025 07:28:00 GMT" }),
 			url: "https://example.com/photo.jpg?cb=1",
+			documentUrl: "https://example.com/photo.jpg?cb=1",
 			contentType: "image/jpeg",
 			logError: () => {},
 		});
@@ -49,6 +50,7 @@ describe("parseImageFromBuffer", () => {
 			bodyHash: hashOf(JPEG_BYTES),
 			response: response(),
 			url: 'https://example.com/a"b.png',
+			documentUrl: 'https://example.com/a"b.png',
 			contentType: "image/png",
 			logError: () => {},
 		});
@@ -66,6 +68,7 @@ describe("parseImageFromBuffer", () => {
 			bodyHash: hashOf(oversize),
 			response: response(),
 			url: "https://example.com/huge.png",
+			documentUrl: "https://example.com/huge.png",
 			contentType: "image/png",
 			logError,
 		});

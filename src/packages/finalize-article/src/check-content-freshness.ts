@@ -1,4 +1,4 @@
-import type { CrawlArticle, CrawlArticleResult } from "@packages/crawl-article";
+import { type CrawlArticle, type CrawlArticleResult, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseHtml } from "@packages/article-parser";
 import type {
 	ContentFreshnessResult,
@@ -80,6 +80,7 @@ export function initRefreshArticleIfStale(deps: {
 	): Promise<ContentFreshnessResult> {
 		const parsed = deps.parseHtml({
 			url,
+			documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: result.finalUrl }),
 			html: result.html,
 			thumbnailUrl: result.thumbnailUrl ?? null,
 		});

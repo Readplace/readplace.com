@@ -4,6 +4,6 @@ export type DownloadedMedia = { originalUrl: string; cdnUrl: string };
 
 export type DownloadMedia = (params: {
 	html: string;
-	articleUrl: string;
+	referer: string;
 	articleResourceUniqueId: ArticleResourceUniqueId;
 }) => Promise<DownloadedMedia[]>;

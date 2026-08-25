@@ -967,6 +967,78 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		);
 	});
 
+	it("resolves a relative og:image against the article the tracker redirects to, not against the tracker", async () => {
+		const article = () =>
+			new Response('<html><head><meta property="og:image" content="images/hero.png"></head><body>hi</body></html>', {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
+
+		const result = await crawlArticle({ url: WRAPPER_URL });
+
+		assertFetched(result);
+		expect(result.thumbnailUrl).toBe("https://dest.example/images/hero.png");
+	});
+
+	it("resolves a bare relative <img src> against the destination, the shape a tracker's catch-all turns into the article page", async () => {
+		const article = () =>
+			new Response("<html><body><img src=\"qcrack.webp\"></body></html>", {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
+
+		const result = await crawlArticle({ url: WRAPPER_URL });
+
+		assertFetched(result);
+		expect(result.thumbnailUrl).toBe("https://dest.example/qcrack.webp");
+	});
+
+	it("fetches the thumbnail from the destination and cites the destination as referer, which same-origin hotlink protection requires", async () => {
+		const THUMBNAIL_URL = "https://dest.example/images/hero.png";
+		const requested: string[] = [];
+		const refererByUrl = new Map<string, string | undefined>();
+		const fakeFetch: typeof fetch = async (input, init) => {
+			const url = String(input);
+			requested.push(url);
+			refererByUrl.set(url, plainHeaders(init).referer);
+			if (url === WRAPPER_URL) {
+				return new Response(null, { status: 301, headers: { location: DESTINATION_URL } });
+			}
+			if (url === THUMBNAIL_URL) {
+				return new Response(Buffer.from("PNGBYTES"), { status: 200, headers: { "content-type": "image/png" } });
+			}
+			return new Response('<html><head><meta property="og:image" content="images/hero.png"></head></html>', {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		};
+		const crawlArticle = initCrawl({ fetch: fakeFetch });
+
+		const result = await crawlArticle({ url: WRAPPER_URL, fetchThumbnail: true });
+
+		assertFetched(result);
+		expect(requested).toContain(THUMBNAIL_URL);
+		expect(result.thumbnail?.image?.url).toBe(THUMBNAIL_URL);
+		expect(refererByUrl.get(THUMBNAIL_URL)).toBe(DESTINATION_URL);
+	});
+
+	it("keeps finalUrl as the crawl's terminal while the parsers resolve against the same destination", async () => {
+		const article = () =>
+			new Response('<html><head><meta property="og:image" content="images/hero.png"></head></html>', {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
+
+		const result = await crawlArticle({ url: WRAPPER_URL });
+
+		assertFetched(result);
+		expect(result.finalUrl).toBe(DESTINATION_URL);
+		expect(result.thumbnailUrl).toBe("https://dest.example/images/hero.png");
+	});
+
 	it("leaves finalUrl unset for the site-rule/oembed path, which issues no article fetch", async () => {
 		const fakeFetch: typeof fetch = async () =>
 			new Response(JSON.stringify({ author_name: "User", html: "<blockquote>x</blockquote>" }), {
@@ -1197,7 +1269,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			buffer: Buffer.from(html),
 			bodyHash: createHash("sha256").update(Buffer.from(html)).digest("hex"),
 			response: new Response(null, {}),
-			url,
+			documentUrl: url,
 			crawlFetch: throwingCrawlFetch,
 			logError: noopLogError,
 			logInfo: noopLogInfo,
@@ -1252,7 +1324,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			buffer: Buffer.from("<html></html>"),
 			bodyHash,
 			response: new Response(null, { headers: { etag: '"v1"', "last-modified": "Wed, 21 Oct 2025 07:28:00 GMT" } }),
-			url: "https://example.com",
+			documentUrl: "https://example.com",
 			crawlFetch: throwingCrawlFetch,
 			logError: noopLogError,
 			logInfo: noopLogInfo,
@@ -1283,7 +1355,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 			buffer,
 			bodyHash: createHash("sha256").update(buffer).digest("hex"),
 			response: new Response(null, {}),
-			url: "https://example.com/article",
+			documentUrl: "https://example.com/article",
 			fetchThumbnail: input.fetchThumbnail ?? true,
 			crawlFetch: input.crawlFetch,
 			logError: input.logError ?? noopLogError,

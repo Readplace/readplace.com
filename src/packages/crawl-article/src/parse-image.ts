@@ -19,6 +19,7 @@ export function parseImageFromBuffer(input: {
 	bodyHash: string;
 	response: Response;
 	url: string;
+	documentUrl: string;
 	contentType: string;
 	logError: (message: string, error?: Error) => void;
 }): CrawlArticleResult {
@@ -34,13 +35,13 @@ export function parseImageFromBuffer(input: {
 	return {
 		status: "fetched",
 		mediaType: "image",
-		html: `<figure><img src="${escapeHtmlText(input.url)}" alt=""></figure>`,
+		html: `<figure><img src="${escapeHtmlText(input.documentUrl)}" alt=""></figure>`,
 		thumbnail: {
 			image: {
 				body: input.buffer,
 				contentType: input.contentType,
-				url: input.url,
-				extension: extensionFromContentType({ contentType: input.contentType, url: input.url }),
+				url: input.documentUrl,
+				extension: extensionFromContentType({ contentType: input.contentType, url: input.documentUrl }),
 			},
 			provenUnusable: [],
 		},

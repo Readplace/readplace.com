@@ -20,6 +20,7 @@ export type {
 	ThumbnailCascade,
 	ThumbnailImage,
 } from "./crawl-article.types";
+export { resolveDocumentUrl } from "./resolve-document-url";
 export { initCrawlFetch } from "./crawl-fetch";
 export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";

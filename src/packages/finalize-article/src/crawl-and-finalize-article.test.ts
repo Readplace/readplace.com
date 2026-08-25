@@ -235,6 +235,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
+			documentUrl: URL_UNDER_TEST,
 			html: "<html></html>",
 			resolvedThumbnail: { image: preFetched, provenUnusable: [] },
 			mediaType: undefined,
@@ -264,6 +265,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
+			documentUrl: URL_UNDER_TEST,
 			html: '<figure><img src="https://example.com/photo.jpg" alt=""></figure>',
 			resolvedThumbnail: { image: imageBytes, provenUnusable: [] },
 			mediaType: "image",

@@ -35,6 +35,7 @@ export type FinalizeArticleResult =
 
 export type FinalizeArticle = (input: {
 	url: string;
+	documentUrl: string;
 	html: string;
 	/** The cascade the crawler already ran (SimpleCrawl with
 	 * `fetchThumbnail: true`). Its presence is what tells the finalizer the
@@ -90,11 +91,12 @@ export function initFinalizeArticle(deps: {
 		 * linkedom for og:image / meta-tag extraction, while parseHtml uses
 		 * Readability for content extraction — different libraries, different
 		 * concerns, negligible overhead on article-sized documents. */
-		const candidates = extractThumbnailCandidates({ html: input.html, baseUrl: input.url });
+		const candidates = extractThumbnailCandidates({ html: input.html, baseUrl: input.documentUrl });
 
-		if (input.mediaType === "image" || isBareImageCapture({ html: input.html, candidates, url: input.url })) {
+		if (input.mediaType === "image" || isBareImageCapture({ html: input.html, candidates, url: input.documentUrl })) {
 			return finalizeImageArticle({
 				url: input.url,
+				documentUrl: input.documentUrl,
 				candidates,
 				resolvedThumbnail: input.resolvedThumbnail,
 				fetchThumbnailImage,
@@ -104,11 +106,12 @@ export function initFinalizeArticle(deps: {
 		}
 
 		const thumbnail =
-			input.resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: input.url }));
+			input.resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: input.documentUrl }));
 		const thumbnailUrl = firstUsableCandidate({ candidates, thumbnail }) ?? null;
 
 		const parseResult = parseHtml({
 			url: input.url,
+			documentUrl: input.documentUrl,
 			html: input.html,
 			thumbnailUrl,
 		});
@@ -125,7 +128,7 @@ export function initFinalizeArticle(deps: {
 
 		const media = await downloadMedia({
 			html: content,
-			articleUrl: input.url,
+			referer: input.documentUrl,
 			articleResourceUniqueId,
 		});
 		const html = await processContent({ html: content, media });
@@ -169,22 +172,23 @@ export function initFinalizeArticle(deps: {
  */
 async function finalizeImageArticle(args: {
 	url: string;
+	documentUrl: string;
 	candidates: string[];
 	resolvedThumbnail: ThumbnailCascade | undefined;
 	fetchThumbnailImage: FetchThumbnailImage;
 	putImageObject: PutImageObject;
 	imagesCdnBaseUrl: string;
 }): Promise<{ ok: true; article: FinalizedArticle }> {
-	const { url, candidates, resolvedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
+	const { url, documentUrl, candidates, resolvedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
 	const { hostname, pathname } = new URL(url);
 	const title = imageTitleFromPathname(pathname) || hostname;
 	const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 
-	const thumbnail = resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: url }));
+	const thumbnail = resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: documentUrl }));
 	const image = thumbnail.image;
 	const imageUrl = image
 		? await uploadThumbnail({ thumbnailImage: image, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl })
-		: (firstUsableCandidate({ candidates, thumbnail }) ?? url);
+		: (firstUsableCandidate({ candidates, thumbnail }) ?? documentUrl);
 
 	return {
 		ok: true,

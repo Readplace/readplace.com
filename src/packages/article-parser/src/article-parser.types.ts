@@ -20,4 +20,9 @@ export type ParseArticle = (url: string) => Promise<ParseArticleResult>;
  * The parser does not parse the HTML for an image, so callers must
  * extract thumbnail candidates from the source HTML and pick one (or
  * pass `null` to deliberately opt out). */
-export type ParseHtml = (params: { url: string; html: string; thumbnailUrl: string | null }) => ParseArticleResult;
+export type ParseHtml = (params: {
+	url: string;
+	documentUrl: string;
+	html: string;
+	thumbnailUrl: string | null;
+}) => ParseArticleResult;

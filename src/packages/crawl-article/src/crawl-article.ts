@@ -14,6 +14,7 @@ import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import { isBlockClassResponse } from "./persona-fallback";
 import { readBodyWithCap } from "./read-capped-body";
+import { resolveDocumentUrl } from "./resolve-document-url";
 import type { ExtractPdf } from "./pdf-extract.types";
 import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
 
@@ -266,19 +267,19 @@ export async function parseHtmlFromBuffer(input: {
 	buffer: Buffer;
 	bodyHash: string;
 	response: Response;
-	url: string;
+	documentUrl: string;
 	fetchThumbnail?: boolean;
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
 }): Promise<CrawlArticleResult> {
-	const { buffer, bodyHash, response, url, fetchThumbnail, crawlFetch, logError, logInfo } = input;
+	const { buffer, bodyHash, response, documentUrl, fetchThumbnail, crawlFetch, logError, logInfo } = input;
 	const html = new TextDecoder().decode(buffer);
-	const candidates = extractThumbnailCandidates({ html, baseUrl: url });
+	const candidates = extractThumbnailCandidates({ html, baseUrl: documentUrl });
 	const thumbnailUrl = candidates[0];
 	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
 	const thumbnail = fetchThumbnail
-		? await fetchThumbnailImage({ candidates, referer: url })
+		? await fetchThumbnailImage({ candidates, referer: documentUrl })
 		: undefined;
 	const result: CrawlArticleResult & { status: "fetched" } = {
 		status: "fetched",
@@ -465,6 +466,7 @@ export function initCrawlArticle(deps: {
 			response,
 			contentType,
 			url: currentUrl,
+			documentUrl: resolveDocumentUrl({ requestedUrl: currentUrl, finalUrl: terminalUrl(response) }),
 			fetchThumbnail: params.fetchThumbnail,
 			onProgress: params.onProgress,
 			extractPdf,
@@ -491,6 +493,7 @@ async function dispatchSupportedMedia(input: {
 	response: Response;
 	contentType: string;
 	url: string;
+	documentUrl: string;
 	fetchThumbnail?: boolean;
 	onProgress?: ComprehensiveCrawlProgress;
 	extractPdf?: ExtractPdf;
@@ -498,14 +501,14 @@ async function dispatchSupportedMedia(input: {
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
 }): Promise<CrawlArticleResult> {
-	const { mediaType, buffer, bodyHash, response, contentType, url, crawlFetch, logError, logInfo } = input;
+	const { mediaType, buffer, bodyHash, response, contentType, url, documentUrl, crawlFetch, logError, logInfo } = input;
 	switch (mediaType) {
 		case "html":
 			return parseHtmlFromBuffer({
 				buffer,
 				bodyHash,
 				response,
-				url,
+				documentUrl,
 				fetchThumbnail: input.fetchThumbnail,
 				crawlFetch,
 				logError,
@@ -528,13 +531,14 @@ async function dispatchSupportedMedia(input: {
 				logError,
 			});
 		case "plain-text":
-			return parsePlainTextFromBuffer({ buffer, bodyHash, response, url });
+			return parsePlainTextFromBuffer({ buffer, bodyHash, response, documentUrl });
 		case "image":
 			return parseImageFromBuffer({
 				buffer,
 				bodyHash,
 				response,
 				url,
+				documentUrl,
 				contentType,
 				logError,
 			});

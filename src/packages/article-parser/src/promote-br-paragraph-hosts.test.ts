@@ -152,6 +152,7 @@ describe("promoteBrParagraphHosts end-to-end through parseHtml", () => {
 	it("rebuilds an inline LinkedIn post into paragraphs with no orphan leading line", () => {
 		const result = parseHtml({
 			url: "https://www.linkedin.com/posts/ivan-vitiaev_activity-123-OoS_",
+			documentUrl: "https://www.linkedin.com/posts/ivan-vitiaev_activity-123-OoS_",
 			html: linkedinPostPage(POST_BODY),
 			thumbnailUrl: null,
 		});
@@ -180,7 +181,7 @@ describe("promoteBrParagraphHosts end-to-end through parseHtml", () => {
 			<footer><address><span>Readplace Inc.<br><br>123 Example Street<br><br>Springfield, USA</span></address></footer>
 		</body></html>`;
 
-		const result = parseHtml({ url: "https://example.com/article", html, thumbnailUrl: null });
+		const result = parseHtml({ url: "https://example.com/article", documentUrl: "https://example.com/article", html, thumbnailUrl: null });
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -204,7 +205,7 @@ describe("promoteBrParagraphHosts end-to-end through parseHtml", () => {
 			<div class="signature"><span>Best regards,<br><br>Jane Doe<br>Principal Engineer</span></div>
 		</body></html>`;
 
-		const result = parseHtml({ url: "https://example.com/newsletter", html, thumbnailUrl: null });
+		const result = parseHtml({ url: "https://example.com/newsletter", documentUrl: "https://example.com/newsletter", html, thumbnailUrl: null });
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;

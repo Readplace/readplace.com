@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
-import type { CrawlArticle } from "@packages/crawl-article";
+import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml } from "./article-parser.types";
 import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
 import type { YouTubeEmbed } from "./parse-embed-url";
@@ -110,7 +110,7 @@ export function initReadabilityParser(deps: {
 				siteName: parsed.siteName || hostname,
 				excerpt: parsed.excerpt || `Content saved from ${hostname}.`,
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-				content: resolveRelativeUrls({ html: parsed.content, baseUrl: params.url }),
+				content: resolveRelativeUrls({ html: parsed.content, baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,
 			},
 		};
@@ -128,7 +128,12 @@ export function initReadabilityParser(deps: {
 			return { ok: false, reason: "Could not fetch article" };
 		}
 
-		return parseHtml({ url, html: result.html, thumbnailUrl: result.thumbnailUrl ?? null });
+		return parseHtml({
+			url,
+			documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: result.finalUrl }),
+			html: result.html,
+			thumbnailUrl: result.thumbnailUrl ?? null,
+		});
 	};
 
 	return { parseArticle, parseHtml };

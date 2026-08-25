@@ -145,6 +145,7 @@ describe("linkedinSiteRules end-to-end through parseHtml", () => {
 		const { parseHtml } = parser([linkedinSiteRules]);
 		const result = parseHtml({
 			url: "https://www.linkedin.com/posts/author_activity-123-AbC",
+			documentUrl: "https://www.linkedin.com/posts/author_activity-123-AbC",
 			html: linkedinPostPage(LINKEDIN_POST),
 			thumbnailUrl: null,
 		});
@@ -164,6 +165,7 @@ describe("linkedinSiteRules end-to-end through parseHtml", () => {
 		const { parseHtml } = parser([]);
 		const result = parseHtml({
 			url: "https://www.linkedin.com/posts/author_activity-123-AbC",
+			documentUrl: "https://www.linkedin.com/posts/author_activity-123-AbC",
 			html: linkedinPostPage(LINKEDIN_POST),
 			thumbnailUrl: null,
 		});

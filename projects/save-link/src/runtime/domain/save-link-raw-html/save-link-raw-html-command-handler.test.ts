@@ -109,6 +109,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: "https://example.com/article",
+			documentUrl: "https://example.com/article",
 			html: rawHtml,
 		});
 	});

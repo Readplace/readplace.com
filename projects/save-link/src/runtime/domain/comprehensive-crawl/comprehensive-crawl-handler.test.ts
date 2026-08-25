@@ -160,6 +160,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
+			documentUrl: "https://example.com/doc.pdf",
 			html: "<html><body>X</body></html>",
 			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
 		});

@@ -15,7 +15,7 @@ function htmlOf(input: { body: string; url: string; headers?: Record<string, str
 		buffer: Buffer.from(input.body, "utf-8"),
 		bodyHash: hashOf(input.body),
 		response: response(input.headers),
-		url: input.url,
+		documentUrl: input.url,
 	});
 	assert(result.status === "fetched");
 	return result.html;
@@ -28,7 +28,7 @@ describe("parsePlainTextFromBuffer", () => {
 			buffer: Buffer.from(body, "utf-8"),
 			bodyHash: hashOf(body),
 			response: response({ etag: '"abc"', "last-modified": "Wed, 21 Oct 2025 07:28:00 GMT" }),
-			url: "https://example.com/docs/my_notes.txt",
+			documentUrl: "https://example.com/docs/my_notes.txt",
 		});
 
 		assert.equal(result.status, "fetched");
@@ -56,7 +56,7 @@ describe("parsePlainTextFromBuffer", () => {
 			buffer: Buffer.from(body, "utf-8"),
 			bodyHash: hashOf(body),
 			response: response(),
-			url: "https://example.com/",
+			documentUrl: "https://example.com/",
 		});
 
 		assert(result.status === "fetched");

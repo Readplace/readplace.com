@@ -117,6 +117,7 @@ describe("mediaWikiSiteRules end-to-end through parseHtml", () => {
 		const { parseHtml } = parser([mediaWikiSiteRules]);
 		const result = parseHtml({
 			url: "https://en.wikipedia.org/wiki/The_Mythical_Man-Month",
+			documentUrl: "https://en.wikipedia.org/wiki/The_Mythical_Man-Month",
 			html: mediaWikiArticle(),
 			thumbnailUrl: null,
 		});
@@ -157,6 +158,7 @@ describe("mediaWikiSiteRules end-to-end through parseHtml", () => {
 		const { parseHtml } = parser([mediaWikiSiteRules]);
 		const result = parseHtml({
 			url: "https://en.wikipedia.org/wiki/The_Mythical_Man-Month",
+			documentUrl: "https://en.wikipedia.org/wiki/The_Mythical_Man-Month",
 			html: parsoidReadViewArticle(),
 			thumbnailUrl: null,
 		});
@@ -174,6 +176,7 @@ describe("mediaWikiSiteRules end-to-end through parseHtml", () => {
 		const { parseHtml } = parser([]);
 		const result = parseHtml({
 			url: "https://en.wikipedia.org/wiki/The_Mythical_Man-Month",
+			documentUrl: "https://en.wikipedia.org/wiki/The_Mythical_Man-Month",
 			html: mediaWikiArticle(),
 			thumbnailUrl: null,
 		});

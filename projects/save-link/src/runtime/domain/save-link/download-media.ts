@@ -18,7 +18,7 @@ export function initDownloadMedia(deps: {
 }): DownloadMedia {
 	const { putImageObject, logError, crawlFetch, imagesCdnBaseUrl } = deps;
 
-	return async ({ html, articleUrl, articleResourceUniqueId }) => {
+	return async ({ html, referer, articleResourceUniqueId }) => {
 		const results: DownloadedMedia[] = [];
 
 		const uniqueUrls = selectImageUrls(html);
@@ -27,7 +27,7 @@ export function initDownloadMedia(deps: {
 			const batch = uniqueUrls.slice(i, i + CONCURRENCY);
 			await Promise.all(batch.map(async (originalUrl) => {
 				try {
-					const downloaded = await downloadImage({ crawlFetch, url: originalUrl, referer: articleUrl });
+					const downloaded = await downloadImage({ crawlFetch, url: originalUrl, referer });
 					if (!downloaded) return;
 
 					const hash = createHash("sha256").update(originalUrl).digest("hex").slice(0, 16);

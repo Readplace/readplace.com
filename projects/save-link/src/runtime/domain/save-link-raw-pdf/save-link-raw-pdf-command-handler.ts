@@ -111,7 +111,12 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					`${logPrefix} unexpected crawl status ${crawlResult.status}`,
 				);
 
-				const parseResult = parseHtml({ url: detail.url, html: crawlResult.html, thumbnailUrl: null });
+				const parseResult = parseHtml({
+					url: detail.url,
+					documentUrl: detail.url,
+					html: crawlResult.html,
+					thumbnailUrl: null,
+				});
 				if (!parseResult.ok) {
 					logParseError({ url: detail.url, reason: parseResult.reason });
 					const snapshot = await readTierSnapshot({ url: detail.url });
@@ -136,7 +141,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 				const articleResourceUniqueId = ArticleResourceUniqueId.parse(detail.url);
 				const media = await downloadMedia({
 					html: parseResult.article.content,
-					articleUrl: detail.url,
+					referer: detail.url,
 					articleResourceUniqueId,
 				});
 				const processedHtml = await processContent({

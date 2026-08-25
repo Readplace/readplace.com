@@ -55,6 +55,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 				const rawHtml = await readPendingHtml(detail.url);
 				const finalized = await finalizeArticle({
 					url: detail.url,
+					documentUrl: detail.url,
 					html: rawHtml,
 				});
 				if (!finalized.ok) {

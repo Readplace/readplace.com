@@ -1,4 +1,4 @@
-import type { CrawlArticle } from "@packages/crawl-article";
+import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { FinalizeArticle, FinalizedArticle } from "./finalize-article";
 
@@ -75,6 +75,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 
 		const finalized = await finalizeArticle({
 			url: params.url,
+			documentUrl: resolveDocumentUrl({ requestedUrl: params.url, finalUrl: crawlResult.finalUrl }),
 			html: crawlResult.html,
 			resolvedThumbnail: crawlResult.thumbnail,
 			mediaType: crawlResult.mediaType,

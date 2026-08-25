@@ -1,3 +1,6 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ParseHtml } from "@packages/article-parser";
 import type { FetchThumbnailImage, ThumbnailImage } from "@packages/crawl-article";
 import type { DownloadMedia } from "./download-media.types";
@@ -47,13 +50,112 @@ function createFinalize(overrides: {
 	});
 }
 
+describe("initFinalizeArticle — a crawl that landed somewhere else", () => {
+	const WRAPPER_URL = "https://wrapper.example/links/23045/8babea547d";
+	const DESTINATION_URL = "https://dest.example/quake_shareware_cd/index.html";
+
+	it("resolves a relative og:image against the document url, not the identity url", async () => {
+		const parseHtml = jest.fn(stubParseHtml);
+		const finalize = createFinalize({ parseHtml });
+		const html = `<html><head>
+			<meta property="og:image" content="images/hero.png">
+		</head><body><p>Body</p></body></html>`;
+
+		await finalize({ url: WRAPPER_URL, documentUrl: DESTINATION_URL, html });
+
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: WRAPPER_URL,
+			documentUrl: DESTINATION_URL,
+			html,
+			thumbnailUrl: "https://dest.example/quake_shareware_cd/images/hero.png",
+		});
+	});
+
+	it("cites the document url as the thumbnail referer, which same-origin hotlink protection requires", async () => {
+		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
+		const finalize = createFinalize({ fetchThumbnailImage });
+		const html = `<html><head>
+			<meta property="og:image" content="images/hero.png">
+		</head><body><p>Body</p></body></html>`;
+
+		await finalize({ url: WRAPPER_URL, documentUrl: DESTINATION_URL, html });
+
+		expect(fetchThumbnailImage).toHaveBeenCalledWith({
+			candidates: ["https://dest.example/quake_shareware_cd/images/hero.png"],
+			referer: DESTINATION_URL,
+		});
+	});
+
+	it("keys stored images by the identity url even when the crawl redirected", async () => {
+		const storedKeys: string[] = [];
+		const putImageObject: PutImageObject = async ({ key }) => {
+			storedKeys.push(key);
+		};
+		const hostedImage: ThumbnailImage = {
+			body: Buffer.from([0xff, 0xd8, 0xff]),
+			contentType: "image/jpeg",
+			url: "https://dest.example/quake_shareware_cd/images/hero.png",
+			extension: ".jpg",
+		};
+		const finalize = createFinalize({ putImageObject });
+
+		const result = await finalize({
+			url: WRAPPER_URL,
+			documentUrl: DESTINATION_URL,
+			html: "<html><body><p>Body</p></body></html>",
+			resolvedThumbnail: { image: hostedImage, provenUnusable: [] },
+		});
+
+		const identityId = ArticleResourceUniqueId.parse(WRAPPER_URL);
+		const filename = `${createHash("sha256").update(hostedImage.url).digest("hex").slice(0, 16)}.jpg`;
+		expect(storedKeys).toEqual([identityId.toS3ImageKey(filename)]);
+		assert(result.ok);
+		expect(result.article.metadata.imageUrl).toBe(
+			identityId.toImageCdnUrl({ baseUrl: "https://cdn.example.com", filename }),
+		);
+	});
+
+	it("hands downloadMedia the document url as referer while keying uploads by the identity url", async () => {
+		const downloadMedia = jest.fn(noopDownloadMedia);
+		const finalize = createFinalize({ downloadMedia });
+
+		await finalize({
+			url: WRAPPER_URL,
+			documentUrl: DESTINATION_URL,
+			html: "<html><body><p>Body</p></body></html>",
+		});
+
+		expect(downloadMedia).toHaveBeenCalledWith({
+			html: expect.any(String),
+			referer: DESTINATION_URL,
+			articleResourceUniqueId: ArticleResourceUniqueId.parse(WRAPPER_URL),
+		});
+	});
+
+	it("detects a bare-image capture when the crawl redirected to the image itself", async () => {
+		const parseHtml = jest.fn(stubParseHtml);
+		const IMAGE_DESTINATION = "https://dest.example/photo.jpg";
+		const finalize = createFinalize({ parseHtml });
+
+		const result = await finalize({
+			url: WRAPPER_URL,
+			documentUrl: IMAGE_DESTINATION,
+			html: `<html><head><title>photo.jpg</title></head><body><img src="${IMAGE_DESTINATION}"></body></html>`,
+		});
+
+		expect(parseHtml).not.toHaveBeenCalled();
+		assert(result.ok);
+		expect(result.article.metadata.imageUrl).toBe(IMAGE_DESTINATION);
+	});
+});
+
 describe("initFinalizeArticle", () => {
 	it("returns ok:false with the parser's reason when parseHtml fails", async () => {
 		const finalize = createFinalize({
 			parseHtml: () => ({ ok: false, reason: "readability crashed" }),
 		});
 
-		const result = await finalize({ url: URL_UNDER_TEST, html: "<html></html>" });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<html></html>" });
 
 		expect(result).toEqual({ ok: false, reason: "readability crashed" });
 	});
@@ -65,10 +167,11 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.png">
 		</head><body><p>Body</p></body></html>`;
 
-		await finalize({ url: URL_UNDER_TEST, html });
+		await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
 
 		expect(parseHtml).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
+			documentUrl: URL_UNDER_TEST,
 			html,
 			thumbnailUrl: "https://example.com/og.png",
 		});
@@ -79,10 +182,11 @@ describe("initFinalizeArticle", () => {
 		const finalize = createFinalize({ parseHtml });
 		const html = `<html><head><title>No images</title></head><body><p>Body</p></body></html>`;
 
-		await finalize({ url: URL_UNDER_TEST, html });
+		await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
 
 		expect(parseHtml).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
+			documentUrl: URL_UNDER_TEST,
 			html,
 			thumbnailUrl: null,
 		});
@@ -102,7 +206,7 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.jpg">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, html, resolvedThumbnail: { image: resolvedImage, provenUnusable: [] } });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html, resolvedThumbnail: { image: resolvedImage, provenUnusable: [] } });
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
 		expect(putImageObject).toHaveBeenCalledWith(expect.objectContaining({
@@ -129,7 +233,7 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.jpg">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, html });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
 
 		expect(fetchThumbnailImage).toHaveBeenCalledWith({
 			candidates: ["https://example.com/og.jpg"],
@@ -150,7 +254,7 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.jpg">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, html });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -170,7 +274,7 @@ describe("initFinalizeArticle", () => {
 			<meta name="twitter:image" content="https://example.com/maybe.png">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, html });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -189,7 +293,7 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/not-an-image">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, html });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -207,6 +311,7 @@ describe("initFinalizeArticle", () => {
 
 		const result = await finalize({
 			url: URL_UNDER_TEST,
+			documentUrl: URL_UNDER_TEST,
 			html,
 			resolvedThumbnail: { image: undefined, provenUnusable: ["https://example.com/not-an-image"] },
 		});
@@ -225,7 +330,7 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.jpg">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, html, resolvedThumbnail: { image: undefined, provenUnusable: [] } });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html, resolvedThumbnail: { image: undefined, provenUnusable: [] } });
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
 		expect(result.ok).toBe(true);
@@ -248,6 +353,7 @@ describe("initFinalizeArticle", () => {
 
 		const result = await finalize({
 			url: URL_UNDER_TEST,
+			documentUrl: URL_UNDER_TEST,
 			html: "<html><body></body></html>",
 			resolvedThumbnail: { image: thumbnail, provenUnusable: [] },
 		});
@@ -267,7 +373,7 @@ describe("initFinalizeArticle", () => {
 		});
 		const finalize = createFinalize({ downloadMedia, processContent });
 
-		const result = await finalize({ url: URL_UNDER_TEST, html: "<html><body><p>Body</p></body></html>" });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<html><body><p>Body</p></body></html>" });
 
 		expect(processContent).toHaveBeenCalled();
 		expect(result.ok).toBe(true);
@@ -291,7 +397,7 @@ describe("initFinalizeArticle", () => {
 			}),
 		});
 
-		const result = await finalize({ url: URL_UNDER_TEST, html: "<html></html>" });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<html></html>" });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -318,6 +424,7 @@ describe("initFinalizeArticle", () => {
 
 		const result = await finalize({
 			url: "https://example.com/lean-engineering-638.jpg",
+			documentUrl: "https://example.com/lean-engineering-638.jpg",
 			html: "<figure><img src=\"https://example.com/lean-engineering-638.jpg\" alt=\"\"></figure>",
 			mediaType: "image",
 			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
@@ -356,7 +463,7 @@ describe("initFinalizeArticle", () => {
 		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
 		const html = `<html><head><title>photo.jpg (638×359)</title></head><body><img src="https://example.com/photo.jpg"></body></html>`;
 
-		const result = await finalize({ url: "https://example.com/photo.jpg", html });
+		const result = await finalize({ url: "https://example.com/photo.jpg", documentUrl: "https://example.com/photo.jpg", html });
 
 		expect(parseHtml).not.toHaveBeenCalled();
 		expect(fetchThumbnailImage).toHaveBeenCalledWith({
@@ -386,7 +493,7 @@ describe("initFinalizeArticle", () => {
 		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
 		const html = `<html><head><title>F1ab (638×359)</title></head><body><img src="https://example.com/media/F1ab?format=jpg"></body></html>`;
 
-		const result = await finalize({ url: "https://example.com/media/F1ab?format=jpg", html });
+		const result = await finalize({ url: "https://example.com/media/F1ab?format=jpg", documentUrl: "https://example.com/media/F1ab?format=jpg", html });
 
 		expect(parseHtml).not.toHaveBeenCalled();
 		expect(fetchThumbnailImage).toHaveBeenCalledWith({
@@ -407,7 +514,7 @@ describe("initFinalizeArticle", () => {
 		const finalize = createFinalize({ fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }) });
 		const html = `<html><body><img src="https://example.com/photo.jpg"></body></html>`;
 
-		const result = await finalize({ url: "https://example.com/photo.jpg", html, mediaType: "image" });
+		const result = await finalize({ url: "https://example.com/photo.jpg", documentUrl: "https://example.com/photo.jpg", html, mediaType: "image" });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -425,6 +532,7 @@ describe("initFinalizeArticle", () => {
 
 		const result = await finalize({
 			url: "https://example.com/photo.jpg",
+			documentUrl: "https://example.com/photo.jpg",
 			html,
 			mediaType: "image",
 			resolvedThumbnail: { image: undefined, provenUnusable: [] },
@@ -442,6 +550,7 @@ describe("initFinalizeArticle", () => {
 
 		const result = await finalize({
 			url: "https://example.com/photo.jpg",
+			documentUrl: "https://example.com/photo.jpg",
 			html: "<html><body></body></html>",
 			mediaType: "image",
 		});
@@ -466,6 +575,7 @@ describe("initFinalizeArticle", () => {
 
 		const result = await finalize({
 			url: "https://example.com/",
+			documentUrl: "https://example.com/",
 			html: "<html></html>",
 			mediaType: "image",
 			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
@@ -499,7 +609,7 @@ describe("initFinalizeArticle", () => {
 		};
 		const finalize = createFinalize({ parseHtml, downloadMedia });
 
-		const result = await finalize({ url: URL_UNDER_TEST, html: "<html></html>" });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<html></html>" });
 
 		expect(contentSeenByDownloadMedia).not.toContain(oversized);
 		expect(contentSeenByDownloadMedia).toContain("real text");

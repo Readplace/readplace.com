@@ -1,7 +1,7 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { CrawlArticle } from "@packages/crawl-article";
+import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
@@ -196,6 +196,7 @@ export function initComprehensiveCrawlHandler(deps: {
 			case "fetched": {
 				const finalized = await finalizeArticle({
 					url,
+					documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: crawlResult.finalUrl }),
 					html: crawlResult.html,
 					resolvedThumbnail: crawlResult.thumbnail,
 				});

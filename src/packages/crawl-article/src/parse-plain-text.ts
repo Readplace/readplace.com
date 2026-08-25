@@ -31,7 +31,7 @@ export function parsePlainTextFromBuffer(input: {
 	buffer: Buffer;
 	bodyHash: string;
 	response: Response;
-	url: string;
+	documentUrl: string;
 }): CrawlArticleResult {
 	const text = new TextDecoder().decode(input.buffer);
 	const paragraphs = text
@@ -40,7 +40,7 @@ export function parsePlainTextFromBuffer(input: {
 		.filter((block) => block.length > 0)
 		.map((block) => `<p>${escapeHtmlText(block)}</p>`)
 		.join("");
-	const title = escapeHtmlText(deriveTitleFromTextUrl(input.url));
+	const title = escapeHtmlText(deriveTitleFromTextUrl(input.documentUrl));
 	const titleTag = title ? `<title>${title}</title>` : "";
 	const h1 = title ? `<h1>${title}</h1>` : "";
 	const html = `<!DOCTYPE html><html><head>${titleTag}</head><body><article>${h1}${paragraphs}</article></body></html>`;

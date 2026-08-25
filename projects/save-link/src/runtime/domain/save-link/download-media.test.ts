@@ -46,7 +46,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://hotlinkprotected.example/photo.png">',
-			articleUrl: "https://hotlinkprotected.example/post",
+			referer: "https://hotlinkprotected.example/post",
 			articleResourceUniqueId,
 		});
 
@@ -60,7 +60,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<p><img src="https://example.com/photo.png"></p>',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -82,7 +82,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://example.com/photo.png">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId: nestedArticle,
 		});
 
@@ -99,7 +99,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId: nestedArticle,
 		});
 
@@ -111,7 +111,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img srcset="https://example.com/small.png 300w, https://example.com/large.png 600w">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -125,7 +125,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img srcset="https://cdn.example.com/image/fetch/w_424,c_limit,f_webp,q_auto:good/photo.png 424w, https://cdn.example.com/image/fetch/w_848,c_limit,f_webp,q_auto:good/photo.png 848w">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -148,7 +148,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png"><img srcset="https://example.com/p/w_424 424w">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -161,7 +161,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png" srcset="https://example.com/photo.png 1x">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -175,7 +175,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<p><img src="https://example.com/broken.png"></p>',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -189,7 +189,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<p><img src="https://example.com/broken.png"></p>',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -205,7 +205,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<p><img src="https://example.com/broken.png"></p>',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -221,7 +221,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<p><img src="https://example.com/huge.jpg"></p>',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -234,7 +234,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png"><img src="https://example.com/photo.png">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -252,7 +252,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: imgs,
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -274,7 +274,7 @@ describe("initDownloadMedia", () => {
 		// 2 images × (6 webp + 6 png + 1 img) = 26 rendition URLs, over a per-URL cap of 20.
 		const media = await downloadMedia({
 			html: figure("cubicles") + figure("loop"),
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 		const originals = media.map((m) => m.originalUrl);
@@ -292,7 +292,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="data:image/png;base64,iVBORw0KGgo=">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -305,7 +305,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: "<p>Plain text article</p>",
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -319,7 +319,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -337,7 +337,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://example.com/unknown">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -357,7 +357,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/huge-no-header.jpg">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -373,7 +373,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/missing.png">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -392,7 +392,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://example.com/photo.tiff">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -412,7 +412,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://example.com/image">',
-			articleUrl: ARTICLE_URL,
+			referer: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
