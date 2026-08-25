@@ -228,8 +228,8 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// eventually consistent), so a transient miss renders the row we already
 		// had or the stub we just wrote — pending, never a 500.
 		const articleSnapshot = await deps.findArticleByUrl(articleUrl);
-		const pendingSnapshot: { metadata: ArticleMetadata; estimatedReadTime: Minutes; savedAt: Date } =
-			existing ?? { metadata: stubMetadata, estimatedReadTime: stubReadTime, savedAt: deps.now() };
+		const pendingSnapshot: { metadata: ArticleMetadata; estimatedReadTime: Minutes } =
+			existing ?? { metadata: stubMetadata, estimatedReadTime: stubReadTime };
 		const snapshot = articleSnapshot ?? pendingSnapshot;
 		const metadata: ArticleMetadata = snapshot.metadata;
 		const estimatedReadTime: Minutes = snapshot.estimatedReadTime;
