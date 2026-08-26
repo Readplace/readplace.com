@@ -1,0 +1,22 @@
+{
+	"excluded": {
+		"MainActivity.kt": "activity shell + composition root; no logic of its own",
+		"KeystoreTokenStorage.kt": "AndroidKeyStore glue; the store contract is tested through its fakes",
+		"PreferenceFlags.kt": "SharedPreferences glue behind the tested KeyValueFlags seam",
+		"BrandTheme.kt": "Compose theme resolving the tested BrandColor pairs",
+		"ShareIntentReader.kt": "Intent/ClipData/ContentResolver adapter; the triage it feeds is tested",
+		"LaunchIntroMedia.kt": "Media3 player + Compose overlay glue around the tested LaunchIntro state machine",
+		"WebPageSheet.kt": "WebView shell for one public URL; its policies are the tested ReaderNavigation/WebResponsePolicy",
+		"CosmicWavesCanvas.kt": "Compose canvas host for the tested wave field",
+		"CustomTabAuth.kt": "Custom Tabs launch + activity relay registration; the race it feeds is the tested AuthCallbackRelay",
+		"HtmlCaptor.kt": "off-screen WebView; the capture decision it feeds is tested",
+		"ReaderWebView.kt": "WebView + CookieManager glue; its policies are tested separately",
+		"ReaderSheet.kt": "Compose layout",
+		"ReadingListScreen.kt": "Compose layout",
+		"LoginScreen.kt": "Compose layout",
+		"ArticleRow.kt": "Compose layout",
+		"AddLinkInstructions.kt": "Compose layout",
+		"ShareActivity.kt": "activity shell + composition root; no logic of its own"
+	},
+	"floors": {}
+}

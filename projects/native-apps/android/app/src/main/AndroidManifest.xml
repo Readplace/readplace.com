@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <uses-permission android:name="android.permission.INTERNET" />
+
+  <application
+    android:allowBackup="false"
+    android:icon="@mipmap/ic_launcher"
+    android:label="@string/app_name"
+    android:supportsRtl="true"
+    android:theme="@style/Theme.Readplace">
+
+    <activity
+      android:name=".app.MainActivity"
+      android:exported="true"
+      android:launchMode="singleTask"
+      android:theme="@style/Theme.Readplace">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data
+          android:scheme="readplace"
+          android:host="oauth-callback"
+          android:path="/android" />
+      </intent-filter>
+    </activity>
+
+    <activity
+      android:name=".share.ShareActivity"
+      android:exported="true"
+      android:excludeFromRecents="true"
+      android:noHistory="true"
+      android:theme="@style/Theme.Readplace.Share">
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/plain" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="application/pdf" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="application/pdf" />
+      </intent-filter>
+    </activity>
+
+  </application>
+
+</manifest>

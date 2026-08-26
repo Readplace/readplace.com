@@ -422,6 +422,77 @@ jobs:
   # job's toolchain (macos-15 + latest-stable Xcode + xcodegen). Gated by
   # detect-ios, which — unlike detect-projects — runs on PRs too, so iOS
   # regressions are caught pre-merge like every other test suite. Fires whenever
+  # Android change detection, mirroring detect-ios: a cheap path diff so
+  # android-tests can gate pre-merge on PRs too.
+  detect-android:
+    runs-on: ubuntu-latest
+    outputs:
+      android-affected: ${{ steps.detect.outputs.android-affected }}
+      android-test-affected: ${{ steps.detect.outputs.android-test-affected }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history needed for nx-set-shas to resolve the diff base
+          fetch-depth: 0
+
+      - uses: nrwl/nx-set-shas@v4
+
+      - id: detect
+        run: |
+          # Play publish gate (a later phase): fire only when the app's SHIPPING
+          # source or its build inputs changed. Same reasoning as the iOS gate —
+          # the unit tests live in the same nx project, so nx affected would fire
+          # on test/doc/CI changes too.
+          ANDROID_SRC='projects/native-apps/android/app/src/main
+            projects/native-apps/android/app/build.gradle.kts
+            projects/native-apps/android/build.gradle.kts
+            projects/native-apps/android/settings.gradle.kts
+            projects/native-apps/android/gradle'
+          ANDROID_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- $ANDROID_SRC)
+          echo "android-affected=$([ -n "$ANDROID_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+          # Test gate: a superset of android-affected that also fires on test
+          # changes, so a test-only change still runs the suite without shipping.
+          ANDROID_TEST_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
+            $ANDROID_SRC projects/native-apps/android/app/src/test)
+          echo "android-test-affected=$([ -n "$ANDROID_TEST_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  # Android unit tests. Unlike ios-tests these are plain JVM tests — no emulator,
+  # no macOS — so they run on the free GitHub-hosted Linux runner for everyone.
+  # That also makes the fork-PR split unnecessary: no self-hosted runner is
+  # involved, so untrusted PR code has nothing to reach.
+  android-tests:
+    if: needs.detect-android.outputs.android-test-affected == 'true'
+    needs: [detect-android]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/native-apps/android
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Caches the Gradle distribution and dependency graph, and rejects a
+      # tampered wrapper jar on a fork PR.
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          validate-wrappers: true
+
+      # The runner image ships an SDK with licences pre-accepted; pinning the two
+      # packages the build needs makes an image drift fail legibly here rather
+      # than as an opaque AGP download error mid-build.
+      - name: Ensure the SDK platform and build-tools the build pins
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Run the unit suite, the coverage ratchet, and the staging config pins
+        run: make test
+
   # iOS code OR tests change; publish stays scoped to shipping code via
   # ios-affected (⊆ ios-test-affected), so this always runs when publish would.
   ios-tests:
