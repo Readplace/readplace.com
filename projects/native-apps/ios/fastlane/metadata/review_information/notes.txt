@@ -1,19 +1,19 @@
 Readplace is a read-it-later app. Sign-in is required to use it.
 
 GETTING STARTED
-- On the first screen tap "Login" or "Sign up". Authentication runs INSIDE the app in an ASWebAuthenticationSession sheet (Apple's in-app auth browser) — the app never switches you to Safari or Chrome. iOS shows a "Readplace wants to use readplace.com to Sign In" alert before the sheet opens; tap Continue. The sheet closes by itself once sign-in completes.
+- On the first screen tap "Login" or "Sign up". Authentication runs INSIDE the app in an ASWebAuthenticationSession sheet (Apple's in-app auth browser) — signing in never hands you off to Safari or Chrome. iOS shows a "Readplace wants to use readplace.com to Sign In" alert before the sheet opens; tap Continue. The sheet closes by itself once sign-in completes.
 - The demo account below has an active subscription. Sign-up is self-serve, so to test ACCOUNT DELETION please create a throwaway account rather than deleting the demo account.
 
 SAVING ARTICLES
 - In Safari (or any app), open a web page, tap Share, and choose Readplace. The page is captured and appears in the reading list. Pull to refresh.
 
 NEW IN THIS BUILD: THE "WEB APP" CONTROL
-- WHERE: the Reading List's top-right toolbar, beside "Account" and "+". Look for the control labelled "Web App" (it may render as an icon whose VoiceOver label is "Web App").
-- WHAT IT DOES: it opens our own website, readplace.com, INSIDE the app — in the same in-app WKWebView sheet this app already uses for the reader and for the account page. Nothing switches to Safari or Chrome, and there is no second sign-in: the app mints a browser session cookie from the token it already holds and injects it into the sheet before the first request, so the page loads already signed in as the demo account.
+- WHERE: the Reading List's top-right toolbar. Look for the globe icon at the top right, next to "Account" and "+". The control is icon-only; its accessibility label, which VoiceOver reads out, is "Web App".
+- WHAT IT DOES: it opens our own website, readplace.com, INSIDE the app — in the same in-app WKWebView sheet this app already uses for the reader and for the account page. Those pages stay in the sheet: no switch to Safari or Chrome, and no second sign-in — the app mints a browser session cookie from the token it already holds and injects it into the sheet before the first request, so the page loads already signed in as the demo account.
 - WHAT YOU SEE: the same saved articles as the native list, as our website shows them — the user's queues, the Done list, sorting and paging — rendered without the website's header, navigation and footer, so the native app stays the chrome. Tapping an article there opens the same in-app reader as the native list.
 - NO PURCHASES: no price, no subscribe or upgrade button, no trial banner and no card management appear on any page the app hosts. Readplace sells no digital content in-app.
 - REACHABILITY: no extra setup. Sign in with the demo account below and the control is on the first screen.
-- Links to OTHER websites — the original source of a saved article — still open in the system browser, exactly as the reader's "View original" does today.
+- LINKS OUT OF AN ARTICLE open in your browser, outside the app, exactly as the reader's "View original" does today — both the article's original source and the occasional readplace.com link inside the reader, such as a "Read more" on a product-news banner. Only the app's own reading-list surfaces stay in the sheet.
 
 NOTES FOR REVIEW
 - The app communicates only with https://readplace.com. The NSAllowsArbitraryLoadsInWebContent ATS exception exists solely so the reader and capture web views can load arbitrary user-saved article pages (some are http-only).
