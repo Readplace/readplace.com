@@ -79,7 +79,7 @@ describe("buildGuestNavItems", () => {
 
 describe("buildNavGroups", () => {
 	it("groups full-access items into Library (queue, import, inbox) and Account (account, sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false });
+		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
@@ -89,23 +89,62 @@ describe("buildNavGroups", () => {
 	});
 
 	it("omits import, inbox, and account for a read-only user, leaving Library (queue) and Account (sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true });
+		const groups = buildNavGroups({ accessIsReadOnly: true, gmailFeatureEnabled: false });
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
 	});
 
 	it("keeps the Inbox entry in Library for every full-access user", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false });
+		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false });
 		const [library] = groups;
 		expect(library?.items.map((i) => i.key)).toContain("inbox");
 	});
 
 	it("points the Inbox entry at the inbox page", () => {
-		const inbox = buildNavGroups({ accessIsReadOnly: false })
+		const inbox = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "inbox");
 		assert(inbox, "library nav must include an inbox item");
 		expect(inbox.href).toBe("/inbox?utm_source=header-nav&utm_medium=internal&utm_content=inbox");
+	});
+
+	it("adds the Integrations entry to Library only for a request that opted into the feature", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true });
+		const [library] = groups;
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox", "integrations"]);
+	});
+
+	it("keeps the Integrations entry hidden from a read-only user even with the feature on", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: true, gmailFeatureEnabled: true });
+		const [library] = groups;
+		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
+	});
+
+	it("carries the feature flag on the Integrations href so following it stays in the feature", () => {
+		const integrations = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true })
+			.flatMap((g) => g.items)
+			.find((i) => i.key === "integrations");
+		assert(integrations, "library nav must include an integrations item when the feature is on");
+		expect(integrations.href).toBe(
+			"/integrations?feature=gmail&utm_source=header-nav&utm_medium=internal&utm_content=integrations",
+		);
+	});
+});
+
+describe("bannerStateFromRequest feature toggle", () => {
+	it("enables the Gmail feature when the request opted in with ?feature=gmail", () => {
+		const state = bannerStateFromRequest({ query: { feature: "gmail" }, cspNonce: CSP_NONCE });
+		expect(state.gmailFeatureEnabled).toBe(true);
+	});
+
+	it("leaves the Gmail feature off for another feature value", () => {
+		const state = bannerStateFromRequest({ query: { feature: "something-else" }, cspNonce: CSP_NONCE });
+		expect(state.gmailFeatureEnabled).toBe(false);
+	});
+
+	it("leaves the Gmail feature off for a source that carries no query at all", () => {
+		const state = bannerStateFromRequest({ cspNonce: CSP_NONCE });
+		expect(state.gmailFeatureEnabled).toBe(false);
 	});
 });

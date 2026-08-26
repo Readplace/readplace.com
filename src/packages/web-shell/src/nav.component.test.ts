@@ -23,6 +23,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -39,6 +40,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 				trialCounter: ACTIVE_TRIAL,
 			}),
 		);
@@ -60,6 +62,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 				trialCounter: { state: "expired" },
 			}),
 		);
@@ -79,6 +82,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2027-07-10T00:00:00.000Z",
@@ -106,6 +110,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2026-07-17T00:00:00.000Z",
@@ -127,6 +132,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2026-07-17T00:00:00.001Z",
@@ -146,6 +152,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 				trialCounter: ACTIVE_TRIAL,
 			}),
 		);
@@ -159,6 +166,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 				trialCounter: { state: "expired" },
 			}),
 		);
@@ -174,6 +182,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -197,6 +206,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -223,7 +233,12 @@ describe("GlobalNav component", () => {
 	});
 
 	it("renders the Inbox entry for every full-access user", () => {
-		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
+		const doc = parse(GlobalNav({
+			variant: "default",
+			isAuthenticated: true,
+			accessIsReadOnly: false,
+			gmailFeatureEnabled: false,
+		}));
 
 		const libraryItems = Array.from(
 			doc
@@ -234,7 +249,12 @@ describe("GlobalNav component", () => {
 	});
 
 	it("submits the Inbox entry as a plain GET form", () => {
-		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
+		const doc = parse(GlobalNav({
+			variant: "default",
+			isAuthenticated: true,
+			accessIsReadOnly: false,
+			gmailFeatureEnabled: false,
+		}));
 
 		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
 		assert(inboxForm, "inbox nav item must be inside a form");
@@ -251,6 +271,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -265,6 +286,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -289,6 +311,7 @@ describe("GlobalNav component", () => {
 				variant: "transparent",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -302,6 +325,7 @@ describe("GlobalNav component", () => {
 			variant: "default",
 			isAuthenticated: true,
 			accessIsReadOnly: false,
+			gmailFeatureEnabled: false,
 		});
 
 		const toggle = parse(html).querySelector(".nav__toggle");
@@ -316,6 +340,7 @@ describe("GlobalNav component", () => {
 			variant: "default",
 			isAuthenticated: true,
 			accessIsReadOnly: false,
+			gmailFeatureEnabled: false,
 		});
 
 		const disclosure = parse(html).querySelector(".nav__disclosure");

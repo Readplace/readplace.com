@@ -258,6 +258,7 @@ import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
+import { initIntegrationsRoutes } from "./web/pages/integrations";
 import { LANDING_PAGE_CONTENT, LandingPage } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { resolveHomepageArm } from "./web/experiments/homepage-arm";
@@ -1392,6 +1393,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		emitSubscriptionEvent,
 	});
 	app.use("/account", requireAuth, accountRouter);
+
+	app.use("/integrations", initIntegrationsRoutes({ buildBannerState, requireAuth }));
 
 	const oauthRouter = initOAuthRoutes({
 		model: deps.oauthModel,

@@ -43,6 +43,7 @@ export {
 	bannerStateFromRequest,
 	buildGuestNavItems,
 	buildNavGroups,
+	GMAIL_FEATURE,
 } from "./banner-state";
 export type {
 	BannerState,

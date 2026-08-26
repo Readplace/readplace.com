@@ -1,6 +1,7 @@
 import type { IconName } from "@packages/ui-icons";
 import type { ChangelogBanner } from "./changelog-banner";
 import { type CspNonce, requireCspNonce } from "./csp-nonce.middleware";
+import { QuerystringFeatureToggle } from "./feature-toggle";
 import { withInternalTracking } from "./internal-link-tracking";
 import type { TrialDisplay } from "./trial-countdown.format";
 
@@ -37,6 +38,11 @@ export interface BannerStateSource {
 	 * post the page the reader is on (the dismiss route cannot rely on `Referer`,
 	 * which helmet's default `no-referrer` policy strips). */
 	originalUrl?: string;
+	/** The request's parsed query string. Express populates it on every request,
+	 * so a consuming site that passes the request as the source supplies it
+	 * structurally. Read only through {@link QuerystringFeatureToggle} to decide
+	 * whether an unreleased destination is discoverable on this request. */
+	query?: Record<string, unknown>;
 	/** Markup the consuming site computed for *this request alone*, appended to
 	 * the page's scripts. `BaseConfig.siteScripts` cannot express it: that string
 	 * is bound once at `initBase` and is therefore the same on every render. A
@@ -53,6 +59,7 @@ export type NavItemKey =
 	| "queue"
 	| "import"
 	| "inbox"
+	| "integrations"
 	| "account"
 	| "logout"
 	| "install"
@@ -95,6 +102,12 @@ export interface NavItem {
 }
 
 const NAV_SOURCE = "header-nav";
+
+/** The `?feature=` value that opts a request into the unreleased Gmail
+ * integration. */
+export const GMAIL_FEATURE = "gmail";
+
+const featureToggle = new QuerystringFeatureToggle();
 
 /** Builds a nav item with its href pre-tagged for internal-click tracking and
  * the matching UTM dimensions exposed for the template's hidden inputs. The
@@ -169,12 +182,26 @@ export interface BannerState {
 	currentPath?: string;
 	/** Per-request script markup carried through from `BannerStateSource`. */
 	requestScripts?: string;
+	/** True when this request opted into the unreleased Gmail integration with
+	 * `?feature=gmail`. Gates only the nav entry: a reader without it never sees
+	 * the destination, while the routes themselves stay reachable so Google's
+	 * OAuth callback — which cannot carry the flag — still lands. */
+	gmailFeatureEnabled?: boolean;
 	cspNonce: CspNonce;
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", iconName: "inbox" });
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-input" });
 const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", iconName: "mail" });
+const NAV_INTEGRATIONS = navItem({
+	key: "integrations",
+	label: "Integrations",
+	// The flag rides the href so following the entry keeps the reader inside the
+	// feature; withInternalTracking preserves it and appends the UTM dimensions.
+	path: `/integrations?feature=${GMAIL_FEATURE}`,
+	method: "GET",
+	iconName: "plug",
+});
 
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", iconName: "user" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", iconName: "log-out" });
@@ -198,13 +225,17 @@ export function buildGuestNavItems(): NavItem[] {
  * header only fits so many entries beside the trial countdown before the
  * countdown is squeezed, so a destination reachable from a page it already
  * belongs to does not also spend a nav slot. */
-export function buildNavGroups(input: { accessIsReadOnly: boolean }): NavGroup[] {
+export function buildNavGroups(input: {
+	accessIsReadOnly: boolean;
+	gmailFeatureEnabled: boolean;
+}): NavGroup[] {
 	const library: NavItem[] = [NAV_QUEUE];
 	// Saving and minting an address are write actions gated by requireWriteAccess,
 	// so a read-only user gets neither entry. They keep access to existing
 	// addresses by direct link.
 	if (!input.accessIsReadOnly) {
 		library.push(NAV_IMPORT, NAV_INBOX);
+		if (input.gmailFeatureEnabled) library.push(NAV_INTEGRATIONS);
 	}
 	const account: NavItem[] = [];
 	if (!input.accessIsReadOnly) {
@@ -224,6 +255,7 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 		verification: source.verificationStatus,
 		currentPath: source.originalUrl,
 		requestScripts: source.requestScripts,
+		gmailFeatureEnabled: featureToggle.isEnabled({ query: source.query ?? {} }, GMAIL_FEATURE),
 		cspNonce: requireCspNonce(source),
 	};
 }

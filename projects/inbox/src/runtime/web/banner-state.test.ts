@@ -36,6 +36,7 @@ describe("initBuildBannerState", () => {
 		expect(result).toEqual({
 			isAuthenticated: false,
 			emailVerified: undefined,
+			gmailFeatureEnabled: false,
 			cspNonce: CSP_NONCE,
 		});
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
@@ -186,6 +187,7 @@ describe("initBuildBannerState", () => {
 				isAuthenticated: false,
 				emailVerified: undefined,
 				changelogBanner: CHANGELOG,
+				gmailFeatureEnabled: false,
 				cspNonce: CSP_NONCE,
 			});
 			expect(getEffectiveAccess).not.toHaveBeenCalled();

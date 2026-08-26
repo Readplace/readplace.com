@@ -1,0 +1,19 @@
+    <main class="integrations">
+      <div class="integrations__container">
+        <h1 class="integrations__title">Integrations</h1>
+        <p class="integrations__lead">Connect a service and its email lands in Readplace.</p>
+
+        <ul class="integrations__list" data-test-integrations-list>
+          {{#each services}}
+          <li class="integrations__item" data-test-integration="{{key}}">
+            <span class="integrations__icon">{{icon iconName}}</span>
+            <span class="integrations__body">
+              <span class="integrations__name">{{name}}</span>
+              <span class="integrations__description">{{description}}</span>
+            </span>
+            <span class="integrations__status {{statusModifier}}" data-test-integration-status="{{statusKey}}">{{statusLabel}}</span>
+          </li>
+          {{/each}}
+        </ul>
+      </div>
+    </main>

@@ -1098,6 +1098,7 @@ describe("initBase config", () => {
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
 			}),
 		).toBe("");
 	});
