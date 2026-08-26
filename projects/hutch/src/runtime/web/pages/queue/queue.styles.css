@@ -1113,7 +1113,6 @@
   .queue-nav__item--deletable .queue-nav__delete-fallback,
   .queue-nav__item--deletable .queue-nav__confirm-trigger {
     opacity: 0;
-    pointer-events: none;
   }
 
   .queue-nav__item--deletable:hover .queue-nav__delete-fallback,
@@ -1121,7 +1120,6 @@
   .queue-nav__item--deletable:focus-within .queue-nav__delete-fallback,
   .queue-nav__item--deletable:focus-within .queue-nav__confirm-trigger {
     opacity: 1;
-    pointer-events: auto;
   }
 
   .queue-nav__item--deletable:hover,

@@ -284,6 +284,8 @@ async function railOffersDelete(page: Page): Promise<void> {
 		{ x: tab.x, y: tab.y, width: tab.width, height: tab.height },
 		"revealing the delete control must not resize the tab it belongs to",
 	);
+	await page.mouse.move(trigger.x + trigger.width / 2, trigger.y + trigger.height / 2);
+	await expect(page.locator(QUEUE_DELETE_TRIGGER)).toHaveCSS("opacity", "1");
 	await page.locator(ACTIVE_QUEUE_TAB).hover();
 	await expect(page.locator(QUEUE_DELETE_TRIGGER)).toHaveCSS("opacity", "1");
 }
