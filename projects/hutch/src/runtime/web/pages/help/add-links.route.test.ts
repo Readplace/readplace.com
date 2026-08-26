@@ -35,7 +35,7 @@ describe("GET /help/add-links", () => {
 		);
 	});
 
-	it("teaches pinning Readplace to the share row with the share recording", async () => {
+	it("teaches the iOS share row to a browser visitor, who names no platform", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(server).get("/help/add-links");
@@ -43,6 +43,9 @@ describe("GET /help/add-links", () => {
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("[data-test-help-pin-title]")?.textContent).toBe(
 			"Pin Readplace to the share row",
+		);
+		expect(doc.querySelector("[data-test-help-pin-lead]")?.textContent).toBe(
+			"iOS buries new apps at the end of the share row. Favourite Readplace once and it moves to the front.",
 		);
 
 		const video = doc.querySelector("[data-test-help-video]");
@@ -93,6 +96,100 @@ describe("GET /help/add-links", () => {
 			"Tap Share, then scroll the app row right and tap More.",
 			"Tap Edit.",
 			"Tap the + beside Readplace, then Done.",
+		]);
+	});
+
+	it("teaches the Android share sheet's own pin action when the app sheet names android", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get(
+			"/help/add-links?shell=app&platform=android",
+		);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-pin-title]")?.textContent).toBe(
+			"Pin Readplace in the share sheet",
+		);
+		expect(doc.querySelector("[data-test-help-pin-lead]")?.textContent).toBe(
+			"Android sorts the share sheet by what you share to most. Pin Readplace once and it leads the app list.",
+		);
+		const steps = Array.from(
+			doc.querySelectorAll("[data-test-help-pin-step]"),
+		).map((el) => el.textContent?.trim());
+		expect(steps).toEqual([
+			"Tap Share, then find Readplace in the app list.",
+			"Press and hold Readplace.",
+			"Tap Pin Readplace.",
+		]);
+	});
+
+	it("leaves the iPhone recording out of the Android sheet, since no Android capture exists", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get(
+			"/help/add-links?shell=app&platform=android",
+		);
+
+		const doc = new JSDOM(response.text).window.document;
+		const recordings = Array.from(doc.querySelectorAll("video")).map((el) =>
+			el.getAttribute("aria-label"),
+		);
+		expect(recordings).toEqual([]);
+	});
+
+	it("keeps the share-row section and its recording for the shipped iOS sheet, which sends ?shell=app and names no platform", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links?shell=app");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-pin-title]")?.textContent).toBe(
+			"Pin Readplace to the share row",
+		);
+		expect(doc.querySelector("[data-test-help-pin-lead]")?.textContent).toBe(
+			"iOS buries new apps at the end of the share row. Favourite Readplace once and it moves to the front.",
+		);
+		const steps = Array.from(
+			doc.querySelectorAll("[data-test-help-pin-step]"),
+		).map((el) => el.textContent?.trim());
+		expect(steps).toEqual([
+			"Tap Share, then scroll the app row right and tap More.",
+			"Tap Edit.",
+			"Tap the + beside Readplace, then Done.",
+		]);
+		const recordings = Array.from(doc.querySelectorAll("video")).map((el) =>
+			el.getAttribute("aria-label"),
+		);
+		expect(recordings).toEqual([
+			"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
+		]);
+	});
+
+	it("keeps the share-row section and its recording when a sheet names ios outright", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get(
+			"/help/add-links?shell=app&platform=ios",
+		);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-pin-title]")?.textContent).toBe(
+			"Pin Readplace to the share row",
+		);
+		const steps = Array.from(
+			doc.querySelectorAll("[data-test-help-pin-step]"),
+		).map((el) => el.textContent?.trim());
+		expect(steps).toEqual([
+			"Tap Share, then scroll the app row right and tap More.",
+			"Tap Edit.",
+			"Tap the + beside Readplace, then Done.",
+		]);
+		const recordings = Array.from(doc.querySelectorAll("video")).map((el) =>
+			el.getAttribute("aria-label"),
+		);
+		expect(recordings).toEqual([
+			"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
 		]);
 	});
 

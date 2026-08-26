@@ -207,18 +207,20 @@
       </ol>
 
       <section class="help__pin" data-test-help-pin>
-        <h2 class="help__pin-title" data-test-help-pin-title>Pin Readplace to the share row</h2>
-        <p class="help__pin-lead">iOS buries new apps at the end of the share row. Favourite Readplace once and it moves to the front.</p>
+        <h2 class="help__pin-title" data-test-help-pin-title>{{pin.title}}</h2>
+        <p class="help__pin-lead" data-test-help-pin-lead>{{pin.lead}}</p>
         <ol class="help__pin-steps">
-          <li class="help__pin-step" data-test-help-pin-step>Tap Share, then scroll the app row right and tap More.</li>
-          <li class="help__pin-step" data-test-help-pin-step>Tap Edit.</li>
-          <li class="help__pin-step" data-test-help-pin-step>Tap the + beside Readplace, then Done.</li>
+          {{#each pin.steps}}
+          <li class="help__pin-step" data-test-help-pin-step>{{this}}</li>
+          {{/each}}
         </ol>
-        <video class="help__video" width="{{shareDemo.width}}" height="{{shareDemo.height}}" poster="{{shareDemo.poster}}" muted playsinline controls preload="none" aria-label="Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row" data-test-help-video>
-          {{#each shareDemo.sources}}
+        {{#if pin.demo}}
+        <video class="help__video" width="{{pin.demo.width}}" height="{{pin.demo.height}}" poster="{{pin.demo.poster}}" muted playsinline controls preload="none" aria-label="{{pin.demo.label}}" data-test-help-video>
+          {{#each pin.demo.sources}}
           <source src="{{src}}" type="{{type}}">
           {{/each}}
         </video>
+        {{/if}}
       </section>
 
       <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>

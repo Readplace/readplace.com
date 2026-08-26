@@ -252,7 +252,7 @@ import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
 import { HelpAddLinksPage } from "./web/pages/help";
-import { isAppShell } from "./web/onboarding/native-client";
+import { isAppShell, nativeSurfaceOf } from "./web/onboarding/native-client";
 import { APP_BACK_LINK } from "./web/shared/native-app-links";
 import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
@@ -931,7 +931,16 @@ export function createApp(dependencies: AppDependencies): Express {
 		const backLink = isAppShell(req)
 			? { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label }
 			: undefined;
-		sendComponent(req, res, HelpAddLinksPage({ staticBaseUrl, backLink, cspNonce: requireCspNonce(req) }));
+		sendComponent(
+			req,
+			res,
+			HelpAddLinksPage({
+				staticBaseUrl,
+				backLink,
+				platform: nativeSurfaceOf(req),
+				cspNonce: requireCspNonce(req),
+			}),
+		);
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is
