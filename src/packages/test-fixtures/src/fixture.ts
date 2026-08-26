@@ -367,6 +367,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			markQueueArticleViewed: articleStoreMemory.markQueueArticleViewed,
 			listUserSavesForUrl: articleStoreMemory.listUserSavesForUrl,
 			assignSavedArticleToQueue: articleStoreMemory.assignSavedArticleToQueue,
+			moveQueueArticles: articleStoreMemory.moveQueueArticles,
 			createQueueDefinition: articleStoreMemory.createQueueDefinition,
 			deleteQueueDefinition: articleStoreMemory.deleteQueueDefinition,
 			listQueueDefinitions: articleStoreMemory.listQueueDefinitions,

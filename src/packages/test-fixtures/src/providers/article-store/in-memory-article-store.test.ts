@@ -1255,6 +1255,55 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("moveQueueArticles", () => {
+		it("hands every copy to the destination carrying the read state it had in the queue it left", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.updateQueueArticleStatus({
+				id: saved.id,
+				userId: USER_A,
+				queue: WORK,
+				status: "read",
+			});
+
+			expect(await store.moveQueueArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
+				moved: 1,
+			});
+			const inLater = await store.findQueueArticleById({
+				id: saved.id,
+				userId: USER_A,
+				queue: LATER,
+			});
+			expect(inLater?.status).toBe("read");
+			expect(await store.countQueueArticles({ userId: USER_A, queue: WORK })).toBe(0);
+			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("unread");
+		});
+
+		it("drains the source even for a copy the destination already holds, and does not count it", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: LATER });
+
+			expect(await store.moveQueueArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
+				moved: 0,
+			});
+			expect(await store.countQueueArticles({ userId: USER_A, queue: WORK })).toBe(0);
+			expect(await store.countQueueArticles({ userId: USER_A, queue: LATER })).toBe(1);
+		});
+
+		it("leaves another reader's queue of the same name alone", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveQueueArticle({ ...makeArticleParams({ userId: USER_B }), queue: WORK });
+
+			expect(await store.moveQueueArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
+				moved: 1,
+			});
+			expect(await store.countQueueArticles({ userId: USER_B, queue: WORK })).toBe(1);
+		});
+	});
+
 	describe("queue definitions", () => {
 		it("lists a reader's own queues oldest first", async () => {
 			const store = initInMemoryArticleStore();

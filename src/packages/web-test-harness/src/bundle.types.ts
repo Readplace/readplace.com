@@ -75,6 +75,7 @@ import type {
 	DeleteQueueArticle,
 	MarkQueueArticleViewed,
 	AssignSavedArticleToQueue,
+	MoveQueueArticles,
 	ListUserSavesForUrl,
 	CreateQueueDefinition,
 	DeleteQueueDefinition,
@@ -319,6 +320,7 @@ export interface ArticleStoreBundle {
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
+	moveQueueArticles: MoveQueueArticles;
 	createQueueDefinition: CreateQueueDefinition;
 	deleteQueueDefinition: DeleteQueueDefinition;
 	listQueueDefinitions: ListQueueDefinitions;

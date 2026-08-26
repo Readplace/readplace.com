@@ -1699,6 +1699,8 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 
 const WORK = QueueSlugSchema.parse("work");
 const WORK_PARTITION = `${USER}#queue/work`;
+const LATER = QueueSlugSchema.parse("later");
+const LATER_PARTITION = `${USER}#queue/later`;
 
 function queueDefinitionItem(slug = "work"): Record<string, unknown> {
 	return { userId: USER, url: `readplace:queue-def/${slug}`, queueSlug: slug };
@@ -1994,6 +1996,114 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		});
 
 		expect(result).toEqual({ assigned: false });
+	});
+
+	it("moveQueueArticles hands each row to the destination partition carrying the state it had in the source", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				default: {
+					Items: [
+						userArticleItem({
+							userId: WORK_PARTITION,
+							status: "read",
+							readAt: "2026-06-01T08:00:00.000Z",
+							viewedAt: "2026-06-01T07:00:00.000Z",
+							provenance: { kind: "client", clientName: "chrome" },
+						}),
+					],
+					Count: 1,
+				},
+			},
+		});
+
+		const result = await initStore(client).moveQueueArticles({
+			userId: USER,
+			from: WORK,
+			to: LATER,
+		});
+
+		expect(result).toEqual({ moved: 1 });
+		const put = commands.find((c) => c.name === "PutCommand");
+		assert(put, "the row must be written into the destination partition");
+		expect(put.input.Item).toEqual({
+			userId: LATER_PARTITION,
+			url: RESOURCE_ID,
+			status: "read",
+			savedAt: "2026-05-30T09:00:00.000Z",
+			readAt: "2026-06-01T08:00:00.000Z",
+			viewedAt: "2026-06-01T07:00:00.000Z",
+			provenance: { kind: "client", clientName: "chrome" },
+		});
+		expect(put.input.ConditionExpression).toContain("attribute_not_exists");
+		const remove = commands.find((c) => c.name === "DeleteCommand");
+		assert(remove, "the source row must be taken out of the queue being emptied");
+		expect(remove.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
+	});
+
+	it("moveQueueArticles drains a row the destination already holds without counting it as moved", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				default: { Items: [userArticleItem({ userId: WORK_PARTITION })], Count: 1 },
+			},
+			PutCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+				},
+			},
+		});
+
+		const result = await initStore(client).moveQueueArticles({
+			userId: USER,
+			from: WORK,
+			to: LATER,
+		});
+
+		expect(result).toEqual({ moved: 0 });
+		const remove = commands.find((c) => c.name === "DeleteCommand");
+		assert(remove, "the source row goes either way — the destination already holds the article");
+		expect(remove.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
+	});
+
+	it("moveQueueArticles walks every page the source partition answers with", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{
+						Items: [userArticleItem({ userId: WORK_PARTITION })],
+						Count: 1,
+						LastEvaluatedKey: { userId: WORK_PARTITION, url: RESOURCE_ID },
+					},
+					{
+						Items: [
+							userArticleItem({ userId: WORK_PARTITION, url: "example.com/second" }),
+						],
+						Count: 1,
+					},
+				],
+			},
+		});
+
+		expect(
+			await initStore(client).moveQueueArticles({ userId: USER, from: WORK, to: LATER }),
+		).toEqual({ moved: 2 });
+		expect(commands.filter((c) => c.name === "DeleteCommand")).toHaveLength(2);
+	});
+
+	it("moveQueueArticles surfaces a write failure that is not the destination already holding the row", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				default: { Items: [userArticleItem({ userId: WORK_PARTITION })], Count: 1 },
+			},
+			PutCommand: {
+				default: () => {
+					throw new Error("throughput exceeded");
+				},
+			},
+		});
+
+		await expect(
+			initStore(client).moveQueueArticles({ userId: USER, from: WORK, to: LATER }),
+		).rejects.toThrow("throughput exceeded");
 	});
 
 	it("listUserSavesForUrl reads the default row and one key per queue the user owns", async () => {

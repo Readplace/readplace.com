@@ -50,6 +50,13 @@ function deleteQueue(agent: TestAgent, slug: string) {
 	return agent.post(`/queue/queues/${slug}/delete?feature=queues`);
 }
 
+function deleteQueueMovingTo(agent: TestAgent, slug: string, destination: string) {
+	return agent
+		.post(`/queue/queues/${slug}/delete?feature=queues`)
+		.type("form")
+		.send({ migrate_to: destination });
+}
+
 describe("POST /queue/queues/:slug/delete", () => {
 	it("drops the queue and lands the reader back on the default one", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -214,5 +221,168 @@ describe("POST /queue/queues/:slug/delete", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
+	});
+});
+
+describe("POST /queue/queues/:slug/delete with a destination queue", () => {
+	it("hands the queue's articles to the destination before taking the queue away", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createQueue(agent);
+		const destination = await createQueue(agent);
+		await seedInto(harness, source, "https://example.com/moved");
+		const userId = await userIdOf(harness);
+
+		const response = await deleteQueueMovingTo(agent, source, destination);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?feature=queues");
+		const landed = await harness.articleStore.findQueueArticles({
+			userId,
+			queue: QueueSlugSchema.parse(destination),
+		});
+		expect(landed.articles.map((article) => article.url)).toEqual([
+			"https://example.com/moved",
+		]);
+		expect(queueSlugs(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
+			"default",
+			destination,
+		]);
+	});
+
+	it("carries the read state the article had in the queue it left", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createQueue(agent);
+		const destination = await createQueue(agent);
+		const { saved } = await seedInto(harness, source, "https://example.com/already-read");
+		const userId = await userIdOf(harness);
+		await harness.articleStore.updateQueueArticleStatus({
+			id: saved.id,
+			userId,
+			queue: QueueSlugSchema.parse(source),
+			status: "read",
+		});
+
+		await deleteQueueMovingTo(agent, source, destination);
+
+		const landed = await harness.articleStore.findQueueArticleById({
+			id: saved.id,
+			userId,
+			queue: QueueSlugSchema.parse(destination),
+		});
+		expect(landed?.status).toBe("read");
+	});
+
+	it("moves a queue holding more rows than one purge page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createQueue(agent);
+		const destination = await createQueue(agent);
+		for (let index = 0; index < 26; index += 1) {
+			await seedInto(harness, source, `https://example.com/bulk-${index}`);
+		}
+		const userId = await userIdOf(harness);
+
+		await deleteQueueMovingTo(agent, source, destination);
+
+		expect(
+			await harness.articleStore.countQueueArticles({
+				userId,
+				queue: QueueSlugSchema.parse(destination),
+			}),
+		).toBe(26);
+		expect(
+			await harness.articleStore.countQueueArticles({
+				userId,
+				queue: QueueSlugSchema.parse(source),
+			}),
+		).toBe(0);
+	});
+
+	it("says nothing was dropped, because the link is still in a queue the reader keeps", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const dequeued: string[] = [];
+		const harness = useApp({
+			...fixture,
+			events: {
+				...fixture.events,
+				publishLinkDequeued: async ({ url }) => {
+					dequeued.push(url);
+				},
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createQueue(agent);
+		const destination = await createQueue(agent);
+		await seedInto(harness, source, "https://example.com/only-here");
+
+		await deleteQueueMovingTo(agent, source, destination);
+
+		expect(dequeued).toEqual([]);
+	});
+
+	it("refuses the queue every reader is given as a destination, which already holds every article", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createQueue(agent);
+		await seedInto(harness, source, "https://example.com/kept");
+		const userId = await userIdOf(harness);
+
+		const response = await deleteQueueMovingTo(agent, source, "default");
+
+		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_queue");
+		expect(
+			await harness.articleStore.countQueueArticles({
+				userId,
+				queue: QueueSlugSchema.parse(source),
+			}),
+		).toBe(1);
+	});
+
+	it("refuses a queue handing its articles to itself", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createQueue(agent);
+
+		const response = await deleteQueueMovingTo(agent, source, source);
+
+		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_queue");
+		expect(queueSlugs(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
+			"default",
+			source,
+		]);
+	});
+
+	it("refuses a destination the reader does not own", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createQueue(agent);
+
+		const response = await deleteQueueMovingTo(agent, source, "ffffffffffffffff");
+
+		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_queue");
+	});
+
+	it("deletes as it always did when the reader leaves the articles behind", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createQueue(agent);
+		const destination = await createQueue(agent);
+		await seedInto(harness, source, "https://example.com/left-behind");
+		const userId = await userIdOf(harness);
+
+		await deleteQueueMovingTo(agent, source, "");
+
+		expect(
+			await harness.articleStore.countQueueArticles({
+				userId,
+				queue: QueueSlugSchema.parse(destination),
+			}),
+		).toBe(0);
+		expect(queueSlugs(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
+			"default",
+			destination,
+		]);
 	});
 });

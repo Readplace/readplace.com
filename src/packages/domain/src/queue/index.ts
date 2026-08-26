@@ -16,6 +16,11 @@ export {
 	type QueueDeleteRejection,
 } from "./queue-delete";
 export {
+	decideQueueMigration,
+	type QueueMigrationDecision,
+	type QueueMigrationRejection,
+} from "./queue-migration";
+export {
 	decideQueueRename,
 	type QueueRenameDecision,
 	type QueueRenameRejection,

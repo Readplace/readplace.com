@@ -22,6 +22,7 @@ import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
 	AssignSavedArticleToQueue,
+	MoveQueueArticles,
 	BumpArticleSavedAt,
 	FindSavedUrls,
 	CountArticlesByUser,
@@ -209,6 +210,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
+	moveQueueArticles: MoveQueueArticles;
 } {
 	const { client, tableName, userArticlesTableName, logger, now } = deps;
 
@@ -916,6 +918,43 @@ export function initDynamoDbSavedArticleStore(deps: {
 		}
 	};
 
+	const copyRowInto = async (
+		partition: string,
+		row: z.infer<typeof UserArticleRow>,
+	): Promise<boolean> => {
+		const attributes = Object.fromEntries(
+			Object.entries(row).filter(([, value]) => value !== undefined),
+		);
+		try {
+			await userArticles.put({
+				Item: { ...attributes, userId: partition },
+				ConditionExpression: "attribute_not_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url" },
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return false;
+			throw error;
+		}
+		return true;
+	};
+
+	const moveQueueArticles: MoveQueueArticles = async ({ userId, from, to }) => {
+		const source = queuePartitionValue({ userId, queue: from });
+		const destination = queuePartitionValue({ userId, queue: to });
+		let moved = 0;
+		await forEachPartitionRow(source, async (rows) => {
+			const copied = await Promise.all(
+				rows.map(async (row) => {
+					const landed = await copyRowInto(destination, row);
+					await userArticles.delete({ Key: { userId: source, url: row.url } });
+					return landed;
+				}),
+			);
+			moved += copied.filter(Boolean).length;
+		});
+		return { moved };
+	};
+
 	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		try {
@@ -1041,5 +1080,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		markQueueArticleViewed,
 		listUserSavesForUrl,
 		assignSavedArticleToQueue,
+		moveQueueArticles,
 	};
 }

@@ -1010,6 +1010,57 @@
   background: var(--error-fill-hover);
 }
 
+.queue-migrate--visible {
+  display: flex;
+}
+
+.queue-migrate--hidden {
+  display: none;
+}
+
+.queue-migrate {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.queue-migrate__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.queue-migrate__select {
+  width: 100%;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font-family: inherit;
+  font-size: var(--input-font-size);
+  color: var(--color-text-primary);
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.queue-migrate__select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.queue-delete__cta-label--migrate {
+  display: none;
+}
+
+@supports selector(:has(*)) {
+  .confirm-popover__actions:has(.queue-migrate__select option:not([value=""]):checked) .queue-delete__cta-label--delete {
+    display: none;
+  }
+
+  .confirm-popover__actions:has(.queue-migrate__select option:not([value=""]):checked) .queue-delete__cta-label--migrate {
+    display: inline;
+  }
+}
+
 /**
  * 1. 940 = 24 padding + 130 tab column + 762 panel + 24 padding.
  * 2. minmax(0, 1fr), never a bare 1fr: a bare 1fr floors the track at the

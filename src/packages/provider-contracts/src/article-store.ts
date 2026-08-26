@@ -319,6 +319,12 @@ export type AssignSavedArticleToQueue = (params: {
 	savedAt: Date;
 }) => Promise<{ assigned: boolean }>;
 
+export type MoveQueueArticles = (params: {
+	userId: UserId;
+	from: QueueSlug;
+	to: QueueSlug;
+}) => Promise<{ moved: number }>;
+
 export type ListUserSavesForUrl = (params: {
 	userId: UserId;
 	url: string;

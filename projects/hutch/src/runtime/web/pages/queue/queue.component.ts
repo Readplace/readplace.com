@@ -121,6 +121,9 @@ function queueDeleteConfirmPanel(rail: QueueRailViewModel | undefined): string {
 		popoverId: queueDeleteConfirmPopoverId(active.slug),
 		url: `${queueDeletePath(active.slug)}${queueReturnQuery({}, rail.linkParams)}`,
 		label: active.label,
+		destinations: rail.queues.filter(
+			(queue) => queue.slug !== DEFAULT_QUEUE.slug && queue.slug !== active.slug,
+		),
 	});
 }
 

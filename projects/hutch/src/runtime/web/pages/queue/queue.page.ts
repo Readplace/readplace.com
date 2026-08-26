@@ -42,6 +42,7 @@ import type {
 	FindQueueArticleById,
 	FindQueueArticles,
 	AssignSavedArticleToQueue,
+	MoveQueueArticles,
 	FindSavedUrls,
 	ListQueueDefinitions,
 	RenameQueueDefinition,
@@ -146,6 +147,7 @@ import {
 	type QueueRenameRejection,
 	type QueueSlug,
 	decideQueueDelete,
+	decideQueueMigration,
 	decideQueueRename,
 	defaultQueueLabel,
 	generateQueueSlug,
@@ -327,6 +329,7 @@ interface QueueDependencies {
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
+	moveQueueArticles: MoveQueueArticles;
 	listQueueDefinitions: ListQueueDefinitions;
 	createQueueDefinition: CreateQueueDefinition;
 	renameQueueDefinition: RenameQueueDefinition;
@@ -1981,6 +1984,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			if (!decision.ok) {
 				unknownQueue();
 				return;
+			}
+			const requestedDestination = QueueSlugSchema.safeParse(req.body?.migrate_to);
+			if (requestedDestination.success) {
+				const migration = decideQueueMigration({
+					from: decision.slug,
+					to: requestedDestination.data,
+					queues: context.queues,
+				});
+				if (!migration.ok) {
+					unknownQueue();
+					return;
+				}
+				await deps.moveQueueArticles({ userId, from: migration.from, to: migration.to });
 			}
 			await purgeQueueArticles({ userId, queue: decision.slug });
 			const { deleted } = await deps.deleteQueueDefinition({ userId, slug: decision.slug });
