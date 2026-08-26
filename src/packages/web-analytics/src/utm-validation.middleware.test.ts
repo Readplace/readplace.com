@@ -77,16 +77,8 @@ describe("utmValidationMiddleware", () => {
 		expect(accepts({ utm_medium: "member_desktop" })).toBe(true);
 	});
 
-	it("passes the countdown the public reader stamps on its save button, whose value is built from the hours left", () => {
-		expect(accepts({ utm_source: "view-article", utm_medium: "internal", utm_content: "3d_23h_left" })).toBe(true);
-	});
-
 	it("passes the device class the queue card stamps on utm_term, so underscore must stay in the charset", () => {
 		expect(accepts({ utm_source: "queue-card", utm_medium: "internal", utm_term: "mobile_android" })).toBe(true);
-	});
-
-	it("passes the sharer's 6-hex-char id that a share link carries in utm_content — rejecting it would make every shared article expire as if nobody had shared it", () => {
-		expect(accepts({ utm_source: "share-balloon", utm_medium: "copy", utm_content: "3f9a2b" })).toBe(true);
 	});
 
 	it("passes an empty utm value — every reader already treats it as absent, so rejecting it would 400 a harmless link", () => {

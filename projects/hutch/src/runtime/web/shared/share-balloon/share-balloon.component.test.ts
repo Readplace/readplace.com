@@ -33,7 +33,16 @@ describe("renderShareBalloon", () => {
 		});
 		const doc = parse(html);
 
-		assert.equal(shareUrl(doc).searchParams.get("utm_content"), null);
-		assert.equal(copyUrl(doc).searchParams.get("utm_content"), null);
+		const share = shareUrl(doc);
+		assert.deepEqual([...share.searchParams.keys()], ["utm_source", "utm_medium", "utm_campaign"]);
+		assert.equal(share.searchParams.get("utm_source"), "share-balloon");
+		assert.equal(share.searchParams.get("utm_medium"), "share");
+		assert.equal(share.searchParams.get("utm_campaign"), "reader-public");
+
+		const copy = copyUrl(doc);
+		assert.deepEqual([...copy.searchParams.keys()], ["utm_source", "utm_medium", "utm_campaign"]);
+		assert.equal(copy.searchParams.get("utm_source"), "share-balloon");
+		assert.equal(copy.searchParams.get("utm_medium"), "copy");
+		assert.equal(copy.searchParams.get("utm_campaign"), "reader-public");
 	});
 });

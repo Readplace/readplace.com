@@ -77,13 +77,6 @@ const ArticleCrawlVersionsRow = z.object({
 	crawlVersions: dynamoField(z.array(StoredCrawlVersionSchema)),
 });
 
-/** `routeId` column holds the `ReaderArticleHashId.value` (32-char hex). The Zod schema rehydrates it into a `ReaderArticleHashId` instance on read.
- *
- * `savedAt` is the public-row freshness anchor: when the row is first created
- * it records the original save; on every re-save the domain bumps it via
- * `bumpArticleSavedAt` so downstream consumers (expiry counter, freshness
- * policies) can compute time-based behaviour from a single timestamp. Stored
- * as ISO-8601 to match the column convention used by `UserArticleRow`. */
 const ArticleRow = z.object({
 	url: z.string(),
 	routeId: ReaderArticleHashIdSchema,

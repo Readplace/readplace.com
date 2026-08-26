@@ -1,7 +1,7 @@
 {
   "name": "@packages/time-left",
   "version": "1.0.0",
-  "description": "Decompose and format a millisecond duration into days/hours/minutes/seconds",
+  "description": "Decompose a millisecond duration into days/hours/minutes/seconds",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,

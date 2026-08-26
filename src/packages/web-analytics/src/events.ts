@@ -48,7 +48,6 @@ export type SignupOutcome = (typeof SIGNUP_OUTCOMES)[keyof typeof SIGNUP_OUTCOME
  */
 export const SAVE_SURFACES = {
 	readerView: "reader_view",
-	readerPaywall: "reader_paywall",
 	homepageHero: "homepage_hero",
 	embed: "embed",
 	webmcp: "webmcp",

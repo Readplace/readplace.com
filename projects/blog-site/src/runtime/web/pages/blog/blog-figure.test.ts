@@ -48,14 +48,14 @@ step: 8 | 2 | 20
 
 const RULE = `
 kind: rule
-title: Does this reader hit the wall?
-choice: Reading time | 12 min | 3 min
-choice: Days since the last save | 6 days | today
-flag: Arrived from the founder's blog
-when: f1 -> ok | Open | A blog referral waives the wall.
-when: c1=2 -> ok | Open | Five minutes or under never expires.
-when: c2=2 -> ok | Open | Still inside the three-day window.
-else: no | Wall | Past five minutes the window has closed.
+title: Does the next-charge line show?
+choice: The renewal date | inside the 30 days before the charge | further out than 30 days
+choice: Where the page is open | a browser | inside the Readplace iPhone app
+flag: The stored copy is missing, stale, or already past
+when: c1=2 -> no | Hidden | The line has a window: the 30 days before the charge, and it stays hidden the rest of the year.
+when: c2=2 -> no | Hidden | Apple's rules stop a web view inside an app from naming a subscription price.
+when: f1 -> ok | Shown live | A stored copy that is missing, stale or past is refetched from the provider before the line renders.
+else: ok | Shown | Inside the window, outside the app, and the stored date still ahead, so the line shows.
 `;
 
 describe("rp-figure grammar", () => {
@@ -195,9 +195,9 @@ describe("budget figures", () => {
 describe("rule figures", () => {
 	it("should tag every input with the branch it decides, and only those", () => {
 		const html = draw(RULE);
-		expect(html).toContain('id="rpf-1-f0" class="rpf-rule__input" data-fires="1"');
-		expect(html).toContain('id="rpf-1-c0o1" class="rpf-rule__input" data-fires="2"');
-		expect(html).toContain('id="rpf-1-c1o1" class="rpf-rule__input" data-fires="3"');
+		expect(html).toContain('id="rpf-1-c0o1" class="rpf-rule__input" data-fires="1"');
+		expect(html).toContain('id="rpf-1-c1o1" class="rpf-rule__input" data-fires="2"');
+		expect(html).toContain('id="rpf-1-f0" class="rpf-rule__input" data-fires="3"');
 		expect(html).toContain('id="rpf-1-c0o0" class="rpf-rule__input" checked');
 	});
 
@@ -241,7 +241,7 @@ describe("rule figures", () => {
 	});
 
 	it("should reject a tone that is not ok or no", () => {
-		expect(() => parseFigure(RULE.replace("-> ok | Open | A blog", "-> maybe | Open | A blog"))).toThrow(
+		expect(() => parseFigure(RULE.replace("-> ok | Shown live | A stored copy", "-> maybe | Shown live | A stored copy"))).toThrow(
 			/must be "ok" or "no"/,
 		);
 	});

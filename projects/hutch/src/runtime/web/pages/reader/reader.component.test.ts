@@ -142,32 +142,6 @@ describe("ReaderPage", () => {
 		expect(html).toContain("/client-dist/summary-toggle.client.js");
 	});
 
-	it("leaves utm_content off the share balloon URLs", () => {
-		const article = makeArticle({
-			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),
-		});
-		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, queueFiling: NO_QUEUE_FILING, now: NOW, currentPath: TEST_CURRENT_PATH }), {
-			isAuthenticated: true,
-			emailVerified: undefined,
-			cspNonce: CSP_NONCE,
-		}).to("text/html").body;
-		const doc = new JSDOM(html).window.document;
-
-		const shareBtn = doc.querySelector("[data-test-share-balloon]");
-		assert(shareBtn, "share button must be rendered");
-		const shareHref = shareBtn.getAttribute("data-share-url");
-		assert(shareHref, "share button must carry a data-share-url");
-		const shareUrl = new URL(shareHref);
-		assert.equal(shareUrl.searchParams.get("utm_content"), null);
-
-		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-		assert(copyBtn, "copy button must be rendered");
-		const copyHref = copyBtn.getAttribute("data-share-url");
-		assert(copyHref, "copy button must carry a data-share-url");
-		const copyUrl = new URL(copyHref);
-		assert.equal(copyUrl.searchParams.get("utm_content"), null);
-	});
-
 	it("keeps same-host in-article links in the reader tab while leaving external links alone", () => {
 		const article = makeArticle({
 			content:

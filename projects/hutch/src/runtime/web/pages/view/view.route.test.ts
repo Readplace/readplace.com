@@ -1847,7 +1847,7 @@ describe("View routes", () => {
 	});
 
 	describe("Save call to action", () => {
-		function makeHarness(now: Date) {
+		function makeHarness() {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -1877,14 +1877,12 @@ describe("View routes", () => {
 						publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 					},
-					shared: { ...fixture.shared, now: () => now },
 				}),
 			};
 		}
 
 		it("names the article body's own Save call to action as the reader-view surface, alongside the utm params it already carries", async () => {
-			const now = new Date("2026-05-04T00:00:00.000Z");
-			const { fixture, harness } = makeHarness(now);
+			const { fixture, harness } = makeHarness();
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: LONG_ARTICLE_WORD_COUNT },

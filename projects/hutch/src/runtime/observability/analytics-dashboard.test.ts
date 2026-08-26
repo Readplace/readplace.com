@@ -222,19 +222,19 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(clicks).toContain("stats count(*) as clicks by section, element");
 	});
 
-	it("names both reader save surfaces in the reader funnel, so narrowing reader_view to the article body did not silently drop the expired-paywall CTA", () => {
+	it("scopes the reader funnel to the reader_view surface plus the saves recorded before the surface dimension existed", () => {
 		const queries = widgetQueries();
 		const funnel = queries.find((q) => q.includes(`event = "${ANALYTICS_EVENTS.viewOpened}"`) && q.includes(`event = "${ANALYTICS_EVENTS.viewSaveIntent}"`));
 		expect(funnel).toBeDefined();
-		expect(funnel).toContain(`surface in ["${SAVE_SURFACES.readerView}", "${SAVE_SURFACES.readerPaywall}"]`);
+		expect(funnel).toContain(`surface in ["${SAVE_SURFACES.readerView}"]`);
 		expect(funnel).toContain("not ispresent(surface)");
 	});
 
-	it("scopes the anonymous reader outcome widget to the same two reader surfaces the funnel uses", () => {
+	it("scopes the anonymous reader outcome widget to the same reader surface the funnel uses", () => {
 		const queries = widgetQueries();
 		const outcomes = queries.find((q) => q.includes("stats count(*) as attempts by outcome") && q.includes("is_authenticated = 0"));
 		expect(outcomes).toBeDefined();
-		expect(outcomes).toContain(`surface in ["${SAVE_SURFACES.readerView}", "${SAVE_SURFACES.readerPaywall}"]`);
+		expect(outcomes).toContain(`surface in ["${SAVE_SURFACES.readerView}"]`);
 		expect(outcomes).toContain("is_authenticated = 0");
 	});
 
