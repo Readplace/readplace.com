@@ -333,6 +333,15 @@ function fakeFetch(body: Buffer, status = 200) {
 
 ## CLI Commands
 
+### New Commands Require Approval
+
+Never add a new command — a `package.json` script, a `scripts/*.js` entry point, or an nx target — without explicit human approval. Propose it and wait; if it is refused, the change ships without it.
+
+```jsonc
+// BAD - a new script added unprompted
+"update-visual-baselines": "node scripts/update-visual-baselines.js",
+```
+
 ### AWS Accounts
 
 Default credentials target **staging**; prod is a separate account reached with `--profile hutch-production` (both `ap-southeast-2`). Node scripts must also unset `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`, which take precedence over `AWS_PROFILE`.
