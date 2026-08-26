@@ -211,9 +211,14 @@
 
 .queue-nav__link--editing {
   min-width: 44px;
-  font-size: var(--input-font-size);
   cursor: text;
   caret-color: currentColor;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .queue-nav__link--editing {
+    font-size: var(--input-font-size);
+  }
 }
 
 .queue-nav__link--editing:focus-within {

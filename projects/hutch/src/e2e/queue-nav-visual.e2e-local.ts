@@ -15,6 +15,7 @@ import { requireEnv } from "@packages/require-env";
 import {
 	type MeasuredBox,
 	measureBoxes,
+	measureNameSize,
 	neutraliseVolatileChrome,
 	pageOverflowsSideways,
 } from "./queue-nav.browser";
@@ -182,6 +183,17 @@ async function measureTrio(
 	const [first, second, third] = boxes;
 	assert.ok(first && second && third, "every selector must have matched something to measure");
 	return [first, second, third];
+}
+
+async function nameSize(page: Page): Promise<{
+	fontSize: string;
+	width: number;
+	height: number;
+}> {
+	return await page.evaluate(measureNameSize, {
+		label: ACTIVE_QUEUE_LABEL,
+		tab: ACTIVE_QUEUE_TAB,
+	});
 }
 
 async function queueNavSettled(page: Page): Promise<void> {
@@ -734,6 +746,39 @@ test.describe("Naming a queue the reader just made", () => {
 		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("Deep Work");
 		await page.reload({ waitUntil: "domcontentloaded" });
 		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("Deep Work");
+	});
+
+	test("opens the name for editing at the size it already renders", async ({
+		page,
+	}, testInfo) => {
+		const email = `queue-nav-rename-size-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewQueue(page);
+		await page.click(RENAMEABLE_TAB);
+		await replaceOpenName(page, "Work Reading");
+		await page.keyboard.press("Enter");
+		await expect(page.locator(ACTIVE_QUEUE_LABEL)).toHaveText("Work Reading");
+		await expect(page.locator(EDITING_TAB)).toHaveCount(0);
+		await waitForBrandFonts(page, ["Inter"]);
+
+		for (const viewport of [DESKTOP, PHONE]) {
+			await page.setViewportSize(viewport);
+			const resting = await nameSize(page);
+
+			await page.click(RENAMEABLE_TAB);
+			await expect(page.locator(EDITING_TAB)).toHaveCount(1);
+			const editing = await nameSize(page);
+
+			await page.keyboard.press("Escape");
+			await expect(page.locator(EDITING_TAB)).toHaveCount(0);
+
+			assert.deepEqual(
+				editing,
+				resting,
+				`at ${viewport.width}px the name must open for editing at the size it already renders, measured ${JSON.stringify(resting)} then ${JSON.stringify(editing)}`,
+			);
+		}
 	});
 
 	test("keeps the rename working after the listing has been swapped", async ({

@@ -14,6 +14,18 @@ export function measureBoxes(selectors: readonly string[]): MeasuredBox[] {
 	});
 }
 
+export function measureNameSize(input: { label: string; tab: string }): {
+	fontSize: string;
+	width: number;
+	height: number;
+} {
+	const label = document.querySelector(input.label);
+	const tab = document.querySelector(input.tab);
+	if (!label || !tab) throw new Error(`"${input.label}" and "${input.tab}" must be laid out to be measured`);
+	const { width, height } = tab.getBoundingClientRect();
+	return { fontSize: getComputedStyle(label).fontSize, width, height };
+}
+
 export function pageOverflowsSideways(): boolean {
 	return document.documentElement.scrollWidth > document.documentElement.clientWidth;
 }
