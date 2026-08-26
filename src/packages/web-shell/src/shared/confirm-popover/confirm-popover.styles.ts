@@ -130,6 +130,22 @@ export const CONFIRM_POPOVER_STYLES = `
 	text-wrap: pretty;
 }
 
+.confirm-popover__body--above-list {
+	margin-bottom: 8px;
+}
+
+.confirm-popover__items {
+	margin: 0 0 24px;
+	padding-left: 20px;
+	list-style: disc;
+	font-size: 0.9375rem;
+	line-height: 1.5;
+}
+
+.confirm-popover__item {
+	text-wrap: pretty;
+}
+
 .confirm-popover__actions {
 	display: flex;
 	flex-direction: column;

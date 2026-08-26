@@ -170,6 +170,12 @@ export function initInMemoryArticleStore(): {
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
+	setQueueArticleStatus: (params: {
+		id: ReaderArticleHashId;
+		userId: UserId;
+		queue: QueueSlug;
+		status: ArticleStatus;
+	}) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
@@ -522,6 +528,16 @@ export function initInMemoryArticleStore(): {
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) =>
 		updateStatusIn(undefined, id, userId, status);
 
+	const setQueueArticleStatus = async (params: {
+		id: ReaderArticleHashId;
+		userId: UserId;
+		queue: QueueSlug;
+		status: ArticleStatus;
+	}): Promise<void> => {
+		const updated = updateStatusIn(params.queue, params.id, params.userId, params.status);
+		assert(updated, "setQueueArticleStatus needs the queue to already hold the article");
+	};
+
 	const updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues = async ({
 		id,
 		userId,
@@ -771,5 +787,6 @@ export function initInMemoryArticleStore(): {
 		setDisplayUrl,
 		setCrawlVersions,
 		setPurgedAt,
+		setQueueArticleStatus,
 	};
 }

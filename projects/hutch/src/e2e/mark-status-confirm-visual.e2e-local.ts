@@ -20,6 +20,7 @@ const ARTICLE_TITLE = "Yes you can measure engineering | Jade Rubick";
 const PANEL = '[data-test-confirm-popover="mark-status"]';
 const PANEL_TITLE = `${PANEL} .confirm-popover__title`;
 const PANEL_BODY = `${PANEL} .confirm-popover__body`;
+const PANEL_ITEMS = `${PANEL} .confirm-popover__items`;
 const PANEL_CONFIRM = `${PANEL} [data-test-action="mark-status-confirm"]`;
 const PANEL_NEVER = `${PANEL} [data-test-action="mark-status-confirm-never"]`;
 const MARK_READ_TRIGGER = 'main.queue [data-test-action="mark-read"]';
@@ -81,7 +82,8 @@ async function titleLeadsTheQueueListThenBothChoices(page: Page): Promise<void> 
 	const panel = await measuredBox(page, PANEL);
 	const stacked = [
 		["title", await measuredBox(page, PANEL_TITLE)],
-		["queue list", await measuredBox(page, PANEL_BODY)],
+		["introduction", await measuredBox(page, PANEL_BODY)],
+		["queue list", await measuredBox(page, PANEL_ITEMS)],
 		["confirm choice", await measuredBox(page, PANEL_CONFIRM)],
 		["silence choice", await measuredBox(page, PANEL_NEVER)],
 	] as const;
@@ -133,7 +135,7 @@ test.describe("Mark-as-read confirmation panel", () => {
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openMarkReadConfirm(page, `light-${testInfo.workerIndex}-${Date.now()}`);
-		await expect(page.locator(PANEL_BODY)).toContainText("My Queue, New Queue");
+		await expect(page.locator(`${PANEL_ITEMS} li`)).toHaveText(["My Queue", "New Queue"]);
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_LIGHT);
 	});
 

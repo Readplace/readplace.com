@@ -4,6 +4,7 @@ export const CONFIRM_POPOVER_TEMPLATE = `<div class="confirm-popover" id="{{id}}
 		<button class="confirm-popover__close" type="button" popovertarget="{{id}}" popovertargetaction="hide" data-test-action="{{key}}-dismiss"{{#if dismissBeaconUrl}} data-beacon-url="{{dismissBeaconUrl}}"{{/if}}>{{icon "x"}}<span class="sr-only">Close</span></button>
 	</div>
 	{{#if lead}}<p class="{{lead.cssClass}}" id="{{id}}-lead">{{lead.text}}</p>{{/if}}
-	<p class="confirm-popover__body" id="{{id}}-body">{{body}}</p>
+	<p class="{{bodyClass}}" id="{{id}}-body">{{body}}</p>
+	{{#if bodyItems}}<ul class="confirm-popover__items" id="{{id}}-items">{{#each bodyItems}}<li class="confirm-popover__item">{{this}}</li>{{/each}}</ul>{{/if}}
 	{{{actionsHtml}}}
 </div>`;

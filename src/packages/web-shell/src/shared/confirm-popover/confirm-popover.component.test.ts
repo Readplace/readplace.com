@@ -58,6 +58,71 @@ describe("renderConfirmPopover", () => {
 		expect(body.textContent).toBe("You will not get it back.");
 	});
 
+	it("renders a bulleted list under the body and describes the panel by both", () => {
+		const doc = renderPanel({ bodyItems: ["My Queue", "Work", "Later"] });
+
+		const panel = doc.querySelector(".confirm-popover");
+		assert(panel, "panel must be rendered");
+		expect(panel.getAttribute("aria-describedby")).toBe(
+			"thing-confirm-42-body thing-confirm-42-items",
+		);
+		const items = doc.getElementById("thing-confirm-42-items");
+		assert(items, "the list must be rendered");
+		expect(items.tagName).toBe("UL");
+		expect([...items.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
+			"My Queue",
+			"Work",
+			"Later",
+		]);
+	});
+
+	it("escapes each item, so a queue named after markup stays text", () => {
+		const doc = renderPanel({ bodyItems: ['<img src=x onerror="alert(1)">'] });
+
+		const items = doc.getElementById("thing-confirm-42-items");
+		assert(items, "the list must be rendered");
+		expect(items.querySelectorAll("img")).toHaveLength(0);
+		expect(items.querySelector("li")?.textContent).toBe('<img src=x onerror="alert(1)">');
+	});
+
+	it("tightens the body above a list so the sentence reads as its introduction", () => {
+		const withList = renderPanel({ bodyItems: ["My Queue"] });
+		const withoutList = renderPanel();
+
+		const introduced = withList.getElementById("thing-confirm-42-body");
+		const alone = withoutList.getElementById("thing-confirm-42-body");
+		assert(introduced, "the body must be rendered");
+		assert(alone, "the body must be rendered");
+		expect(introduced.className).toBe(
+			"confirm-popover__body confirm-popover__body--above-list",
+		);
+		expect(alone.className).toBe("confirm-popover__body");
+		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover__body--above-list {");
+		expect(CONFIRM_POPOVER_STYLES).toContain("list-style: disc;");
+	});
+
+	it("leaves the list out entirely when the body says all there is to say", () => {
+		const doc = renderPanel();
+
+		const panel = doc.querySelector(".confirm-popover");
+		assert(panel, "panel must be rendered");
+		expect(panel.getAttribute("aria-describedby")).toBe("thing-confirm-42-body");
+		expect(doc.querySelectorAll(".confirm-popover__items")).toHaveLength(0);
+	});
+
+	it("describes the panel by lead, body and list when all three are present", () => {
+		const doc = renderPanel({
+			lead: { text: "The Article Title", screenReaderOnly: true },
+			bodyItems: ["My Queue"],
+		});
+
+		const panel = doc.querySelector(".confirm-popover");
+		assert(panel, "panel must be rendered");
+		expect(panel.getAttribute("aria-describedby")).toBe(
+			"thing-confirm-42-lead thing-confirm-42-body thing-confirm-42-items",
+		);
+	});
+
 	it("describes the panel by lead then body when a lead names the subject", () => {
 		const doc = renderPanel({
 			lead: { text: "The Article Title", screenReaderOnly: false },

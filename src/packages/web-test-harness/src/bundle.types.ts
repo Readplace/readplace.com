@@ -1,6 +1,13 @@
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
+import type {
+	ArticleMetadata,
+	ArticleStatus,
+	Minutes,
+	ReaderArticleHashId,
+	ValidateSaveableUrl,
+} from "@packages/domain/article";
+import type { QueueSlug } from "@packages/domain/queue";
 import type {
 	FindRelatedArticles,
 	MarkRelatedArticlesReady,
@@ -345,6 +352,12 @@ export interface ArticleStoreBundle {
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
+	setQueueArticleStatus: (params: {
+		id: ReaderArticleHashId;
+		userId: UserId;
+		queue: QueueSlug;
+		status: ArticleStatus;
+	}) => Promise<void>;
 }
 
 export interface ArticleCrawlBundle {

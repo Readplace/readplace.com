@@ -42,12 +42,30 @@ describe("markStatusConfirmPopoverId", () => {
 });
 
 describe("renderMarkStatusConfirm", () => {
-	it("names every queue the change will reach, in the order the rail lists them", () => {
-		const body = panelFor().getElementById("queue-mark-status-confirm-abc123-body");
+	it("names every queue the change will reach, one bullet each, in the order the rail lists them", () => {
+		const doc = panelFor();
+		const body = doc.getElementById("queue-mark-status-confirm-abc123-body");
+		const items = doc.getElementById("queue-mark-status-confirm-abc123-items");
 
 		assert(body, "the panel must state what the change will do");
+		assert(items, "the panel must list the queues it will reach");
 		expect(body.textContent).toBe(
-			"This article will be marked as read in all of the following queues: My Queue, Work, Later.",
+			"This article will be marked as read in all of the following queues:",
+		);
+		expect(items.tagName).toBe("UL");
+		expect([...items.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
+			"My Queue",
+			"Work",
+			"Later",
+		]);
+	});
+
+	it("describes the panel by the sentence and the list together, so both are announced", () => {
+		const panel = panelFor().querySelector("[data-test-confirm-popover='mark-status']");
+
+		assert(panel, "the panel must be rendered");
+		expect(panel.getAttribute("aria-describedby")).toBe(
+			"queue-mark-status-confirm-abc123-body queue-mark-status-confirm-abc123-items",
 		);
 	});
 
@@ -62,7 +80,14 @@ describe("renderMarkStatusConfirm", () => {
 		);
 		expect(
 			unread.getElementById("queue-mark-status-confirm-abc123-body")?.textContent,
-		).toBe("This article will be marked as unread in all of the following queues: My Queue.");
+		).toBe("This article will be marked as unread in all of the following queues:");
+		expect(
+			[
+				...(unread
+					.getElementById("queue-mark-status-confirm-abc123-items")
+					?.querySelectorAll("li") ?? []),
+			].map((li) => li.textContent),
+		).toEqual(["My Queue"]);
 	});
 
 	it("offers both a plain confirmation and one that also silences the panel", () => {
@@ -125,7 +150,9 @@ describe("renderMarkStatusConfirm", () => {
 
 		const panel = reader.querySelector("[data-test-confirm-popover='mark-status']");
 		assert(panel, "the reader panel must be rendered");
-		expect(panel.getAttribute("aria-describedby")).toBe("queue-mark-status-confirm-abc123-body");
+		expect(panel.getAttribute("aria-describedby")).toBe(
+			"queue-mark-status-confirm-abc123-body queue-mark-status-confirm-abc123-items",
+		);
 	});
 
 	it("opens on the article id so one page of cards keeps its panels apart", () => {

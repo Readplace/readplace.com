@@ -384,6 +384,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			setDisplayUrl: articleStoreMemory.setDisplayUrl,
 			setCrawlVersions: articleStoreMemory.setCrawlVersions,
 			setPurgedAt: articleStoreMemory.setPurgedAt,
+			setQueueArticleStatus: articleStoreMemory.setQueueArticleStatus,
 		},
 		articleCrawl: {
 			findArticleCrawlStatus: articleCrawl.findArticleCrawlStatus,

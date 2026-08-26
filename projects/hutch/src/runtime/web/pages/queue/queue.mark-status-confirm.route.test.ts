@@ -134,22 +134,23 @@ describe("Mark-as-read confirmation", () => {
 		expect(triggersByArticle).toEqual(panelsByArticle);
 	});
 
-	it("names only the queues that article actually sits in", async () => {
+	it("names only the queues that article actually sits in, one bullet each", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await readerWithTwoQueues(harness);
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/default-only" });
 
 		const doc = parse((await agent.get("/queue?feature=queues")).text);
-		const bodies = panels(doc).map(
-			(panel) => panel.querySelector(".confirm-popover__body")?.textContent,
+		const listed = panels(doc).map((panel) =>
+			[...panel.querySelectorAll(".confirm-popover__items li")].map((li) => li.textContent),
 		);
 
-		expect(bodies).toContain(
-			"This article will be marked as read in all of the following queues: My Queue, New Queue.",
-		);
-		expect(bodies).toContain(
-			"This article will be marked as read in all of the following queues: My Queue.",
-		);
+		expect(listed).toContainEqual(["My Queue", "New Queue"]);
+		expect(listed).toContainEqual(["My Queue"]);
+		for (const panel of panels(doc)) {
+			expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
+				"This article will be marked as read in all of the following queues:",
+			);
+		}
 	});
 
 	it("dismisses with the close control rather than changing anything", async () => {
@@ -237,8 +238,11 @@ describe("Mark-as-read confirmation", () => {
 		expect(rendered).toHaveLength(1);
 		expect(panel.parentElement?.tagName).toBe("MAIN");
 		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"This article will be marked as read in all of the following queues: My Queue, New Queue.",
+			"This article will be marked as read in all of the following queues:",
 		);
+		expect(
+			[...panel.querySelectorAll(".confirm-popover__items li")].map((li) => li.textContent),
+		).toEqual(["My Queue", "New Queue"]);
 		const triggers = [...doc.querySelectorAll(".article-body__confirm-trigger")];
 		expect(triggers).not.toHaveLength(0);
 		for (const trigger of triggers) {

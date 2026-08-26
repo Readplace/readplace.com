@@ -1315,7 +1315,7 @@ describe("initInMemoryArticleStore", () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
-			await store.updateQueueArticleStatus({
+			await store.setQueueArticleStatus({
 				id: saved.id,
 				userId: USER_A,
 				queue: WORK,

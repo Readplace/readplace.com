@@ -22,6 +22,7 @@ export interface ConfirmPopover {
 	subject?: string;
 	title: string;
 	body: string;
+	bodyItems?: readonly string[];
 	lead?: ConfirmPopoverLead;
 	openBeaconUrl?: string;
 	dismissBeaconUrl?: string;
@@ -31,20 +32,29 @@ export interface ConfirmPopover {
 	actionsHtml: string;
 }
 
-/** Resolved together so a lead cannot be rendered without the describedby id
- * that points a screen reader at it, nor referenced without being rendered. */
-function leadFields(popover: ConfirmPopover) {
+function describedFields(popover: ConfirmPopover) {
 	const lead = popover.lead;
-	if (lead === undefined) return { describedBy: `${popover.id}-body` };
+	const hasItems = popover.bodyItems !== undefined;
 	return {
-		lead: {
-			text: lead.text,
-			cssClass: lead.screenReaderOnly ? "sr-only" : "confirm-popover__lead",
-		},
-		describedBy: `${popover.id}-lead ${popover.id}-body`,
+		...(lead === undefined
+			? {}
+			: {
+					lead: {
+						text: lead.text,
+						cssClass: lead.screenReaderOnly ? "sr-only" : "confirm-popover__lead",
+					},
+				}),
+		describedBy: [
+			...(lead === undefined ? [] : [`${popover.id}-lead`]),
+			`${popover.id}-body`,
+			...(hasItems ? [`${popover.id}-items`] : []),
+		].join(" "),
+		bodyClass: hasItems
+			? "confirm-popover__body confirm-popover__body--above-list"
+			: "confirm-popover__body",
 	};
 }
 
 export function renderConfirmPopover(popover: ConfirmPopover): string {
-	return render(CONFIRM_POPOVER_TEMPLATE, { ...popover, ...leadFields(popover) });
+	return render(CONFIRM_POPOVER_TEMPLATE, { ...popover, ...describedFields(popover) });
 }

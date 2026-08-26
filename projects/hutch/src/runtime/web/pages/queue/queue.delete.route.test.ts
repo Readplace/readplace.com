@@ -257,7 +257,7 @@ describe("POST /queue/queues/:slug/delete with a destination queue", () => {
 		const destination = await createQueue(agent);
 		const { saved } = await seedInto(harness, source, "https://example.com/already-read");
 		const userId = await userIdOf(harness);
-		await harness.articleStore.updateQueueArticleStatus({
+		await harness.articleStore.setQueueArticleStatus({
 			id: saved.id,
 			userId,
 			queue: QueueSlugSchema.parse(source),
