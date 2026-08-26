@@ -306,7 +306,7 @@ describe("Queue onboarding — Next Read milestone", () => {
 		expect(reads).toHaveLength(1);
 	});
 
-	it("makes neither onboarding read on a device with no installable client", async () => {
+	it("makes one onboarding read, and never the save count, on a device with no installable client", async () => {
 		const counting = countingFixture(0);
 		const fixture = counting.fixture;
 		const reads: UserId[] = [];
@@ -324,7 +324,9 @@ describe("Queue onboarding — Next Read milestone", () => {
 
 		const response = await agent.get("/queue").set("User-Agent", DESKTOP_SAFARI_UA);
 
-		expect(reads).toEqual([]);
+		// One read: the same row carries the mark-read-across-queues acknowledgement,
+		// which every device needs whether or not it has a client to install.
+		expect(reads).toHaveLength(1);
 		expect(
 			counting.counted.filter((query) => query.countLimit === NEXT_READ_MINIMUM_SAVES),
 		).toEqual([]);

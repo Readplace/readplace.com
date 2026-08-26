@@ -17,6 +17,7 @@ import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCountsTrigger, renderStatusToast } from "./queue-mutation-fragments";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderDeleteConfirm } from "./queue-card/delete-confirm.component";
+import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component";
 import { buildQueueNav, renderQueueNav } from "./queue-nav.component";
 import { DEFAULT_QUEUE, type Queue } from "./queue.nav";
@@ -68,6 +69,7 @@ interface QueueDisplayModel {
 	 * at page level rather than in the card because a pending card replaces its
 	 * own subtree every 3s and would rip an open confirmation out mid-decision. */
 	deleteConfirmsHtml: string;
+	markStatusConfirmsHtml: string;
 	queueDeleteConfirmHtml: string;
 	mainClass: string;
 	queueNavHtml: string;
@@ -188,6 +190,19 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: 
 		deleteConfirmsHtml: vm.articles
 			.map((article) =>
 				renderDeleteConfirm({ confirm: article.deleteConfirm, title: article.title }),
+			)
+			.join("\n"),
+		markStatusConfirmsHtml: vm.articles
+			.flatMap((article) =>
+				article.markStatusConfirm === undefined
+					? []
+					: [
+							renderMarkStatusConfirm({
+								confirm: article.markStatusConfirm,
+								source: "queue-card",
+								lead: article.title,
+							}),
+						],
 			)
 			.join("\n"),
 		queueDeleteConfirmHtml: queueDeleteConfirmPanel(options.rail),

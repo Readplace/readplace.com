@@ -4,7 +4,7 @@ import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@p
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
-import { QueueSlugSchema } from "@packages/domain/queue";
+import { DEFAULT_QUEUE_SLUG, QueueSlugSchema } from "@packages/domain/queue";
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
@@ -1734,9 +1734,15 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 		expect(saved.userId).toBe(USER);
 	});
 
-	it("updateQueueArticleStatus writes the copy's row and answers with the base user id", async () => {
+	it("updateArticleStatusAcrossQueues writes the addressed copy and every other copy of the same URL", async () => {
 		const { client, commands } = createFakeClient({
-			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			QueryCommand: {
+				queue: [
+					{ Items: [articleItem()], Count: 1 },
+					{ Items: [queueDefinitionItem()], Count: 1 },
+				],
+				default: { Items: [articleItem()], Count: 1 },
+			},
 			UpdateCommand: {
 				default: {
 					Attributes: userArticleItem({
@@ -1746,20 +1752,82 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 					}),
 				},
 			},
+			BatchGetCommand: {
+				default: {
+					Responses: { "user-articles": [{ userId: USER }, { userId: WORK_PARTITION }] },
+				},
+			},
 		});
 
-		const saved = await initStore(client).updateQueueArticleStatus({
+		const saved = await initStore(client).updateArticleStatusAcrossQueues({
 			id: ReaderArticleHashId.fromHash(ROUTE_ID),
 			userId: USER,
-			queue: WORK,
+			addressed: WORK,
 			status: "read",
 		});
 
-		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
-		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(
+			commands.filter((c) => c.name === "UpdateCommand").map((c) => c.input.Key),
+		).toEqual([
+			{ userId: WORK_PARTITION, url: RESOURCE_ID },
+			{ userId: USER, url: RESOURCE_ID },
+		]);
 		expect(saved?.userId).toBe(USER);
 		expect(saved?.status).toBe("read");
+	});
+
+	it("updateArticleStatusAcrossQueues addressing the default queue writes the base partition first", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [articleItem()], Count: 1 },
+					{ Items: [queueDefinitionItem()], Count: 1 },
+				],
+				default: { Items: [articleItem()], Count: 1 },
+			},
+			UpdateCommand: { default: { Attributes: userArticleItem({ status: "read" }) } },
+			BatchGetCommand: {
+				default: {
+					Responses: { "user-articles": [{ userId: USER }, { userId: WORK_PARTITION }] },
+				},
+			},
+		});
+
+		await initStore(client).updateArticleStatusAcrossQueues({
+			id: ReaderArticleHashId.fromHash(ROUTE_ID),
+			userId: USER,
+			addressed: DEFAULT_QUEUE_SLUG,
+			status: "unread",
+		});
+
+		expect(
+			commands.filter((c) => c.name === "UpdateCommand").map((c) => c.input.Key),
+		).toEqual([
+			{ userId: USER, url: RESOURCE_ID },
+			{ userId: WORK_PARTITION, url: RESOURCE_ID },
+		]);
+	});
+
+	it("updateArticleStatusAcrossQueues writes nothing further when the addressed queue does not hold the article", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			UpdateCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
+				},
+			},
+		});
+
+		const saved = await initStore(client).updateArticleStatusAcrossQueues({
+			id: ReaderArticleHashId.fromHash(ROUTE_ID),
+			userId: USER,
+			addressed: WORK,
+			status: "read",
+		});
+
+		expect(saved).toBeNull();
+		expect(commands.filter((c) => c.name === "UpdateCommand")).toHaveLength(1);
+		expect(commands.filter((c) => c.name === "BatchGetCommand")).toHaveLength(0);
 	});
 
 	it("deleteQueueArticle removes only the copy's row", async () => {
@@ -2127,6 +2195,42 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		).toEqual([
 			{ userId: USER, url: RESOURCE_ID },
 			{ userId: WORK_PARTITION, url: RESOURCE_ID },
+		]);
+	});
+
+	it("listUserSavesForUrls groups one batched read back onto the URLs it was asked about", async () => {
+		const otherUrl = "https://example.com/other";
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [queueDefinitionItem()], Count: 1 } },
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						"user-articles": [
+							{ userId: USER, url: RESOURCE_ID },
+							{ userId: WORK_PARTITION, url: RESOURCE_ID },
+						],
+					},
+				},
+			},
+		});
+
+		const saves = await initStore(client).listUserSavesForUrls({
+			userId: USER,
+			urls: [URL, otherUrl],
+		});
+
+		expect(saves.get(URL)).toEqual([{}, { queue: "work" }]);
+		expect(saves.get(otherUrl)).toEqual([]);
+		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
+		expect(
+			(batchGet?.input.RequestItems as Record<string, { Keys: Record<string, string>[] }>)[
+				"user-articles"
+			]?.Keys,
+		).toEqual([
+			{ userId: USER, url: RESOURCE_ID },
+			{ userId: WORK_PARTITION, url: RESOURCE_ID },
+			{ userId: USER, url: "example.com/other" },
+			{ userId: WORK_PARTITION, url: "example.com/other" },
 		]);
 	});
 

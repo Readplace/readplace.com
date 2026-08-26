@@ -12,6 +12,7 @@ const NOTHING_RECORDED = {
 	},
 	nextReadMinimumReachedAt: undefined,
 	nextReadStepOutstandingAt: undefined,
+	markReadAcrossQueuesAckedAt: undefined,
 };
 
 function storeAt(...instants: Date[]) {
@@ -98,6 +99,26 @@ describe("initInMemoryOnboardingSignals", () => {
 
 		const signals = await store.getOnboardingSignals({ userId: USER });
 		expect(signals.nextReadStepOutstandingAt).toEqual(FIRST);
+	});
+
+	it("stamps the mark-read acknowledgement set-once with the injected clock", async () => {
+		const store = storeAt(FIRST, LATER);
+
+		await store.recordMarkReadAcrossQueuesAcknowledged({ userId: USER });
+		await store.recordMarkReadAcrossQueuesAcknowledged({ userId: USER });
+
+		const signals = await store.getOnboardingSignals({ userId: USER });
+		expect(signals.markReadAcrossQueuesAckedAt).toEqual(FIRST);
+	});
+
+	it("clears the mark-read acknowledgement on deleteOnboarding", async () => {
+		const store = storeAt(FIRST);
+		await store.recordMarkReadAcrossQueuesAcknowledged({ userId: USER });
+
+		await store.deleteOnboarding({ userId: USER });
+
+		const signals = await store.getOnboardingSignals({ userId: USER });
+		expect(signals.markReadAcrossQueuesAckedAt).toBeUndefined();
 	});
 
 	it("clears the outstanding marker on deleteOnboarding", async () => {

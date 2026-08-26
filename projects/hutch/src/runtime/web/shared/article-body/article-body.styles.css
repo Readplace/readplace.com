@@ -127,6 +127,27 @@
   margin: 0;
 }
 
+/**
+ * 1. Legacy-first: the plain POST form is the unconditional base and the popover
+ *    trigger is the enhancement, so only the positive probe is used — an engine
+ *    that cannot parse `selector()` evaluates the condition as unknown, and
+ *    `not unknown` is not `true`, so a `@supports not selector(:popover-open)`
+ *    fallback would be skipped in exactly the engines it exists for.
+ */
+.article-body__confirm-trigger {
+  display: none; /* 1 */
+}
+
+@supports selector(:popover-open) {
+  .article-body__confirm-trigger {
+    display: inline-flex;
+  }
+
+  .article-body__mark-read-fallback {
+    display: none;
+  }
+}
+
 .article-body__mark-read {
   position: relative;
 }

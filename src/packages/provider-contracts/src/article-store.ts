@@ -292,10 +292,10 @@ export type FindQueueArticleById = (params: {
 	queue: QueueSlug;
 }) => Promise<SavedArticle | null>;
 
-export type UpdateQueueArticleStatus = (params: {
+export type UpdateArticleStatusAcrossQueues = (params: {
 	id: ReaderArticleHashId;
 	userId: UserId;
-	queue: QueueSlug;
+	addressed: QueueSlug;
 	status: ArticleStatus;
 }) => Promise<SavedArticle | null>;
 
@@ -329,3 +329,8 @@ export type ListUserSavesForUrl = (params: {
 	userId: UserId;
 	url: string;
 }) => Promise<{ queue?: QueueSlug }[]>;
+
+export type ListUserSavesForUrls = (params: {
+	userId: UserId;
+	urls: readonly string[];
+}) => Promise<Map<string, { queue?: QueueSlug }[]>>;

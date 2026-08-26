@@ -343,6 +343,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
+		recordMarkReadAcrossQueuesAcknowledged:
+			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		consumeRateLimit,
 		rateLimitRules,
 	};

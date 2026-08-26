@@ -318,7 +318,7 @@ describe("the reader's add-to-queue control", () => {
 		expect(queueTags(doc)).toEqual([work]);
 	});
 
-	it("marks the queue's own copy read from a flagless queue-scoped status post", async () => {
+	it("marks every copy read from a flagless queue-scoped status post", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const work = await createQueue(agent);
@@ -333,8 +333,8 @@ describe("the reader's add-to-queue control", () => {
 		expect(response.status).toBe(303);
 		const workRead = parse((await agent.get(`/queue?queue=${work}&tab=done`)).text);
 		expect(listedArticleIds(workRead)).toEqual([articleId]);
-		const myQueue = parse((await agent.get("/queue")).text);
-		expect(listedArticleIds(myQueue)).toEqual([articleId]);
+		expect(listedArticleIds(parse((await agent.get("/queue")).text))).toEqual([]);
+		expect(listedArticleIds(parse((await agent.get("/queue?tab=done")).text))).toEqual([articleId]);
 	});
 
 	it("keeps the chromeless marker on the poll URLs and filing forms of the iOS reader", async () => {

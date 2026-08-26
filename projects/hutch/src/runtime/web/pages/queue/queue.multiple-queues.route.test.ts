@@ -267,7 +267,7 @@ describe("a URL saved into more than one queue", () => {
 		expect(articleIds(onWork)).toHaveLength(1);
 	});
 
-	it("marks one copy read without touching the other", async () => {
+	it("marks every copy read from whichever queue the reader was looking at", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const queue = await createQueueAndOpen(agent);
@@ -281,9 +281,28 @@ describe("a URL saved into more than one queue", () => {
 			.type("form")
 			.send({ status: "read" });
 
-		expect(cardStatuses(parse((await agent.get("/queue")).text))).toEqual(["unread"]);
+		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([]);
+		expect(articleIds(parse((await agent.get("/queue?tab=done")).text))).toEqual([articleId]);
 		const workDone = parse((await agent.get(`/queue?feature=queues&queue=${queue}&tab=done`)).text);
 		expect(articleIds(workDone)).toEqual([articleId]);
+	});
+
+	it("reverses every copy when the reader marks it unread again", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const queue = await createQueueAndOpen(agent);
+		await save(agent, "https://example.com/a");
+		await seedInto(harness, queue, "https://example.com/a");
+		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
+		assert(articleId, "the saved article must render a card");
+		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
+
+		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });
+
+		expect(cardStatuses(parse((await agent.get("/queue")).text))).toEqual(["unread"]);
+		expect(
+			cardStatuses(parse((await agent.get(`/queue?feature=queues&queue=${queue}`)).text)),
+		).toEqual(["unread"]);
 	});
 
 	it("deletes one copy without touching the other", async () => {

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
-import type { SavedArticle } from "@packages/domain/article";
+import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { nextReadDismissalOf } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
@@ -16,6 +16,10 @@ import type {
 	RenderReaderActions,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ReaderQueueFiling } from "../queue/reader-queue-filing";
+import {
+	markStatusConfirmPopoverId,
+	renderMarkStatusConfirm,
+} from "../queue/mark-status-confirm.component";
 import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
@@ -98,18 +102,33 @@ export function ReaderPage(
 		crawlVersions?: LocalTime[];
 		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 		exitMarkReadConfirm?: boolean;
+		markStatusConfirmQueueLabels?: readonly string[];
 	},
 ): PageBody {
 	const articleId = article.id.value;
 	const isRead = article.status === "read";
 	const markReadLabel = isRead ? "Mark as unread" : "Mark as read";
-	const markReadStatus = isRead ? "unread" : "read";
+	const markReadStatus: ArticleStatus = isRead ? "unread" : "read";
+	const markStatusConfirm =
+		options.markStatusConfirmQueueLabels === undefined
+			? undefined
+			: {
+					articleId,
+					popoverId: markStatusConfirmPopoverId(articleId),
+					url: `/queue/${articleId}/status`,
+					status: markReadStatus,
+					queueLabels: options.markStatusConfirmQueueLabels,
+				};
 	const markReadActions: MarkReadAction[] = [
 		{
 			position: "top",
 			postUrl: markReadPostUrl({ articleId, utmContent: "mark-read-top" }),
 			label: markReadLabel,
+			testAction: `mark-${markReadStatus}`,
 			fields: [{ name: "status", value: markReadStatus }],
+			...(markStatusConfirm === undefined
+				? {}
+				: { confirmPopoverId: markStatusConfirm.popoverId }),
 		},
 	];
 	const actions = options.renderActions({
@@ -169,11 +188,16 @@ export function ReaderPage(
 		articleId,
 		title: article.metadata.title,
 	});
+	const markStatusConfirmHtml =
+		markStatusConfirm === undefined
+			? ""
+			: renderMarkStatusConfirm({ confirm: markStatusConfirm, source: "reader" });
 	const content = render(READER_TEMPLATE, {
 		innerContent,
 		shareBalloon,
 		nextRead,
 		exitConfirmHtml,
+		markStatusConfirmHtml,
 	});
 
 	return {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { markReadWithConfirmation } from "./page-interactions";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 
 const E2E_PORT = process.env.E2E_PORT;
@@ -111,7 +112,7 @@ async function waitForCardsSettled(page: Page): Promise<void> {
 async function markNewestArticleRead(page: Page): Promise<void> {
 	const before = await page.locator("[data-test-article]").count();
 	await waitForCardsSettled(page);
-	await page.locator('[data-test-action="mark-read"]').first().click();
+	await markReadWithConfirmation(page, page.locator('[data-test-action="mark-read"]').first());
 	await expect(page.locator("[data-test-article]")).toHaveCount(before - 1, {
 		timeout: SETTLE_MS,
 	});

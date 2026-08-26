@@ -116,6 +116,23 @@ describe("initOnboardingSignals", () => {
 		});
 	});
 
+	describe("recordMarkReadAcrossQueuesAcknowledged", () => {
+		it("upserts the acknowledgement (set-once) keyed directly by userId", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initSignal(client).recordMarkReadAcrossQueuesAcknowledged({ userId: USER });
+
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toBe(
+				"SET markReadAcrossQueuesAckedAt = if_not_exists(markReadAcrossQueuesAckedAt, :now)",
+			);
+			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
+				NOW.toISOString(),
+			);
+		});
+	});
+
 	describe("getOnboardingSignals", () => {
 		it("reads by userId and returns both false when no row exists for the user", async () => {
 			const { client, commands } = createFakeClient({});
@@ -130,6 +147,7 @@ describe("initOnboardingSignals", () => {
 				},
 				nextReadMinimumReachedAt: undefined,
 				nextReadStepOutstandingAt: undefined,
+				markReadAcrossQueuesAckedAt: undefined,
 			});
 		});
 
@@ -147,6 +165,7 @@ describe("initOnboardingSignals", () => {
 				},
 				nextReadMinimumReachedAt: undefined,
 				nextReadStepOutstandingAt: undefined,
+				markReadAcrossQueuesAckedAt: undefined,
 			});
 		});
 
@@ -168,6 +187,7 @@ describe("initOnboardingSignals", () => {
 				},
 				nextReadMinimumReachedAt: undefined,
 				nextReadStepOutstandingAt: undefined,
+				markReadAcrossQueuesAckedAt: undefined,
 			});
 		});
 
@@ -197,6 +217,18 @@ describe("initOnboardingSignals", () => {
 
 			expect(signals.nextReadStepOutstandingAt).toEqual(
 				new Date("2026-06-19T08:15:00.000Z"),
+			);
+		});
+
+		it("surfaces the mark-read acknowledgement once the row carries it", async () => {
+			const { client } = createFakeClient({
+				row: { userId: "user-1", markReadAcrossQueuesAckedAt: "2026-06-21T08:15:00.000Z" },
+			});
+
+			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
+
+			expect(signals.markReadAcrossQueuesAckedAt).toEqual(
+				new Date("2026-06-21T08:15:00.000Z"),
 			);
 		});
 

@@ -72,6 +72,7 @@ import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-aut
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type {
 	GetOnboardingSignals,
+	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
@@ -93,12 +94,13 @@ import type {
 	FindQueueArticles,
 	CountQueueArticles,
 	FindQueueArticleById,
-	UpdateQueueArticleStatus,
+	UpdateArticleStatusAcrossQueues,
 	DeleteQueueArticle,
 	MarkQueueArticleViewed,
 	AssignSavedArticleToQueue,
 	MoveQueueArticles,
 	ListUserSavesForUrl,
+	ListUserSavesForUrls,
 	ListQueueDefinitions,
 	RenameQueueDefinition,
 	CreateQueueDefinition,
@@ -323,10 +325,11 @@ interface AppDependencies {
 	findQueueArticles: FindQueueArticles;
 	countQueueArticles: CountQueueArticles;
 	findQueueArticleById: FindQueueArticleById;
-	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	moveQueueArticles: MoveQueueArticles;
 	listQueueDefinitions: ListQueueDefinitions;
@@ -387,6 +390,7 @@ interface AppDependencies {
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
@@ -546,7 +550,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			readArticleContent: deps.readArticleContent,
 			findGeneratedSummary: deps.findGeneratedSummary,
 			findRelatedArticles: deps.findRelatedArticles,
-			updateArticleStatus: deps.updateArticleStatus,
+			updateArticleStatusAcrossQueues: deps.updateArticleStatusAcrossQueues,
 		}),
 	});
 
@@ -1183,10 +1187,11 @@ export function createApp(dependencies: AppDependencies): Express {
 		findQueueArticles: deps.findQueueArticles,
 		countQueueArticles: deps.countQueueArticles,
 		findQueueArticleById: deps.findQueueArticleById,
-		updateQueueArticleStatus: deps.updateQueueArticleStatus,
+		updateArticleStatusAcrossQueues: deps.updateArticleStatusAcrossQueues,
 		deleteQueueArticle: deps.deleteQueueArticle,
 		markQueueArticleViewed: deps.markQueueArticleViewed,
 		listUserSavesForUrl: deps.listUserSavesForUrl,
+		listUserSavesForUrls: deps.listUserSavesForUrls,
 		assignSavedArticleToQueue: deps.assignSavedArticleToQueue,
 		moveQueueArticles: deps.moveQueueArticles,
 		listQueueDefinitions: deps.listQueueDefinitions,
@@ -1229,6 +1234,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordNativeAppSavedArticle: deps.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
 		recordNextReadStepOutstanding: deps.recordNextReadStepOutstanding,
+		recordMarkReadAcrossQueuesAcknowledged: deps.recordMarkReadAcrossQueuesAcknowledged,
 		dualAuth: dualAuthMiddleware,
 		resolveVerificationStatus,
 		requireWriteAccess,

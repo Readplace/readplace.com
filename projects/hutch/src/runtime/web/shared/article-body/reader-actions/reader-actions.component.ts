@@ -10,7 +10,9 @@ export interface MarkReadAction {
 	position: "top" | "bottom";
 	postUrl: string;
 	label: string;
+	testAction: string;
 	fields: ReadonlyArray<{ name: string; value: string }>;
+	confirmPopoverId?: string;
 }
 
 export interface ReaderQueuePicker {
@@ -34,9 +36,23 @@ export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
 };
 
 function markReadFields(action: MarkReadAction | undefined) {
-	return action
-		? { postUrl: action.postUrl, label: action.label, fields: action.fields }
-		: undefined;
+	if (action === undefined) return undefined;
+	const confirmPopoverId = action.confirmPopoverId;
+	return {
+		postUrl: action.postUrl,
+		label: action.label,
+		fields: action.fields,
+		testAction:
+			confirmPopoverId === undefined ? action.testAction : `${action.testAction}-fallback`,
+		formClass:
+			confirmPopoverId === undefined
+				? "article-body__mark-read-form"
+				: "article-body__mark-read-form article-body__mark-read-fallback",
+		confirmTriggers:
+			confirmPopoverId === undefined
+				? []
+				: [{ popoverId: confirmPopoverId, label: action.label, testAction: action.testAction }],
+	};
 }
 
 function topBar(actionBtns: ActionButtons): string {

@@ -47,13 +47,14 @@ import type {
 	ListQueueDefinitions,
 	RenameQueueDefinition,
 	ListUserSavesForUrl,
+	ListUserSavesForUrls,
 	MarkArticleViewed,
 	MarkQueueArticleViewed,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
 	UpdateArticleStatus,
-	UpdateQueueArticleStatus,
+	UpdateArticleStatusAcrossQueues,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
@@ -140,6 +141,7 @@ import {
 	readerQueues,
 } from "./queue-context";
 import { queueScopedStore } from "./queue-scoped-store";
+import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
 import {
 	DEFAULT_QUEUE_SLUG,
 	QueueLimitReachedError,
@@ -209,6 +211,7 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
+	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";
 import type { Platform } from "../../onboarding/onboarding.types";
@@ -324,10 +327,11 @@ interface QueueDependencies {
 	findQueueArticles: FindQueueArticles;
 	countQueueArticles: CountQueueArticles;
 	findQueueArticleById: FindQueueArticleById;
-	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	moveQueueArticles: MoveQueueArticles;
 	listQueueDefinitions: ListQueueDefinitions;
@@ -388,6 +392,7 @@ interface QueueDependencies {
 	 * so a milestone later reached can be told apart from one a deep queue
 	 * satisfied on sight. */
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	/** Auth middleware applied to every queue route except the public
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
@@ -797,15 +802,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		article: SavedArticle;
 		returnTo: string;
 	}): Promise<ReaderQueueFiling> => {
-		const [definitions, saves] = await Promise.all([
+		const [definitions, saves, signals] = await Promise.all([
 			deps.listQueueDefinitions(params.userId),
 			deps.listUserSavesForUrl({ userId: params.userId, url: params.article.url }),
+			deps.getOnboardingSignals({ userId: params.userId }),
 		]);
 		return buildReaderQueueFiling({
 			articleId: params.article.id.value,
 			definitions,
 			saves,
 			returnTo: params.returnTo,
+			markStatusConfirmGated:
+				readerQueues(definitions).length > 1 &&
+				signals.markReadAcrossQueuesAckedAt === undefined,
 		});
 	};
 
@@ -917,6 +926,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				backLink: APP_BACK_LINK,
 				renderActions: deps.chromelessReader,
 				queueFiling,
+				markStatusConfirmQueueLabels: queueFiling.markStatusConfirmQueueLabels,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -981,6 +991,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				backLink: VIEW_BACK_LINK,
 				renderActions: deps.stickyReader,
 				queueFiling,
+				markStatusConfirmQueueLabels: queueFiling.markStatusConfirmQueueLabels,
 				crawlVersions: state.crawlVersions,
 				crawlBookmarkRemoval,
 				exitMarkReadConfirm: true,
@@ -1053,19 +1064,23 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const dismissTokenMatches = dismissCookie === dismissTokenFor(hasClient);
 		const onboardingCompletedBefore =
 			dismissCookie !== undefined && dismissCookie !== NO_CLIENT_ONBOARDING_VERSION;
+		const signals = await deps.getOnboardingSignals({ userId });
+		const markReadAcrossQueuesAckedAt = signals.markReadAcrossQueuesAckedAt;
 		if (!hasClient) {
 			return {
-				platform,
-				installed: false,
-				savedArticle: false,
-				savedCount: 0,
-				hasInstallableClient: hasClient,
-				onboardingDismissed: dismissTokenMatches,
-				onboardingCompletedBefore,
-				onboardingCompletionUnearned: false,
+				markReadAcrossQueuesAckedAt,
+				onboarding: {
+					platform,
+					installed: false,
+					savedArticle: false,
+					savedCount: 0,
+					hasInstallableClient: hasClient,
+					onboardingDismissed: dismissTokenMatches,
+					onboardingCompletedBefore,
+					onboardingCompletionUnearned: false,
+				},
 			};
 		}
-		const signals = await deps.getOnboardingSignals({ userId });
 		const nativeAppPlatform = NATIVE_APP_SIGNAL_PLATFORM[platform];
 		const { installed, savedArticle } = nativeAppPlatform
 			? signals.nativeApp[nativeAppPlatform]
@@ -1073,15 +1088,45 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const { savedCount, milestoneGranted } = await resolveNextReadProgress(userId, signals);
 		const onboardingDismissed = installed && dismissTokenMatches;
 		return {
-			platform,
-			installed,
-			savedArticle,
-			savedCount,
-			hasInstallableClient: hasClient,
-			onboardingDismissed,
-			onboardingCompletedBefore,
-			onboardingCompletionUnearned: milestoneGranted,
+			markReadAcrossQueuesAckedAt,
+			onboarding: {
+				platform,
+				installed,
+				savedArticle,
+				savedCount,
+				hasInstallableClient: hasClient,
+				onboardingDismissed,
+				onboardingCompletedBefore,
+				onboardingCompletionUnearned: milestoneGranted,
+			},
 		};
+	};
+
+	const markStatusConfirmLabelsFor = async (params: {
+		userId: UserId;
+		context: QueueContext;
+		urls: readonly string[];
+		acknowledgedAt: () => Promise<Date | undefined>;
+	}): Promise<ReadonlyMap<string, readonly string[]> | undefined> => {
+		if (params.context.queues.length <= 1) return undefined;
+		if ((await params.acknowledgedAt()) !== undefined) return undefined;
+		const savesByUrl = await deps.listUserSavesForUrls({
+			userId: params.userId,
+			urls: params.urls,
+		});
+		return new Map(
+			params.urls.map((url) => {
+				const memberSlugs = new Set(
+					(savesByUrl.get(url) ?? []).map((save) => save.queue ?? DEFAULT_QUEUE_SLUG),
+				);
+				return [
+					url,
+					params.context.queues
+						.filter((queue) => memberSlugs.has(queue.slug))
+						.map((queue) => queue.label),
+				];
+			}),
+		);
 	};
 
 	/** Renders the full queue listing from an already-fetched page of rows — the
@@ -1133,16 +1178,24 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			statusCode?: number;
 		},
 	): Promise<void> => {
-		const [summaryByUrl, crawlByUrl, effectiveAccess, queueHoldsArticles] = await Promise.all([
-			loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
-			loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
-			deps.getEffectiveAccess(input.userId),
-			queueHoldsAnyArticle({
-				userId: input.userId,
-				queue: input.context.state.queue,
-				result: input.result,
-			}),
-		]);
+		const [summaryByUrl, crawlByUrl, effectiveAccess, queueHoldsArticles, signals] =
+			await Promise.all([
+				loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
+				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
+				deps.getEffectiveAccess(input.userId),
+				queueHoldsAnyArticle({
+					userId: input.userId,
+					queue: input.context.state.queue,
+					result: input.result,
+				}),
+				resolveOnboardingSignals(req, input.userId),
+			]);
+		const confirmQueueLabelsByUrl = await markStatusConfirmLabelsFor({
+			userId: input.userId,
+			context: input.context,
+			urls: input.result.articles.map((article) => article.url),
+			acknowledgedAt: async () => signals.markReadAcrossQueuesAckedAt,
+		});
 		const vm = toQueueViewModel(input.result, input.context.state, {
 			errors: input.saveError ? [{ message: input.saveError }] : undefined,
 			importFlash: input.importFlash,
@@ -1153,8 +1206,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			effectiveAccess,
 			linkParams: input.context.linkParams,
 			now: deps.now(),
+			confirmQueueLabelsByUrl,
 		});
-		const onboarding = await resolveOnboardingSignals(req, input.userId);
+		const onboarding = signals.onboarding;
 		sendComponent(
 			req, res,
 			Base(
@@ -1857,7 +1911,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				crawlByUrl,
 				linkParams: context.linkParams,
 			});
-			const onboarding = await resolveOnboardingSignals(req, userId);
+			const { onboarding } = await resolveOnboardingSignals(req, userId);
 			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), queueHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
 			return;
 		}
@@ -2213,6 +2267,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const queryIndex = queueUrl.indexOf("?");
 		const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
 		const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
+		const confirmQueueLabelsByUrl = await markStatusConfirmLabelsFor({
+			userId,
+			context: await resolveQueueContext(req, userId),
+			urls: [article.url],
+			acknowledgedAt: async () =>
+				(await deps.getOnboardingSignals({ userId })).markReadAcrossQueuesAckedAt,
+		});
 		const articleVm = toQueueArticleViewModel({
 			article,
 			now: deps.now(),
@@ -2222,6 +2283,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			filters,
 			pollCount: requestedPoll + 1,
 			maxPolls: MAX_POLLS,
+			confirmQueueLabels: confirmQueueLabelsByUrl?.get(article.url),
 		});
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(articleVm, {
@@ -2238,12 +2300,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const parsedStatus = ArticleStatusSchema.safeParse(req.body.status);
 		const context = requestQueueContext(req);
-		const store = storeFor(context.state.queue);
+
+		if (req.body?.ack === MARK_STATUS_ACK_NEVER) {
+			await deps.recordMarkReadAcrossQueuesAcknowledged({ userId });
+		}
 
 		let statusFlash: StatusFlash | undefined;
 		const flashParams: [string, string][] = [];
 		if (parsedId.success && parsedStatus.success) {
-			const updated = await store.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
+			const updated = await deps.updateArticleStatusAcrossQueues({
+				id: parsedId.data,
+				userId,
+				addressed: context.state.queue,
+				status: parsedStatus.data,
+			});
 			if (updated) {
 				statusFlash = statusFlashFor({ articleId: req.params.id, changed: parsedStatus.data });
 				flashParams.push(["status_changed", parsedStatus.data]);

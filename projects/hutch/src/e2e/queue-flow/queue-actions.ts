@@ -3,7 +3,7 @@ import { expect, type Page } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { QueueActionKey, SaveArticleKey, PaginationArticleKey } from './action-catalog'
 import { TEST_ARTICLE_COUNT, PAGINATION_ARTICLE_COUNT } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation } from '../page-interactions'
+import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation, markReadWithConfirmation } from '../page-interactions'
 import { measuredBox } from '@packages/e2e-harness'
 import { retriable } from '@packages/retriable'
 import type { AuthProgress } from './auth-actions'
@@ -430,10 +430,7 @@ export function createQueueActions(
 
 				// Click Mark-as-read to explicitly mark the article; the form
 				// POSTs status=read and redirects to /queue.
-				await clickAndWaitForPageReload(
-					page,
-					page.locator('[data-test-mark-read-btn]'),
-				)
+				await markReadWithConfirmation(page, page.locator('[data-test-mark-read-btn]'))
 
 				await page.goto('/queue?order=asc', { waitUntil: 'domcontentloaded' })
 				progress.openedFirstArticle = true

@@ -42,6 +42,33 @@ export async function clickAndWaitForPageReload(page: Page, locator: ReturnType<
  * silently confirm the wrong article. `[id="…"]` rather than `#…` because an
  * article hash may start with a digit, which is not a legal CSS ident.
  */
+/**
+ * Marking read takes two clicks for a reader who owns a queue: the visible
+ * control is a popover trigger, not a submit. The trigger and the plain form
+ * answer to different test hooks, so `popovertarget` is what tells the two
+ * apart — a reader with no custom queue never sees a panel and the same locator
+ * is an ordinary submit button.
+ *
+ * The same hazards as the delete flow apply: opening the panel navigates
+ * nothing, so clickAndWaitForPageReload would burn its fallback and return with
+ * the panel open, and because popovertargetaction defaults to Toggle the next
+ * click would close it again. The confirm control is scoped to this trigger's
+ * own panel because a listing renders one per article.
+ */
+export async function markReadWithConfirmation(page: Page, control: Locator): Promise<void> {
+	const popoverId = await control.getAttribute('popovertarget')
+	if (popoverId === null) {
+		await clickAndWaitForPageReload(page, control)
+		return
+	}
+	const confirm = page.locator(`[id="${popoverId}"] [data-test-action="mark-status-confirm"]`)
+	// Explicit timeout: the suite sets no actionTimeout, so the default is 0 and
+	// an unactionable trigger would hang to the whole test's budget.
+	await control.click({ timeout: 15000 })
+	await expect(confirm).toBeVisible()
+	await clickAndWaitForPageReload(page, confirm)
+}
+
 export async function deleteArticleWithConfirmation(page: Page, trigger: Locator): Promise<void> {
 	const popoverId = await trigger.getAttribute('popovertarget')
 	assert.ok(popoverId, 'the delete trigger must reference its confirmation popover')

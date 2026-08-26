@@ -10,7 +10,7 @@ import {
 import { z } from "zod";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { MinutesSchema, ArticleStatusSchema, SaveProvenanceSchema } from "@packages/domain/article";
-import { QueueSlugSchema, type QueueSlug } from "@packages/domain/queue";
+import { DEFAULT_QUEUE_SLUG, QueueSlugSchema, type QueueSlug } from "@packages/domain/queue";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
@@ -32,6 +32,7 @@ import type {
 	DeleteQueueArticle,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
+	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -54,12 +55,13 @@ import type {
 	SaveArticleParams,
 	SaveQueueArticle,
 	UpdateArticleStatus,
-	UpdateQueueArticleStatus,
+	UpdateArticleStatusAcrossQueues,
 } from "@packages/provider-contracts/article-store";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import {
 	QUEUE_DEFINITION_KEY_PREFIX,
 	decodeUserArticlePartition,
+	partitionFor,
 	queueDefinitionKey,
 	queuePartitionValue,
 } from "./user-queue-partition";
@@ -205,10 +207,11 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findQueueArticles: FindQueueArticles;
 	countQueueArticles: CountQueueArticles;
 	findQueueArticleById: FindQueueArticleById;
-	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	moveQueueArticles: MoveQueueArticles;
 } {
@@ -753,8 +756,30 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const updateArticleStatus: UpdateArticleStatus = (routeId, userId, status) =>
 		updateStatusInPartition(userId, userId, routeId, status);
 
-	const updateQueueArticleStatus: UpdateQueueArticleStatus = ({ id, userId, queue, status }) =>
-		updateStatusInPartition(queuePartitionValue({ userId, queue }), userId, id, status);
+	const updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues = async ({
+		id,
+		userId,
+		addressed,
+		status,
+	}) => {
+		const updated = await updateStatusInPartition(
+			partitionFor({ userId, queue: addressed }),
+			userId,
+			id,
+			status,
+		);
+		if (!updated) return null;
+		const saves = await listUserSavesForUrl({ userId, url: updated.url });
+		await Promise.all(
+			saves
+				.map((save) => save.queue ?? DEFAULT_QUEUE_SLUG)
+				.filter((slug) => slug !== addressed)
+				.map((slug) =>
+					updateStatusInPartition(partitionFor({ userId, queue: slug }), userId, id, status),
+				),
+		);
+		return updated;
+	};
 
 	const findArticleFreshness: FindArticleFreshness = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
@@ -887,6 +912,39 @@ export function initDynamoDbSavedArticleStore(deps: {
 			const { queue } = decodeUserArticlePartition(row.userId);
 			return queue === undefined ? {} : { queue };
 		});
+	};
+
+	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls }) => {
+		const slugs = await listUserQueueSlugs(userId);
+		const partitions = [
+			userId,
+			...slugs.map((slug) => queuePartitionValue({ userId, queue: slug })),
+		];
+		const normalizedUrls = [
+			...new Set(urls.map((url) => ArticleResourceUniqueId.parse(url).value)),
+		];
+		const rows = await batchGetFromTable({
+			client,
+			tableName: userArticlesTableName,
+			schema: z.object({ userId: z.string(), url: z.string() }),
+			keys: normalizedUrls.flatMap((url) =>
+				partitions.map((partition) => ({ userId: partition, url })),
+			),
+			projection: ["userId", "url"],
+		});
+		const byNormalizedUrl = new Map<string, { queue?: QueueSlug }[]>();
+		for (const row of rows) {
+			const { queue } = decodeUserArticlePartition(row.userId);
+			const saves = byNormalizedUrl.get(row.url) ?? [];
+			saves.push(queue === undefined ? {} : { queue });
+			byNormalizedUrl.set(row.url, saves);
+		}
+		return new Map(
+			urls.map((url) => [
+				url,
+				byNormalizedUrl.get(ArticleResourceUniqueId.parse(url).value) ?? [],
+			]),
+		);
 	};
 
 	const assignSavedArticleToQueue: AssignSavedArticleToQueue = async ({
@@ -1075,10 +1133,11 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findQueueArticles,
 		countQueueArticles,
 		findQueueArticleById,
-		updateQueueArticleStatus,
+		updateArticleStatusAcrossQueues,
 		deleteQueueArticle,
 		markQueueArticleViewed,
 		listUserSavesForUrl,
+		listUserSavesForUrls,
 		assignSavedArticleToQueue,
 		moveQueueArticles,
 	};

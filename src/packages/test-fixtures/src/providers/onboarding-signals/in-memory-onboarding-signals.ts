@@ -3,6 +3,7 @@ import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
 	NativeAppPlatform,
+	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
@@ -14,6 +15,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
@@ -27,6 +29,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	};
 	const nextReadMinimumReached = new Map<UserId, Date>();
 	const nextReadStepOutstanding = new Map<UserId, Date>();
+	const markReadAcrossQueuesAcked = new Map<UserId, Date>();
 
 	const recordNativeAppAnyActivity: RecordNativeAppAnyActivity = async ({ userId, platform }) => {
 		activated[platform].add(userId);
@@ -51,6 +54,13 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		nextReadStepOutstanding.set(userId, deps.now());
 	};
 
+	const recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged = async ({
+		userId,
+	}) => {
+		if (markReadAcrossQueuesAcked.has(userId)) return;
+		markReadAcrossQueuesAcked.set(userId, deps.now());
+	};
+
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => ({
 		nativeApp: {
 			ios: { installed: activated.ios.has(userId), savedArticle: saved.ios.has(userId) },
@@ -61,6 +71,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		},
 		nextReadMinimumReachedAt: nextReadMinimumReached.get(userId),
 		nextReadStepOutstandingAt: nextReadStepOutstanding.get(userId),
+		markReadAcrossQueuesAckedAt: markReadAcrossQueuesAcked.get(userId),
 	});
 
 	const deleteOnboarding: DeleteOnboarding = async ({ userId }) => {
@@ -70,6 +81,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		saved.android.delete(userId);
 		nextReadMinimumReached.delete(userId);
 		nextReadStepOutstanding.delete(userId);
+		markReadAcrossQueuesAcked.delete(userId);
 	};
 
 	return {
@@ -77,6 +89,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		recordNativeAppSavedArticle,
 		recordNextReadMinimumReached,
 		recordNextReadStepOutstanding,
+		recordMarkReadAcrossQueuesAcknowledged,
 		getOnboardingSignals,
 		deleteOnboarding,
 	};

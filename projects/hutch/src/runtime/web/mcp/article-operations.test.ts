@@ -1,11 +1,12 @@
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
+import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesByUser,
 	ReadArticleContent,
-	UpdateArticleStatus,
+	UpdateArticleStatusAcrossQueues,
 } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindRelatedArticles } from "@packages/provider-contracts/related-articles";
@@ -44,7 +45,7 @@ interface DepOverrides {
 	readArticleContent?: ReadArticleContent;
 	findGeneratedSummary?: FindGeneratedSummary;
 	findRelatedArticles?: FindRelatedArticles;
-	updateArticleStatus?: UpdateArticleStatus;
+	updateArticleStatusAcrossQueues?: UpdateArticleStatusAcrossQueues;
 }
 
 function buildOps(overrides: DepOverrides = {}) {
@@ -64,7 +65,8 @@ function buildOps(overrides: DepOverrides = {}) {
 			overrides.findGeneratedSummary ?? (async () => undefined),
 		findRelatedArticles:
 			overrides.findRelatedArticles ?? (async () => ({ status: "pending" })),
-		updateArticleStatus: overrides.updateArticleStatus ?? (async () => null),
+		updateArticleStatusAcrossQueues:
+			overrides.updateArticleStatusAcrossQueues ?? (async () => null),
 	});
 }
 
@@ -394,12 +396,17 @@ describe("initMcpArticleOperations", () => {
 				readAt: new Date("2026-03-03T00:00:00.000Z"),
 			};
 			const findArticleById = jest.fn(async () => stored);
-			const updateArticleStatus = jest.fn(async () => written);
-			const ops = buildOps({ findArticleById, updateArticleStatus });
+			const updateArticleStatusAcrossQueues = jest.fn(async () => written);
+			const ops = buildOps({ findArticleById, updateArticleStatusAcrossQueues });
 
 			const result = await ops.markAsRead({ userId, id: stored.id.value });
 
-			expect(updateArticleStatus).toHaveBeenCalledWith(stored.id, userId, "read");
+			expect(updateArticleStatusAcrossQueues).toHaveBeenCalledWith({
+				id: stored.id,
+				userId,
+				addressed: DEFAULT_QUEUE_SLUG,
+				status: "read",
+			});
 			expect(result).toEqual({ status: "ok", article: toMcpArticle(written) });
 			expect(result).toMatchObject({
 				article: { status: "read", readAt: "2026-03-03T00:00:00.000Z" },
@@ -413,15 +420,20 @@ describe("initMcpArticleOperations", () => {
 				readAt: new Date("2026-03-03T00:00:00.000Z"),
 			});
 			const written = { ...stored, status: "unread" as const, readAt: undefined };
-			const updateArticleStatus = jest.fn(async () => written);
+			const updateArticleStatusAcrossQueues = jest.fn(async () => written);
 			const ops = buildOps({
 				findArticleById: async () => stored,
-				updateArticleStatus,
+				updateArticleStatusAcrossQueues,
 			});
 
 			const result = await ops.markAsUnread({ userId, id: stored.id.value });
 
-			expect(updateArticleStatus).toHaveBeenCalledWith(stored.id, userId, "unread");
+			expect(updateArticleStatusAcrossQueues).toHaveBeenCalledWith({
+				id: stored.id,
+				userId,
+				addressed: DEFAULT_QUEUE_SLUG,
+				status: "unread",
+			});
 			expect(result).toEqual({ status: "ok", article: toMcpArticle(written) });
 			expect(result).toMatchObject({ article: { status: "unread" } });
 			expect(result).not.toMatchObject({ article: { readAt: expect.anything() } });
@@ -432,15 +444,15 @@ describe("initMcpArticleOperations", () => {
 				status: "read",
 				readAt: new Date("2026-03-03T00:00:00.000Z"),
 			});
-			const updateArticleStatus = jest.fn(async () => stored);
+			const updateArticleStatusAcrossQueues = jest.fn(async () => stored);
 			const ops = buildOps({
 				findArticleById: async () => stored,
-				updateArticleStatus,
+				updateArticleStatusAcrossQueues,
 			});
 
 			const result = await ops.markAsRead({ userId, id: stored.id.value });
 
-			expect(updateArticleStatus).not.toHaveBeenCalled();
+			expect(updateArticleStatusAcrossQueues).not.toHaveBeenCalled();
 			expect(result).toEqual({ status: "ok", article: toMcpArticle(stored) });
 			expect(result).toMatchObject({
 				article: { readAt: "2026-03-03T00:00:00.000Z" },
@@ -449,48 +461,48 @@ describe("initMcpArticleOperations", () => {
 
 		it("leaves an already-unread article alone", async () => {
 			const stored = buildArticle();
-			const updateArticleStatus = jest.fn(async () => stored);
+			const updateArticleStatusAcrossQueues = jest.fn(async () => stored);
 			const ops = buildOps({
 				findArticleById: async () => stored,
-				updateArticleStatus,
+				updateArticleStatusAcrossQueues,
 			});
 
 			const result = await ops.markAsUnread({ userId, id: stored.id.value });
 
-			expect(updateArticleStatus).not.toHaveBeenCalled();
+			expect(updateArticleStatusAcrossQueues).not.toHaveBeenCalled();
 			expect(result).toEqual({ status: "ok", article: toMcpArticle(stored) });
 		});
 
 		it("reports not_found and writes nothing for an id the user does not own", async () => {
-			const updateArticleStatus = jest.fn(async () => buildArticle());
+			const updateArticleStatusAcrossQueues = jest.fn(async () => buildArticle());
 			const ops = buildOps({
 				findArticleById: async () => null,
-				updateArticleStatus,
+				updateArticleStatusAcrossQueues,
 			});
 
 			expect(
 				await ops.markAsRead({ userId, id: "0".repeat(32) }),
 			).toEqual({ status: "not_found" });
-			expect(updateArticleStatus).not.toHaveBeenCalled();
+			expect(updateArticleStatusAcrossQueues).not.toHaveBeenCalled();
 		});
 
 		it("reports not_found without hitting the store for a malformed id", async () => {
 			const findArticleById = jest.fn(async () => null);
-			const updateArticleStatus = jest.fn(async () => buildArticle());
-			const ops = buildOps({ findArticleById, updateArticleStatus });
+			const updateArticleStatusAcrossQueues = jest.fn(async () => buildArticle());
+			const ops = buildOps({ findArticleById, updateArticleStatusAcrossQueues });
 
 			expect(
 				await ops.markAsRead({ userId, id: "not-a-hash" }),
 			).toEqual({ status: "not_found" });
 			expect(findArticleById).not.toHaveBeenCalled();
-			expect(updateArticleStatus).not.toHaveBeenCalled();
+			expect(updateArticleStatusAcrossQueues).not.toHaveBeenCalled();
 		});
 
 		it("reports not_found when the row is gone by the time the write runs", async () => {
 			const article = buildArticle();
 			const ops = buildOps({
 				findArticleById: async () => article,
-				updateArticleStatus: async () => null,
+				updateArticleStatusAcrossQueues: async () => null,
 			});
 
 			expect(

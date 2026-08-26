@@ -6,13 +6,10 @@ import type {
 	FindArticleById,
 	FindQueueArticleById,
 	ListUserSavesForUrl,
-	UpdateArticleStatus,
-	UpdateQueueArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishLinkDequeued } from "@packages/provider-contracts/events";
 
 export interface QueueBoundArticleStoreDependencies {
-	updateQueueArticleStatus: UpdateQueueArticleStatus;
 	deleteQueueArticle: DeleteQueueArticle;
 	findQueueArticleById: FindQueueArticleById;
 }
@@ -21,14 +18,11 @@ export function bindArticleStoreToQueue(
 	deps: QueueBoundArticleStoreDependencies,
 	queue: QueueSlug,
 ): {
-	updateArticleStatus: UpdateArticleStatus;
 	deleteArticle: DeleteArticle;
 	findArticleById: FindArticleById;
 } {
 	assert(queue !== DEFAULT_QUEUE_SLUG, "the default queue is served by the unbound article store");
 	return {
-		updateArticleStatus: (id, userId, status) =>
-			deps.updateQueueArticleStatus({ id, userId, queue, status }),
 		deleteArticle: (id, userId) => deps.deleteQueueArticle({ id, userId, queue }),
 		findArticleById: (id, userId) => deps.findQueueArticleById({ id, userId, queue }),
 	};

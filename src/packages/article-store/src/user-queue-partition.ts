@@ -1,4 +1,4 @@
-import { QueueSlugSchema, type QueueSlug } from "@packages/domain/queue";
+import { DEFAULT_QUEUE_SLUG, QueueSlugSchema, type QueueSlug } from "@packages/domain/queue";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 
 const QUEUE_PARTITION_INFIX = "#queue/";
@@ -7,6 +7,10 @@ export const QUEUE_DEFINITION_KEY_PREFIX = "readplace:queue-def/";
 
 export function queuePartitionValue(params: { userId: UserId; queue: QueueSlug }): string {
 	return `${params.userId}${QUEUE_PARTITION_INFIX}${params.queue}`;
+}
+
+export function partitionFor(params: { userId: UserId; queue: QueueSlug }): string {
+	return params.queue === DEFAULT_QUEUE_SLUG ? params.userId : queuePartitionValue(params);
 }
 
 export function queuePartitionPrefix(userId: UserId): string {

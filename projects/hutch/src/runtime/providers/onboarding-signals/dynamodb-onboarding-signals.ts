@@ -9,6 +9,7 @@ import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
 	NativeAppPlatform,
+	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
@@ -31,6 +32,7 @@ const OnboardingRow = z.object({
 	/* ISO instant the reader was first shown the Next Read step with saves
 	 * still to go; absent until then. */
 	nextReadStepOutstandingAt: dynamoField(z.string()),
+	markReadAcrossQueuesAckedAt: dynamoField(z.string()),
 });
 
 /** The two attributes each app writes. Keyed by platform so a new native app is
@@ -56,6 +58,7 @@ export function initOnboardingSignals(deps: {
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
@@ -109,10 +112,22 @@ export function initOnboardingSignals(deps: {
 		});
 	};
 
+	const recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged = async ({
+		userId,
+	}) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET markReadAcrossQueuesAckedAt = if_not_exists(markReadAcrossQueuesAckedAt, :now)",
+			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {
 		const row = await onboarding.get({ userId });
 		const reachedAt = row?.nextReadMinimumReachedAt;
 		const outstandingAt = row?.nextReadStepOutstandingAt;
+		const ackedAt = row?.markReadAcrossQueuesAckedAt;
 		return {
 			nativeApp: {
 				ios: { installed: !!row?.iosAppActivatedAt, savedArticle: !!row?.iosAppSavedAt },
@@ -123,6 +138,7 @@ export function initOnboardingSignals(deps: {
 			},
 			nextReadMinimumReachedAt: reachedAt ? new Date(reachedAt) : undefined,
 			nextReadStepOutstandingAt: outstandingAt ? new Date(outstandingAt) : undefined,
+			markReadAcrossQueuesAckedAt: ackedAt ? new Date(ackedAt) : undefined,
 		};
 	};
 
@@ -135,6 +151,7 @@ export function initOnboardingSignals(deps: {
 		recordNativeAppSavedArticle,
 		recordNextReadMinimumReached,
 		recordNextReadStepOutstanding,
+		recordMarkReadAcrossQueuesAcknowledged,
 		getOnboardingSignals,
 		deleteOnboarding,
 	};

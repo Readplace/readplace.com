@@ -1,12 +1,13 @@
 import assert from "node:assert";
 import { ReaderArticleHashIdSchema, displayableReadTime } from "@packages/domain/article";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
+import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesByUser,
 	ReadArticleContent,
-	UpdateArticleStatus,
+	UpdateArticleStatusAcrossQueues,
 } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
@@ -30,7 +31,7 @@ interface McpArticleOperationDeps {
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	findRelatedArticles: FindRelatedArticles;
-	updateArticleStatus: UpdateArticleStatus;
+	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
 }
 
 export function toMcpArticle(article: SavedArticle): McpArticle {
@@ -155,7 +156,12 @@ export function initMcpArticleOperations(
 		if (article.status === status) {
 			return { status: "ok", article: toMcpArticle(article) };
 		}
-		const updated = await deps.updateArticleStatus(article.id, userId, status);
+		const updated = await deps.updateArticleStatusAcrossQueues({
+			id: article.id,
+			userId,
+			addressed: DEFAULT_QUEUE_SLUG,
+			status,
+		});
 		if (!updated) return { status: "not_found" };
 		return { status: "ok", article: toMcpArticle(updated) };
 	}

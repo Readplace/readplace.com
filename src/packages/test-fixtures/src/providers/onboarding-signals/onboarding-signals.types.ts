@@ -1,6 +1,7 @@
 export type {
 	GetOnboardingSignals,
 	NativeAppPlatform,
+	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,

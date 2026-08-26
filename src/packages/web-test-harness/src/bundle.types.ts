@@ -71,12 +71,13 @@ import type {
 	FindQueueArticles,
 	CountQueueArticles,
 	FindQueueArticleById,
-	UpdateQueueArticleStatus,
+	UpdateArticleStatusAcrossQueues,
 	DeleteQueueArticle,
 	MarkQueueArticleViewed,
 	AssignSavedArticleToQueue,
 	MoveQueueArticles,
 	ListUserSavesForUrl,
+	ListUserSavesForUrls,
 	CreateQueueDefinition,
 	DeleteQueueDefinition,
 	ListQueueDefinitions,
@@ -137,6 +138,7 @@ import type {
 	ReadPendingUploadPrefix,
 	RateLimitRules,
 	ReadArticleContent,
+	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
@@ -315,10 +317,11 @@ export interface ArticleStoreBundle {
 	findQueueArticles: FindQueueArticles;
 	countQueueArticles: CountQueueArticles;
 	findQueueArticleById: FindQueueArticleById;
-	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	moveQueueArticles: MoveQueueArticles;
 	createQueueDefinition: CreateQueueDefinition;
@@ -444,6 +447,7 @@ export interface OnboardingSignalsBundle {
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	getOnboardingSignals: GetOnboardingSignals;
 }
 

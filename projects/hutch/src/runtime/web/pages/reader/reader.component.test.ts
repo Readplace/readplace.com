@@ -13,7 +13,11 @@ import { ReaderPage } from "./reader.component";
 import { StickyReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ReaderQueueFiling } from "../queue/reader-queue-filing";
 
-const NO_QUEUE_FILING: ReaderQueueFiling = { tags: undefined, picker: undefined };
+const NO_QUEUE_FILING: ReaderQueueFiling = {
+	tags: undefined,
+	picker: undefined,
+	markStatusConfirmQueueLabels: undefined,
+};
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse(

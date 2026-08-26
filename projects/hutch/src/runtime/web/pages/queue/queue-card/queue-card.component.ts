@@ -22,6 +22,13 @@ export interface ActionDisplayModel extends ArticleAction {
 	buttonId?: string;
 }
 
+export interface ConfirmTriggerDisplayModel {
+	popoverId: string;
+	title: string;
+	text: string;
+	testAction: string;
+}
+
 export interface QueueCardDisplayModel extends QueueArticleViewModel {
 	titleLinkUrl: string;
 	excerptLinkUrl: string;
@@ -39,6 +46,7 @@ export interface QueueCardDisplayModel extends QueueArticleViewModel {
 	readTimeSepClass: string;
 	savedSepClass: string;
 	actions: ActionDisplayModel[];
+	confirmTriggers: ConfirmTriggerDisplayModel[];
 }
 
 const SEP_CLASS = " queue-article__meta-part--sep";
@@ -59,21 +67,21 @@ export function toActionDisplayModel(
 	options: { isProcessing: boolean; articleId: string },
 ): ActionDisplayModel {
 	const isStatusAction = action.testAction !== "delete";
+	const isConfirmed = action.confirmPopoverId !== undefined;
 	const buttonClass = isStatusAction
 		? "queue-article__action-btn queue-article__action-btn--status"
 		: "queue-article__action-btn queue-article__action-btn--delete";
+	const statusFormClass = isConfirmed
+		? "queue-article__action-form queue-article__status-fallback"
+		: "queue-article__action-form";
+	const statusTestAction = isConfirmed ? `${action.testAction}-fallback` : action.testAction;
 	return {
 		...action,
 		url: withInternalTracking(action.url, { source: "queue-card", content: action.testAction }),
-		// A submit button cannot open a popover — button activation behaviour
-		// submits and returns before the popover step — so the confirmed delete
-		// ships as a separate trigger and this form stays as the fallback for
-		// browsers without popover support. It answers to its own test action so
-		// the two controls can never collide in a locator.
-		testAction: isStatusAction ? action.testAction : "delete-fallback",
+		testAction: isStatusAction ? statusTestAction : "delete-fallback",
 		buttonClass,
 		formClass: isStatusAction
-			? "queue-article__action-form"
+			? statusFormClass
 			: "queue-article__action-form queue-article__delete-fallback",
 		disabled: options.isProcessing && isStatusAction,
 		affordance: isStatusAction ? "with-loader" : "bare",
@@ -113,6 +121,18 @@ export function toQueueCardDisplayModel(
 		}),
 		actions: article.actions.map((action) =>
 			toActionDisplayModel(action, { isProcessing, articleId: article.id }),
+		),
+		confirmTriggers: article.actions.flatMap((action) =>
+			action.confirmPopoverId === undefined
+				? []
+				: [
+						{
+							popoverId: action.confirmPopoverId,
+							title: action.title,
+							text: action.text,
+							testAction: action.testAction,
+						},
+					],
 		),
 	};
 }

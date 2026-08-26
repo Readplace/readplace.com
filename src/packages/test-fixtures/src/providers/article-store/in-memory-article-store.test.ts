@@ -3,6 +3,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
 import {
+	DEFAULT_QUEUE_SLUG,
 	QUEUE_MAX_PER_USER,
 	QueueLimitReachedError,
 	QueueSlugSchema,
@@ -13,6 +14,7 @@ import { initInMemoryArticleStore } from "./in-memory-article-store";
 
 const USER_A = "user-a" as UserId;
 const USER_B = "user-b" as UserId;
+const URL = "https://example.com/article";
 const WORK = QueueSlugSchema.parse("work");
 const LATER = QueueSlugSchema.parse("later");
 
@@ -1048,17 +1050,69 @@ describe("initInMemoryArticleStore", () => {
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
 
-			await store.updateQueueArticleStatus({
+			await store.deleteQueueArticle({ id: saved.id, userId: USER_A, queue: WORK });
+
+			expect(await store.findArticleById(saved.id, USER_A)).not.toBeNull();
+			expect(
+				await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK }),
+			).toBeNull();
+		});
+
+		it("marks a status change in every queue the reader holds the article in", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			const updated = await store.updateArticleStatusAcrossQueues({
 				id: saved.id,
 				userId: USER_A,
-				queue: WORK,
+				addressed: WORK,
 				status: "read",
 			});
 
-			const inDefault = await store.findArticleById(saved.id, USER_A);
-			const inWork = await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK });
-			expect(inDefault?.status).toBe("unread");
-			expect(inWork?.status).toBe("read");
+			expect(updated?.status).toBe("read");
+			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("read");
+			expect(
+				(await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK }))?.status,
+			).toBe("read");
+		});
+
+		it("reverses the status in every queue when the reader marks it unread again", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.updateArticleStatusAcrossQueues({
+				id: saved.id,
+				userId: USER_A,
+				addressed: DEFAULT_QUEUE_SLUG,
+				status: "read",
+			});
+
+			await store.updateArticleStatusAcrossQueues({
+				id: saved.id,
+				userId: USER_A,
+				addressed: DEFAULT_QUEUE_SLUG,
+				status: "unread",
+			});
+
+			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("unread");
+			expect(
+				(await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK }))?.status,
+			).toBe("unread");
+		});
+
+		it("reports every URL's memberships from one batched membership read", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+
+			const saves = await store.listUserSavesForUrls({
+				userId: USER_A,
+				urls: [URL, "https://example.com/never-saved"],
+			});
+
+			expect(saves.get(URL)).toEqual([{}, { queue: WORK }]);
+			expect(saves.get("https://example.com/never-saved")).toEqual([]);
 		});
 
 		it("deletes only the copy in the queue the reader deleted it from", async () => {
@@ -1083,13 +1137,14 @@ describe("initInMemoryArticleStore", () => {
 				await store.deleteQueueArticle({ id: saved.id, userId: USER_A, queue: WORK }),
 			).toBe(false);
 			expect(
-				await store.updateQueueArticleStatus({
+				await store.updateArticleStatusAcrossQueues({
 					id: saved.id,
 					userId: USER_A,
-					queue: WORK,
+					addressed: WORK,
 					status: "read",
 				}),
 			).toBeNull();
+			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("unread");
 		});
 
 		it("keeps queue copies out of the default listing and counts", async () => {

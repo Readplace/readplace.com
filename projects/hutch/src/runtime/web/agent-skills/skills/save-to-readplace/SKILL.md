@@ -61,8 +61,8 @@ Once connected, these are the operations:
 - get_article_content: returns one saved article's clean reader text.
 - get_article_summary: returns one saved article's AI TL;DR.
 - get_related_articles: returns saves in the same queue that relate to one article, each tagged unread or read.
-- mark_as_read: marks one saved article read; it stays in the queue and leaves the unread list.
-- mark_as_unread: marks one saved article unread again; the undo for mark_as_read.
+- mark_as_read: marks one saved article read in every queue it is on; it stays in the queue and leaves the unread list.
+- mark_as_unread: marks one saved article unread again in every queue it is on; the undo for mark_as_read.
 - delete_article: answers with a note pointing the user to the app; deleting stays in Readplace.
 
 An assistant saves links, reads the queue, and marks articles read or unread.

@@ -963,7 +963,8 @@
     display: inline-flex;
   }
 
-  .queue-article__delete-fallback {
+  .queue-article__delete-fallback,
+  .queue-article__status-fallback {
     display: none;
   }
 }

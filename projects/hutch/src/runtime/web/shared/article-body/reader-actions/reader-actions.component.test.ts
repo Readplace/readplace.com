@@ -22,12 +22,14 @@ const ACTION_BTNS: ActionButtons = {
 			position: "top",
 			postUrl: "/queue/abc/status?utm_content=mark-read-top",
 			label: "Mark as read",
+			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
 		},
 		{
 			position: "bottom",
 			postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
 			label: "Mark as read",
+			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
 		},
 	],
@@ -81,6 +83,55 @@ describe("queue picker", () => {
 		const slot = doc.querySelector("[data-test-queues-slot]");
 		assert(slot, "the queues slot must render");
 		expect(slot.classList.contains("article-body__queues-slot--hidden")).toBe(true);
+	});
+});
+
+describe("mark-read confirmation", () => {
+	it("keeps one plain form, holding the action's own test hook, when nothing needs confirming", () => {
+		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+		const doc = parse(top.to("text/html").body);
+
+		const button = doc.querySelector("[data-test-mark-read-btn]");
+		assert(button, "the mark-read button must render");
+		expect(button.getAttribute("data-test-action")).toBe("mark-read");
+		expect(button.getAttribute("type")).toBe("submit");
+		expect(doc.querySelectorAll(".article-body__confirm-trigger")).toHaveLength(0);
+		expect(doc.querySelectorAll(".article-body__mark-read-fallback")).toHaveLength(0);
+	});
+
+	it("splits into a popover trigger and a renamed fallback once the action is confirmed", () => {
+		const { top } = StickyReader({
+			actionBtns: {
+				...ACTION_BTNS,
+				markReadActions: [
+					{
+						position: "top",
+						postUrl: "/queue/abc/status?utm_content=mark-read-top",
+						label: "Mark as read",
+						testAction: "mark-read",
+						fields: [{ name: "status", value: "read" }],
+						confirmPopoverId: "queue-mark-status-confirm-abc",
+					},
+				],
+			},
+		});
+		const doc = parse(top.to("text/html").body);
+
+		const trigger = doc.querySelector(".article-body__confirm-trigger");
+		assert(trigger, "the popover trigger must render");
+		expect(trigger.getAttribute("type")).toBe("button");
+		expect(trigger.getAttribute("popovertarget")).toBe("queue-mark-status-confirm-abc");
+		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
+		expect(trigger.getAttribute("data-test-action")).toBe("mark-read");
+		expect(trigger.getAttribute("aria-label")).toBe("Mark as read");
+		expect(trigger.closest("form")).toBeNull();
+
+		const fallback = doc.querySelector("[data-test-mark-read-btn]");
+		assert(fallback, "the plain form must stay behind for browsers without popover support");
+		expect(fallback.getAttribute("data-test-action")).toBe("mark-read-fallback");
+		expect(fallback.closest("form")?.classList.contains("article-body__mark-read-fallback")).toBe(
+			true,
+		);
 	});
 });
 

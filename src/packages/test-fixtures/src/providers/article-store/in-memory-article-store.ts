@@ -34,6 +34,7 @@ import type {
 	RenameQueueDefinition,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
+	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -57,7 +58,7 @@ import type {
 	SaveArticleParams,
 	SaveQueueArticle,
 	UpdateArticleStatus,
-	UpdateQueueArticleStatus,
+	UpdateArticleStatusAcrossQueues,
 } from "@packages/provider-contracts/article-store";
 
 interface GlobalArticle {
@@ -144,10 +145,11 @@ export function initInMemoryArticleStore(): {
 	findQueueArticles: FindQueueArticles;
 	countQueueArticles: CountQueueArticles;
 	findQueueArticleById: FindQueueArticleById;
-	updateQueueArticleStatus: UpdateQueueArticleStatus;
+	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
 	deleteQueueArticle: DeleteQueueArticle;
 	markQueueArticleViewed: MarkQueueArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToQueue: AssignSavedArticleToQueue;
 	moveQueueArticles: MoveQueueArticles;
 	createQueueDefinition: CreateQueueDefinition;
@@ -486,6 +488,14 @@ export function initInMemoryArticleStore(): {
 		return saves;
 	};
 
+	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls }) => {
+		const saves = new Map<string, { queue?: QueueSlug }[]>();
+		for (const url of urls) {
+			saves.set(url, await listUserSavesForUrl({ userId, url }));
+		}
+		return saves;
+	};
+
 	const updateStatusIn = (
 		queue: QueueSlug | undefined,
 		id: ReaderArticleHashId,
@@ -512,8 +522,22 @@ export function initInMemoryArticleStore(): {
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) =>
 		updateStatusIn(undefined, id, userId, status);
 
-	const updateQueueArticleStatus: UpdateQueueArticleStatus = async ({ id, userId, queue, status }) =>
-		updateStatusIn(queue, id, userId, status);
+	const updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues = async ({
+		id,
+		userId,
+		addressed,
+		status,
+	}) => {
+		const addressedQueue = addressed === DEFAULT_QUEUE_SLUG ? undefined : addressed;
+		const updated = updateStatusIn(addressedQueue, id, userId, status);
+		if (!updated) return null;
+		const saves = await listUserSavesForUrl({ userId, url: updated.url });
+		for (const save of saves) {
+			if (save.queue === addressedQueue) continue;
+			updateStatusIn(save.queue, id, userId, status);
+		}
+		return updated;
+	};
 
 	const createQueueDefinition: CreateQueueDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
@@ -727,10 +751,11 @@ export function initInMemoryArticleStore(): {
 		findQueueArticles,
 		countQueueArticles,
 		findQueueArticleById,
-		updateQueueArticleStatus,
+		updateArticleStatusAcrossQueues,
 		deleteQueueArticle,
 		markQueueArticleViewed,
 		listUserSavesForUrl,
+		listUserSavesForUrls,
 		assignSavedArticleToQueue,
 		moveQueueArticles,
 		createQueueDefinition,

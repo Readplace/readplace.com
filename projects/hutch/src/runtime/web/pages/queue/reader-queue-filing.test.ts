@@ -11,9 +11,14 @@ describe("buildReaderQueueFiling", () => {
 			definitions: [],
 			saves: [{}],
 			returnTo: "/queue/abc123/view",
+			markStatusConfirmGated: false,
 		});
 
-		expect(filing).toEqual({ tags: undefined, picker: undefined });
+		expect(filing).toEqual({
+			tags: undefined,
+			picker: undefined,
+			markStatusConfirmQueueLabels: undefined,
+		});
 	});
 
 	it("splits owned queues into tags for memberships and picker options for the rest", () => {
@@ -25,6 +30,7 @@ describe("buildReaderQueueFiling", () => {
 			],
 			saves: [{}, { queue: WORK }],
 			returnTo: "/queue/abc123/view",
+			markStatusConfirmGated: false,
 		});
 
 		expect(filing.tags).toEqual({
@@ -48,6 +54,7 @@ describe("buildReaderQueueFiling", () => {
 			],
 			saves: [{}, { queue: WORK }, { queue: LATER }],
 			returnTo: "/queue/abc123/view",
+			markStatusConfirmGated: false,
 		});
 
 		expect(filing.picker).toBeUndefined();
@@ -55,6 +62,21 @@ describe("buildReaderQueueFiling", () => {
 			{ slug: WORK, label: "Work" },
 			{ slug: LATER, label: "Later" },
 		]);
+	});
+
+	it("names every queue the article sits in, default first, once the confirmation is gated on", () => {
+		const filing = buildReaderQueueFiling({
+			articleId: "abc123",
+			definitions: [
+				{ slug: WORK, label: "Work", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+			],
+			saves: [{}, { queue: LATER }],
+			returnTo: "/queue/abc123/view",
+			markStatusConfirmGated: true,
+		});
+
+		expect(filing.markStatusConfirmQueueLabels).toEqual(["My Queue", "Later"]);
 	});
 
 	it("withholds the picker from an article with no default-queue copy to assign from", () => {
@@ -66,6 +88,7 @@ describe("buildReaderQueueFiling", () => {
 			],
 			saves: [{ queue: WORK }],
 			returnTo: "/queue/abc123/view",
+			markStatusConfirmGated: false,
 		});
 
 		expect(filing.picker).toBeUndefined();

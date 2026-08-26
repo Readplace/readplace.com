@@ -24,14 +24,10 @@ const savedArticle: SavedArticle = {
 };
 
 describe("bindArticleStoreToQueue", () => {
-	it("routes every read and write the status and delete flows make into the bound queue", async () => {
+	it("routes every read and write the delete flow makes into the bound queue", async () => {
 		const calls: Record<string, unknown>[] = [];
 		const bound = bindArticleStoreToQueue(
 			{
-				updateQueueArticleStatus: async (params) => {
-					calls.push({ op: "status", queue: params.queue, status: params.status });
-					return savedArticle;
-				},
 				deleteQueueArticle: async (params) => {
 					calls.push({ op: "delete", queue: params.queue });
 					return true;
@@ -44,12 +40,10 @@ describe("bindArticleStoreToQueue", () => {
 			WORK,
 		);
 
-		await bound.updateArticleStatus(ARTICLE_ID, USER, "read");
 		await bound.deleteArticle(ARTICLE_ID, USER);
 		await bound.findArticleById(ARTICLE_ID, USER);
 
 		expect(calls).toEqual([
-			{ op: "status", queue: "work", status: "read" },
 			{ op: "delete", queue: "work" },
 			{ op: "find", queue: "work" },
 		]);

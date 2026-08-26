@@ -386,7 +386,7 @@ describe("renderQueueCard", () => {
 		method: "POST",
 		url: "/queue/abc123/delete",
 		text: "Delete",
-		iconName: "x",
+		iconName: "x" as const,
 		title: "Delete",
 		testAction: "delete",
 		fields: [],
@@ -477,6 +477,70 @@ describe("renderQueueCard", () => {
 		expect(fallbackForm.getAttribute("method")).toBe("POST");
 		assert.match(fallbackForm.getAttribute("action") ?? "", /^\/queue\/abc123\/delete\?/);
 		assert.match(fallbackForm.getAttribute("action") ?? "", /utm_content=delete(&|$)/);
+	});
+
+	it("leaves the status form alone, and unrenamed, when nothing needs confirming", () => {
+		const html = renderQueueCard(
+			display(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const button = doc.querySelector("[data-test-action='mark-read']");
+
+		assert(button, "the plain status button must be present");
+		expect(button.getAttribute("type")).toBe("submit");
+		expect(doc.querySelectorAll(".queue-article__status-fallback")).toHaveLength(0);
+		expect(button.closest("form")?.getAttribute("hx-target")).toBe("closest .queue-article");
+	});
+
+	it("splits a confirmed status action into a popover trigger and a renamed fallback form", () => {
+		const html = renderQueueCard(
+			display(
+				makeViewModel({
+					actions: [
+						{ ...MARK_READ_ACTION, confirmPopoverId: "queue-mark-status-confirm-abc123" },
+						DELETE_ACTION,
+					],
+				}),
+				{ isFirst: false },
+			),
+		);
+		const doc = parse(html);
+		const trigger = doc.querySelector("[data-test-action='mark-read']");
+		const fallback = doc.querySelector("[data-test-action='mark-read-fallback']");
+
+		assert(trigger, "the popover trigger must take the status action's own test hook");
+		assert(fallback, "the plain form must stay behind as the no-popover fallback");
+		expect(trigger.getAttribute("type")).toBe("button");
+		expect(trigger.getAttribute("popovertarget")).toBe("queue-mark-status-confirm-abc123");
+		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
+		expect(trigger.textContent).toBe("Mark as read");
+		expect(trigger.closest("form")).toBeNull();
+		expect(fallback.getAttribute("type")).toBe("submit");
+		expect(fallback.closest("form")?.classList.contains("queue-article__status-fallback")).toBe(
+			true,
+		);
+	});
+
+	it("keeps the trigger id-free so the toast focus hook still names exactly one button", () => {
+		const html = renderQueueCard(
+			display(
+				makeViewModel({
+					actions: [
+						{ ...MARK_READ_ACTION, confirmPopoverId: "queue-mark-status-confirm-abc123" },
+						DELETE_ACTION,
+					],
+				}),
+				{ isFirst: false },
+			),
+		);
+		const doc = parse(html);
+
+		expect(doc.querySelectorAll("#queue-status-abc123")).toHaveLength(1);
+		expect(doc.querySelector("#queue-status-abc123")?.getAttribute("data-test-action")).toBe(
+			"mark-read-fallback",
+		);
 	});
 
 	it("shows a processing state and disables the status action while the card is still being fetched", () => {

@@ -41,6 +41,14 @@ export type RecordNextReadStepOutstanding = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+/** Records that the reader acknowledged that marking an article read or unread
+ * applies to every queue that article is on (set-once). Its presence suppresses
+ * the confirmation panel from then on, on every surface.
+ * Idempotent — repeated calls never overwrite the first timestamp. */
+export type RecordMarkReadAcrossQueuesAcknowledged = (params: {
+	userId: UserId;
+}) => Promise<void>;
+
 /** Reads the per-user onboarding signals the `/queue` render ticks steps from.
  * Per app, `installed` is true once that app has made any authenticated request
  * and `savedArticle` once a save has come from it — both read by the phone's
@@ -54,6 +62,7 @@ export type GetOnboardingSignals = (params: {
 	nativeApp: Record<NativeAppPlatform, { installed: boolean; savedArticle: boolean }>;
 	nextReadMinimumReachedAt: Date | undefined;
 	nextReadStepOutstandingAt: Date | undefined;
+	markReadAcrossQueuesAckedAt: Date | undefined;
 }>;
 
 /** Delete the single onboarding row for a user (account deletion). */

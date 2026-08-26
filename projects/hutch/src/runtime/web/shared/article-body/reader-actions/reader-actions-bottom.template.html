@@ -8,11 +8,14 @@
   {{/if}}
   {{#if markRead}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--visible" data-test-mark-read-bottom-slot>
-    <form class="article-body__mark-read-form" method="POST" action="{{markRead.postUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt=".article-body__mark-read" data-test-mark-read-bottom-form>
+    {{#each markRead.confirmTriggers}}
+    <button class="btn btn--secondary btn--compact article-body__mark-read article-body__confirm-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" aria-label="{{label}}" data-test-action="{{testAction}}"><span class="article-body__mark-read-label">{{label}}</span></button>
+    {{/each}}
+    <form class="{{markRead.formClass}}" method="POST" action="{{markRead.postUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt=".article-body__mark-read" data-test-mark-read-bottom-form>
       {{#each markRead.fields}}
       <input type="hidden" name="{{name}}" value="{{value}}">
       {{/each}}
-      <button class="btn btn--secondary btn--compact article-body__mark-read" type="submit" aria-label="{{markRead.label}}" data-test-mark-read-bottom-btn><span class="article-body__mark-read-label">{{markRead.label}}</span><span class="article-body__mark-read-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
+      <button class="btn btn--secondary btn--compact article-body__mark-read" type="submit" aria-label="{{markRead.label}}" data-test-mark-read-bottom-btn data-test-action="{{markRead.testAction}}"><span class="article-body__mark-read-label">{{markRead.label}}</span><span class="article-body__mark-read-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
     </form>
   </div>
   {{else}}

@@ -8,7 +8,6 @@ import type {
 	FindQueueArticles,
 	MarkArticleViewed,
 	MarkQueueArticleViewed,
-	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import {
 	bindArticleStoreToQueue,
@@ -19,7 +18,6 @@ export interface QueueScopedStore {
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
 	findArticleById: FindArticleById;
-	updateArticleStatus: UpdateArticleStatus;
 	deleteArticle: DeleteArticle;
 	markArticleViewed: MarkArticleViewed;
 }
@@ -40,7 +38,6 @@ export function queueScopedStore(
 		findArticlesByUser: deps.findArticlesByUser,
 		countArticlesByUser: deps.countArticlesByUser,
 		findArticleById: deps.findArticleById,
-		updateArticleStatus: deps.updateArticleStatus,
 		deleteArticle: deps.deleteArticle,
 		markArticleViewed: deps.markArticleViewed,
 	};

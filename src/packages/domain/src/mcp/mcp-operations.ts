@@ -76,17 +76,18 @@ export const MCP_OPERATIONS = [
 		name: "mark_as_read",
 		title: "Mark a saved article read",
 		description:
-			"Mark one saved article read in the user's Readplace queue, looked up by the id from a list_queue result. The article stays in the queue and leaves the unread list. Marking an already-read article read again changes nothing. Do this when the user has read the piece or asks you to — a summary you produced is not the same as the user reading it.",
+			"Mark one saved article read in the user's Readplace queue, looked up by the id from a list_queue result. The article stays in the queue and leaves the unread list. An article the user filed into more than one queue is marked read in every one of them, not just the first. Marking an already-read article read again changes nothing. Do this when the user has read the piece or asks you to — a summary you produced is not the same as the user reading it.",
 		summary:
-			"marks one saved article read; it stays in the queue and leaves the unread list.",
+			"marks one saved article read in every queue it is on; it stays in the queue and leaves the unread list.",
 		effect: "update",
 	},
 	{
 		name: "mark_as_unread",
 		title: "Mark a saved article unread",
 		description:
-			"Mark one saved article unread in the user's Readplace queue, looked up by the id from a list_queue result. It returns to the unread list and its read date is cleared. This is the undo for mark_as_read.",
-		summary: "marks one saved article unread again; the undo for mark_as_read.",
+			"Mark one saved article unread in the user's Readplace queue, looked up by the id from a list_queue result. It returns to the unread list and its read date is cleared, in every queue the user filed it into. This is the undo for mark_as_read.",
+		summary:
+			"marks one saved article unread again in every queue it is on; the undo for mark_as_read.",
 		effect: "update",
 	},
 	{

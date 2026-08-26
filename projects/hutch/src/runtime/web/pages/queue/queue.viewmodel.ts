@@ -20,6 +20,10 @@ import {
 	deleteConfirmPopoverId,
 	type DeleteConfirmViewModel,
 } from "./queue-card/delete-confirm.component";
+import {
+	markStatusConfirmPopoverId,
+	type MarkStatusConfirmViewModel,
+} from "./mark-status-confirm.component";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { LinkParams, QueueUrlState } from "./queue.url";
 import { buildQueueCountsUrl, buildQueueUrl, queueReturnQuery } from "./queue.url";
@@ -47,6 +51,7 @@ export interface ArticleAction {
 	title: string;
 	testAction: string;
 	fields: ArticleActionField[];
+	confirmPopoverId?: string;
 }
 
 export interface QueueArticleViewModel {
@@ -63,6 +68,7 @@ export interface QueueArticleViewModel {
 	imageUrl?: string;
 	actions: ArticleAction[];
 	deleteConfirm: DeleteConfirmViewModel;
+	markStatusConfirm?: MarkStatusConfirmViewModel;
 	/**
 	 * Set when the row's crawl/summary state machines are still in flight.
 	 * The card renders an htmx poll against this URL every 3s; once both
@@ -136,8 +142,10 @@ function toSubscriptionBannerState(access: EffectiveAccess, now: Date): Subscrip
 function toStatusActions(
 	article: { id: string; status: string },
 	returnQuery: string,
+	confirmPopoverId: string | undefined,
 ): ArticleAction[] {
 	const actions: ArticleAction[] = [];
+	const confirm = confirmPopoverId === undefined ? {} : { confirmPopoverId };
 
 	/** `swap=card` marks a status URL as the card affordance so the shared
 	 * status route answers an htmx submit with the card-scoped fragment, while
@@ -155,6 +163,7 @@ function toStatusActions(
 			title: "Mark as read",
 			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
+			...confirm,
 		});
 	}
 
@@ -166,6 +175,7 @@ function toStatusActions(
 			title: "Mark as unread",
 			testAction: "mark-unread",
 			fields: [{ name: "status", value: "unread" }],
+			...confirm,
 		});
 	}
 
@@ -194,6 +204,7 @@ export function toQueueArticleViewModel(params: {
 	pollCount?: number;
 	maxPolls: number;
 	linkParams?: LinkParams;
+	confirmQueueLabels?: readonly string[];
 }): QueueArticleViewModel {
 	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
 	const pollCount = params.pollCount ?? 1;
@@ -206,6 +217,16 @@ export function toQueueArticleViewModel(params: {
 	const isStalePending = !reachedTerminal && pollCount > maxPolls;
 	const deleteAction = toDeleteAction({ articleId: id, returnQuery });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
+	const markStatusConfirm =
+		params.confirmQueueLabels === undefined
+			? undefined
+			: {
+					articleId: id,
+					popoverId: markStatusConfirmPopoverId(id),
+					url: `/queue/${id}/status${returnQuery}`,
+					status: article.status === "read" ? ("unread" as const) : ("read" as const),
+					queueLabels: params.confirmQueueLabels,
+				};
 	return {
 		id,
 		title: article.metadata.title,
@@ -220,12 +241,16 @@ export function toQueueArticleViewModel(params: {
 		readTime: displayableReadTime(article),
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
 		imageUrl: article.metadata.imageUrl,
-		actions: [...toStatusActions({ id, status: article.status }, returnQuery), deleteAction],
+		actions: [
+			...toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
+			deleteAction,
+		],
 		deleteConfirm: {
 			articleId: id,
 			popoverId: deleteConfirmPopoverId(id),
 			url: deleteAction.url,
 		},
+		markStatusConfirm,
 		cardPollUrl,
 		readerHref: `/queue/${id}/view${queueReturnQuery({ queue: filters.queue }, params.linkParams)}`,
 		isStalePending,
@@ -246,6 +271,7 @@ export function toQueueViewModel(
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		effectiveAccess?: EffectiveAccess;
 		linkParams?: LinkParams;
+		confirmQueueLabelsByUrl?: ReadonlyMap<string, readonly string[]>;
 	},
 ): QueueViewModel {
 	const now = options?.now ?? new Date();
@@ -274,6 +300,7 @@ export function toQueueViewModel(
 				filters,
 				maxPolls: MAX_POLLS,
 				linkParams,
+				confirmQueueLabels: options?.confirmQueueLabelsByUrl?.get(a.url),
 			}),
 		),
 		filters,
