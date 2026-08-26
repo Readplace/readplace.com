@@ -69,8 +69,6 @@ describe("EXCLUDE_PATTERNS — reddit.com entries", () => {
 		// surface: a failure there is a regression, not known-broken noise.
 		{ url: "https://www.reddit.com/r/javascript/comments/abc/title/", excluded: false, label: "www.reddit.com /comments/ URL (now crawlable)" },
 		{ url: "https://reddit.com/r/javascript/comments/abc", excluded: false, label: "apex /comments/ (now crawlable)" },
-		{ url: "https://old.reddit.com/r/javascript/", excluded: true, label: "old.reddit.com subreddit front" },
-		{ url: "https://old.reddit.com/r/js/comments/abc", excluded: true, label: "old.reddit.com /comments/" },
 		{ url: "https://m.reddit.com/user/jay/", excluded: true, label: "m.reddit.com user page" },
 		{ url: "https://www.reddit.com/user/jay/comments/abc/x/", excluded: true, label: "www user page" },
 		{ url: "https://np.reddit.com/r/javascript/s/3GQafG3qjy", excluded: true, label: "np.reddit.com /s/ shortlink" },
@@ -564,11 +562,6 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			url: "https://d1wqtxts1xzle7.cloudfront.net/49645891/sce.373067020820161016-1490-16axao2.pdf?1476649331=&Expires=1620401627&Signature=abc&Key-Pair-Id=APKAJLOHF5GGSLRBV4ZA",
 			excluded: true,
 			label: "academia.edu CloudFront presigned PDF with expired-signature query (stored shape)",
-		},
-		{
-			url: "https://d1wqtxts1xzle7.cloudfront.net/49645891/sce.373067020820161016-1490-16axao2.pdf",
-			excluded: true,
-			label: "academia.edu CloudFront PDF path without query",
 		},
 		{
 			url: "https://d1wqtxts1xzle7.cloudfront.net/99999999/some-other-doc.pdf",

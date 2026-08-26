@@ -61,10 +61,8 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// Reddit, narrowed to the shapes the proxied crawl still cannot reach.
 	// `www.reddit.com/r/<sub>/comments/…` now resolves, so it is deliberately
 	// no longer excluded — a failure there is a regression worth surfacing.
-	// These three remain unreachable: the proxy vendor refuses them for
-	// robots.txt reasons until the account completes its verification, so they
-	// stay noise the operator cannot act on.
-	/(?:^|\/\/)old\.reddit\.com(?:[/:?#]|$)/i,
+	// These two still return a stub rather than the post the share link points
+	// at, so they stay noise the operator cannot act on.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com\/user\//i,
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com\/r\/[^/]+\/s\//i,
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*onlinelibrary\.wiley\.com(?:[/:?#]|$)/i,
@@ -83,9 +81,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// S3 SigV4 query auth (`X-Amz-Signature` + `X-Amz-Expires=<seconds>`).
 	/^[^#?]*(?=\?)(?=[^#]*[?&]X-Amz-Signature=)(?=[^#]*[?&]X-Amz-Expires=\d)/i,
 	// CloudFront canned-policy signed URLs (`Key-Pair-Id` + `Signature` +
-	// `Expires=<epoch>`). The `d1wqtxts1xzle7` entry below stays alongside this
-	// one because it also matches the query-less form of that path, which a
-	// query-string fingerprint cannot cover.
+	// `Expires=<epoch>`).
 	/^[^#?]*(?=\?)(?=[^#]*[?&]Key-Pair-Id=)(?=[^#]*[?&]Signature=)(?=[^#]*[?&]Expires=\d)/i,
 	// Operator-curated exact-URL excludes — individual rows the operator has
 	// decided are "known broken / not worth investigating again". Each entry
@@ -194,17 +190,12 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// subscription login (the optional `?login=false` suffix is the host's own
 	// pre-login redirect shape; the bare URL was saved too).
 	/^https:\/\/www\.academia\.edu\/4749776\/Personal_experience_and_the_construction_of_knowledge_in_science$/i,
-	// academia.edu delivers PDF downloads from this CloudFront distribution via
-	// presigned URLs; the saved link's signature has expired (`Expires` is in the
-	// past), so the CDN returns 403 for the object regardless of signature and it
-	// can never be re-fetched. Matches the dead PDF path with or without a query.
-	/^https:\/\/d1wqtxts1xzle7\.cloudfront\.net\/49645891\/sce\.373067020820161016-1490-16axao2\.pdf(?:\?|$)/i,
-	// leadershipintech.com newsletter link-tracker. The tracker resolves correctly
-	// (one 30x to a reuters.com article) — the wall is at the destination, which
-	// 401s anonymous datacenter fetches, so the crawl exhausts retries one hop past
-	// the redirect. Anchored to the exact saved link id, not the `/links/` prefix,
-	// so trackers pointing at unwalled hosts still surface.
-	/^https:\/\/leadershipintech\.com\/links\/22782\/4ce2871f-13aa-412f-8757-8bdf7060c9a1\/email$/i,
+	// Query-string variant of a CloudFront-hosted academia.edu PDF whose bare
+	// path now crawls and holds the paper. This form is edge-blocked, making it
+	// a duplicate of a working canonical rather than a missing document, and it
+	// carries no signature params so the presign shapes above do not cover it.
+	// Anchored to the query form so the bare path still surfaces if it regresses.
+	/^https:\/\/d1wqtxts1xzle7\.cloudfront\.net\/49645891\/sce\.373067020820161016-1490-16axao2\.pdf\?/i,
 	// itnext.io is a Medium-hosted publication; Medium bot-walls datacenter
 	// egress (the same residential-egress requirement as the medium.com and
 	// edge-firewall entries above), so the AWS crawler exhausts retries.
