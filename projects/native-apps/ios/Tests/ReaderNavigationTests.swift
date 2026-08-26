@@ -112,4 +112,51 @@ final class ReaderNavigationTests: XCTestCase {
 			.allow
 		)
 	}
+
+	func testTappedAppShellPageOnOurHostStaysInTheSheet() throws {
+		let url = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/queue?platform=ios&shell=app"))
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
+			.allow
+		)
+	}
+
+	func testTappedOurHostPageWithAnUnrecognisedShellValueOpensExternally() throws {
+		let url = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/queue?platform=ios&shell=web"))
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
+			.openExternally(url)
+		)
+	}
+
+	func testTappedOurHostPageWithNoQueryAtAllOpensExternally() throws {
+		let url = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/about"))
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
+			.openExternally(url)
+		)
+	}
+
+	func testTappedAppShellMarkerOnAForeignHostOpensExternally() throws {
+		let url = try XCTUnwrap(URL(string: "https://example.com/queue?shell=app"))
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
+			.openExternally(url)
+		)
+	}
+
+	func testTheWebAppDoorIsBothAToolbarControlAndATargetTheSheetKeeps() throws {
+		let link = SirenLink(rel: ["web-app"], href: "/queue?platform=ios", title: nil)
+		let affordance = try XCTUnwrap(Affordance(link: link))
+		XCTAssertTrue(affordance.isToolbarControl)
+		XCTAssertEqual(affordance.label, "Web App")
+
+		let href = try XCTUnwrap(link.href)
+		let resolved = try XCTUnwrap(Href.resolve(href, baseURL: AppConfig.serverBaseURL))
+		let opened = try XCTUnwrap(Href.appending(AppConfig.appShellQueryItem, to: resolved))
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: opened, navigationType: .linkActivated, currentURL: nil),
+			.allow
+		)
+	}
 }

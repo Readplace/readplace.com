@@ -70,6 +70,16 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertTrue(presentation.isToolbarControl)
 	}
 
+	func testWebAppMapsToANeutralGlobeControlInTheToolbar() {
+		let presentation = AffordancePresentation(token: "web-app")
+		XCTAssertEqual(presentation.systemImage, "globe")
+		XCTAssertNil(presentation.tint)
+		XCTAssertFalse(presentation.isDestructive)
+		XCTAssertFalse(presentation.removesItem)
+		XCTAssertTrue(presentation.isToolbarControl)
+		XCTAssertTrue(presentation.isRecognizedToken)
+	}
+
 	func testStructuralLinkRelsAreNeverToolbarControls() {
 		// The client follows self/root/prev/next/item itself for pagination, identity,
 		// and item resolution; they are never rendered as user controls. `item` in
@@ -217,6 +227,14 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertTrue(link.isToolbarControl, "a titled unknown link is surfaced as a toolbar control")
 	}
 
+	func testATitlelessWebAppLinkStillRendersBecauseTheClientRecognisesTheToken() throws {
+		let link = try XCTUnwrap(
+			Affordance(link: SirenLink(rel: ["web-app"], href: "/queue?platform=ios", title: nil))
+		)
+		XCTAssertTrue(link.isToolbarControl, "a recognised token renders without the server titling it")
+		XCTAssertEqual(link.label, "Web App")
+	}
+
 	// MARK: - Structural-rel safety across every rel, not just the first
 
 	func testALinkIsExcludedWhenAnyOfItsRelsIsStructuralNotJustTheFirst() throws {
@@ -261,6 +279,7 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertTrue(AffordancePresentation(token: "account").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "search").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "add-links-help").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "web-app").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "update-status").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "delete").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "save-content").showsTitle)

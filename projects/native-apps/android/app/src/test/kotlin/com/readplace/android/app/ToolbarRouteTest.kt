@@ -33,6 +33,14 @@ class ToolbarRouteTest {
 	}
 
 	@Test
+	fun `routes the web-app link to open rather than a native sheet`() {
+		val link = SirenLink(rel = listOf("web-app"), href = "/queue?platform=android", title = null)
+		val affordance = requireNotNull(Affordance.of(link))
+
+		assertEquals(ToolbarRoute.Open(link), ToolbarRoute.route(affordance))
+	}
+
+	@Test
 	fun `routes a non-save action to the generic invoker`() {
 		// A bare-invokable collection action is submitted through the generic invoker,
 		// honouring its own method/type/fields — never opened as a GET web view of its

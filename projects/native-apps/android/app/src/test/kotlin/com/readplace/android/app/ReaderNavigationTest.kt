@@ -1,6 +1,11 @@
 package com.readplace.android.app
 
+import com.readplace.android.core.Affordance
+import com.readplace.android.core.AppConfig
+import com.readplace.android.core.Href
+import com.readplace.android.core.SirenLink
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReaderNavigationTest {
@@ -248,6 +253,64 @@ class ReaderNavigationTest {
 				isLinkActivated = false,
 				currentUrl = current,
 			),
+		)
+	}
+
+	@Test
+	fun `a tapped app-shell page on our host stays in the sheet`() {
+		assertEquals(
+			ReaderNavigationDecision.Allow,
+			ReaderNavigation.decide(
+				url = "${AppConfig.serverBaseUrl}/queue?platform=android&shell=app",
+				isLinkActivated = true,
+				currentUrl = current,
+			),
+		)
+	}
+
+	@Test
+	fun `a tapped page on our host with an unrecognised shell value opens externally`() {
+		val url = "${AppConfig.serverBaseUrl}/queue?platform=android&shell=web"
+		assertEquals(
+			ReaderNavigationDecision.OpenExternally(url),
+			ReaderNavigation.decide(url = url, isLinkActivated = true, currentUrl = current),
+		)
+	}
+
+	@Test
+	fun `a tapped page on our host with no query at all opens externally`() {
+		val url = "${AppConfig.serverBaseUrl}/about"
+		assertEquals(
+			ReaderNavigationDecision.OpenExternally(url),
+			ReaderNavigation.decide(url = url, isLinkActivated = true, currentUrl = current),
+		)
+	}
+
+	@Test
+	fun `a tapped app-shell marker on a foreign host opens externally`() {
+		val url = "https://example.com/queue?shell=app"
+		assertEquals(
+			ReaderNavigationDecision.OpenExternally(url),
+			ReaderNavigation.decide(url = url, isLinkActivated = true, currentUrl = current),
+		)
+	}
+
+	@Test
+	fun `the web-app door is both a toolbar control and a target the sheet keeps`() {
+		val link = SirenLink(rel = listOf("web-app"), href = "/queue?platform=android", title = null)
+		val affordance = requireNotNull(Affordance.of(link))
+		assertTrue(affordance.isToolbarControl)
+		assertEquals("Web App", affordance.label)
+
+		val resolved = requireNotNull(Href.resolve(requireNotNull(link.href), AppConfig.serverBaseUrl))
+		val opened = Href.appending(
+			resolved,
+			AppConfig.APP_SHELL_QUERY_NAME,
+			AppConfig.APP_SHELL_QUERY_VALUE,
+		)
+		assertEquals(
+			ReaderNavigationDecision.Allow,
+			ReaderNavigation.decide(url = opened, isLinkActivated = true, currentUrl = null),
 		)
 	}
 }

@@ -15,6 +15,7 @@ enum class AffordanceIcon {
 	TRASH,
 	MAGNIFYING_GLASS,
 	PERSON_CIRCLE,
+	GLOBE,
 	ELLIPSIS_CIRCLE,
 }
 
@@ -144,6 +145,15 @@ data class AffordancePresentation(
 			)
 			"add-links-help" -> AffordancePresentation(
 				icon = AffordanceIcon.PLUS,
+				tint = AffordanceTint.NEUTRAL,
+				isDestructive = false,
+				removesItem = false,
+				isToolbarControl = true,
+				isRecognizedToken = true,
+				showsTitle = false,
+			)
+			"web-app" -> AffordancePresentation(
+				icon = AffordanceIcon.GLOBE,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
 				removesItem = false,

@@ -1,5 +1,6 @@
 package com.readplace.android.core
 
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -26,6 +27,11 @@ class AppConfigTest {
 	@Test
 	fun `points at the stack its build flavor selected`() {
 		assertEquals(baseUrlOfTheFlavorUnderTest(), AppConfig.serverBaseUrl)
+	}
+
+	@Test
+	fun `server host is the host of the stack this build targets`() {
+		assertEquals(baseUrlOfTheFlavorUnderTest().toHttpUrl().host, AppConfig.serverHost)
 	}
 
 	@Test
