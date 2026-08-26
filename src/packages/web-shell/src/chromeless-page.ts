@@ -2,6 +2,7 @@ import assert from "node:assert";
 import {
 	BASE_CSS_VARIABLES,
 	BASE_RESET_STYLES,
+	BUTTON_STYLES,
 	CHANGELOG_BANNER_STYLES,
 	CHROMELESS_BANNER_AREA_STYLES,
 	UTILITY_STYLES,
@@ -63,6 +64,7 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 			bodyClass: body.bodyClass,
 			baseStyles: BASE_CSS_VARIABLES,
 			resetStyles: BASE_RESET_STYLES,
+			buttonStyles: BUTTON_STYLES,
 			utilityStyles: UTILITY_STYLES,
 			bannerAreaStyles: CHROMELESS_BANNER_AREA_STYLES,
 			changelogBannerStyles: CHANGELOG_BANNER_STYLES,

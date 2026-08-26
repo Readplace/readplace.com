@@ -216,7 +216,7 @@ export const INSTALL_PAGE_STYLES = `
 }
 
 .install-page__ai-guide {
-	color: var(--primary);
+	color: var(--primary-text);
 	font-weight: 600;
 	text-decoration: none;
 	white-space: nowrap;

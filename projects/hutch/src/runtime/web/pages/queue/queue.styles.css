@@ -675,7 +675,7 @@
 }
 
 .queue-article__stale-pending a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 
@@ -884,7 +884,7 @@
 }
 
 .queue__empty-text a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
   text-decoration-thickness: 1px;
 }

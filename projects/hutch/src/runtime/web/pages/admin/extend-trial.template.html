@@ -27,7 +27,7 @@
       autocomplete="off"
       placeholder="user@example.com"
       data-test-extend-trial-email>
-    <button type="submit" data-test-extend-trial-lookup>Look up</button>
+    <button type="submit" class="btn btn--primary" data-test-extend-trial-lookup>Look up</button>
     {{#if emailError}}
     <p class="admin-extend-trial__error" data-test-error="email">{{emailError}}</p>
     {{/if}}
@@ -79,7 +79,7 @@
       {{#if trialEndsAtError}}
       <p class="admin-extend-trial__error" data-test-error="trialEndsAt">{{trialEndsAtError}}</p>
       {{/if}}
-      <button type="submit" data-test-extend-trial-submit>Extend trial</button>
+      <button type="submit" class="btn btn--primary" data-test-extend-trial-submit>Extend trial</button>
     </form>
   </section>
   {{/if}}

@@ -755,7 +755,7 @@ describe("Inbox email detail Skipped tab", () => {
 		assert(saveButton, "a saveable skipped row must offer its save button");
 		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
 		expect(saveButton.textContent?.trim()).toBe("Save to queue");
-		expect(saveButton.classList.contains("inbox-excluded-link__save-button--saved")).toBe(false);
+		expect(saveButton.classList.contains("btn--primary")).toBe(true);
 	});
 
 	it("shows a skipped link whose save failed as unsaved, so the reader can try again", async () => {

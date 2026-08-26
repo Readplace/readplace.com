@@ -20,6 +20,7 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 	<style nonce="{{cspNonce}}">
 		{{{baseStyles}}}
 		{{{resetStyles}}}
+		{{{buttonStyles}}}
 		{{{utilityStyles}}}
 		{{{bannerAreaStyles}}}
 		{{{changelogBannerStyles}}}

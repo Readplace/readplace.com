@@ -2,7 +2,7 @@
   <header class="inbox-emails__header">
     <h1 class="inbox-emails__title">Inbox</h1>
     <a
-      class="inbox-emails__manage"
+      class="btn btn--secondary"
       href="/inbox/addresses"
       data-test-inbox-manage-addresses
       >My Emails</a
@@ -62,7 +62,7 @@
   {{#if showPagination}}
   <nav class="inbox-emails__pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
     {{#each paginationLinks}}
-    <a class="inbox-emails__pagination-link" href="{{href}}" data-test-pagination-link="{{key}}">
+    <a class="btn btn--secondary btn--compact inbox-emails__pagination-link" href="{{href}}" data-test-pagination-link="{{key}}">
       {{#if iconLeading}}<span class="inbox-emails__pagination-icon">{{icon iconName}}</span>{{/if}}
       {{label}}
       {{#unless iconLeading}}<span class="inbox-emails__pagination-icon">{{icon iconName}}</span>{{/unless}}

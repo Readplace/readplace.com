@@ -1,11 +1,4 @@
 .embed-preview {
-  /* Embed brand tokens the shared base shell does not define (it hardcodes its
-   * own font stacks and exposes --color-secondary for navy). Scoped to the page
-   * root so descendants inherit them; carried over verbatim from the retired
-   * embed-base shell so the rendered previews stay pixel-identical. */
-  --color-navy: #2B3A55;
-  --font-body: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace;
   padding: 48px 24px 96px;
 }
@@ -19,7 +12,7 @@
   font-family: var(--font-serif);
   font-size: 1.75rem;
   font-weight: 700;
-  color: var(--color-navy);
+  color: var(--color-secondary);
   margin: 0 0 8px;
 }
 
@@ -35,11 +28,9 @@
 }
 
 .embed-preview__group-title {
-  font-family: var(--font-body);
+  font-family: var(--font-serif);
   font-size: 0.875rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--color-text-muted);
   margin: 0 0 12px;
 }

@@ -1,11 +1,4 @@
 .embed-page {
-  /* Embed brand tokens the shared base shell does not define (it hardcodes its
-   * own font stacks and exposes --color-secondary for navy). Scoped to the page
-   * root so descendants inherit them; carried over verbatim from the retired
-   * embed-base shell so the rendered snippets stay pixel-identical. */
-  --color-navy: #2B3A55;
-  --font-body: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace;
   padding: 64px 24px 96px;
 }
@@ -26,7 +19,7 @@
   font-size: 2.25rem;
   font-weight: 700;
   line-height: 1.2;
-  color: var(--color-navy);
+  color: var(--color-secondary);
   margin: 0 0 16px;
   letter-spacing: -0.01em;
 }
@@ -60,7 +53,7 @@
   font-family: var(--font-serif);
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-navy);
+  color: var(--color-secondary);
   margin: 0 0 20px;
 }
 
@@ -79,20 +72,21 @@
 .embed-url-input__field {
   display: block;
   width: 100%;
-  padding: 10px 14px;
+  height: var(--input-height);
+  padding: var(--input-padding);
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: var(--input-font-size);
   color: var(--color-text-primary);
   background: var(--color-background);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   box-sizing: border-box;
 }
 
 .embed-url-input__field:focus {
-  outline: 2px solid var(--color-navy);
-  outline-offset: -1px;
-  border-color: var(--color-navy);
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
 .embed-variant {
@@ -115,7 +109,7 @@
   font-family: var(--font-serif);
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--color-navy);
+  color: var(--color-secondary);
   margin: 0;
 }
 
@@ -146,66 +140,38 @@
   align-items: center;
 }
 
-.embed-variant__code-block {
-  position: relative;
-  margin: 0;
-}
-
-.embed-variant__code {
-  display: block;
-  padding: 16px 80px 16px 20px;
+.embed-copyable {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
+}
+
+.embed-copyable__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text-primary);
+}
+
+.embed-copyable__body--code {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   line-height: 1.6;
-  color: var(--color-text-primary);
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  margin: 0;
 }
 
-.embed-variant__copy,
-.embed-privacy__copy {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  padding: var(--button-padding-sm);
-  background: var(--color-background);
-  color: var(--color-navy);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.embed-variant__copy:hover,
-.embed-privacy__copy:hover {
-  background: var(--color-surface);
-}
-
-.embed-privacy {
-  position: relative;
-  padding: 24px 96px 24px 28px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-}
-
-.embed-privacy__text {
-  margin: 0;
+.embed-copyable__body--prose {
   font-size: 0.9375rem;
   line-height: 1.65;
-  color: var(--color-text-primary);
 }
 
-.embed-privacy__copy {
-  top: 20px;
-  right: 20px;
+.embed-copyable__copy {
+  flex: 0 0 auto;
 }
 
 .embed-footer {
@@ -231,7 +197,7 @@
 }
 
 .embed-footer__links a:hover {
-  color: var(--color-navy);
+  color: var(--color-secondary);
   text-decoration: underline;
 }
 

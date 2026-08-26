@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { HtmlPage, render } from "@packages/web-shell";
+import { BASE_CSS_VARIABLES, HtmlPage, render } from "@packages/web-shell";
 import type { Component, CspNonce } from "@packages/web-shell";
 
 import { buildShareDemoVideo } from "../../shared/share-demo-video";
@@ -23,6 +23,7 @@ export function HelpAddLinksPage(params: {
 	return HtmlPage(
 		render(HELP_ADD_LINKS_TEMPLATE, {
 			cspNonce: params.cspNonce,
+			baseStyles: BASE_CSS_VARIABLES,
 			backLink: params.backLink,
 			// The chromeless sheet ignores the safe area, so the app variant hard-codes
 			// the bottom pad that clears the home indicator (see the stylesheet).

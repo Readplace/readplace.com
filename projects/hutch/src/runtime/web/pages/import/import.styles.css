@@ -59,7 +59,7 @@
 }
 
 .import__tab--active {
-  color: var(--primary);
+  color: var(--primary-text);
   border-bottom-color: var(--primary);
   font-weight: 600;
 }
@@ -224,7 +224,7 @@
 }
 
 .import__dropzone-link {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
   text-underline-offset: 3px;
   font-weight: 600;
@@ -294,7 +294,7 @@
 }
 
 .import__seo-section a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
   text-underline-offset: 3px;
 }

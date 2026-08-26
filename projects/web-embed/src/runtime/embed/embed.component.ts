@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
+import { renderEmbedCopyable } from "./embed-copyable.component";
 import { EMBED_PAGE_STYLES } from "./embed.styles";
 
 import { byteLength, renderCanonicalSnippet, renderSnippet } from "./snippet.component";
@@ -9,6 +10,19 @@ import { byteLength, renderCanonicalSnippet, renderSnippet } from "./snippet.com
 const EMBED_TEMPLATE = readFileSync(join(__dirname, "embed.template.html"), "utf-8");
 
 const CANONICAL_EMBED_ORIGIN = "https://readplace.com/embed";
+
+const PRIVACY_STATEMENT =
+	"The Readplace save button is a plain HTML link with a small icon image. It sets no cookies on this site and runs no JavaScript. The icon image is fetched from readplace.com as a static asset, the same way any third-party image from any domain would be. When a reader clicks the button, they navigate to readplace.com, where Readplace's privacy policy applies.";
+
+function snippetCopyable(variant: "a" | "b" | "c", source: string): string {
+	return renderEmbedCopyable({
+		kind: "code",
+		targetId: `snippet-${variant}-code`,
+		bodyTestId: `source-${variant}`,
+		copyTestId: `copy-${variant}`,
+		text: source,
+	});
+}
 
 export interface EmbedPageInput {
 	appOrigin: string;
@@ -29,9 +43,16 @@ export function EmbedPage(input: EmbedPageInput): PageBody {
 		previewA,
 		previewB,
 		previewC,
-		snippetA: sourceA,
-		snippetB: sourceB,
-		snippetC: sourceC,
+		copyableA: snippetCopyable("a", sourceA),
+		copyableB: snippetCopyable("b", sourceB),
+		copyableC: snippetCopyable("c", sourceC),
+		privacyCopyable: renderEmbedCopyable({
+			kind: "prose",
+			targetId: "privacy-text",
+			bodyTestId: "privacy-text",
+			copyTestId: "copy-privacy",
+			text: PRIVACY_STATEMENT,
+		}),
 		bytesA: byteLength(sourceA),
 		bytesB: byteLength(sourceB),
 		bytesC: byteLength(sourceC),

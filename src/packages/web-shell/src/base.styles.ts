@@ -638,7 +638,7 @@ export const TRIAL_COUNTDOWN_STYLES = `
 	.trial-countdown {
 		margin: 0;
 		padding: 0 12px;
-		color: var(--color-error);
+		color: var(--error-text);
 		font-weight: 600;
 		font-size: 0.875rem;
 		font-variant-numeric: tabular-nums;
@@ -681,7 +681,7 @@ export const TRIAL_COUNTDOWN_STYLES = `
 	.trial-countdown--critical {
 		font-weight: 700;
 		padding: 2px 10px;
-		background: var(--color-error);
+		background: var(--error-fill);
 		color: var(--error-foreground);
 		border-radius: var(--radius-sm);
 		animation: trial-countdown-pulse 1.5s ease-in-out infinite;
@@ -690,7 +690,7 @@ export const TRIAL_COUNTDOWN_STYLES = `
 	.trial-countdown--expired {
 		font-weight: 700;
 		padding: 2px 10px;
-		background: var(--color-error);
+		background: var(--error-fill);
 		color: var(--error-foreground);
 		border-radius: var(--radius-sm);
 		animation: trial-countdown-shake 0.5s ease-in-out 1;
@@ -712,7 +712,7 @@ export const TRIAL_COUNTDOWN_STYLES = `
 	.trial-countdown--cancellation-imminent {
 		font-weight: 700;
 		background: var(--error-bg);
-		color: var(--color-error);
+		color: var(--error-text);
 	}
 	/* purgecss-ignore-end */
 
@@ -885,7 +885,7 @@ export const CHANGELOG_BANNER_STYLES = `
 
 	.changelog-banner__link {
 		flex: 0 0 auto;
-		color: var(--primary);
+		color: var(--primary-text);
 		font-weight: 600;
 		text-decoration: none;
 		white-space: nowrap;

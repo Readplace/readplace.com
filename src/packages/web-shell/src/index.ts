@@ -91,6 +91,7 @@ export type {
 	ConfirmPopover,
 	ConfirmPopoverLead,
 } from "./shared/confirm-popover/confirm-popover.component";
+export { BASE_CSS_VARIABLES } from "./base.styles";
 export { etagMatches } from "./etag";
 export {
 	MAX_CAPTURE_POLLS,

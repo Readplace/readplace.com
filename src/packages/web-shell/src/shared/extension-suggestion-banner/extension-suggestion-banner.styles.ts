@@ -124,25 +124,7 @@ export const EXTENSION_SUGGESTION_BANNER_STYLES = `
 	}
 
 	.extension-suggestion-banner__cta {
-		display: block;
 		width: 100%;
-		box-sizing: border-box;
-		text-align: center;
-		background: var(--color-brand);
-		color: var(--color-on-brand);
-		font-weight: 600;
-		text-decoration: none;
-		padding: var(--button-padding-sm);
-		border-radius: var(--radius-sm);
-		border: 1px solid var(--color-brand);
-		transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-	}
-
-	.extension-suggestion-banner__cta:hover,
-	.extension-suggestion-banner__cta:focus-visible {
-		background: var(--color-brand-dark);
-		border-color: var(--color-brand-dark);
-		transform: translateY(-1px);
 	}
 
 	.extension-suggestion-banner__close {

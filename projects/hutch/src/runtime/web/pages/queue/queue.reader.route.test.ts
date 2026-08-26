@@ -1709,7 +1709,7 @@ describe("Queue routes", () => {
 			);
 			expect(actions).toEqual(["open", "capture"]);
 			expect(slot.querySelector("[data-reader-capture]")?.className).toBe(
-				"article-body__reader-notice-capture",
+				"btn btn--secondary article-body__reader-notice-capture",
 			);
 			expect(
 				slot.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),

@@ -22,10 +22,7 @@
           </div>
           <p class="embed-variant__note">Inline next to article titles in link lists, sidebars, comment footers.</p>
           <div class="embed-variant__preview" data-test="preview-a">{{{previewA}}}</div>
-          <div class="embed-variant__code-block">
-            <pre class="embed-variant__code" id="snippet-a-code" data-test="source-a">{{snippetA}}</pre>
-            <button type="button" class="embed-variant__copy" data-copy="snippet-a-code" data-test="copy-a">Copy</button>
-          </div>
+          {{{copyableA}}}
         </article>
 
         <article class="embed-variant" data-test-variant="b">
@@ -35,10 +32,7 @@
           </div>
           <p class="embed-variant__note">Top or bottom of an individual article, or inside a navigation bar.</p>
           <div class="embed-variant__preview" data-test="preview-b">{{{previewB}}}</div>
-          <div class="embed-variant__code-block">
-            <pre class="embed-variant__code" id="snippet-b-code" data-test="source-b">{{snippetB}}</pre>
-            <button type="button" class="embed-variant__copy" data-copy="snippet-b-code" data-test="copy-b">Copy</button>
-          </div>
+          {{{copyableB}}}
         </article>
 
         <article class="embed-variant" data-test-variant="c">
@@ -48,19 +42,13 @@
           </div>
           <p class="embed-variant__note">End of a long-form post, as a reading-continuity prompt.</p>
           <div class="embed-variant__preview" data-test="preview-c">{{{previewC}}}</div>
-          <div class="embed-variant__code-block">
-            <pre class="embed-variant__code" id="snippet-c-code" data-test="source-c">{{snippetC}}</pre>
-            <button type="button" class="embed-variant__copy" data-copy="snippet-c-code" data-test="copy-c">Copy</button>
-          </div>
+          {{{copyableC}}}
         </article>
       </section>
 
       <section class="embed-page__section" id="privacy">
         <h2 class="embed-page__section-title">Privacy — quote this in your policy</h2>
-        <div class="embed-privacy">
-          <p class="embed-privacy__text" id="privacy-text" data-test="privacy-text">The Readplace save button is a plain HTML link with a small icon image. It sets no cookies on this site and runs no JavaScript. The icon image is fetched from readplace.com as a static asset, the same way any third-party image from any domain would be. When a reader clicks the button, they navigate to readplace.com, where Readplace's privacy policy applies.</p>
-          <button type="button" class="embed-privacy__copy" data-copy="privacy-text" data-test="copy-privacy">Copy</button>
-        </div>
+        {{{privacyCopyable}}}
       </section>
 
       <footer class="embed-footer">

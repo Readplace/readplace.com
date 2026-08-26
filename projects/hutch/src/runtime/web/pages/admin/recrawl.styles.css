@@ -4,6 +4,10 @@
   padding: 1rem 1rem 3rem;
 }
 
+.admin-recrawl__title {
+  font-family: var(--font-serif);
+}
+
 .admin-recrawl__body {
   display: block;
 }
@@ -24,4 +28,9 @@
   background: var(--color-surface);
   color: var(--color-text-secondary);
   border-color: var(--color-border);
+}
+
+.admin-recrawl__url-input {
+  height: var(--input-height);
+  padding: var(--input-padding);
 }

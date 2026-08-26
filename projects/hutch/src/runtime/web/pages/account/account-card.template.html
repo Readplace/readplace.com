@@ -20,7 +20,7 @@
                 hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
                 hx-disabled-elt="find button"
                 data-test-account-action="{{key}}">
-            <button type="submit" class="account-card__action account-card__action--{{variant}}"{{#if isPending}} disabled{{/if}}>{{name}}</button>
+            <button type="submit" class="{{buttonClass}}"{{#if isPending}} disabled{{/if}}>{{name}}</button>
           </form>
           {{/each}}
         </div>

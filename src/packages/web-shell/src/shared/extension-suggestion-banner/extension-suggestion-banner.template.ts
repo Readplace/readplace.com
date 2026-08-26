@@ -25,7 +25,7 @@ export const EXTENSION_SUGGESTION_BANNER_TEMPLATE = `<div
 				<p class="extension-suggestion-banner__message" data-test-extension-suggestion-variant="not-installed">
 					Some sites only let me save the link, not the full article. Save it in full with <a class="extension-suggestion-banner__inline" href="/install?utm_source=web-app&amp;utm_medium=banner&amp;utm_campaign=extension-suggestion&amp;utm_content=inline-text" data-test-extension-suggestion-inline>{{clientsPhrase}}</a>, straight from your device.
 				</p>
-				<a class="extension-suggestion-banner__cta" href="/install?utm_source=web-app&amp;utm_medium=banner&amp;utm_campaign=extension-suggestion&amp;utm_content=cta-button" data-test-extension-suggestion-cta>See the ways to save</a>
+				<a class="btn btn--on-dark btn--compact extension-suggestion-banner__cta" href="/install?utm_source=web-app&amp;utm_medium=banner&amp;utm_campaign=extension-suggestion&amp;utm_content=cta-button" data-test-extension-suggestion-cta>See the ways to save</a>
 			{{/if}}
 		</div>
 	</div>

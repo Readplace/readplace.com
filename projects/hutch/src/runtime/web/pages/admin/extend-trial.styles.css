@@ -4,6 +4,11 @@
   padding: 1.5rem;
 }
 
+.admin-extend-trial h1,
+.admin-extend-trial h2 {
+  font-family: var(--font-serif);
+}
+
 .admin-extend-trial__intro {
   color: var(--color-text-muted);
 }

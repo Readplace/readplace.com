@@ -64,6 +64,7 @@ export interface AccountAction {
 	key: AccountActionKey;
 	name: string;
 	variant: AccountActionVariant;
+	buttonClass: string;
 	method: "POST";
 	href: string;
 	isPending: boolean;
@@ -148,10 +149,17 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 	};
 }
 
-function action(input: Omit<AccountAction, "isPending">): AccountAction {
+const ACCOUNT_ACTION_BUTTON_CLASS: Record<AccountActionVariant, string> = {
+	primary: "btn btn--primary btn--compact account-card__action",
+	secondary: "btn btn--secondary btn--compact account-card__action",
+	destructive: "account-card__action account-card__action--destructive",
+};
+
+function action(input: Omit<AccountAction, "isPending" | "buttonClass">): AccountAction {
 	return {
 		...input,
 		isPending: false,
+		buttonClass: ACCOUNT_ACTION_BUTTON_CLASS[input.variant],
 		href: withInternalTracking(input.href, { source: "account", content: input.key }),
 	};
 }
@@ -202,6 +210,7 @@ export interface CardActionView {
 	key: CardActionKey;
 	name: string;
 	variant: "secondary" | "destructive";
+	buttonClass: string;
 	href: string;
 }
 
@@ -272,11 +281,20 @@ function formatExpiry(card: SavedCard): string {
 	return `${month}/${year}`;
 }
 
+const CARD_ACTION_BUTTON_CLASS: Record<CardActionView["variant"], string> = {
+	secondary: "btn btn--secondary btn--compact",
+	destructive: "account-cards__action account-cards__action--destructive",
+};
+
+function cardAction(input: Omit<CardActionView, "buttonClass">): CardActionView {
+	return { ...input, buttonClass: CARD_ACTION_BUTTON_CLASS[input.variant] };
+}
+
 function cardActions(card: SavedCard): CardActionView[] {
 	if (card.isPrimary) return [];
 	return [
-		{ key: "promote", name: "Make primary", variant: "secondary", href: buildCardPrimaryUrl(card.id) },
-		{ key: "remove", name: "Remove", variant: "destructive", href: buildCardRemoveUrl(card.id) },
+		cardAction({ key: "promote", name: "Make primary", variant: "secondary", href: buildCardPrimaryUrl(card.id) }),
+		cardAction({ key: "remove", name: "Remove", variant: "destructive", href: buildCardRemoveUrl(card.id) }),
 	];
 }
 

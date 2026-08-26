@@ -45,6 +45,6 @@ I can't promise Readplace will outlive Pocket and Omnivore. I can promise that i
 <div class="blog-cta">
 <p class="blog-cta__title">Read the web the way I do</p>
 <p class="blog-cta__text">Save a week of articles and let the reader view and the TL;DRs decide what's worth your time. If it doesn't fit, let the trial lapse — nothing is charged and your account goes read-only, with everything you saved still readable.</p>
-<a class="blog-cta__button" href="/signup?utm_source=blog-why-i-built&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
+<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-why-i-built&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
 <p class="blog-cta__note">No credit card required. $4/month ($49/year) if you stay.</p>
 </div>

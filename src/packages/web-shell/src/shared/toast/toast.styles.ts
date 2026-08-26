@@ -47,19 +47,7 @@ export const TOAST_STYLES = `.toast {
 
 .toast__action {
 	position: relative;
-	padding: var(--button-padding-sm);
-	background: var(--primary);
-	color: var(--primary-foreground);
-	border: none;
-	border-radius: var(--radius-sm);
-	font-size: 0.8125rem;
-	font-weight: 600;
-	cursor: pointer;
 	white-space: nowrap;
-}
-
-.toast__action:hover {
-	opacity: 0.9;
 }
 
 /**
@@ -89,7 +77,6 @@ export const TOAST_STYLES = `.toast {
 
 .toast__action:disabled {
 	cursor: progress;
-	opacity: 1;
 }
 
 .toast__action-loader span {

@@ -141,7 +141,7 @@
 }
 
 .hb-job__link {
-  color: var(--color-brand);
+  color: var(--primary-text);
   font-weight: 500;
   text-decoration: none;
 }
@@ -190,7 +190,7 @@
 }
 
 .hb-proof__link {
-  color: var(--color-brand);
+  color: var(--primary-text);
   text-decoration: none;
 }
 
@@ -239,13 +239,13 @@
 }
 
 .hb-close__import {
-  color: var(--color-brand);
+  color: var(--primary-text);
   font-weight: 500;
-  text-decoration: none;
+  text-decoration: underline;
 }
 
-.hb-close__import:hover {
-  text-decoration: underline;
+.hb-close__import-line {
+  margin: 0 0 var(--space-md, 16px);
 }
 
 .hb-close__note {

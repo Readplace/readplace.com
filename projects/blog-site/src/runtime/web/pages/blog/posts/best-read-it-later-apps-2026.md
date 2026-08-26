@@ -68,7 +68,7 @@ The part that matters most after watching Pocket and Omnivore die: the subscript
 <div class="blog-cta">
 <p class="blog-cta__title">Try Readplace on your own reading</p>
 <p class="blog-cta__text">Save a week's worth of articles and see how the reader view and the TL;DRs hold up. If it does not fit, let the trial lapse. Nothing is charged and the account drops to read-only.</p>
-<a class="blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
+<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
 <p class="blog-cta__note">No credit card required. $4/month ($49/year) if you stay.</p>
 </div>
 
@@ -227,6 +227,6 @@ Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote t
 <div class="blog-cta">
 <p class="blog-cta__title">See whether Readplace fits your reading</p>
 <p class="blog-cta__text">You have read my case and you know my bias. Fourteen days with the full product, on the articles you actually save, answers the question better than this page can.</p>
-<a class="blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
+<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
 <p class="blog-cta__note">No credit card required. $4/month ($49/year) if you stay. If you don't, nothing is charged and your account goes read-only.</p>
 </div>

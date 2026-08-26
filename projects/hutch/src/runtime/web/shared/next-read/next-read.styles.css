@@ -85,7 +85,7 @@
 
 .next-read__title {
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-text);
   text-wrap: pretty;
 }
 

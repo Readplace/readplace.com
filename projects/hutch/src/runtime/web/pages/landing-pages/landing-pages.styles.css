@@ -216,7 +216,7 @@
 }
 
 .lp-prose__paragraph a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 
@@ -270,7 +270,7 @@
 }
 
 .lp-proof__founder a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 
@@ -282,7 +282,7 @@
 }
 
 .lp-offer__note a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 
@@ -299,6 +299,7 @@
 }
 
 .lp-limits__title {
+  font-family: var(--font-serif);
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.3;
@@ -352,7 +353,7 @@
 }
 
 .lp-faq__answer a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 
@@ -377,7 +378,7 @@
 }
 
 .lp-close__note a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 

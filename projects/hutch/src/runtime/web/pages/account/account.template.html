@@ -30,7 +30,7 @@
               <form method="POST" action="{{href}}" class="account-cards__action-form"
                     hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
                     data-test-card-action="{{key}}">
-                <button type="submit" class="account-cards__action account-cards__action--{{variant}}">{{name}}</button>
+                <button type="submit" class="{{buttonClass}}">{{name}}</button>
               </form>
               {{/each}}
             </div>
@@ -44,7 +44,7 @@
         <form method="POST" action="{{cardSection.addUrl}}" class="account-cards__add-form"
               hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
               hx-push-url="false" data-test-add-card>
-          <button type="submit" class="account-cards__action account-cards__action--primary">Add a card</button>
+          <button type="submit" class="btn btn--primary btn--compact">Add a card</button>
         </form>
         {{/if}}
         {{#if cardSection.isAdding}}
@@ -55,8 +55,8 @@
           <div class="account-cards__element-mount" data-card-element></div>
           <p class="account-cards__element-error" data-card-error role="alert"></p>
           <div class="account-cards__elements-actions">
-            <button type="button" class="account-cards__action account-cards__action--primary" data-card-submit>Save card</button>
-            <a class="account-cards__cancel" href="/account" data-card-cancel>Cancel</a>
+            <button type="button" class="btn btn--primary btn--compact" data-card-submit>Save card</button>
+            <a class="btn btn--secondary btn--compact" href="/account" data-card-cancel>Cancel</a>
           </div>
         </div>
         {{/if}}
@@ -68,7 +68,7 @@
       <section class="account-export" data-test-account-export>
         <h2 class="account-export__heading">Your data</h2>
         <p class="account-export__body">Download every article you have saved, with your reading history, as a file you keep.</p>
-        <a class="account-export__action" href="{{exportHref}}" data-test-account-export-link>Export my data</a>
+        <a class="btn btn--secondary btn--compact account-export__action" href="{{exportHref}}" data-test-account-export-link>Export my data</a>
       </section>
       <section class="account-danger" data-test-account-danger>
         <h2 class="account-danger__heading">Danger zone</h2>
@@ -84,7 +84,7 @@
             name="{{dangerConfirmation.field}}" required pattern="{{dangerConfirmation.pattern}}"
             title="{{dangerConfirmation.title}}" autocomplete="off" autocapitalize="off" spellcheck="false"
             data-test-danger-confirm-input>
-          <button type="submit" class="account-card__action account-card__action--{{dangerAction.variant}}">{{dangerAction.name}}</button>
+          <button type="submit" class="{{dangerAction.buttonClass}}">{{dangerAction.name}}</button>
         </form>
       </section>
     </main>

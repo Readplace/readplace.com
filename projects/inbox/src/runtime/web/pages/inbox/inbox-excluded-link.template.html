@@ -10,7 +10,7 @@
   </div>
   <div class="inbox-excluded-link__actions">
     {{#if saveAction}}<form class="inbox-excluded-link__save" method="POST" action="{{saveAction}}" hx-post="{{saveAction}}" hx-target="#{{domId}}" hx-swap="outerHTML" hx-disabled-elt="find button">
-      <button type="submit" id="{{saveButtonId}}" class="inbox-excluded-link__save-button{{saveStateClass}}" aria-label="{{saveButton.ariaLabel}}" data-test-save-state="{{saveButton.saveState}}" data-test-inbox-excluded-save>{{#if saveButton.iconName}}{{icon saveButton.iconName}}{{/if}}{{saveButton.label}}</button>
+      <button type="submit" id="{{saveButtonId}}" class="{{buttonClass}}" aria-label="{{saveButton.ariaLabel}}" data-test-save-state="{{saveButton.saveState}}" data-test-inbox-excluded-save>{{#if saveButton.iconName}}{{icon saveButton.iconName}}{{/if}}{{saveButton.label}}</button>
     </form>{{/if}}
   </div>
 </div>

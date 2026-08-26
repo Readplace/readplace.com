@@ -111,7 +111,7 @@ It is still not the right fit for every reader, and the table below should tell 
 <div class="blog-cta">
 <p class="blog-cta__title">Judge it by your own reading</p>
 <p class="blog-cta__text">Fourteen days with the full product, on the articles you actually save, settles the free-versus-paid question better than any table.</p>
-<a class="blog-cta__button" href="/signup?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
+<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
 <p class="blog-cta__note">No credit card required. If the trial ends without a subscription, nothing is charged. The account drops to read-only.</p>
 </div>
 
@@ -133,6 +133,6 @@ The choice comes down to which cost you would rather carry: the dollars, the mai
 <div class="blog-cta">
 <p class="blog-cta__title">Try Readplace for two weeks</p>
 <p class="blog-cta__text">Save this week's articles into Readplace and see if it sticks.</p>
-<a class="blog-cta__button" href="/signup?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
+<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
 <p class="blog-cta__note">No credit card required. $4/month ($49/year) if you subscribe.</p>
 </div>

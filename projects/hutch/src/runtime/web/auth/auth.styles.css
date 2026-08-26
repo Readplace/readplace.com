@@ -50,7 +50,7 @@
 }
 
 .auth-card__link {
-  color: var(--primary);
+  color: var(--primary-text);
   font-weight: 600;
   text-decoration: underline;
 }

@@ -132,34 +132,25 @@
 }
 
 /* purgecss-ignore-start: action variants are interpolated dynamically in the template */
-.account-card__action {
+.account-card__action--destructive {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   cursor: pointer;
   border: 0;
   font-family: inherit;
-}
-
-.account-card__action--primary {
   padding: var(--button-padding);
   font-size: 0.9375rem;
   font-weight: 600;
   border-radius: var(--radius-sm);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--error-fill);
+  color: var(--error-foreground);
 }
 
-.account-card__action--destructive {
-  padding: var(--button-padding);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  border-radius: var(--radius-sm);
-  background: var(--error);
-  color: var(--primary-foreground);
-}
-
-.account-card__action--primary:hover,
-.account-card__action--destructive:hover {
-  opacity: 0.9;
+.account-card__action--destructive:hover,
+.account-card__action--destructive:active {
+  background: var(--error-fill-hover);
 }
 
 .account-card__action:disabled {
@@ -193,20 +184,6 @@
   margin: 0 0 12px;
   color: var(--foreground);
   line-height: 1.45;
-}
-
-.account-export__action {
-  display: inline-block;
-  padding: var(--button-padding-sm);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  color: var(--foreground);
-  font-size: 0.9375rem;
-  text-decoration: none;
-}
-
-.account-export__action:hover {
-  background: var(--background);
 }
 
 /* Rim, not fill: a permanently red-washed delete box shouts at a user who is not
@@ -390,35 +367,25 @@
 }
 
 /* purgecss-ignore-start: action variants are interpolated from CardActionView.variant in account.template.html */
-.account-cards__action {
+.account-cards__action--destructive {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   cursor: pointer;
   border: 0;
   font-family: inherit;
-  padding: 8px 14px;
-  font-size: 0.875rem;
+  padding: var(--button-padding-sm);
+  font-size: 0.8125rem;
   font-weight: 600;
   border-radius: var(--radius-sm);
+  background: var(--error-fill);
+  color: var(--error-foreground);
 }
 
-.account-cards__action--primary {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-
-.account-cards__action--secondary {
-  background: var(--background);
-  color: var(--foreground);
-  border: 1px solid var(--border);
-}
-
-.account-cards__action--destructive {
-  background: var(--error);
-  color: var(--primary-foreground);
-}
-
-.account-cards__action:hover {
-  opacity: 0.9;
+.account-cards__action--destructive:hover,
+.account-cards__action--destructive:active {
+  background: var(--error-fill-hover);
 }
 /* purgecss-ignore-end */
 
@@ -446,10 +413,4 @@
   display: flex;
   gap: 12px;
   align-items: center;
-}
-
-.account-cards__cancel {
-  color: var(--foreground);
-  text-decoration: underline;
-  font-size: 0.875rem;
 }

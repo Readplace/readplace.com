@@ -4,7 +4,7 @@ import { RECRAWL_STYLES } from "./recrawl.styles";
 export function AdminRecrawlLandingPage(): PageBody {
 	const content = `
 		<main class="admin-recrawl" data-test-admin-recrawl-landing>
-			<h1>Admin recrawl</h1>
+			<h1 class="admin-recrawl__title">Admin recrawl</h1>
 			<p>Forces a fresh re-crawl of any URL already in the articles DB. No caching, no TTL.</p>
 			<form method="GET" action="/admin/recrawl" data-test-admin-recrawl-form>
 				<label for="admin-recrawl-url">Article URL</label>
@@ -14,8 +14,9 @@ export function AdminRecrawlLandingPage(): PageBody {
 					name="url"
 					required
 					placeholder="https://example.com/article"
+					class="admin-recrawl__url-input"
 					data-test-admin-recrawl-input>
-				<button type="submit">Recrawl</button>
+				<button type="submit" class="btn btn--primary btn--field">Recrawl</button>
 			</form>
 		</main>`;
 

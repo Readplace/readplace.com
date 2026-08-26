@@ -25,7 +25,7 @@ export const NOT_FOUND_STYLES = `
 }
 
 .not-found__link {
-	color: var(--primary);
+	color: var(--primary-text);
 	text-decoration: underline;
 }
 `;

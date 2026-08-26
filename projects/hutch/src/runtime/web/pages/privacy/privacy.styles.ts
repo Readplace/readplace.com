@@ -50,7 +50,7 @@ export const LEGAL_PAGE_STYLES = `
 }
 
 .legal-page__section a {
-	color: var(--primary);
+	color: var(--primary-text);
 	text-decoration: underline;
 }
 `;

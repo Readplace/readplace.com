@@ -39,31 +39,12 @@
 }
 
 .auth-card__link {
-  color: var(--primary);
+  color: var(--primary-text);
   font-weight: 600;
   text-decoration: underline;
 }
 
 .auth-form__submit {
-  height: var(--input-height);
-  padding: 0 var(--button-padding-x);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: none;
-  border-radius: var(--radius);
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
   margin-top: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
   width: 100%;
-}
-
-.auth-form__submit:hover {
-  background: var(--accent);
-  opacity: 0.9;
 }

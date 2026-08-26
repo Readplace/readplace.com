@@ -64,11 +64,6 @@ hr::before {
   text-wrap: pretty;
 }
 
-.section-header__subtitle a {
-  color: var(--primary);
-  text-decoration: underline;
-}
-
 .home-band--muted {
   background: var(--muted);
   border-top: 1px solid var(--border);
@@ -291,7 +286,7 @@ hr::before {
   margin-top: 4px;
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: none;
 }
 
@@ -304,7 +299,7 @@ hr::before {
 }
 
 .home-ways__note a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 
@@ -389,8 +384,9 @@ hydration doesn't jump it. */
 
 .home-try__input {
   width: 100%;
-  padding: 14px 16px;
-  font-size: 1rem;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font-size: var(--input-font-size);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--background);
@@ -607,7 +603,7 @@ hydration doesn't jump it. */
   margin-top: 8px;
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: none;
 }
 
@@ -864,7 +860,7 @@ hydration doesn't jump it. */
 }
 
 .home-backstory__content a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 
@@ -873,7 +869,7 @@ hydration doesn't jump it. */
 }
 
 .home-backstory__highlight a {
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 .home-comparison {
@@ -1101,7 +1097,7 @@ hydration doesn't jump it. */
 }
 
 .home-cost__body a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
 }
 
@@ -1335,7 +1331,7 @@ hydration doesn't jump it. */
 }
 
 .home-cta__link {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: underline;
   font-size: 0.9375rem;
   font-weight: 500;

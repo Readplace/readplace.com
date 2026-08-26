@@ -9,20 +9,20 @@ const INBOX_EXCLUDED_LINK_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-const SAVE_STATE_CLASSES: Record<SaveButtonState, string> = {
-	saved: " inbox-excluded-link__save-button--saved",
-	saving: " inbox-excluded-link__save-button--saving",
-	unsaved: "",
+const SAVE_BUTTON_CLASSES: Record<SaveButtonState, string> = {
+	unsaved: "btn btn--primary btn--compact",
+	saving: "btn btn--primary btn--compact inbox-excluded-link__save-button--saving",
+	saved: "btn btn--secondary btn--compact inbox-excluded-link__save-button--saved",
 };
 
 interface InboxExcludedLinkDisplayModel extends ExcludedLinkViewModel {
-	saveStateClass: string;
+	buttonClass: string;
 }
 
 function toDisplayModel(vm: ExcludedLinkViewModel): InboxExcludedLinkDisplayModel {
 	return {
 		...vm,
-		saveStateClass: SAVE_STATE_CLASSES[vm.saveButton.saveState],
+		buttonClass: `${SAVE_BUTTON_CLASSES[vm.saveButton.saveState]} inbox-excluded-link__save-button`,
 	};
 }
 

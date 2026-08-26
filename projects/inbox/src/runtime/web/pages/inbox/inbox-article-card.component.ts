@@ -9,14 +9,17 @@ const INBOX_ARTICLE_CARD_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-const SAVE_STATE_CLASSES: Record<SaveButtonState, string> = {
-	saved: " inbox-article-card__action-button--saved",
-	saving: " inbox-article-card__action-button--saving",
-	unsaved: "",
+type ActionEmphasis = SaveButtonState | "supporting";
+
+const ACTION_BUTTON_CLASSES: Record<ActionEmphasis, string> = {
+	unsaved: "btn btn--primary btn--compact",
+	saving: "btn btn--primary btn--compact inbox-article-card__action-button--saving",
+	saved: "btn btn--secondary btn--compact inbox-article-card__action-button--saved",
+	supporting: "btn btn--secondary btn--compact",
 };
 
 interface InboxArticleCardActionDisplayModel extends InboxCardAction {
-	saveStateClass: string;
+	buttonClass: string;
 }
 
 interface InboxArticleCardDisplayModel extends Omit<InboxLinkCardViewModel, "actions"> {
@@ -30,7 +33,7 @@ function toDisplayModel(vm: InboxLinkCardViewModel): InboxArticleCardDisplayMode
 		cardStatus: vm.cardPollUrl === undefined ? "terminal" : "pending",
 		actions: vm.actions.map((action) => ({
 			...action,
-			saveStateClass: action.saveState === undefined ? "" : SAVE_STATE_CLASSES[action.saveState],
+			buttonClass: `${ACTION_BUTTON_CLASSES[action.saveState ?? "supporting"]} inbox-article-card__action-button`,
 		})),
 	};
 }

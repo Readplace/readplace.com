@@ -215,6 +215,14 @@ describe("ChromelessPage", () => {
 		expect(shellCss(NO_BANNER)).toContain("--banner-area-height: 0px");
 	});
 
+	it("ships the shared button system, so a page's .btn markup is a button here as it is under the full shell", () => {
+		const css = shellCss(NO_BANNER);
+
+		expect(css).toContain(".btn {");
+		expect(css).toContain(".btn--primary {");
+		expect(css).toContain(".btn--secondary {");
+	});
+
 	it("stamps the request's nonce on every inline script and style this shell emits", () => {
 		const doc = new JSDOM(
 			ChromelessPage(createTestPageBody(), WITH_BANNER).to("text/html").body,

@@ -6,8 +6,10 @@ import { buildInboxLinkPollUrl } from "./inbox-link-poll-url";
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
 import { type SaveButtonState, toInboxSaveButtonViewModel } from "./inbox-save-button.viewmodel";
 
+type InboxCardActionKey = "save" | "feedback-exclude";
+
 export interface InboxCardAction {
-	key: string;
+	key: InboxCardActionKey;
 	label: string;
 	ariaLabel: string;
 	/** Stable across a poll swap so htmx can restore focus to this button after it

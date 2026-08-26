@@ -71,12 +71,11 @@
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 120ms ease, filter 120ms ease, background 120ms ease;
+  transition: transform 120ms ease, background 120ms ease;
 }
 
 .share-balloon__copy:hover {
   background: var(--color-surface);
-  filter: brightness(0.97);
 }
 
 .share-balloon__copy:active {
@@ -96,12 +95,11 @@
   cursor: pointer;
   font: inherit;
   text-align: left;
-  transition: transform 120ms ease, filter 120ms ease, background 120ms ease;
+  transition: transform 120ms ease, background 120ms ease;
 }
 
 .share-balloon:hover {
   background: var(--color-surface);
-  filter: brightness(0.97);
 }
 
 .share-balloon:active {
