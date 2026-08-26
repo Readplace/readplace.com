@@ -373,7 +373,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 	it("hides the payment-methods section", () => {
 		const web = toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now);
 		assert.equal(web.showCardSection, true);
-		assert.equal(withoutCommerce(web, { appShell: false }).showCardSection, false);
+		assert.equal(withoutCommerce(web, { appShell: false, platform: "ios" }).showCardSection, false);
 	});
 
 	it("strips a visible renewal line — naming a price in-app is the part Guideline 3.1.1 objects to", () => {
@@ -389,13 +389,13 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 			chargeSoon,
 		);
 		assert.equal(web.nextCharge.state, "visible");
-		assert.equal(withoutCommerce(web, { appShell: false }).nextCharge.state, "hidden");
+		assert.equal(withoutCommerce(web, { appShell: false, platform: "ios" }).nextCharge.state, "hidden");
 	});
 
 	it("keeps the cancel control but routes it through ?platform=ios so its post-redirect keeps the surface", () => {
 		const vm = withoutCommerce(
 			toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now),
-			{ appShell: false },
+			{ appShell: false, platform: "ios" },
 		);
 		assert.deepEqual(
 			vm.actions.map((a) => a.key),
@@ -414,7 +414,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 				{ ...baseQuery, cancelling: true, pollCount: 1 },
 				now,
 			),
-			{ appShell: false },
+			{ appShell: false, platform: "ios" },
 		);
 		assert.equal(vm.pollState, "polling");
 		assert.equal(vm.pollUrl, "/account/status?cancelling=1&poll=2&platform=ios");
@@ -427,7 +427,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 				{ ...baseQuery, cancelling: true, pollCount: 1 },
 				now,
 			),
-			{ appShell: true },
+			{ appShell: true, platform: "ios" },
 		);
 		assert.equal(vm.pollUrl, "/account/status?cancelling=1&poll=2&platform=ios&shell=app");
 	});
@@ -440,7 +440,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 				baseQuery,
 				now,
 			),
-			{ appShell: false },
+			{ appShell: false, platform: "ios" },
 		);
 		assert.deepEqual(vm.actions, []);
 	});
@@ -457,7 +457,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 				baseQuery,
 				now,
 			),
-			{ appShell: false },
+			{ appShell: false, platform: "ios" },
 		);
 		assert.deepEqual(vm.actions, []);
 	});
@@ -469,7 +469,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 				baseQuery,
 				now,
 			),
-			{ appShell: false },
+			{ appShell: false, platform: "ios" },
 		);
 		assert.equal(vm.dangerAction.key, "delete-account");
 		assert.equal(
@@ -482,7 +482,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 	it("stamps the app-shell marker alongside platform=ios on every surviving control, so a boosted POST comes back chromeless", () => {
 		const vm = withoutCommerce(
 			toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now),
-			{ appShell: true },
+			{ appShell: true, platform: "ios" },
 		);
 		assert.equal(
 			vm.actions[0].href,

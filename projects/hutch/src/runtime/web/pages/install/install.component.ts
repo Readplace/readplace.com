@@ -61,6 +61,14 @@ const CLIENT_ALIASES: Record<string, ClientName | undefined> = {
 	ai: "claude",
 };
 
+export const ANDROID_TAB_REVEAL_QUERY = { name: "feature", value: "android" } as const;
+
+const TAB_HIDDEN_UNTIL_REVEALED: ClientName = "android";
+
+export function revealsAndroidTab(featureQuery: unknown): boolean {
+	return featureQuery === ANDROID_TAB_REVEAL_QUERY.value;
+}
+
 export function parseClient(value: unknown): InstallClient {
 	if (value === undefined) return "chrome";
 	const raw = String(value);
@@ -84,8 +92,13 @@ export async function fetchFirefoxDownloadUrl(): Promise<string | null> {
 	);
 }
 
+/** Whether this panel needs the self-hosted EXTENSION pointer fetched before it
+ * can render its download CTA. Scoped to the browser-extension group because a
+ * native app with no storefront is `selfHostedPointer` too, yet has no build for
+ * that pointer to name. */
 export function isSelfHostedDownload(client: InstallClient): boolean {
-	return clientByName(client).install.kind === "selfHostedPointer";
+	const found = clientByName(client);
+	return found.group === "browserExtension" && found.install.kind === "selfHostedPointer";
 }
 
 interface InstallTab {
@@ -104,12 +117,14 @@ interface InstallTabGroup {
 	tabs: InstallTab[];
 }
 
-function buildTabGroups(active: ClientName): InstallTabGroup[] {
+function buildTabGroups(active: ClientName, androidTabRevealed: boolean): InstallTabGroup[] {
 	const groups: InstallTabGroup[] = CLIENT_CATEGORIES.map((category) => {
 		const { slug, label } = CATEGORY_TAB_GROUPS[category];
 		return { key: slug, label, labelId: `install-group-${slug}`, tabs: [] };
 	});
+	const revealQuery = androidTabRevealed ? `&${ANDROID_TAB_REVEAL_QUERY.name}=${ANDROID_TAB_REVEAL_QUERY.value}` : "";
 	for (const client of SUPPORTED_CLIENTS) {
+		if (client.name === TAB_HIDDEN_UNTIL_REVEALED && !androidTabRevealed) continue;
 		const { slug } = CATEGORY_TAB_GROUPS[clientCategoryOfGroup(client.group)];
 		const target = groups.find((candidate) => candidate.key === slug);
 		assert(target, `no install tab group for category slug ${slug}`);
@@ -118,7 +133,10 @@ function buildTabGroups(active: ClientName): InstallTabGroup[] {
 			key: client.name,
 			label: client.displayName,
 			iconSvg: CLIENT_ICON_SVG[client.name],
-			href: withInternalTracking(`/install?client=${client.name}`, { source: "install-tabs", content: client.name }),
+			href: withInternalTracking(`/install?client=${client.name}${revealQuery}`, {
+				source: "install-tabs",
+				content: client.name,
+			}),
 			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
 		});
@@ -130,7 +148,7 @@ function buildTabGroups(active: ClientName): InstallTabGroup[] {
 const BROWSER_SETUP_OUTRO =
 	"You sign in once and your queue syncs across every browser and device. Right-click to save all your open tabs, or a link you haven't opened yet.";
 
-const IOS_SETUP_OUTRO =
+const APP_SETUP_OUTRO =
 	"Save what you want to read while you're out, then read it in the app or at readplace.com when you have the time. Any feedback is welcome in-app.";
 
 /** The recording carries the whole share flow, so the panel states only what it
@@ -156,7 +174,16 @@ type PanelCopy = {
 		demoAriaLabel: string;
 		demoCaption: string;
 	};
-	nativeApp: { group: "nativeApp" };
+	nativeApp: {
+		group: "nativeApp";
+		title: string;
+		lead: string;
+		cta: { href: string; label: string; testId: string } | null;
+		demo: { ariaLabel: string; caption: string } | null;
+		unavailable: { testId: string; text: string } | null;
+		outro: string;
+		outroTestId: string;
+	};
 	aiAssistant: { group: "aiAssistant"; intro: string; promptLabel: string; prompt: string; requirement: string };
 };
 
@@ -184,7 +211,29 @@ const PANEL_DATA = {
 			"Pinning Readplace to the Chrome toolbar from the extensions menu, then saving the page in one click",
 		demoCaption: "Pin Readplace once, then one click saves whatever you're reading.",
 	},
-	iphone: { group: "nativeApp" },
+	iphone: {
+		group: "nativeApp",
+		title: "Readplace on iPhone",
+		lead: "Save links from any browser on your iPhone — no copy-paste, and no need to open the app to save. The same app runs on your Mac.",
+		cta: { href: IPHONE_APP_STORE_URL, label: "Install Readplace for iPhone", testId: "download-iphone" },
+		demo: IPHONE_DEMO,
+		unavailable: null,
+		outro: APP_SETUP_OUTRO,
+		outroTestId: "ios-setup-outro",
+	},
+	android: {
+		group: "nativeApp",
+		title: "Readplace on Android",
+		lead: "Save links from any browser on your Android phone — no copy-paste, and no need to open the app to save.",
+		cta: null,
+		demo: null,
+		unavailable: {
+			testId: "android-availability",
+			text: "The Android app is built, and its Play Store listing is on the way. Until it lands, readplace.com works in your Android browser, and a connected AI assistant can save links for you.",
+		},
+		outro: APP_SETUP_OUTRO,
+		outroTestId: "android-setup-outro",
+	},
 	chatgpt: {
 		group: "aiAssistant",
 		intro:
@@ -232,9 +281,20 @@ interface AiAssistant {
 	directInstallLabel: string;
 }
 
+interface NativeApp {
+	key: ClientName;
+	title: string;
+	lead: string;
+	cta: { href: string; label: string; testId: string } | null;
+	demo: (ShareDemoVideo & { ariaLabel: string; caption: string }) | null;
+	unavailable: { testId: string; text: string } | null;
+	outro: string;
+	outroTestId: string;
+}
+
 type PanelView =
 	| { type: "browserExtension"; browser: BrowserExtension }
-	| { type: "nativeApp"; demo: ShareDemoVideo & typeof IPHONE_DEMO }
+	| { type: "nativeApp"; app: NativeApp }
 	| { type: "aiAssistant"; assistant: AiAssistant };
 
 function buildPanel(
@@ -262,7 +322,19 @@ function buildPanel(
 				},
 			};
 		case "nativeApp":
-			return { type: "nativeApp", demo: { ...buildShareDemoVideo(staticBaseUrl), ...IPHONE_DEMO } };
+			return {
+				type: "nativeApp",
+				app: {
+					key: client.name,
+					title: data.title,
+					lead: data.lead,
+					cta: data.cta,
+					demo: data.demo ? { ...buildShareDemoVideo(staticBaseUrl), ...data.demo } : null,
+					unavailable: data.unavailable,
+					outro: data.outro,
+					outroTestId: data.outroTestId,
+				},
+			};
 		case "aiAssistant":
 			assert(
 				client.install.kind === "mcpConnector",
@@ -283,13 +355,18 @@ function buildPanel(
 	}
 }
 
-export function InstallPage(params: { firefox: string | null; client: InstallClient; staticBaseUrl: string }): PageBody {
+export function InstallPage(params: {
+	firefox: string | null;
+	client: InstallClient;
+	staticBaseUrl: string;
+	androidTabRevealed: boolean;
+}): PageBody {
 	const panel = buildPanel(params.client, params.firefox, params.staticBaseUrl);
 	return {
 		seo: {
-			title: "Install Readplace — Browser, iPhone & AI Assistants",
+			title: "Install Readplace — Browser, Phone & AI Assistants",
 			description:
-				"The #1 Personal Reading List. Install the Readplace browser extension for Firefox or Chrome, get the iPhone app on the App Store, or connect your AI assistant to save and read your reading list.",
+				"The #1 Personal Reading List. Install the Readplace browser extension for Firefox or Chrome, get the iPhone app on the App Store, see where the Android app is up to, or connect your AI assistant to save and read your reading list.",
 			canonicalUrl: "https://readplace.com/install",
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,
@@ -364,10 +441,8 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 			html: render(
 				INSTALL_TEMPLATE,
 				{
-					groups: buildTabGroups(params.client),
+					groups: buildTabGroups(params.client, params.androidTabRevealed),
 					panel,
-					iphoneAppStoreUrl: IPHONE_APP_STORE_URL,
-					iosOutro: IOS_SETUP_OUTRO,
 					browserOutro: BROWSER_SETUP_OUTRO,
 					mcpServerUrl: MCP_SERVER_URL,
 					mcpGuideUrl: MCP_GUIDE_URL,

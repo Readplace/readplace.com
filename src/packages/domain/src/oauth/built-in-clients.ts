@@ -15,6 +15,8 @@ import { OAuthClientIdSchema } from "./oauth.schema";
  */
 export const IOS_NATIVE_OAUTH_CALLBACK_URI = "readplace://oauth-callback";
 
+export const ANDROID_NATIVE_OAUTH_CALLBACK_URI = "readplace://oauth-callback/android";
+
 /**
  * Readplace's own browser extensions are first-party OAuth clients with fixed,
  * pre-provisioned identities — they are not self-registered through Dynamic
@@ -53,6 +55,12 @@ const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient | undefined> = {
 		redirectUris: [IOS_NATIVE_OAUTH_CALLBACK_URI],
 		grants: ["authorization_code", "refresh_token"],
 	},
+	"android-app": {
+		id: OAuthClientIdSchema.parse("android-app"),
+		name: "Readplace Android App",
+		redirectUris: [ANDROID_NATIVE_OAUTH_CALLBACK_URI],
+		grants: ["authorization_code", "refresh_token"],
+	},
 } satisfies Record<BuiltInOAuthClientId, OAuthClient>;
 
 export function getBuiltInClient(clientId: string): OAuthClient | undefined {
@@ -71,6 +79,7 @@ const REVOKE_DESTROYS_ALL_SESSIONS = {
 	"hutch-firefox-extension": false,
 	"hutch-chrome-extension": false,
 	"ios-app": true,
+	"android-app": true,
 } satisfies Record<BuiltInOAuthClientId, boolean>;
 
 export function revokeDestroysUserSessions(clientId: string): boolean {

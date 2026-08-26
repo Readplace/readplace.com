@@ -7,7 +7,7 @@ import type { ClientGroup, ClientGroupInCategory } from "@packages/supported-cli
  */
 const POSSESSIVE_SURFACES = {
 	browserExtension: "your browser",
-	nativeApp: "your iPhone",
+	nativeApp: "your phone",
 	aiAssistant: "your AI assistant",
 } satisfies Record<ClientGroup, string>;
 
@@ -15,7 +15,7 @@ export const SAVE_SURFACES_PHRASE = `${POSSESSIVE_SURFACES.browserExtension}, ${
 
 const SHORT_SURFACES = {
 	browserExtension: "your browser",
-	nativeApp: "iPhone",
+	nativeApp: "phone",
 	aiAssistant: "AI assistant",
 } satisfies Record<ClientGroup, string>;
 
@@ -23,7 +23,7 @@ export const SAVE_SURFACES_SHORT_PHRASE = `${SHORT_SURFACES.browserExtension}, $
 
 const SETUP_LOCATIONS = {
 	browserExtension: "in your browser",
-	nativeApp: "on your iPhone",
+	nativeApp: "on your phone",
 	aiAssistant: "in your AI assistant",
 } satisfies Record<ClientGroup, string>;
 
@@ -35,7 +35,7 @@ export const SETUP_SURFACES_PHRASE = `${SETUP_LOCATIONS.browserExtension}, ${SET
  * is why this phrase deliberately excludes them. */
 const FULL_PAGE_CAPTURE_SURFACES = {
 	browserExtension: "the browser extension",
-	nativeApp: "iPhone app",
+	nativeApp: "phone apps",
 } satisfies Record<ClientGroupInCategory<"contentCapture">, string>;
 
 export const FULL_PAGE_CAPTURE_PHRASE = `${FULL_PAGE_CAPTURE_SURFACES.browserExtension} and ${FULL_PAGE_CAPTURE_SURFACES.nativeApp}`;

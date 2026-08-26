@@ -2,20 +2,22 @@ import type { Request } from "express";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import type { ClientName, ClientNameInCategory } from "@packages/supported-clients";
-import type { InstallBrowser, InstallSurface, Platform } from "./onboarding.types";
+import type { InstallBrowser, Platform } from "./onboarding.types";
 
 const INSTALL_URLS: Record<Platform, string> = {
 	firefox: "/install?client=firefox",
 	chrome: "/install?client=chrome",
 	iphone: "/install?client=iphone",
+	android: "/install?client=android",
 	other: "/install",
 };
 
 const INSTALL_BROWSER_BY_PLATFORM: Record<Platform, InstallBrowser> = {
 	firefox: "firefox",
 	chrome: "chrome",
-	// iPhone has no extension-install CTA on the marketing pages → generic button.
+	// A phone has no extension-install CTA on the marketing pages → generic button.
 	iphone: "other",
+	android: "other",
 	other: "other",
 };
 
@@ -30,10 +32,11 @@ export function isExtensionSavedArticle(req: Request): boolean {
 }
 
 /**
- * 1. iPhone holds the lowest rank because every iOS browser UA contains "iPhone"
- *    while iOS Chrome/Firefox identify as CriOS/FxiOS (never Chrome//Firefox/),
- *    and no desktop UA contains "iPhone" — so it buckets every iPhone visitor
- *    before a desktop token can claim them.
+ * 1. The phone tokens hold the lowest ranks because every mobile browser UA
+ *    carries its platform token — "iPhone", or "Android" — while the mobile
+ *    Chrome/Firefox builds also carry Chrome//Firefox/ (iOS uses CriOS/FxiOS,
+ *    which match neither), and no desktop UA carries either platform token. So
+ *    they bucket every phone visitor before a desktop token can claim them.
  * 2. `chrome` names the client a visitor can INSTALL, not the browser engine
  *    they run: Edge, Opera, Samsung Internet and Brave all resolve here because
  *    the Chrome Web Store serves them all. The analytics browser families are a
@@ -42,8 +45,9 @@ export function isExtensionSavedArticle(req: Request): boolean {
  */
 const UA_SIGNATURES = {
 	iphone: { token: "iPhone", rank: 0 }, /* 1 */
-	firefox: { token: "Firefox/", rank: 1 },
-	chrome: { token: "Chrome/", rank: 2 }, /* 2 */
+	android: { token: "Android", rank: 1 }, /* 1 */
+	firefox: { token: "Firefox/", rank: 2 },
+	chrome: { token: "Chrome/", rank: 3 }, /* 2 */
 } satisfies Record<ClientNameInCategory<"contentCapture">, { token: string; rank: number }>;
 
 function isDetectable(name: ClientName): name is keyof typeof UA_SIGNATURES {
@@ -61,46 +65,19 @@ export function detectPlatform(req: Request): Platform {
 
 /** Extension-install CTA browser for a request, projected from the canonical
  * {@link detectPlatform} so `/` and the A/B landing arms never re-sniff the UA.
- * Falls back to the generic `other` CTA on any device with no installable client
- * (Android — whose Chrome/Firefox can't take our extension — and the
- * unrecognised `other` bucket) so a marketing page never offers a
- * browser-specific "Install" the device can't honour. */
+ * Falls back to the generic `other` CTA on any device with no extension to
+ * install (either phone, and the unrecognised `other` bucket) so a marketing
+ * page never offers a browser-specific "Install" the device can't honour. */
 export function detectInstallBrowser(req: Request): InstallBrowser {
-	return INSTALL_BROWSER_BY_PLATFORM[installablePlatform(req)];
-}
-
-/** {@link detectPlatform} narrowed to what this device can actually install, so
- * every caller inherits the Android exclusion instead of having to remember it. */
-export function installablePlatform(req: Request): Platform {
-	if (!hasInstallableClient(req)) return "other";
-	return detectPlatform(req);
+	return INSTALL_BROWSER_BY_PLATFORM[detectPlatform(req)];
 }
 
 /** True when this device has a first-party client the user can actually
- * install (a browser extension or the iPhone app). False for Android — whose
- * Chrome/Firefox both still match Chrome//Firefox/ in detectPlatform yet
- * cannot install our extension — and for the "other" bucket (desktop Safari,
- * iPad, unrecognised UAs), where the onboarding install step can never
- * complete. Android is read from the raw UA precisely because detectPlatform
- * would otherwise mislabel it "chrome"/"firefox". */
+ * install (a browser extension or one of the phone apps). False for the
+ * "other" bucket (desktop Safari, iPad, unrecognised UAs), where the
+ * onboarding install step can never complete. */
 export function hasInstallableClient(req: Request): boolean {
-	if (isAndroid(req)) return false;
 	return detectPlatform(req) !== "other";
-}
-
-export function isAndroid(req: Request): boolean {
-	return (req.headers["user-agent"] ?? "").includes("Android");
-}
-
-/** Where a visitor is reading from, for surfaces that must answer for every
- * device rather than only the ones carrying a first-party client. Android earns
- * a name of its own here — {@link detectPlatform} mislabels it `chrome`/`firefox`
- * and {@link installablePlatform} folds it into `other`, yet it is neither. */
-export function detectInstallSurface(req: Request): InstallSurface {
-	const platform = detectPlatform(req);
-	if (platform === "iphone") return "iphone";
-	if (isAndroid(req)) return "android";
-	return platform;
 }
 
 export function buildExtensionInstallUrl(platform: Platform): string {
@@ -112,7 +89,7 @@ const NATIVE_APP_PLATFORMS: ReadonlySet<Platform> = new Set(
 );
 
 export function extensionInstallUrlIfMissing(req: Request): string | undefined {
-	const platform = installablePlatform(req);
+	const platform = detectPlatform(req);
 	/* The reader-page suggestion CTA is extension-specific; native-app platforms
 	 * have no extension, so it must never surface with "extension" wording there. */
 	if (NATIVE_APP_PLATFORMS.has(platform)) return undefined;

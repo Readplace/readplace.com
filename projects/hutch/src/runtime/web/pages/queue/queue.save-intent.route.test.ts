@@ -10,7 +10,7 @@ import {
 	type TestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
+import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 
 const TEST_USER_ID = "test-user-save-intent" as UserId;
 
@@ -164,7 +164,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
-				.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+				.set(NATIVE_CLIENT_HEADER, "ios")
 				.send({ url: "https://example.com/article" });
 
 			expect(response.status).toBe(201);

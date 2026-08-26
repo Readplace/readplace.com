@@ -39,10 +39,11 @@ export function buildSiteWebmanifest(staticBaseUrl: string): string {
 			related_applications: [
 				{ platform: "itunes", url: IPHONE_APP_STORE_URL, id: APPLE_APP_ID },
 			],
-			/** One manifest is served to every platform and there is no Android app,
-			 * so preferring the native app would suppress the installable web app on
-			 * Android and desktop Chrome, where there is nothing to prefer. Safari
-			 * ignores both fields, so this is a Chrome-side signal only. */
+			/** One manifest is served to every platform, and the Android app has no
+			 * Play Store listing to name here yet, so preferring the native app would
+			 * suppress the installable web app on Android and desktop Chrome, where
+			 * there is still nothing to prefer. Safari ignores both fields, so this is
+			 * a Chrome-side signal only. */
 			prefer_related_applications: false,
 		},
 		null,

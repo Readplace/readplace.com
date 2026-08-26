@@ -1,21 +1,16 @@
 import type { ClientNameInCategory, ClientNameInGroup } from "@packages/supported-clients";
 
 /** A device's installable first-party client, or `other`. These are exactly the
- * content-capture clients (browser extensions + the iPhone app), keyed off the
+ * content-capture clients (browser extensions + the phone apps), keyed off the
  * category so a new content-capture client widens onboarding automatically. */
 export type Platform = ClientNameInCategory<"contentCapture"> | "other";
 
-/** Marketing install-CTA browser buckets — {@link Platform} with iPhone folded into `other`. */
+/** Marketing install-CTA browser buckets — {@link Platform} with the phones folded into `other`. */
 export type InstallBrowser = ClientNameInGroup<"browserExtension"> | "other";
 
-/** Every device a visitor can arrive on, including the ones carrying no
- * first-party client. {@link Platform} widened with `android`, which has neither
- * an app nor an extension yet but must still be routed somewhere deliberate. */
-export type InstallSurface = Platform | "android";
-
 /** Onboarding for a device that has an installable first-party client (a
- * browser extension, or the iPhone app): the completion-gated step checklist,
- * with the per-step signals it reads. */
+ * browser extension, or one of the phone apps): the completion-gated step
+ * checklist, with the per-step signals it reads. */
 export interface InstallableClientOnboarding {
 	hasInstallableClient: true;
 	installed: boolean;
@@ -29,12 +24,11 @@ export interface InstallableClientOnboarding {
 	platform: Platform;
 }
 
-/** Onboarding for a device with no installable first-party client (Android,
- * desktop Safari, iPad, unrecognised UAs): the no-client escape card. It carries
- * no `platform`/`installed`/`savedArticle` — the step checklist never renders
+/** Onboarding for a device with no installable first-party client (desktop
+ * Safari, iPad, unrecognised UAs): the no-client escape card. It carries no
+ * `platform`/`installed`/`savedArticle` — the step checklist never renders
  * here, so there is deliberately no per-step signal that could disagree with the
- * no-client state (e.g. an Android visitor whose `platform` resolves to `chrome`
- * yet has no installable client). */
+ * no-client state. */
 interface NoInstallableClientOnboarding {
 	hasInstallableClient: false;
 }

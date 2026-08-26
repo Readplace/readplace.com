@@ -1,19 +1,26 @@
 import type { UserId } from "@packages/domain/user";
 
-/** Records that the iOS app made an authenticated request for this user, marking
- * the user "installed" (set-once). Idempotent — repeated calls never overwrite
+/** The native apps whose install/save progress is tracked per user. Each gets its
+ * own pair of timestamps: ticking the Android install step off an iPhone save
+ * would credit a device the user does not have. */
+export type NativeAppPlatform = "ios" | "android";
+
+/** Records that a native app made an authenticated request for this user, marking
+ * that app "installed" (set-once). Idempotent — repeated calls never overwrite
  * the first timestamp, so it is safe to call on every authenticated app request. */
-export type RecordIosAnyActivity = (params: {
+export type RecordNativeAppAnyActivity = (params: {
 	userId: UserId;
+	platform: NativeAppPlatform;
 }) => Promise<void>;
 
-/** Records that the user saved their first article from the iOS app, marking the
- * save (set-once). A save also implies the app is installed and signed in, so
- * this marks "installed" too — the share extension can save without ever loading
- * the queue, so the saved signal must not depend on a prior activity write.
+/** Records that the user saved their first article from a native app, marking the
+ * save (set-once). A save also implies that app is installed and signed in, so
+ * this marks "installed" too — a share sheet can save without ever loading the
+ * queue, so the saved signal must not depend on a prior activity write.
  * Idempotent — repeated calls never overwrite the first timestamps. */
-export type RecordIosSavedArticle = (params: {
+export type RecordNativeAppSavedArticle = (params: {
 	userId: UserId;
+	platform: NativeAppPlatform;
 }) => Promise<void>;
 
 /** Records that the account's save count reached the Next Read minimum
@@ -35,17 +42,16 @@ export type RecordNextReadStepOutstanding = (params: {
 }) => Promise<void>;
 
 /** Reads the per-user onboarding signals the `/queue` render ticks steps from.
- * `installed` is true once the iOS app has made any authenticated request and
- * `savedArticle` once a save has come from the app — both read by Safari, which
- * can't see the app's cookies. `nextReadMinimumReachedAt` is account-scoped
- * rather than device-scoped, and its presence is the milestone;
+ * Per app, `installed` is true once that app has made any authenticated request
+ * and `savedArticle` once a save has come from it — both read by the phone's
+ * browser, which can't see the app's cookies. `nextReadMinimumReachedAt` is
+ * account-scoped rather than device-scoped, and its presence is the milestone;
  * `nextReadStepOutstandingAt` says the reader once had saves to go, so the pair
  * separates a milestone earned from one granted to an already-deep queue. */
 export type GetOnboardingSignals = (params: {
 	userId: UserId;
 }) => Promise<{
-	installed: boolean;
-	savedArticle: boolean;
+	nativeApp: Record<NativeAppPlatform, { installed: boolean; savedArticle: boolean }>;
 	nextReadMinimumReachedAt: Date | undefined;
 	nextReadStepOutstandingAt: Date | undefined;
 }>;

@@ -14,7 +14,7 @@ describe("SUPPORTED_CLIENTS", () => {
 	it("pins the exact roster so changing it is a conscious edit", () => {
 		assert.deepEqual(
 			SUPPORTED_CLIENTS.map((client) => client.name),
-			["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"],
+			["firefox", "chrome", "iphone", "android", "chatgpt", "gemini", "claude"],
 		);
 	});
 
@@ -27,7 +27,12 @@ describe("SUPPORTED_CLIENTS", () => {
 		const builtInIds = SUPPORTED_CLIENTS.flatMap((client) =>
 			client.auth.kind === "builtIn" ? [client.auth.oauthClientId] : [],
 		);
-		assert.deepEqual(builtInIds, ["hutch-firefox-extension", "hutch-chrome-extension", "ios-app"]);
+		assert.deepEqual(builtInIds, [
+			"hutch-firefox-extension",
+			"hutch-chrome-extension",
+			"ios-app",
+			"android-app",
+		]);
 	});
 
 	it("gives every client a non-empty displayName and description", () => {
@@ -44,6 +49,7 @@ describe("SUPPORTED_CLIENTS", () => {
 				firefox: "selfHostedPointer",
 				chrome: "store",
 				iphone: "appStore",
+				android: "selfHostedPointer",
 				chatgpt: "mcpConnector",
 				gemini: "mcpConnector",
 				claude: "mcpConnector",
@@ -137,5 +143,6 @@ describe("clientNameForBuiltInOAuthClientId", () => {
 		assert.equal(clientNameForBuiltInOAuthClientId("hutch-firefox-extension"), "firefox");
 		assert.equal(clientNameForBuiltInOAuthClientId("hutch-chrome-extension"), "chrome");
 		assert.equal(clientNameForBuiltInOAuthClientId("ios-app"), "iphone");
+		assert.equal(clientNameForBuiltInOAuthClientId("android-app"), "android");
 	});
 });

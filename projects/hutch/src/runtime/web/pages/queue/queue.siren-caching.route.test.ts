@@ -6,10 +6,9 @@ import {
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import {
-	IOS_CLIENT_HEADER,
-	IOS_CLIENT_VALUE,
+	NATIVE_CLIENT_HEADER,
 	SAVE_CONTINUITY_HEADER,
-} from "../../onboarding/ios-client";
+} from "../../onboarding/native-client";
 import { SIREN_DISCOVERY_MAX_AGE_SECONDS } from "../../siren-discovery-cache";
 import { createAccessToken } from "../../test-helpers/oauth-token";
 import { useTestServer, loginAgent } from "../../../test-app";
@@ -30,7 +29,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
-			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+			.set(NATIVE_CLIENT_HEADER, "ios");
 
 		expect(response.status).toBe(200);
 		expect(response.headers["cache-control"]).toBe(
@@ -40,7 +39,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 			"accept",
 			"origin",
 			"authorization",
-			IOS_CLIENT_HEADER,
+			NATIVE_CLIENT_HEADER,
 			SAVE_CONTINUITY_HEADER,
 		]);
 		const etag = response.headers.etag;
@@ -63,7 +62,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 			"accept",
 			"origin",
 			"authorization",
-			IOS_CLIENT_HEADER,
+			NATIVE_CLIENT_HEADER,
 			SAVE_CONTINUITY_HEADER,
 		]);
 	});
@@ -76,7 +75,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 				.get("/queue")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
-				.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+				.set(NATIVE_CLIENT_HEADER, "ios");
 
 		const first = await readCollection();
 		const etag = first.headers.etag;
@@ -97,7 +96,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 				.get("/queue")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
-				.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+				.set(NATIVE_CLIENT_HEADER, "ios");
 
 		const before = await readCollection();
 		const staleEtag = before.headers.etag;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Request } from "express";
 import { parseHTML } from "linkedom";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
-import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
+import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { type SaveTipSpec, buildSaveTip } from "./save-tip.component";
 import { SAVE_TIP_ELEMENTS, SAVE_TIP_EVENT_PATH, SAVE_TIP_UTM_SOURCE } from "./save-tip-tracking";
 
@@ -21,8 +21,8 @@ function request(input: {
 		cookies: input.cookies ?? {},
 		query: {},
 		get(name: string) {
-			return name.toLowerCase() === IOS_CLIENT_HEADER && input.iosClient === true
-				? IOS_CLIENT_VALUE
+			return name.toLowerCase() === NATIVE_CLIENT_HEADER && input.iosClient === true
+				? "ios"
 				: undefined;
 		},
 	} as unknown as Request;
@@ -207,13 +207,13 @@ describe("buildSaveTip", () => {
 		});
 	});
 
-	describe("when the request comes from the iOS app", () => {
+	describe("when the request comes from a native app", () => {
 		it("points at the share sheet rather than an install the app already is", () => {
 			const doc = panelFor(request({ userAgent: IPHONE_SAFARI, iosClient: true }));
 
 			const variant = doc.querySelector("[data-test-save-tip-variant]");
 			assert(variant, "the panel must name the client variant it rendered");
-			expect(variant.getAttribute("data-test-save-tip-variant")).toBe("ios");
+			expect(variant.getAttribute("data-test-save-tip-variant")).toBe("app");
 			expect(variant.querySelector("[data-test-action='save-tip-install']")).toBeNull();
 		});
 	});

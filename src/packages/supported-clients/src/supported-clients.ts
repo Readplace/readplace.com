@@ -116,6 +116,14 @@ export const SUPPORTED_CLIENTS = [
 		auth: { kind: "builtIn", oauthClientId: "ios-app" }, /* 2 */
 	},
 	{
+		name: "android",
+		displayName: "Android",
+		group: "nativeApp",
+		description: "Saves from any Android browser via the share sheet.",
+		install: { kind: "selfHostedPointer" },
+		auth: { kind: "builtIn", oauthClientId: "android-app" },
+	},
+	{
 		name: "chatgpt",
 		displayName: "ChatGPT",
 		group: "aiAssistant",
@@ -224,6 +232,7 @@ const BUILT_IN_CLIENT_NAME_BY_OAUTH_ID = {
 	"hutch-firefox-extension": "firefox",
 	"hutch-chrome-extension": "chrome",
 	"ios-app": "iphone",
+	"android-app": "android",
 } as const satisfies Record<BuiltInOAuthClientId, BuiltInClientName>;
 
 export function clientNameForBuiltInOAuthClientId(oauthClientId: BuiltInOAuthClientId): BuiltInClientName {

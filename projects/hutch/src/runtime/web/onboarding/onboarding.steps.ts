@@ -32,6 +32,12 @@ const INSTALL_COPY: Record<Platform, StepCopy> = {
 			"Add the Readplace iPhone app and sign in so you can save any page from the iOS share sheet.",
 		actions: [{ label: "Install", url: buildExtensionInstallUrl("iphone") }],
 	},
+	android: {
+		title: "Install the Readplace Android app",
+		description:
+			"The Android app is built and its Play Store listing is on the way — see what it does and how to get it when it lands.",
+		actions: [{ label: "Learn more", url: buildExtensionInstallUrl("android") }],
+	},
 	other: {
 		title: "Install a browser extension",
 		description: INSTALL_BROWSER_DESCRIPTION,
@@ -54,6 +60,12 @@ const SAVE_COPY: Record<Platform, StepCopy> = {
 		title: "Save your first article using the iPhone app",
 		description:
 			"Open any page in Safari, tap Share, and choose Readplace to save it to your queue.",
+		actions: [],
+	},
+	android: {
+		title: "Save your first article using the Android app",
+		description:
+			"Open any page in your browser, tap Share, and choose Readplace to save it to your queue.",
 		actions: [],
 	},
 	other: {

@@ -144,10 +144,27 @@ export type DeviceClass =
 	| "bot"
 	| "other";
 
-const NATIVE_CLIENT_USER_AGENT = /^(?:Readplace|ShareExtension)\/\d+ CFNetwork\/[\d.]+ Darwin\/[\d.]+$/;
+/**
+ * One anchored arm per shipped native app, so a bot UA that merely mentions our
+ * app never matches. iOS sends the stock URLSession UA (two binaries — the app
+ * and its share extension); Android replaces OkHttp's default with a UA of the
+ * same `Product/version` shape, since `okhttp/x` identifies nothing.
+ */
+const NATIVE_CLIENT_USER_AGENTS = {
+	ios: /^(?:Readplace|ShareExtension)\/\d+ CFNetwork\/[\d.]+ Darwin\/[\d.]+$/,
+	android: /^Readplace\/\d+ Android\/[\d.]+$/,
+} as const;
+
+/** Which native app sent this User-Agent, or undefined for anything else. */
+export function readplaceNativeClientOf(userAgent: string | undefined): "ios" | "android" | undefined {
+	if (userAgent === undefined) return undefined;
+	if (NATIVE_CLIENT_USER_AGENTS.ios.test(userAgent)) return "ios";
+	if (NATIVE_CLIENT_USER_AGENTS.android.test(userAgent)) return "android";
+	return undefined;
+}
 
 export function isReadplaceNativeClient(userAgent: string | undefined): boolean {
-	return userAgent !== undefined && NATIVE_CLIENT_USER_AGENT.test(userAgent);
+	return readplaceNativeClientOf(userAgent) !== undefined;
 }
 
 export function isBotUserAgent(userAgent: string | undefined): boolean {
@@ -163,7 +180,9 @@ export function isBotUserAgent(userAgent: string | undefined): boolean {
  */
 export function classifyDeviceClass(userAgent: string | undefined): DeviceClass {
 	if (!userAgent) return "other";
-	if (isReadplaceNativeClient(userAgent)) return "mobile_ios";
+	const nativeClient = readplaceNativeClientOf(userAgent);
+	if (nativeClient === "ios") return "mobile_ios";
+	if (nativeClient === "android") return "mobile_android";
 	if (isbot(userAgent)) return "bot";
 	const isAndroid = userAgent.includes("Android");
 	if (userAgent.includes("iPad") || (isAndroid && !userAgent.includes("Mobile"))) return "tablet";

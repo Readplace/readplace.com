@@ -1702,7 +1702,7 @@ describe("Queue routes", () => {
 
 			expect(slot.getAttribute("data-reader-status")).toBe("blocked");
 			expect(slot.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(
-				"The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — the browser extension and iPhone app do this in one tap.",
+				"The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — the browser extension and phone apps do this in one tap.",
 			);
 			const actions = Array.from(slot.querySelectorAll("[data-test-reader-action]")).map(
 				(el) => el.getAttribute("data-test-reader-action"),

@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
 import {
-	IOS_CLIENT_HEADER,
+	NATIVE_CLIENT_HEADER,
 	SAVE_CONTINUITY_HEADER,
-	isIosClient,
-} from "./onboarding/ios-client";
+	isNativeClient,
+} from "./onboarding/native-client";
 
 export const SIREN_DISCOVERY_MAX_AGE_SECONDS = 3600;
 
@@ -13,12 +13,12 @@ const REVALIDATE_DIRECTIVE = "private, no-cache";
 const COLLECTION_VARY = [
 	"Accept",
 	"Authorization",
-	IOS_CLIENT_HEADER,
+	NATIVE_CLIENT_HEADER,
 	SAVE_CONTINUITY_HEADER,
 ].join(", ");
 
 export function setSirenCollectionCaching(req: Request, res: Response): void {
-	res.set("Cache-Control", isIosClient(req) ? MAX_AGE_DIRECTIVE : REVALIDATE_DIRECTIVE);
+	res.set("Cache-Control", isNativeClient(req) ? MAX_AGE_DIRECTIVE : REVALIDATE_DIRECTIVE);
 	res.vary(COLLECTION_VARY);
 }
 

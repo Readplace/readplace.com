@@ -192,21 +192,24 @@ import {
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
 import {
-	IOS_CLIENT_VALUE,
-	IOS_PLATFORM_QUERY,
+	PLATFORM_QUERY,
 	hasBackgroundSaveContinuity,
-	isIosClient,
-	isIosSurface,
-} from "../../onboarding/ios-client";
+	isNativeClient,
+	isNativeSurface,
+	nativeClientOf,
+	nativeSurfaceOf,
+} from "../../onboarding/native-client";
 import { setSirenCollectionCaching } from "../../siren-discovery-cache";
-import { APP_BACK_LINK } from "../../shared/ios-app-links";
+import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type {
 	GetOnboardingSignals,
-	RecordIosAnyActivity,
-	RecordIosSavedArticle,
+	NativeAppPlatform,
+	RecordNativeAppAnyActivity,
+	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
 	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";
+import type { Platform } from "../../onboarding/onboarding.types";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
 /** The dismiss-cookie value a device of this class writes on dismissal and the
@@ -367,13 +370,13 @@ interface QueueDependencies {
 	 * can't come from cookies because Safari can't see the app's cookie jar), and
 	 * the account-scoped Next Read milestone on every device that has a client. */
 	getOnboardingSignals: GetOnboardingSignals;
-	/** Marks the user "installed" when an authenticated iOS request carries the
-	 * client header — the cross-app-cookie-jar substitute for the extension's
+	/** Marks the user "installed" on the app whose authenticated request carries
+	 * the client header — the cross-app-cookie-jar substitute for the extension's
 	 * liveness cookie. */
-	recordIosAnyActivity: RecordIosAnyActivity;
-	/** Marks the user's first iOS save when a save request carries the client
-	 * header — the substitute for the extension's save cookie. */
-	recordIosSavedArticle: RecordIosSavedArticle;
+	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
+	/** Marks the user's first save from the app whose save request carries the
+	 * client header — the substitute for the extension's save cookie. */
+	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	/** Stamps the account the first time its save count reaches the Next Read
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
@@ -491,17 +494,35 @@ const VIEW_BACK_LINK = {
 	label: "Back to queue",
 } as const;
 
-/** Server-authored bridge for the iOS in-app reader: when the reader's mark-read
- * htmx request completes, tell the WKWebView so the native app closes the sheet
- * and reconciles its list. Guarded on the WKWebView message handler, so it is inert
+/** Resolves the one way this page can reach whichever native web view is hosting
+ * it, or null in an ordinary browser. Each platform's bridge is shaped by its own
+ * SDK and cannot be normalised away: WKWebView takes a structured object, while an
+ * Android `addJavascriptInterface` method takes a string. The iOS arm is checked
+ * first and left byte-identical, so builds already on phones keep the exact call
+ * they shipped against. */
+const readerBridgePostFn = `
+	var post = (function () {
+		var handlers = window.webkit && window.webkit.messageHandlers;
+		if (handlers && handlers.readplaceReader) {
+			return function (message) { handlers.readplaceReader.postMessage(message); };
+		}
+		var androidBridge = window.ReadplaceReader;
+		if (androidBridge && typeof androidBridge.postMessage === "function") {
+			return function (message) { androidBridge.postMessage(JSON.stringify(message)); };
+		}
+		return null;
+	})();
+	if (!post) { return; }`;
+
+/** Server-authored bridge for an app's in-app reader: when the reader's mark-read
+ * htmx request completes, tell the host web view so the native app closes the sheet
+ * and reconciles its list. Guarded on the bridge being present, so it is inert
  * in a normal browser that renders this same reader. Keeping the htmx detail here —
  * rather than injected by the app — keeps the htmx coupling on the server that owns
- * htmx; the app only registers the `readplaceReader` handler and reacts to the
+ * htmx; the app only registers the `readplaceReader` bridge and reacts to the
  * `markedRead` message, with no knowledge of the front-end's event shape. */
 const readerMarkReadBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspNonce}">
-(function () {
-	var handlers = window.webkit && window.webkit.messageHandlers;
-	if (!handlers || !handlers.readplaceReader) { return; }
+(function () {${readerBridgePostFn}
 	function hasStatusField(params) {
 		if (!params) { return false; }
 		if (typeof params.has === "function") { return params.has("status"); }
@@ -517,22 +538,20 @@ const readerMarkReadBridgeScript = (cspNonce: CspNonce) => `<script nonce="${csp
 	document.body.addEventListener("htmx:beforeSwap", function (event) {
 		if (!isStatusChange(event.detail)) { return; }
 		event.detail.shouldSwap = false;
-		handlers.readplaceReader.postMessage({ type: "markedRead" });
+		post({ type: "markedRead" });
 	});
 })();
 </script>`;
 
 const readerCaptureBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspNonce}">
-(function () {
-	var handlers = window.webkit && window.webkit.messageHandlers;
-	if (!handlers || !handlers.readplaceReader) { return; }
+(function () {${readerBridgePostFn}
 	document.documentElement.setAttribute("data-reader-capture-host", "");
 	document.body.addEventListener("click", function (event) {
 		var target = event.target;
 		var button = target && target.closest ? target.closest("[data-reader-capture]") : null;
 		if (!button) { return; }
 		button.disabled = true;
-		handlers.readplaceReader.postMessage({ type: "captureBlocked" });
+		post({ type: "captureBlocked" });
 		var pollUrl = button.getAttribute("data-reader-capture-poll");
 		if (!pollUrl) { return; }
 		function poll() {
@@ -544,13 +563,27 @@ const readerCaptureBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspN
 })();
 </script>`;
 
-/** True when the client wants the app's chromeless reader rather than the full web
+/** True when the client wants an app's chromeless reader rather than the full web
  * shell — chosen by an explicit client signal, never a user-agent sniff. The app
- * appends `?platform=ios` to the `read` link it loads in its WKWebView; the
+ * appends `?platform=` to the `read` link it loads in its web view; the
  * `x-readplace-client` header is honoured alongside it so a store-reviewed build
  * predating the query param — which cannot deploy in lockstep with the server —
  * still resolves to its chromeless reader. */
-const isIosPlatform = (req: Request): boolean => isIosSurface(req);
+const isAppPlatform = (req: Request): boolean => isNativeSurface(req);
+
+/** Whose install/save signals a device's platform reads: a native app's own
+ * server-side pair, or `undefined` for the extension's same-browser cookies.
+ * Every platform is answered explicitly, so a new content-capture client is a
+ * compile error here until it is told which signals it ticks — a phone app
+ * silently reading another phone's pair would tick a step on a device the user
+ * does not have. */
+const NATIVE_APP_SIGNAL_PLATFORM = {
+	iphone: "ios",
+	android: "android",
+	firefox: undefined,
+	chrome: undefined,
+	other: undefined,
+} as const satisfies Record<Platform, NativeAppPlatform | undefined>;
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
@@ -638,12 +671,16 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 	};
 
-	/** Records that the user saved their first article. From the iOS app (client
-	 * header present) this is a per-user server-side write so Safari's `/queue`
-	 * can read it; from the extension it is the same-browser-jar liveness cookie. */
+	/** Records that the user saved their first article. From a native app (client
+	 * header present) this is a per-user server-side write so the phone browser's
+	 * `/queue` can read it; from the extension it is the same-browser-jar liveness
+	 * cookie. */
 	const recordSaveSignal = async (req: Request, res: Response, userId: UserId): Promise<void> => {
-		if (isIosClient(req)) {
-			await recordOnboardingSignalBestEffort(() => deps.recordIosSavedArticle({ userId }));
+		const platform = nativeClientOf(req);
+		if (platform) {
+			await recordOnboardingSignalBestEffort(() =>
+				deps.recordNativeAppSavedArticle({ userId, platform }),
+			);
 			return;
 		}
 		markExtensionSavedArticle(res);
@@ -714,7 +751,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
-		const platform = isIosPlatform(req) ? `&${IOS_PLATFORM_QUERY}=${IOS_CLIENT_VALUE}` : "";
+		const surface = nativeSurfaceOf(req);
+		const platform = surface ? `&${PLATFORM_QUERY}=${surface}` : "";
 		return {
 			summary: (n) => `${QUEUE_PATH}/${articleId}/summary?poll=${n}${platform}`,
 			reader: (n, capturing) =>
@@ -722,10 +760,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		};
 	}
 
-	const readerReturnPath = (req: Request, articleId: string): string =>
-		isIosPlatform(req)
-			? `${QUEUE_PATH}/${articleId}/view?${IOS_PLATFORM_QUERY}=${IOS_CLIENT_VALUE}`
+	const readerReturnPath = (req: Request, articleId: string): string => {
+		const surface = nativeSurfaceOf(req);
+		return surface
+			? `${QUEUE_PATH}/${articleId}/view?${PLATFORM_QUERY}=${surface}`
 			: `${QUEUE_PATH}/${articleId}/view`;
+	};
 
 	const parseCapturingFlag = (raw: unknown): boolean =>
 		z.literal("1").safeParse(raw).success;
@@ -856,7 +896,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		const { article: ownedArticle, state, related, relatedPollUrl, queueFiling } = resolved;
 
-		if (isIosPlatform(req)) {
+		if (isAppPlatform(req)) {
 			const cspNonce = requireCspNonce(req);
 			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
 				appOrigin: deps.appOrigin,
@@ -1023,8 +1063,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			};
 		}
 		const signals = await deps.getOnboardingSignals({ userId });
-		const { installed, savedArticle } = platform === "iphone"
-			? signals
+		const nativeAppPlatform = NATIVE_APP_SIGNAL_PLATFORM[platform];
+		const { installed, savedArticle } = nativeAppPlatform
+			? signals.nativeApp[nativeAppPlatform]
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
 		const { savedCount, milestoneGranted } = await resolveNextReadProgress(userId, signals);
 		const onboardingDismissed = installed && dismissTokenMatches;
@@ -1203,13 +1244,16 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
-		/* The iOS app loads the queue over Siren on launch; record that authed
+		/* A native app loads the queue over Siren on launch; record that authed
 		 * request as the "app installed + signed in" signal so step 1 ticks before
-		 * any save. Header-gated, so Safari (no header) only ever reads, never writes.
-		 * Best-effort: the app's main screen loads over this request, so the signal
-		 * write must never be able to fail it. */
-		if (isIosClient(req)) {
-			await recordOnboardingSignalBestEffort(() => deps.recordIosAnyActivity({ userId }));
+		 * any save. Header-gated, so a browser (no header) only ever reads, never
+		 * writes. Best-effort: the app's main screen loads over this request, so the
+		 * signal write must never be able to fail it. */
+		const nativeClient = nativeClientOf(req);
+		if (nativeClient) {
+			await recordOnboardingSignalBestEffort(() =>
+				deps.recordNativeAppAnyActivity({ userId, platform: nativeClient }),
+			);
 		}
 		const siren = wantsSiren(req);
 		const context = siren
@@ -1256,8 +1300,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						url: filterUrl,
 					},
 					{
-						iosSurface: isIosPlatform(req),
-						iosClient: isIosClient(req) && !hasBackgroundSaveContinuity(req),
+						surfacePlatform: nativeSurfaceOf(req),
+						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
 						crawlByUrl,
 					},
 				),
@@ -1385,7 +1429,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					{ page: collection.page },
 					{
 						warning: { code: validation.error.code, message: validation.error.message },
-						iosSurface: isIosPlatform(req),
+						surfacePlatform: nativeSurfaceOf(req),
 						crawlByUrl,
 					},
 				),

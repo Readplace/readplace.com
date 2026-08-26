@@ -13,9 +13,9 @@ import {
 import {
 	APP_SHELL_QUERY,
 	APP_SHELL_VALUE,
-	IOS_CLIENT_VALUE,
-	IOS_PLATFORM_QUERY,
-} from "../../onboarding/ios-client";
+	PLATFORM_QUERY,
+} from "../../onboarding/native-client";
+import type { NativeClientPlatform } from "../../onboarding/native-client";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_NEW_URL,
@@ -466,16 +466,24 @@ function stateViewModel(
 
 /** Origin for parsing root-relative action hrefs; `.invalid` is reserved by RFC
  * 2606 so it can never resolve, and only `pathname`/`search` are read back. */
-const IOS_HREF_PARSE_ORIGIN = "https://internal.invalid";
+const APP_HREF_PARSE_ORIGIN = "https://internal.invalid";
 
-function carryAppSurfaceHref(href: string, options: { appShell: boolean }): string {
-	const url = new URL(href, IOS_HREF_PARSE_ORIGIN);
-	url.searchParams.set(IOS_PLATFORM_QUERY, IOS_CLIENT_VALUE);
+interface AppSurfaceOptions {
+	appShell: boolean;
+	/** Absent when the request named no platform — a shell-only build. Stamping a
+	 * guessed one would send its POSTs to another app's surface, so the href
+	 * carries only what the request actually declared. */
+	platform: NativeClientPlatform | undefined;
+}
+
+function carryAppSurfaceHref(href: string, options: AppSurfaceOptions): string {
+	const url = new URL(href, APP_HREF_PARSE_ORIGIN);
+	if (options.platform) url.searchParams.set(PLATFORM_QUERY, options.platform);
 	if (options.appShell) url.searchParams.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
 	return `${url.pathname}${url.search}`;
 }
 
-function carryAppSurface(action: AccountAction, options: { appShell: boolean }): AccountAction {
+function carryAppSurface(action: AccountAction, options: AppSurfaceOptions): AccountAction {
 	return { ...action, href: carryAppSurfaceHref(action.href, options) };
 }
 
@@ -495,7 +503,7 @@ function carryAppSurface(action: AccountAction, options: { appShell: boolean }):
  * marker must keep satisfying Guideline 3.1.1. */
 export function withoutCommerce(
 	vm: AccountViewModel,
-	options: { appShell: boolean },
+	options: AppSurfaceOptions,
 ): AccountViewModel {
 	return {
 		...vm,

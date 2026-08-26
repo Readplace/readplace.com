@@ -72,8 +72,8 @@ import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-aut
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type {
 	GetOnboardingSignals,
-	RecordIosAnyActivity,
-	RecordIosSavedArticle,
+	RecordNativeAppAnyActivity,
+	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
 	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -252,8 +252,8 @@ import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
 import { HelpAddLinksPage } from "./web/pages/help";
-import { isAppShell } from "./web/onboarding/ios-client";
-import { APP_BACK_LINK } from "./web/shared/ios-app-links";
+import { isAppShell } from "./web/onboarding/native-client";
+import { APP_BACK_LINK } from "./web/shared/native-app-links";
 import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
@@ -380,8 +380,8 @@ interface AppDependencies {
 	saveArticleKeepingPosition: SaveArticle;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	getOnboardingSignals: GetOnboardingSignals;
-	recordIosAnyActivity: RecordIosAnyActivity;
-	recordIosSavedArticle: RecordIosSavedArticle;
+	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
+	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	adminEmails: readonly string[];
@@ -1212,8 +1212,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		chromelessReader: ChromelessReader,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		getOnboardingSignals: deps.getOnboardingSignals,
-		recordIosAnyActivity: deps.recordIosAnyActivity,
-		recordIosSavedArticle: deps.recordIosSavedArticle,
+		recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,
+		recordNativeAppSavedArticle: deps.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
 		recordNextReadStepOutstanding: deps.recordNextReadStepOutstanding,
 		dualAuth: dualAuthMiddleware,

@@ -10,6 +10,7 @@ import {
 	parseClient,
 	fetchFirefoxDownloadUrl,
 	isSelfHostedDownload,
+	revealsAndroidTab,
 } from "./install.component";
 
 export function initInstallRoutes(deps: { buildBannerState: BuildBannerState; staticBaseUrl: string }): Router {
@@ -27,7 +28,12 @@ export function initInstallRoutes(deps: { buildBannerState: BuildBannerState; st
 			return;
 		}
 		const firefox = isSelfHostedDownload(client) ? await fetchFirefoxDownloadUrl() : null;
-		sendComponent(req, res, Base(InstallPage({ firefox, client, staticBaseUrl }), await buildBannerState(req)));
+		const androidTabRevealed = revealsAndroidTab(req.query.feature);
+		sendComponent(
+			req,
+			res,
+			Base(InstallPage({ firefox, client, staticBaseUrl, androidTabRevealed }), await buildBannerState(req)),
+		);
 	});
 
 	return router;

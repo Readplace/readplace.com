@@ -2,32 +2,39 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
-	RecordIosAnyActivity,
-	RecordIosSavedArticle,
+	NativeAppPlatform,
+	RecordNativeAppAnyActivity,
+	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
 	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";
 
 export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
-	recordIosAnyActivity: RecordIosAnyActivity;
-	recordIosSavedArticle: RecordIosSavedArticle;
+	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
+	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
-	const activated = new Set<UserId>();
-	const saved = new Set<UserId>();
+	const activated: Record<NativeAppPlatform, Set<UserId>> = {
+		ios: new Set(),
+		android: new Set(),
+	};
+	const saved: Record<NativeAppPlatform, Set<UserId>> = {
+		ios: new Set(),
+		android: new Set(),
+	};
 	const nextReadMinimumReached = new Map<UserId, Date>();
 	const nextReadStepOutstanding = new Map<UserId, Date>();
 
-	const recordIosAnyActivity: RecordIosAnyActivity = async ({ userId }) => {
-		activated.add(userId);
+	const recordNativeAppAnyActivity: RecordNativeAppAnyActivity = async ({ userId, platform }) => {
+		activated[platform].add(userId);
 	};
 
-	const recordIosSavedArticle: RecordIosSavedArticle = async ({ userId }) => {
-		activated.add(userId);
-		saved.add(userId);
+	const recordNativeAppSavedArticle: RecordNativeAppSavedArticle = async ({ userId, platform }) => {
+		activated[platform].add(userId);
+		saved[platform].add(userId);
 	};
 
 	const recordNextReadMinimumReached: RecordNextReadMinimumReached = async ({
@@ -45,22 +52,29 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	};
 
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => ({
-		installed: activated.has(userId),
-		savedArticle: saved.has(userId),
+		nativeApp: {
+			ios: { installed: activated.ios.has(userId), savedArticle: saved.ios.has(userId) },
+			android: {
+				installed: activated.android.has(userId),
+				savedArticle: saved.android.has(userId),
+			},
+		},
 		nextReadMinimumReachedAt: nextReadMinimumReached.get(userId),
 		nextReadStepOutstandingAt: nextReadStepOutstanding.get(userId),
 	});
 
 	const deleteOnboarding: DeleteOnboarding = async ({ userId }) => {
-		activated.delete(userId);
-		saved.delete(userId);
+		activated.ios.delete(userId);
+		activated.android.delete(userId);
+		saved.ios.delete(userId);
+		saved.android.delete(userId);
 		nextReadMinimumReached.delete(userId);
 		nextReadStepOutstanding.delete(userId);
 	};
 
 	return {
-		recordIosAnyActivity,
-		recordIosSavedArticle,
+		recordNativeAppAnyActivity,
+		recordNativeAppSavedArticle,
 		recordNextReadMinimumReached,
 		recordNextReadStepOutstanding,
 		getOnboardingSignals,

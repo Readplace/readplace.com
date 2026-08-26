@@ -2,10 +2,10 @@ import type { Request } from "express";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 import {
 	buildExtensionInstallUrl,
-	installablePlatform,
+	detectPlatform,
 	isExtensionInstalled,
 } from "../../onboarding/extension-install";
-import { isIosSurface } from "../../onboarding/ios-client";
+import { isNativeSurface } from "../../onboarding/native-client";
 import { FULL_PAGE_CAPTURE_PHRASE } from "../client-surface-phrases";
 import { type SaveTipState, saveTipState } from "./save-tip";
 import {
@@ -35,7 +35,7 @@ export type SaveTipSpec =
 
 /** The content-capture client this visitor already has, which decides whether
  * the panel pitches an install or tells them to use what they have. */
-type SaveTipClient = "extension" | "ios" | "none";
+type SaveTipClient = "extension" | "app" | "none";
 
 interface SaveTipCopy {
 	title: string;
@@ -44,7 +44,7 @@ interface SaveTipCopy {
 
 const IMPORT_ADVICE = {
 	extension: "Nothing can capture a whole index for you, but the extension still takes any single article you open in full.",
-	ios: "Nothing can capture a whole index for you, but the Readplace share sheet still takes any single article you open in full.",
+	app: "Nothing can capture a whole index for you, but the Readplace share sheet still takes any single article you open in full.",
 	none: `Nothing can capture a whole index for you, but ${FULL_PAGE_CAPTURE_PHRASE} take any single article you open in full.`,
 } satisfies Record<SaveTipClient, string>;
 
@@ -85,16 +85,16 @@ const SAVE_TIP_ACTIONS_TEMPLATE = `<div class="confirm-popover__actions" data-te
 </div>`;
 
 function resolveSaveTipClient(req: Request): SaveTipClient {
-	if (isIosSurface(req)) return "ios";
+	if (isNativeSurface(req)) return "app";
 	if (isExtensionInstalled(req)) return "extension";
 	return "none";
 }
 
 const INSTALL_URL_BY_CLIENT = {
 	extension: () => undefined,
-	ios: () => undefined,
+	app: () => undefined,
 	none: (req: Request) =>
-		withInternalTracking(buildExtensionInstallUrl(installablePlatform(req)), {
+		withInternalTracking(buildExtensionInstallUrl(detectPlatform(req)), {
 			source: SAVE_TIP_UTM_SOURCE,
 			content: SAVE_TIP_ELEMENTS.install,
 		}),

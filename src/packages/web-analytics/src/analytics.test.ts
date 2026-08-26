@@ -7,6 +7,7 @@ import { SAVE_CLIENTS, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SA
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
+const ANDROID_APP_USER_AGENT = "Readplace/1 Android/17";
 
 const OWN_HOST = "readplace.test";
 
@@ -548,6 +549,14 @@ describe("classifyDeviceClass", () => {
 		expect(classifyDeviceClass("Mozilla/5.0 (Windows NT 10.0) Chrome/145.0 Readplace/94 CFNetwork/1.0 Darwin/1.0")).toBe("desktop");
 	});
 
+	it("returns 'mobile_android' for our own Android app, whose User-Agent carries no Android browser token", () => {
+		expect(classifyDeviceClass(ANDROID_APP_USER_AGENT)).toBe("mobile_android");
+	});
+
+	it("returns 'bot', not 'mobile_android', for a crawler that merely mentions our Android token, since that match is anchored too", () => {
+		expect(classifyDeviceClass("Googlebot/2.1 (+http://www.google.com/bot.html) Readplace/1 Android/17")).toBe("bot");
+	});
+
 	it("returns 'tablet' for an iPad", () => {
 		expect(
 			classifyDeviceClass(
@@ -821,6 +830,7 @@ describe("buildSaveIntentEvent", () => {
 
 	it("records the client the caller states, so a save the iOS app made over an extension-shaped route is not filed as a web save", () => {
 		expect(buildIntent({ client: SAVE_CLIENTS.iosApp })).toMatchObject({ client: "ios_app" });
+		expect(buildIntent({ client: SAVE_CLIENTS.androidApp })).toMatchObject({ client: "android_app" });
 		expect(buildIntent({ client: SAVE_CLIENTS.web })).toMatchObject({ client: "web" });
 	});
 
@@ -1057,6 +1067,10 @@ describe("isCountableBrowserRequest", () => {
 
 	it("counts our own share extension, so a save from the iPhone share sheet is not silently uncounted", () => {
 		expect(run({ headers: { "user-agent": SHARE_EXTENSION_USER_AGENT, "sec-ch-ua": undefined } })).toBe(true);
+	});
+
+	it("counts our own Android app, whose User-Agent isbot() reports as a crawler for the same \"read\" prefix", () => {
+		expect(run({ headers: { "user-agent": ANDROID_APP_USER_AGENT, "sec-ch-ua": undefined } })).toBe(true);
 	});
 
 	it("does not turn the native-client exemption into a blanket bypass: a native User-Agent with no Accept-Language is still rejected", () => {

@@ -42,6 +42,7 @@ export {
 	createAnalyticsMiddleware,
 	isBotUserAgent,
 	isReadplaceNativeClient,
+	readplaceNativeClientOf,
 	isCountableBrowserRequest,
 	hashIp,
 	suppressClickCount,

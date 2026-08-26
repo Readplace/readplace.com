@@ -13,7 +13,7 @@ import {
 import { initReadabilityParser } from "@packages/article-parser";
 
 import { SIREN_MEDIA_TYPE } from "./siren";
-import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../onboarding/ios-client";
+import { NATIVE_CLIENT_HEADER } from "../onboarding/native-client";
 import { SIREN_DISCOVERY_MAX_AGE_SECONDS } from "../siren-discovery-cache";
 import {
 	createAccessToken,
@@ -805,7 +805,7 @@ describe("GET / (Siren entry point)", () => {
 			.get("/")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
-			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.set(NATIVE_CLIENT_HEADER, "ios")
 			.redirects(0);
 
 		expect(response.status).toBe(303);

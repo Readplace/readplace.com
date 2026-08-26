@@ -5,11 +5,10 @@ import {
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import {
-	IOS_CLIENT_HEADER,
-	IOS_CLIENT_VALUE,
+	NATIVE_CLIENT_HEADER,
 	SAVE_CONTINUITY_BACKGROUND,
 	SAVE_CONTINUITY_HEADER,
-} from "../../onboarding/ios-client";
+} from "../../onboarding/native-client";
 import { createAccessToken } from "../../test-helpers/oauth-token";
 import { useTestServer } from "../../../test-app";
 
@@ -31,7 +30,7 @@ describe("Queue save-in-progress notice (GET /queue, Siren)", () => {
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
-			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+			.set(NATIVE_CLIENT_HEADER, "ios");
 
 		expect(response.status).toBe(200);
 		expect(response.body.properties.messages).toEqual([
@@ -47,7 +46,7 @@ describe("Queue save-in-progress notice (GET /queue, Siren)", () => {
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
-			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.set(NATIVE_CLIENT_HEADER, "ios")
 			.set(SAVE_CONTINUITY_HEADER, SAVE_CONTINUITY_BACKGROUND);
 
 		expect(response.status).toBe(200);
@@ -62,7 +61,7 @@ describe("Queue save-in-progress notice (GET /queue, Siren)", () => {
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
-			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.set(NATIVE_CLIENT_HEADER, "ios")
 			.set(SAVE_CONTINUITY_HEADER, "foreground");
 
 		expect(response.status).toBe(200);

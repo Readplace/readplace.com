@@ -63,6 +63,7 @@ export const SAVE_SURFACE_QUERY = "save_surface";
 export const SAVE_CLIENTS = {
 	web: "web",
 	iosApp: "ios_app",
+	androidApp: "android_app",
 	mcp: "mcp",
 } as const;
 

@@ -308,7 +308,7 @@ async function seedAccount(
 	});
 	assert(claim.claimed, "expected the reader-ready slot to seed as claimed");
 
-	await s.onboarding.recordIosSavedArticle({ userId });
+	await s.onboarding.recordNativeAppSavedArticle({ userId, platform: "ios" });
 	await s.onboarding.recordNextReadMinimumReached({ userId });
 	await s.onboarding.recordNextReadStepOutstanding({ userId });
 
@@ -434,8 +434,10 @@ describe("delete-account handler", () => {
 		assert.equal((await s.digest.listDigestItemsByUser(victim.userId)).length, 0);
 		assert.equal(await readerReadySlotPresent(s, victim.userId), false);
 		assert.deepEqual(await s.onboarding.getOnboardingSignals({ userId: victim.userId }), {
-			installed: false,
-			savedArticle: false,
+			nativeApp: {
+				ios: { installed: false, savedArticle: false },
+				android: { installed: false, savedArticle: false },
+			},
 			nextReadMinimumReachedAt: undefined,
 			nextReadStepOutstandingAt: undefined,
 		});
@@ -515,8 +517,10 @@ describe("delete-account handler", () => {
 		assert.equal((await s.digest.listDigestItemsByUser(bystander.userId)).length, 1);
 		assert.equal(await readerReadySlotPresent(s, bystander.userId), true);
 		assert.deepEqual(await s.onboarding.getOnboardingSignals({ userId: bystander.userId }), {
-			installed: true,
-			savedArticle: true,
+			nativeApp: {
+				ios: { installed: true, savedArticle: true },
+				android: { installed: false, savedArticle: false },
+			},
 			nextReadMinimumReachedAt: SEED_NOW,
 			nextReadStepOutstandingAt: SEED_NOW,
 		});

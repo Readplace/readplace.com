@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Request } from "express";
 
-import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../onboarding/ios-client";
+import { NATIVE_CLIENT_HEADER } from "../onboarding/native-client";
 import { saveClientOf } from "./save-client";
 
 const READPLACE_IOS_APP = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -21,15 +21,22 @@ function reqWith(input: { headers?: Record<string, string>; query?: Request["que
 
 describe("saveClientOf", () => {
 	it("reports the iOS app for a native Siren request carrying the client header", () => {
-		assert.equal(saveClientOf(reqWith({ headers: { [IOS_CLIENT_HEADER]: IOS_CLIENT_VALUE } })), "ios_app");
+		assert.equal(saveClientOf(reqWith({ headers: { [NATIVE_CLIENT_HEADER]: "ios" } })), "ios_app");
 	});
 
 	it("reports the iOS app for an in-app reader page, which cannot attach the header", () => {
 		assert.equal(saveClientOf(reqWith({ query: { platform: "ios" } })), "ios_app");
 	});
 
-	it("reports the iOS app for a page hosted by the in-app web sheet", () => {
+	it("reports the iOS app for a page hosted by the in-app web sheet, the one build that names no platform", () => {
 		assert.equal(saveClientOf(reqWith({ query: { shell: "app" } })), "ios_app");
+	});
+
+	it("prefers the platform a sheet names over the shipped-iOS fallback", () => {
+		assert.equal(
+			saveClientOf(reqWith({ query: { shell: "app", platform: "android" } })),
+			"android_app",
+		);
 	});
 
 	it("reports the iOS app for our own app binary's User-Agent when no marker rides the request", () => {
@@ -48,8 +55,15 @@ describe("saveClientOf", () => {
 		assert.equal(saveClientOf(reqWith({})), "web");
 	});
 
-	it("reports the web client for a client header naming some other platform", () => {
-		assert.equal(saveClientOf(reqWith({ headers: { [IOS_CLIENT_HEADER]: "android" } })), "web");
+	it("reports the Android app for a native Siren request carrying the Android client header", () => {
+		assert.equal(
+			saveClientOf(reqWith({ headers: { [NATIVE_CLIENT_HEADER]: "android" } })),
+			"android_app",
+		);
+	});
+
+	it("reports the web client for a client header naming a platform we ship no app for", () => {
+		assert.equal(saveClientOf(reqWith({ headers: { [NATIVE_CLIENT_HEADER]: "windows" } })), "web");
 	});
 
 	it("reports the web client for a User-Agent that merely mentions our app rather than being it", () => {

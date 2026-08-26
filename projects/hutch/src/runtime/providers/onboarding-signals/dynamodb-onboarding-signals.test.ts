@@ -38,34 +38,50 @@ function updateOf(commands: CapturedCommand[]): CapturedCommand | undefined {
 }
 
 describe("initOnboardingSignals", () => {
-	describe("recordIosAnyActivity", () => {
+	describe("recordNativeAppAnyActivity", () => {
 		it("upserts the activation timestamp (set-once) keyed directly by userId", async () => {
 			const { client, commands } = createFakeClient({});
 
-			await initSignal(client).recordIosAnyActivity({ userId: USER });
+			await initSignal(client).recordNativeAppAnyActivity({ userId: USER, platform: "ios" });
 
 			const update = updateOf(commands);
 			expect(update?.input.Key).toEqual({ userId: "user-1" });
 			expect(update?.input.UpdateExpression).toBe(
-				"SET iosAppActivatedAt = if_not_exists(iosAppActivatedAt, :now)",
+				"SET #activated = if_not_exists(#activated, :now)",
 			);
+			expect(update?.input.ExpressionAttributeNames).toEqual({ "#activated": "iosAppActivatedAt" });
 			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
 				NOW.toISOString(),
 			);
 		});
 	});
 
-	describe("recordIosSavedArticle", () => {
+	describe("recordNativeAppSavedArticle", () => {
 		it("sets both the activation and saved timestamps (set-once) keyed by userId", async () => {
 			const { client, commands } = createFakeClient({});
 
-			await initSignal(client).recordIosSavedArticle({ userId: USER });
+			await initSignal(client).recordNativeAppSavedArticle({ userId: USER, platform: "ios" });
 
 			const update = updateOf(commands);
 			expect(update?.input.Key).toEqual({ userId: "user-1" });
 			expect(update?.input.UpdateExpression).toBe(
-				"SET iosAppActivatedAt = if_not_exists(iosAppActivatedAt, :now), iosAppSavedAt = if_not_exists(iosAppSavedAt, :now)",
+				"SET #activated = if_not_exists(#activated, :now), #saved = if_not_exists(#saved, :now)",
 			);
+			expect(update?.input.ExpressionAttributeNames).toEqual({
+				"#activated": "iosAppActivatedAt",
+				"#saved": "iosAppSavedAt",
+			});
+		});
+
+		it("writes the Android attributes, never the iOS ones, for an Android save", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initSignal(client).recordNativeAppSavedArticle({ userId: USER, platform: "android" });
+
+			expect(updateOf(commands)?.input.ExpressionAttributeNames).toEqual({
+				"#activated": "androidAppActivatedAt",
+				"#saved": "androidAppSavedAt",
+			});
 		});
 	});
 
@@ -108,8 +124,10 @@ describe("initOnboardingSignals", () => {
 
 			expect(commands.find((c) => c.name === "GetCommand")?.input.Key).toEqual({ userId: "user-1" });
 			expect(signals).toEqual({
-				installed: false,
-				savedArticle: false,
+				nativeApp: {
+					ios: { installed: false, savedArticle: false },
+					android: { installed: false, savedArticle: false },
+				},
 				nextReadMinimumReachedAt: undefined,
 				nextReadStepOutstandingAt: undefined,
 			});
@@ -123,8 +141,10 @@ describe("initOnboardingSignals", () => {
 			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
 
 			expect(signals).toEqual({
-				installed: true,
-				savedArticle: false,
+				nativeApp: {
+					ios: { installed: true, savedArticle: false },
+					android: { installed: false, savedArticle: false },
+				},
 				nextReadMinimumReachedAt: undefined,
 				nextReadStepOutstandingAt: undefined,
 			});
@@ -142,10 +162,29 @@ describe("initOnboardingSignals", () => {
 			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
 
 			expect(signals).toEqual({
-				installed: true,
-				savedArticle: true,
+				nativeApp: {
+					ios: { installed: true, savedArticle: true },
+					android: { installed: false, savedArticle: false },
+				},
 				nextReadMinimumReachedAt: undefined,
 				nextReadStepOutstandingAt: undefined,
+			});
+		});
+
+		it("reads each app's own attributes, so an Android row never ticks the iPhone steps", async () => {
+			const { client } = createFakeClient({
+				row: {
+					userId: "user-1",
+					androidAppActivatedAt: "2026-06-23T09:00:00.000Z",
+					androidAppSavedAt: "2026-06-23T09:30:00.000Z",
+				},
+			});
+
+			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
+
+			expect(signals.nativeApp).toEqual({
+				ios: { installed: false, savedArticle: false },
+				android: { installed: true, savedArticle: true },
 			});
 		});
 

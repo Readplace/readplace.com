@@ -1,28 +1,36 @@
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
 import { isbot } from "isbot";
 import { suppressClickCount } from "@packages/web-analytics";
 import type { ClientName } from "@packages/supported-clients";
 import { wantsMarkdown } from "@packages/web-shell";
-import { detectInstallSurface } from "../../onboarding/extension-install";
-import type { InstallSurface } from "../../onboarding/onboarding.types";
+import { detectPlatform } from "../../onboarding/extension-install";
+import type { Platform } from "../../onboarding/onboarding.types";
+import { revealsAndroidTab } from "./install.component";
 
 /**
- * 1. Every iOS browser, not just Safari: iOS forbids extensions outright, so the
- *    app is the only thing any of them can install.
- * 2. Android has neither an app nor an extension yet, and Gemini is the assistant
- *    already on the device.
- * 3. Desktop Safari, iPad, and anything unrecognised carry no first-party client
+ * 1. Every browser on the phone, not just the platform default: our extension
+ *    installs on neither phone OS, so the app is the only first-party client any
+ *    of their browsers can take.
+ * 2. Desktop Safari, iPad, and anything unrecognised carry no first-party client
  *    either; the MCP connector is the one route open to all of them.
  */
 const CLIENT_BY_SURFACE = {
 	firefox: "firefox",
 	chrome: "chrome",
 	iphone: "iphone", /* 1 */
-	android: "gemini", /* 2 */
-	other: "chatgpt", /* 3 */
-} satisfies Record<InstallSurface, ClientName>;
+	android: "android", /* 1 */
+	other: "chatgpt", /* 2 */
+} satisfies Record<Platform, ClientName>;
+
+const ANDROID_WHILE_TAB_HIDDEN: ClientName = "gemini";
 
 const PARSE_ORIGIN = "https://install.invalid";
+
+function detectedClient(req: Request): ClientName {
+	const platform = detectPlatform(req);
+	if (platform === "android" && !revealsAndroidTab(req.query.feature)) return ANDROID_WHILE_TAB_HIDDEN;
+	return CLIENT_BY_SURFACE[platform];
+}
 
 /** Carries the incoming query through, so the campaign params on the links into
  * this page survive the hop. */
@@ -50,5 +58,5 @@ export const redirectToDetectedClient: RequestHandler = (req, res, next) => {
 	if (isbot(req.get("user-agent"))) return next(); /* 3 */
 	res.vary("User-Agent");
 	suppressClickCount(res); /* 4 */
-	res.redirect(302, withDetectedClient(req.originalUrl, CLIENT_BY_SURFACE[detectInstallSurface(req)]));
+	res.redirect(302, withDetectedClient(req.originalUrl, detectedClient(req)));
 };

@@ -13,7 +13,7 @@ import {
 import { initReadabilityParser } from "@packages/article-parser";
 import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
+import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 
 import request from "supertest";
@@ -161,7 +161,7 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-header-only");
 
 		const doc = new JSDOM(
-			(await agent.get(`/queue/${articleId}/view`).set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)).text,
+			(await agent.get(`/queue/${articleId}/view`).set(NATIVE_CLIENT_HEADER, "ios")).text,
 		).window.document;
 
 		expect(doc.querySelector(".header")).toBe(null);
@@ -455,7 +455,7 @@ describe("Siren read-href is client-independent (GET /queue)", () => {
 		};
 
 		expect(await readHref({})).toMatch(/\/queue\/.+\/view$/);
-		expect(await readHref({ [IOS_CLIENT_HEADER]: IOS_CLIENT_VALUE })).toMatch(/\/queue\/.+\/view$/);
+		expect(await readHref({ [NATIVE_CLIENT_HEADER]: "ios" })).toMatch(/\/queue\/.+\/view$/);
 	});
 });
 

@@ -44,7 +44,7 @@ describe("buildWelcomeEmailHtml", () => {
 	it("pitches saving from every client, not just the browser extension", () => {
 		const html = buildWelcomeEmailHtml({ installUrl: "https://readplace.com/install", avatarUrl: "https://static.readplace.com/fayner-brack.jpg" });
 
-		expect(html).toContain("your browser, your iPhone, or your AI assistant");
+		expect(html).toContain("your browser, your phone, or your AI assistant");
 		expect(html).toContain("See the ways to save");
 	});
 

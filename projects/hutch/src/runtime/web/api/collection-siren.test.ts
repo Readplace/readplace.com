@@ -217,7 +217,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { iosSurface: true });
+		const entity = toArticleCollectionEntity(result, {}, { surfacePlatform: "ios" });
 
 		expect(entity.links).toContainEqual({
 			rel: ["account"],
@@ -483,7 +483,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { iosClient: true });
+		const entity = toArticleCollectionEntity(result, {}, { showSaveInProgressNotice: true });
 
 		expect(entity.properties).toMatchObject({
 			messages: [

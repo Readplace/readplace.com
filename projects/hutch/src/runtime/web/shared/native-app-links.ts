@@ -1,7 +1,9 @@
-/** The deep links the iOS app's WKWebView delegate intercepts (and cancels)
- * rather than navigating to. These strings are the shipped app's interception
- * rules, so they are a contract with builds already on users' phones: a rename
- * here silently strips the control from every installed build. */
+/** The deep links a native app's web view intercepts (and cancels) rather than
+ * navigating to. These strings are every shipped app's interception rules, so
+ * they are a contract with builds already on users' phones: a rename here
+ * silently strips the control from every installed build. They name no platform
+ * precisely so a second app implements the same two rules rather than minting
+ * its own pair. */
 
 /** Closes the in-app web sheet, returning the user to the native reading list.
  * The chromeless reader's, account page's and add-links help page's back links all

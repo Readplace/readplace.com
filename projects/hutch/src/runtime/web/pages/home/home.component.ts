@@ -57,7 +57,7 @@ interface HomeFeatureCard {
 const CLIENT_CATEGORY_FEATURES = {
 	contentCapture: {
 		name: "Save the Full Page",
-		description: `Save any page with one click or Ctrl/Cmd+D, right-click to save every open tab at once — or save straight from your iPhone's share sheet. The extension and app capture the full rendered page, picking the most complete version of the content over what a URL-only crawl would see. Available for ${BROWSER_EXTENSIONS_AND}, and on iPhone.`,
+		description: `Save any page with one click or Ctrl/Cmd+D, right-click to save every open tab at once — or save straight from your phone's share sheet. The extension and app capture the full rendered page, picking the most complete version of the content over what a URL-only crawl would see. Available for ${BROWSER_EXTENSIONS_AND}, and on your phone.`,
 		linkHref: "/install",
 		linkLabel: "See the ways to save",
 	},
@@ -119,6 +119,13 @@ const WAYS_TO_SAVE: readonly WayToSave[] = [
 		linkLabel: "Get the iPhone app",
 		linkHref: "/install?client=iphone",
 		trackContent: "iphone",
+	},
+	{
+		name: "Your Android phone",
+		body: "The same Share-sheet save, from any browser on Android. The app is built and its Play Store listing is on the way; until it lands, readplace.com works in your browser and an AI assistant can save links for you.",
+		linkLabel: "See where it's up to",
+		linkHref: "/install?client=android",
+		trackContent: "android",
 	},
 	{
 		name: "ChatGPT, Claude, or Gemini",
@@ -221,7 +228,7 @@ export function HomePage(params: HomePageParams): PageBody {
 			setupSurfaces: SETUP_SURFACES_PHRASE,
 			saveSurfacesShort: SAVE_SURFACES_SHORT_PHRASE,
 			waysToSave: WAYS_TO_SAVE,
-			platformsCell: `Web, iPhone, Mac, AI assistants (MCP), Extensions: ${BROWSER_EXTENSIONS_LISTED}`,
+			platformsCell: `Web, iPhone, Android, Mac, AI assistants (MCP), Extensions: ${BROWSER_EXTENSIONS_LISTED}`,
 			maxPdfBytesLabel: MAX_PDF_BYTES.label,
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
@@ -259,11 +266,6 @@ export function HomePage(params: HomePageParams): PageBody {
 				},
 			],
 			plannedFeatures: [
-				{
-					name: "Share to Save on Android",
-					description:
-						"Save to Readplace from any Android app with one tap from the share sheet — the iPhone app already does this today.",
-				},
 				{
 					name: "What to Read Next",
 					description:

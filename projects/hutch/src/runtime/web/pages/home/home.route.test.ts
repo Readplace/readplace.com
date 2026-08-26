@@ -208,7 +208,7 @@ describe("GET /", () => {
 		expect(cta?.getAttribute("href")).toBe("/install?client=firefox&utm_source=home-hero&utm_medium=internal&utm_content=install");
 
 		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Also on Chrome, iPhone, and your AI assistant.");
+		expect(trust?.textContent).toBe("Also on Chrome, iPhone, Android, and your AI assistant.");
 	});
 
 	it("should render Chrome install CTA when User-Agent is Chrome", async () => {
@@ -223,7 +223,7 @@ describe("GET /", () => {
 		expect(cta?.getAttribute("href")).toBe("/install?client=chrome&utm_source=home-hero&utm_medium=internal&utm_content=install");
 
 		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Also on Firefox, iPhone, and your AI assistant.");
+		expect(trust?.textContent).toBe("Also on Firefox, iPhone, Android, and your AI assistant.");
 	});
 
 	it("should render Chrome install CTA when User-Agent is Edge", async () => {
@@ -267,7 +267,7 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Firefox, Chrome, iPhone, and your AI assistant.");
+		expect(trust?.textContent).toBe("Firefox, Chrome, iPhone, Android, and your AI assistant.");
 	});
 
 	it("should render browser-specific bottom install CTA for Firefox", async () => {
@@ -346,14 +346,14 @@ describe("GET /", () => {
 		expect(mcpLink?.getAttribute("href")).toBe("/mcp");
 	});
 
-	it("links the content-capture feature to /install and names the iPhone, not just the browser extension", async () => {
+	it("links the content-capture feature to /install and names the phone, not just the browser extension", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const feature = doc.querySelector('[data-test-feature="Save the Full Page"]');
 		assert(feature, "content-capture feature card must be rendered");
-		expect(feature.textContent?.toLowerCase()).toContain("iphone");
+		expect(feature.textContent?.toLowerCase()).toContain("phone");
 
 		const installLink = doc.querySelector('[data-test-feature-link="Save the Full Page"]');
 		expect(installLink?.getAttribute("href")).toBe("/install");
@@ -375,6 +375,7 @@ describe("GET /", () => {
 			"Chrome, Edge, or Brave",
 			"Firefox",
 			"Your iPhone",
+			"Your Android phone",
 			"ChatGPT, Claude, or Gemini",
 			"A file, or a page full of links",
 			"Your newsletters",
@@ -389,6 +390,7 @@ describe("GET /", () => {
 			"/install?client=chrome&utm_source=home-ways&utm_medium=internal&utm_content=chrome",
 			"/install?client=firefox&utm_source=home-ways&utm_medium=internal&utm_content=firefox",
 			"/install?client=iphone&utm_source=home-ways&utm_medium=internal&utm_content=iphone",
+			"/install?client=android&utm_source=home-ways&utm_medium=internal&utm_content=android",
 			"/mcp?utm_source=home-ways&utm_medium=internal&utm_content=mcp",
 			"/import?utm_source=home-ways&utm_medium=internal&utm_content=import",
 			"/blog/save-newsletter-links-to-your-queue?utm_source=home-ways&utm_medium=internal&utm_content=inbox",

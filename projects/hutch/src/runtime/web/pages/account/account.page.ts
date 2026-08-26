@@ -52,7 +52,7 @@ import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/
 import type { EmitSubscriptionEvent } from "../../../observability/subscription-events";
 import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/ios-app-links";
+import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/native-app-links";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
@@ -68,7 +68,7 @@ import {
 	toAccountViewModel,
 	withoutCommerce,
 } from "./account.view-model";
-import { isAppShell, isIosSurface } from "../../onboarding/ios-client";
+import { isAppShell, isNativeSurface, nativeSurfaceOf } from "../../onboarding/native-client";
 import {
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
@@ -185,16 +185,22 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			sendComponent(
 				req, res,
 				ChromelessPage(
-					AccountPage(withoutCommerce(webVm, { appShell: true }), input.cardSection, {
-						email,
-						surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
-					}),
+					AccountPage(
+						withoutCommerce(webVm, { appShell: true, platform: nativeSurfaceOf(req) }),
+						input.cardSection,
+						{
+							email,
+							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
+						},
+					),
 					{ cspNonce: requireCspNonce(req) },
 				),
 			);
 			return;
 		}
-		const vm = isIosSurface(req) ? withoutCommerce(webVm, { appShell: false }) : webVm;
+		const vm = isNativeSurface(req)
+			? withoutCommerce(webVm, { appShell: false, platform: nativeSurfaceOf(req) })
+			: webVm;
 		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
 		sendComponent(req, res, Base(AccountPage(vm, input.cardSection, { email }), bannerState));
 	}
@@ -202,7 +208,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
-		if (isIosSurface(req)) {
+		if (isNativeSurface(req)) {
 			// The iOS surface hides the payment-methods section and the renewal line, so
 			// skip the live provider reads whose results would only be discarded.
 			await renderAccount(req, res, {
@@ -233,8 +239,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
 		const webVm = toAccountViewModel(access, parseAccountQuery(req.query), deps.now());
-		const vm = isIosSurface(req)
-			? withoutCommerce(webVm, { appShell: isAppShell(req) })
+		const vm = isNativeSurface(req)
+			? withoutCommerce(webVm, { appShell: isAppShell(req), platform: nativeSurfaceOf(req) })
 			: webVm;
 		res.set("Cache-Control", "private, no-cache");
 		res.set("Vary", "Cookie");
@@ -435,7 +441,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			303,
 			buildAccountUrl({
 				cancelling: true,
-				iosSurface: isIosSurface(req),
+				surfacePlatform: nativeSurfaceOf(req),
 				appShell: isAppShell(req),
 			}),
 		);
@@ -462,7 +468,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				303,
 				buildAccountUrl({
 					deleteConfirmationError: true,
-					iosSurface: isIosSurface(req),
+					surfacePlatform: nativeSurfaceOf(req),
 					appShell: isAppShell(req),
 				}),
 			);

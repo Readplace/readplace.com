@@ -8,8 +8,9 @@ import { UserIdSchema } from "@packages/domain/user";
 import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
-	RecordIosAnyActivity,
-	RecordIosSavedArticle,
+	NativeAppPlatform,
+	RecordNativeAppAnyActivity,
+	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
 	RecordNextReadStepOutstanding,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -20,6 +21,10 @@ const OnboardingRow = z.object({
 	iosAppActivatedAt: dynamoField(z.string()),
 	/* ISO instant of the first save from the iOS app; absent until then. */
 	iosAppSavedAt: dynamoField(z.string()),
+	/* ISO instant of the first authenticated Android request; absent until then. */
+	androidAppActivatedAt: dynamoField(z.string()),
+	/* ISO instant of the first save from the Android app; absent until then. */
+	androidAppSavedAt: dynamoField(z.string()),
 	/* ISO instant the account's save count first reached the Next Read
 	 * minimum; absent until then. */
 	nextReadMinimumReachedAt: dynamoField(z.string()),
@@ -28,18 +33,27 @@ const OnboardingRow = z.object({
 	nextReadStepOutstandingAt: dynamoField(z.string()),
 });
 
-/** Per-user onboarding signals on a dedicated table keyed by `userId`. The iOS
- * writes come from the app's authenticated requests and are read by Safari's
- * `/queue` render — the two share only the userId because Safari can't see the
- * app's cookies. Keyed directly by `userId` (no GSI, no users-row coupling) so
- * per-user onboarding state that is not device-scoped registers here too. */
+/** The two attributes each app writes. Keyed by platform so a new native app is
+ * a compile error here until it is given its own pair rather than silently
+ * sharing another app's. */
+const ATTRIBUTES_BY_PLATFORM = {
+	ios: { activated: "iosAppActivatedAt", saved: "iosAppSavedAt" },
+	android: { activated: "androidAppActivatedAt", saved: "androidAppSavedAt" },
+} as const satisfies Record<NativeAppPlatform, { activated: string; saved: string }>;
+
+/** Per-user onboarding signals on a dedicated table keyed by `userId`. The app
+ * writes come from each app's authenticated requests and are read by the phone
+ * browser's `/queue` render — the two share only the userId because the browser
+ * can't see the app's cookies. Keyed directly by `userId` (no GSI, no users-row
+ * coupling) so per-user onboarding state that is not device-scoped registers here
+ * too. */
 export function initOnboardingSignals(deps: {
 	client: DynamoDBDocumentClient;
 	onboardingTableName: string;
 	now: () => Date;
 }): {
-	recordIosAnyActivity: RecordIosAnyActivity;
-	recordIosSavedArticle: RecordIosSavedArticle;
+	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
+	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	getOnboardingSignals: GetOnboardingSignals;
@@ -51,19 +65,24 @@ export function initOnboardingSignals(deps: {
 		schema: OnboardingRow,
 	});
 
-	const recordIosAnyActivity: RecordIosAnyActivity = async ({ userId }) => {
+	const recordNativeAppAnyActivity: RecordNativeAppAnyActivity = async ({ userId, platform }) => {
 		await onboarding.update({
 			Key: { userId },
-			UpdateExpression: "SET iosAppActivatedAt = if_not_exists(iosAppActivatedAt, :now)",
+			UpdateExpression: "SET #activated = if_not_exists(#activated, :now)",
+			ExpressionAttributeNames: { "#activated": ATTRIBUTES_BY_PLATFORM[platform].activated },
 			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
 		});
 	};
 
-	const recordIosSavedArticle: RecordIosSavedArticle = async ({ userId }) => {
+	const recordNativeAppSavedArticle: RecordNativeAppSavedArticle = async ({ userId, platform }) => {
 		await onboarding.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET iosAppActivatedAt = if_not_exists(iosAppActivatedAt, :now), iosAppSavedAt = if_not_exists(iosAppSavedAt, :now)",
+				"SET #activated = if_not_exists(#activated, :now), #saved = if_not_exists(#saved, :now)",
+			ExpressionAttributeNames: {
+				"#activated": ATTRIBUTES_BY_PLATFORM[platform].activated,
+				"#saved": ATTRIBUTES_BY_PLATFORM[platform].saved,
+			},
 			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
 		});
 	};
@@ -95,8 +114,13 @@ export function initOnboardingSignals(deps: {
 		const reachedAt = row?.nextReadMinimumReachedAt;
 		const outstandingAt = row?.nextReadStepOutstandingAt;
 		return {
-			installed: !!row?.iosAppActivatedAt,
-			savedArticle: !!row?.iosAppSavedAt,
+			nativeApp: {
+				ios: { installed: !!row?.iosAppActivatedAt, savedArticle: !!row?.iosAppSavedAt },
+				android: {
+					installed: !!row?.androidAppActivatedAt,
+					savedArticle: !!row?.androidAppSavedAt,
+				},
+			},
 			nextReadMinimumReachedAt: reachedAt ? new Date(reachedAt) : undefined,
 			nextReadStepOutstandingAt: outstandingAt ? new Date(outstandingAt) : undefined,
 		};
@@ -107,8 +131,8 @@ export function initOnboardingSignals(deps: {
 	};
 
 	return {
-		recordIosAnyActivity,
-		recordIosSavedArticle,
+		recordNativeAppAnyActivity,
+		recordNativeAppSavedArticle,
 		recordNextReadMinimumReached,
 		recordNextReadStepOutstanding,
 		getOnboardingSignals,

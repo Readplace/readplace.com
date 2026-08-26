@@ -41,7 +41,7 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("Nothing saved yet");
 			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain(
-				"set up one-tap saving from your browser, iPhone, or AI assistant.",
+				"set up one-tap saving from your browser, phone, or AI assistant.",
 			);
 			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save?utm_source=queue&utm_medium=internal&utm_content=save");
 			expect(response.text).toContain(

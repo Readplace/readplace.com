@@ -29,7 +29,7 @@
     <section id="about" class="home-hero" data-test-section="hero" aria-label="Introduction">
       <div class="home-hero__container">
         <h2 class="home-hero__title hero-headline"><span class="sr-only">A home for articles, newsletters, essays, longreads, news, blogs, stories, posts, reports, and interviews.</span><span class="hero-headline__visible" aria-hidden="true"><span class="hero-headline__lead">A home for</span> <span class="hero-headline__rotator">articles</span></span></h2>
-        <p class="home-hero__subtitle">Pocket is gone. Omnivore is gone. I built Readplace from a personal system I've maintained for 10 years. Save from wherever you already read &mdash; browser, iPhone, AI chat, or a link pasted right here &mdash; and read when you're ready.</p>
+        <p class="home-hero__subtitle">Pocket is gone. Omnivore is gone. I built Readplace from a personal system I've maintained for 10 years. Save from wherever you already read &mdash; browser, phone, AI chat, or a link pasted right here &mdash; and read when you're ready.</p>
         <div class="home-hero__actions">
           <a href="{{track installPath source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">{{installLabel}}</a>
           <a href="https://github.com/Readplace/readplace.com" class="btn btn--on-dark-ghost" data-test-cta="view-github">View on GitHub</a>
@@ -132,11 +132,11 @@
     <section id="how-saving-works" class="home-canonical" data-test-section="canonical" aria-label="How saving works">
       <div class="home-canonical__container">
         <h2 class="home-canonical__heading">Same article, different versions?</h2>
-        <p class="home-canonical__body">When you save from the browser extension or the iPhone app, Readplace captures the rendered page you&rsquo;re looking at. When a link arrives as a URL &mdash; pasted here, sent by your AI assistant, or picked up in an import &mdash; Readplace fetches it server-side. DeepSeek does the canonical disambiguation so both paths converge on the same article &mdash; even when the source URL is wrapped in a tracker (<code>utm_*</code>, <code>gclid</code>).</p>
+        <p class="home-canonical__body">When you save from the browser extension or a phone app, Readplace captures the rendered page you&rsquo;re looking at. When a link arrives as a URL &mdash; pasted here, sent by your AI assistant, or picked up in an import &mdash; Readplace fetches it server-side. DeepSeek does the canonical disambiguation so both paths converge on the same article &mdash; even when the source URL is wrapped in a tracker (<code>utm_*</code>, <code>gclid</code>).</p>
         <figure class="home-canonical__diagram" data-test-canonical-diagram aria-label="Both capture paths converge through DeepSeek into one canonical article">
           <div class="home-canonical__diagram-inputs">
             <div class="home-canonical__diagram-node">
-              <strong>Extension or iPhone</strong>
+              <strong>Extension or phone</strong>
               <span>rendered page</span>
             </div>
             <div class="home-canonical__diagram-node">
@@ -155,7 +155,7 @@
             <span>trackers stripped</span>
           </div>
         </figure>
-        <p class="home-canonical__body">The captured version wins when both exist, as long as it&rsquo;s the most complete version of the content. If you saved from the extension or the iPhone app while logged in to a site, you captured the full article &mdash; saving again when logged out won&rsquo;t overwrite it with the paywalled version. Most read-later apps replace the captured version with whatever the canonical URL returns; Readplace keeps the most complete one.</p>
+        <p class="home-canonical__body">The captured version wins when both exist, as long as it&rsquo;s the most complete version of the content. If you saved from the extension or a phone app while logged in to a site, you captured the full article &mdash; saving again when logged out won&rsquo;t overwrite it with the paywalled version. Most read-later apps replace the captured version with whatever the canonical URL returns; Readplace keeps the most complete one.</p>
       </div>
     </section>
 

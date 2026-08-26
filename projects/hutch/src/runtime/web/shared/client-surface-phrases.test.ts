@@ -16,19 +16,19 @@ const ALL_PHRASES = [
 
 describe("client surface phrases", () => {
 	it("pins the welcome-email save-surfaces phrase", () => {
-		assert.equal(SAVE_SURFACES_PHRASE, "your browser, your iPhone, or your AI assistant");
+		assert.equal(SAVE_SURFACES_PHRASE, "your browser, your phone, or your AI assistant");
 	});
 
 	it("pins the queue empty-state save-surfaces phrase", () => {
-		assert.equal(SAVE_SURFACES_SHORT_PHRASE, "your browser, iPhone, or AI assistant");
+		assert.equal(SAVE_SURFACES_SHORT_PHRASE, "your browser, phone, or AI assistant");
 	});
 
 	it("pins the home features setup-surfaces phrase", () => {
-		assert.equal(SETUP_SURFACES_PHRASE, "in your browser, on your iPhone, or in your AI assistant");
+		assert.equal(SETUP_SURFACES_PHRASE, "in your browser, on your phone, or in your AI assistant");
 	});
 
 	it("pins the reader-failed full-page-capture phrase", () => {
-		assert.equal(FULL_PAGE_CAPTURE_PHRASE, "the browser extension and iPhone app");
+		assert.equal(FULL_PAGE_CAPTURE_PHRASE, "the browser extension and phone apps");
 	});
 
 	it("never names a single client of a group that has several clients", () => {

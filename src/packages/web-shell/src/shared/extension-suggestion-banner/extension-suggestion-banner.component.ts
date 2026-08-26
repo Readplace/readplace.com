@@ -6,14 +6,14 @@ import { EXTENSION_SUGGESTION_BANNER_TEMPLATE } from "./extension-suggestion-ban
 export const EXTENSION_SUGGESTION_BANNER_SCRIPT = `<script src="/client-dist/extension-suggestion-banner.client.js" defer></script>`;
 
 /** How this banner names the save surfaces it points at. It pitches only the
- * content-capture clients — the browser extension and the iPhone app — because
+ * content-capture clients — the browser extension and the phone apps — because
  * they are the only ones that grab the full page a url-only save missed; an AI
  * assistant over MCP saves URLs too, so it can't help here. Keyed by the groups
  * in that category, so a new content-capture group is a compile error until it
  * gets banner copy. */
 const CONTENT_CAPTURE_NOUNS = {
 	browserExtension: "the browser extension",
-	nativeApp: "iPhone app",
+	nativeApp: "phone apps",
 } satisfies Record<ClientGroupInCategory<"contentCapture">, string>;
 
 const CONTENT_CAPTURE_PHRASE = clientGroupsInCategory("contentCapture")

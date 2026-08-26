@@ -11,7 +11,7 @@ import {
 } from "@packages/onboarding-extension-signal";
 import request from "supertest";
 import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
-import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
+import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { useTestServer, loginAgent, type TestAppHarness } from "../../../test-app";
 
@@ -412,7 +412,7 @@ describe("Queue onboarding — iPhone", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		// The app loads the queue carrying its client header → records activation.
-		await agent.get("/queue").set("User-Agent", IPHONE_UA).set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+		await agent.get("/queue").set("User-Agent", IPHONE_UA).set(NATIVE_CLIENT_HEADER, "ios");
 
 		// Safari on the same phone (same user, no header) now sees step 1 complete.
 		const response = await agent.get("/queue").set("User-Agent", IPHONE_UA);
@@ -434,7 +434,7 @@ describe("Queue onboarding — iPhone", () => {
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
-			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.set(NATIVE_CLIENT_HEADER, "ios")
 			.send({ url: "https://example.com/article" });
 		expect(save.status).toBe(201);
 
@@ -472,7 +472,7 @@ describe("Queue onboarding — iPhone", () => {
 			...fixture,
 			onboardingSignals: {
 				...fixture.onboardingSignals,
-				recordIosSavedArticle: async () => { throw new Error("dynamo down"); },
+				recordNativeAppSavedArticle: async () => { throw new Error("dynamo down"); },
 			},
 			shared: {
 				...fixture.shared,
@@ -486,7 +486,7 @@ describe("Queue onboarding — iPhone", () => {
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
-			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.set(NATIVE_CLIENT_HEADER, "ios")
 			.send({ url: "https://example.com/article" });
 
 		expect(save.status).toBe(201);
@@ -501,7 +501,7 @@ describe("Queue onboarding — iPhone", () => {
 			onboardingSignals: {
 				...fixture.onboardingSignals,
 				// biome-ignore lint/suspicious/noExplicitAny: deliberately throws a non-Error to exercise the `instanceof Error ? … : undefined` branch
-				recordIosAnyActivity: async () => { throw "dynamo down" as any; },
+				recordNativeAppAnyActivity: async () => { throw "dynamo down" as any; },
 			},
 			shared: {
 				...fixture.shared,
@@ -513,7 +513,7 @@ describe("Queue onboarding — iPhone", () => {
 		const response = await agent
 			.get("/queue")
 			.set("User-Agent", IPHONE_UA)
-			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+			.set(NATIVE_CLIENT_HEADER, "ios");
 
 		expect(response.status).toBe(200);
 		expect(errorArgs).toEqual([["Failed to record onboarding signal", undefined]]);
@@ -524,8 +524,6 @@ describe("Queue onboarding — iPhone", () => {
  * that has no installable client. */
 const DESKTOP_SAFARI_UA =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
-/** Android Chrome matches Chrome/ in detectPlatform yet cannot install the
- * extension — the case the raw-UA Android check exists to catch. */
 const ANDROID_CHROME_UA =
 	"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
 
@@ -546,16 +544,19 @@ describe("Queue onboarding — no installable client", () => {
 		);
 	});
 
-	it("renders the no-client card (not the Chrome install step) for Android Chrome", async () => {
+	it("renders the Android app install step (not the no-client card) for Android Chrome", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const response = await agent.get("/queue").set("User-Agent", ANDROID_CHROME_UA);
 
 		const doc = new JSDOM(response.text).window.document;
-		const noClient = doc.querySelector("[data-test-onboarding-no-client]");
-		assert(noClient, "no-client card must render for Android Chrome");
-		assert.equal(installTitle(response.text), undefined, "no install-extension step is rendered");
+		assert.equal(
+			doc.querySelector("[data-test-onboarding-no-client]"),
+			null,
+			"the no-client card must not render for a device that has an app",
+		);
+		assert.equal(installTitle(response.text), "Install the Readplace Android app");
 	});
 
 	it("shows a Dismiss button on the no-client card when no dismiss cookie is set", async () => {

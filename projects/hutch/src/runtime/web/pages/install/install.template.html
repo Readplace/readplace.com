@@ -1,7 +1,7 @@
   <main class="install-page">
     <div class="install-page__container">
       <h1 class="install-page__title">Install Readplace</h1>
-      <p class="install-page__subtitle">Save articles with a single click, a keyboard shortcut, the iPhone share sheet, or straight from your AI assistant.</p>
+      <p class="install-page__subtitle">Save articles with a single click, a keyboard shortcut, your phone's share sheet, or straight from your AI assistant.</p>
 
       <nav class="install-page__groups" aria-label="Platform" data-test-section="tabs">
         {{#each groups}}
@@ -18,22 +18,30 @@
 
       {{#switch panel.type}}
       {{#case "nativeApp"}}
-      <section class="install-page__panel" data-test-panel="iphone">
-        <h2 class="install-page__panel-title">Readplace on iPhone</h2>
-        <p class="install-page__lead">Save links from any browser on your iPhone — no copy-paste, and no need to open the app to save. The same app runs on your Mac.</p>
+      <section class="install-page__panel" data-test-panel="{{panel.app.key}}">
+        <h2 class="install-page__panel-title">{{panel.app.title}}</h2>
+        <p class="install-page__lead">{{panel.app.lead}}</p>
 
-        <a href="{{iphoneAppStoreUrl}}" class="btn btn--primary install-page__download" data-test-cta="download-iphone">Install Readplace for iPhone</a>
+        {{#if panel.app.cta}}
+        <a href="{{panel.app.cta.href}}" class="btn btn--primary install-page__download" data-test-cta="{{panel.app.cta.testId}}">{{panel.app.cta.label}}</a>
+        {{/if}}
 
+        {{#if panel.app.unavailable}}
+        <p class="install-page__unavailable" data-test-section="{{panel.app.unavailable.testId}}">{{panel.app.unavailable.text}}</p>
+        {{/if}}
+
+        {{#if panel.app.demo}}
         <figure class="install-page__video-frame" data-test-video>
-          <video class="install-page__video" width="{{panel.demo.width}}" height="{{panel.demo.height}}" poster="{{panel.demo.poster}}" muted playsinline controls preload="none" aria-label="{{panel.demo.ariaLabel}}">
-            {{#each panel.demo.sources}}
+          <video class="install-page__video" width="{{panel.app.demo.width}}" height="{{panel.app.demo.height}}" poster="{{panel.app.demo.poster}}" muted playsinline controls preload="none" aria-label="{{panel.app.demo.ariaLabel}}">
+            {{#each panel.app.demo.sources}}
             <source src="{{src}}" type="{{type}}">
             {{/each}}
           </video>
-          <figcaption class="install-page__video-caption">{{panel.demo.caption}}</figcaption>
+          <figcaption class="install-page__video-caption">{{panel.app.demo.caption}}</figcaption>
         </figure>
+        {{/if}}
 
-        <p class="install-page__steps-outro" data-test-section="ios-setup-outro">{{iosOutro}}</p>
+        <p class="install-page__steps-outro" data-test-section="{{panel.app.outroTestId}}">{{panel.app.outro}}</p>
       </section>
       {{/case}}
 

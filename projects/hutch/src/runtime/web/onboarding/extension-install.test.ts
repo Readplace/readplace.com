@@ -31,8 +31,8 @@ const IPHONE_CHROME =
 	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.0.0 Mobile/15E148 Safari/604.1";
 
 describe("hasInstallableClient", () => {
-	it("returns false for Android (Chrome/Firefox there can't install the extension)", () => {
-		assert.equal(hasInstallableClient(requestWithUserAgent(ANDROID_CHROME)), false);
+	it("returns true for Android, which has an app of its own even though no browser there can install the extension", () => {
+		assert.equal(hasInstallableClient(requestWithUserAgent(ANDROID_CHROME)), true);
 	});
 
 	it("returns false for desktop Safari (the unrecognised 'other' bucket)", () => {
@@ -75,8 +75,12 @@ describe("detectPlatform", () => {
 		assert.equal(detectPlatform(requestWithUserAgent(IPHONE_CHROME)), "iphone");
 	});
 
-	it("still labels Android Firefox firefox, which is why hasInstallableClient reads Android separately", () => {
-		assert.equal(detectPlatform(requestWithUserAgent(ANDROID_FIREFOX)), "firefox");
+	it("resolves Android Firefox to android rather than firefox, since the Android token outranks the browser one", () => {
+		assert.equal(detectPlatform(requestWithUserAgent(ANDROID_FIREFOX)), "android");
+	});
+
+	it("resolves Android Chrome to android for the same reason", () => {
+		assert.equal(detectPlatform(requestWithUserAgent(ANDROID_CHROME)), "android");
 	});
 
 	it("resolves desktop Safari to the other bucket", () => {
@@ -85,12 +89,12 @@ describe("detectPlatform", () => {
 });
 
 describe("extensionInstallUrlIfMissing", () => {
-	it("offers the generic menu on Android Chrome, which cannot install the extension", () => {
-		assert.equal(extensionInstallUrlIfMissing(requestWithUserAgent(ANDROID_CHROME)), "/install");
+	it("surfaces nothing on Android Chrome, a native-app platform where the extension wording does not apply", () => {
+		assert.equal(extensionInstallUrlIfMissing(requestWithUserAgent(ANDROID_CHROME)), undefined);
 	});
 
-	it("offers the generic menu on Android Firefox, which cannot install the extension", () => {
-		assert.equal(extensionInstallUrlIfMissing(requestWithUserAgent(ANDROID_FIREFOX)), "/install");
+	it("surfaces nothing on Android Firefox, for the same reason", () => {
+		assert.equal(extensionInstallUrlIfMissing(requestWithUserAgent(ANDROID_FIREFOX)), undefined);
 	});
 
 	it("keeps the browser-specific URL on desktop Chrome", () => {

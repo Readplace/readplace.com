@@ -56,7 +56,7 @@ describe("GET /install", () => {
 		expect(doc.body.classList.contains("page-install")).toBe(true);
 	});
 
-	it("should render every client tab in order across both groups", async () => {
+	it("should render every client tab in order across both groups, with the Android tab held back until the app ships", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
@@ -65,6 +65,38 @@ describe("GET /install", () => {
 			(el) => el.getAttribute("data-test-tab"),
 		);
 		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
+	});
+
+	it("should reveal the Android tab in roster order on ?feature=android, and keep the flag on every tab link so it survives switching tabs", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=chrome&feature=android");
+		const doc = load(response.text);
+
+		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]"));
+		expect(tabs.map((el) => el.getAttribute("data-test-tab"))).toEqual([
+			"firefox",
+			"chrome",
+			"iphone",
+			"android",
+			"chatgpt",
+			"gemini",
+			"claude",
+		]);
+		for (const tab of tabs) {
+			const href = tab.getAttribute("href");
+			assert(href, "every tab must link somewhere");
+			expect(new URL(href, TEST_APP_ORIGIN).searchParams.get("feature")).toBe("android");
+		}
+	});
+
+	it("should keep the Android panel reachable by its own link while the tab is hidden, because the links into it already exist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=android");
+		const doc = load(response.text);
+
+		expect(response.status).toBe(200);
+		expect(doc.querySelector('[data-test-panel="android"]')).not.toBeNull();
+		expect(doc.querySelector('[data-test-tab="android"]')).toBeNull();
 	});
 
 	it("should split tabs into a Browsers & Devices group and an AI Assistants group", async () => {
@@ -122,7 +154,7 @@ describe("GET /install", () => {
 
 	it("should label every tab with exactly its display name and no status chip", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=chrome");
+		const response = await request(harness.server).get("/install?client=chrome&feature=android");
 		const doc = load(response.text);
 
 		for (const client of SUPPORTED_CLIENTS) {
@@ -769,9 +801,18 @@ describe("GET /install client detection", () => {
 		expect(await landingClient(IPHONE_EDGE)).toBe("/install?client=iphone");
 	});
 
-	it("sends Android to Gemini, because Android has neither an app nor an extension yet and Gemini is already on the device", async () => {
+	it("sends Android to Gemini while the Android tab is held back, because landing on a panel whose tab is hidden would advertise an app that has not shipped", async () => {
 		expect(await landingClient(ANDROID_CHROME)).toBe("/install?client=gemini");
 		expect(await landingClient(ANDROID_FIREFOX)).toBe("/install?client=gemini");
+	});
+
+	it("sends Android to the Android app once ?feature=android reveals the tab, which every browser there can install even though none can take the extension", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		for (const userAgent of [ANDROID_CHROME, ANDROID_FIREFOX]) {
+			const response = await request(harness.server).get("/install?feature=android").set("User-Agent", userAgent);
+			expect(response.status).toBe(302);
+			expect(response.headers.location).toBe("/install?feature=android&client=android");
+		}
 	});
 
 	it("sends any browser with no first-party client to ChatGPT, because the MCP connector is the only route open to it", async () => {

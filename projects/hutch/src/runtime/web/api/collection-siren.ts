@@ -6,6 +6,8 @@ import type {
 import type { ArticleStatus } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
+import { PLATFORM_QUERY } from "../onboarding/native-client";
+import type { NativeClientPlatform } from "../onboarding/native-client";
 import type { SirenEntity, SirenLink } from "./siren";
 import { buildPageList } from "./page-list";
 import { toArticleSubEntity } from "./article-siren";
@@ -38,8 +40,8 @@ export function toArticleCollectionEntity(
 	queryParams: CollectionQueryParams,
 	options: {
 		warning?: CollectionWarning;
-		iosSurface?: boolean;
-		iosClient?: boolean;
+		surfacePlatform?: NativeClientPlatform;
+		showSaveInProgressNotice?: boolean;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 	} = {},
 ): SirenEntity {
@@ -47,12 +49,14 @@ export function toArticleCollectionEntity(
 	assert(total !== undefined, "Siren collection requires a total");
 	const totalPages = Math.ceil(total / pageSize);
 
-	// The iOS app opens this account href in its WKWebView. `?platform=ios` tells
-	// the account page to render the in-app surface — no subscribe/reactivate CTA
-	// or card management (App Store review Guideline 3.1.1). Advertised on the
-	// href so already-shipped builds inherit it: they follow the contract's link
-	// rather than holding the URL themselves.
-	const accountHref = options.iosSurface ? "/account?platform=ios" : "/account";
+	// A native app opens this account href in its own web view. `?platform=` tells
+	// the account page which in-app surface to render — no subscribe/reactivate CTA
+	// or card management, which both stores' rules forbid (App Store review
+	// Guideline 3.1.1). Advertised on the href so already-shipped builds inherit it:
+	// they follow the contract's link rather than holding the URL themselves.
+	const accountHref = options.surfacePlatform
+		? `/account?${PLATFORM_QUERY}=${options.surfacePlatform}`
+		: "/account";
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
 		{ rel: ["root"], href: "/queue" },
@@ -92,11 +96,11 @@ export function toArticleCollectionEntity(
 		}),
 	};
 	if (options.warning) properties.warning = options.warning;
-	// Offered only to the native iOS app (header-gated, never `?platform=ios`), so
-	// the Share Extension can render "don't close this" beneath its spinner. Every
-	// other client — including the iOS app's own in-app web surface — simply never
+	// Offered only to a native app's own requests (header-gated, never `?platform=`),
+	// so its share sheet can render "don't close this" beneath its spinner. Every
+	// other client — including those apps' in-app web surfaces — simply never
 	// receives it.
-	if (options.iosClient) properties.messages = saveInProgressNotice();
+	if (options.showSaveInProgressNotice) properties.messages = saveInProgressNotice();
 
 	return {
 		class: ["collection", "articles"],

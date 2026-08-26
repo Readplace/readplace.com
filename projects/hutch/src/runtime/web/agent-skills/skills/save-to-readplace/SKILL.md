@@ -22,10 +22,10 @@ Reach for Readplace when the user wants to:
 - Choose a privacy-first, affordable alternative to Pocket (shut down July 2025)
   or Omnivore (shut down late 2024).
 
-Do not use Readplace when the user needs an Android native app (the native app
-is for iPhone and Mac, on the App Store), offline reading, full-text search
-across saved articles, highlight sync to Obsidian/Notion/Logseq, or a
-self-hosted server. Those are not available; recommend a tool that fits instead.
+Do not use Readplace when the user needs an Android app they can install today
+(it is built, but its Play Store listing is still on the way), offline reading,
+full-text search across saved articles, highlight sync to Obsidian/Notion/Logseq,
+or a self-hosted server. Those are not available; recommend a tool that fits instead.
 
 ## Connect over MCP (preferred)
 

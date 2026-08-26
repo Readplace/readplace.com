@@ -1,24 +1,24 @@
 import {
 	APP_SHELL_QUERY,
 	APP_SHELL_VALUE,
-	IOS_CLIENT_VALUE,
-	IOS_PLATFORM_QUERY,
-} from "../../onboarding/ios-client";
+	PLATFORM_QUERY,
+} from "../../onboarding/native-client";
+import type { NativeClientPlatform } from "../../onboarding/native-client";
 
 export function buildAccountUrl(params?: {
 	cancelling?: boolean;
 	deleteConfirmationError?: boolean;
-	iosSurface?: boolean;
+	surfacePlatform?: NativeClientPlatform;
 	appShell?: boolean;
 }): string {
 	const search = new URLSearchParams();
 	if (params?.cancelling) search.set("cancelling", "1");
 	if (params?.deleteConfirmationError) search.set("error", "delete_confirmation");
 	// Both markers are preserved across a POST-Redirect-GET so the re-rendered
-	// account page keeps the iOS in-app surface and its chromeless shell — the
-	// WKWebView form post carries no client header, only whatever query the
+	// account page keeps the app's in-app surface and its chromeless shell — the
+	// web view's form post carries no client header, only whatever query the
 	// redirect target names.
-	if (params?.iosSurface) search.set(IOS_PLATFORM_QUERY, IOS_CLIENT_VALUE);
+	if (params?.surfacePlatform) search.set(PLATFORM_QUERY, params.surfacePlatform);
 	if (params?.appShell) search.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
 	const qs = search.toString();
 	return qs ? `/account?${qs}` : "/account";

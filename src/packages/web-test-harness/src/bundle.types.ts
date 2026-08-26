@@ -136,8 +136,8 @@ import type {
 	ReadPendingUploadPrefix,
 	RateLimitRules,
 	ReadArticleContent,
-	RecordIosAnyActivity,
-	RecordIosSavedArticle,
+	RecordNativeAppAnyActivity,
+	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
 	RecordNextReadStepOutstanding,
 	RefreshArticleIfStale,
@@ -438,8 +438,8 @@ export interface RateLimitBundle {
 }
 
 export interface OnboardingSignalsBundle {
-	recordIosAnyActivity: RecordIosAnyActivity;
-	recordIosSavedArticle: RecordIosSavedArticle;
+	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
+	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	getOnboardingSignals: GetOnboardingSignals;

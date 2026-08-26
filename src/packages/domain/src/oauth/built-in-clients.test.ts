@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+	ANDROID_NATIVE_OAUTH_CALLBACK_URI,
 	IOS_NATIVE_OAUTH_CALLBACK_URI,
 	getBuiltInClient,
 	isBuiltInRedirectUri,
@@ -25,6 +26,14 @@ describe("getBuiltInClient", () => {
 		const client = getBuiltInClient("ios-app");
 		assert(client, "iOS client should be defined");
 		assert.equal(client.name, "Readplace iOS App");
+		assert.ok(client.grants.includes("authorization_code"));
+		assert.ok(client.grants.includes("refresh_token"));
+	});
+
+	it("returns the registered Android app client", () => {
+		const client = getBuiltInClient("android-app");
+		assert(client, "Android client should be defined");
+		assert.equal(client.name, "Readplace Android App");
 		assert.ok(client.grants.includes("authorization_code"));
 		assert.ok(client.grants.includes("refresh_token"));
 	});
@@ -82,6 +91,38 @@ describe("isBuiltInRedirectUri", () => {
 		);
 	});
 
+	it("accepts the Android native custom-scheme callback on the Android app client", () => {
+		const androidClient = getBuiltInClient("android-app");
+		assert(androidClient, "Android client must exist");
+		assert.equal(
+			isBuiltInRedirectUri({
+				client: androidClient,
+				redirectUri: ANDROID_NATIVE_OAUTH_CALLBACK_URI,
+			}),
+			true,
+		);
+	});
+
+	it("rejects each phone app's callback on the other phone app's client", () => {
+		const iosClient = getBuiltInClient("ios-app");
+		const androidClient = getBuiltInClient("android-app");
+		assert(iosClient && androidClient, "both phone clients must exist");
+		// The two URIs share a prefix, so this pins that matching is by exact string:
+		// a code minted for one app can never be redeemed through the other's redirect.
+		assert.equal(
+			isBuiltInRedirectUri({ client: iosClient, redirectUri: ANDROID_NATIVE_OAUTH_CALLBACK_URI }),
+			false,
+		);
+		assert.equal(
+			isBuiltInRedirectUri({ client: androidClient, redirectUri: IOS_NATIVE_OAUTH_CALLBACK_URI }),
+			false,
+		);
+	});
+
+	it("pins the Android native callback URI string the Android app must send verbatim", () => {
+		assert.equal(ANDROID_NATIVE_OAUTH_CALLBACK_URI, "readplace://oauth-callback/android");
+	});
+
 	it("pins the iOS native callback URI string the iOS app must send verbatim", () => {
 		// The iOS app sends this exact string as redirect_uri at both authorize and
 		// token time, where the OAuth server matches by exact string. Pinning the
@@ -113,8 +154,9 @@ describe("isBuiltInRedirectUri", () => {
 });
 
 describe("revokeDestroysUserSessions", () => {
-	it("destroys the user's sessions for the iOS app client", () => {
+	it("destroys the user's sessions for either phone app client", () => {
 		assert.equal(revokeDestroysUserSessions("ios-app"), true);
+		assert.equal(revokeDestroysUserSessions("android-app"), true);
 	});
 
 	it("keeps extension revocation scoped to the presented token", () => {
