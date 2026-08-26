@@ -1423,6 +1423,47 @@ describe("save-content action", () => {
 		});
 	});
 
+	it("keeps a valid fallback action when the error body carries a malformed sibling, so one bad control cannot discard the whole refusal", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "content-too-large", message: "too big" },
+						actions: [
+							{ name: "broken-action", method: "POST" },
+							{
+								name: "save-article",
+								href: "/queue",
+								method: "POST",
+								type: "application/json",
+								fields: [{ name: "url", type: "url" }],
+							},
+						],
+					}),
+				},
+				"POST http://localhost:3000/queue": { status: 201, body: articleResponse(savedAt) },
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+
+		const result = await collection.actions["save-content"]({
+			url: "https://example.com/article",
+			mediaType: "text/html",
+			contentBase64: bytesToBase64(new TextEncoder().encode("<html>big</html>")),
+		});
+
+		expect(result.items[0].id).toBe("article-1");
+		expect(calls).toContain("POST http://localhost:3000/queue");
+	});
+
 	it("includes title in the fallback body when available", async () => {
 		const savedAt = "2026-01-15T10:00:00.000Z";
 		const fallbackBodies: (string | undefined)[] = [];
@@ -1665,6 +1706,69 @@ describe("save-articles action", () => {
 			httpCacheable(initListArticlesUnderstanding()),
 		);
 	}
+
+	it("resolves an absolute save-articles href verbatim instead of concatenating it onto the server base, so the server can re-point the action off-host", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: [
+							COLLECTION_ACTIONS[0],
+							{
+								name: "save-articles",
+								href: "https://uploads.example.com/bulk",
+								method: "POST",
+								type: "multipart/form-data",
+								fields: [
+									{ name: "manifest", type: "text" },
+									{ name: "content", type: "file" },
+								],
+							},
+							COLLECTION_ACTIONS[1],
+						],
+					}),
+				},
+				"POST https://uploads.example.com/bulk": {
+					status: 200,
+					body: bulkResultResponse({ saved: 1, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] }),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
+		const collection = await start();
+		const result = await collection.actions["save-articles"]({
+			manifest: JSON.stringify([{ url: "https://example.com/a" }]),
+		});
+		expect(result.bulk).toMatchObject({ saved: 1 });
+		expect(calls).toContain("POST https://uploads.example.com/bulk");
+	});
+
+	it("refuses a bulk-save reply that is not the negotiated Siren media type, so a captive-portal HTML 200 reads as an unsupported type rather than a decode error", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveArticlesResponse(),
+				},
+				"POST http://localhost:3000/queue/save-articles": {
+					status: 200,
+					body: "<html>captive portal</html>",
+					headers: { "Content-Type": "text/html" },
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-articles"]({
+				manifest: JSON.stringify([{ url: "https://example.com/a" }]),
+			}),
+		).rejects.toThrow("Unsupported media type: text/html");
+	});
 
 	it("builds a multipart body — manifest part plus one content part per captured page — and returns the parsed bulk summary", async () => {
 		let capturedBody: FormData | undefined;

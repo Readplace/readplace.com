@@ -176,7 +176,7 @@ const SirenErrorSchema = z.object({
 		code: z.string(),
 		message: z.string(),
 	}),
-	actions: z.array(SirenActionSchema).optional(),
+	actions: lenientArray(SirenActionSchema),
 });
 
 type SirenAction = z.infer<typeof SirenActionSchema>;
@@ -635,15 +635,17 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 				const bytes = base64ToBytes(base64);
 				formData.append(`content-${index}`, new Blob([bytes], { type: entry.mediaType }), `content-${index}`);
 			});
+			const actionUrl = resolveHref({ base: context.serverUrl, href: sirenAction.href });
+			assert(actionUrl, "save-articles action href is not actionable");
 			const response = await context.doFetch(
-				`${context.serverUrl}${sirenAction.href}`,
+				actionUrl,
 				{
 					method: sirenAction.method,
 					body: formData,
 				},
 			);
 			assert(response.ok, `Bulk save failed: ${response.status}`);
-			const body = SaveArticlesResultSchema.parse(await response.json());
+			const body = SaveArticlesResultSchema.parse(await readSirenBody(response));
 			return { items: [], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: [], bulk: body.properties };
 		};
 	});
@@ -666,7 +668,7 @@ async function followSaveFallback(args: {
 	throwIfBlocked(errorJson);
 	const errorParsed = SirenErrorSchema.safeParse(errorJson);
 	assert(errorParsed.success, `Save failed: ${response.status}`);
-	const errorActions = errorParsed.data.actions ?? [];
+	const errorActions = errorParsed.data.actions;
 	assert(errorActions.length > 0, `Save failed: ${response.status}`);
 	const fallbackAction = errorActions[0];
 	logger.warn(errorParsed.data.properties.message);

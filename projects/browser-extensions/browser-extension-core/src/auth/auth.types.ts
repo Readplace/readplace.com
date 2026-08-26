@@ -23,10 +23,6 @@ export type RefreshTokens = () => Promise<RefreshResult>;
 
 export type GetAccessToken = () => Promise<string | null>;
 
-/** Mints a browser session cookie from the stored bearer. The reader at
- * /queue/:id/view authorizes the owner from the hutch_sid cookie, never a
- * bearer, so a list link followed into a normal tab needs that cookie to land
- * on the private reader instead of the public /view fallback. */
 export type EnsureWebSession = () => Promise<void>;
 
 export type WhenLoggedIn = <T>(fn: () => T) => GuardedResult<T>;
