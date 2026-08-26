@@ -20,6 +20,7 @@ function makeViewModel(
 		url: "https://example.com/article",
 		status: "unread",
 		isUnread: true,
+		readTime: { value: "3", label: "~3 min read" },
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
 		deleteConfirm: {
@@ -59,6 +60,24 @@ function readerLinkParams(el: Element | null): {
 		content: url.searchParams.get("utm_content"),
 		term: url.searchParams.get("utm_term"),
 	};
+}
+
+const META_SEP_CLASS = "queue-article__meta-part--sep";
+
+function separatedMetaParts(doc: Document): string[] {
+	const parts: ReadonlyArray<readonly [string, Element | null]> = [
+		["site", doc.querySelector("[data-test-article-url]")],
+		["read-time", doc.querySelector("[data-test-read-time]")],
+		["saved", doc.querySelector("time[data-local-time]")],
+	];
+	const separated: string[] = [];
+	for (const [name, part] of parts) {
+		assert(part, `the ${name} meta part must always be rendered`);
+		if (part.classList.contains(META_SEP_CLASS)) {
+			separated.push(name);
+		}
+	}
+	return separated;
 }
 
 describe("renderQueueCard", () => {
@@ -202,6 +221,83 @@ describe("renderQueueCard", () => {
 		const link = parse(html).querySelector("[data-test-article-url]");
 		assert(link, "the url link must always be rendered even when siteName is blank");
 		expect(link.classList.contains("queue-article__url--empty")).toBe(true);
+	});
+
+	it("renders the server's read-time label verbatim for a crawled article", () => {
+		const html = renderQueueCard(
+			display(makeViewModel({ readTime: { value: "3", label: "~3 min read" } }), {
+				isFirst: false,
+			}),
+		);
+		const readTime = parse(html).querySelector("[data-test-read-time]");
+		assert(readTime, "the read-time part must always be rendered");
+		expect(readTime.textContent).toBe("~3 min read");
+		expect(readTime.classList.contains("queue-article__read-time--empty")).toBe(false);
+	});
+
+	it("renders the read-time part in its empty state when the article's crawl has not landed", () => {
+		const html = renderQueueCard(
+			display(makeViewModel({ readTime: undefined }), { isFirst: false }),
+		);
+		const readTime = parse(html).querySelector("[data-test-read-time]");
+		assert(
+			readTime,
+			"the read-time part must be rendered even when the crawl has not landed",
+		);
+		expect(readTime.textContent).toBe("");
+		expect(readTime.classList.contains("queue-article__read-time--empty")).toBe(true);
+	});
+
+	it("separates read time and saved time when the site name leads the meta row", () => {
+		const html = renderQueueCard(
+			display(
+				makeViewModel({
+					siteName: "Example Blog",
+					readTime: { value: "3", label: "~3 min read" },
+				}),
+				{ isFirst: false },
+			),
+		);
+		expect(separatedMetaParts(parse(html))).toEqual(["read-time", "saved"]);
+	});
+
+	it("leaves the read time unseparated when a blank site name makes it the first present part", () => {
+		const html = renderQueueCard(
+			display(
+				makeViewModel({
+					siteName: "",
+					readTime: { value: "3", label: "~3 min read" },
+				}),
+				{ isFirst: false },
+			),
+		);
+		expect(separatedMetaParts(parse(html))).toEqual(["saved"]);
+	});
+
+	it("separates only the saved time when the article has no read time to show", () => {
+		const html = renderQueueCard(
+			display(makeViewModel({ siteName: "Example Blog", readTime: undefined }), {
+				isFirst: false,
+			}),
+		);
+		expect(separatedMetaParts(parse(html))).toEqual(["saved"]);
+	});
+
+	it("orders the meta row site, then read time, then saved time — the order mobile reads", () => {
+		const doc = parse(renderQueueCard(display(makeViewModel(), { isFirst: false })));
+		const meta = doc.querySelector(".queue-article__meta");
+		assert(meta, "the meta row must be present");
+		const order = Array.from(meta.children).map((part) => {
+			const blockClass = part.classList.item(0);
+			assert(blockClass, "every meta part must carry a block class");
+			return blockClass;
+		});
+		expect(order).toEqual([
+			"queue-article__status",
+			"queue-article__url",
+			"queue-article__read-time",
+			"queue-article__time",
+		]);
 	});
 
 	it("emits the polling htmx attributes when cardPollUrl is set", () => {

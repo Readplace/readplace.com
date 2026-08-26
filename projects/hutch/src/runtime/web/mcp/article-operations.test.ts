@@ -83,6 +83,7 @@ describe("toMcpArticle", () => {
 			wordCount: 400,
 			imageUrl: "https://example.com/i.png",
 			estimatedReadTime: 2,
+			readTime: { value: "2", label: "~2 min read" },
 			status: "read",
 			savedAt: "2026-01-01T00:00:00.000Z",
 			readAt: "2026-02-02T00:00:00.000Z",
@@ -109,6 +110,23 @@ describe("toMcpArticle", () => {
 		const mapped = toMcpArticle(article);
 		expect(mapped).not.toHaveProperty("imageUrl");
 		expect(mapped).not.toHaveProperty("readAt");
+	});
+
+	it("omits readTime while the crawl has not landed — an uncrawled stub's minutes are synthetic", () => {
+		const article = buildArticle({
+			metadata: {
+				title: "T",
+				siteName: "S",
+				excerpt: "E",
+				wordCount: 0,
+			},
+			estimatedReadTime: MinutesSchema.parse(1),
+		});
+		const mcpArticle = toMcpArticle(article);
+		expect([
+			Object.hasOwn(mcpArticle, "estimatedReadTime"),
+			Object.hasOwn(mcpArticle, "readTime"),
+		]).toEqual([false, false]);
 	});
 });
 

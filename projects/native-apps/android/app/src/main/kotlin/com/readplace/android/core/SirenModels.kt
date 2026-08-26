@@ -58,6 +58,11 @@ data class SirenAction(
 	val fields: List<SirenField>?,
 )
 
+data class ReadTimeProperty(
+	val value: String,
+	val label: String,
+)
+
 /**
  * The properties of an article entity. Everything except `id`/`url` is optional so
  * a single malformed or evolving entity never fails the decode of the whole
@@ -72,6 +77,7 @@ data class ArticleProperties(
 	val wordCount: Int?,
 	val imageUrl: String?,
 	val estimatedReadTimeMinutes: Int?,
+	val readTime: ReadTimeProperty?,
 	val status: String?,
 	val savedAt: String?,
 	val readAt: String?,
@@ -315,12 +321,20 @@ object SirenDecoding {
 			wordCount = int(obj["wordCount"]),
 			imageUrl = string(obj["imageUrl"]),
 			estimatedReadTimeMinutes = int(obj["estimatedReadTimeMinutes"]),
+			readTime = readTime(obj["readTime"]),
 			status = string(obj["status"]),
 			savedAt = string(obj["savedAt"]),
 			readAt = string(obj["readAt"]),
 			isRead = boolean(obj["isRead"]),
 			messages = lossyList(obj["messages"], ::serverMessage),
 		)
+	}
+
+	private fun readTime(element: JsonElement?): ReadTimeProperty? {
+		val obj = element as? JsonObject ?: return null
+		val value = string(obj["value"]) ?: return null
+		val label = string(obj["label"]) ?: return null
+		return ReadTimeProperty(value = value, label = label)
 	}
 
 	private fun <T> lossyList(element: JsonElement?, map: (JsonElement) -> T?): List<T>? {
@@ -375,7 +389,7 @@ data class Article(
 	val siteName: String?,
 	val excerpt: String?,
 	val imageUrl: String?,
-	val readTimeMinutes: Int?,
+	val readTimeLabel: String?,
 	val isRead: Boolean,
 	val savedAt: Instant?,
 	val actions: List<SirenAction>,
@@ -402,7 +416,7 @@ data class Article(
 				siteName = props.siteName,
 				excerpt = props.excerpt,
 				imageUrl = props.imageUrl,
-				readTimeMinutes = props.estimatedReadTimeMinutes,
+				readTimeLabel = props.readTime?.label,
 				// Prefer the server's explicit read-state; fall back to deriving it from
 				// the status vocabulary only for an older server that doesn't emit it.
 				isRead = props.isRead ?: (props.status == "read" || props.readAt != null),

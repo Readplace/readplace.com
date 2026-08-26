@@ -170,6 +170,7 @@ object DrainAndHealTestSupport {
 						"excerpt": "An excerpt.",
 						"imageUrl": "https://example.com/img.png",
 						"estimatedReadTimeMinutes": 6,
+						"readTime": { "value": "6", "label": "~6 min read" },
 						"status": "unread",
 						"savedAt": "2026-05-30T10:00:00.000Z",
 						"readAt": null

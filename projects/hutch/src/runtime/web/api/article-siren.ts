@@ -1,5 +1,5 @@
 import { parseCrawlFailureReason } from "@packages/article-state-types";
-import type { SavedArticle } from "@packages/domain/article";
+import { displayableReadTime, type SavedArticle } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 
@@ -21,6 +21,7 @@ export function toArticleSubEntity(
 
 	const isRead = article.status === "read";
 	const targetStatus = isRead ? "unread" : "read";
+	const readTime = displayableReadTime(article);
 
 	return {
 		class: ["article"],
@@ -34,7 +35,8 @@ export function toArticleSubEntity(
 			siteName: article.metadata.siteName,
 			excerpt: article.metadata.excerpt,
 			imageUrl: article.metadata.imageUrl ?? null,
-			estimatedReadTimeMinutes: article.estimatedReadTime,
+			estimatedReadTimeMinutes: readTime ? article.estimatedReadTime : null,
+			readTime: readTime ?? null,
 			status: article.status,
 			savedAt: article.savedAt.toISOString(),
 			readAt: article.readAt?.toISOString() ?? null,

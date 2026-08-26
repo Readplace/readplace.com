@@ -25,6 +25,7 @@ import { viewPathFor } from "./view-path";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
+import { displayableReadTime } from "@packages/domain/article";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
@@ -83,7 +84,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 	const innerContent = renderArticleBody({
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
-		estimatedReadTime: input.estimatedReadTime,
+		readTime: displayableReadTime(input),
 		// Header "View original" only; the share path, save action and SEO below
 		// keep `articleUrl` (the identity).
 		url: input.displayUrl ?? input.articleUrl,

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import type { Minutes } from "@packages/domain/article";
 import { QueueSlugSchema } from "@packages/domain/queue";
 import {
 	renderArticleHeader,
@@ -11,7 +10,7 @@ import {
 const baseInput = {
 	title: "Hello World",
 	siteName: "example.com",
-	estimatedReadTime: 3 as Minutes,
+	readTime: { value: "3", label: "~3 min read" },
 	url: "https://example.com/post",
 	provenance: undefined,
 	queueTags: undefined,
@@ -42,7 +41,7 @@ describe("renderArticleHeader (inline)", () => {
 
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Hello World");
 		expect(doc.querySelector("[data-test-reader-site]")?.textContent).toBe("example.com");
-		expect(doc.querySelector(".article-body__meta")?.textContent).toContain("3 min read");
+		expect(doc.querySelector(".article-body__meta")?.textContent).toContain("~3 min read");
 		const originalLink = doc.querySelector("[data-test-original-link]");
 		assert(originalLink, "view-original link must be rendered");
 		expect(originalLink.getAttribute("href")).toBe("https://example.com/post");
@@ -54,6 +53,26 @@ describe("renderArticleHeader (inline)", () => {
 		const header = doc.querySelector("#article-header");
 		assert(header, "header must render");
 		expect(header.querySelector(".article-body__actions--top")).toBe(null);
+	});
+});
+
+describe("read time", () => {
+	it("renders the server's label verbatim once the crawl has counted the words", () => {
+		const doc = parse(renderArticleHeader(baseInput));
+
+		const readTime = doc.querySelector("[data-test-reader-read-time]");
+		assert(readTime, "the read-time span must render");
+		expect(readTime.textContent).toBe("~3 min read");
+		expect(readTime.classList.contains("article-body__read-time--empty")).toBe(false);
+	});
+
+	it("keeps the span but marks it empty while the crawl has not landed, so the OOB swap has a node to replace", () => {
+		const doc = parse(renderArticleHeader({ ...baseInput, readTime: undefined }));
+
+		const readTime = doc.querySelector("[data-test-reader-read-time]");
+		assert(readTime, "the read-time span must still render so the OOB swap can fill it");
+		expect(readTime.classList.contains("article-body__read-time--empty")).toBe(true);
+		expect(readTime.textContent).toBe("");
 	});
 });
 
@@ -98,7 +117,7 @@ describe("save provenance tag", () => {
 	it("leaves the meta row exactly as it was for an article saved before provenance was captured", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 
-		expect(metaRow(doc)).toEqual(["example.com", "3 min read"]);
+		expect(metaRow(doc)).toEqual(["example.com", "~3 min read"]);
 	});
 
 	it("names the client a save came from and carries its logo", () => {
@@ -122,7 +141,7 @@ describe("save provenance tag", () => {
 			}),
 		);
 
-		expect(metaRow(doc)).toEqual(["example.com", "3 min read", "via news@example.com"]);
+		expect(metaRow(doc)).toEqual(["example.com", "~3 min read", "via news@example.com"]);
 		expect(
 			doc.querySelector("[data-test-reader-provenance] svg")?.getAttribute("viewBox"),
 		).toBe("0 0 24 24");
@@ -167,7 +186,7 @@ describe("renderArticleHeaderOob", () => {
 			renderArticleHeaderOob({ ...baseInput, provenance: { kind: "web" } }),
 		);
 
-		expect(metaRow(doc)).toEqual(["example.com", "3 min read", "via Web"]);
+		expect(metaRow(doc)).toEqual(["example.com", "~3 min read", "via Web"]);
 	});
 });
 

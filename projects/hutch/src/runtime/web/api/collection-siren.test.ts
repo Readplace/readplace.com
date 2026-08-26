@@ -132,6 +132,7 @@ describe("toArticleCollectionEntity", () => {
 			"excerpt",
 			"imageUrl",
 			"estimatedReadTimeMinutes",
+			"readTime",
 			"status",
 			"savedAt",
 			"readAt",

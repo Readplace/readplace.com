@@ -201,6 +201,10 @@
   color: var(--color-text-secondary);
 }
 
+.article-body__read-time--empty {
+  display: none;
+}
+
 .article-body__provenance {
   max-width: 100%;
   overflow: hidden;

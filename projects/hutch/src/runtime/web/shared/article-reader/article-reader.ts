@@ -1,3 +1,4 @@
+import { displayableReadTime } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type {
@@ -294,7 +295,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const headerOob = renderArticleHeaderOob({
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
-			estimatedReadTime: article.estimatedReadTime,
+			readTime: displayableReadTime(article),
 			url: displayUrl,
 			provenance,
 			queueTags,

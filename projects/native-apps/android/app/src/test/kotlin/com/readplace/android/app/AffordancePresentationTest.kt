@@ -401,7 +401,7 @@ class AffordancePresentationTest {
 		siteName = null,
 		excerpt = null,
 		imageUrl = null,
-		readTimeMinutes = null,
+		readTimeLabel = null,
 		isRead = false,
 		savedAt = null,
 		actions = actions,

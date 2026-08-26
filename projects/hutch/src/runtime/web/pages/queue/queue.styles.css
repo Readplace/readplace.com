@@ -730,6 +730,19 @@
   white-space: nowrap;
 }
 
+.queue-article__read-time {
+  white-space: nowrap;
+}
+
+.queue-article__read-time--empty {
+  display: none;
+}
+
+.queue-article__meta-part--sep::before {
+  content: "·";
+  margin-right: 8px;
+}
+
 .queue-article__actions {
   display: flex;
   flex: 0 0 auto;

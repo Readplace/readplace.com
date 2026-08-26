@@ -37,6 +37,7 @@ function mcpArticle(overrides: Partial<McpArticle> = {}): McpArticle {
 		excerpt: "",
 		wordCount: 10,
 		estimatedReadTime: 1,
+		readTime: { value: "1", label: "~1 min read" },
 		status: "unread",
 		savedAt: "2026-01-01T00:00:00.000Z",
 		...overrides,
@@ -478,6 +479,28 @@ describe("initMcpServer", () => {
 					content: [{ text: expect.stringContaining("Deep Work") }],
 					structuredContent: { found: true, article: { id: article.id } },
 				},
+			});
+		});
+
+		it("renders the server's read-time label verbatim in the meta line", async () => {
+			const article = mcpArticle({ siteName: "Example", wordCount: 10 });
+			const server = initMcpServer(fakeDeps({ getArticle: async () => article }));
+			const response = await call(server, 32, "get_article", { id: article.id });
+			expect(response).toMatchObject({
+				result: {
+					content: [
+						{ text: expect.stringContaining("Example · ~1 min read · 10 words") },
+					],
+				},
+			});
+		});
+
+		it("drops the read-time from the meta line when the crawl has not landed", async () => {
+			const article = mcpArticle({ siteName: "Example", wordCount: 0, readTime: undefined });
+			const server = initMcpServer(fakeDeps({ getArticle: async () => article }));
+			const response = await call(server, 33, "get_article", { id: article.id });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("Example · 0 words") }] },
 			});
 		});
 

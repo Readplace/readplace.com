@@ -5,7 +5,7 @@ import {
 	UNKNOWN_MCP_TOOL,
 } from "@packages/web-analytics";
 import type { AuthenticatedUserId } from "@packages/domain/user";
-import type { ArticleStatus } from "@packages/domain/article";
+import type { ArticleStatus, DisplayableReadTime } from "@packages/domain/article";
 import type {
 	SortField,
 	SortOrder,
@@ -55,7 +55,8 @@ export interface McpArticle {
 	readonly excerpt: string;
 	readonly wordCount: number;
 	readonly imageUrl?: string;
-	readonly estimatedReadTime: number;
+	readonly estimatedReadTime?: number;
+	readonly readTime?: DisplayableReadTime;
 	readonly status: ArticleStatus;
 	readonly savedAt: string;
 	readonly readAt?: string;
@@ -272,7 +273,10 @@ function formatArticle(article: McpArticle): string {
 		? `Saved ${formatDate(article.savedAt)}; read ${formatDate(article.readAt)}`
 		: `Saved ${formatDate(article.savedAt)}`;
 	const excerpt = article.excerpt ? `\n${article.excerpt}` : "";
-	return `"${article.title || article.url}" [${article.status}] — ${article.url}\n${article.siteName} · ~${article.estimatedReadTime} min read · ${article.wordCount} words\n${dates}${excerpt}`;
+	const meta = [article.siteName, article.readTime?.label, `${article.wordCount} words`]
+		.filter((part) => part !== undefined && part !== "")
+		.join(" · ");
+	return `"${article.title || article.url}" [${article.status}] — ${article.url}\n${meta}\n${dates}${excerpt}`;
 }
 
 export function initMcpServer(deps: McpServerDeps): McpServer {

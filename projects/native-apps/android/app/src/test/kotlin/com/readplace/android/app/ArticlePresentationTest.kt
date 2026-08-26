@@ -15,25 +15,38 @@ class ArticlePresentationTest {
 	@Test
 	fun `subtitle joins site, read time and saved-at with a middle dot`() {
 		val row = ArticlePresentation.of(
-			article(siteName = "example.com", readTimeMinutes = 5, savedAt = Instant.parse("2026-08-25T07:00:00Z")),
+			article(
+				siteName = "example.com",
+				readTimeLabel = "~5 min read",
+				savedAt = Instant.parse("2026-08-25T07:00:00Z"),
+			),
 			clockAt("2026-08-25T10:00:00Z"),
 		)
-		assertEquals("example.com · 5 min read · 3h ago", row.subtitle)
+		assertEquals("example.com · ~5 min read · 3h ago", row.subtitle)
 	}
 
 	@Test
 	fun `subtitle is null when no part carries a value`() {
 		val row = ArticlePresentation.of(
-			article(siteName = null, readTimeMinutes = null, savedAt = null),
+			article(siteName = null, readTimeLabel = null, savedAt = null),
 			clockAt("2026-08-25T10:00:00Z"),
 		)
 		assertNull(row.subtitle)
 	}
 
 	@Test
-	fun `an empty site name and a zero read time are left out`() {
+	fun `an empty site name and a read time the server withheld are left out`() {
 		val row = ArticlePresentation.of(
-			article(siteName = "", readTimeMinutes = 0, savedAt = Instant.parse("2026-08-24T10:00:00Z")),
+			article(siteName = "", readTimeLabel = null, savedAt = Instant.parse("2026-08-24T10:00:00Z")),
+			clockAt("2026-08-25T10:00:00Z"),
+		)
+		assertEquals("1d ago", row.subtitle)
+	}
+
+	@Test
+	fun `a blank read time label is left out`() {
+		val row = ArticlePresentation.of(
+			article(readTimeLabel = "   ", savedAt = Instant.parse("2026-08-24T10:00:00Z")),
 			clockAt("2026-08-25T10:00:00Z"),
 		)
 		assertEquals("1d ago", row.subtitle)
@@ -158,7 +171,7 @@ class ArticlePresentationTest {
 		siteName: String? = null,
 		excerpt: String? = null,
 		imageUrl: String? = null,
-		readTimeMinutes: Int? = null,
+		readTimeLabel: String? = null,
 		isRead: Boolean = false,
 		savedAt: Instant? = null,
 	): Article = Article(
@@ -168,7 +181,7 @@ class ArticlePresentationTest {
 		siteName = siteName,
 		excerpt = excerpt,
 		imageUrl = imageUrl,
-		readTimeMinutes = readTimeMinutes,
+		readTimeLabel = readTimeLabel,
 		isRead = isRead,
 		savedAt = savedAt,
 		actions = emptyList(),

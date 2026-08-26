@@ -1,4 +1,8 @@
-import type { SavedArticle } from "@packages/domain/article";
+import {
+	displayableReadTime,
+	type DisplayableReadTime,
+	type SavedArticle,
+} from "@packages/domain/article";
 
 export interface ExportArticle {
 	url: string;
@@ -6,7 +10,7 @@ export interface ExportArticle {
 	siteName: string;
 	excerpt: string;
 	wordCount: number;
-	estimatedReadTimeMinutes: number;
+	readTime: DisplayableReadTime | null;
 	status: SavedArticle["status"];
 	savedAt: string;
 	readAt: string | null;
@@ -19,7 +23,7 @@ export function toExportArticle(article: SavedArticle): ExportArticle {
 		siteName: article.metadata.siteName,
 		excerpt: article.metadata.excerpt,
 		wordCount: article.metadata.wordCount,
-		estimatedReadTimeMinutes: article.estimatedReadTime,
+		readTime: displayableReadTime(article) ?? null,
 		status: article.status,
 		savedAt: article.savedAt.toISOString(),
 		readAt: article.readAt?.toISOString() ?? null,

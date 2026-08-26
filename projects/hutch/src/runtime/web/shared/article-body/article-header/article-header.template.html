@@ -2,7 +2,7 @@
   <h1 class="article-body__title" data-test-reader-title>{{title}}</h1>
   <div class="article-body__meta">
     <span data-test-reader-site>{{siteName}}</span>
-    <span>{{estimatedReadTime}} min read</span>
+    <span class="article-body__read-time{{readTimeEmptyClass}}" data-test-reader-read-time>{{readTimeLabel}}</span>
     {{#if provenanceLabel}}
     <span class="article-body__provenance" data-test-reader-provenance title="{{provenanceLabel}}">{{{provenanceIconSvg}}}{{provenanceLabel}}</span>
     {{/if}}

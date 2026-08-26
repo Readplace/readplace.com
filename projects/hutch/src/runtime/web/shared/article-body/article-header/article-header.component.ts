@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Handlebars from "handlebars";
-import type { Minutes, SaveProvenance } from "@packages/domain/article";
+import type { DisplayableReadTime, SaveProvenance } from "@packages/domain/article";
 import type { QueueSlug } from "@packages/domain/queue";
 import { render } from "@packages/web-shell";
 import { provenanceLabel } from "./provenance-label";
@@ -17,7 +17,7 @@ export interface ReaderQueueTags {
 export interface ArticleHeaderInput {
 	title: string;
 	siteName: string;
-	estimatedReadTime: Minutes;
+	readTime: DisplayableReadTime | undefined;
 	url: string;
 	/** Required-undefined rather than optional: the header is re-rendered on every
 	 * poll, so every call site has to decide whether it can supply the tag instead
@@ -31,7 +31,8 @@ function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
 	return render(TEMPLATE, {
 		title: input.title,
 		siteName: input.siteName,
-		estimatedReadTime: input.estimatedReadTime,
+		readTimeLabel: input.readTime?.label ?? "",
+		readTimeEmptyClass: input.readTime ? "" : " article-body__read-time--empty",
 		url: input.url,
 		provenanceLabel: provenance?.label,
 		provenanceIconSvg: provenance?.iconSvg,

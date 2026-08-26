@@ -1113,6 +1113,11 @@ class ReadplaceApiTest {
 				if (value != null) "\"$key\": \"$value\"" else "\"$key\": null"
 			fun numField(key: String, value: Int?): String =
 				if (value != null) "\"$key\": $value" else "\"$key\": null"
+			val readTimeField = if (readTime != null) {
+				"\"readTime\": { \"value\": \"$readTime\", \"label\": \"~$readTime min read\" }"
+			} else {
+				"\"readTime\": null"
+			}
 			// Emitted only when set, so a fixture without it models an older server that
 			// doesn't advertise the explicit read-state, or one that sends no messages.
 			val isReadField = if (isRead != null) ", \"isRead\": $isRead" else ""
@@ -1129,6 +1134,7 @@ class ReadplaceApiTest {
 						${field("excerpt", excerpt)},
 						${field("imageUrl", imageUrl)},
 						${numField("estimatedReadTimeMinutes", readTime)},
+						$readTimeField,
 						"status": "$status",
 						"savedAt": "$savedAt",
 						${field("readAt", readAt)}$isReadField$messagesField

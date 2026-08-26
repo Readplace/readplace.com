@@ -194,6 +194,10 @@ enum Fixtures {
 		func numField(_ key: String, _ value: Int?) -> String {
 			value.map { "\"\(key)\": \($0)" } ?? "\"\(key)\": null"
 		}
+		func readTimeField(_ minutes: Int?) -> String {
+			minutes.map { "\"readTime\": { \"value\": \"\($0)\", \"label\": \"~\($0) min read\" }" } ?? "\"readTime\": null"
+		}
+
 		// Emitted only when set, so a fixture without it models an older server that
 		// doesn't advertise the explicit read-state.
 		func boolField(_ key: String, _ value: Bool?) -> String {
@@ -211,6 +215,7 @@ enum Fixtures {
 				\(field("excerpt", excerpt)),
 				\(field("imageUrl", imageUrl)),
 				\(numField("estimatedReadTimeMinutes", readTime)),
+				\(readTimeField(readTime)),
 				"status": "\(status)",
 				"savedAt": "\(savedAt)",
 				\(field("readAt", readAt))\(boolField("isRead", isRead))

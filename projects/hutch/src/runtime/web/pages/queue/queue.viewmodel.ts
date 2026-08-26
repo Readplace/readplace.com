@@ -1,4 +1,9 @@
-import type { SavedArticle, SaveableUrlErrorCode } from "@packages/domain/article";
+import {
+	displayableReadTime,
+	type DisplayableReadTime,
+	type SavedArticle,
+	type SaveableUrlErrorCode,
+} from "@packages/domain/article";
 import type { IconName } from "@packages/ui-icons";
 import { type LocalTime, toAbsoluteDate, toRelativeOrDate } from "@packages/web-shell";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
@@ -53,6 +58,7 @@ export interface QueueArticleViewModel {
 	url: string;
 	status: string;
 	isUnread: boolean;
+	readTime: DisplayableReadTime | undefined;
 	saved: LocalTime;
 	imageUrl?: string;
 	actions: ArticleAction[];
@@ -211,6 +217,7 @@ export function toQueueArticleViewModel(params: {
 		url: article.displayUrl ?? article.url,
 		status: article.status,
 		isUnread: article.status === "unread",
+		readTime: displayableReadTime(article),
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
 		imageUrl: article.metadata.imageUrl,
 		actions: [...toStatusActions({ id, status: article.status }, returnQuery), deleteAction],

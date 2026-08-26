@@ -37,7 +37,7 @@ const VOLATILE_CHROME = [
 	".reader__float-stack",
 	".article-body__progress",
 ];
-const PINNED_SAVED_TIMES = ["2 days ago", "3 days ago"];
+const PINNED_SAVED_TIMES = ["2 days ago", "3 days ago", "4 days ago"];
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ ok: z.literal(true), articleId: z.string() });

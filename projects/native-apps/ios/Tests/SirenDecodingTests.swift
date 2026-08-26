@@ -29,7 +29,7 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(article.siteName, "Example")
 		XCTAssertEqual(article.excerpt, "An excerpt.")
 		XCTAssertEqual(article.imageURL?.absoluteString, "https://example.com/img.png")
-		XCTAssertEqual(article.readTimeMinutes, 6)
+		XCTAssertEqual(article.readTimeLabel, "~6 min read")
 		XCTAssertFalse(article.isRead)
 		let updateStatus = try XCTUnwrap(article.actions.first { $0.name == "update-status" })
 		XCTAssertEqual(updateStatus.href, "/queue/a1/status")
@@ -141,6 +141,37 @@ final class SirenDecodingTests: XCTestCase {
 			affordance.label, "Update Status",
 			"a title-less action renders a humanized token, not the raw wire slug"
 		)
+	}
+
+	func testArticleCarriesTheServerReadTimeLabelVerbatim() throws {
+		let json = """
+		{ "properties": {
+			"id": "x", "url": "https://example.com/x",
+			"estimatedReadTimeMinutes": 12,
+			"readTime": { "value": "12", "label": "~12 min read" }
+		} }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertEqual(
+			article.readTimeLabel, "~12 min read",
+			"the server owns the wording, so the client renders its label as sent"
+		)
+	}
+
+	func testArticleWithoutReadTimeHasNoReadTimeLabel() throws {
+		let json = """
+		{ "properties": { "id": "x", "url": "https://example.com/x", "estimatedReadTimeMinutes": 12 } }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertNil(
+			article.readTimeLabel,
+			"a server that never sends readTime decodes cleanly and the row omits the segment"
+		)
+	}
+
+	func testNullReadTimeHasNoReadTimeLabel() throws {
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(Fixtures.article(readTime: nil))))
+		XCTAssertNil(article.readTimeLabel, "an uncrawled stub sends readTime: null and shows no read time")
 	}
 
 	func testNullImageAndReadAtAreTolerated() throws {

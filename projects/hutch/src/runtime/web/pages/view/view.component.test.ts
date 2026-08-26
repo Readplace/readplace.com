@@ -15,7 +15,7 @@ const baseInput: ViewPageInput = {
 		wordCount: 500,
 		imageUrl: "https://cdn.example.com/hero.jpg",
 	},
-	estimatedReadTime: calculateReadTime(0),
+	estimatedReadTime: calculateReadTime(500),
 	saveTip: { state: "due", html: "" },
 	content: "<p>Body copy.</p>",
 	summary: { status: "skipped" },
@@ -42,7 +42,7 @@ describe("ViewPage", () => {
 
 		expect(Array.from(meta.querySelectorAll("span")).map((span) => span.textContent?.trim())).toEqual([
 			"example.com",
-			"1 min read",
+			"~3 min read",
 		]);
 	});
 

@@ -33,7 +33,25 @@ export interface QueueCardDisplayModel extends QueueArticleViewModel {
 	isProcessing: boolean;
 	processingHiddenClass: string;
 	urlEmptyClass: string;
+	readTimeLabel: string;
+	readTimeEmptyClass: string;
+	siteSepClass: string;
+	readTimeSepClass: string;
+	savedSepClass: string;
 	actions: ActionDisplayModel[];
+}
+
+const SEP_CLASS = " queue-article__meta-part--sep";
+
+function toMetaSeparators(present: { site: boolean; readTime: boolean }) {
+	const order = [present.site, present.readTime, true];
+	const firstPresent = order.indexOf(true);
+	const sepFor = (index: number) => (order[index] && index > firstPresent ? SEP_CLASS : "");
+	return {
+		siteSepClass: sepFor(0),
+		readTimeSepClass: sepFor(1),
+		savedSepClass: sepFor(2),
+	};
 }
 
 export function toActionDisplayModel(
@@ -87,6 +105,12 @@ export function toQueueCardDisplayModel(
 		isProcessing,
 		processingHiddenClass: isProcessing ? "" : " queue-article__processing--hidden",
 		urlEmptyClass: article.siteName ? "" : " queue-article__url--empty",
+		readTimeLabel: article.readTime?.label ?? "",
+		readTimeEmptyClass: article.readTime ? "" : " queue-article__read-time--empty",
+		...toMetaSeparators({
+			site: Boolean(article.siteName),
+			readTime: article.readTime !== undefined,
+		}),
 		actions: article.actions.map((action) =>
 			toActionDisplayModel(action, { isProcessing, articleId: article.id }),
 		),

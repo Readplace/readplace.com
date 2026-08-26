@@ -1178,7 +1178,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	private func article(readHref: String?, id: String = "a1") -> Article {
 		Article(
 			id: id, url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
-			imageURL: nil, readTimeMinutes: nil, isRead: false, savedAt: nil,
+			imageURL: nil, readTimeLabel: nil, isRead: false, savedAt: nil,
 			actions: [], links: [], readHref: readHref
 		)
 	}

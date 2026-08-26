@@ -30,6 +30,7 @@ import {
 import { viewPathFor } from "../view/view-path";
 import { renderExitConfirm } from "./reader-exit-confirm.component";
 import { READER_STYLES } from "./reader.styles";
+import { displayableReadTime } from "@packages/domain/article";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
@@ -121,7 +122,7 @@ export function ReaderPage(
 	const innerContent = renderArticleBody({
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
-		estimatedReadTime: article.estimatedReadTime,
+		readTime: displayableReadTime(article),
 		// Header "View original" points at the redirect destination once merged;
 		// the share path below stays on `article.url` (the /view identity).
 		url: article.displayUrl ?? article.url,

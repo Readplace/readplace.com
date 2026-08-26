@@ -122,6 +122,11 @@ extension SirenAction {
 	}
 }
 
+struct ReadTimeProperty: Decodable {
+	let value: String
+	let label: String
+}
+
 /// The properties of an article entity. Everything except `id`/`url` is
 /// optional so a single malformed or evolving entity never fails the decode
 /// of the whole collection.
@@ -134,6 +139,7 @@ struct ArticleProperties: Decodable {
 	let wordCount: Int?
 	let imageUrl: String?
 	let estimatedReadTimeMinutes: Int?
+	let readTime: ReadTimeProperty?
 	let status: String?
 	let savedAt: String?
 	let readAt: String?
@@ -353,7 +359,7 @@ struct Article: Identifiable, Hashable {
 	let siteName: String?
 	let excerpt: String?
 	let imageURL: URL?
-	let readTimeMinutes: Int?
+	let readTimeLabel: String?
 	let isRead: Bool
 	let savedAt: Date?
 	/// Every action the server advertised on this item (e.g. `update-status`),
@@ -396,7 +402,7 @@ extension Article {
 		siteName = props.siteName
 		excerpt = props.excerpt
 		imageURL = props.imageUrl.flatMap(URL.init(string:))
-		readTimeMinutes = props.estimatedReadTimeMinutes
+		readTimeLabel = props.readTime?.label
 		// Prefer the server's explicit read-state; fall back to deriving it from the
 		// status vocabulary only for an older server that doesn't emit `isRead`.
 		isRead = props.isRead ?? (props.status == "read" || props.readAt != nil)

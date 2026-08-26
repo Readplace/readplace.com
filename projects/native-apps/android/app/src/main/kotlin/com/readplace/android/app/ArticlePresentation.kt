@@ -15,9 +15,9 @@ import kotlin.math.abs
  */
 data class ArticlePresentation(
 	val title: String,
-	/** `site · N min read · saved-at`, each part present only when it carries a
-	 * value; null when none does, so the row omits the line rather than painting an
-	 * empty one. */
+	/** `site · read-time · saved-at`, where the read time is the server's own label
+	 * rendered verbatim. Each part is present only when it carries a value; null when
+	 * none does, so the row omits the line rather than painting an empty one. */
 	val subtitle: String?,
 	/** The excerpt shown under the subtitle, or null when the server sent none or an
 	 * empty one. */
@@ -39,7 +39,7 @@ data class ArticlePresentation(
 		private fun subtitle(article: Article, clock: Clock): String? {
 			val parts = mutableListOf<String>()
 			article.siteName?.takeIf { it.isNotEmpty() }?.let { parts.add(it) }
-			article.readTimeMinutes?.takeIf { it > 0 }?.let { parts.add("$it min read") }
+			article.readTimeLabel?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
 			article.savedAt?.let { parts.add(RelativeTime.wording(it, clock)) }
 			return if (parts.isEmpty()) null else parts.joinToString(" · ")
 		}

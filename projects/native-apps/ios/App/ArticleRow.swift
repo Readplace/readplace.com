@@ -67,7 +67,7 @@ struct ArticleRow: View {
 	private var subtitle: String? {
 		var parts: [String] = []
 		if let site = article.siteName, !site.isEmpty { parts.append(site) }
-		if let minutes = article.readTimeMinutes, minutes > 0 { parts.append("\(minutes) min read") }
+		if let readTime = article.readTimeLabel, !readTime.isEmpty { parts.append(readTime) }
 		if let savedAt = article.savedAt { parts.append(Self.relative.localizedString(for: savedAt, relativeTo: Date())) }
 		return parts.isEmpty ? nil : parts.joined(separator: " · ")
 	}

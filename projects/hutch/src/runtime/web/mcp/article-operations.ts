@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, displayableReadTime } from "@packages/domain/article";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
@@ -34,6 +34,7 @@ interface McpArticleOperationDeps {
 }
 
 export function toMcpArticle(article: SavedArticle): McpArticle {
+	const readTime = displayableReadTime(article);
 	return {
 		id: article.id.value,
 		url: article.displayUrl ?? article.url,
@@ -44,7 +45,9 @@ export function toMcpArticle(article: SavedArticle): McpArticle {
 		...(article.metadata.imageUrl !== undefined
 			? { imageUrl: article.metadata.imageUrl }
 			: {}),
-		estimatedReadTime: article.estimatedReadTime,
+		...(readTime !== undefined
+			? { estimatedReadTime: article.estimatedReadTime, readTime }
+			: {}),
 		status: article.status,
 		savedAt: article.savedAt.toISOString(),
 		...(article.readAt !== undefined

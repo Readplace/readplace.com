@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Minutes } from "@packages/domain/article";
+import type { DisplayableReadTime } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { render } from "@packages/web-shell";
@@ -20,7 +20,7 @@ const ARTICLE_BODY_TEMPLATE = readFileSync(
 export interface ArticleBodyInput {
 	title: string;
 	siteName: string;
-	estimatedReadTime: Minutes;
+	readTime: DisplayableReadTime | undefined;
 	url: string;
 	content?: string;
 	crawl?: ArticleCrawl;
@@ -83,7 +83,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 	const headerHtml = renderArticleHeader({
 		title: input.title,
 		siteName: input.siteName,
-		estimatedReadTime: input.estimatedReadTime,
+		readTime: input.readTime,
 		url: input.url,
 		provenance: input.provenance,
 		queueTags: input.queueTags,

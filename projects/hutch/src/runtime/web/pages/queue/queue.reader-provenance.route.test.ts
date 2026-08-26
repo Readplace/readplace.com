@@ -38,7 +38,7 @@ describe("Reader save-provenance tag", () => {
 		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(response.status).toBe(200);
-		expect(metaRow(response.text)).toEqual(["example.com", "1 min read", "via Web"]);
+		expect(metaRow(response.text)).toEqual(["example.com", "~1 min read", "via Web"]);
 	});
 
 	it("keeps the tag on the header a reader poll swaps in, so the crawl settling does not drop it", async () => {

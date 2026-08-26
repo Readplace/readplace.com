@@ -25,6 +25,16 @@ class SirenModelsTest {
 	private fun decodedArticle(source: String): Article =
 		present(Article.of(decodedEntity(source)), "the entity to map onto an article")
 
+	private fun readTimeOf(readTimeJson: String): ReadTimeProperty? =
+		present(
+			decodedEntity(
+				"""
+				{ "properties": { "id": "a1", "url": "https://example.com/post", "readTime": $readTimeJson } }
+				""",
+			).properties,
+			"the decoded article properties",
+		).readTime
+
 	private fun message(type: String, body: String): ServerMessage =
 		ServerMessage(
 			type = type,
@@ -47,6 +57,7 @@ class SirenModelsTest {
 					"wordCount": 1200,
 					"imageUrl": "https://example.com/img.png",
 					"estimatedReadTimeMinutes": 6,
+					"readTime": { "value": "6", "label": "~6 min read" },
 					"status": "unread",
 					"savedAt": "2026-05-30T10:00:00.000Z",
 					"readAt": null,
@@ -84,6 +95,9 @@ class SirenModelsTest {
 		assertEquals(1200, properties.wordCount)
 		assertEquals("https://example.com/img.png", properties.imageUrl)
 		assertEquals(6, properties.estimatedReadTimeMinutes)
+		val readTime = present(properties.readTime, "the decoded read time")
+		assertEquals("6", readTime.value)
+		assertEquals("~6 min read", readTime.label)
 		assertEquals("unread", properties.status)
 		assertEquals("2026-05-30T10:00:00.000Z", properties.savedAt)
 		assertNull("a JSON null readAt reads as absent", properties.readAt)
@@ -122,6 +136,32 @@ class SirenModelsTest {
 		val entity = decodedEntity("""{ "properties": ["not-an-object"] }""")
 
 		assertNull(entity.properties)
+	}
+
+	@Test
+	fun `a read time decodes as the server's field value and its display label`() {
+		val readTime = present(
+			readTimeOf("""{ "value": "6", "label": "~6 min read" }"""),
+			"the decoded read time",
+		)
+
+		assertEquals("6", readTime.value)
+		assertEquals("~6 min read", readTime.label)
+	}
+
+	@Test
+	fun `a read time missing a part, or sent as anything but an object, reads as absent`() {
+		assertNull(readTimeOf("""{ "value": "6" }"""))
+		assertNull(readTimeOf("""{ "label": "~6 min read" }"""))
+		assertNull(readTimeOf("""{ "value": 6, "label": "~6 min read" }"""))
+		assertNull(readTimeOf("\"~6 min read\""))
+		assertNull(readTimeOf("null"))
+		assertNull(
+			present(
+				decodedEntity("""{ "properties": { "id": "a1", "url": "https://example.com/post" } }""").properties,
+				"the decoded article properties",
+			).readTime,
+		)
 	}
 
 	@Test
@@ -736,7 +776,7 @@ class SirenModelsTest {
 		assertNull(article.siteName)
 		assertNull(article.excerpt)
 		assertNull(article.imageUrl)
-		assertNull(article.readTimeMinutes)
+		assertNull(article.readTimeLabel)
 	}
 
 	@Test
@@ -745,7 +785,8 @@ class SirenModelsTest {
 			"""
 			{ "properties": { "id": "a1", "url": "https://example.com/post", "title": "A Title",
 				"siteName": "Example", "excerpt": "An excerpt.", "imageUrl": "https://example.com/img.png",
-				"estimatedReadTimeMinutes": 6 } }
+				"estimatedReadTimeMinutes": 6,
+				"readTime": { "value": "6", "label": "~6 min read" } } }
 			""",
 		)
 
@@ -755,7 +796,7 @@ class SirenModelsTest {
 		assertEquals("Example", article.siteName)
 		assertEquals("An excerpt.", article.excerpt)
 		assertEquals("https://example.com/img.png", article.imageUrl)
-		assertEquals(6, article.readTimeMinutes)
+		assertEquals("~6 min read", article.readTimeLabel)
 	}
 
 	@Test

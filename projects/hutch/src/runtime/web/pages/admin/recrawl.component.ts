@@ -12,6 +12,7 @@ import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { RECRAWL_STYLES } from "./recrawl.styles";
+import { displayableReadTime } from "@packages/domain/article";
 
 /**
  * The page's own address for an article, and the form tooling should emit.
@@ -100,7 +101,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 	const innerContent = renderArticleBody({
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
-		estimatedReadTime: input.estimatedReadTime,
+		readTime: displayableReadTime(input),
 		url: input.displayUrl ?? input.articleUrl,
 		content: input.content,
 		crawl: input.crawl,

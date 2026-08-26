@@ -115,7 +115,7 @@ class ReadingListViewModelTest {
 	private fun article(readHref: String?, id: String = "a1"): Article =
 		Article(
 			id = id, url = "https://example.com/x", title = "X", siteName = null, excerpt = null,
-			imageUrl = null, readTimeMinutes = null, isRead = false, savedAt = null,
+			imageUrl = null, readTimeLabel = null, isRead = false, savedAt = null,
 			actions = emptyList(), links = emptyList(), readHref = readHref,
 		)
 
@@ -1774,6 +1774,7 @@ class ReadingListViewModelTest {
 						"excerpt": "An excerpt.",
 						"imageUrl": "https://example.com/img.png",
 						"estimatedReadTimeMinutes": 6,
+						"readTime": { "value": "6", "label": "~6 min read" },
 						"status": "unread",
 						"savedAt": "2026-05-30T10:00:00.000Z",
 						"readAt": null

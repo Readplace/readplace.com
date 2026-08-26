@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import type { Minutes } from "@packages/domain/article";
 import { toAbsoluteShortDateTime } from "@packages/web-shell/local-time.format";
 import { renderArticleBody } from "./article-body.component";
 
 const baseInput = {
 	title: "Hello World",
 	siteName: "example.com",
-	estimatedReadTime: 3 as Minutes,
+	readTime: { value: "3", label: "~3 min read" },
 	url: "https://example.com/post",
 	appOrigin: "https://readplace.com",
 	topActionsHtml: "",
@@ -44,7 +43,7 @@ describe("renderArticleBody", () => {
 			"example.com",
 		);
 		expect(doc.querySelector(".article-body__meta")?.textContent).toContain(
-			"3 min read",
+			"~3 min read",
 		);
 		const content = doc.querySelector("[data-test-reader-content]");
 		assert(content, "reader content must be rendered");
