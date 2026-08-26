@@ -631,7 +631,7 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.title).toContain("Readplace");
-		expect(doc.title).toContain("The #1 Personal Reading List");
+		expect(doc.title).toContain("Your #1 AI-Powered Reading List");
 		expect(doc.title).toContain("Read It Later");
 		// The title has to carry the slogan and the query people actually search
 		// within the ~60 characters Google renders before truncating.
@@ -647,14 +647,14 @@ describe("GET /", () => {
 		expect(keywords?.getAttribute("content")).toContain("real OCR");
 	});
 
-	it("should render the 'The #1 Personal Reading List.' tagline as the hero heading", async () => {
+	it("should render the 'Your #1 AI-Powered Reading List.' tagline as the hero heading", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const tagline = doc.querySelector("[data-test-tagline]");
 		assert(tagline, "tagline must be rendered");
-		expect(tagline.textContent?.trim()).toBe("The #1 Personal Reading List.");
+		expect(tagline.textContent?.trim()).toBe("Your #1 AI-Powered Reading List.");
 	});
 
 	it("renders the canonical slogan so a crawler and a no-JavaScript reader see the one the title claims", async () => {

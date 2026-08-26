@@ -548,8 +548,8 @@ class AppSessionTest {
 			newClientBuilder = { OkHttpClient.Builder().cache(DiscoveryHttpCache(folder.newFolder()).cache) },
 		)
 
-		assertEquals(listOf("The #1 Personal Reading List."), session.makeSloganSource().load())
-		assertEquals(listOf("The #1 Personal Reading List."), session.makeSloganSource().load())
+		assertEquals(listOf("Your #1 AI-Powered Reading List."), session.makeSloganSource().load())
+		assertEquals(listOf("Your #1 AI-Powered Reading List."), session.makeSloganSource().load())
 
 		assertEquals(
 			"the app's list views must always revalidate; only the share target opts into the discovery cache",
@@ -583,6 +583,6 @@ class AppSessionTest {
 
 	private companion object {
 		val NATIVE_USER_AGENT: String = AppConfig.nativeUserAgent(versionCode = 1, osRelease = "16")
-		const val SLOGANS = """{"slogans":["The #1 Personal Reading List."]}"""
+		const val SLOGANS = """{"slogans":["Your #1 AI-Powered Reading List."]}"""
 	}
 }

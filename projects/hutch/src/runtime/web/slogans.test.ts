@@ -2,7 +2,7 @@ import { CANONICAL_SLOGAN, MAX_SLOGAN_LENGTH, SLOGANS } from "./slogans";
 
 describe("SLOGANS", () => {
 	it("leads with the slogan the homepage title and structured data already claim", () => {
-		expect(CANONICAL_SLOGAN).toBe("The #1 Personal Reading List.");
+		expect(CANONICAL_SLOGAN).toBe("Your #1 AI-Powered Reading List.");
 		expect(SLOGANS[0]).toBe(CANONICAL_SLOGAN);
 	});
 

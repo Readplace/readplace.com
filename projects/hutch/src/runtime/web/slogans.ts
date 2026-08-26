@@ -13,7 +13,7 @@
  * page's `<title>` and structured data already claim.
  */
 export const SLOGANS = [
-	"The #1 Personal Reading List.",
+	"Your #1 AI-Powered Reading List.",
 	"Paste a link. Read it clean.",
 	"A warm, dependable place for your reading list.",
 	"Your reading list, without the noise.",

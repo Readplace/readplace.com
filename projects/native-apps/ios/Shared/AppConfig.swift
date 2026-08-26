@@ -79,7 +79,7 @@ enum AppConfig {
 	/// the app's first screen and often its first network call, so the slogan cannot
 	/// depend on that call succeeding. It matches the first entry the server
 	/// publishes; the server list is what changes without an App Store release.
-	static let fallbackSlogan = "The #1 Personal Reading List."
+	static let fallbackSlogan = "Your #1 AI-Powered Reading List."
 
 	/// Query item the in-app reader appends to the server `read` link so the reader
 	/// renders chromeless — bare of the web shell — with the native reading list as

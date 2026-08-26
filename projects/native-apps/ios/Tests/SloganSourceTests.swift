@@ -29,15 +29,15 @@ final class SloganSourceTests: XCTestCase {
 	}
 
 	func testItReadsThePublishedSlogansFromTheServer() async {
-		stub(status: 200, body: #"{"slogans":["The #1 Personal Reading List.","Paste a link. Read it clean."]}"#)
+		stub(status: 200, body: #"{"slogans":["Your #1 AI-Powered Reading List.","Paste a link. Read it clean."]}"#)
 
 		let slogans = await makeSource().load()
 
-		XCTAssertEqual(slogans, ["The #1 Personal Reading List.", "Paste a link. Read it clean."])
+		XCTAssertEqual(slogans, ["Your #1 AI-Powered Reading List.", "Paste a link. Read it clean."])
 	}
 
 	func testItAsksTheServerForTheSloganPathWithoutABearerToken() async {
-		stub(status: 200, body: #"{"slogans":["The #1 Personal Reading List."]}"#)
+		stub(status: 200, body: #"{"slogans":["Your #1 AI-Powered Reading List."]}"#)
 
 		_ = await makeSource().load()
 
@@ -83,11 +83,11 @@ final class SloganSourceTests: XCTestCase {
 	}
 
 	func testItDropsEmptySlogansTheServerPublished() async {
-		stub(status: 200, body: #"{"slogans":["The #1 Personal Reading List.",""]}"#)
+		stub(status: 200, body: #"{"slogans":["Your #1 AI-Powered Reading List.",""]}"#)
 
 		let slogans = await makeSource().load()
 
-		XCTAssertEqual(slogans, ["The #1 Personal Reading List."], "an empty slogan would render as a blank line")
+		XCTAssertEqual(slogans, ["Your #1 AI-Powered Reading List."], "an empty slogan would render as a blank line")
 	}
 
 	func testItIgnoresATransportFailure() async {

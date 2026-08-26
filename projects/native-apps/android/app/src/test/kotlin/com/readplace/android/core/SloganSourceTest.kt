@@ -40,17 +40,17 @@ class SloganSourceTest {
 
 	@Test
 	fun `reads the slogans the server published`() = runTest {
-		publish("""{"slogans":["The #1 Personal Reading List.","Paste a link. Read it clean."]}""")
+		publish("""{"slogans":["Your #1 AI-Powered Reading List.","Paste a link. Read it clean."]}""")
 
 		assertEquals(
-			listOf("The #1 Personal Reading List.", "Paste a link. Read it clean."),
+			listOf("Your #1 AI-Powered Reading List.", "Paste a link. Read it clean."),
 			source().load(),
 		)
 	}
 
 	@Test
 	fun `asks for the slogan path as the android client and without a token`() = runTest {
-		publish("""{"slogans":["The #1 Personal Reading List."]}""")
+		publish("""{"slogans":["Your #1 AI-Powered Reading List."]}""")
 
 		source().load()
 
@@ -106,7 +106,7 @@ class SloganSourceTest {
 
 	@Test
 	fun `ignores a body that is not a json object`() = runTest {
-		publish("""["The #1 Personal Reading List."]""")
+		publish("""["Your #1 AI-Powered Reading List."]""")
 
 		assertEquals(emptyList<String>(), source().load())
 	}
@@ -120,7 +120,7 @@ class SloganSourceTest {
 
 	@Test
 	fun `ignores a published list holding a value that is not a string`() = runTest {
-		publish("""{"slogans":["The #1 Personal Reading List.",7]}""")
+		publish("""{"slogans":["Your #1 AI-Powered Reading List.",7]}""")
 
 		assertEquals(
 			"a number would render as the text \"7\", so the list is not a slogan list",
@@ -131,18 +131,18 @@ class SloganSourceTest {
 
 	@Test
 	fun `ignores a published list holding an object`() = runTest {
-		publish("""{"slogans":[{"text":"The #1 Personal Reading List."}]}""")
+		publish("""{"slogans":[{"text":"Your #1 AI-Powered Reading List."}]}""")
 
 		assertEquals(emptyList<String>(), source().load())
 	}
 
 	@Test
 	fun `drops an empty slogan the server published`() = runTest {
-		publish("""{"slogans":["The #1 Personal Reading List.",""]}""")
+		publish("""{"slogans":["Your #1 AI-Powered Reading List.",""]}""")
 
 		assertEquals(
 			"an empty slogan would render as a blank line",
-			listOf("The #1 Personal Reading List."),
+			listOf("Your #1 AI-Powered Reading List."),
 			source().load(),
 		)
 	}

@@ -160,7 +160,7 @@ final class LoginViewTests: XCTestCase {
 
 	func testTheScreenRendersWithPublishedSlogans() async {
 		let captured = Captured()
-		captured.published = ["The #1 Personal Reading List.", "Paste a link. Read it clean."]
+		captured.published = ["Your #1 AI-Powered Reading List.", "Paste a link. Read it clean."]
 
 		let view = makeView(captured)
 		await view.runSlogans()

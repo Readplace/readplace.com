@@ -327,10 +327,10 @@ describe("initScrollHint", () => {
 	});
 });
 
-const SLOGANS_HTML = (json: string, text = "The #1 Personal Reading List.") =>
+const SLOGANS_HTML = (json: string, text = "Your #1 AI-Powered Reading List.") =>
 	`<h1 class="home-try__title" data-slogans='${json}'>${text}</h1>`;
 
-const TWO_SLOGANS = JSON.stringify(["The #1 Personal Reading List.", "Paste a link. Read it clean."]);
+const TWO_SLOGANS = JSON.stringify(["Your #1 AI-Powered Reading List.", "Paste a link. Read it clean."]);
 
 function mountSloganRotator(
 	html: string,
@@ -355,14 +355,14 @@ function mountSloganRotator(
 
 describe("initSloganRotator", () => {
 	it("is a no-op when the page carries no slogan list", () => {
-		const { timers } = mountSloganRotator(`<h1>The #1 Personal Reading List.</h1>`);
+		const { timers } = mountSloganRotator(`<h1>Your #1 AI-Powered Reading List.</h1>`);
 		assert.equal(timers.pendingCount(), 0);
 	});
 
 	it("leaves the server-rendered slogan alone when the attribute is malformed", () => {
 		const { timers, heading } = mountSloganRotator(SLOGANS_HTML("not json"));
 		assert.equal(timers.pendingCount(), 0);
-		assert.equal(heading?.textContent, "The #1 Personal Reading List.");
+		assert.equal(heading?.textContent, "Your #1 AI-Powered Reading List.");
 	});
 
 	it("leaves the heading alone when the list is not an array", () => {
@@ -377,7 +377,7 @@ describe("initSloganRotator", () => {
 
 	it("drops non-string and empty entries before deciding there is nothing to rotate", () => {
 		const { timers } = mountSloganRotator(
-			SLOGANS_HTML(JSON.stringify(["The #1 Personal Reading List.", "", 7])),
+			SLOGANS_HTML(JSON.stringify(["Your #1 AI-Powered Reading List.", "", 7])),
 		);
 		assert.equal(timers.pendingCount(), 0);
 	});
@@ -387,7 +387,7 @@ describe("initSloganRotator", () => {
 			prefersReducedMotion: true,
 		});
 		assert.equal(timers.pendingCount(), 0);
-		assert.equal(heading?.textContent, "The #1 Personal Reading List.");
+		assert.equal(heading?.textContent, "Your #1 AI-Powered Reading List.");
 		assert.equal(heading?.classList.contains("home-try__title--rotating"), false);
 	});
 
@@ -398,7 +398,7 @@ describe("initSloganRotator", () => {
 
 		timers.runOnce(); // the rotate interval fires
 		assert.equal(heading.classList.contains("home-try__title--fading"), true);
-		assert.equal(heading.textContent, "The #1 Personal Reading List.");
+		assert.equal(heading.textContent, "Your #1 AI-Powered Reading List.");
 
 		timers.runOnce(); // the fade completes
 		assert.equal(heading.textContent, "Paste a link. Read it clean.");
@@ -412,7 +412,7 @@ describe("initSloganRotator", () => {
 			timers.runOnce();
 			timers.runOnce();
 		}
-		assert.equal(heading?.textContent, "The #1 Personal Reading List.");
+		assert.equal(heading?.textContent, "Your #1 AI-Powered Reading List.");
 	});
 
 	it("starts from the slogan the server rendered, not from the top of the list", () => {
@@ -421,7 +421,7 @@ describe("initSloganRotator", () => {
 		);
 		timers.runOnce();
 		timers.runOnce();
-		assert.equal(heading?.textContent, "The #1 Personal Reading List.");
+		assert.equal(heading?.textContent, "Your #1 AI-Powered Reading List.");
 	});
 
 	it("starts from the first slogan when the rendered text is not in the list", () => {

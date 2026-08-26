@@ -102,7 +102,7 @@ class AppConfigTest {
 
 	@Test
 	fun `fallback slogan stands in until the fetched list arrives`() {
-		assertEquals("The #1 Personal Reading List.", AppConfig.FALLBACK_SLOGAN)
+		assertEquals("Your #1 AI-Powered Reading List.", AppConfig.FALLBACK_SLOGAN)
 	}
 
 	@Test

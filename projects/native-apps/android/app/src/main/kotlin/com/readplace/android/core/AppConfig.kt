@@ -85,7 +85,7 @@ object AppConfig {
 	/** Shown until the fetched list arrives, and kept if it never does. Sign-in is
 	 * the app's first screen and often its first network call, so the slogan cannot
 	 * depend on that call succeeding. */
-	const val FALLBACK_SLOGAN = "The #1 Personal Reading List."
+	const val FALLBACK_SLOGAN = "Your #1 AI-Powered Reading List."
 
 	/** A stock Chrome-on-Android user agent for the WebViews. Android's own WebView
 	 * UA carries a `; wv` token that some sites degrade or refuse, and the capture
