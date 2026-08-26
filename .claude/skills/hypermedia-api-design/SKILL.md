@@ -67,7 +67,9 @@ Renaming an action is a breaking change — both sides must ship together. Renam
 | Add a new `link` `rel` | No | Clients only follow `rel`s they understand |
 | Add a new property to `entities[].properties` | No | Extra properties are ignored |
 | Rename an action | **Yes** | Action name is the contract |
-| Rename a field name | **Yes** | Field name is the contract |
+| Rename a field a client must author the value for (`search`'s `url`) | **Yes** | A bespoke handler hardcodes the name to supply the value, and the invoker's `fields?.[field.name]` lookup then misses **silently** — the request goes out without that input rather than erroring |
+| Rename a field the server carries a `value` for (`update-status`'s `status`) | No | The generic invoker copies the declared `name`/`value` pair verbatim; no client ever knows the name |
+| Remove a field with no server `value` that no client authors (`search`'s `order`) | No | Nothing can supply it — no `value` for the generic invoker, no bespoke handler — so no conforming client can reach it |
 | Rename a property in `properties` that clients read | **Yes** | Treat known property names as the contract |
 | Change an action's `method` | No | Client follows what the server declares |
 | Change an action's `href` | No | Same reason, bounded by discovery freshness: a warm client may still hold the old `href` until its cached representation expires, and the re-discover-and-retry rule in [Client Conformance](#client-conformance) closes that window |
@@ -91,6 +93,10 @@ After a mutation, the server drives the client back to the collection via `303 S
 The server declares what an action needs via `action.fields`, and **the input VALUES come from the server too** — each field may carry a `value` (the server-suggested/target value). The generic invoker builds the request body by posting each declared field's `value`, ENCODED per the action's `type` (`application/x-www-form-urlencoded` → `URLSearchParams`; `application/json` → JSON). A bare `(id, name)` / `(entity, action)` invocation is therefore sufficient: the client supplies no field knowledge and never hardcodes a field value.
 
 A field-requiring action whose field carries no server-provided `value` is **not invokable by a bare control** — only a bespoke handler that produces that value (e.g. a search box's typed query) can invoke it.
+
+**A field name enters the contract exactly when a client must author its value.** A server-valued field is copied `name`→`value` by the generic invoker, so renaming it is invisible to every client. A field only a bespoke handler can fill has its name hardcoded in that handler, so renaming it is breaking — and breaking *silently*, because the invoker looks up `fields?.[field.name]`: a renamed field stops matching and the request goes out **without** that input instead of failing. A field that is neither — no server `value`, no handler — is inert, and removing it breaks nothing.
+
+A query parameter the server bakes into an `href` (`?order=asc` in `self`/`next`/`pages[].href`) is **not** a field and is not contract. The client treats the href as opaque and never parses it, which is exactly what keeps "change an action's `href`" non-breaking.
 
 When adding a new required input to an action:
 
