@@ -85,3 +85,18 @@ When a commit is pushed directly to the `main` branch, watch the GitHub Actions 
 3. Repeat until CI passes
 
 This only applies to commits pushed directly to `main`. For commits on feature branches, the existing PR workflows (CI fixer, code review) handle failures automatically.
+
+### Approving a Run That Asks for Approval
+
+A run reporting `action_required` with no jobs is waiting for a human to let it start — it has not failed. **Approving it is authorised standing work: do it without asking, then carry on watching.** The authorisation covers CI approvals only — starting a held run and releasing a deployment gate. It is not licence to approve pull requests or work around branch protection.
+
+On `main` the workflow goes on to deploy, so a deploy is the expected consequence of the approval rather than a surprise.
+
+`gh run` has no `approve` subcommand; the REST API carries it:
+
+| Held on | Release with |
+|---|---|
+| A run whose jobs never started | `gh api -X POST repos/{owner}/{repo}/actions/runs/<id>/approve` |
+| A job at an environment gate (`pending_deployments` returns a non-empty array) | `POST` the same run's `pending_deployments`, supplying its required `environment_ids`, `state`, and `comment` |
+
+A run that already concluded `action_required` restarts with `gh run rerun <id>` — approval applies to one still waiting.
