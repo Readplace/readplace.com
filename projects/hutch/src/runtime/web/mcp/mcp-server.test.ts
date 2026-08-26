@@ -1182,6 +1182,32 @@ describe("initMcpServer", () => {
 			});
 		});
 
+		it("records the sort order a list_queue call asked for, so a client requesting oldest-first is countable", async () => {
+			const { server, records } = recording();
+			await call(server, 1, "list_queue", { order: "asc" });
+			expect(records[0]).toMatchObject({ tool: "list_queue", sortOrder: "asc" });
+		});
+
+		it("records the sort order carried by a pagination cursor, so page two of an ascending listing is not misread as the default", async () => {
+			const { server, records } = recording();
+			await call(server, 1, "list_queue", {
+				cursor: encodeQueueCursor({ page: 2, pageSize: 20, order: "asc" }),
+			});
+			expect(records[0]).toMatchObject({ tool: "list_queue", sortOrder: "asc" });
+		});
+
+		it("records no sort order for a cursor that does not decode, since the call never reached a listing", async () => {
+			const { server, records } = recording();
+			await call(server, 1, "list_queue", { cursor: "not-a-cursor" });
+			expect(JSON.stringify(records[0])).not.toContain("sortOrder");
+		});
+
+		it("records no sort order for a tool that has none, so the field means an order was actually asked for", async () => {
+			const { server, records } = recording();
+			await call(server, 1, "save_link", { url: "https://example.com/a" });
+			expect(JSON.stringify(records[0])).not.toContain("sortOrder");
+		});
+
 		it("records a tool that returned an error result as outcome=error", async () => {
 			const { server, records } = recording({
 				saveLink: async () => ({ ok: false, message: "nope" }),

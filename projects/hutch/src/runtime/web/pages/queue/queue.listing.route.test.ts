@@ -458,6 +458,7 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const sortLink = doc.querySelector("[data-test-sort]");
 			expect(sortLink?.getAttribute("href")).toContain("order=asc");
+			expect(sortLink?.getAttribute("href")).toContain("utm_term=asc");
 			expect(sortLink?.textContent).toContain("Newest first");
 		});
 
@@ -469,7 +470,7 @@ describe("Queue routes", () => {
 			const response = await agent.get("/queue?order=asc");
 			const doc = new JSDOM(response.text).window.document;
 			const sortLink = doc.querySelector("[data-test-sort]");
-			expect(sortLink?.getAttribute("href")).toBe("/queue?utm_source=queue-sort&utm_medium=internal&utm_content=sort");
+			expect(sortLink?.getAttribute("href")).toBe("/queue?utm_source=queue-sort&utm_medium=internal&utm_content=sort&utm_term=desc");
 			expect(sortLink?.textContent).toContain("Oldest first");
 		});
 

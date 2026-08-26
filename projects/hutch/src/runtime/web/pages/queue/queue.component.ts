@@ -144,6 +144,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: 
 		{
 			source: "queue-sort",
 			content: "sort",
+			term: nextOrder,
 		},
 	);
 

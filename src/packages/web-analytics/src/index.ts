@@ -47,6 +47,7 @@ export {
 	hashIp,
 	suppressClickCount,
 	tagPageviewExperiment,
+	tagPageviewSortOrder,
 	classifyDeviceClass,
 	classifyBrowser,
 	deriveSaveSurface,

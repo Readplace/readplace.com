@@ -24,6 +24,9 @@ export function initRecordMcpToolCall(deps: {
 					outcome: record.outcome,
 					oauthClientId: record.oauthClientId,
 					userId: record.userId,
+					...(record.sortOrder === undefined
+						? {}
+						: { sortOrder: record.sortOrder }),
 					...(record.submittedUrl === undefined
 						? {}
 						: { submittedUrl: record.submittedUrl }),

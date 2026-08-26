@@ -159,6 +159,7 @@ export interface McpToolCallRecord {
 	readonly userId: AuthenticatedUserId;
 	readonly oauthClientId: string;
 	readonly submittedUrl?: string;
+	readonly sortOrder?: SortOrder;
 }
 
 export type RecordMcpToolCall = (record: McpToolCallRecord) => void;
@@ -702,6 +703,21 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		return args.success ? args.data.url : undefined;
 	}
 
+	/** The order a list_queue call asked for, read from the cursor when one is
+	 * present: a follow-up page carries its order only in the opaque token, so
+	 * reading the bare argument would misreport page two of an ascending listing
+	 * as the default. */
+	function requestedSortOrder(
+		name: string,
+		rawArgs: unknown,
+	): SortOrder | undefined {
+		if (name !== LIST_QUEUE_TOOL.name) return undefined;
+		const args = ListQueueArgs.safeParse(rawArgs);
+		if (!args.success) return undefined;
+		if (args.data.cursor === undefined) return args.data.order;
+		return decodeQueueCursor(args.data.cursor)?.order;
+	}
+
 	async function handleToolsCall(
 		id: JsonRpcId,
 		params: unknown,
@@ -731,6 +747,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 
 		const rawArgs = parsed.data.arguments ?? {};
 		const submittedUrl = submittedSaveUrl(parsed.data.name, rawArgs);
+		const sortOrder = requestedSortOrder(parsed.data.name, rawArgs);
 		const record = (outcome: McpToolOutcome): void => {
 			recordCall({
 				tool: parsed.data.name,
@@ -738,6 +755,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				userId: context.userId,
 				oauthClientId: context.oauthClientId,
 				...(submittedUrl === undefined ? {} : { submittedUrl }),
+				...(sortOrder === undefined ? {} : { sortOrder }),
 			});
 		};
 

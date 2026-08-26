@@ -52,6 +52,7 @@ export interface AnalyticsPageview {
 	 * redirect's utm params — the visitor's own `utm_*` keep meaning acquisition. */
 	experiment?: string;
 	experiment_variant?: string;
+	sort_order?: "asc" | "desc";
 	/**
 	 * Bots are already dropped by `shouldLog`, so a logged pageview never
 	 * classifies as `bot` — that is what makes the pageview stream a human-device
@@ -338,6 +339,7 @@ export interface McpToolCalledEvent {
 	outcome: McpToolOutcome;
 	oauth_client_id: string;
 	user_id: UserId;
+	sort_order?: "asc" | "desc";
 	article_host?: string;
 	content_class?: ContentClass;
 }
@@ -474,6 +476,19 @@ export function tagPageviewExperiment(
 	pageviewExperiments.set(res, exposure);
 }
 
+const pageviewSortOrders = new WeakMap<Response, "asc" | "desc" | undefined>();
+
+/** Marks this response with the sort order the reader explicitly asked for, so
+ * the pageview says which order rendered. Undefined is stored deliberately:
+ * absence in the emitted event means the reader took the default, which is what
+ * separates "asked for newest" from "never asked". */
+export function tagPageviewSortOrder(
+	res: Response,
+	order: "asc" | "desc" | undefined,
+): void {
+	pageviewSortOrders.set(res, order);
+}
+
 /**
  * Clicks are counted regardless of method or `hx-request` (HTMX-boosted links
  * and POST actions are clicks too); only error responses, responses a route
@@ -576,6 +591,7 @@ export function buildMcpToolCalledEvent(
 		oauthClientId: string;
 		userId: UserId;
 		submittedUrl?: string;
+		sortOrder?: "asc" | "desc";
 	},
 ): McpToolCalledEvent {
 	const articleHost =
@@ -590,6 +606,7 @@ export function buildMcpToolCalledEvent(
 		outcome: params.outcome,
 		oauth_client_id: params.oauthClientId,
 		user_id: params.userId,
+		sort_order: params.sortOrder,
 		...(articleHost === null
 			? {}
 			: {
@@ -690,6 +707,7 @@ export function createAnalyticsMiddleware(deps: {
 				medium_post_id: extractMediumPostId(req),
 				experiment: exposure?.experiment,
 				experiment_variant: exposure?.variant,
+				sort_order: pageviewSortOrders.get(res),
 				device_class: classifyDeviceClass(userAgent),
 				browser: classifyBrowser(userAgent),
 				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),

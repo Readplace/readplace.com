@@ -12,7 +12,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
-import { buildSaveIntentEvent, classifyDeviceClass, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
+import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
 import {
@@ -1321,6 +1321,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const tab = tabQuery(urlState.tab);
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
 
+		tagPageviewSortOrder(res, urlState.order);
 		const order = urlState.order ?? tab.defaultOrder;
 		const result = await store.findArticlesByUser({
 			userId,

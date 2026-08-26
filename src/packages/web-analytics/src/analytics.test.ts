@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
 import { SAVE_CLIENTS, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -157,6 +157,22 @@ describe("createAnalyticsMiddleware", () => {
 			experiment: "homepage-split-e3",
 			experiment_variant: "variant-b",
 		});
+	});
+
+	it("carries the sort order the route tagged onto the response, so a listing rendered oldest-first is distinguishable from the default", () => {
+		const res = createRes(200);
+		const [event] = runMiddleware(createReq({ path: "/queue" }), res, undefined, () => {
+			tagPageviewSortOrder(res, "asc");
+		});
+		expect(event).toMatchObject({ path: "/queue", sort_order: "asc" });
+	});
+
+	it("omits sort_order from the emitted JSON when the route tags no explicit order, so absence means the reader took the default", () => {
+		const res = createRes(200);
+		const [event] = runMiddleware(createReq({ path: "/queue" }), res, undefined, () => {
+			tagPageviewSortOrder(res, undefined);
+		});
+		expect(JSON.stringify(event)).not.toContain("sort_order");
 	});
 
 	it("keeps the visitor's own utm_* alongside the experiment arm, so an inbound campaign still reads as acquisition", () => {
@@ -910,6 +926,33 @@ describe("buildMcpToolCalledEvent", () => {
 			oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
 			user_id: userId,
 		});
+	});
+
+	it("records the sort order a list_queue call asked for, so a listing requested oldest-first is countable", () => {
+		const event = buildMcpToolCalledEvent(
+			{ now },
+			{
+				tool: "list_queue",
+				outcome: "ok",
+				oauthClientId: "chatgpt",
+				userId,
+				sortOrder: "asc",
+			},
+		);
+		expect(event).toMatchObject({ tool: "list_queue", sort_order: "asc" });
+	});
+
+	it("omits sort_order from the emitted JSON when the caller asked for no order, so absence means the default applied", () => {
+		const event = buildMcpToolCalledEvent(
+			{ now },
+			{
+				tool: "list_queue",
+				outcome: "ok",
+				oauthClientId: "chatgpt",
+				userId,
+			},
+		);
+		expect(JSON.stringify(event)).not.toContain("sort_order");
 	});
 
 	it("records only the submitted url's host and content class, never the url itself — a saved article's full URL is reading history", () => {
