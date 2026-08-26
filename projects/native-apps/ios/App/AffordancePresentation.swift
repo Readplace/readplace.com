@@ -111,14 +111,6 @@ struct AffordancePresentation {
 			isToolbarControl = true
 			isRecognizedToken = true
 			showsTitle = false
-		case "web-app":
-			systemImage = "globe"
-			tint = nil
-			isDestructive = false
-			removesItem = false
-			isToolbarControl = true
-			isRecognizedToken = true
-			showsTitle = false
 		case let rel where Affordance.structuralRels.contains(rel):
 			systemImage = "ellipsis.circle"
 			tint = nil

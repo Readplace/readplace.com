@@ -127,12 +127,6 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   and carries its own back button. There is no in-app paste box; capturing a page
   is the Share Extension's job, and the server's `save-article` URL-only action is
   reached only through that Share flow, never the toolbar.
-- **Web App**: a globe control in the toolbar, rendered from the server's own
-  `web-app` link, opens the full mobile web reading list in the same in-app web
-  sheet the reader and account pages use. Nothing leaves the app: the page is
-  cookie-authenticated in the sheet, rendered chromeless and commerce-free by the
-  server, and a link tapped inside it stays in the sheet only when the server
-  stamped it for this shell — anything else keeps its existing behaviour.
 
 It speaks `application/vnd.siren+json`, sends `Authorization: Bearer <token>` on
 every request, and refreshes the token once on a `401` — the same contract the

@@ -27,7 +27,6 @@ import {
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
-import type { QueueSurface } from "./queue.app-surface";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import {
 	type LinkParams,
@@ -51,9 +50,6 @@ export interface QueueRailViewModel {
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
 
 interface QueueDisplayModel {
-	backLink?: { href: string; label: string };
-	showInstallHint: boolean;
-	subscriptionBannerShowsCta: boolean;
 	saveError?: string;
 	saveErrorCode?: string;
 	importFlash?: string;
@@ -128,9 +124,9 @@ function queueDeleteConfirmPanel(rail: QueueRailViewModel | undefined): string {
 	});
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: boolean; installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip; surface?: QueueSurface; linkParams: LinkParams }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: boolean; installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail?: QueueRailViewModel; saveTip: SaveTip }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
-	const linkParams = options.linkParams;
+	const linkParams = options.rail?.linkParams ?? [];
 	const saveBarHidden = vm.filters.queue !== DEFAULT_QUEUE.slug;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
@@ -146,31 +142,26 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: 
 		},
 	);
 
-	const onboardingHtml = options.surface
-		? ""
-		: OnboardingChecklist(
-			options.hasInstallableClient
-				? {
-					hasInstallableClient: true,
-					installed: options.installed,
-					savedArticle: options.savedArticle,
-					savedCount: options.savedCount,
-					platform: options.platform,
-				}
-				: { hasInstallableClient: false },
-			{
-				dismissed: options.onboardingDismissed,
-				completedBefore: options.onboardingCompletedBefore,
-				completionUnearned: options.onboardingCompletionUnearned,
-				dismissAction: `${QUEUE_DISMISS_ONBOARDING_PATH}${queueReturnQuery(vm.filters, linkParams)}`,
-			},
-		);
+	const onboardingHtml = OnboardingChecklist(
+		options.hasInstallableClient
+			? {
+				hasInstallableClient: true,
+				installed: options.installed,
+				savedArticle: options.savedArticle,
+				savedCount: options.savedCount,
+				platform: options.platform,
+			}
+			: { hasInstallableClient: false },
+		{
+			dismissed: options.onboardingDismissed,
+			completedBefore: options.onboardingCompletedBefore,
+			completionUnearned: options.onboardingCompletionUnearned,
+			dismissAction: `${QUEUE_DISMISS_ONBOARDING_PATH}${queueReturnQuery(vm.filters, linkParams)}`,
+		},
+	);
 
 	const banner: SubscriptionBannerState = vm.subscriptionBanner;
 	return {
-		backLink: options.surface?.backLink,
-		showInstallHint: options.surface === undefined,
-		subscriptionBannerShowsCta: vm.purchaseCtaAllowed,
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
 		importFlash: vm.importFlash,
@@ -278,9 +269,9 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; queueHoldsArticles: boolean; rail?: QueueRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number; surface?: QueueSurface; linkParams?: LinkParams }): PageBody {
+export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; queueHoldsArticles: boolean; rail?: QueueRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { queueHoldsArticles: options.queueHoldsArticles, installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip, surface: options.surface, linkParams: options.linkParams ?? [] });
+	const displayModel = toQueueDisplayModel(vm, { queueHoldsArticles: options.queueHoldsArticles, installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT];
@@ -295,7 +286,7 @@ export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; dev
 			robots: "noindex, nofollow",
 		},
 		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
-		bodyClass: options.surface ? "page-queue page-queue--chromeless" : "page-queue",
+		bodyClass: "page-queue",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),
 		statusCode: options.statusCode,

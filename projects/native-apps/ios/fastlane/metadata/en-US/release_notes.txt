@@ -1,1 +1,1 @@
-Web App: a new control in the Reading List toolbar opens your full Readplace reading list inside the app, already signed in — no switching to a browser. Tap an article there and it opens in the same reader you already use.
+Faster launch: the intro animation is gone — the app now cuts straight to your reading list.

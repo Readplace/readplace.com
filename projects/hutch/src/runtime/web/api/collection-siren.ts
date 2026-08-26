@@ -63,13 +63,6 @@ export function toArticleCollectionEntity(
 		{ rel: ["account"], title: "Account", href: accountHref },
 	];
 
-	if (options.surfacePlatform) {
-		links.push({
-			rel: ["web-app"],
-			href: `/queue?${PLATFORM_QUERY}=${options.surfacePlatform}`,
-		});
-	}
-
 	// Older iOS builds resolve the Share-help URL from this rel; the current client
 	// holds the path itself and ignores this link, but it stays advertised so those
 	// installed builds keep their server-rendered help instead of a bundled fallback.

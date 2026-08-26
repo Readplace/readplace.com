@@ -94,17 +94,6 @@ class AffordancePresentationTest {
 	}
 
 	@Test
-	fun `web-app maps to a neutral globe control in the toolbar`() {
-		val presentation = AffordancePresentation.of("web-app")
-		assertEquals(AffordanceIcon.GLOBE, presentation.icon)
-		assertEquals(AffordanceTint.NEUTRAL, presentation.tint)
-		assertFalse(presentation.isDestructive)
-		assertFalse(presentation.removesItem)
-		assertTrue(presentation.isToolbarControl)
-		assertTrue(presentation.isRecognizedToken)
-	}
-
-	@Test
 	fun `structural link rels are never toolbar controls`() {
 		// The client follows self/root/prev/next/item itself for pagination, identity,
 		// and item resolution; they are never rendered as user controls. `item` in
@@ -284,15 +273,6 @@ class AffordancePresentationTest {
 	}
 
 	@Test
-	fun `a title-less web-app link still renders because the client recognises the token`() {
-		val link = affordance(
-			SirenLink(rel = listOf("web-app"), href = "/queue?platform=android", title = null),
-		)
-		assertTrue(link.isToolbarControl)
-		assertEquals("Web App", link.label)
-	}
-
-	@Test
 	fun `a machine-only action is not a toolbar control even when the server titles it`() {
 		// save-content is excluded by the token itself, so a server title cannot
 		// promote a capture-only save into a toolbar button.
@@ -389,7 +369,6 @@ class AffordancePresentationTest {
 		assertTrue(AffordancePresentation.of("account").showsTitle)
 		assertFalse(AffordancePresentation.of("search").showsTitle)
 		assertFalse(AffordancePresentation.of("add-links-help").showsTitle)
-		assertFalse(AffordancePresentation.of("web-app").showsTitle)
 		assertFalse(AffordancePresentation.of("update-status").showsTitle)
 		assertFalse(AffordancePresentation.of("delete").showsTitle)
 		assertFalse(AffordancePresentation.of("save-content").showsTitle)

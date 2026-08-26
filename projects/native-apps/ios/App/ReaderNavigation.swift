@@ -14,7 +14,8 @@ enum ReaderNavigationDecision: Equatable {
 /// glue (an OS boundary), like `ReaderBridge` before it.
 enum ReaderNavigation {
 	/// A footnote tap is a scroll, not a navigation, so it must not open a
-	/// browser.
+	/// browser. No host allowlist — readplace.com article links open in the
+	/// browser too.
 	///
 	/// The `readplace://` deep links are matched ahead of the `.linkActivated`
 	/// branch, and regardless of navigation type: the account page reaches the
@@ -33,8 +34,7 @@ enum ReaderNavigation {
 		}
 
 		if navigationType == .linkActivated {
-			guard hostsTheAppShell(url) else { return .openExternally(url) }
-			return .allow
+			return .openExternally(url)
 		}
 
 		return .allow
@@ -59,10 +59,5 @@ enum ReaderNavigation {
 			&& url.port == currentURL.port
 			&& url.path == currentURL.path
 			&& url.query == currentURL.query
-	}
-
-	private static func hostsTheAppShell(_ url: URL) -> Bool {
-		guard url.host == AppConfig.serverHost else { return false }
-		return URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.contains(AppConfig.appShellQueryItem) == true
 	}
 }

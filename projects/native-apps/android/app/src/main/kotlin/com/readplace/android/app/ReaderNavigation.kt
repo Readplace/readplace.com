@@ -25,6 +25,7 @@ sealed interface ReaderNavigationDecision {
 object ReaderNavigation {
 	/**
 	 * A footnote tap is a scroll, not a navigation, so it must not open a browser.
+	 * No host allowlist — readplace.com article links open in the browser too.
 	 *
 	 * The `readplace://` deep links are matched ahead of the link-activated branch,
 	 * and regardless of navigation type: the account page reaches the logout link
@@ -43,7 +44,7 @@ object ReaderNavigation {
 			current != null && target?.isSameDocumentFragmentOf(current) == true ->
 				ReaderNavigationDecision.Allow
 			target == null -> ReaderNavigationDecision.Allow
-			isLinkActivated && !target.staysInTheAppShell() -> ReaderNavigationDecision.OpenExternally(url)
+			isLinkActivated -> ReaderNavigationDecision.OpenExternally(url)
 			else -> ReaderNavigationDecision.Allow
 		}
 	}
@@ -70,12 +71,6 @@ object ReaderNavigation {
 			// be mistaken for an in-page fragment jump.
 			rawQuery == current.rawQuery
 	}
-
-	private val appShellQueryItem =
-		"${AppConfig.APP_SHELL_QUERY_NAME}=${AppConfig.APP_SHELL_QUERY_VALUE}"
-
-	private fun URI.staysInTheAppShell(): Boolean =
-		host == AppConfig.serverHost && rawQuery.orEmpty().split('&').contains(appShellQueryItem)
 
 	/** `java.net.URI` rejects characters a browser accepts in a fragment (a space, a
 	 * `|`, a `^`), so an unparseable target is not a signal about the navigation —

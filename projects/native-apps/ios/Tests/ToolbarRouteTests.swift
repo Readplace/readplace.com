@@ -27,13 +27,6 @@ final class ToolbarRouteTests: XCTestCase {
 		XCTAssertEqual(ToolbarRoute.route(for: affordance), .presentAddLinksHelp)
 	}
 
-	func testWebAppLinkRoutesToOpenRatherThanANativeSheet() {
-		let link = SirenLink(rel: ["web-app"], href: "/queue?platform=ios", title: nil)
-		let affordance = try! XCTUnwrap(Affordance(link: link))
-
-		XCTAssertEqual(ToolbarRoute.route(for: affordance), .open(link))
-	}
-
 	func testNonSaveActionRoutesToTheGenericInvoker() {
 		// A bare-invokable collection action is submitted through the generic invoker,
 		// honouring its own method/type/fields — never opened as a GET web view of its

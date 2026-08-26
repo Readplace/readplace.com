@@ -1,7 +1,6 @@
 package com.readplace.android.core
 
 import com.readplace.android.BuildConfig
-import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /**
  * Central configuration for the Readplace Android app.
@@ -18,7 +17,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
  */
 object AppConfig {
 	val serverBaseUrl: String = BuildConfig.SERVER_BASE_URL
-	val serverHost: String = serverBaseUrl.toHttpUrl().host
 	val serverEnvironment: String = BuildConfig.SERVER_ENVIRONMENT
 
 	/** A registered public PKCE client whose allow-listed redirect URIs include the

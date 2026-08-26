@@ -1,7 +1,4 @@
     <main class="{{mainClass}}">
-      {{#if backLink}}
-      <a class="queue__back" href="{{backLink.href}}" data-test-queue-back-link>{{icon "arrow-left"}} {{backLink.label}}</a>
-      {{/if}}
       {{{onboardingHtml}}}
       <div class="queue__body">
         {{{queueNavHtml}}}
@@ -17,11 +14,11 @@
             {{/if}}
             {{#if subscriptionBannerIsCancellationScheduled}}
             <p class="queue-banner__message" data-test-banner-message><strong>Subscription ending <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time>.</strong> You still have full access until then.</p>
-            {{#if subscriptionBannerShowsCta}}<a class="btn btn--primary btn--compact queue-banner__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate</a>{{/if}}
+            <a class="btn btn--primary btn--compact queue-banner__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate</a>
             {{/if}}
             {{#if subscriptionBannerIsInactive}}
             <p class="queue-banner__message" data-test-banner-message><strong>Subscription not active.</strong> Your saved articles are still here.</p>
-            {{#if subscriptionBannerShowsCta}}<a class="btn btn--primary btn--compact queue-banner__cta" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>{{/if}}
+            <a class="btn btn--primary btn--compact queue-banner__cta" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
             {{/if}}
           </aside>
           <div id="status-toast">{{{statusToastHtml}}}</div>
@@ -57,7 +54,7 @@
               {{#if saveBarHidden}}
               <p class="queue__empty-text">Every link you save lands in <a href="{{defaultQueueUrl}}">{{defaultQueueLabel}}</a>. Open an article there to add it to this queue.</p>
               {{else}}
-              <p class="queue__empty-text">Paste a URL above to save a link.{{#if showInstallHint}} Or <a href="/install">set up one-tap saving</a> from {{saveSurfacesShort}}.{{/if}}</p>
+              <p class="queue__empty-text">Paste a URL above to save a link. Or <a href="/install">set up one-tap saving</a> from {{saveSurfacesShort}}.</p>
               {{/if}}
             </div>
             {{/if}}

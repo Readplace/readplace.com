@@ -100,7 +100,6 @@ export interface QueueViewModel {
 		undoStatus: "read" | "unread";
 	};
 	subscriptionBanner: SubscriptionBannerState;
-	purchaseCtaAllowed: boolean;
 	accessIsReadOnly: boolean;
 }
 
@@ -295,18 +294,6 @@ export function toQueueViewModel(
 			}
 			: undefined,
 		subscriptionBanner: toSubscriptionBannerState(access, now),
-		purchaseCtaAllowed: true,
 		accessIsReadOnly: access.access === "read-only",
-	};
-}
-
-export function withoutCommerce(vm: QueueViewModel): QueueViewModel {
-	return {
-		...vm,
-		purchaseCtaAllowed: false,
-		subscriptionBanner:
-			vm.subscriptionBanner.state === "trial-countdown"
-				? { state: "none" }
-				: vm.subscriptionBanner,
 	};
 }

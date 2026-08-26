@@ -35,7 +35,6 @@ import {
 } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
 import { EXTENSION_SUGGESTION_BANNER_STYLES } from "./shared/extension-suggestion-banner/extension-suggestion-banner.styles";
 import { renderVerifyBanner } from "./shared/verify-banner/verify-banner.component";
-import { TOAST_SCRIPT } from "./shared/toast/toast.script";
 import { TOAST_STYLES } from "./shared/toast/toast.styles";
 
 function renderFooter(): string {
@@ -80,6 +79,10 @@ const TRIAL_COUNTDOWN_SCRIPT = `<script src="/client-dist/trial-countdown.client
 function trialChipCarriesInstant(trial: TrialDisplay | undefined): boolean {
 	return trial !== undefined && trial.state !== "expired";
 }
+
+/** Global so any page's toast auto-dismisses — including one that arrives
+ * inside an htmx-swapped <main>, which a page-scoped script would never see. */
+const TOAST_SCRIPT = `<script src="/client-dist/toast.client.js" defer></script>`;
 
 const offlineIndicatorScript = (cspNonce: CspNonce) => `
 <script nonce="${cspNonce}">
