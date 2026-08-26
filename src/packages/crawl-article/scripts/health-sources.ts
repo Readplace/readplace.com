@@ -101,6 +101,12 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
+		label: "Stack Overflow",
+		url: "https://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster-than-processing-an-unsorted-array",
+		expectedContent: "You are a blind operator of a junction and you hear a train coming",
+		expectsThumbnail: true,
+	},
+	{
 		label: "The New Yorker",
 		url: "https://www.newyorker.com/magazine/1946/08/31/hiroshima",
 		expectedContent: "Mr. Matsuo dashed up the front steps into the house and dived among the bedrolls and buried himself there",

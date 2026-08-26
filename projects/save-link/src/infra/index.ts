@@ -226,9 +226,11 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 });
 
 // Simple-only crawl Lambda: HTML + oembed only, PDFs dispatched to the
-// dedicated comprehensive-crawl-command Lambda. 240s timeout covers the
-// worst HTML fetch + readability parse; 480s SQS visibility = 2× the
-// Lambda timeout per AWS guidance.
+// dedicated comprehensive-crawl-command Lambda. The timeout has to clear the
+// crawler's own worst case — a proxied crawl budgets 100s for headers and 180s
+// for the body — plus the readability parse. SQS visibility stays above the
+// Lambda timeout so a message cannot reappear while an invocation still holds
+// it.
 //
 // dlqMaxReceiveCount=1: no SQS retries for the tier-1 server crawl. Its
 // dominant failure is a deterministic origin edge-block (e.g. Cloudflare 403
@@ -364,7 +366,7 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 	// 1769 MB = 1 full vCPU. Large HTML pages (40 MB+ interactive research
 	// papers) expand to 3-5× in linkedom; 512 MB OOM'd on those.
 	memorySize: 1769,
-	timeout: 240,
+	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -436,7 +438,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	outputDir: ".lib/submit-link",
 	assetDir: "./src",
 	memorySize: 1769,
-	timeout: 240,
+	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -481,7 +483,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	assetDir: "./src",
 	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
-	timeout: 240,
+	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -529,7 +531,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	assetDir: "./src",
 	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
-	timeout: 240,
+	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -978,7 +980,7 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	assetDir: "./src",
 	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
-	timeout: 240,
+	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -1391,7 +1393,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 	assetDir: "./src",
 			// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
-	timeout: 240,
+	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,

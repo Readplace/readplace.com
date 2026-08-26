@@ -21,12 +21,19 @@ const PRIMARY_LEG_MAX_MS = 25_000;
 const H2_LEG_MAX_MS = 2000;
 const CURL_LEG_MAX_MS = 3000;
 /* An unlocker proxy solves the challenge before answering, so it is far slower
- * than a direct fetch: measured against the blocked-row set, successes ran a
- * 12.6s median and a 37.2s 90th percentile. A reserve that cannot seat those
- * turns recoverable rows into timeouts, so the proxied pass is budgeted for the
- * 90th percentile rather than the median. */
-const PROXY_RESERVE_MILLISECONDS = 45_000;
-const PROXY_PRIMARY_MAX_MILLISECONDS = 40_000;
+ * than a direct fetch: across the blocked-row set successes ran a 12.6s median
+ * and a 37.2s 90th percentile, and a 1.4MB Stack Overflow answer page measured
+ * 29s and 42s to first byte on consecutive fetches. The cap is sized past that
+ * spread, because a proxied leg that times out discards a page the unlocker
+ * actually delivered. */
+const PROXY_PRIMARY_MAX_MILLISECONDS = 55_000;
+/* The direct curl leg's 3s cap was sized for curl-impersonate against an origin
+ * and cannot seat an unlocker fetch at all, so the proxied pass carries its own:
+ * a fallback that always times out is not a fallback. */
+const PROXY_CURL_MAX_MILLISECONDS = 15_000;
+/* Summing the caps is what lets the ladder's weighted split hand each proxied
+ * leg its whole cap instead of a fraction of it. */
+const PROXY_RESERVE_MILLISECONDS = PROXY_PRIMARY_MAX_MILLISECONDS + PROXY_CURL_MAX_MILLISECONDS;
 
 /**
  * The header budget a crawl must be given when its ladder may run a proxied
@@ -34,6 +41,9 @@ const PROXY_PRIMARY_MAX_MILLISECONDS = 40_000;
  * the proxy. A smaller budget silently clamps the reserve — production ran a
  * 30s budget and the proxied legs aborted at ~14s, discarding fetches the
  * unlocker completes at a 12.6s median and a 37.2s 90th percentile.
+ *
+ * Sized so the direct pass still gets the 30s an unproxied crawl has always
+ * had, and the reserve seats both proxied legs at their full cap.
  */
 export const PROXIED_CRAWL_HEADERS_MILLISECONDS =
 	PRIMARY_LEG_MAX_MS + H2_LEG_MAX_MS + CURL_LEG_MAX_MS + PROXY_RESERVE_MILLISECONDS;
@@ -109,9 +119,9 @@ export function initCrawlFetch(deps: {
 		fetch: (url, init) =>
 			fetchPrimary(url, { headers: init.headers, signal: init.deadline.signal, onRedirect: init.onRedirect }),
 	});
-	const curlLeg = (curlFetch: CurlFetch): Leg => ({
+	const curlLeg = (curlFetch: CurlFetch, maxRunMs: number): Leg => ({
 		name: "curl",
-		maxRunMs: CURL_LEG_MAX_MS,
+		maxRunMs,
 		fetch: (url, init) => curlFetch(url, { headers: init.headers, signal: init.deadline.signal }),
 	});
 	const directLegs: readonly Leg[] = [
@@ -121,7 +131,7 @@ export function initCrawlFetch(deps: {
 			maxRunMs: H2_LEG_MAX_MS,
 			fetch: (url, init) => fetchH2(url, { headers: init.headers, signal: init.deadline.signal }),
 		},
-		curlLeg(fetchCurl),
+		curlLeg(fetchCurl, CURL_LEG_MAX_MS),
 	];
 	const logAttempt = (attempt: LegAttempt) => logInfo(JSON.stringify({ stream: "crawl-legs", ...attempt }));
 	const directPipeline = withRateLimitRetry(
@@ -142,7 +152,7 @@ export function initCrawlFetch(deps: {
 		const proxyDispatcher = new ProxyAgent({ uri: proxyUrl, requestTls: { rejectUnauthorized: false } });
 		const proxyLegs: readonly Leg[] = [
 			primaryLeg(buildPrimaryFetch(proxyDispatcher, { chaseAia: false }), PROXY_PRIMARY_MAX_MILLISECONDS),
-			curlLeg(fetchProxyCurl),
+			curlLeg(fetchProxyCurl, PROXY_CURL_MAX_MILLISECONDS),
 		];
 		const proxyLogAttempt = (attempt: LegAttempt) =>
 			logInfo(JSON.stringify({ stream: "crawl-legs", via: "proxy", ...attempt }));

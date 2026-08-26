@@ -26,7 +26,7 @@ import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
  * 30 s combined budget no matter how fast the origin responded. Headers stay
  * tight so dead or blocking origins still fail fast; the body budget scales
  * to the largest fetchable documents while staying under the tier-1 Lambda's
- * 240 s timeout (30 + 180 = 210 s worst case).
+ * timeout (30 + 180 = 210 s worst case).
  */
 const DEFAULT_FETCH_TIMEOUTS = { headersMs: 30000, bodyMs: 180000 } as const;
 
@@ -35,6 +35,10 @@ const DEFAULT_FETCH_TIMEOUTS = { headersMs: 30000, bodyMs: 180000 } as const;
  * the header budget differs: it has to seat the direct ladder and the proxied
  * second pass, where the default leaves no room for the latter. Reading the
  * body is unaffected by which egress delivered it.
+ *
+ * This is what sets the floor under the crawl Lambdas' timeout: 100 + 180 is a
+ * 280 s worst case, so a handler running a proxied crawl needs more than the
+ * 240 s an unproxied one was sized for.
  */
 export const PROXIED_FETCH_TIMEOUTS = {
 	headersMs: PROXIED_CRAWL_HEADERS_MILLISECONDS,
