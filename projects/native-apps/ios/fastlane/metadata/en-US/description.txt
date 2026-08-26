@@ -1,13 +1,21 @@
-Readplace is a read-it-later app. Save articles from anywhere and read them later in a clean, focused reader — without the clutter, popups, and noise of the open web.
+Readplace is a read-it-later app for iPhone. Save an article from any app, then read it later in a clean, focused reader — without the clutter, popups, and noise of the open web.
 
 SAVE FROM ANY APP
-Open a web page in Safari (or any app), tap Share, and choose Readplace. The article is captured and added to your reading list — no copy-paste, no tab hoarding.
+Open a web page in Safari (or any app), tap Share, and choose Readplace. The Readplace Share Extension captures the article and adds it to your reading list — no copy-paste, no tab hoarding. Share a PDF and it is saved the same way.
 
 A CALM READING LIST
-Everything you saved in one place. Tap an article to read it in a distraction-free reader, and get an AI summary so you can decide what is worth your time before you dive in. Swipe to mark things read as you go.
+Everything you saved, newest first, in one place. Pull to refresh, keep scrolling for more, and swipe a row to mark it read — a read article leaves the list and stays saved.
+
+READ WITHOUT THE NOISE
+Tap an article to open it in a distraction-free reader: the text, and an AI summary so you can decide what is worth your time before you dive in. The original page stays one tap away.
+
+YOUR ACCOUNT, IN THE APP
+Sign in, sign out, and delete your account and everything in it — without leaving Readplace.
 
 BUILT ON A DECADE OF READING
 Readplace grew out of a personal reading system refined over ten years. It does one thing well: help you actually read the things you meant to read.
+
+Readplace is a web app too: readplace.com opens the same account and the same reading list in any browser, with the fuller set of tools — and what you save on your iPhone is already waiting there.
 
 The #1 personal reading list.
 
