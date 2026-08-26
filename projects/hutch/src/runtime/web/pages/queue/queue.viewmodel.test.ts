@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import type {
 	Minutes,
 	SavedArticle,
@@ -7,7 +8,8 @@ import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
 import type { UserId } from "@packages/domain/user";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
+import { toQueueArticleViewModel, toQueueViewModel, withoutCommerce } from "./queue.viewmodel";
+import type { EffectiveAccess } from "@packages/subscription-access";
 
 const ARTICLE_URL = "https://example.com/post";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL).value;
@@ -470,5 +472,67 @@ describe("toQueueArticleViewModel — isStalePending", () => {
 			pollCount: 4,
 		});
 		expect(vm.isStalePending).toBe(false);
+	});
+});
+
+describe("withoutCommerce", () => {
+	const vmFor = (effectiveAccess: EffectiveAccess) =>
+		toQueueViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, { now: NOW, effectiveAccess });
+
+	it("leaves the web view model free to render its purchase CTAs", () => {
+		expect(vmFor({ tier: "founding", access: "full", banner: "none" }).purchaseCtaAllowed).toBe(true);
+	});
+
+	it("drops the trial countdown entirely — its only CTA names the price", () => {
+		const stripped = withoutCommerce(
+			vmFor({
+				tier: "trial",
+				access: "full",
+				banner: "trial-countdown",
+				trialEndsAt: new Date("2025-06-08T12:00:00Z").toISOString(),
+			}),
+		);
+
+		expect(stripped.subscriptionBanner).toEqual({ state: "none" });
+		expect(stripped.purchaseCtaAllowed).toBe(false);
+	});
+
+	it("keeps the cancellation notice, which is a status line rather than a purchase", () => {
+		const cancellationEffectiveAt = new Date("2025-06-06T12:00:00Z").toISOString();
+		const stripped = withoutCommerce(
+			vmFor({
+				tier: "paid",
+				access: "full",
+				banner: "cancellation-scheduled",
+				cancellationEffectiveAt,
+			}),
+		);
+
+		const banner = stripped.subscriptionBanner;
+		assert(banner.state === "cancellation-scheduled", "the cancellation notice must survive");
+		expect(banner.cancellationEffectiveAt.iso).toBe(cancellationEffectiveAt);
+		expect(stripped.purchaseCtaAllowed).toBe(false);
+	});
+
+	it("keeps the inactive notice, the only thing explaining the disabled save bar", () => {
+		const stripped = withoutCommerce(
+			vmFor({
+				tier: "inactive",
+				access: "read-only",
+				banner: "inactive",
+				reason: "trial-expired",
+			}),
+		);
+
+		expect(stripped.subscriptionBanner).toEqual({ state: "inactive" });
+		expect(stripped.purchaseCtaAllowed).toBe(false);
+		expect(stripped.accessIsReadOnly).toBe(true);
+	});
+
+	it("leaves a banner-free view model alone but still bars the CTA", () => {
+		const stripped = withoutCommerce(vmFor({ tier: "paid", access: "full", banner: "none" }));
+
+		expect(stripped.subscriptionBanner).toEqual({ state: "none" });
+		expect(stripped.purchaseCtaAllowed).toBe(false);
 	});
 });

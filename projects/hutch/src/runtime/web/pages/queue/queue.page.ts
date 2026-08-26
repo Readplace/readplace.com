@@ -167,7 +167,8 @@ import { renderQueueMutationFragment } from "./queue-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
 import { parsePollParam } from "@packages/web-shell";
-import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
+import { toQueueArticleViewModel, toQueueViewModel, withoutCommerce } from "./queue.viewmodel";
+import { appSurfaceLinkParams, appSurfaceOf } from "./queue.app-surface";
 import { QueuePage } from "./queue.component";
 import {
 	UNREAD_BADGE_COUNT_LIMIT,
@@ -597,10 +598,18 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		saveArticle: deps.saveArticleKeepingPosition,
 	});
 
-	const resolveQueueContext = initResolveQueueContext({
+	const baseResolveQueueContext = initResolveQueueContext({
 		listQueueDefinitions: deps.listQueueDefinitions,
 		featureToggle: deps.featureToggle,
 	});
+
+	const withAppSurface = (context: QueueContext, req: Request): QueueContext => ({
+		...context,
+		linkParams: [...context.linkParams, ...appSurfaceLinkParams(req)],
+	});
+
+	const resolveQueueContext = async (req: Request, userId: UserId): Promise<QueueContext> =>
+		withAppSurface(await baseResolveQueueContext(req, userId), req);
 
 	/** Mutation and redirect handlers read the addressed queue from the URL alone.
 	 * A shape-valid queue the reader does not own binds to a partition holding no
@@ -608,12 +617,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * lands back on a listing the next GET resolves for real. */
 	const requestQueueContext = (req: Request): QueueContext => {
 		const flagged = deps.featureToggle.isEnabled(req, QUEUES_FEATURE);
-		return {
-			...mainlineQueueContext(req.query),
-			state: parseQueueUrl(req.query),
-			linkParams: flagged ? [["feature", QUEUES_FEATURE]] : [],
-			railed: flagged,
-		};
+		return withAppSurface(
+			{
+				...mainlineQueueContext(req.query),
+				state: parseQueueUrl(req.query),
+				linkParams: flagged ? [["feature", QUEUES_FEATURE]] : [],
+				railed: flagged,
+			},
+			req,
+		);
 	};
 
 	const publishLinkDequeuedUnlessSavedElsewhere = initPublishLinkDequeuedUnlessSavedElsewhere({
@@ -1140,7 +1152,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				result: input.result,
 			}),
 		]);
-		const vm = toQueueViewModel(input.result, input.context.state, {
+		const surface = appSurfaceOf(req);
+		const webVm = toQueueViewModel(input.result, input.context.state, {
 			errors: input.saveError ? [{ message: input.saveError }] : undefined,
 			importFlash: input.importFlash,
 			statusFlash: input.statusFlash,
@@ -1151,13 +1164,14 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			linkParams: input.context.linkParams,
 			now: deps.now(),
 		});
-		const onboarding = await resolveOnboardingSignals(req, input.userId);
+		const vm = surface ? withoutCommerce(webVm) : webVm;
+		const onboarding = surface ? undefined : await resolveOnboardingSignals(req, input.userId);
+		const body = QueuePage(vm, { ...onboarding, surface, cspNonce: requireCspNonce(req), queueHoldsArticles, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), linkParams: input.context.linkParams });
 		sendComponent(
 			req, res,
-			Base(
-				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), queueHoldsArticles, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
-				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
-			),
+			surface
+				? ChromelessPage(body, { cspNonce: requireCspNonce(req) })
+				: Base(body, await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess })),
 		);
 	};
 
@@ -1847,15 +1861,23 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
 				queueHoldsAnyArticle({ userId, queue: saveContext.state.queue, result }),
 			]);
-			const vm = toQueueViewModel(result, saveContext.state, {
+			const surface = appSurfaceOf(req);
+			const webVm = toQueueViewModel(result, saveContext.state, {
 				errors: [{ message: validation.error.message }],
 				saveErrorCode: validation.error.code,
 				summaryByUrl,
 				crawlByUrl,
 				linkParams: context.linkParams,
 			});
-			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), queueHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
+			const vm = surface ? withoutCommerce(webVm) : webVm;
+			const onboarding = surface ? undefined : await resolveOnboardingSignals(req, userId);
+			const body = QueuePage(vm, { ...onboarding, surface, cspNonce: requireCspNonce(req), queueHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), linkParams: context.linkParams });
+			sendComponent(
+				req, res,
+				surface
+					? ChromelessPage(body, { cspNonce: requireCspNonce(req) })
+					: Base(body, await deps.buildBannerState(req)),
+			);
 			return;
 		}
 
@@ -2192,8 +2214,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
+		const linkParams = appSurfaceLinkParams(req);
 		const filters = parseQueueUrl(req.query);
-		const queueUrl = buildQueueUrl(filters);
+		const queueUrl = buildQueueUrl(filters, linkParams);
 		const queryIndex = queueUrl.indexOf("?");
 		const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
 		const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
@@ -2206,6 +2229,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			filters,
 			pollCount: requestedPoll + 1,
 			maxPolls: MAX_POLLS,
+			linkParams,
 		});
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(articleVm, {

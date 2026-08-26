@@ -4,6 +4,25 @@
   padding: clamp(16px, 4vw, 32px) clamp(12px, 4vw, 24px) clamp(48px, 9vw, 80px);
 }
 
+.queue__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.queue__back:hover {
+  text-decoration: underline;
+}
+
+.page-queue--chromeless .queue {
+  padding-bottom: 4rem;
+}
+
 .queue__header {
   margin-bottom: clamp(16px, 4vw, 24px);
 }

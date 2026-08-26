@@ -17,6 +17,8 @@ import { HtmxLoaded } from "./htmx-script";
 import { injectPageStylesIntoMain } from "./inject-page-styles";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
+import { TOAST_SCRIPT } from "./shared/toast/toast.script";
+import { TOAST_STYLES } from "./shared/toast/toast.styles";
 
 export interface ChromelessPageConfig {
 	staticBaseUrl: string;
@@ -68,6 +70,7 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 			utilityStyles: UTILITY_STYLES,
 			bannerAreaStyles: CHROMELESS_BANNER_AREA_STYLES,
 			changelogBannerStyles: CHANGELOG_BANNER_STYLES,
+			toastStyles: TOAST_STYLES,
 			changelogBanner: renderChangelogBannerShell({
 				banner: state.changelogBanner,
 				returnTo: state.currentPath,
@@ -78,7 +81,12 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 				styles: body.styles,
 				cspNonce: state.cspNonce,
 			}),
-			scripts: HtmxLoaded.script + (body.scripts ?? "") + siteScripts + liveReloadScript,
+			scripts:
+				HtmxLoaded.script +
+				TOAST_SCRIPT +
+				(body.scripts ?? "") +
+				siteScripts +
+				liveReloadScript,
 		});
 		return HtmlPage(rendered, body.statusCode);
 	};

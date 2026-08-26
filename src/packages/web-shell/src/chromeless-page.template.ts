@@ -24,11 +24,13 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 		{{{utilityStyles}}}
 		{{{bannerAreaStyles}}}
 		{{{changelogBannerStyles}}}
+		{{{toastStyles}}}
 	</style>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
 	{{{changelogBanner}}}
 	{{{content}}}
+	<div class="sr-only" id="toast-live-region" role="status" aria-live="polite"></div>
 	{{{scripts}}}
 </body>
 </html>

@@ -78,7 +78,11 @@ describe("ChromelessPage", () => {
 				assert(src, "a script matched by [src] must carry a src");
 				return src;
 			}),
-		).toEqual(["/client-dist/htmx.client.js", "/client-dist/progress-bar.client.js"]);
+		).toEqual([
+			"/client-dist/htmx.client.js",
+			"/client-dist/toast.client.js",
+			"/client-dist/progress-bar.client.js",
+		]);
 
 		const configMeta = doc.head.querySelector('meta[name="htmx-config"]');
 		assert(configMeta, "htmx config must ride a <head> meta so htmx reads it at init");
@@ -128,7 +132,7 @@ describe("ChromelessPage", () => {
 		expect(result.statusCode).toBe(404);
 	});
 
-	it("renders only the shell's own htmx script when the page declares none", () => {
+	it("renders only the shell's own scripts when the page declares none", () => {
 		const doc = new JSDOM(
 			ChromelessPage(createTestPageBody({ scripts: undefined }), NO_BANNER).to("text/html").body,
 		).window.document;
@@ -138,7 +142,28 @@ describe("ChromelessPage", () => {
 				assert(src, "a script matched by [src*='/client-dist/'] must carry a src");
 				return src;
 			}),
-		).toEqual(["/client-dist/htmx.client.js"]);
+		).toEqual(["/client-dist/htmx.client.js", "/client-dist/toast.client.js"]);
+	});
+
+	it("styles the toast, so a page's status confirmation is the same floating pill the web shell renders", () => {
+		expect(shellCss(NO_BANNER)).toContain(".toast {");
+	});
+
+	it("carries the toast's live region, so a status change is announced here as it is under the full shell", () => {
+		const doc = new JSDOM(ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html").body)
+			.window.document;
+
+		const region = doc.getElementById("toast-live-region");
+		assert(region, "the shell must mount the live region the toast script announces through");
+		expect(region.getAttribute("aria-live")).toBe("polite");
+		expect(region.getAttribute("role")).toBe("status");
+	});
+
+	it("loads the toast script itself, so a toast auto-dismisses without the page wiring it", () => {
+		const doc = new JSDOM(ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html").body)
+			.window.document;
+
+		expect(doc.querySelector('script[src="/client-dist/toast.client.js"]')).not.toBeNull();
 	});
 
 	it("injects the dev livereload script only when liveReload is enabled", () => {
