@@ -43,7 +43,7 @@ export function renderMarkStatusConfirm(input: {
 		key: "mark-status",
 		subject: input.confirm.articleId,
 		title: copy.title,
-		body: `This article will be ${copy.outcome} in all of the following queues:`,
+		body: `This article will be ${copy.outcome} in all queues it belongs to:`,
 		bodyItems: input.confirm.queueLabels,
 		...(input.lead === undefined
 			? {}

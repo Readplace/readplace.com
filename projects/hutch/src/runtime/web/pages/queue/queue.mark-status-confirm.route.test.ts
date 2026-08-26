@@ -148,7 +148,7 @@ describe("Mark-as-read confirmation", () => {
 		expect(listed).toContainEqual(["My Queue"]);
 		for (const panel of panels(doc)) {
 			expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
-				"This article will be marked as read in all of the following queues:",
+				"This article will be marked as read in all queues it belongs to:",
 			);
 		}
 	});
@@ -238,7 +238,7 @@ describe("Mark-as-read confirmation", () => {
 		expect(rendered).toHaveLength(1);
 		expect(panel.parentElement?.tagName).toBe("MAIN");
 		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"This article will be marked as read in all of the following queues:",
+			"This article will be marked as read in all queues it belongs to:",
 		);
 		expect(
 			[...panel.querySelectorAll(".confirm-popover__items li")].map((li) => li.textContent),

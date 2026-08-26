@@ -50,7 +50,7 @@ describe("renderMarkStatusConfirm", () => {
 		assert(body, "the panel must state what the change will do");
 		assert(items, "the panel must list the queues it will reach");
 		expect(body.textContent).toBe(
-			"This article will be marked as read in all of the following queues:",
+			"This article will be marked as read in all queues it belongs to:",
 		);
 		expect(items.tagName).toBe("UL");
 		expect([...items.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
@@ -80,7 +80,7 @@ describe("renderMarkStatusConfirm", () => {
 		);
 		expect(
 			unread.getElementById("queue-mark-status-confirm-abc123-body")?.textContent,
-		).toBe("This article will be marked as unread in all of the following queues:");
+		).toBe("This article will be marked as unread in all queues it belongs to:");
 		expect(
 			[
 				...(unread
