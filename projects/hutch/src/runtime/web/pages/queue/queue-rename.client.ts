@@ -118,9 +118,9 @@ export function initQueueRename(deps: QueueRenameDeps): void {
 		label.setAttribute("role", "textbox");
 		label.setAttribute("aria-label", "Queue name");
 		label.setAttribute("spellcheck", "false");
+		tab.classList.add(EDITING_CLASS);
 		label.focus();
 		tab.removeAttribute("href");
-		tab.classList.add(EDITING_CLASS);
 	}
 
 	function finishEditing(): void {
