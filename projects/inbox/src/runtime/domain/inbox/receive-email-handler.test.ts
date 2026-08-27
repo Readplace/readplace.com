@@ -11,6 +11,7 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "./receive-email-handler";
 import type { StoreEmailBody } from "./store-email-body";
 
@@ -52,12 +53,14 @@ function makeHarness(opts?: {
 	parseEmail?: () => Promise<ParseEmailResult>;
 	storeBody?: StoreEmailBody;
 	maxEmailBytes?: number;
+	interceptGmailConfirmation?: InterceptGmailConfirmation;
 }) {
 	const addressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const emailStore = initInMemoryInboxEmail();
 	const rawMap = new Map<string, Buffer>();
 	const published: { detail: { receivedAtMessageId: string; userId: string } }[] = [];
 	const imageDownloadCalls: { html: string }[] = [];
+	const interceptions: { recipientCount: number }[] = [];
 
 	const handler = initReceiveEmailHandler({
 		readRawEmail: async (key) => rawMap.get(key),
@@ -72,6 +75,12 @@ function makeHarness(opts?: {
 		publishEvent: async (_event, detail) => {
 			published.push({ detail: detail as { receivedAtMessageId: string; userId: string } });
 		},
+		interceptGmailConfirmation:
+			opts?.interceptGmailConfirmation ??
+			(async ({ resolvedRecipients }) => {
+				interceptions.push({ recipientCount: resolvedRecipients.length });
+				return false;
+			}),
 		logger: HutchLogger.from(noopLogger),
 		maxEmailBytes: opts?.maxEmailBytes ?? 20 * 1024 * 1024,
 	});
@@ -84,7 +93,17 @@ function makeHarness(opts?: {
 		);
 	const run = (recipient: string) => runMany([recipient]);
 
-	return { addressStore, emailStore, rawMap, published, imageDownloadCalls, handler, run, runMany };
+	return {
+		addressStore,
+		emailStore,
+		rawMap,
+		published,
+		imageDownloadCalls,
+		interceptions,
+		handler,
+		run,
+		runMany,
+	};
 }
 
 async function listEmails(emailStore: InboxEmailStore, userId: UserId) {
@@ -282,6 +301,33 @@ describe("initReceiveEmailHandler", () => {
 		expect(published).toHaveLength(1);
 		expect(published[0].detail.receivedAtMessageId).toBe(`${RECEIVED_AT}#<real@x>`);
 		expect(published[0].detail.userId).toBe(OWNER);
+	});
+
+	it("hands a Gmail forwarding confirmation to its worker, writing no row and publishing nothing", async () => {
+		const { addressStore, emailStore, rawMap, published, imageDownloadCalls, run } = makeHarness({
+			interceptGmailConfirmation: async () => true,
+		});
+		const address = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await run(address);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
+		expect(published).toHaveLength(0);
+		expect(imageDownloadCalls).toHaveLength(0);
+	});
+
+	it("offers every parsed message to the interceptor and lets a declined one flow on unchanged", async () => {
+		const { addressStore, rawMap, interceptions, published, run } = makeHarness();
+		const address = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(address);
+
+		expect(interceptions).toEqual([{ recipientCount: 1 }]);
+		expect(published).toHaveLength(1);
 	});
 
 	it("matches a recipient case-insensitively when an MTA upper-cases the local part", async () => {

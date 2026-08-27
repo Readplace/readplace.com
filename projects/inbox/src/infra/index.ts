@@ -13,6 +13,7 @@ import {
 	HutchSQSBackedLambda,
 } from "@packages/hutch-infra-components/infra";
 import {
+	ConfirmGmailForwardingCommand,
 	CrawlEmailLinkPreview,
 	EmailReceivedEvent,
 	INBOX_DLQ_SOURCES,
@@ -535,6 +536,35 @@ const crawlEmailLinkPreviewWithSQS = new HutchSQSBackedLambda("inbox-crawl-email
 
 eventBus.subscribe(CrawlEmailLinkPreview, crawlEmailLinkPreviewWithSQS, {
 	name: "inbox-crawl-email-link-preview",
+});
+
+const confirmGmailForwardingQueue = new HutchSQS(INBOX_DLQ_SOURCES.confirmGmailForwarding, {
+	visibilityTimeoutSeconds: 60,
+	sharedDlq: failuresDlq,
+});
+
+const confirmGmailForwardingLambda = new HutchLambda("inbox-confirm-gmail-forwarding", {
+	entryPoint: "./src/runtime/confirm-gmail-forwarding.main.ts",
+	outputDir: ".lib/inbox-confirm-gmail-forwarding",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [],
+});
+eventBus.grantPublish(confirmGmailForwardingLambda);
+
+const confirmGmailForwardingWithSQS = new HutchSQSBackedLambda("inbox-confirm-gmail-forwarding", {
+	lambda: confirmGmailForwardingLambda,
+	queue: confirmGmailForwardingQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(ConfirmGmailForwardingCommand, confirmGmailForwardingWithSQS, {
+	name: "inbox-confirm-gmail-forwarding",
 });
 
 // --- Saved-link read model (queue-membership facts → the tabs' save button) ---

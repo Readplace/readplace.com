@@ -70,3 +70,35 @@ describe("isKnownNewsletterActionLink", () => {
 		expect(matches("not a url")).toBe(false);
 	});
 });
+
+describe("Google mail settings links", () => {
+	it("treats a forwarding confirmation link as an action link", () => {
+		expect(
+			isKnownNewsletterActionLink({
+				url: "https://mail-settings.google.com/mail/vf-%5Btoken%5D-sig",
+			}),
+		).toBe(true);
+	});
+
+	it("treats a forwarding cancel link as an action link", () => {
+		expect(
+			isKnownNewsletterActionLink({ url: "https://mail.google.com/mail/uf-%5Btoken%5D-sig" }),
+		).toBe(true);
+	});
+
+	it("leaves a non-mail path on the same host alone", () => {
+		expect(isKnownNewsletterActionLink({ url: "https://mail.google.com/chat/u/0/" })).toBe(false);
+	});
+
+	it("leaves other Google hosts alone, so a newsletter's Google links still crawl", () => {
+		expect(
+			isKnownNewsletterActionLink({ url: "https://sites.google.com/site/news/article" }),
+		).toBe(false);
+	});
+
+	it("leaves a look-alike host outside the domain alone", () => {
+		expect(
+			isKnownNewsletterActionLink({ url: "https://mail.google.com.attacker.example/mail/vf-x" }),
+		).toBe(false);
+	});
+});

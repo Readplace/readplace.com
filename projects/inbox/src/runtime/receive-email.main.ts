@@ -7,11 +7,13 @@ import {
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseEmail } from "@packages/domain/inbox";
+import { ConfirmGmailForwardingCommand } from "@packages/hutch-infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
+import { initInterceptGmailConfirmation } from "./domain/inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "./domain/inbox/receive-email-handler";
 import { initStoreEmailBody } from "./domain/inbox/store-email-body";
 import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
@@ -69,6 +71,10 @@ export const handler = initReceiveEmailHandler({
 	downloadEmailImages: initDownloadEmailImages({ crawlFetch, logger }),
 	storeBody,
 	publishEvent,
+	interceptGmailConfirmation: initInterceptGmailConfirmation({
+		publishConfirmGmailForwarding: (detail) => publishEvent(ConfirmGmailForwardingCommand, detail),
+		logger,
+	}),
 	logger,
 	maxEmailBytes,
 });

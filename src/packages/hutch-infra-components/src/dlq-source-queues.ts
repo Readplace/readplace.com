@@ -18,6 +18,7 @@ export const SAVE_LINK_DLQ_SOURCES = {
 export const INBOX_DLQ_SOURCES = {
 	extractEmailLinks: "inbox-extract-email-links",
 	crawlEmailLinkPreview: "inbox-crawl-email-link-preview",
+	confirmGmailForwarding: "inbox-confirm-gmail-forwarding",
 } as const;
 
 type SqsQueueName<T extends string> = `${T}-q`;
@@ -44,4 +45,5 @@ export const SAVE_LINK_DLQ_SOURCE_QUEUES = {
 export const INBOX_DLQ_SOURCE_QUEUES = {
 	extractEmailLinks: `${INBOX_DLQ_SOURCES.extractEmailLinks}-q`,
 	crawlEmailLinkPreview: `${INBOX_DLQ_SOURCES.crawlEmailLinkPreview}-q`,
+	confirmGmailForwarding: `${INBOX_DLQ_SOURCES.confirmGmailForwarding}-q`,
 } as const satisfies QueueNamesFor<typeof INBOX_DLQ_SOURCES>;

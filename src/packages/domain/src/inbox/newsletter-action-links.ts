@@ -26,6 +26,8 @@ const ACTION_HOSTS: readonly string[] = ["manage.kmail-lists.com"];
 
 const ACTION_HOST_PATHS: readonly { host: string; pathPrefixes: readonly string[] }[] = [
 	{ host: "list-manage.com", pathPrefixes: ["/unsubscribe", "/profile"] },
+	{ host: "mail.google.com", pathPrefixes: ["/mail"] },
+	{ host: "mail-settings.google.com", pathPrefixes: ["/mail"] },
 ];
 
 /** Segment-bounded so `/subscribe/confirm` claims `/subscribe/confirm/x` but

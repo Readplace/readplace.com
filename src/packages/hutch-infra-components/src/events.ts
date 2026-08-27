@@ -908,4 +908,45 @@ export const CrawlEmailLinkPreview = defineEvent({
 });
 export type CrawlEmailLinkPreviewDetail = z.infer<typeof CrawlEmailLinkPreview.detailSchema>;
 
+export const ConfirmGmailForwardingCommand = defineEvent({
+	name: "confirm-gmail-forwarding",
+	source: "hutch.inbox",
+	detailType: "ConfirmGmailForwarding",
+	detailSchema: z.object({
+		userId: z.string(),
+		forwardingAddress: z.string(),
+		verifyUrl: z.string(),
+	}),
+});
+export type ConfirmGmailForwardingDetail = z.infer<
+	typeof ConfirmGmailForwardingCommand.detailSchema
+>;
+
+export const GmailForwardingConfirmedEvent = defineEvent({
+	name: "gmail-forwarding-confirmed",
+	source: "hutch.inbox",
+	detailType: "GmailForwardingConfirmed",
+	detailSchema: z.object({
+		userId: z.string(),
+		forwardingAddress: z.string(),
+	}),
+});
+export type GmailForwardingConfirmedDetail = z.infer<
+	typeof GmailForwardingConfirmedEvent.detailSchema
+>;
+
+export const GmailForwardingConfirmFailedEvent = defineEvent({
+	name: "gmail-forwarding-confirm-failed",
+	source: "hutch.inbox",
+	detailType: "GmailForwardingConfirmFailed",
+	detailSchema: z.object({
+		userId: z.string(),
+		forwardingAddress: z.string(),
+		reason: z.enum(["token-rejected", "not-confirmed", "invalid-url"]),
+	}),
+});
+export type GmailForwardingConfirmFailedDetail = z.infer<
+	typeof GmailForwardingConfirmFailedEvent.detailSchema
+>;
+
 export type { HutchEvent, HutchCommand };

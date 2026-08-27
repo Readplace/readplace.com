@@ -21,6 +21,7 @@ import {
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { DownloadEmailImages } from "./download-email-images";
+import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
 import type { StoreEmailBody } from "./store-email-body";
 
 /** The SES "Received" notification SES publishes (via the S3 action's topic) for
@@ -42,6 +43,7 @@ export function initReceiveEmailHandler(deps: {
 	downloadEmailImages: DownloadEmailImages;
 	storeBody: StoreEmailBody;
 	publishEvent: PublishEvent;
+	interceptGmailConfirmation: InterceptGmailConfirmation;
 	logger: HutchLogger;
 	maxEmailBytes: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -53,6 +55,7 @@ export function initReceiveEmailHandler(deps: {
 		downloadEmailImages,
 		storeBody,
 		publishEvent,
+		interceptGmailConfirmation,
 		logger,
 	} = deps;
 
@@ -183,6 +186,12 @@ export function initReceiveEmailHandler(deps: {
 							s3Key,
 						});
 					}
+					continue;
+				}
+
+				if (
+					await interceptGmailConfirmation({ email: parsed.email, resolvedRecipients })
+				) {
 					continue;
 				}
 

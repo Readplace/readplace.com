@@ -4,6 +4,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxEmailLink } from "@packages/inbox-store";
+import { initConfirmGmailForwardingDlqHandler } from "./domain/gmail/confirm-gmail-forwarding-dlq-handler";
 import { initCrawlEmailLinkPreviewDlqHandler } from "./domain/inbox/crawl-email-link-preview-dlq-handler";
 import { initExtractEmailLinksDlqHandler } from "./domain/inbox/extract-email-links-dlq-handler";
 
@@ -23,6 +24,9 @@ export const handler = initDeadLetterRouter({
 		}),
 		[INBOX_DLQ_SOURCE_QUEUES.crawlEmailLinkPreview]: initCrawlEmailLinkPreviewDlqHandler({
 			failPendingLink: inboxEmailLinkStore.failPendingLink,
+			logger,
+		}),
+		[INBOX_DLQ_SOURCE_QUEUES.confirmGmailForwarding]: initConfirmGmailForwardingDlqHandler({
 			logger,
 		}),
 	},
