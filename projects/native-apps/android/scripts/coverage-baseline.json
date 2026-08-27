@@ -11,6 +11,7 @@
 		"CustomTabAuth.kt": "Custom Tabs launch + activity relay registration; the race it feeds is the tested AuthCallbackRelay",
 		"HtmlCaptor.kt": "off-screen WebView; the capture decision it feeds is tested",
 		"ReaderWebView.kt": "WebView + CookieManager glue; its policies are tested separately",
+		"NestedScrollWebView.kt": "WebView nested-scroll touch glue; OS boundary like ReaderWebView.kt",
 		"ReaderSheet.kt": "Compose layout",
 		"ReadingListScreen.kt": "Compose layout",
 		"LoginScreen.kt": "Compose layout",

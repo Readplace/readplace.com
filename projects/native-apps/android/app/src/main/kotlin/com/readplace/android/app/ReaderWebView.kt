@@ -88,7 +88,7 @@ fun ReaderWebView(
 	AndroidView(
 		modifier = modifier,
 		factory = { context ->
-			WebView(webContentContext(context, isDark)).apply {
+			NestedScrollWebView(webContentContext(context, isDark)).apply {
 				settings.javaScriptEnabled = true
 				// The WebView's cookie and DOM stores are the persistent, app-wide default:
 				// state written inside one open must survive to the next one. Two dismissals
