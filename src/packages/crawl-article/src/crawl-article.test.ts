@@ -613,7 +613,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).not.toHaveBeenCalled();
 	});
 
-	it("returns blocked and logs at info when every fallback rung stays blocked with 401", async () => {
+	it("returns blocked and logs at info when every persona's primary answer stays 401", async () => {
 		const blockedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
 			new Response(null, { status: 401 }),
 		);
@@ -639,12 +639,12 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "blocked", httpStatus: 401 });
+		expect(result).toEqual({ status: "blocked", httpStatus: 401, finalUrl: "https://example.com" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 401 for https://example.com");
 		expect(logError).not.toHaveBeenCalled();
 		expect(blockedFetch).toHaveBeenCalledTimes(2);
-		expect(blockedH2).toHaveBeenCalledTimes(2);
-		expect(blockedCurl).toHaveBeenCalledTimes(2);
+		expect(blockedH2).not.toHaveBeenCalled();
+		expect(blockedCurl).not.toHaveBeenCalled();
 	});
 
 	it("returns blocked and logs at info when the origin keeps rate-limiting with 429", async () => {

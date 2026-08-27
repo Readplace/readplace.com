@@ -118,6 +118,27 @@ describe("runTransportLadder", () => {
 		]);
 	});
 
+	it("answers a 401 from the first leg and never opens a later transport", async () => {
+		const h2 = jest.fn<ReturnType<LegFetch>, Parameters<LegFetch>>();
+		const curl = jest.fn<ReturnType<LegFetch>, Parameters<LegFetch>>();
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 50, fetch: answers(401, "sign in") },
+				{ name: "h2", maxRunMs: 20, fetch: h2 },
+				{ name: "curl", maxRunMs: 30, fetch: curl },
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(401);
+		expect(h2).not.toHaveBeenCalled();
+		expect(curl).not.toHaveBeenCalled();
+		expect(attempts.map((a) => [a.leg, a.outcome, a.status])).toEqual([["primary", "answered", 401]]);
+	});
+
 	it("abandons the ladder when the caller gives up mid-leg", async () => {
 		const controller = new AbortController();
 		const curl = jest.fn<ReturnType<LegFetch>, Parameters<LegFetch>>();
