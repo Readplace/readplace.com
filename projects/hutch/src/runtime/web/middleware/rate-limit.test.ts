@@ -3,12 +3,26 @@ import type { NextFunction, Request, Response } from "express";
 import express from "express";
 import request from "supertest";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import {
+	createViewerIdentityMiddleware,
+	EDGE_SECRET_HEADER,
+	VIEWER_IP_HEADER,
+} from "@packages/viewer-identity";
 import { createRateLimitMiddleware, rateLimitKeyFromRequest } from "./rate-limit";
 
 const PROBE_RULE = { limit: 5, windowSeconds: 60 };
 
+const resolveViewerIdentity = createViewerIdentityMiddleware({ edgeSecret: "probe-edge-secret" });
+
+function requestWithViewer(headers: Record<string, string>, ip?: string): Request {
+	const req: Partial<Request> = { ip, headers };
+	resolveViewerIdentity(req as Request, {} as Response, jest.fn());
+	return req as Request;
+}
+
 function probeAppWith(consumeRateLimit: ConsumeRateLimit) {
 	const app = express();
+	app.use(resolveViewerIdentity);
 	app.post(
 		"/probe",
 		createRateLimitMiddleware({ consumeRateLimit, bucket: "login", rule: PROBE_RULE }),
@@ -25,14 +39,25 @@ function probeAppWith(consumeRateLimit: ConsumeRateLimit) {
 }
 
 describe("rateLimitKeyFromRequest", () => {
-	it("uses the socket-derived req.ip as the client key", () => {
-		const req: Partial<Request> = { ip: "203.0.113.9" };
-		assert.equal(rateLimitKeyFromRequest(req as Request), "203.0.113.9");
+	it("uses the address the connection came from when nothing vouches for another", () => {
+		assert.equal(rateLimitKeyFromRequest(requestWithViewer({}, "203.0.113.9")), "203.0.113.9");
 	});
 
 	it("collapses requests without a resolvable address onto one shared key", () => {
-		const req: Partial<Request> = { ip: undefined };
-		assert.equal(rateLimitKeyFromRequest(req as Request), "unknown");
+		assert.equal(rateLimitKeyFromRequest(requestWithViewer({})), "unknown");
+	});
+
+	it("buckets by the viewer the edge names, not the edge itself", () => {
+		const req = requestWithViewer(
+			{ [EDGE_SECRET_HEADER]: "probe-edge-secret", [VIEWER_IP_HEADER]: "203.0.113.9" },
+			"198.51.100.1",
+		);
+		assert.equal(rateLimitKeyFromRequest(req), "203.0.113.9");
+	});
+
+	it("ignores a caller that names a viewer without the edge secret, so no one can pick their own bucket", () => {
+		const req = requestWithViewer({ [VIEWER_IP_HEADER]: "203.0.113.9" }, "198.51.100.1");
+		assert.equal(rateLimitKeyFromRequest(req), "198.51.100.1");
 	});
 });
 

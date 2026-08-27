@@ -1,0 +1,10 @@
+{
+  "name": "@packages/viewer-identity",
+  "targets": {
+    "check": {
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
+    }
+  }
+}

@@ -178,6 +178,7 @@ import {
 	tagPageviewExperiment,
 	utmValidationMiddleware,
 } from "@packages/web-analytics";
+import { viewerOf } from "@packages/viewer-identity";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
@@ -483,7 +484,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(utmValidationMiddleware);
 
 	app.use((req: Request, res: Response, next: NextFunction) => {
-		if (req.headers.host === "hutch-app.com") {
+		if (viewerOf(req).host === "hutch-app.com") {
 			res.redirect(301, `${appOrigin}${req.originalUrl}`);
 			return;
 		}
@@ -575,13 +576,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		void deps.getChangelogBanner();
 		next();
 	});
-	app.use(createVisitorIdMiddleware({ generateVisitorId: randomUUID, secure: secureCookies }));
+	app.use(
+		createVisitorIdMiddleware({
+			generateVisitorId: randomUUID,
+			secure: secureCookies,
+			isStaticAssetPath: isStaticAssetRequestPath,
+		}),
+	);
 	app.use(
 		createClickAttributionMiddleware({
 			now: dependencies.now,
 			secure: secureCookies,
 			isStaticAssetPath: isStaticAssetRequestPath,
 			canonicalizeLandingPath: canonicalizeViewLandingPath,
+			ownHost,
 		}),
 	);
 

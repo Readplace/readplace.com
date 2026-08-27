@@ -25,12 +25,12 @@ function extractQueryString(req: Request, name: string): string | undefined {
 	return value.length > MAX_UTM_VALUE_LENGTH ? value.slice(0, MAX_UTM_VALUE_LENGTH) : value;
 }
 
-function extractReferrerHost(req: Request): string | undefined {
+function extractReferrerHost(req: Request, ownHost: string): string | undefined {
 	const referer = req.get("referer");
 	if (!referer) return undefined;
 	try {
 		const hostname = new URL(referer).hostname;
-		if (hostname === req.hostname) return undefined;
+		if (hostname === ownHost) return undefined;
 		return hostname;
 	} catch {
 		return undefined;
@@ -60,6 +60,7 @@ export function createClickAttributionMiddleware(deps: {
 	secure: boolean;
 	isStaticAssetPath: (path: string) => boolean;
 	canonicalizeLandingPath: (path: string) => string;
+	ownHost: string;
 }): RequestHandler {
 	const cookieOptions = { ...baseCookieOptions(deps.secure), maxAge: CLICK_COOKIE_MAX_AGE_MS };
 	return (req: Request, res: Response, next: NextFunction) => {
@@ -84,7 +85,7 @@ export function createClickAttributionMiddleware(deps: {
 		const utm_medium = extractQueryString(req, "utm_medium");
 		const utm_campaign = extractQueryString(req, "utm_campaign");
 		const utm_content = extractQueryString(req, "utm_content");
-		const referrer_host = extractReferrerHost(req);
+		const referrer_host = extractReferrerHost(req, deps.ownHost);
 
 		/** Set the cookie on first GET regardless of attribution so organic
 		 * landings still carry `landing_path` / `first_seen_at` on the eventual

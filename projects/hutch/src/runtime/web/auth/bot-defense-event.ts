@@ -2,6 +2,7 @@ import type {
 	BotDefenseEvent,
 	BotDefenseRejectReason,
 } from "@packages/provider-contracts/auth";
+import type { ViewerIp } from "@packages/viewer-identity";
 
 export interface BotDefenseTrip {
 	reason: BotDefenseRejectReason;
@@ -19,7 +20,7 @@ function extractEmailDomain(body: Record<string, unknown>): string | undefined {
 
 export function createBotDefenseEvent(input: {
 	trip: BotDefenseTrip;
-	ip: string | undefined;
+	ip: ViewerIp | undefined;
 	userAgent: string | undefined;
 	body: Record<string, unknown>;
 	now: Date;

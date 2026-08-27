@@ -30,6 +30,7 @@ import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
+import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
 import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
@@ -260,7 +261,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				timestamp: deps.now().toISOString(),
 				path: originalPath,
 				article_host: articleHostFrom(articleUrl),
-				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+				visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 				visitor_id: req.visitorId,
 				is_authenticated: req.userId ? 1 : 0,
 			});

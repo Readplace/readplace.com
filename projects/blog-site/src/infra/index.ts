@@ -4,6 +4,7 @@ import {
 	HutchAPIGatewayLambdaRoute,
 	HutchDynamoDBAccess,
 	HutchLambda,
+	ssrEdgeSecretFromPlatformStack,
 } from "@packages/hutch-infra-components/infra";
 import { BLOG_SITE_LAMBDA_NAME } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
@@ -58,6 +59,7 @@ const lambda = new HutchLambda(BLOG_SITE_LAMBDA_NAME, {
 		// Same deploy-env secret hutch's infra reads: visitor_hash must match
 		// across blog + app.
 		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		SSR_EDGE_SECRET: ssrEdgeSecretFromPlatformStack(config),
 		// The blog is served same-origin under hutch (readplace.com/blog), so
 		// hutch's origin is the origin the blog is served on.
 		APP_ORIGIN: hutchApiUrl,

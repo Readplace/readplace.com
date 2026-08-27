@@ -20,6 +20,7 @@
     "@packages/require-env": "workspace:*",
     "@packages/supported-clients": "workspace:*",
     "@packages/ui-icons": "workspace:*",
+    "@packages/viewer-identity": "workspace:*",
     "@packages/web-analytics": "workspace:*",
     "@packages/web-session": "workspace:*",
     "@packages/find-available-port": "workspace:*",

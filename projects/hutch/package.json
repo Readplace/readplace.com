@@ -73,6 +73,7 @@
     "@packages/subscription-access": "workspace:*",
     "@packages/supported-clients": "workspace:*",
     "@packages/time-left": "workspace:*",
+    "@packages/viewer-identity": "workspace:*",
     "@packages/web-analytics": "workspace:*",
     "@packages/web-session": "workspace:*",
     "@packages/find-available-port": "workspace:*",

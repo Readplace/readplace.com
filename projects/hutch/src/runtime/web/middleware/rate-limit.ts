@@ -4,19 +4,12 @@ import type {
 	ConsumeRateLimit,
 	RateLimitBucket,
 } from "@packages/provider-contracts/rate-limit";
+import { viewerOf } from "@packages/viewer-identity";
 
-/**
- * Behind API Gateway v2 the serverless adapter seeds the request socket's
- * remoteAddress from `requestContext.http.sourceIp` — the address API Gateway
- * itself observed on the TCP connection. With `trust proxy` off (the Express
- * default) `req.ip` resolves to exactly that value. Never derive the key from
- * `x-forwarded-for`: the client controls every hop of that chain except the
- * one API Gateway appends.
- */
 export function rateLimitKeyFromRequest(req: Request): string {
 	// All clients without a resolvable address share one counter rather than
 	// each receiving a fresh, unenforceable one.
-	return req.ip ?? "unknown";
+	return viewerOf(req).ip ?? "unknown";
 }
 
 export function sendRateLimited(res: Response, retryAfterSeconds: number): void {

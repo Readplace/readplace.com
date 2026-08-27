@@ -5,6 +5,7 @@ import { isbot } from "isbot";
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
+import { type ViewerIp, viewerOf } from "@packages/viewer-identity";
 import {
 	ANALYTICS_EVENTS,
 	INTERNAL_CLICK_MEDIUM,
@@ -522,7 +523,7 @@ function extractPageviewUtm(
 	};
 }
 
-export function hashIp(deps: { ip: string | undefined; salt: string }): string | null {
+export function hashIp(deps: { ip: ViewerIp | undefined; salt: string }): string | null {
 	if (!deps.ip) return null;
 	return createHash("sha256")
 		.update(deps.ip + deps.salt)
@@ -577,7 +578,7 @@ export function buildSaveIntentEvent(
 		...(referrerHost ? { referrer_host: referrerHost } : {}),
 		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
 		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
-		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
 		visitor_id: params.req.visitorId,
 		is_authenticated: params.req.userId ? 1 : 0,
 	};
@@ -650,7 +651,7 @@ export function buildSignupAttemptedEvent(
 		timestamp: deps.now().toISOString(),
 		method: "email",
 		outcome: params.outcome,
-		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
 		visitor_id: params.req.visitorId,
 		is_authenticated: 0,
 	};
@@ -680,7 +681,7 @@ export function createAnalyticsMiddleware(deps: {
 					utm_medium: INTERNAL_CLICK_MEDIUM,
 					utm_content: extractQueryString(req, "utm_content"),
 					utm_term: extractQueryString(req, "utm_term"),
-					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					visitor_id: req.visitorId ?? null,
 					is_authenticated: req.userId ? 1 : 0,
 				});
@@ -710,7 +711,7 @@ export function createAnalyticsMiddleware(deps: {
 				sort_order: pageviewSortOrders.get(res),
 				device_class: classifyDeviceClass(userAgent),
 				browser: classifyBrowser(userAgent),
-				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+				visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 				visitor_id: req.visitorId ?? null,
 				is_authenticated: req.userId ? 1 : 0,
 			});

@@ -1,5 +1,6 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
+import * as random from "@pulumi/random";
 import { HutchEcrRepository, HutchEventBus } from "@packages/hutch-infra-components/infra";
 
 const config = new pulumi.Config();
@@ -27,8 +28,14 @@ const curlImpersonateLayer = new aws.lambda.LayerVersion("curl-impersonate", {
 	description: "curl-impersonate Chrome variant (curl_chrome131) for TLS fingerprint bypass",
 });
 
+const ssrEdgeSecretValue = new random.RandomPassword("ssr-edge-secret", {
+	length: 48,
+	special: false,
+});
+
 export const hutchEventBusName = eventBus.eventBusName;
 export const hutchEventBusArn = eventBus.eventBusArn;
 export const ocrLambdaRepositoryUrl = ocrLambdaRepository.repositoryUrl;
 export const ocrLambdaRepositoryArn = ocrLambdaRepository.repositoryArn;
 export const curlImpersonateLayerArn = curlImpersonateLayer.arn;
+export const ssrEdgeSecret = ssrEdgeSecretValue.result;

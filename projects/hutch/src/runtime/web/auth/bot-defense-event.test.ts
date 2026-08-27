@@ -1,6 +1,14 @@
+import type { Request, Response } from "express";
+import { createViewerIdentityMiddleware, viewerOf } from "@packages/viewer-identity";
 import { createBotDefenseEvent } from "./bot-defense-event";
 
 const REJECT_AT = new Date("2026-05-17T12:00:00.000Z");
+
+function viewerIp(ip: string) {
+	const req: Partial<Request> = { ip, headers: {} };
+	createViewerIdentityMiddleware({ edgeSecret: "" })(req as Request, {} as Response, () => {});
+	return viewerOf(req as Request).ip;
+}
 
 describe("createBotDefenseEvent", () => {
 	it("returns a signup_rejected event on the bot-defense stream with the trip reason and ISO timestamp", () => {
@@ -22,7 +30,7 @@ describe("createBotDefenseEvent", () => {
 	it("includes the ip field when an ip is provided", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
-			ip: "203.0.113.1",
+			ip: viewerIp("203.0.113.1"),
 			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
@@ -44,7 +52,7 @@ describe("createBotDefenseEvent", () => {
 	it("omits the ip field when ip is an empty string", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
-			ip: "",
+			ip: viewerIp(""),
 			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,

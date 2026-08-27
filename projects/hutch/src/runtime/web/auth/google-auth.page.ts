@@ -42,6 +42,7 @@ import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { signState, verifyState } from "./oauth-state";
+import { viewerOf } from "@packages/viewer-identity";
 
 const CallbackQuerySchema = z.object({
 	code: z.string().min(1),
@@ -242,7 +243,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl });
 			emitFirstArticleAutosaved(
 				{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: req.ip },
+				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
 			);
 			res.redirect(303, redirect.location);
 			return;
@@ -299,7 +300,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl });
 		emitFirstArticleAutosaved(
 			{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: req.ip },
+			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
 		);
 		res.redirect(303, redirect.location);
 	});

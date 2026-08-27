@@ -52,6 +52,7 @@ const application = express()
 				// The blog is served under the app's own host (readplace.com/blog), so
 				// its analytics gate reads the same origin.
 				ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
+				edgeSecret: requireEnv("SSR_EDGE_SECRET"),
 			},
 		),
 	);

@@ -2,7 +2,8 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { resolve } from "node:path";
-import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver } from "@packages/hutch-infra-components/infra";
+import { z } from "zod";
+import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/hutch-infra-components/infra";
 import {
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
@@ -28,6 +29,7 @@ import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
+import { HutchSsrCdn } from "./hutch-ssr-cdn";
 import { OutboundMailAuth } from "./outbound-mail-auth";
 import { requireEnv } from "@packages/require-env";
 
@@ -35,6 +37,12 @@ const config = new pulumi.Config();
 const stage = config.require("stage");
 const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
 const domains = config.getObject<string[]>("domains") ?? [];
+const SsrCdnSchema = z.object({
+	domain: z.string().min(1),
+	dnsTarget: z.enum(["api-gateway", "cloudfront"]),
+});
+const ssrCdn = SsrCdnSchema.optional().parse(config.getObject<unknown>("ssrCdn"));
+const WEB_LAMBDA_TIMEOUT_SECONDS = 30;
 const deletionProtection = config.requireBoolean("deletionProtection");
 const staticDomains = config.requireObject<string[]>("staticDomains");
 assert(staticDomains.length > 0, "staticDomains must have at least one entry");
@@ -174,6 +182,7 @@ const staticAssets = new HutchStaticAssets("hutch-static", {
 });
 
 const eventBus = HutchEventBus.fromPlatformStack(config);
+const ssrEdgeSecret = ssrEdgeSecretFromPlatformStack(config);
 
 // The web Lambda builds initCrawlFetch (article/thumbnail crawls, stale-check
 // refresh), whose last-resort leg spawns curl_chrome131 from this layer; without
@@ -308,7 +317,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	outputDir: ".lib/hutch-api",
 	assetDir: "./src/runtime",
 	memorySize: 1769,
-	timeout: 30,
+	timeout: WEB_LAMBDA_TIMEOUT_SECONDS,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		NODE_ENV: config.require("nodeEnv"),
@@ -361,6 +370,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
 		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		SSR_EDGE_SECRET: ssrEdgeSecret,
 		ADMIN_EMAILS: requireEnv("ADMIN_EMAILS"),
 		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
@@ -383,6 +393,29 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 
 eventBus.grantPublish(lambda);
 
+assert(
+	!ssrCdn || domains.includes(ssrCdn.domain),
+	`ssrCdn.domain ${ssrCdn?.domain} must be one of the configured domains`,
+);
+
+const ssrCdnDistribution = ssrCdn
+	? new HutchSsrCdn("hutch-ssr", {
+			domain: ssrCdn.domain,
+			apiOwnEndpoint: api.apiEndpoint,
+			originReadTimeoutSeconds: WEB_LAMBDA_TIMEOUT_SECONDS,
+			edgeSecret: ssrEdgeSecret,
+		})
+	: undefined;
+
+const ssrCdnDnsAlias =
+	ssrCdnDistribution && ssrCdn?.dnsTarget === "cloudfront"
+		? {
+				domain: ssrCdn.domain,
+				domainName: ssrCdnDistribution.domainName,
+				hostedZoneId: ssrCdnDistribution.hostedZoneId,
+			}
+		: undefined;
+
 const gateway = new HutchAPIGateway("hutch", {
 	api,
 	lambda: lambda,
@@ -391,6 +424,7 @@ const gateway = new HutchAPIGateway("hutch", {
 	zoneId: legacyDomainRegistration.zoneId,
 	certificateArn: legacyDomainRegistration.certificateArn,
 	throttling: apiThrottle,
+	dnsAlias: ssrCdnDnsAlias,
 });
 
 for (const [i, domain] of additionalDomains.entries()) {
@@ -421,14 +455,22 @@ for (const [i, domain] of additionalDomains.entries()) {
 		{ dependsOn: [gateway] },
 	);
 
+	const servesThisDomain =
+		ssrCdnDnsAlias?.domain === domain
+			? ssrCdnDnsAlias
+			: {
+					domainName: customDomain.domainNameConfiguration.apply((c) => c.targetDomainName),
+					hostedZoneId: customDomain.domainNameConfiguration.apply((c) => c.hostedZoneId),
+				};
+
 	new aws.route53.Record(`hutch-apigw-record-${safeName}`, {
 		zoneId: registration.zoneId,
 		name: domain,
 		type: "A",
 		aliases: [
 			{
-				name: customDomain.domainNameConfiguration.apply((c) => c.targetDomainName),
-				zoneId: customDomain.domainNameConfiguration.apply((c) => c.hostedZoneId),
+				name: servesThisDomain.domainName,
+				zoneId: servesThisDomain.hostedZoneId,
 				evaluateTargetHealth: false,
 			},
 		],

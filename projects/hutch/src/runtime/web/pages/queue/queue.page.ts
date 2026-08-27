@@ -13,6 +13,7 @@ import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveab
 import type { UserId } from "@packages/domain/user";
 import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent } from "@packages/web-analytics";
+import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
 import {
@@ -2226,7 +2227,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			timestamp: deps.now().toISOString(),
 			user_id: userId,
 			state: parsedState.data,
-			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+			visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 		});
 		res.status(204).end();
 	});
@@ -2326,7 +2327,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					event: ANALYTICS_EVENTS.articleRead,
 					timestamp: deps.now().toISOString(),
 					user_id: userId,
-					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					device_class: classifyDeviceClass(req.get("user-agent")),
 				});
 			}

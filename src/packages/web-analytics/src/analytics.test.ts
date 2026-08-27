@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
+import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
 import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
 import { SAVE_CLIENTS, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
@@ -36,6 +37,12 @@ interface MockReqOverrides {
 	userId?: string;
 }
 
+function resolveViewer(ip: string | undefined): ViewerIdentity {
+	const req: Partial<Request> = { ip, headers: {} };
+	createViewerIdentityMiddleware({ edgeSecret: "" })(req as Request, {} as Response, () => {});
+	return viewerOf(req as Request);
+}
+
 function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
 	const headers: Record<string, string | undefined> = {
 		"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/145.0",
@@ -51,6 +58,7 @@ function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
 		ip: overrides.ip ?? "1.2.3.4",
 		query: overrides.query ?? {},
 		headers,
+		viewer: resolveViewer(overrides.ip ?? "1.2.3.4"),
 		requestContext: overrides.requestContext,
 		visitorId: overrides.visitorId,
 		userId: overrides.userId,
@@ -528,18 +536,20 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 
 describe("hashIp", () => {
 	it("returns null when ip is undefined (no client IP available)", () => {
-		expect(hashIp({ ip: undefined, salt: "s" })).toBeNull();
+		expect(hashIp({ ip: resolveViewer(undefined).ip, salt: "s" })).toBeNull();
 	});
 
 	it("returns a deterministic 16-char hash for the same ip+salt", () => {
-		const a = hashIp({ ip: "1.2.3.4", salt: "s" });
-		const b = hashIp({ ip: "1.2.3.4", salt: "s" });
+		const a = hashIp({ ip: resolveViewer("1.2.3.4").ip, salt: "s" });
+		const b = hashIp({ ip: resolveViewer("1.2.3.4").ip, salt: "s" });
 		expect(a).toBe(b);
 		expect(a).toHaveLength(16);
 	});
 
 	it("returns a different hash when the salt changes", () => {
-		expect(hashIp({ ip: "1.2.3.4", salt: "a" })).not.toBe(hashIp({ ip: "1.2.3.4", salt: "b" }));
+		expect(hashIp({ ip: resolveViewer("1.2.3.4").ip, salt: "a" })).not.toBe(
+			hashIp({ ip: resolveViewer("1.2.3.4").ip, salt: "b" }),
+		);
 	});
 });
 
@@ -1042,7 +1052,7 @@ describe("buildSignupAttemptedEvent", () => {
 
 	it("stamps visitor_hash as the salted hash of the request ip", () => {
 		const event = buildSignup({ req: { visitorId: VALID_VISITOR_ID, ip: "9.9.9.9" } });
-		expect(event.visitor_hash).toBe(hashIp({ ip: "9.9.9.9", salt: "test-salt" }));
+		expect(event.visitor_hash).toBe(hashIp({ ip: resolveViewer("9.9.9.9").ip, salt: "test-salt" }));
 	});
 
 	it("throws when the visitor-id middleware has not run (req.visitorId unset) — POST /signup must never emit signup_attempted without a visitor identity to join user_created on", () => {

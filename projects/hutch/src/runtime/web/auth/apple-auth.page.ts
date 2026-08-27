@@ -34,6 +34,7 @@ import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
+import { viewerOf } from "@packages/viewer-identity";
 import { PENDING_SAVE_COOKIE_NAME, readPendingSaveId } from "../pending-save";
 import { LAST_VIEW_COOKIE_NAME, readLastViewUrl } from "../last-view";
 import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider";
@@ -317,7 +318,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
 			emitFirstArticleAutosaved(
 				{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: req.ip },
+				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
 			);
 			res.redirect(303, redirect.location);
 			return;
@@ -376,7 +377,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
 		emitFirstArticleAutosaved(
 			{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: req.ip },
+			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
 		);
 		res.redirect(303, redirect.location);
 	});

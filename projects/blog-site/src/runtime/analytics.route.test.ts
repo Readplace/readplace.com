@@ -39,6 +39,7 @@ function makeApp(resolveLogin: ResolveLogin) {
 			generateVisitorId: () => VISITOR_ID,
 			secureCookies: false,
 			ownHost: OWN_HOST,
+			edgeSecret: "",
 		},
 	);
 }
@@ -200,7 +201,7 @@ describe("blog analytics instrumentation", () => {
 		const external = await request(makeApp(guestResolver)).get("/blog").set("Referer", "https://www.google.com/");
 		expect(parseClickCookie(setCookieHeaders(external)).referrer_host).toBe("www.google.com");
 
-		const sameHost = await request(makeApp(guestResolver)).get("/blog").set("Referer", "http://127.0.0.1/x");
+		const sameHost = await request(makeApp(guestResolver)).get("/blog").set("Referer", `https://${OWN_HOST}/x`);
 		expect(parseClickCookie(setCookieHeaders(sameHost)).referrer_host).toBeUndefined();
 	});
 

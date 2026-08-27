@@ -17,6 +17,9 @@ config:
       zoneName: hutch-app.com
     - host: www.readplace.com
       zoneName: readplace.com
+  hutch:ssrCdn:
+    domain: readplace.com
+    dnsTarget: api-gateway
   hutch:deletionProtection: true
   hutch:staticDomains:
     - static.hutch-app.com

@@ -7,8 +7,8 @@ import {
 
 const VALID_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
-function createReq(cookies?: Record<string, unknown>): Request {
-	return { cookies } as unknown as Request;
+function createReq(cookies?: Record<string, unknown>, path = "/"): Request {
+	return { cookies, path } as unknown as Request;
 }
 
 function createRes(): {
@@ -53,7 +53,7 @@ describe("createVisitorIdMiddleware", () => {
 			nexted = true;
 		};
 
-		createVisitorIdMiddleware({ generateVisitorId: () => "unused", secure: false })(req, res, next);
+		createVisitorIdMiddleware({ generateVisitorId: () => "unused", secure: false, isStaticAssetPath: () => false })(req, res, next);
 
 		expect(req.visitorId).toBe(VALID_UUID);
 		expect(cookies).toEqual([]);
@@ -68,7 +68,7 @@ describe("createVisitorIdMiddleware", () => {
 			nexted = true;
 		};
 
-		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: false })(req, res, next);
+		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: false, isStaticAssetPath: () => false })(req, res, next);
 
 		expect(req.visitorId).toBe(VALID_UUID);
 		expect(cookies).toHaveLength(1);
@@ -84,7 +84,7 @@ describe("createVisitorIdMiddleware", () => {
 		const { res, cookies } = createRes();
 		const req = createReq();
 
-		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: true })(req, res, () => {});
+		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: true, isStaticAssetPath: () => false })(req, res, () => {});
 
 		expect(cookies).toHaveLength(1);
 		expect(cookies[0].options).toMatchObject({
@@ -95,11 +95,30 @@ describe("createVisitorIdMiddleware", () => {
 		});
 	});
 
+	it("leaves a static asset untouched, so a shared cache cannot replay one visitor's identity to everyone", () => {
+		const { res, cookies } = createRes();
+		const req = createReq(undefined, "/client-dist/htmx.client.js");
+		let nexted = false;
+		const next: NextFunction = () => {
+			nexted = true;
+		};
+
+		createVisitorIdMiddleware({
+			generateVisitorId: () => VALID_UUID,
+			secure: false,
+			isStaticAssetPath: (path) => path.startsWith("/client-dist/"),
+		})(req, res, next);
+
+		expect(cookies).toEqual([]);
+		expect(req.visitorId).toBeUndefined();
+		expect(nexted).toBe(true);
+	});
+
 	it("re-mints when the existing cookie is corrupt rather than propagating a tampered value", () => {
 		const { res, cookies } = createRes();
 		const req = createReq({ [VISITOR_COOKIE_NAME]: "corrupt" });
 
-		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: false })(req, res, () => {});
+		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: false, isStaticAssetPath: () => false })(req, res, () => {});
 
 		expect(req.visitorId).toBe(VALID_UUID);
 		expect(cookies).toHaveLength(1);

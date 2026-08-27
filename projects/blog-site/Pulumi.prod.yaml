@@ -5,5 +5,6 @@ config:
   blog-site:nodeEnv: production
   blog-site:staticBaseUrl: https://static.readplace.com
   blog-site:hutchStack: organization/hutch/prod
+  blog-site:platformStack: organization/platform/prod
   blog-site:dynamodbSessionsTable: hutch-sessions-d17dbb3
 encryptionsalt: v1:Twafqcu8CoA=:v1:ala066U4VNMmKX8/:ubCpRQ3yAJc2v1iQIxY1d6RIOOYHwA==

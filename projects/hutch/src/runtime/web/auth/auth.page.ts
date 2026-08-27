@@ -76,6 +76,7 @@ import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { buildSignupAttemptedEvent } from "@packages/web-analytics";
+import { viewerOf } from "@packages/viewer-identity";
 import { SIGNUP_OUTCOMES, type SignupOutcome } from "../../observability/events";
 import {
 	CHECKOUT_RETURN_FAILURE_REASONS,
@@ -309,7 +310,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				case "bot-rejected":
 					deps.botDefenseLogger.info(createBotDefenseEvent({
 						trip: { reason: result.reason, timeToSubmitMs: result.timeToSubmitMs },
-						ip: req.ip,
+						ip: viewerOf(req).ip,
 						userAgent: req.get("user-agent"),
 						body,
 						now: deps.now(),
@@ -378,7 +379,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
 			emitFirstArticleAutosaved(
 				{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: req.ip },
+				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
 			);
 			res.redirect(303, redirect.location);
 			return;
@@ -423,7 +424,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
 		emitFirstArticleAutosaved(
 			{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: req.ip },
+			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
 		);
 		res.redirect(303, redirect.location);
 	});

@@ -7,6 +7,7 @@ import serverless from "serverless-http";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { logger as requestLogger } from "./domain/logger";
 import { createAnalyticsMiddleware, hashIp } from "@packages/web-analytics";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { createBanMiddleware } from "./web/middleware/ban";
 import { logAndRespondOnError } from "./web/middleware/error-handler";
@@ -29,6 +30,7 @@ const { app, analyticsLogger } = createReadplaceApp();
 const log = requestLogger();
 const logger = HutchLogger.from(consoleLogger);
 const salt = requireEnv("ANALYTICS_SALT");
+const viewerIdentity = createViewerIdentityMiddleware({ edgeSecret: requireEnv("SSR_EDGE_SECRET") });
 const ban = createBanMiddleware({ salt, hashIp });
 const analytics = createAnalyticsMiddleware({
 	logger: analyticsLogger,
@@ -47,6 +49,7 @@ const application = express()
 				lambda ? compression.filter(req, res) : false,
 		}),
 	)
+	.use(viewerIdentity)
 	.use(ban)
 	.use(analytics)
 	.use(app)

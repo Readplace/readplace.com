@@ -1,4 +1,6 @@
+import express from "express";
 import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-port";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { requireEnv } from "@packages/require-env";
 import { createDevReadplaceApp } from "./dev-app";
@@ -25,7 +27,10 @@ async function main(): Promise<void> {
 	appOrigin.port = String(port);
 
 	const { app } = createDevReadplaceApp({ appOrigin: appOrigin.origin });
-	app.listen(port).on("listening", () => {
+	const application = express()
+		.use(createViewerIdentityMiddleware({ edgeSecret: requireEnv("SSR_EDGE_SECRET") }))
+		.use(app);
+	application.listen(port).on("listening", () => {
 		logger.info(`Server is running on ${appOrigin.origin}`);
 	});
 }

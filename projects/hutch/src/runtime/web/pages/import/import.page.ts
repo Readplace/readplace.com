@@ -23,6 +23,7 @@ import type { BuildBannerState } from "../../banner-state";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
 import { type AnalyticsEvent, hashIp } from "@packages/web-analytics";
+import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
@@ -162,7 +163,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			utm_campaign: "file-upload",
 			url_count: urls.length,
 			truncated: truncated ? 1 : 0,
-			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+			visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 			is_authenticated: req.userId ? 1 : 0,
 		});
 		res.redirect(303, `/import/${session.id}`);
@@ -216,7 +217,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			utm_campaign: "from-url",
 			url_count: urls.length,
 			truncated: truncated ? 1 : 0,
-			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+			visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 			is_authenticated: req.userId ? 1 : 0,
 		});
 		res.redirect(303, `/import/${session.id}`);
@@ -389,7 +390,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			imported_count: saveable.length,
 			skipped_count: skipped.length,
 			total_in_session: session.totalUrls,
-			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+			visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 			is_authenticated: 1,
 		});
 		res.redirect(

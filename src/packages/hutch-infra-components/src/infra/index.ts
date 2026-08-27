@@ -1,6 +1,7 @@
 export { HutchEcrRepository } from "./hutch-ecr-repository";
 export { HutchEventBus } from "./event-bus";
 export { curlImpersonateLayerArnFromPlatformStack } from "./curl-impersonate-layer";
+export { ssrEdgeSecretFromPlatformStack } from "./ssr-edge-secret";
 export { HutchLambda } from "./hutch-lambda";
 export type { LambdaPolicy } from "./hutch-lambda";
 export { HutchAPIGateway } from "./hutch-api-gateway";

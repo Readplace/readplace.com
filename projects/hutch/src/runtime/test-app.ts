@@ -32,6 +32,7 @@ import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type {
@@ -69,6 +70,8 @@ export type {
 	TestAppFixture,
 	TrialSchedulerBundle,
 } from "@packages/web-test-harness";
+
+export const TEST_EDGE_SECRET = "test-edge-secret";
 export { loginAgent } from "@packages/web-test-harness";
 
 export interface AnalyticsBundle {
@@ -332,6 +335,7 @@ export function createTestApp(
 		events: subscriptionLogEvents,
 	};
 	const app = express()
+		.use(createViewerIdentityMiddleware({ edgeSecret: TEST_EDGE_SECRET }))
 		.use(createAnalyticsMiddleware({
 			logger: analyticsBundle.logger,
 			salt: "test-analytics-salt",

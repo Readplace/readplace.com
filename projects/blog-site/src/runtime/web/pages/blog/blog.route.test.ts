@@ -39,6 +39,7 @@ const app = createBlogApp(
 		generateVisitorId: () => "00000000-0000-4000-8000-000000000000",
 		secureCookies: false,
 		ownHost: "readplace.test",
+		edgeSecret: "",
 	},
 );
 const blogPosts = initBlogPosts();

@@ -35,9 +35,14 @@ export function readVisitorId(req: Request): VisitorId | undefined {
 export function createVisitorIdMiddleware(deps: {
 	generateVisitorId: () => string;
 	secure: boolean;
+	isStaticAssetPath: (path: string) => boolean;
 }): RequestHandler {
 	const cookieOptions = { ...baseCookieOptions(deps.secure), maxAge: VISITOR_COOKIE_MAX_AGE_MS };
 	return (req: Request, res: Response, next: NextFunction) => {
+		if (deps.isStaticAssetPath(req.path)) {
+			next();
+			return;
+		}
 		const existing = readVisitorId(req);
 		if (existing) {
 			req.visitorId = existing;

@@ -1,5 +1,6 @@
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { UserId } from "@packages/domain/user";
+import type { ViewerIp } from "@packages/viewer-identity";
 import {
 	type AnalyticsEvent,
 	articleHostFrom,
@@ -16,7 +17,7 @@ import { ANALYTICS_EVENTS, STREAMS } from "../../observability/events";
  */
 export function emitFirstArticleAutosaved(
 	deps: { logger: HutchLogger.Typed<AnalyticsEvent>; now: () => Date; salt: string },
-	params: { autosavedUrl: string | undefined; userId: UserId; visitorId?: string; ip: string | undefined },
+	params: { autosavedUrl: string | undefined; userId: UserId; visitorId?: string; ip: ViewerIp | undefined },
 ): void {
 	if (params.autosavedUrl === undefined) return;
 	const event: FirstArticleAutosavedEvent = {

@@ -15,6 +15,7 @@ import {
 	createVisitorIdMiddleware,
 	utmValidationMiddleware,
 } from "@packages/web-analytics";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
 import { initBlogRoutes } from "./web/pages/blog/blog.page";
@@ -40,26 +41,36 @@ export function createBlogApp(
 		generateVisitorId: () => string;
 		secureCookies: boolean;
 		ownHost: string;
+		edgeSecret: string;
 	},
 ): Express {
 	const app = express();
 	app.disable("x-powered-by");
 
-	app.use(createCspNonceMiddleware({ generateCspNonce }));
-	app.use(utmValidationMiddleware);
-	app.use(cookieParser());
-	app.use(createVisitorIdMiddleware({ generateVisitorId: deps.generateVisitorId, secure: deps.secureCookies }));
-
 	// The blog has no /view scheme-variant route, so every landing path is
 	// already canonical.
 	const isStaticAssetPath = () => false;
 	const canonicalizeLandingPath = (path: string) => path;
+
+	app.use(createViewerIdentityMiddleware({ edgeSecret: deps.edgeSecret }));
+	app.use(createCspNonceMiddleware({ generateCspNonce }));
+	app.use(utmValidationMiddleware);
+	app.use(cookieParser());
+	app.use(
+		createVisitorIdMiddleware({
+			generateVisitorId: deps.generateVisitorId,
+			secure: deps.secureCookies,
+			isStaticAssetPath,
+		}),
+	);
+
 	app.use(
 		createClickAttributionMiddleware({
 			now: deps.now,
 			secure: deps.secureCookies,
 			isStaticAssetPath,
 			canonicalizeLandingPath,
+			ownHost: deps.ownHost,
 		}),
 	);
 	app.use(

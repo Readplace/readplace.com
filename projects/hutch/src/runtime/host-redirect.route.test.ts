@@ -1,6 +1,7 @@
 import request from "supertest";
+import { EDGE_SECRET_HEADER, VIEWER_HOST_HEADER } from "@packages/viewer-identity";
 import { createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { useTestServer } from "./test-app";
+import { TEST_EDGE_SECRET, useTestServer } from "./test-app";
 
 const useApp = useTestServer();
 
@@ -39,6 +40,25 @@ describe("hutch-app.com → readplace.com host redirect", () => {
 	it("does not redirect requests whose Host is not hutch-app.com", async () => {
 		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
 		const response = await request(harness.server).get("/login");
+		expect(response.status).toBe(200);
+	});
+
+	it("301s on the host the edge says the viewer asked for, not the origin the edge dialled", async () => {
+		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Host", "abc123.execute-api.ap-southeast-2.amazonaws.com")
+			.set(EDGE_SECRET_HEADER, TEST_EDGE_SECRET)
+			.set(VIEWER_HOST_HEADER, "hutch-app.com");
+		expect(response.status).toBe(301);
+		expect(response.headers.location).toBe("https://readplace.com/queue");
+	});
+
+	it("ignores a claimed viewer host that arrives without the edge secret", async () => {
+		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
+		const response = await request(harness.server)
+			.get("/login")
+			.set(VIEWER_HOST_HEADER, "hutch-app.com");
 		expect(response.status).toBe(200);
 	});
 });

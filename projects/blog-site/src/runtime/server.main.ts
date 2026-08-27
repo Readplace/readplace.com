@@ -32,6 +32,7 @@ const app = createBlogApp(
 		generateVisitorId: randomUUID,
 		secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
 		ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
+		edgeSecret: requireEnv("SSR_EDGE_SECRET"),
 	},
 );
 

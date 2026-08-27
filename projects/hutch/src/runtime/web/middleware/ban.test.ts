@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { createBanMiddleware, type HashIp } from "./ban";
 
 /** First entry in banned-visitors.txt — see that file for known banned hashes. */
@@ -13,7 +14,8 @@ function run(hashIp: HashIp): { status?: number; nextCalled: boolean } {
 		},
 		end: jest.fn(),
 	};
-	const req: Partial<Request> = { ip: "1.2.3.4" };
+	const req: Partial<Request> = { ip: "1.2.3.4", headers: {} };
+	createViewerIdentityMiddleware({ edgeSecret: "" })(req as Request, res as Response, jest.fn());
 	const next = jest.fn();
 	createBanMiddleware({ salt: "salt", hashIp })(req as Request, res as Response, next as NextFunction);
 	return { status, nextCalled: next.mock.calls.length > 0 };

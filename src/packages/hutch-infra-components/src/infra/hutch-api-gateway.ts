@@ -27,6 +27,11 @@ export class HutchAPIGateway extends pulumi.ComponentResource {
 			 * available without fronting the API with CloudFront.
 			 */
 			throttling: { burstLimit: number; rateLimit: number };
+			dnsAlias?: {
+				domain: string;
+				domainName: pulumi.Input<string>;
+				hostedZoneId: pulumi.Input<string>;
+			};
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -135,18 +140,26 @@ export class HutchAPIGateway extends pulumi.ComponentResource {
 					{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
 				);
 
+				const servesThisDomain =
+					args.dnsAlias?.domain === domain
+						? args.dnsAlias
+						: {
+								domainName: customDomain.domainNameConfiguration.apply(
+									(c) => c.targetDomainName,
+								),
+								hostedZoneId: customDomain.domainNameConfiguration.apply(
+									(c) => c.hostedZoneId,
+								),
+							};
+
 				new aws.route53.Record(`${name}-record-${safeName}`, {
 					zoneId: args.zoneId,
 					name: domain,
 					type: "A",
 					aliases: [
 						{
-							name: customDomain.domainNameConfiguration.apply(
-								(c) => c.targetDomainName,
-							),
-							zoneId: customDomain.domainNameConfiguration.apply(
-								(c) => c.hostedZoneId,
-							),
+							name: servesThisDomain.domainName,
+							zoneId: servesThisDomain.hostedZoneId,
 							evaluateTargetHealth: false,
 						},
 					],

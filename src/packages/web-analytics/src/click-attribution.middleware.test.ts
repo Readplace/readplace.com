@@ -53,6 +53,7 @@ function runMiddleware(
 		secure?: boolean;
 		isStaticAssetPath?: (path: string) => boolean;
 		canonicalizeLandingPath?: (path: string) => string;
+		ownHost?: string;
 	} = {},
 ): { cookies: CapturedCookie[]; nextCalled: boolean } {
 	const { res, cookies } = createRes();
@@ -61,6 +62,7 @@ function runMiddleware(
 		secure: options.secure ?? false,
 		isStaticAssetPath: options.isStaticAssetPath ?? (() => false),
 		canonicalizeLandingPath: options.canonicalizeLandingPath ?? ((path) => path),
+		ownHost: options.ownHost ?? "readplace.com",
 	});
 	let nextCalled = false;
 	const next: NextFunction = () => {
