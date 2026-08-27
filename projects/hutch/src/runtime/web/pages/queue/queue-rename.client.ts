@@ -33,6 +33,8 @@ interface QueueRenameEdit {
 	max: number;
 	openedWith: string;
 	pending: boolean;
+	sent: string | undefined;
+	awaiting: string | undefined;
 	handBackFocus: boolean;
 }
 
@@ -112,6 +114,8 @@ export function initQueueRename(deps: QueueRenameDeps): void {
 			max: Number(attributeOf(tab, MAX_ATTR)),
 			openedWith: textOf(label),
 			pending: false,
+			sent: undefined,
+			awaiting: undefined,
 			handBackFocus: false,
 		};
 		label.setAttribute("contenteditable", "true");
@@ -153,13 +157,33 @@ export function initQueueRename(deps: QueueRenameDeps): void {
 
 	function fail(edit: QueueRenameEdit, message: string | undefined): void {
 		edit.pending = false;
+		edit.awaiting = undefined;
 		showToast(message ?? GENERIC_FAILURE);
 		edit.label.focus();
+	}
+
+	function send(edit: QueueRenameEdit, label: string): void {
+		edit.pending = true;
+		edit.sent = label;
+		deps.fetchFn(edit.action, renameRequest(edit.field, label)).then(
+			(response) =>
+				response.json().then(
+					(body) => answer(edit, response.status, body),
+					() => answer(edit, response.status, undefined),
+				),
+			() => fail(edit, undefined),
+		);
 	}
 
 	function answer(edit: QueueRenameEdit, status: number, body: unknown): void {
 		const stored = stringField(body, "label");
 		if (status === 200 && stored) {
+			const awaiting = edit.awaiting;
+			edit.awaiting = undefined;
+			if (awaiting !== undefined) {
+				send(edit, awaiting);
+				return;
+			}
 			succeed(edit.action, stored);
 			return;
 		}
@@ -169,25 +193,20 @@ export function initQueueRename(deps: QueueRenameDeps): void {
 	function commit(): void {
 		const edit = editing;
 		if (edit === null) return;
-		if (edit.pending) return;
 		const label = textOf(edit.label).trim();
 		if (label === "") {
 			revert();
+			return;
+		}
+		if (edit.pending) {
+			edit.awaiting = label === edit.sent ? undefined : label;
 			return;
 		}
 		if (label === edit.openedWith) {
 			finishEditing();
 			return;
 		}
-		edit.pending = true;
-		deps.fetchFn(edit.action, renameRequest(edit.field, label)).then(
-			(response) =>
-				response.json().then(
-					(body) => answer(edit, response.status, body),
-					() => answer(edit, response.status, undefined),
-				),
-			() => fail(edit, undefined),
-		);
+		send(edit, label);
 	}
 
 	deps.document.addEventListener("click", (event) => {

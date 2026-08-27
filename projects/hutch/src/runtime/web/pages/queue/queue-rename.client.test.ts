@@ -108,6 +108,24 @@ function init(
 
 const settled = () => new Promise((resolve) => setImmediate(resolve));
 
+const echoStored = (call: RenameCall): QueueRenameResponse => ({
+	status: 200,
+	json: () => Promise.resolve({ label: new URLSearchParams(String(call.init.body)).get("label") }),
+});
+
+function heldAnswers(answerFor: (call: RenameCall) => QueueRenameResponse) {
+	const release: Array<() => void> = [];
+	return {
+		release,
+		respond: (call: RenameCall) =>
+			new Promise<QueueRenameResponse>((resolve) => {
+				release.push(() => resolve(answerFor(call)));
+			}),
+	};
+}
+
+const bodies = (calls: RenameCall[]): unknown[] => calls.map((call) => call.init.body);
+
 describe("initQueueRename", () => {
 	it("opens the editor from the reader's own tap, with the whole name ready to be replaced", () => {
 		const page = init(pageMarkup());
@@ -303,6 +321,145 @@ describe("initQueueRename", () => {
 
 		expect(page.label().textContent).toBe("Work Reading");
 		expect(page.calls).toHaveLength(1);
+	});
+
+	it("posts a name typed during a rename still in flight once that one lands, in the order typed", async () => {
+		const server = heldAnswers(echoStored);
+		const page = init(pageMarkup(), server.respond);
+		page.click();
+		page.type("Work Reading");
+		page.press("Enter");
+		await settled();
+
+		page.click();
+		page.type("Deep Work");
+		page.press("Enter");
+		await settled();
+
+		expect(bodies(page.calls)).toEqual(["label=Work+Reading"]);
+
+		server.release[0]();
+		await settled();
+
+		expect(bodies(page.calls)).toEqual(["label=Work+Reading", "label=Deep+Work"]);
+
+		server.release[1]();
+		await settled();
+
+		expect(page.label().textContent).toBe("Deep Work");
+		expect(page.document.querySelector(".queue__title")?.textContent).toBe("Deep Work");
+		expect(page.label().getAttribute("contenteditable")).toBeNull();
+	});
+
+	it("keeps the name still to be posted on screen while the earlier rename lands", async () => {
+		const server = heldAnswers(echoStored);
+		const page = init(pageMarkup(), server.respond);
+		page.click();
+		page.type("Work Reading");
+		page.press("Enter");
+		await settled();
+		page.click();
+		page.type("Deep Work");
+		page.press("Enter");
+		await settled();
+
+		server.release[0]();
+		await settled();
+
+		expect(page.label().textContent).toBe("Deep Work");
+		expect(page.label().getAttribute("contenteditable")).toBe("true");
+		expect(page.document.querySelector(".queue__title")?.textContent).toBe("New Queue");
+		expect(page.document.title).toBe("New Queue — Readplace");
+	});
+
+	it("posts once when the blur behind an in-flight rename carries the name already sent", async () => {
+		const server = heldAnswers(echoStored);
+		const page = init(pageMarkup(), server.respond);
+		page.click();
+		page.type("Work Reading");
+		page.press("Enter");
+		await settled();
+		page.blur();
+		await settled();
+
+		server.release[0]();
+		await settled();
+
+		expect(bodies(page.calls)).toEqual(["label=Work+Reading"]);
+		expect(page.label().textContent).toBe("Work Reading");
+		expect(page.label().getAttribute("contenteditable")).toBeNull();
+		expect(page.tab().getAttribute("href")).toBe(TAB_HREF);
+	});
+
+	it("posts once when the server numbers the name it stored and the reader retypes nothing", async () => {
+		const server = heldAnswers(() => ({
+			status: 200,
+			json: () => Promise.resolve({ label: "Work Reading 2" }),
+		}));
+		const page = init(pageMarkup(), server.respond);
+		page.click();
+		page.type("Work Reading");
+		page.press("Enter");
+		await settled();
+		page.blur();
+		await settled();
+
+		server.release[0]();
+		await settled();
+
+		expect(bodies(page.calls)).toEqual(["label=Work+Reading"]);
+		expect(page.label().textContent).toBe("Work Reading 2");
+		expect(page.label().getAttribute("contenteditable")).toBeNull();
+	});
+
+	it("posts once when the reader types back to the name already in flight", async () => {
+		const server = heldAnswers(echoStored);
+		const page = init(pageMarkup(), server.respond);
+		page.click();
+		page.type("Work Reading");
+		page.press("Enter");
+		await settled();
+		page.click();
+		page.type("Deep Work");
+		page.press("Enter");
+		await settled();
+		page.click();
+		page.type("Work Reading");
+		page.press("Enter");
+		await settled();
+
+		server.release[0]();
+		await settled();
+
+		expect(bodies(page.calls)).toEqual(["label=Work+Reading"]);
+		expect(page.label().textContent).toBe("Work Reading");
+		expect(page.label().getAttribute("contenteditable")).toBeNull();
+	});
+
+	it("drops the name typed during a rename the server refused", async () => {
+		const server = heldAnswers(() => ({
+			status: 422,
+			json: () => Promise.resolve({ message: "You already have a queue with that name." }),
+		}));
+		const page = init(pageMarkup(), server.respond);
+		page.click();
+		page.type("Work Reading");
+		page.press("Enter");
+		await settled();
+		page.click();
+		page.type("Deep Work");
+		page.press("Enter");
+		await settled();
+
+		server.release[0]();
+		await settled();
+
+		expect(bodies(page.calls)).toEqual(["label=Work+Reading"]);
+		expect(page.document.querySelector(".toast__message")?.textContent).toBe(
+			"You already have a queue with that name.",
+		);
+		expect(page.label().textContent).toBe("Deep Work");
+		expect(page.label().getAttribute("contenteditable")).toBe("true");
 	});
 
 	it("abandons an edit the page dropped underneath it", async () => {
