@@ -38,7 +38,7 @@ Saving a link follows its redirects and keys the article on where it lands, so `
 
 That sharing is the attack surface: an attacker could save `evil.com/x → victim.com/article` before anyone else claims it, let real users who save `victim.com/article` attach to *their* row, then swap `evil.com/x` to serve something malicious — and a later re-crawl would repaint the shared article for everyone, behind a URL they trust.
 
-The defence is to stop trusting the origin once an article exists: re-crawls and the reader both work off the destination the article landed on, never the URL that redirected there, so the attacker's host can't launder content behind a trusted identity. Same-host redirects are exempt — an attacker only controls their own host — so the protection is scoped to the cross-host case that actually needs it.
+The defence is to stop trusting the origin once an article exists: re-crawls and the reader both work off the destination the article landed on, never the URL that redirected there, so the attacker's host can't launder content behind a trusted identity. The pins apply to every redirect that moves an article's identity, same-host ones included — a same-host hop gains an attacker nothing, since they already control their own host, and one rule for all redirects leaves no case to argue about.
 
 Claiming a destination that failed to load means a claim can land before any content has been seen — an attacker can point at a victim URL that blocks the crawler and take the claim without ever serving a page. The trade is deliberate, and it doesn't move the defence: what a claim decides is *where content comes from*, and that answer is always the destination.
 
