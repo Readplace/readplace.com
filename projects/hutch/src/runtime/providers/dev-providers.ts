@@ -2,6 +2,9 @@
 import assert from "node:assert";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
+import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
+import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
+import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { initInMemoryOnboardingSignals } from "@packages/test-fixtures/providers/onboarding-signals";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
@@ -79,7 +82,7 @@ import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pen
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { getEnv, requireEnv } from "@packages/require-env";
-import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
+import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
 /**
@@ -143,6 +146,28 @@ export function initDevProviders(input: { appOrigin: string }) {
 			clientSecret: devGoogleClientSecret,
 		}
 		: undefined;
+	const gmailClientId = getEnv("GMAIL_INTEGRATION_CLIENT_ID");
+	const gmailClientSecret = getEnv("GMAIL_INTEGRATION_CLIENT_SECRET");
+	const gmailStateSeed = getEnv("GMAIL_INTEGRATION_STATE_SECRET");
+	assert(
+		(gmailClientId && gmailClientSecret && gmailStateSeed) ||
+			(!gmailClientId && !gmailClientSecret && !gmailStateSeed),
+		"GMAIL_INTEGRATION_CLIENT_ID, GMAIL_INTEGRATION_CLIENT_SECRET and GMAIL_INTEGRATION_STATE_SECRET must all be set or all unset",
+	);
+	const gmailIntegration =
+		gmailClientId && gmailClientSecret && gmailStateSeed
+			? {
+					exchangeGmailCode: initExchangeGmailCode({
+						clientId: gmailClientId,
+						clientSecret: gmailClientSecret,
+						redirectUri: `http://localhost:${getEnv("PORT") || "3000"}/integrations/gmail/callback`,
+						fetch: globalThis.fetch,
+					}),
+					clientId: gmailClientId,
+					stateSecret: deriveGmailStateSigningSecret(gmailStateSeed),
+					gmailCredentialsStore: initInMemoryGmailCredentials({ now: () => new Date() }),
+				}
+			: undefined;
 	const devAppleClientId = getEnv("APPLE_LOGIN_CLIENT_ID");
 	const devAppleTeamId = getEnv("APPLE_LOGIN_TEAM_ID");
 	const devAppleKeyId = getEnv("APPLE_LOGIN_KEY_ID");
@@ -351,6 +376,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 				userId,
 				domain: inboxAddressDomain,
 				name: DEFAULT_INBOX_ALIAS,
+				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 			});
 		},
 		subscriptionProviders: devSubscriptionProviders,
@@ -370,6 +396,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		storePendingSignup: devPendingSignup.storePendingSignup,
 		consumePendingSignup: devPendingSignup.consumePendingSignup,
 		googleAuth,
+		gmailIntegration,
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens,

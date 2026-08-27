@@ -1,4 +1,6 @@
 import type { CrawlArticle } from "@packages/crawl-article";
+import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
+import type { GmailCredentialsStore } from "@packages/domain/gmail";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	ArticleMetadata,
@@ -470,6 +472,13 @@ export interface GoogleAuthBundle {
 	clientSecret: string;
 }
 
+export interface GmailIntegrationBundle {
+	exchangeGmailCode: ExchangeGmailCode;
+	clientId: string;
+	stateSecret: string;
+	gmailCredentialsStore: GmailCredentialsStore;
+}
+
 export interface AppleAuthBundle {
 	exchangeAppleCode: ExchangeAppleCode;
 	clientId: string;
@@ -546,6 +555,7 @@ export interface TestAppFixture {
 	rateLimit: RateLimitBundle;
 	onboardingSignals: OnboardingSignalsBundle;
 	google: GoogleAuthBundle | undefined;
+	gmailIntegration: GmailIntegrationBundle | undefined;
 	apple: AppleAuthBundle;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;

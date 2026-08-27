@@ -443,6 +443,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		rateLimit,
 		onboardingSignals: initInMemoryOnboardingSignals({ now: () => new Date() }),
 		google: undefined,
+		gmailIntegration: undefined,
 		/* Apple sign-in is a mandatory dependency — the /auth/apple route is always
 		* mounted so the button always resolves — so the default fixture wires a
 		* stub exchange. Apple-flow tests override `apple` with their own bundle. */

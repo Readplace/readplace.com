@@ -13,6 +13,10 @@
       "types": "./dist/fixture.d.ts",
       "default": "./dist/fixture.js"
     },
+    "./lambda-context": {
+      "types": "./dist/lambda-context/index.d.ts",
+      "default": "./dist/lambda-context/index.js"
+    },
     "./providers/apple-auth": {
       "types": "./dist/providers/apple-auth/index.d.ts",
       "default": "./dist/providers/apple-auth/index.js"
@@ -49,61 +53,21 @@
       "types": "./dist/providers/email-verification/index.d.ts",
       "default": "./dist/providers/email-verification/index.js"
     },
-    "./providers/password-reset": {
-      "types": "./dist/providers/password-reset/index.d.ts",
-      "default": "./dist/providers/password-reset/index.js"
+    "./providers/events": {
+      "types": "./dist/providers/events/index.d.ts",
+      "default": "./dist/providers/events/index.js"
     },
-    "./providers/rate-limit": {
-      "types": "./dist/providers/rate-limit/index.d.ts",
-      "default": "./dist/providers/rate-limit/index.js"
+    "./providers/gmail-credentials": {
+      "types": "./dist/providers/gmail-credentials/index.d.ts",
+      "default": "./dist/providers/gmail-credentials/index.js"
     },
-    "./providers/reader-ready-state": {
-      "types": "./dist/providers/reader-ready-state/index.d.ts",
-      "default": "./dist/providers/reader-ready-state/index.js"
-    },
-    "./providers/payment-methods": {
-      "types": "./dist/providers/payment-methods/index.d.ts",
-      "default": "./dist/providers/payment-methods/index.js"
-    },
-    "./providers/pending-html": {
-      "types": "./dist/providers/pending-html/index.d.ts",
-      "default": "./dist/providers/pending-html/index.js"
-    },
-    "./providers/pending-pdf": {
-      "types": "./dist/providers/pending-pdf/index.d.ts",
-      "default": "./dist/providers/pending-pdf/index.js"
-    },
-    "./providers/pending-upload": {
-      "types": "./dist/providers/pending-upload/index.d.ts",
-      "default": "./dist/providers/pending-upload/index.js"
-    },
-    "./providers/refresh-html": {
-      "types": "./dist/providers/refresh-html/index.d.ts",
-      "default": "./dist/providers/refresh-html/index.js"
-    },
-    "./providers/related-articles": {
-      "types": "./dist/providers/related-articles/index.d.ts",
-      "default": "./dist/providers/related-articles/index.js"
-    },
-    "./providers/pending-signup": {
-      "types": "./dist/providers/pending-signup/index.d.ts",
-      "default": "./dist/providers/pending-signup/index.js"
+    "./providers/google-auth": {
+      "types": "./dist/providers/google-auth/index.d.ts",
+      "default": "./dist/providers/google-auth/index.js"
     },
     "./providers/hosted-checkout": {
       "types": "./dist/providers/hosted-checkout/index.d.ts",
       "default": "./dist/providers/hosted-checkout/index.js"
-    },
-    "./providers/subscription-billing": {
-      "types": "./dist/providers/subscription-billing/index.d.ts",
-      "default": "./dist/providers/subscription-billing/index.js"
-    },
-    "./providers/subscription-providers": {
-      "types": "./dist/providers/subscription-providers/index.d.ts",
-      "default": "./dist/providers/subscription-providers/index.js"
-    },
-    "./providers/trial-scheduler": {
-      "types": "./dist/providers/trial-scheduler/index.d.ts",
-      "default": "./dist/providers/trial-scheduler/index.js"
     },
     "./providers/import-session": {
       "types": "./dist/providers/import-session/index.d.ts",
@@ -121,62 +85,171 @@
       "types": "./dist/providers/oauth/index.d.ts",
       "default": "./dist/providers/oauth/index.js"
     },
-    "./providers/events": {
-      "types": "./dist/providers/events/index.d.ts",
-      "default": "./dist/providers/events/index.js"
-    },
-    "./providers/google-auth": {
-      "types": "./dist/providers/google-auth/index.d.ts",
-      "default": "./dist/providers/google-auth/index.js"
-    },
     "./providers/onboarding-signals": {
       "types": "./dist/providers/onboarding-signals/index.d.ts",
       "default": "./dist/providers/onboarding-signals/index.js"
     },
+    "./providers/password-reset": {
+      "types": "./dist/providers/password-reset/index.d.ts",
+      "default": "./dist/providers/password-reset/index.js"
+    },
+    "./providers/payment-methods": {
+      "types": "./dist/providers/payment-methods/index.d.ts",
+      "default": "./dist/providers/payment-methods/index.js"
+    },
+    "./providers/pending-html": {
+      "types": "./dist/providers/pending-html/index.d.ts",
+      "default": "./dist/providers/pending-html/index.js"
+    },
+    "./providers/pending-pdf": {
+      "types": "./dist/providers/pending-pdf/index.d.ts",
+      "default": "./dist/providers/pending-pdf/index.js"
+    },
+    "./providers/pending-signup": {
+      "types": "./dist/providers/pending-signup/index.d.ts",
+      "default": "./dist/providers/pending-signup/index.js"
+    },
+    "./providers/pending-upload": {
+      "types": "./dist/providers/pending-upload/index.d.ts",
+      "default": "./dist/providers/pending-upload/index.js"
+    },
+    "./providers/rate-limit": {
+      "types": "./dist/providers/rate-limit/index.d.ts",
+      "default": "./dist/providers/rate-limit/index.js"
+    },
+    "./providers/reader-ready-state": {
+      "types": "./dist/providers/reader-ready-state/index.d.ts",
+      "default": "./dist/providers/reader-ready-state/index.js"
+    },
+    "./providers/refresh-html": {
+      "types": "./dist/providers/refresh-html/index.d.ts",
+      "default": "./dist/providers/refresh-html/index.js"
+    },
+    "./providers/related-articles": {
+      "types": "./dist/providers/related-articles/index.d.ts",
+      "default": "./dist/providers/related-articles/index.js"
+    },
+    "./providers/subscription-billing": {
+      "types": "./dist/providers/subscription-billing/index.d.ts",
+      "default": "./dist/providers/subscription-billing/index.js"
+    },
+    "./providers/subscription-providers": {
+      "types": "./dist/providers/subscription-providers/index.d.ts",
+      "default": "./dist/providers/subscription-providers/index.js"
+    },
+    "./providers/trial-scheduler": {
+      "types": "./dist/providers/trial-scheduler/index.d.ts",
+      "default": "./dist/providers/trial-scheduler/index.js"
+    },
     "./sqs": {
       "types": "./dist/sqs/index.d.ts",
       "default": "./dist/sqs/index.js"
-    },
-    "./lambda-context": {
-      "types": "./dist/lambda-context/index.d.ts",
-      "default": "./dist/lambda-context/index.js"
     }
   },
   "typesVersions": {
     "*": {
-      "fixture": ["./dist/fixture.d.ts"],
-      "providers/apple-auth": ["./dist/providers/apple-auth/index.d.ts"],
-      "providers/article-aggregate": ["./dist/providers/article-aggregate/index.d.ts"],
-      "providers/article-crawl": ["./dist/providers/article-crawl/index.d.ts"],
-      "providers/article-store": ["./dist/providers/article-store/index.d.ts"],
-      "providers/article-summary": ["./dist/providers/article-summary/index.d.ts"],
-      "providers/auth": ["./dist/providers/auth/index.d.ts"],
-      "providers/digest-queue": ["./dist/providers/digest-queue/index.d.ts"],
-      "providers/email": ["./dist/providers/email/index.d.ts"],
-      "providers/email-verification": ["./dist/providers/email-verification/index.d.ts"],
-      "providers/password-reset": ["./dist/providers/password-reset/index.d.ts"],
-      "providers/rate-limit": ["./dist/providers/rate-limit/index.d.ts"],
-      "providers/reader-ready-state": ["./dist/providers/reader-ready-state/index.d.ts"],
-      "providers/payment-methods": ["./dist/providers/payment-methods/index.d.ts"],
-      "providers/pending-html": ["./dist/providers/pending-html/index.d.ts"],
-      "providers/pending-pdf": ["./dist/providers/pending-pdf/index.d.ts"],
-      "providers/pending-upload": ["./dist/providers/pending-upload/index.d.ts"],
-      "providers/refresh-html": ["./dist/providers/refresh-html/index.d.ts"],
-      "providers/related-articles": ["./dist/providers/related-articles/index.d.ts"],
-      "providers/pending-signup": ["./dist/providers/pending-signup/index.d.ts"],
-      "providers/hosted-checkout": ["./dist/providers/hosted-checkout/index.d.ts"],
-      "providers/subscription-billing": ["./dist/providers/subscription-billing/index.d.ts"],
-      "providers/subscription-providers": ["./dist/providers/subscription-providers/index.d.ts"],
-      "providers/trial-scheduler": ["./dist/providers/trial-scheduler/index.d.ts"],
-      "providers/import-session": ["./dist/providers/import-session/index.d.ts"],
-      "providers/inbox-address": ["./dist/providers/inbox-address/index.d.ts"],
-      "providers/inbox-email": ["./dist/providers/inbox-email/index.d.ts"],
-      "providers/oauth": ["./dist/providers/oauth/index.d.ts"],
-      "providers/events": ["./dist/providers/events/index.d.ts"],
-      "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"],
-      "providers/onboarding-signals": ["./dist/providers/onboarding-signals/index.d.ts"],
-      "sqs": ["./dist/sqs/index.d.ts"],
-      "lambda-context": ["./dist/lambda-context/index.d.ts"]
+      "fixture": [
+        "./dist/fixture.d.ts"
+      ],
+      "lambda-context": [
+        "./dist/lambda-context/index.d.ts"
+      ],
+      "providers/apple-auth": [
+        "./dist/providers/apple-auth/index.d.ts"
+      ],
+      "providers/article-aggregate": [
+        "./dist/providers/article-aggregate/index.d.ts"
+      ],
+      "providers/article-crawl": [
+        "./dist/providers/article-crawl/index.d.ts"
+      ],
+      "providers/article-store": [
+        "./dist/providers/article-store/index.d.ts"
+      ],
+      "providers/article-summary": [
+        "./dist/providers/article-summary/index.d.ts"
+      ],
+      "providers/auth": [
+        "./dist/providers/auth/index.d.ts"
+      ],
+      "providers/digest-queue": [
+        "./dist/providers/digest-queue/index.d.ts"
+      ],
+      "providers/email": [
+        "./dist/providers/email/index.d.ts"
+      ],
+      "providers/email-verification": [
+        "./dist/providers/email-verification/index.d.ts"
+      ],
+      "providers/events": [
+        "./dist/providers/events/index.d.ts"
+      ],
+      "providers/gmail-credentials": [
+        "./dist/providers/gmail-credentials/index.d.ts"
+      ],
+      "providers/google-auth": [
+        "./dist/providers/google-auth/index.d.ts"
+      ],
+      "providers/hosted-checkout": [
+        "./dist/providers/hosted-checkout/index.d.ts"
+      ],
+      "providers/import-session": [
+        "./dist/providers/import-session/index.d.ts"
+      ],
+      "providers/inbox-address": [
+        "./dist/providers/inbox-address/index.d.ts"
+      ],
+      "providers/inbox-email": [
+        "./dist/providers/inbox-email/index.d.ts"
+      ],
+      "providers/oauth": [
+        "./dist/providers/oauth/index.d.ts"
+      ],
+      "providers/onboarding-signals": [
+        "./dist/providers/onboarding-signals/index.d.ts"
+      ],
+      "providers/password-reset": [
+        "./dist/providers/password-reset/index.d.ts"
+      ],
+      "providers/payment-methods": [
+        "./dist/providers/payment-methods/index.d.ts"
+      ],
+      "providers/pending-html": [
+        "./dist/providers/pending-html/index.d.ts"
+      ],
+      "providers/pending-pdf": [
+        "./dist/providers/pending-pdf/index.d.ts"
+      ],
+      "providers/pending-signup": [
+        "./dist/providers/pending-signup/index.d.ts"
+      ],
+      "providers/pending-upload": [
+        "./dist/providers/pending-upload/index.d.ts"
+      ],
+      "providers/rate-limit": [
+        "./dist/providers/rate-limit/index.d.ts"
+      ],
+      "providers/reader-ready-state": [
+        "./dist/providers/reader-ready-state/index.d.ts"
+      ],
+      "providers/refresh-html": [
+        "./dist/providers/refresh-html/index.d.ts"
+      ],
+      "providers/related-articles": [
+        "./dist/providers/related-articles/index.d.ts"
+      ],
+      "providers/subscription-billing": [
+        "./dist/providers/subscription-billing/index.d.ts"
+      ],
+      "providers/subscription-providers": [
+        "./dist/providers/subscription-providers/index.d.ts"
+      ],
+      "providers/trial-scheduler": [
+        "./dist/providers/trial-scheduler/index.d.ts"
+      ],
+      "sqs": [
+        "./dist/sqs/index.d.ts"
+      ]
     }
   },
   "private": true,
@@ -186,7 +259,7 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "check": "nx run @packages/test-fixtures:check",
-    "check-infra": "echo 'No infrastructure — shared library'"
+    "check-infra": "echo 'No infrastructure \u2014 shared library'"
   },
   "dependencies": {
     "@node-oauth/oauth2-server": "5.3.0",

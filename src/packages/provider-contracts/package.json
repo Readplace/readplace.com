@@ -53,6 +53,10 @@
       "types": "./dist/google-auth.d.ts",
       "default": "./dist/google-auth.js"
     },
+    "./gmail-oauth": {
+      "types": "./dist/gmail-oauth.d.ts",
+      "default": "./dist/gmail-oauth.js"
+    },
     "./hosted-checkout": {
       "types": "./dist/hosted-checkout.d.ts",
       "default": "./dist/hosted-checkout.js"
@@ -131,6 +135,7 @@
       "email-verification": ["./dist/email-verification.d.ts"],
       "events": ["./dist/events.d.ts"],
       "google-auth": ["./dist/google-auth.d.ts"],
+      "gmail-oauth": ["./dist/gmail-oauth.d.ts"],
       "hosted-checkout": ["./dist/hosted-checkout.d.ts"],
       "onboarding-signals": ["./dist/onboarding-signals.d.ts"],
       "oauth": ["./dist/oauth.d.ts"],

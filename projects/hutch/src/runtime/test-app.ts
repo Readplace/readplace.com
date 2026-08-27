@@ -32,7 +32,7 @@ import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
-import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
+import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type {
 	SubscriptionLogEvent,
@@ -224,6 +224,7 @@ function flattenFixtureToAppDependencies(
 		recordMarkReadAcrossQueuesAcknowledged:
 			fixture.onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		googleAuth: fixture.google,
+		gmailIntegration: fixture.gmailIntegration,
 		appleAuth: fixture.apple,
 		adminEmails: fixture.admin.adminEmails,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
@@ -235,6 +236,7 @@ function flattenFixtureToAppDependencies(
 					userId,
 					domain: fixture.inboxAddress.inboxAddressDomain,
 					name: DEFAULT_INBOX_ALIAS,
+					purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 				})
 				.then(() => undefined),
 		getChangelogBanner: async () => undefined,

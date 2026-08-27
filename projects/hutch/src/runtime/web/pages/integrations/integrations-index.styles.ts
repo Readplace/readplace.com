@@ -96,4 +96,46 @@ export const INTEGRATIONS_INDEX_STYLES = `
 	color: var(--muted-foreground);
 	opacity: 0.7;
 }
+.integrations__status--connected {
+	color: var(--success-text);
+}
+
+.integrations__connect--visible {
+	display: block;
+	flex: none;
+}
+
+.integrations__connect--hidden {
+	display: none;
+}
+
+.integrations__notice,
+.integrations__alert {
+	border-radius: var(--radius-sm);
+	padding: 12px 16px;
+	margin-bottom: 16px;
+	font-size: 0.9375rem;
+	line-height: 1.6;
+	text-wrap: pretty;
+}
+
+.integrations__notice {
+	border: 1px solid var(--success-text);
+	color: var(--success-text);
+}
+
+.integrations__alert {
+	border: 1px solid var(--error-text);
+	color: var(--error-text);
+}
+
+.integrations__notice--visible,
+.integrations__alert--visible {
+	display: block;
+}
+
+.integrations__notice--hidden,
+.integrations__alert--hidden {
+	display: none;
+}
 `;

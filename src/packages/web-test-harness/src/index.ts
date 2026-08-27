@@ -12,6 +12,7 @@ export type {
 	FoundingAllocationBundle,
 	FreshnessBundle,
 	GoogleAuthBundle,
+	GmailIntegrationBundle,
 	HostedCheckoutBundle,
 	HttpErrorMessageMapping,
 	ImportSessionBundle,
