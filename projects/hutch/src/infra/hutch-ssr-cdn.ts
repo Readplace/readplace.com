@@ -1,5 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
+import assert from "node:assert";
 import {
 	EDGE_SECRET_HEADER,
 	VIEWER_HOST_HEADER,
@@ -24,6 +25,14 @@ export interface SsrCdnArgs {
 
 function hostOf(endpoint: pulumi.Input<string>): pulumi.Output<string> {
 	return pulumi.output(endpoint).apply((url) => new URL(url).host);
+}
+
+function regionOf(executeApiEndpoint: pulumi.Input<string>): pulumi.Output<string> {
+	return hostOf(executeApiEndpoint).apply((host) => {
+		const region = host.split(".")[2];
+		assert(region, `expected an execute-api host carrying a region, got ${host}`);
+		return region;
+	});
 }
 
 function withoutTrailingDot(fqdn: string): string {
@@ -98,6 +107,10 @@ export class HutchSsrCdn extends pulumi.ComponentResource {
 					{
 						originId: "ssr-origin",
 						domainName: hostOf(args.apiOwnEndpoint),
+						originShield: {
+							enabled: true,
+							originShieldRegion: regionOf(args.apiOwnEndpoint),
+						},
 						customOriginConfig: {
 							httpPort: 80,
 							httpsPort: 443,
