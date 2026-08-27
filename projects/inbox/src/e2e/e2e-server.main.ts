@@ -94,6 +94,7 @@ server.post("/e2e/seed-address", async (req, res) => {
 		userId,
 		domain: fixture.inboxAddress.inboxAddressDomain,
 		name: AliasNameSchema.parse(name),
+		purpose: "user-alias",
 	});
 	res.json({ address });
 });

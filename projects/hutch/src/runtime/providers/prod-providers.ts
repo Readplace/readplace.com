@@ -62,7 +62,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxAddress } from "@packages/inbox-store";
-import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
+import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
 /** `appOrigin` is threaded in rather than read from the environment because the
@@ -279,6 +279,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 				userId,
 				domain: inboxAddressDomain,
 				name: DEFAULT_INBOX_ALIAS,
+				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 			});
 		},
 		subscriptionProviders,

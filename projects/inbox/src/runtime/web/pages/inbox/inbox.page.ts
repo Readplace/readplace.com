@@ -5,13 +5,15 @@ import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import {
 	AliasNameSchema,
-	countLiveAddresses,
+	countLiveUserAliases,
+	DEFAULT_INBOX_ADDRESS_PURPOSE,
 	EmailLinkOrdinalSchema,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
 	isLiveAddress,
 	normalizeAliasName,
+	userAliasCapReached,
 } from "@packages/domain/inbox";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
@@ -228,7 +230,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		// still shows it even when the eventually-consistent live read
 		// (listAddressesByUserId) briefly undercounts and would otherwise drop it.
 		const limitReached =
-			req.query.error === "limit" || countLiveAddresses(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
+			req.query.error === "limit" || countLiveUserAliases(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
 		const submittedName = typeof req.query.name === "string" ? req.query.name : "";
 		sendComponent(
 			req,
@@ -651,6 +653,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				userId,
 				domain: deps.inboxAddressDomain,
 				name,
+				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 			});
 		} catch (error) {
 			// Hitting the per-user cap is expected user behaviour, not a fault — echo
@@ -696,7 +699,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
 				const target = owned.find((entry) => entry.address === parsed.data.address);
 				if (target !== undefined && !isLiveAddress(target)) {
-					if (countLiveAddresses(owned) >= INBOX_ADDRESS_MAX_PER_USER) {
+					if (userAliasCapReached({ purpose: target.purpose, owned })) {
 						res.redirect(303, `${addressesPath}?error=limit`);
 						return;
 					}

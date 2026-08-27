@@ -21,7 +21,7 @@ describe("initInMemoryInboxAddress", () => {
 			now: () => new Date("2026-06-23T00:00:00.000Z"),
 		});
 
-		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 		expect(entry.address).toMatch(/^news-[0-9a-z]{6}@read\.place$/);
 		expect(entry.userId).toBe(owner);
@@ -32,7 +32,7 @@ describe("initInMemoryInboxAddress", () => {
 
 	it("persists the chosen name and surfaces it through list and find", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
-		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 		const [listed] = await store.listAddressesByUserId(owner);
 		const found = await store.findByAddress(created.address);
@@ -44,9 +44,9 @@ describe("initInMemoryInboxAddress", () => {
 
 	it("lists only the requesting user's addresses", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
-		await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
-		await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
-		await store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME });
+		await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+		await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+		await store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 		const ownerAddresses = await store.listAddressesByUserId(owner);
 		const otherAddresses = await store.listAddressesByUserId(otherUser);
@@ -58,38 +58,65 @@ describe("initInMemoryInboxAddress", () => {
 	it("throws InboxAddressLimitReachedError once the user holds the per-user cap of live addresses", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
 		for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
-			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 		}
 
-		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME })).rejects.toThrow(
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" })).rejects.toThrow(
 			InboxAddressLimitReachedError,
 		);
 		// The cap is per-user: a different user is unaffected.
 		await expect(
-			store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME }),
+			store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME, purpose: "user-alias" }),
+		).resolves.toBeDefined();
+	});
+
+	it("exempts an integration-minted address from the cap, so Gmail forwarding still connects at 25 aliases", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+		}
+
+		const gateway = await store.createAddress({
+			userId: owner,
+			domain: DOMAIN,
+			name: NAME,
+			purpose: "gmail-forwarding",
+		});
+
+		expect(gateway.purpose).toBe("gmail-forwarding");
+	});
+
+	it("does not count integration-minted addresses toward the user-alias cap", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "gmail-mapped" });
+		}
+
+		await expect(
+			store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" }),
 		).resolves.toBeDefined();
 	});
 
 	it("frees a slot when a live address is disabled, since only live addresses count toward the cap", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
-		const first = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const first = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 		for (let i = 1; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
-			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 		}
-		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME })).rejects.toThrow(
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" })).rejects.toThrow(
 			InboxAddressLimitReachedError,
 		);
 
 		await store.disableAddress({ userId: owner, address: first.address });
 
-		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME })).resolves.toBeDefined();
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" })).resolves.toBeDefined();
 	});
 
 	it("disables an owned address by stamping disabledAt", async () => {
 		const store = initInMemoryInboxAddress({
 			now: () => new Date("2026-06-23T12:00:00.000Z"),
 		});
-		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 		await store.disableAddress({ userId: owner, address: entry.address });
 
@@ -110,7 +137,7 @@ describe("initInMemoryInboxAddress", () => {
 
 	it("rejects a disable requested by a non-owner", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
-		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 		await expect(
 			store.disableAddress({ userId: otherUser, address: entry.address }),
@@ -124,7 +151,7 @@ describe("initInMemoryInboxAddress", () => {
 		const store = initInMemoryInboxAddress({
 			now: () => new Date("2026-06-23T00:00:00.000Z"),
 		});
-		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 		const found = await store.findByAddress(created.address);
 
@@ -144,7 +171,7 @@ describe("initInMemoryInboxAddress", () => {
 		const store = initInMemoryInboxAddress({
 			now: () => new Date("2026-06-23T12:00:00.000Z"),
 		});
-		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 		await store.disableAddress({ userId: owner, address: created.address });
 
 		const found = await store.findByAddress(created.address);
@@ -157,7 +184,7 @@ describe("initInMemoryInboxAddress", () => {
 		const store = initInMemoryInboxAddress({
 			now: () => new Date("2026-06-23T12:00:00.000Z"),
 		});
-		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 		await store.disableAddress({ userId: owner, address: entry.address });
 
 		await store.enableAddress({ userId: owner, address: entry.address });
@@ -179,7 +206,7 @@ describe("initInMemoryInboxAddress", () => {
 
 	it("rejects an enable requested by a non-owner", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
-		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 		await store.disableAddress({ userId: owner, address: entry.address });
 
 		await expect(
@@ -194,10 +221,10 @@ describe("initInMemoryInboxAddress", () => {
 		it("unlinks the owner's addresses to the reserved owner, keeps every row, and stamps disabledAt only when unset", async () => {
 			let clock = new Date("2026-06-01T00:00:00.000Z");
 			const store = initInMemoryInboxAddress({ now: () => clock });
-			const live = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
-			const alreadyDisabled = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+			const live = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+			const alreadyDisabled = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 			await store.disableAddress({ userId: owner, address: alreadyDisabled.address });
-			const otherOwned = await store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME });
+			const otherOwned = await store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 			clock = new Date("2026-07-01T00:00:00.000Z");
 
 			await store.tombstoneUserAddresses(owner);

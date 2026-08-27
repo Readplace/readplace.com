@@ -50,6 +50,7 @@ function parsedOk(html: string, listUnsubscribeUrls: string[] = []): ParseEmailR
 			receivedAt: RECEIVED_AT,
 			inlineImages: [],
 			listUnsubscribeUrls,
+			googleAddressConfirmation: undefined,
 		},
 	};
 }

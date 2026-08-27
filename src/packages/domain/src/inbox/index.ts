@@ -3,7 +3,13 @@ export type {
 	InboxAddressStore,
 	TombstoneUserAddresses,
 } from "./inbox-address.types";
-export { countLiveAddresses, isLiveAddress } from "./inbox-address.live";
+export {
+	countLiveAddresses,
+	countLiveUserAliases,
+	isLiveAddress,
+	isUserAlias,
+	userAliasCapReached,
+} from "./inbox-address.live";
 export {
 	InboxTokenSchema,
 	type InboxToken,
@@ -11,10 +17,14 @@ export {
 	type AliasName,
 	InboxAddressSchema,
 	type InboxAddress,
+	InboxAddressPurposeSchema,
+	type InboxAddressPurpose,
 	INBOX_TOKEN_LENGTH,
 	INBOX_ADDRESS_MAX_CREATE_ATTEMPTS,
 	INBOX_ADDRESS_MAX_PER_USER,
 	DEFAULT_INBOX_ALIAS,
+	DEFAULT_INBOX_ADDRESS_PURPOSE,
+	GMAIL_FORWARDING_ALIAS,
 	InboxAddressLimitReachedError,
 	DELETED_ACCOUNT_INBOX_OWNER,
 	UNROUTED_USER_ID,

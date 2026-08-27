@@ -354,6 +354,39 @@ describe("parseEmail", () => {
 		]);
 	});
 
+	it("surfaces the X-Google-Address-Confirmation header value", async () => {
+		const result = await parse(
+			eml(
+				"From: Gmail Team <forwarding-noreply@google.com>",
+				"Subject: (Gmail Forwarding Confirmation - Receive Mail from reader@gmail.com",
+				"Message-ID: <gac@x>",
+				"X-Google-Address-Confirmation: IxoQly5DrG25IVlwjJRM-AqecpU",
+				"Content-Type: text/plain; charset=utf-8",
+				"",
+				"please click the link below to confirm the request:",
+			),
+		);
+
+		assert(result.ok);
+		expect(result.email.googleAddressConfirmation).toBe("IxoQly5DrG25IVlwjJRM-AqecpU");
+	});
+
+	it("leaves the Google address confirmation undefined when the header is absent", async () => {
+		const result = await parse(
+			eml(
+				"From: news@example.com",
+				"Subject: Digest",
+				"Message-ID: <gac2@x>",
+				"Content-Type: text/html; charset=utf-8",
+				"",
+				"<p>Body</p>",
+			),
+		);
+
+		assert(result.ok);
+		expect(result.email.googleAddressConfirmation).toBeUndefined();
+	});
+
 	it("returns no unsubscribe targets when the header is absent", async () => {
 		const result = await parse(
 			eml(

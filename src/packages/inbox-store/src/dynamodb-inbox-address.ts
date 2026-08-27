@@ -10,17 +10,19 @@ import {
 	aliasNameFromAddress,
 	AliasNameSchema,
 	buildInboxAddress,
-	countLiveAddresses,
+	DEFAULT_INBOX_ADDRESS_PURPOSE,
 	DELETED_ACCOUNT_INBOX_OWNER,
 	generateInboxToken,
 	INBOX_ADDRESS_MAX_CREATE_ATTEMPTS,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	type InboxAddressEntry,
+	InboxAddressPurposeSchema,
 	InboxAddressSchema,
 	type InboxAddressStore,
 	InboxTokenSchema,
 	type TombstoneUserAddresses,
+	userAliasCapReached,
 } from "@packages/domain/inbox";
 
 const InboxAddressRow = z.object({
@@ -33,11 +35,10 @@ const InboxAddressRow = z.object({
 	token: InboxTokenSchema,
 	createdAt: z.string(),
 	disabledAt: dynamoField(z.string()),
+	purpose: dynamoField(InboxAddressPurposeSchema),
 });
 
-/** The one seam that turns a stored row into a fully-populated entry, deriving
- * the alias label for a legacy row that predates the `name` column so every
- * caller sees a labelled address. */
+/** The one seam that turns a stored row into a fully-populated entry. */
 function toEntry(row: z.infer<typeof InboxAddressRow>): InboxAddressEntry {
 	return {
 		address: row.address,
@@ -46,6 +47,7 @@ function toEntry(row: z.infer<typeof InboxAddressRow>): InboxAddressEntry {
 		token: row.token,
 		createdAt: row.createdAt,
 		disabledAt: row.disabledAt,
+		purpose: row.purpose ?? DEFAULT_INBOX_ADDRESS_PURPOSE,
 	};
 }
 
@@ -98,15 +100,14 @@ export function initDynamoDbInboxAddress(deps: {
 	};
 
 	return {
-		createAddress: async ({ userId, domain, name }) => {
-			// Bound the live addresses a user can hold. disabledAt is not a key
+		createAddress: async ({ userId, domain, name, purpose }) => {
+			// disabledAt is not a key
 			// attribute, so the cap is counted in code over the GSI rows rather than
 			// pushed into a COUNT query. The GSI is eventually consistent, so this is a
 			// soft guardrail (a racing pair of creates may briefly land one over the
 			// cap) — fine, since the cap exists to stop an unbounded create loop, not
 			// to enforce an exact-to-the-row ceiling.
-			const liveCount = countLiveAddresses(await listAddressesByUserId(userId));
-			if (liveCount >= INBOX_ADDRESS_MAX_PER_USER) {
+			if (userAliasCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
 				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
 			}
 			const createdAt = deps.now().toISOString();
@@ -115,10 +116,10 @@ export function initDynamoDbInboxAddress(deps: {
 				const address = buildInboxAddress({ name, token, domain });
 				try {
 					await table.put({
-						Item: { address, userId, name, token, createdAt },
+						Item: { address, userId, name, token, createdAt, purpose },
 						ConditionExpression: "attribute_not_exists(address)",
 					});
-					return { address, userId, name, token, createdAt, disabledAt: undefined };
+					return { address, userId, name, token, createdAt, disabledAt: undefined, purpose };
 				} catch (error) {
 					if (error instanceof ConditionalCheckFailedException) continue;
 					throw error;

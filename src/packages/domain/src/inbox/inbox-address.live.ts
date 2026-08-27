@@ -1,3 +1,4 @@
+import { INBOX_ADDRESS_MAX_PER_USER, type InboxAddressPurpose } from "./inbox-address.schema";
 import type { InboxAddressEntry } from "./inbox-address.types";
 
 /** The one definition of "live" shared by the per-user cap (enforced in both
@@ -11,4 +12,21 @@ export function isLiveAddress(entry: InboxAddressEntry): boolean {
 
 export function countLiveAddresses(entries: readonly InboxAddressEntry[]): number {
 	return entries.filter(isLiveAddress).length;
+}
+
+export function isUserAlias(entry: InboxAddressEntry): boolean {
+	return entry.purpose === "user-alias";
+}
+
+export function countLiveUserAliases(entries: readonly InboxAddressEntry[]): number {
+	return entries.filter((entry) => isLiveAddress(entry) && isUserAlias(entry)).length;
+}
+
+export function userAliasCapReached(input: {
+	purpose: InboxAddressPurpose;
+	owned: readonly InboxAddressEntry[];
+}): boolean {
+	return (
+		input.purpose === "user-alias" && countLiveUserAliases(input.owned) >= INBOX_ADDRESS_MAX_PER_USER
+	);
 }

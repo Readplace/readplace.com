@@ -47,6 +47,7 @@ async function seedAddressesToCap(fixture: TestAppFixture, userId: UserId): Prom
 			userId,
 			domain: "read.place",
 			name: SEED_NAME,
+			purpose: "user-alias",
 		});
 	}
 }
@@ -662,6 +663,36 @@ describe("Inbox address routes", () => {
 			expect(statuses).toEqual(["enabled"]);
 		});
 
+		it("re-enables an integration-minted address at the cap, since only user aliases count toward it", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			const store = fixture.inboxAddress.inboxAddressStore;
+			for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+				await store.createAddress({ userId, domain: "read.place", name: SEED_NAME, purpose: "user-alias" });
+			}
+			const mapped = await store.createAddress({
+				userId,
+				domain: "read.place",
+				name: SEED_NAME,
+				purpose: "gmail-mapped",
+			});
+			await store.disableAddress({ userId, address: mapped.address });
+
+			const response = await agent
+				.post("/inbox/enable")
+				.type("form")
+				.send({ address: mapped.address });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/inbox/addresses");
+			const reenabled = await store.findByAddress(mapped.address);
+			assert(reenabled, "the mapped address must still resolve");
+			expect(reenabled.disabledAt).toBeUndefined();
+		});
+
 		it("refuses to enable when it would exceed the cap, leaving the row disabled", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
@@ -670,15 +701,16 @@ describe("Inbox address routes", () => {
 			assert(userId, "seeded login user must exist");
 			const store = fixture.inboxAddress.inboxAddressStore;
 			for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER - 1; i++) {
-				await store.createAddress({ userId, domain: "read.place", name: SEED_NAME });
+				await store.createAddress({ userId, domain: "read.place", name: SEED_NAME, purpose: "user-alias" });
 			}
 			const target = await store.createAddress({
 				userId,
 				domain: "read.place",
 				name: SEED_NAME,
+				purpose: "user-alias",
 			});
 			await store.disableAddress({ userId, address: target.address });
-			await store.createAddress({ userId, domain: "read.place", name: SEED_NAME });
+			await store.createAddress({ userId, domain: "read.place", name: SEED_NAME, purpose: "user-alias" });
 
 			const response = await agent
 				.post("/inbox/enable")
@@ -736,6 +768,7 @@ describe("Inbox address routes", () => {
 				userId,
 				domain: "read.place",
 				name: SEED_NAME,
+				purpose: "user-alias",
 			});
 			await store.disableAddress({ userId, address: entry.address });
 

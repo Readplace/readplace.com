@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
 import {
 	AliasNameSchema,
+	DEFAULT_INBOX_ADDRESS_PURPOSE,
 	DELETED_ACCOUNT_INBOX_OWNER,
 	EmailLinkOrdinalSchema,
 	InboxAddressSchema,
@@ -376,6 +377,7 @@ async function seedAccount(
 		userId,
 		domain: "read.place",
 		name: AliasNameSchema.parse("news"),
+		purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 	});
 
 	s.oauthDeps.userIdIndex.set(userId, new Set([`at-${label}`]));

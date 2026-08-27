@@ -43,6 +43,7 @@ function parsedOk(): ParseEmailResult {
 			receivedAt: RECEIVED_AT,
 			inlineImages: [],
 			listUnsubscribeUrls: [],
+			googleAddressConfirmation: undefined,
 		},
 	};
 }
@@ -100,6 +101,7 @@ async function mintAddress(addressStore: ReturnType<typeof initInMemoryInboxAddr
 		userId: OWNER,
 		domain: "read.place",
 		name: DEFAULT_INBOX_ALIAS,
+		purpose: "user-alias",
 	});
 	return entry.address;
 }
@@ -333,6 +335,7 @@ describe("initReceiveEmailHandler", () => {
 			userId: SECOND,
 			domain: "read.place",
 			name: DEFAULT_INBOX_ALIAS,
+			purpose: "user-alias",
 		});
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
@@ -360,6 +363,7 @@ describe("initReceiveEmailHandler", () => {
 			userId: OWNER,
 			domain: "read.place",
 			name: DEFAULT_INBOX_ALIAS,
+			purpose: "user-alias",
 		});
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 

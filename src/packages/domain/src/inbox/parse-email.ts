@@ -30,6 +30,7 @@ export interface ParsedEmail {
 	/** The http(s) unsubscribe endpoints the `List-Unsubscribe` headers declare;
 	 * empty when the message carries none. */
 	listUnsubscribeUrls: string[];
+	googleAddressConfirmation: string | undefined;
 }
 
 export type ParseEmailResult =
@@ -107,6 +108,10 @@ export async function parseEmail(input: {
 			.filter((header) => header.key === "list-unsubscribe")
 			.flatMap((header) => parseListUnsubscribeHeader(header.value));
 
+		const googleAddressConfirmation = parsed.headers.find(
+			(header) => header.key === "x-google-address-confirmation",
+		)?.value;
+
 		return {
 			ok: true,
 			email: {
@@ -118,6 +123,7 @@ export async function parseEmail(input: {
 				receivedAt: input.receivedAt,
 				inlineImages,
 				listUnsubscribeUrls,
+				googleAddressConfirmation,
 			},
 		};
 	} catch {

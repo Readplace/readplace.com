@@ -119,6 +119,14 @@ export function normalizeAliasName(raw: string): AliasName | undefined {
  * so a brand-new user lands on `inbox-<token>@…` without having to name one. */
 export const DEFAULT_INBOX_ALIAS: AliasName = AliasNameSchema.parse("inbox");
 
+export const InboxAddressPurposeSchema = z.enum(["user-alias", "gmail-forwarding", "gmail-mapped"]);
+
+export type InboxAddressPurpose = z.infer<typeof InboxAddressPurposeSchema>;
+
+export const DEFAULT_INBOX_ADDRESS_PURPOSE: InboxAddressPurpose = "user-alias";
+
+export const GMAIL_FORWARDING_ALIAS: AliasName = AliasNameSchema.parse("gmail");
+
 /** The reserved owner an address is reassigned to when its real owner deletes
  * their account. An address row is never deleted — a freed hash could be
  * re-minted for another user and leak their forwarded mail — so account deletion

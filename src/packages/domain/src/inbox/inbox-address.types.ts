@@ -1,5 +1,10 @@
 import type { UserId } from "../user";
-import type { AliasName, InboxAddress, InboxToken } from "./inbox-address.schema";
+import type {
+	AliasName,
+	InboxAddress,
+	InboxAddressPurpose,
+	InboxToken,
+} from "./inbox-address.schema";
 
 /** One forwarding address owned by a user. Addresses are never deleted — a hash
  * that was once minted for one user must never be re-mintable for another, or
@@ -14,6 +19,7 @@ export interface InboxAddressEntry {
 	token: InboxToken;
 	createdAt: string;
 	disabledAt: string | undefined;
+	purpose: InboxAddressPurpose;
 }
 
 /** Account-deletion primitive: unlinks every address the user owns from them
@@ -25,9 +31,7 @@ export type TombstoneUserAddresses = (userId: UserId) => Promise<void>;
 
 export interface InboxAddressStore {
 	/** Mints a fresh address for the user under the chosen alias `name`. A user
-	 * may hold many (one per newsletter) up to `INBOX_ADDRESS_MAX_PER_USER`; at
-	 * the cap it throws `InboxAddressLimitReachedError` so callers can surface a
-	 * friendly limit message. Only the random token is regenerated on collision,
+	 * may hold many (one per newsletter). Only the random token is regenerated on collision,
 	 * so global uniqueness of the full address is guarded with a conditional put +
 	 * bounded retry; throws on retry exhaustion so the failure surfaces to
 	 * alerting. Two users may hold the same `name` — the token keeps their
@@ -36,6 +40,7 @@ export interface InboxAddressStore {
 		userId: UserId;
 		domain: string;
 		name: AliasName;
+		purpose: InboxAddressPurpose;
 	}) => Promise<InboxAddressEntry>;
 	/** Every address the user owns (1:N). The production adapter reads a DynamoDB
 	 * GSI, which is eventually consistent — an address created moments earlier may

@@ -1,4 +1,5 @@
 import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import type { UserId } from "@packages/domain/user";
 import {
 	aliasNameFromAddress,
 	buildInboxAddress,
@@ -8,18 +9,18 @@ import {
 	InboxAddressLimitReachedError,
 	type InboxAddressEntry,
 	type InboxAddressStore,
-	isLiveAddress,
+	userAliasCapReached,
 } from "@packages/domain/inbox";
 
 export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddressStore {
 	const rows = new Map<string, InboxAddressEntry>();
 
+	const listAddressesByUserId = async (userId: UserId) =>
+		[...rows.values()].filter((row) => row.userId === userId);
+
 	return {
-		createAddress: async ({ userId, domain, name }) => {
-			const live = [...rows.values()].filter(
-				(row) => row.userId === userId && isLiveAddress(row),
-			);
-			if (live.length >= INBOX_ADDRESS_MAX_PER_USER) {
+		createAddress: async ({ userId, domain, name, purpose }) => {
+			if (userAliasCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
 				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
 			}
 			const token = generateInboxToken();
@@ -31,12 +32,12 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 				token,
 				createdAt: deps.now().toISOString(),
 				disabledAt: undefined,
+				purpose,
 			};
 			rows.set(address, entry);
 			return entry;
 		},
-		listAddressesByUserId: async (userId) =>
-			[...rows.values()].filter((row) => row.userId === userId),
+		listAddressesByUserId,
 		disableAddress: async ({ userId, address }) => {
 			const row = rows.get(address);
 			if (row === undefined || row.userId !== userId) {

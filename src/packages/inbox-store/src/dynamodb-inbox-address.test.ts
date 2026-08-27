@@ -77,7 +77,7 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME });
+			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 			const puts = commands.filter((c) => c.input.Item);
 			expect(puts).toHaveLength(1);
@@ -87,10 +87,12 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(puts[0].input.Item?.name).toBe(NAME);
 			expect(puts[0].input.Item?.token).toBe(entry.token);
 			expect(puts[0].input.Item?.createdAt).toBe(NOW.toISOString());
+			expect(puts[0].input.Item?.purpose).toBe("user-alias");
 			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
 			expect(entry.name).toBe(NAME);
 			expect(entry.createdAt).toBe(NOW.toISOString());
 			expect(entry.disabledAt).toBeUndefined();
+			expect(entry.purpose).toBe("user-alias");
 		});
 
 		it("regenerates and retries when the address collides, then succeeds", async () => {
@@ -106,7 +108,7 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME });
+			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 			expect(puts).toBe(2);
 			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
@@ -122,7 +124,7 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME })).rejects.toThrow(
+			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" })).rejects.toThrow(
 				"Failed to mint a unique inbox address",
 			);
 		});
@@ -137,7 +139,7 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME })).rejects.toThrow(
+			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" })).rejects.toThrow(
 				"throttled",
 			);
 		});
@@ -157,10 +159,61 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME })).rejects.toThrow(
+			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" })).rejects.toThrow(
 				InboxAddressLimitReachedError,
 			);
 			expect(commands.some((c) => c.input.Item)).toBe(false);
+		});
+
+		it("exempts an integration-minted address from the cap and persists its purpose", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					commands.push(cmd as CapturedCommand);
+					if ((cmd as CapturedCommand).input.IndexName) {
+						const Items = liveRows(INBOX_ADDRESS_MAX_PER_USER);
+						return { Items, Count: Items.length };
+					}
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			const entry = await store.createAddress({
+				userId: USER,
+				domain: DOMAIN,
+				name: NAME,
+				purpose: "gmail-forwarding",
+			});
+
+			const puts = commands.filter((c) => c.input.Item);
+			expect(puts).toHaveLength(1);
+			expect(puts[0].input.Item?.purpose).toBe("gmail-forwarding");
+			expect(entry.purpose).toBe("gmail-forwarding");
+		});
+
+		it("does not count integration-minted rows toward the user-alias cap", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					commands.push(cmd as CapturedCommand);
+					if ((cmd as CapturedCommand).input.IndexName) {
+						const Items = liveRows(INBOX_ADDRESS_MAX_PER_USER).map((row) => ({
+							...row,
+							purpose: "gmail-mapped",
+						}));
+						return { Items, Count: Items.length };
+					}
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+
+			expect(commands.some((c) => c.input.Item)).toBe(true);
 		});
 
 		it("counts only live rows toward the cap: a user whose cap-worth of rows are all disabled can still create", async () => {
@@ -181,7 +234,7 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME });
+			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
 			expect(commands.some((c) => c.input.Item)).toBe(true);
@@ -189,7 +242,7 @@ describe("initDynamoDbInboxAddress", () => {
 	});
 
 	describe("listAddressesByUserId", () => {
-		it("queries the userId GSI and maps rows, normalizing a missing disabledAt to undefined", async () => {
+		it("queries the userId GSI and maps rows, backfilling a missing disabledAt and purpose", async () => {
 			let captured: CapturedCommand | undefined;
 			const store = initDynamoDbInboxAddress({
 				client: createFakeClient((cmd) => {
@@ -211,8 +264,17 @@ describe("initDynamoDbInboxAddress", () => {
 								createdAt: "2026-06-21T00:00:00.000Z",
 								disabledAt: "2026-06-22T00:00:00.000Z",
 							},
+							{
+								address: "gmail-d4e5f6@read.place",
+								userId: "user-1",
+								name: "gmail",
+								token: "d4e5f6",
+								createdAt: "2026-08-24T00:00:00.000Z",
+								disabledAt: null,
+								purpose: "gmail-forwarding",
+							},
 						],
-						Count: 2,
+						Count: 3,
 					};
 				}) as DynamoDBDocumentClient,
 				tableName: TABLE,
@@ -224,13 +286,16 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(captured?.input.IndexName).toBe("userId-index");
 			expect(captured?.input.KeyConditionExpression).toBe("userId = :uid");
 			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
-			expect(result).toHaveLength(2);
+			expect(result).toHaveLength(3);
 			expect(result[0].address).toBe("netflix-a7b2c9@read.place");
 			expect(result[0].name).toBe("netflix");
 			expect(result[0].disabledAt).toBeUndefined();
+			expect(result[0].purpose).toBe("user-alias");
 			// A legacy row predating the name column derives its label from the address.
 			expect(result[1].name).toBe("in");
 			expect(result[1].disabledAt).toBe("2026-06-22T00:00:00.000Z");
+			expect(result[1].purpose).toBe("user-alias");
+			expect(result[2].purpose).toBe("gmail-forwarding");
 		});
 	});
 

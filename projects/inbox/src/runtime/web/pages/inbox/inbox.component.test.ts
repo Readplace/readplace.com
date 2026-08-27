@@ -18,6 +18,7 @@ function entry(overrides: Partial<InboxAddressEntry> = {}): InboxAddressEntry {
 		token: InboxTokenSchema.parse("3f9a2c"),
 		createdAt: "2026-06-23T00:00:00.000Z",
 		disabledAt: undefined,
+		purpose: "user-alias",
 		...overrides,
 	};
 }

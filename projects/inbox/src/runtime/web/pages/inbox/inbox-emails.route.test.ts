@@ -122,6 +122,7 @@ describe("Inbox emails list route", () => {
 			userId: user.userId,
 			domain: "read.place",
 			name: AliasNameSchema.parse("inbox"),
+			purpose: "user-alias",
 		});
 
 		const response = await agent.get("/inbox");
@@ -157,12 +158,14 @@ describe("Inbox emails list route", () => {
 				userId: user.userId,
 				domain: "read.place",
 				name: AliasNameSchema.parse(name),
+				purpose: "user-alias",
 			});
 		}
 		const retired = await fixture.inboxAddress.inboxAddressStore.createAddress({
 			userId: user.userId,
 			domain: "read.place",
 			name: AliasNameSchema.parse("substack"),
+			purpose: "user-alias",
 		});
 		await fixture.inboxAddress.inboxAddressStore.disableAddress({
 			userId: user.userId,

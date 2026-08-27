@@ -58,6 +58,7 @@ async function main(): Promise<void> {
 		userId,
 		domain: fixture.inboxAddress.inboxAddressDomain,
 		name: AliasNameSchema.parse("dev"),
+		purpose: "user-alias",
 	});
 
 	const receivedAt = new Date(Date.now() - 3_600_000).toISOString();

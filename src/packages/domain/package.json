@@ -33,6 +33,10 @@
       "types": "./dist/inbox/index.d.ts",
       "default": "./dist/inbox/index.js"
     },
+    "./gmail": {
+      "types": "./dist/gmail/index.d.ts",
+      "default": "./dist/gmail/index.js"
+    },
     "./queue": {
       "types": "./dist/queue/index.d.ts",
       "default": "./dist/queue/index.js"
@@ -58,6 +62,7 @@
       "oauth": ["./dist/oauth/index.d.ts"],
       "import-session": ["./dist/import-session/index.d.ts"],
       "inbox": ["./dist/inbox/index.d.ts"],
+      "gmail": ["./dist/gmail/index.d.ts"],
       "queue": ["./dist/queue/index.d.ts"],
       "rate-limit": ["./dist/rate-limit/index.d.ts"],
       "crawler-policy": ["./dist/crawler-policy/index.d.ts"],
