@@ -53,6 +53,9 @@ if [ "$STACK" = "staging" ]; then
   start_phase "running the staging E2E suite"
   STAGING_URL="$URL" pnpm test:e2e:staging
   finish_phase
+  start_phase "measuring screen-response latency against staging"
+  STAGING_URL="$URL" PERF_SCREEN_RESPONSE_SHA="$(git rev-parse HEAD)" pnpm perf-screen-response
+  finish_phase
 else
   echo "No post-deploy E2E tests for $STACK — skipping"
 fi

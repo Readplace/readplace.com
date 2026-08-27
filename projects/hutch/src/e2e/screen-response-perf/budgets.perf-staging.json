@@ -1,0 +1,57 @@
+{
+  "meta": {
+    "statistic": "max",
+    "vantage": "github-hosted ubuntu runner to the ap-southeast-2 staging stack; budgets derived here are not comparable to numbers measured from any other vantage",
+    "encroachmentRatio": 0.9,
+    "confirmationRemeasureCap": 3,
+    "controlProbeRequests": 10,
+    "samples": {
+      "longLivedContext": { "warmups": 3, "measured": 20 },
+      "freshContexts": { "warmups": 1, "measured": 10 }
+    }
+  },
+  "ops": {
+    "queue-switch-first": {
+      "level": "warn",
+      "budgetMs": null,
+      "baseline": null,
+      "note": "Bootstrap: report-only until a soak of at least 15 runs characterises the spread of the per-run max. Lock at worst observed run max times 1.25, rounded up to 25ms, then flip to error. Ratchet target once the listing cache lands: this is the cache-miss arm."
+    },
+    "queue-switch-subsequent": {
+      "level": "warn",
+      "budgetMs": null,
+      "baseline": null,
+      "note": "Bootstrap: report-only until soaked. Ratchet target once the listing cache lands: this is the cache-hit arm and should fall furthest."
+    },
+    "tab-switch-first": {
+      "level": "warn",
+      "budgetMs": null,
+      "baseline": null,
+      "note": "Bootstrap: report-only until soaked. Cache-miss arm of the To-Read/Read switch."
+    },
+    "tab-switch-subsequent": {
+      "level": "warn",
+      "budgetMs": null,
+      "baseline": null,
+      "note": "Bootstrap: report-only until soaked. Cache-hit arm of the To-Read/Read switch."
+    },
+    "assign-to-queue": {
+      "level": "warn",
+      "budgetMs": null,
+      "baseline": null,
+      "note": "Bootstrap: report-only until soaked. Ratchet target when the assign response becomes an out-of-band fragment instead of a full reader re-render."
+    },
+    "open-article": {
+      "level": "warn",
+      "budgetMs": null,
+      "baseline": null,
+      "note": "Bootstrap: report-only until soaked. Ratchet target when visible cards are prefetched; expect responseStart to collapse on a prefetch hit."
+    },
+    "back-to-queue": {
+      "level": "warn",
+      "budgetMs": null,
+      "baseline": null,
+      "note": "Bootstrap: report-only until soaked. Ratchet target when the reader exit becomes instant."
+    }
+  }
+}

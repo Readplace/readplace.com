@@ -63,6 +63,15 @@ jobs:
           path: projects/${{ inputs.project }}/test-results-staging/
           retention-days: 7
 
+      - name: Upload screen-response perf results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-staging-results-${{ inputs.project }}
+          path: projects/${{ inputs.project }}/test-results-staging/perf/
+          retention-days: 90
+          if-no-files-found: ignore
+
   deploy-prod:
     needs: [deploy-staging]
     runs-on: ubuntu-latest
