@@ -182,6 +182,7 @@ fun LoginScreen(
 						onClick = onLogin,
 						enabled = !busy,
 						modifier = Modifier.fillMaxWidth(),
+						shape = MaterialTheme.shapes.small,
 						contentPadding = ACTION_PADDING,
 					) {
 						ActionLabel(glyph = LoginGlyph.LOGIN, text = "Login")
@@ -190,6 +191,7 @@ fun LoginScreen(
 						onClick = onSignup,
 						enabled = !busy,
 						modifier = Modifier.fillMaxWidth(),
+						shape = MaterialTheme.shapes.small,
 						contentPadding = ACTION_PADDING,
 					) {
 						ActionLabel(glyph = LoginGlyph.SIGN_UP, text = "Sign up")

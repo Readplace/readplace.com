@@ -41,6 +41,46 @@ class BrandColorTest {
 		assertEquals("#121212", hex(BrandColor.splashBackground))
 	}
 
+	@Test
+	fun `surface mirrors the background token`() {
+		assertHex(BrandColor.surface, light = "#FFFFFF", dark = "#121212")
+	}
+
+	@Test
+	fun `surface subtle mirrors the surface token`() {
+		assertHex(BrandColor.surfaceSubtle, light = "#F7F8FA", dark = "#1A1A1A")
+	}
+
+	@Test
+	fun `text primary mirrors the primary text token`() {
+		assertHex(BrandColor.textPrimary, light = "#1A202C", dark = "#E4E4E4")
+	}
+
+	@Test
+	fun `text secondary mirrors the secondary text token`() {
+		assertHex(BrandColor.textSecondary, light = "#5A6170", dark = "#9BA1AE")
+	}
+
+	@Test
+	fun `text muted mirrors the muted text token`() {
+		assertHex(BrandColor.textMuted, light = "#8C919D", dark = "#6B6B6B")
+	}
+
+	@Test
+	fun `border mirrors the border token`() {
+		assertHex(BrandColor.border, light = "#E2E5EA", dark = "#2E2E2E")
+	}
+
+	@Test
+	fun `amber container mirrors the brand light token`() {
+		assertHex(BrandColor.amberContainer, light = "#F5E6D3", dark = "#3D2A18")
+	}
+
+	@Test
+	fun `on amber container mirrors the brand dark token`() {
+		assertHex(BrandColor.onAmberContainer, light = "#A85A1E", dark = "#E89A55")
+	}
+
 	private fun assertHex(pair: BrandColorPair, light: String, dark: String) {
 		assertEquals("light", light, hex(pair.resolve(isDark = false)))
 		assertEquals("dark", dark, hex(pair.resolve(isDark = true)))
