@@ -223,6 +223,14 @@ describe("ChromelessPage", () => {
 		expect(css).toContain(".btn--secondary {");
 	});
 
+	it("paints its own ground under its ink, so the page stays legible over a host surface that resolved a different scheme", () => {
+		const bodyRule = shellCss(NO_BANNER).match(/\bbody\s*\{([^}]*)\}/);
+		assert(bodyRule, "the shared reset must style the body");
+
+		expect(bodyRule[1]).toContain("color: var(--foreground)");
+		expect(bodyRule[1]).toContain("background: var(--background)");
+	});
+
 	it("stamps the request's nonce on every inline script and style this shell emits", () => {
 		const doc = new JSDOM(
 			ChromelessPage(createTestPageBody(), WITH_BANNER).to("text/html").body,

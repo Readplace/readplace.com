@@ -154,6 +154,7 @@ export const BASE_RESET_STYLES = `
 		font-family: var(--font-sans);
 		line-height: 1.6;
 		color: var(--foreground);
+		background: var(--background);
 		min-height: 100vh;
 		display: flex;
 		flex-direction: column;
