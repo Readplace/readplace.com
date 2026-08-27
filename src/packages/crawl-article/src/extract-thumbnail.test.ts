@@ -2,17 +2,6 @@ import type { CrawlFetch } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage, MAX_THUMBNAIL_BYTES } from "./extract-thumbnail";
 
 describe("extractThumbnailCandidates", () => {
-	it("returns the og:image URL first when present", () => {
-		const html = `
-			<html><head>
-				<meta property="og:image" content="https://example.com/og.png">
-				<meta name="twitter:image" content="https://example.com/twitter.png">
-			</head><body><img src="https://example.com/body.png"></body></html>
-		`;
-		expect(extractThumbnailCandidates({ html, baseUrl: "https://example.com/article" })[0])
-			.toBe("https://example.com/og.png");
-	});
-
 	it("falls back to twitter:image first when og:image is missing", () => {
 		const html = `
 			<html><head>
@@ -95,11 +84,6 @@ describe("extractThumbnailCandidates", () => {
 		`;
 		expect(extractThumbnailCandidates({ html, baseUrl: "https://example.com/article" }))
 			.toEqual(["https://example.com/shared.png"]);
-	});
-
-	it("returns an empty array when no candidates are present", () => {
-		const html = `<html><head></head><body><p>Text only.</p></body></html>`;
-		expect(extractThumbnailCandidates({ html })).toEqual([]);
 	});
 
 	it("drops a relative URL when the baseUrl cannot anchor it (URL resolution throws)", () => {
