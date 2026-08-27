@@ -121,13 +121,13 @@ describe("buildNavGroups", () => {
 		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
 	});
 
-	it("carries the feature flag on the Integrations href so following it stays in the feature", () => {
+	it("tags the Integrations href for internal-click tracking", () => {
 		const integrations = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "integrations");
 		assert(integrations, "library nav must include an integrations item when the feature is on");
 		expect(integrations.href).toBe(
-			"/integrations?feature=gmail&utm_source=header-nav&utm_medium=internal&utm_content=integrations",
+			"/integrations?utm_source=header-nav&utm_medium=internal&utm_content=integrations",
 		);
 	});
 });

@@ -3,10 +3,10 @@ import { toIntegrationsIndexViewModel } from "./integrations-index.viewmodel";
 const DISCONNECTED = { gmailConnected: false };
 
 describe("toIntegrationsIndexViewModel", () => {
-	it("lists the services in a fixed order", () => {
+	it("lists Gmail as the only service", () => {
 		const vm = toIntegrationsIndexViewModel(DISCONNECTED);
 
-		expect(vm.services.map((s) => s.key)).toEqual(["gmail", "outlook"]);
+		expect(vm.services.map((s) => s.key)).toEqual(["gmail"]);
 	});
 
 	it("offers the connect button while Gmail is not set up", () => {
@@ -27,16 +27,6 @@ describe("toIntegrationsIndexViewModel", () => {
 		expect(gmail?.statusLabel).toBe("Connected");
 		expect(gmail?.statusModifier).toBe("integrations__status--connected");
 		expect(gmail?.connectVisibility).toBe("hidden");
-	});
-
-	it("never offers a connect button for a service with no implementation", () => {
-		const outlook = toIntegrationsIndexViewModel(DISCONNECTED).services.find(
-			(s) => s.key === "outlook",
-		);
-
-		expect(outlook?.statusKey).toBe("coming-soon");
-		expect(outlook?.statusLabel).toBe("Coming soon");
-		expect(outlook?.connectVisibility).toBe("hidden");
 	});
 
 	it("renders no alert or notice on a plain visit", () => {

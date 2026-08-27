@@ -92,10 +92,6 @@ export const INTEGRATIONS_INDEX_STYLES = `
 	color: var(--muted-foreground);
 }
 
-.integrations__status--coming-soon {
-	color: var(--muted-foreground);
-	opacity: 0.7;
-}
 .integrations__status--connected {
 	color: var(--success-text);
 }

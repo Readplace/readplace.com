@@ -94,19 +94,9 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?feature=gmail&connected=1");
+		expect(response.headers.location).toBe("/integrations?connected=1");
 		expect(codes).toEqual(["auth-code"]);
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("refresh-value");
-	});
-
-	it("answers Google's callback even though it cannot carry the feature flag", async () => {
-		const { fixture } = fixtureWithGmail();
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await connectAndCallback(agent);
-
-		expect(response.status).not.toBe(404);
 	});
 
 	it("refuses a callback whose state was not the one this browser was issued", async () => {
@@ -119,7 +109,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent, { state: "forged-state" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?feature=gmail&error=oauth_state");
+		expect(response.headers.location).toBe("/integrations?error=oauth_state");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 	});
 
@@ -131,7 +121,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: "whatever" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?feature=gmail&error=oauth_state");
+		expect(response.headers.location).toBe("/integrations?error=oauth_state");
 	});
 
 	it("reports a cancelled consent without treating it as a fault", async () => {
@@ -142,7 +132,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await agent.get(CALLBACK).query({ error: "access_denied" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?feature=gmail&error=oauth_denied");
+		expect(response.headers.location).toBe("/integrations?error=oauth_denied");
 	});
 
 	it("tells the reader to re-consent when they unticked the settings permission", async () => {
@@ -153,7 +143,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?feature=gmail&error=oauth_scope");
+		expect(response.headers.location).toBe("/integrations?error=oauth_scope");
 	});
 
 	it("reports a grant that returned no refresh token as an exchange failure", async () => {
@@ -164,7 +154,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?feature=gmail&error=oauth_exchange");
+		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
 	});
 
 	it("reports a failed token exchange", async () => {
@@ -175,7 +165,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?feature=gmail&error=oauth_exchange");
+		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
 	});
 });
 
@@ -186,7 +176,7 @@ describe("GET /integrations once Gmail is connected", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await connectAndCallback(agent);
 
-		const response = await agent.get("/integrations?feature=gmail");
+		const response = await agent.get("/integrations");
 
 		expect(response.status).toBe(200);
 		expect(response.text).toContain('data-test-integration-status="connected"');

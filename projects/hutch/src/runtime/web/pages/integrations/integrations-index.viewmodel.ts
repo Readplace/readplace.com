@@ -1,7 +1,7 @@
 import type { IconName } from "@packages/ui-icons";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
 
-export type IntegrationStatusKey = "connected" | "not-set-up" | "coming-soon";
+export type IntegrationStatusKey = "connected" | "not-set-up";
 
 export interface IntegrationRowViewModel {
 	key: string;
@@ -34,7 +34,6 @@ export interface IntegrationsIndexViewModel {
 const STATUS_LABELS: Record<IntegrationStatusKey, string> = {
 	connected: "Connected",
 	"not-set-up": "Not set up",
-	"coming-soon": "Coming soon",
 };
 
 export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
@@ -77,18 +76,6 @@ export function toIntegrationsIndexViewModel(input: {
 				statusLabel: STATUS_LABELS[gmailStatus],
 				statusModifier: `integrations__status--${gmailStatus}`,
 				connectVisibility: input.gmailConnected ? "hidden" : "visible",
-				connectAction: GMAIL_CONNECT_PATH,
-				connectLabel: "Connect Gmail",
-			},
-			{
-				key: "outlook",
-				name: "Outlook",
-				description: "Not available yet.",
-				iconName: "mail",
-				statusKey: "coming-soon",
-				statusLabel: STATUS_LABELS["coming-soon"],
-				statusModifier: "integrations__status--coming-soon",
-				connectVisibility: "hidden",
 				connectAction: GMAIL_CONNECT_PATH,
 				connectLabel: "Connect Gmail",
 			},

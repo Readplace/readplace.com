@@ -103,9 +103,7 @@ export interface NavItem {
 
 const NAV_SOURCE = "header-nav";
 
-/** The `?feature=` value that opts a request into the unreleased Gmail
- * integration. */
-export const GMAIL_FEATURE = "gmail";
+const GMAIL_FEATURE = "gmail";
 
 const featureToggle = new QuerystringFeatureToggle();
 
@@ -182,10 +180,6 @@ export interface BannerState {
 	currentPath?: string;
 	/** Per-request script markup carried through from `BannerStateSource`. */
 	requestScripts?: string;
-	/** True when this request opted into the unreleased Gmail integration with
-	 * `?feature=gmail`. Gates only the nav entry: a reader without it never sees
-	 * the destination, while the routes themselves stay reachable so Google's
-	 * OAuth callback — which cannot carry the flag — still lands. */
 	gmailFeatureEnabled?: boolean;
 	cspNonce: CspNonce;
 }
@@ -196,9 +190,7 @@ const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method
 const NAV_INTEGRATIONS = navItem({
 	key: "integrations",
 	label: "Integrations",
-	// The flag rides the href so following the entry keeps the reader inside the
-	// feature; withInternalTracking preserves it and appends the UTM dimensions.
-	path: `/integrations?feature=${GMAIL_FEATURE}`,
+	path: "/integrations",
 	method: "GET",
 	iconName: "plug",
 });

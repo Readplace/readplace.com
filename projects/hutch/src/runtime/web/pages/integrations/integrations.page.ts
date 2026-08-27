@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
-import { GMAIL_FEATURE, QuerystringFeatureToggle, sendComponent } from "@packages/web-shell";
+import { sendComponent } from "@packages/web-shell";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -25,12 +25,8 @@ interface IntegrationsDependencies {
 
 export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 	const router = express.Router();
-	const featureToggle = new QuerystringFeatureToggle();
 	const gmail = deps.gmail;
 
-	// Registered before the feature gate: Google owns the callback URL it returns
-	// to and will not echo `?feature=gmail`, so a gated callback would 404 every
-	// completed grant.
 	if (gmail !== undefined) {
 		const context: GmailConnectContext = {
 			appOrigin: deps.appOrigin,
@@ -41,17 +37,6 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 		};
 		registerGmailConnectRoutes(router, gmail, context);
 	}
-
-	// The gate runs before requireAuth so a reader who has not opted in cannot
-	// tell the destination exists: they fall through to the catch-all 404 rather
-	// than being bounced to /login.
-	router.use((req: Request, _res: Response, next: express.NextFunction) => {
-		if (featureToggle.isEnabled(req, GMAIL_FEATURE)) {
-			next();
-			return;
-		}
-		next("router");
-	});
 
 	router.get("/", deps.requireAuth, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
