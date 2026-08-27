@@ -254,6 +254,9 @@ export function initQueueRename(deps: QueueRenameDeps): void {
 	});
 
 	deps.addSwapListener(() => {
+		const edit = editing;
+		if (edit === null) return;
+		if (deps.document.contains(edit.label)) return;
 		editing = null;
 	});
 }

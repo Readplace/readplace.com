@@ -253,6 +253,35 @@ describe("initQueueRename", () => {
 		expect(page.document.querySelector(".queue__title")?.textContent).toBe("Work Reading 2");
 	});
 
+	it("keeps an open edit through a swap that leaves its tab standing", () => {
+		const page = init(pageMarkup());
+		page.click();
+		page.type("Work Reading");
+		page.swap();
+
+		page.press("Escape");
+
+		expect(page.label().textContent).toBe("New Queue");
+		expect(page.label().getAttribute("contenteditable")).toBeNull();
+		expect(page.tab().getAttribute("href")).toBe(TAB_HREF);
+	});
+
+	it("posts a name confirmed after a swap that left its tab standing", async () => {
+		const server = heldAnswers(echoStored);
+		const page = init(pageMarkup(), server.respond);
+		page.click();
+		page.type("Work Reading");
+		page.swap();
+
+		page.press("Enter");
+		await settled();
+		expect(bodies(page.calls)).toEqual(["label=Work+Reading"]);
+
+		server.release[0]();
+		await settled();
+		expect(page.label().getAttribute("contenteditable")).toBeNull();
+	});
+
 	it("asks the reader to try again when the answer carries no name to show", async () => {
 		const page = init(pageMarkup(), () =>
 			Promise.resolve({ status: 200, json: () => Promise.resolve({}) }),
@@ -467,6 +496,7 @@ describe("initQueueRename", () => {
 		page.click();
 		page.type("Work Reading");
 
+		page.replaceNav();
 		page.swap();
 		page.press("Enter");
 		await settled();
