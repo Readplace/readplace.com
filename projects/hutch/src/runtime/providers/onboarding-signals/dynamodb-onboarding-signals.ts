@@ -9,6 +9,7 @@ import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
 	NativeAppPlatform,
+	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
@@ -33,6 +34,7 @@ const OnboardingRow = z.object({
 	 * still to go; absent until then. */
 	nextReadStepOutstandingAt: dynamoField(z.string()),
 	markReadAcrossQueuesAckedAt: dynamoField(z.string()),
+	deleteArticleAckedAt: dynamoField(z.string()),
 });
 
 /** The two attributes each app writes. Keyed by platform so a new native app is
@@ -59,6 +61,7 @@ export function initOnboardingSignals(deps: {
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
+	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
@@ -123,11 +126,20 @@ export function initOnboardingSignals(deps: {
 		});
 	};
 
+	const recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged = async ({ userId }) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression: "SET deleteArticleAckedAt = if_not_exists(deleteArticleAckedAt, :now)",
+			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {
 		const row = await onboarding.get({ userId });
 		const reachedAt = row?.nextReadMinimumReachedAt;
 		const outstandingAt = row?.nextReadStepOutstandingAt;
 		const ackedAt = row?.markReadAcrossQueuesAckedAt;
+		const deleteAckedAt = row?.deleteArticleAckedAt;
 		return {
 			nativeApp: {
 				ios: { installed: !!row?.iosAppActivatedAt, savedArticle: !!row?.iosAppSavedAt },
@@ -139,6 +151,7 @@ export function initOnboardingSignals(deps: {
 			nextReadMinimumReachedAt: reachedAt ? new Date(reachedAt) : undefined,
 			nextReadStepOutstandingAt: outstandingAt ? new Date(outstandingAt) : undefined,
 			markReadAcrossQueuesAckedAt: ackedAt ? new Date(ackedAt) : undefined,
+			deleteArticleAckedAt: deleteAckedAt ? new Date(deleteAckedAt) : undefined,
 		};
 	};
 
@@ -152,6 +165,7 @@ export function initOnboardingSignals(deps: {
 		recordNextReadMinimumReached,
 		recordNextReadStepOutstanding,
 		recordMarkReadAcrossQueuesAcknowledged,
+		recordDeleteArticleAcknowledged,
 		getOnboardingSignals,
 		deleteOnboarding,
 	};

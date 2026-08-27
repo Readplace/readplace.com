@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 
 import type { DeviceClass } from "@packages/web-analytics";
+import type { IconName } from "@packages/ui-icons";
 import type {
 	ArticleAction,
 	QueueArticleViewModel,
@@ -27,6 +28,8 @@ export interface ConfirmTriggerDisplayModel {
 	title: string;
 	text: string;
 	testAction: string;
+	buttonClass: string;
+	iconName?: IconName;
 }
 
 export interface QueueCardDisplayModel extends QueueArticleViewModel {
@@ -62,30 +65,44 @@ function toMetaSeparators(present: { site: boolean; readTime: boolean }) {
 	};
 }
 
+const ACTION_VARIANTS = {
+	status: {
+		buttonClass: "queue-article__action-btn queue-article__action-btn--status",
+		fallbackClass: "queue-article__status-fallback",
+		affordance: "with-loader",
+	},
+	delete: {
+		buttonClass: "queue-article__action-btn queue-article__action-btn--delete",
+		fallbackClass: "queue-article__delete-fallback",
+		affordance: "bare",
+	},
+} as const satisfies Record<
+	string,
+	{ buttonClass: string; fallbackClass: string; affordance: ActionDisplayModel["affordance"] }
+>;
+
+function variantOf(action: ArticleAction) {
+	return action.testAction === "delete" ? ACTION_VARIANTS.delete : ACTION_VARIANTS.status;
+}
+
 export function toActionDisplayModel(
 	action: ArticleAction,
 	options: { isProcessing: boolean; articleId: string },
 ): ActionDisplayModel {
-	const isStatusAction = action.testAction !== "delete";
 	const isConfirmed = action.confirmPopoverId !== undefined;
-	const buttonClass = isStatusAction
-		? "queue-article__action-btn queue-article__action-btn--status"
-		: "queue-article__action-btn queue-article__action-btn--delete";
-	const statusFormClass = isConfirmed
-		? "queue-article__action-form queue-article__status-fallback"
-		: "queue-article__action-form";
-	const statusTestAction = isConfirmed ? `${action.testAction}-fallback` : action.testAction;
+	const variant = variantOf(action);
+	const showsLoader = variant.affordance === "with-loader";
 	return {
 		...action,
 		url: withInternalTracking(action.url, { source: "queue-card", content: action.testAction }),
-		testAction: isStatusAction ? statusTestAction : "delete-fallback",
-		buttonClass,
-		formClass: isStatusAction
-			? statusFormClass
-			: "queue-article__action-form queue-article__delete-fallback",
-		disabled: options.isProcessing && isStatusAction,
-		affordance: isStatusAction ? "with-loader" : "bare",
-		buttonId: isStatusAction ? `queue-status-${options.articleId}` : undefined,
+		testAction: isConfirmed ? `${action.testAction}-fallback` : action.testAction,
+		buttonClass: variant.buttonClass,
+		formClass: isConfirmed
+			? `queue-article__action-form ${variant.fallbackClass}`
+			: "queue-article__action-form",
+		disabled: options.isProcessing && showsLoader,
+		affordance: variant.affordance,
+		buttonId: showsLoader ? `queue-status-${options.articleId}` : undefined,
 	};
 }
 
@@ -131,6 +148,8 @@ export function toQueueCardDisplayModel(
 							title: action.title,
 							text: action.text,
 							testAction: action.testAction,
+							buttonClass: variantOf(action).buttonClass,
+							...(action.iconName === undefined ? {} : { iconName: action.iconName }),
 						},
 					],
 		),

@@ -3,6 +3,7 @@ import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
 	NativeAppPlatform,
+	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
@@ -16,6 +17,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
+	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
@@ -30,6 +32,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	const nextReadMinimumReached = new Map<UserId, Date>();
 	const nextReadStepOutstanding = new Map<UserId, Date>();
 	const markReadAcrossQueuesAcked = new Map<UserId, Date>();
+	const deleteArticleAcked = new Map<UserId, Date>();
 
 	const recordNativeAppAnyActivity: RecordNativeAppAnyActivity = async ({ userId, platform }) => {
 		activated[platform].add(userId);
@@ -61,6 +64,11 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		markReadAcrossQueuesAcked.set(userId, deps.now());
 	};
 
+	const recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged = async ({ userId }) => {
+		if (deleteArticleAcked.has(userId)) return;
+		deleteArticleAcked.set(userId, deps.now());
+	};
+
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => ({
 		nativeApp: {
 			ios: { installed: activated.ios.has(userId), savedArticle: saved.ios.has(userId) },
@@ -72,6 +80,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		nextReadMinimumReachedAt: nextReadMinimumReached.get(userId),
 		nextReadStepOutstandingAt: nextReadStepOutstanding.get(userId),
 		markReadAcrossQueuesAckedAt: markReadAcrossQueuesAcked.get(userId),
+		deleteArticleAckedAt: deleteArticleAcked.get(userId),
 	});
 
 	const deleteOnboarding: DeleteOnboarding = async ({ userId }) => {
@@ -82,6 +91,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		nextReadMinimumReached.delete(userId);
 		nextReadStepOutstanding.delete(userId);
 		markReadAcrossQueuesAcked.delete(userId);
+		deleteArticleAcked.delete(userId);
 	};
 
 	return {
@@ -90,6 +100,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		recordNextReadMinimumReached,
 		recordNextReadStepOutstanding,
 		recordMarkReadAcrossQueuesAcknowledged,
+		recordDeleteArticleAcknowledged,
 		getOnboardingSignals,
 		deleteOnboarding,
 	};

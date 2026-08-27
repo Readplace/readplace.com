@@ -23,11 +23,6 @@ function makeViewModel(
 		readTime: { value: "3", label: "~3 min read" },
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
-		deleteConfirm: {
-			articleId: "abc123",
-			popoverId: "queue-delete-confirm-abc123",
-			url: "/queue/abc123/delete",
-		},
 		readerHref: "/queue/abc123/view",
 		isStalePending: false,
 		...overrides,
@@ -390,7 +385,9 @@ describe("renderQueueCard", () => {
 		title: "Delete",
 		testAction: "delete",
 		fields: [],
+		confirmPopoverId: "queue-delete-confirm-abc123",
 	};
+	const { confirmPopoverId: _popoverId, ...UNCONFIRMED_DELETE_ACTION } = DELETE_ACTION;
 
 	it("styles the mark-read control as a primary status button", () => {
 		const html = renderQueueCard(
@@ -459,6 +456,23 @@ describe("renderQueueCard", () => {
 			}),
 		);
 		expect(parse(html).querySelectorAll("[data-test-action='delete']").length).toBe(1);
+	});
+
+	it("deletes straight from the card once the reader has silenced the confirmation", () => {
+		const html = renderQueueCard(
+			display(makeViewModel({ actions: [MARK_READ_ACTION, UNCONFIRMED_DELETE_ACTION] }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const control = doc.querySelector("[data-test-action='delete']");
+		assert(control, "the delete control must still be present");
+
+		expect(control.getAttribute("type")).toBe("submit");
+		expect(control.closest("form")?.classList.contains("queue-article__delete-fallback")).toBe(
+			false,
+		);
+		expect(doc.querySelectorAll("[data-test-action='delete-fallback']").length).toBe(0);
 	});
 
 	it("keeps a straight-through delete form for browsers without popover support", () => {

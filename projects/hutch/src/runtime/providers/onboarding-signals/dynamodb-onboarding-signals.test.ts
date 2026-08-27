@@ -133,6 +133,23 @@ describe("initOnboardingSignals", () => {
 		});
 	});
 
+	describe("recordDeleteArticleAcknowledged", () => {
+		it("upserts the acknowledgement (set-once) keyed directly by userId", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initSignal(client).recordDeleteArticleAcknowledged({ userId: USER });
+
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toBe(
+				"SET deleteArticleAckedAt = if_not_exists(deleteArticleAckedAt, :now)",
+			);
+			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
+				NOW.toISOString(),
+			);
+		});
+	});
+
 	describe("getOnboardingSignals", () => {
 		it("reads by userId and returns both false when no row exists for the user", async () => {
 			const { client, commands } = createFakeClient({});
@@ -230,6 +247,16 @@ describe("initOnboardingSignals", () => {
 			expect(signals.markReadAcrossQueuesAckedAt).toEqual(
 				new Date("2026-06-21T08:15:00.000Z"),
 			);
+		});
+
+		it("surfaces the delete acknowledgement once the row carries it", async () => {
+			const { client } = createFakeClient({
+				row: { userId: "user-1", deleteArticleAckedAt: "2026-06-22T08:15:00.000Z" },
+			});
+
+			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
+
+			expect(signals.deleteArticleAckedAt).toEqual(new Date("2026-06-22T08:15:00.000Z"));
 		});
 
 		it("surfaces the Next Read milestone instant once the row carries it", async () => {

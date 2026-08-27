@@ -67,7 +67,7 @@ export interface QueueArticleViewModel {
 	saved: LocalTime;
 	imageUrl?: string;
 	actions: ArticleAction[];
-	deleteConfirm: DeleteConfirmViewModel;
+	deleteConfirm?: DeleteConfirmViewModel;
 	markStatusConfirm?: MarkStatusConfirmViewModel;
 	/**
 	 * Set when the row's crawl/summary state machines are still in flight.
@@ -182,7 +182,11 @@ function toStatusActions(
 	return actions;
 }
 
-function toDeleteAction(params: { articleId: string; returnQuery: string }): ArticleAction {
+function toDeleteAction(params: {
+	articleId: string;
+	returnQuery: string;
+	confirmPopoverId: string | undefined;
+}): ArticleAction {
 	return {
 		method: "POST",
 		url: `/queue/${params.articleId}/delete${params.returnQuery}`,
@@ -191,6 +195,9 @@ function toDeleteAction(params: { articleId: string; returnQuery: string }): Art
 		title: "Delete",
 		testAction: "delete",
 		fields: [],
+		...(params.confirmPopoverId === undefined
+			? {}
+			: { confirmPopoverId: params.confirmPopoverId }),
 	};
 }
 
@@ -205,6 +212,10 @@ export function toQueueArticleViewModel(params: {
 	maxPolls: number;
 	linkParams?: LinkParams;
 	confirmQueueLabels?: readonly string[];
+	/** Absent means the reader has not chosen to skip the delete confirmation —
+	 * including on render paths that never read the signal, so an unknown answer
+	 * still asks before deleting. */
+	deleteAcknowledged?: boolean;
 }): QueueArticleViewModel {
 	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
 	const pollCount = params.pollCount ?? 1;
@@ -215,7 +226,12 @@ export function toQueueArticleViewModel(params: {
 			? undefined
 			: buildCardPollUrl({ articleId: id, pollCount, filters, extraParams: params.linkParams });
 	const isStalePending = !reachedTerminal && pollCount > maxPolls;
-	const deleteAction = toDeleteAction({ articleId: id, returnQuery });
+	const deleteConfirmId = params.deleteAcknowledged ? undefined : deleteConfirmPopoverId(id);
+	const deleteAction = toDeleteAction({
+		articleId: id,
+		returnQuery,
+		confirmPopoverId: deleteConfirmId,
+	});
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const markStatusConfirm =
 		params.confirmQueueLabels === undefined
@@ -245,11 +261,9 @@ export function toQueueArticleViewModel(params: {
 			...toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
 			deleteAction,
 		],
-		deleteConfirm: {
-			articleId: id,
-			popoverId: deleteConfirmPopoverId(id),
-			url: deleteAction.url,
-		},
+		...(deleteConfirmId === undefined
+			? {}
+			: { deleteConfirm: { articleId: id, popoverId: deleteConfirmId, url: deleteAction.url } }),
 		markStatusConfirm,
 		cardPollUrl,
 		readerHref: `/queue/${id}/view${queueReturnQuery({ queue: filters.queue }, params.linkParams)}`,
@@ -272,6 +286,7 @@ export function toQueueViewModel(
 		effectiveAccess?: EffectiveAccess;
 		linkParams?: LinkParams;
 		confirmQueueLabelsByUrl?: ReadonlyMap<string, readonly string[]>;
+		deleteAcknowledged?: boolean;
 	},
 ): QueueViewModel {
 	const now = options?.now ?? new Date();
@@ -301,6 +316,7 @@ export function toQueueViewModel(
 				maxPolls: MAX_POLLS,
 				linkParams,
 				confirmQueueLabels: options?.confirmQueueLabelsByUrl?.get(a.url),
+				deleteAcknowledged: options?.deleteAcknowledged,
 			}),
 		),
 		filters,

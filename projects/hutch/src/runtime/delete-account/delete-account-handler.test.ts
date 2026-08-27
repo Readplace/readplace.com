@@ -443,6 +443,7 @@ describe("delete-account handler", () => {
 			nextReadMinimumReachedAt: undefined,
 			nextReadStepOutstandingAt: undefined,
 			markReadAcrossQueuesAckedAt: undefined,
+			deleteArticleAckedAt: undefined,
 		});
 		assert.equal(await s.subs.findByUserId(victim.userId), undefined);
 		assert.equal(
@@ -527,6 +528,7 @@ describe("delete-account handler", () => {
 			nextReadMinimumReachedAt: SEED_NOW,
 			nextReadStepOutstandingAt: SEED_NOW,
 			markReadAcrossQueuesAckedAt: undefined,
+			deleteArticleAckedAt: undefined,
 		});
 		const bystanderSub = await s.subs.findByUserId(bystander.userId);
 		assert(bystanderSub, "expected the bystander subscription to survive");

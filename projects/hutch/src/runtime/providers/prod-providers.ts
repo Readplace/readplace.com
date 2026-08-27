@@ -346,6 +346,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
 		recordMarkReadAcrossQueuesAcknowledged:
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
+		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,
 		consumeRateLimit,
 		rateLimitRules,
 	};

@@ -443,6 +443,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
 		recordMarkReadAcrossQueuesAcknowledged:
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
+		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,
 		consumeRateLimit,
 		rateLimitRules,
 	};

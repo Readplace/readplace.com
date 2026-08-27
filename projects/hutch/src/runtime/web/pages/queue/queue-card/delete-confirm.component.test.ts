@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
-import { deleteConfirmPopoverId, renderDeleteConfirm } from "./delete-confirm.component";
+import {
+	DELETE_ACK_NEVER,
+	deleteConfirmPopoverId,
+	renderDeleteConfirm,
+} from "./delete-confirm.component";
 
 function panelFor(url: string, title = "A Saved Article") {
 	const { document } = parseHTML(
@@ -57,6 +61,22 @@ describe("renderDeleteConfirm", () => {
 		assert(lead, "the panel must name the article it is about");
 		expect(lead.textContent).toBe("Article: The Pragmatic Programmer");
 		expect(lead.className).toBe("sr-only");
+	});
+
+	it("offers both a plain deletion and one that also silences the panel", () => {
+		const doc = panelFor("/queue/abc123/delete");
+
+		const confirm = doc.querySelector("[data-test-action='delete-confirm']");
+		const never = doc.querySelector("[data-test-action='delete-confirm-never']");
+		assert(confirm, "the plain confirmation must be rendered");
+		assert(never, "the silencing confirmation must be rendered");
+		expect(confirm.textContent).toBe("Yes, delete it");
+		expect(never.textContent).toBe("Yes, delete it and don't ask again");
+		// Both submit the same form, so the second deletes as well as remembering.
+		expect(confirm.closest("form")).toBe(never.closest("form"));
+		expect(confirm.hasAttribute("name")).toBe(false);
+		expect(never.getAttribute("name")).toBe("ack");
+		expect(never.getAttribute("value")).toBe(DELETE_ACK_NEVER);
 	});
 
 	it("boosts the confirmation so deleting re-renders the listing in place", () => {

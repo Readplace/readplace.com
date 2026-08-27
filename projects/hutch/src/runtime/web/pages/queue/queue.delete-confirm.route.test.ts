@@ -122,7 +122,7 @@ describe("Queue delete confirmation", () => {
 		const doc = queueDocument((await agent.get("/queue?tab=done&order=asc")).text);
 		const cta = doc.querySelector("[data-test-action='delete-confirm']");
 		assert(cta, "confirm call to action must be rendered");
-		expect(cta.textContent).toBe("Confirm Deletion");
+		expect(cta.textContent).toBe("Yes, delete it");
 
 		const form = cta.closest("form");
 		assert(form, "the confirm call to action must submit a real form");
@@ -160,6 +160,66 @@ describe("Queue delete confirmation", () => {
 		// A close control that fell inside the confirm form would delete the
 		// article instead of dismissing it.
 		expect(close.closest("form")).toBeNull();
+	});
+
+	it("keeps asking after a plain deletion", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/one", "https://example.com/two"]);
+		const listDoc = queueDocument((await agent.get("/queue")).text);
+		const [articleId] = [...listDoc.querySelectorAll(".queue-article")].map((card) =>
+			card.getAttribute("data-test-article"),
+		);
+
+		await agent.post(`/queue/${articleId}/delete`).type("form").send({});
+
+		const doc = queueDocument((await agent.get("/queue")).text);
+		expect(doc.querySelectorAll("[data-test-confirm-popover='delete']").length).toBe(1);
+	});
+
+	it("deletes and silences the panel for good on the second button", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/one", "https://example.com/two"]);
+		const listDoc = queueDocument((await agent.get("/queue")).text);
+		const [articleId] = [...listDoc.querySelectorAll(".queue-article")].map((card) =>
+			card.getAttribute("data-test-article"),
+		);
+
+		await agent.post(`/queue/${articleId}/delete`).type("form").send({ ack: "never" });
+
+		const doc = queueDocument((await agent.get("/queue")).text);
+		const remaining = [...doc.querySelectorAll(".queue-article")].map((card) =>
+			card.getAttribute("data-test-article"),
+		);
+		expect(remaining).toHaveLength(1);
+		expect(remaining).not.toContain(articleId);
+		expect(doc.querySelectorAll("[data-test-confirm-popover='delete']").length).toBe(0);
+
+		// The card's Delete control has to become the real mutation, or the reader
+		// is left with a button whose popover no longer exists.
+		const control = doc.querySelector("[data-test-action='delete']");
+		assert(control, "the delete control must survive the acknowledgement");
+		expect(control.getAttribute("type")).toBe("submit");
+		expect(control.closest("form")?.getAttribute("method")).toBe("POST");
+	});
+
+	it("keeps the panel out of a polled card fragment once acknowledged", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/one", "https://example.com/two"]);
+		const listDoc = queueDocument((await agent.get("/queue")).text);
+		const [first, second] = [...listDoc.querySelectorAll(".queue-article")].map((card) =>
+			card.getAttribute("data-test-article"),
+		);
+		await agent.post(`/queue/${first}/delete`).type("form").send({ ack: "never" });
+
+		const fragment = queueDocument((await agent.get(`/queue/${second}/card?poll=2`)).text);
+
+		const control = fragment.querySelector("[data-test-action='delete']");
+		assert(control, "the polled fragment must keep its delete control");
+		expect(control.hasAttribute("popovertarget")).toBe(false);
+		expect(control.getAttribute("type")).toBe("submit");
 	});
 
 	it("leaves the confirmation out of the polled card fragment", async () => {

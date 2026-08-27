@@ -49,6 +49,14 @@ export type RecordMarkReadAcrossQueuesAcknowledged = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+/** Records that the reader acknowledged what deleting an article costs them
+ * (set-once). Its presence suppresses the confirmation panel from then on, so
+ * the card's Delete button deletes on the first press.
+ * Idempotent — repeated calls never overwrite the first timestamp. */
+export type RecordDeleteArticleAcknowledged = (params: {
+	userId: UserId;
+}) => Promise<void>;
+
 /** Reads the per-user onboarding signals the `/queue` render ticks steps from.
  * Per app, `installed` is true once that app has made any authenticated request
  * and `savedArticle` once a save has come from it — both read by the phone's
@@ -63,6 +71,7 @@ export type GetOnboardingSignals = (params: {
 	nextReadMinimumReachedAt: Date | undefined;
 	nextReadStepOutstandingAt: Date | undefined;
 	markReadAcrossQueuesAckedAt: Date | undefined;
+	deleteArticleAckedAt: Date | undefined;
 }>;
 
 /** Delete the single onboarding row for a user (account deletion). */

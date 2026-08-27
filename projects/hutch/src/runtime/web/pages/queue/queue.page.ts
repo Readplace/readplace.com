@@ -143,6 +143,7 @@ import {
 } from "./queue-context";
 import { queueScopedStore } from "./queue-scoped-store";
 import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
+import { DELETE_ACK_NEVER } from "./queue-card/delete-confirm.component";
 import {
 	DEFAULT_QUEUE_SLUG,
 	QueueLimitReachedError,
@@ -209,6 +210,7 @@ import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type {
 	GetOnboardingSignals,
 	NativeAppPlatform,
+	RecordDeleteArticleAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
@@ -394,6 +396,7 @@ interface QueueDependencies {
 	 * satisfied on sight. */
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
+	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	/** Auth middleware applied to every queue route except the public
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
@@ -1067,9 +1070,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			dismissCookie !== undefined && dismissCookie !== NO_CLIENT_ONBOARDING_VERSION;
 		const signals = await deps.getOnboardingSignals({ userId });
 		const markReadAcrossQueuesAckedAt = signals.markReadAcrossQueuesAckedAt;
+		const deleteArticleAckedAt = signals.deleteArticleAckedAt;
 		if (!hasClient) {
 			return {
 				markReadAcrossQueuesAckedAt,
+				deleteArticleAckedAt,
 				onboarding: {
 					platform,
 					installed: false,
@@ -1090,6 +1095,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const onboardingDismissed = installed && dismissTokenMatches;
 		return {
 			markReadAcrossQueuesAckedAt,
+			deleteArticleAckedAt,
 			onboarding: {
 				platform,
 				installed,
@@ -1107,10 +1113,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		userId: UserId;
 		context: QueueContext;
 		urls: readonly string[];
-		acknowledgedAt: () => Promise<Date | undefined>;
+		acknowledgedAt: Date | undefined;
 	}): Promise<ReadonlyMap<string, readonly string[]> | undefined> => {
 		if (params.context.queues.length <= 1) return undefined;
-		if ((await params.acknowledgedAt()) !== undefined) return undefined;
+		if (params.acknowledgedAt !== undefined) return undefined;
 		const savesByUrl = await deps.listUserSavesForUrls({
 			userId: params.userId,
 			urls: params.urls,
@@ -1195,7 +1201,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			userId: input.userId,
 			context: input.context,
 			urls: input.result.articles.map((article) => article.url),
-			acknowledgedAt: async () => signals.markReadAcrossQueuesAckedAt,
+			acknowledgedAt: signals.markReadAcrossQueuesAckedAt,
 		});
 		const vm = toQueueViewModel(input.result, input.context.state, {
 			errors: input.saveError ? [{ message: input.saveError }] : undefined,
@@ -1208,6 +1214,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			linkParams: input.context.linkParams,
 			now: deps.now(),
 			confirmQueueLabelsByUrl,
+			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const onboarding = signals.onboarding;
 		sendComponent(
@@ -1906,14 +1913,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
 				queueHoldsAnyArticle({ userId, queue: saveContext.state.queue, result }),
 			]);
+			const { onboarding, deleteArticleAckedAt } = await resolveOnboardingSignals(req, userId);
 			const vm = toQueueViewModel(result, saveContext.state, {
 				errors: [{ message: validation.error.message }],
 				saveErrorCode: validation.error.code,
 				summaryByUrl,
 				crawlByUrl,
 				linkParams: context.linkParams,
+				deleteAcknowledged: deleteArticleAckedAt !== undefined,
 			});
-			const { onboarding } = await resolveOnboardingSignals(req, userId);
 			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), queueHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildQueueRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
 			return;
 		}
@@ -2269,12 +2277,16 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const queryIndex = queueUrl.indexOf("?");
 		const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
 		const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
+		/** The fragment must agree with the listing it replaces a row in: a card
+		 * still polling when the reader silences the delete confirmation would
+		 * otherwise come back pointing at a panel the page no longer renders,
+		 * leaving its Delete button inert. */
+		const signals = await deps.getOnboardingSignals({ userId });
 		const confirmQueueLabelsByUrl = await markStatusConfirmLabelsFor({
 			userId,
 			context: await resolveQueueContext(req, userId),
 			urls: [article.url],
-			acknowledgedAt: async () =>
-				(await deps.getOnboardingSignals({ userId })).markReadAcrossQueuesAckedAt,
+			acknowledgedAt: signals.markReadAcrossQueuesAckedAt,
 		});
 		const articleVm = toQueueArticleViewModel({
 			article,
@@ -2286,6 +2298,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			pollCount: requestedPoll + 1,
 			maxPolls: MAX_POLLS,
 			confirmQueueLabels: confirmQueueLabelsByUrl?.get(article.url),
+			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(articleVm, {
@@ -2353,6 +2366,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+
+		if (req.body?.ack === DELETE_ACK_NEVER) {
+			await deps.recordDeleteArticleAcknowledged({ userId });
+		}
 
 		const context = requestQueueContext(req);
 		if (parsedId.success) {

@@ -74,6 +74,7 @@ import type { GmailCredentialsStore } from "@packages/domain/gmail";
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type {
 	GetOnboardingSignals,
+	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
@@ -404,6 +405,7 @@ interface AppDependencies {
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
+	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
@@ -1255,6 +1257,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
 		recordNextReadStepOutstanding: deps.recordNextReadStepOutstanding,
 		recordMarkReadAcrossQueuesAcknowledged: deps.recordMarkReadAcrossQueuesAcknowledged,
+		recordDeleteArticleAcknowledged: deps.recordDeleteArticleAcknowledged,
 		dualAuth: dualAuthMiddleware,
 		resolveVerificationStatus,
 		requireWriteAccess,

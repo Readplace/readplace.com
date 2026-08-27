@@ -6,6 +6,8 @@ export interface DeleteConfirmViewModel {
 	url: string;
 }
 
+export const DELETE_ACK_NEVER = "never";
+
 /**
  * The `queue-delete-confirm-` prefix is load-bearing, not cosmetic: a
  * ReaderArticleHashId is /^[0-9a-f]{32}$/ and may start with a digit, which is a
@@ -17,7 +19,8 @@ export function deleteConfirmPopoverId(articleId: string): string {
 }
 
 const DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-	<button class="queue-delete__cta" type="submit" data-test-action="delete-confirm">Confirm Deletion</button>
+	<button class="queue-delete__cta" type="submit" data-test-action="delete-confirm">Yes, delete it</button>
+	<button class="btn btn--secondary" type="submit" name="ack" value="{{ackNever}}" data-test-action="delete-confirm-never">Yes, delete it and don't ask again</button>
 </form>`;
 
 export function renderDeleteConfirm(input: {
@@ -36,6 +39,7 @@ export function renderDeleteConfirm(input: {
 				source: "queue-card",
 				content: "delete",
 			}),
+			ackNever: DELETE_ACK_NEVER,
 		}),
 	});
 }

@@ -226,6 +226,7 @@ function flattenFixtureToAppDependencies(
 		recordNextReadStepOutstanding: fixture.onboardingSignals.recordNextReadStepOutstanding,
 		recordMarkReadAcrossQueuesAcknowledged:
 			fixture.onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
+		recordDeleteArticleAcknowledged: fixture.onboardingSignals.recordDeleteArticleAcknowledged,
 		googleAuth: fixture.google,
 		gmailIntegration: fixture.gmailIntegration,
 		appleAuth: fixture.apple,

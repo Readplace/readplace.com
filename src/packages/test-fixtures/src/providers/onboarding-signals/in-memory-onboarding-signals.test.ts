@@ -121,6 +121,26 @@ describe("initInMemoryOnboardingSignals", () => {
 		expect(signals.markReadAcrossQueuesAckedAt).toBeUndefined();
 	});
 
+	it("stamps the delete acknowledgement set-once with the injected clock", async () => {
+		const store = storeAt(FIRST, LATER);
+
+		await store.recordDeleteArticleAcknowledged({ userId: USER });
+		await store.recordDeleteArticleAcknowledged({ userId: USER });
+
+		const signals = await store.getOnboardingSignals({ userId: USER });
+		expect(signals.deleteArticleAckedAt).toEqual(FIRST);
+	});
+
+	it("clears the delete acknowledgement on deleteOnboarding", async () => {
+		const store = storeAt(FIRST);
+		await store.recordDeleteArticleAcknowledged({ userId: USER });
+
+		await store.deleteOnboarding({ userId: USER });
+
+		const signals = await store.getOnboardingSignals({ userId: USER });
+		expect(signals.deleteArticleAckedAt).toBeUndefined();
+	});
+
 	it("clears the outstanding marker on deleteOnboarding", async () => {
 		const store = storeAt(FIRST);
 		await store.recordNextReadStepOutstanding({ userId: USER });

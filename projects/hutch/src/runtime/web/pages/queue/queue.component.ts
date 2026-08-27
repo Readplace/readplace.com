@@ -189,8 +189,10 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { queueHoldsArticles: 
 			),
 		),
 		deleteConfirmsHtml: vm.articles
-			.map((article) =>
-				renderDeleteConfirm({ confirm: article.deleteConfirm, title: article.title }),
+			.flatMap((article) =>
+				article.deleteConfirm === undefined
+					? []
+					: [renderDeleteConfirm({ confirm: article.deleteConfirm, title: article.title })],
 			)
 			.join("\n"),
 		markStatusConfirmsHtml: vm.articles

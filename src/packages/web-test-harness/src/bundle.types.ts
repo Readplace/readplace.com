@@ -147,6 +147,7 @@ import type {
 	ReadPendingUploadPrefix,
 	RateLimitRules,
 	ReadArticleContent,
+	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
@@ -463,6 +464,7 @@ export interface OnboardingSignalsBundle {
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
+	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	getOnboardingSignals: GetOnboardingSignals;
 }
 
