@@ -7,6 +7,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -30,10 +31,12 @@ fun WebPageSheet(
 	onFinish: () -> Unit,
 	onFail: () -> Unit,
 ) {
+	val isDark = isSystemInDarkTheme()
+
 	AndroidView(
 		modifier = Modifier.fillMaxSize(),
 		factory = { context ->
-			WebView(context).apply {
+			WebView(webContentContext(context, isDark)).apply {
 				settings.javaScriptEnabled = true
 				settings.domStorageEnabled = true
 				// The help page teaches Share with a video; letting it play inline keeps

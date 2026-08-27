@@ -90,6 +90,13 @@ dependencies {
 	testImplementation(libs.kotlinx.coroutines.test)
 }
 
+tasks.withType<Test>().configureEach {
+	configure<JacocoTaskExtension> {
+		isIncludeNoLocationClasses = true
+		excludes = listOf("jdk.internal.*")
+	}
+}
+
 /**
  * XML report only: `scripts/check-coverage.py` reads it, and the HTML report costs
  * build time nothing reads. Wired to the production debug variant so the ratchet

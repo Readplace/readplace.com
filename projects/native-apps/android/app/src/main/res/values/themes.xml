@@ -8,4 +8,8 @@
     <item name="android:windowContentOverlay">@null</item>
     <item name="android:backgroundDimEnabled">true</item>
   </style>
+
+  <style name="Theme.Readplace.WebContent.Light" parent="android:Theme.Material.Light.NoActionBar" />
+
+  <style name="Theme.Readplace.WebContent.Dark" parent="android:Theme.Material.NoActionBar" />
 </resources>
