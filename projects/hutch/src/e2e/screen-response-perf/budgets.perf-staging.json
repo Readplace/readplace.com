@@ -1,6 +1,6 @@
 {
   "meta": {
-    "soakRun": 3,
+    "soakRun": 4,
     "statistic": "max",
     "vantage": "github-hosted ubuntu runner to the ap-southeast-2 staging stack; budgets derived here are not comparable to numbers measured from any other vantage",
     "encroachmentRatio": 0.9,
