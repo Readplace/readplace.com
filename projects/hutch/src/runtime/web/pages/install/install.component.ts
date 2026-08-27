@@ -16,6 +16,7 @@ import type { ClientCategory, ClientName, SupportedClient } from "@packages/supp
 import { switchHelpers } from "../../handlebars-switch";
 import { SAVE_INTENT_PROMPT } from "../mcp";
 import { CLIENT_ICON_SVG } from "../../shared/client-icons";
+import type { NativeClientPlatform } from "../../onboarding/native-client";
 import { buildShareDemoVideo } from "../../shared/share-demo-video";
 import type { ShareDemoVideo } from "../../shared/share-demo-video";
 import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
@@ -151,15 +152,22 @@ const BROWSER_SETUP_OUTRO =
 const APP_SETUP_OUTRO =
 	"Save what you want to read while you're out, then read it in the app or at readplace.com when you have the time. Any feedback is welcome in-app.";
 
+interface NativeAppDemoCopy {
+	platform: NativeClientPlatform;
+	ariaLabel: string;
+	caption: string;
+}
+
 /** The recording carries the whole share flow, so the panel states only what it
  * cannot show — that this works from any browser, and that the same app runs on
  * a Mac. Everything the video demonstrates was removed rather than narrated
  * twice. */
 const IPHONE_DEMO = {
+	platform: "ios",
 	ariaLabel:
 		"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
 	caption: "Tap Share in any browser, choose Readplace, and the page is in your queue.",
-};
+} satisfies NativeAppDemoCopy;
 
 /** The panel copy each client GROUP needs. Indexed by the group a client
  * actually belongs to, so a client cannot be given another group's panel: the
@@ -179,7 +187,7 @@ type PanelCopy = {
 		title: string;
 		lead: string;
 		cta: { href: string; label: string; testId: string } | null;
-		demo: { ariaLabel: string; caption: string } | null;
+		demo: NativeAppDemoCopy | null;
 		unavailable: { testId: string; text: string } | null;
 		outro: string;
 		outroTestId: string;
@@ -329,7 +337,13 @@ function buildPanel(
 					title: data.title,
 					lead: data.lead,
 					cta: data.cta,
-					demo: data.demo ? { ...buildShareDemoVideo(staticBaseUrl), ...data.demo } : null,
+					demo: data.demo
+						? {
+								...buildShareDemoVideo(data.demo.platform, staticBaseUrl),
+								ariaLabel: data.demo.ariaLabel,
+								caption: data.demo.caption,
+							}
+						: null,
 					unavailable: data.unavailable,
 					outro: data.outro,
 					outroTestId: data.outroTestId,

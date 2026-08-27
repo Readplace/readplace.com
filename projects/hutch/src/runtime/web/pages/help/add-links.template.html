@@ -214,13 +214,11 @@
           <li class="help__pin-step" data-test-help-pin-step>{{this}}</li>
           {{/each}}
         </ol>
-        {{#if pin.demo}}
         <video class="help__video" width="{{pin.demo.width}}" height="{{pin.demo.height}}" poster="{{pin.demo.poster}}" muted playsinline controls preload="none" aria-label="{{pin.demo.label}}" data-test-help-video>
           {{#each pin.demo.sources}}
           <source src="{{src}}" type="{{type}}">
           {{/each}}
         </video>
-        {{/if}}
       </section>
 
       <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>

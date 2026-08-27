@@ -124,7 +124,7 @@ describe("GET /help/add-links", () => {
 		]);
 	});
 
-	it("leaves the iPhone recording out of the Android sheet, since no Android capture exists", async () => {
+	it("pairs the Android sheet with the Android capture, not the iPhone one", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(server).get(
@@ -132,10 +132,43 @@ describe("GET /help/add-links", () => {
 		);
 
 		const doc = new JSDOM(response.text).window.document;
+		const video = doc.querySelector("[data-test-help-video]");
+		assert(video, "the pin section must render the Android share recording");
+		expect(
+			Array.from(video.querySelectorAll("source")).map((el) => [
+				el.getAttribute("src"),
+				el.getAttribute("type"),
+			]),
+		).toEqual([
+			["https://static.test/videos/android-share-demo-h264.mp4", "video/mp4"],
+		]);
+		expect(video.getAttribute("poster")).toBe(
+			"https://static.test/videos/android-share-demo-poster.webp",
+		);
 		const recordings = Array.from(doc.querySelectorAll("video")).map((el) =>
 			el.getAttribute("aria-label"),
 		);
-		expect(recordings).toEqual([]);
+		expect(recordings).toEqual([
+			"Saving a page to Readplace from the Android share sheet, and pinning Readplace to the front of the app list",
+		]);
+	});
+
+	it("reserves the Android recording's own box, which is a taller capture than the iPhone's", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get(
+			"/help/add-links?shell=app&platform=android",
+		);
+
+		const doc = new JSDOM(response.text).window.document;
+		const video = doc.querySelector("[data-test-help-video]");
+		assert(video, "the pin section must render the Android share recording");
+		expect([video.getAttribute("width"), video.getAttribute("height")]).toEqual([
+			"540",
+			"1212",
+		]);
+		expect(video.getAttribute("preload")).toBe("none");
+		expect(video.hasAttribute("autoplay")).toBe(false);
 	});
 
 	it("keeps the share-row section and its recording for the shipped iOS sheet, which sends ?shell=app and names no platform", async () => {

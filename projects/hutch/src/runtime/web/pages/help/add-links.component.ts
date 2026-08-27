@@ -15,7 +15,7 @@ interface PinCopy {
 	title: string;
 	lead: string;
 	steps: readonly string[];
-	demoLabel: string | undefined;
+	demoLabel: string;
 }
 
 const PIN_COPY = {
@@ -38,11 +38,12 @@ const PIN_COPY = {
 			"Press and hold Readplace.",
 			"Tap Pin Readplace.",
 		],
-		demoLabel: undefined,
+		demoLabel:
+			"Saving a page to Readplace from the Android share sheet, and pinning Readplace to the front of the app list",
 	},
 } satisfies Record<NativeClientPlatform, PinCopy>;
 
-const PIN_COPY_WITHOUT_PLATFORM_MARKER = PIN_COPY.ios;
+const PLATFORM_WITHOUT_MARKER = "ios" satisfies NativeClientPlatform;
 
 export function HelpAddLinksPage(params: {
 	staticBaseUrl: string;
@@ -55,9 +56,8 @@ export function HelpAddLinksPage(params: {
 	 * surface the same sheet hosts, so both read "Back to queue". */
 	backLink?: { href: string; label: string };
 }): Component {
-	const copy = params.platform
-		? PIN_COPY[params.platform]
-		: PIN_COPY_WITHOUT_PLATFORM_MARKER;
+	const platform = params.platform ?? PLATFORM_WITHOUT_MARKER;
+	const copy = PIN_COPY[platform];
 	return HtmlPage(
 		render(HELP_ADD_LINKS_TEMPLATE, {
 			cspNonce: params.cspNonce,
@@ -70,13 +70,10 @@ export function HelpAddLinksPage(params: {
 				title: copy.title,
 				lead: copy.lead,
 				steps: copy.steps,
-				demo:
-					copy.demoLabel === undefined
-						? undefined
-						: {
-								...buildShareDemoVideo(params.staticBaseUrl),
-								label: copy.demoLabel,
-							},
+				demo: {
+					...buildShareDemoVideo(platform, params.staticBaseUrl),
+					label: copy.demoLabel,
+				},
 			},
 		}),
 	);
