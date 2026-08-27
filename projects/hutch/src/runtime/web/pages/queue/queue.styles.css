@@ -1198,3 +1198,14 @@
     border-radius: 0 0 0 0;
   }
 }
+
+@media (max-width: 600px) {
+  .queue-article__url {
+    display: none;
+  }
+
+  .queue-article__read-time::before,
+  .queue-article__read-time--empty + .queue-article__time::before {
+    content: none;
+  }
+}
