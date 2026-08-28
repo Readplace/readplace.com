@@ -15,6 +15,11 @@ name: Screen response soak
 on:
   workflow_dispatch:
     inputs:
+      origin:
+        description: Origin to measure
+        required: true
+        default: https://readplace-staging.com
+        type: string
       runs:
         description: How many independent runs to collect
         required: true
@@ -36,7 +41,7 @@ jobs:
 
   soak:
     needs: [plan]
-    # max-parallel: 1 because every run measures the same shared staging stack.
+    # max-parallel: 1 because every run measures the same shared origin.
     # Concurrent runs would seed and crawl against each other, and the numbers
     # would describe contention rather than latency.
     strategy:
@@ -45,25 +50,11 @@ jobs:
       matrix:
         run: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-latest
-    environment: staging
     timeout-minutes: 40
     env:
-      AWS_REGION: ap-southeast-2
-      PULUMI_BACKEND_URL: s3://hutch-pulumi-state-572337278115-ap-southeast-2
-      PULUMI_STACK: staging
-      PULUMI_CONFIG_PASSPHRASE: ''
+      STATIC_BASE_URL: ''
+      STAGING_URL: ${{ inputs.origin }}
     steps:
-      - name: Export all repository and environment secrets as env vars
-        env:
-          SECRETS_JSON: ${{ toJson(secrets) }}
-        run: |
-          DELIM="EOF_$(openssl rand -hex 16)"
-          printf '%s' "$SECRETS_JSON" | jq -r --arg d "$DELIM" '
-            to_entries[]
-            | select(.key != "github_token")
-            | "\(.key)<<\($d)\n\(.value)\n\($d)"
-          ' >> "$GITHUB_ENV"
-
       - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
@@ -80,12 +71,6 @@ jobs:
       - run: pnpm nx run hutch:compile
 
       - run: npx playwright install --with-deps chromium
-
-      - name: Read the staging URL from the pulumi stack
-        working-directory: projects/hutch
-        run: |
-          RAW_URL=$(pulumi stack output apiUrl --stack staging)
-          echo "STAGING_URL=${RAW_URL%/\$default}" >> "$GITHUB_ENV"
 
       - name: Measure screen response
         working-directory: projects/hutch
