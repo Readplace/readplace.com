@@ -1,6 +1,5 @@
 {
   "meta": {
-    "soakRun": 5,
     "statistic": "max",
     "vantage": "github-hosted ubuntu runner to the ap-southeast-2 staging stack; budgets derived here are not comparable to numbers measured from any other vantage",
     "encroachmentRatio": 0.9,
@@ -13,46 +12,81 @@
   },
   "ops": {
     "queue-switch-first": {
-      "level": "warn",
-      "budgetMs": null,
-      "baseline": null,
-      "note": "Bootstrap: report-only until a soak of at least 15 runs characterises the spread of the per-run max. Lock at worst observed run max times 1.25, rounded up to 25ms, then flip to error. Ratchet target once the listing cache lands: this is the cache-miss arm."
+      "level": "error",
+      "budgetMs": 975,
+      "baseline": {
+        "maxMs": 763,
+        "runs": 19,
+        "shas": ["6c8bbf9d"],
+        "recordedAt": "2026-08-28T06:00:03.000Z"
+      },
+      "note": "budgetMs is baseline.maxMs times 1.25, rounded up to 25ms. That worst run is an outlier: 17 of the 19 landed between 279 and 414ms and the median max was 379ms. Ratchet target once the listing cache lands — this is the cache-miss arm."
     },
     "queue-switch-subsequent": {
-      "level": "warn",
-      "budgetMs": null,
-      "baseline": null,
-      "note": "Bootstrap: report-only until soaked. Ratchet target once the listing cache lands: this is the cache-hit arm and should fall furthest."
+      "level": "error",
+      "budgetMs": 525,
+      "baseline": {
+        "maxMs": 406,
+        "runs": 19,
+        "shas": ["6c8bbf9d"],
+        "recordedAt": "2026-08-28T06:00:03.000Z"
+      },
+      "note": "budgetMs is baseline.maxMs times 1.25, rounded up to 25ms. The soak spanned 252 to 406ms with a 337ms median max. Ratchet target once the listing cache lands — this is the cache-hit arm and should fall furthest."
     },
     "tab-switch-first": {
-      "level": "warn",
-      "budgetMs": null,
-      "baseline": null,
-      "note": "Bootstrap: report-only until soaked. Cache-miss arm of the To-Read/Read switch."
+      "level": "error",
+      "budgetMs": 525,
+      "baseline": {
+        "maxMs": 414,
+        "runs": 19,
+        "shas": ["6c8bbf9d"],
+        "recordedAt": "2026-08-28T06:00:03.000Z"
+      },
+      "note": "budgetMs is baseline.maxMs times 1.25, rounded up to 25ms. The soak spanned 281 to 414ms with a 347ms median max. Cache-miss arm of the To-Read/Read switch."
     },
     "tab-switch-subsequent": {
-      "level": "warn",
-      "budgetMs": null,
-      "baseline": null,
-      "note": "Bootstrap: report-only until soaked. Cache-hit arm of the To-Read/Read switch."
+      "level": "error",
+      "budgetMs": 500,
+      "baseline": {
+        "maxMs": 398,
+        "runs": 19,
+        "shas": ["6c8bbf9d"],
+        "recordedAt": "2026-08-28T06:00:03.000Z"
+      },
+      "note": "budgetMs is baseline.maxMs times 1.25, rounded up to 25ms. The soak spanned 264 to 398ms with a 347ms median max. Cache-hit arm of the To-Read/Read switch."
     },
     "assign-to-queue": {
-      "level": "warn",
-      "budgetMs": null,
-      "baseline": null,
-      "note": "Bootstrap: report-only until soaked. Ratchet target when the assign response becomes an out-of-band fragment instead of a full reader re-render."
+      "level": "error",
+      "budgetMs": 900,
+      "baseline": {
+        "maxMs": 715,
+        "runs": 19,
+        "shas": ["6c8bbf9d"],
+        "recordedAt": "2026-08-28T06:00:03.000Z"
+      },
+      "note": "budgetMs is baseline.maxMs times 1.25, rounded up to 25ms. The soak spanned 564 to 715ms with a 647ms median max — the slowest operation, and the tightest spread of the seven. Ratchet target when the assign response becomes an out-of-band fragment instead of a full reader re-render."
     },
     "open-article": {
-      "level": "warn",
-      "budgetMs": null,
-      "baseline": null,
-      "note": "Bootstrap: report-only until soaked. Ratchet target when visible cards are prefetched; expect responseStart to collapse on a prefetch hit."
+      "level": "error",
+      "budgetMs": 725,
+      "baseline": {
+        "maxMs": 564,
+        "runs": 19,
+        "shas": ["6c8bbf9d"],
+        "recordedAt": "2026-08-28T06:00:03.000Z"
+      },
+      "note": "budgetMs is baseline.maxMs times 1.25, rounded up to 25ms. The soak spanned 347 to 564ms with a 414ms median max. Ratchet target when visible cards are prefetched; expect responseStart to collapse on a prefetch hit."
     },
     "back-to-queue": {
-      "level": "warn",
-      "budgetMs": null,
-      "baseline": null,
-      "note": "Bootstrap: report-only until soaked. Ratchet target when the reader exit becomes instant."
+      "level": "error",
+      "budgetMs": 875,
+      "baseline": {
+        "maxMs": 686,
+        "runs": 19,
+        "shas": ["6c8bbf9d"],
+        "recordedAt": "2026-08-28T06:00:03.000Z"
+      },
+      "note": "budgetMs is baseline.maxMs times 1.25, rounded up to 25ms. That worst run is an outlier: 18 of the 19 landed between 327 and 489ms and the median max was 402ms. Ratchet target when the reader exit becomes instant."
     }
   }
 }
