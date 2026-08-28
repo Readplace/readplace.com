@@ -19,6 +19,10 @@
       "command": "bash scripts/post-deploy.sh",
       "options": { "cwd": "{projectRoot}" }
     },
+    "dev": {
+      "dependsOn": ["^compile"],
+      "cache": false
+    },
     "check": {
       "command": "true",
       "options": { "cwd": "{projectRoot}" },
