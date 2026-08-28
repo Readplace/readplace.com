@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import {
 	DEFAULT_INBOX_ALIAS,
+	GMAIL_FORWARDING_ALIAS,
+	InboxAddressSchema,
 	type InboxEmailStore,
 	MessageIdSchema,
 	type ParseEmailResult,
@@ -11,6 +13,7 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import type { RouteGmailForwardedEmail } from "../gmail/route-gmail-forwarded-email";
 import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "./receive-email-handler";
 import type { StoreEmailBody } from "./store-email-body";
@@ -54,13 +57,15 @@ function makeHarness(opts?: {
 	storeBody?: StoreEmailBody;
 	maxEmailBytes?: number;
 	interceptGmailConfirmation?: InterceptGmailConfirmation;
+	routeGmailForwardedEmail?: RouteGmailForwardedEmail;
 }) {
 	const addressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const emailStore = initInMemoryInboxEmail();
 	const rawMap = new Map<string, Buffer>();
-	const published: { detail: { receivedAtMessageId: string; userId: string } }[] = [];
+	const published: { detail: { receivedAtMessageId: string; userId: string; recipientAddress: string } }[] = [];
 	const imageDownloadCalls: { html: string }[] = [];
 	const interceptions: { recipientCount: number }[] = [];
+	const routings: { gatewayAddress: string }[] = [];
 
 	const handler = initReceiveEmailHandler({
 		readRawEmail: async (key) => rawMap.get(key),
@@ -73,13 +78,21 @@ function makeHarness(opts?: {
 		},
 		storeBody: opts?.storeBody ?? (async () => "content/email/content.html"),
 		publishEvent: async (_event, detail) => {
-			published.push({ detail: detail as { receivedAtMessageId: string; userId: string } });
+			published.push({
+				detail: detail as { receivedAtMessageId: string; userId: string; recipientAddress: string },
+			});
 		},
 		interceptGmailConfirmation:
 			opts?.interceptGmailConfirmation ??
 			(async ({ resolvedRecipients }) => {
 				interceptions.push({ recipientCount: resolvedRecipients.length });
 				return false;
+			}),
+		routeGmailForwardedEmail:
+			opts?.routeGmailForwardedEmail ??
+			(async ({ gatewayAddress }) => {
+				routings.push({ gatewayAddress });
+				return gatewayAddress;
 			}),
 		logger: HutchLogger.from(noopLogger),
 		maxEmailBytes: opts?.maxEmailBytes ?? 20 * 1024 * 1024,
@@ -100,6 +113,7 @@ function makeHarness(opts?: {
 		published,
 		imageDownloadCalls,
 		interceptions,
+		routings,
 		handler,
 		run,
 		runMany,
@@ -121,6 +135,16 @@ async function mintAddress(addressStore: ReturnType<typeof initInMemoryInboxAddr
 		domain: "read.place",
 		name: DEFAULT_INBOX_ALIAS,
 		purpose: "user-alias",
+	});
+	return entry.address;
+}
+
+async function mintGatewayAddress(addressStore: ReturnType<typeof initInMemoryInboxAddress>) {
+	const entry = await addressStore.createAddress({
+		userId: OWNER,
+		domain: "read.place",
+		name: GMAIL_FORWARDING_ALIAS,
+		purpose: "gmail-forwarding",
 	});
 	return entry.address;
 }
@@ -468,5 +492,46 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(1);
+	});
+
+	it("delivers gateway mail to the alias the sender is mapped to", async () => {
+		const { addressStore, emailStore, rawMap, published, routings, run } = makeHarness({
+			routeGmailForwardedEmail: async () => InboxAddressSchema.parse("tldr-b8c3d0@read.place"),
+		});
+		const gateway = await mintGatewayAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(gateway);
+
+		const emails = await listEmails(emailStore, OWNER);
+		expect(emails).toHaveLength(1);
+		assert.equal(emails[0].recipientAddress, "tldr-b8c3d0@read.place");
+		assert.equal(published[0].detail.recipientAddress, "tldr-b8c3d0@read.place");
+		assert.deepEqual(routings, []);
+	});
+
+	it("stores nothing and publishes nothing while a gateway sender is unmapped", async () => {
+		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
+			routeGmailForwardedEmail: async () => undefined,
+		});
+		const gateway = await mintGatewayAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await run(gateway);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
+		expect(published).toHaveLength(0);
+	});
+
+	it("never routes mail addressed to an ordinary alias by sender", async () => {
+		const { addressStore, rawMap, routings, run } = makeHarness();
+		const alias = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(alias);
+
+		assert.deepEqual(routings, []);
 	});
 });

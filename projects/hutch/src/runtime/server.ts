@@ -69,8 +69,6 @@ import type {
 	SetPrimaryCard,
 } from "@packages/provider-contracts/payment-methods";
 import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
-import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
-import type { GmailCredentialsStore } from "@packages/domain/gmail";
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type {
 	GetOnboardingSignals,
@@ -266,6 +264,7 @@ import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
 import { initIntegrationsRoutes } from "./web/pages/integrations";
+import type { GmailIntegrationDependencies } from "./web/pages/integrations/gmail-connect.page";
 import { LANDING_PAGE_CONTENT, LandingPage } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { resolveHomepageArm } from "./web/experiments/homepage-arm";
@@ -313,12 +312,7 @@ interface AppDependencies {
 	 * client, which is a separate Google Cloud project from sign-in: the
 	 * gmail.settings.basic scope is restricted, and sharing the sign-in client
 	 * would pull sign-in into that verification regime. */
-	gmailIntegration?: {
-		exchangeGmailCode: ExchangeGmailCode;
-		clientId: string;
-		stateSecret: string;
-		gmailCredentialsStore: GmailCredentialsStore;
-	};
+	gmailIntegration?: GmailIntegrationDependencies;
 	appleAuth: {
 		exchangeAppleCode: ExchangeAppleCode;
 		clientId: string;
@@ -1431,18 +1425,13 @@ export function createApp(dependencies: AppDependencies): Express {
 		initIntegrationsRoutes({
 			buildBannerState,
 			requireAuth,
+			requireNotLocked,
+			requireWriteAccess,
 			appOrigin,
 			secureCookies,
 			logError: deps.logError,
 			now: deps.now,
-			gmail: deps.gmailIntegration
-				? {
-						exchangeGmailCode: deps.gmailIntegration.exchangeGmailCode,
-						clientId: deps.gmailIntegration.clientId,
-						stateSecret: deps.gmailIntegration.stateSecret,
-						gmailCredentialsStore: deps.gmailIntegration.gmailCredentialsStore,
-					}
-				: undefined,
+			gmail: deps.gmailIntegration,
 		}),
 	);
 

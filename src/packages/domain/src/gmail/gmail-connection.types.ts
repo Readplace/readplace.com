@@ -46,6 +46,7 @@ export interface GmailConnectionStore {
 		filterQuery: string;
 		filterSenderCount: number;
 	}) => Promise<void>;
+	clearFilter: (input: { userId: UserId }) => Promise<void>;
 	recordFilterError: (input: {
 		userId: UserId;
 		error: GmailFilterError;
@@ -54,6 +55,7 @@ export interface GmailConnectionStore {
 		userId: UserId;
 		reason: GmailRevokedReason;
 	}) => Promise<void>;
+	clearRevoked: (input: { userId: UserId }) => Promise<void>;
 	deleteConnection: (userId: UserId) => Promise<void>;
 	countConnected: () => Promise<number>;
 }

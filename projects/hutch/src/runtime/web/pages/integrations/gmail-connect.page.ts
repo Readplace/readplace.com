@@ -3,7 +3,14 @@ import { randomBytes } from "node:crypto";
 import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
 import { baseCookieOptions } from "@packages/web-analytics";
-import type { GmailCredentialsStore } from "@packages/domain/gmail";
+import type {
+	ForwardableSender,
+	GmailConnectionStore,
+	GmailCredentialsStore,
+	GmailSenderStore,
+} from "@packages/domain/gmail";
+import type { InboxAddress } from "@packages/domain/inbox";
+import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
@@ -21,6 +28,18 @@ export interface GmailIntegrationDependencies {
 	clientId: string;
 	stateSecret: string;
 	gmailCredentialsStore: GmailCredentialsStore;
+	gmailConnectionStore: GmailConnectionStore;
+	gmailSenderStore: GmailSenderStore;
+	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
+	mintSenderAddress: (input: {
+		userId: UserId;
+		senderEmail: ForwardableSender;
+	}) => Promise<InboxAddress>;
+	publishRewriteGmailFilter: (input: {
+		userId: UserId;
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+	}) => Promise<void>;
+	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
 }
 
 export interface GmailConnectContext {
@@ -118,6 +137,17 @@ export function registerGmailConnectRoutes(
 			refreshToken: grant.grant.refreshToken,
 			grantedScope: grant.grant.grantedScope,
 		});
+
+		const existing = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
+		if (existing === undefined) {
+			await gmail.gmailConnectionStore.createConnection({
+				userId,
+				gatewayAddress: await gmail.mintGatewayAddress({ userId }),
+				googleAccountEmail: grant.grant.googleAccountEmail,
+			});
+		} else {
+			await gmail.gmailConnectionStore.clearRevoked({ userId });
+		}
 		res.redirect(303, buildIntegrationsUrl({ connected: true }));
 	});
 }

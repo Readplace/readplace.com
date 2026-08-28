@@ -53,6 +53,10 @@
       "types": "./dist/google-auth.d.ts",
       "default": "./dist/google-auth.js"
     },
+    "./gmail-filters": {
+      "types": "./dist/gmail-filters.d.ts",
+      "default": "./dist/gmail-filters.js"
+    },
     "./gmail-oauth": {
       "types": "./dist/gmail-oauth.d.ts",
       "default": "./dist/gmail-oauth.js"
@@ -135,6 +139,7 @@
       "email-verification": ["./dist/email-verification.d.ts"],
       "events": ["./dist/events.d.ts"],
       "google-auth": ["./dist/google-auth.d.ts"],
+      "gmail-filters": ["./dist/gmail-filters.d.ts"],
       "gmail-oauth": ["./dist/gmail-oauth.d.ts"],
       "hosted-checkout": ["./dist/hosted-checkout.d.ts"],
       "onboarding-signals": ["./dist/onboarding-signals.d.ts"],

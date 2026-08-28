@@ -57,9 +57,25 @@
       "types": "./dist/providers/events/index.d.ts",
       "default": "./dist/providers/events/index.js"
     },
+    "./providers/gmail-connection": {
+      "types": "./dist/providers/gmail-connection/index.d.ts",
+      "default": "./dist/providers/gmail-connection/index.js"
+    },
     "./providers/gmail-credentials": {
       "types": "./dist/providers/gmail-credentials/index.d.ts",
       "default": "./dist/providers/gmail-credentials/index.js"
+    },
+    "./providers/gmail-held-mail": {
+      "types": "./dist/providers/gmail-held-mail/index.d.ts",
+      "default": "./dist/providers/gmail-held-mail/index.js"
+    },
+    "./providers/gmail-integration": {
+      "types": "./dist/providers/gmail-integration/index.d.ts",
+      "default": "./dist/providers/gmail-integration/index.js"
+    },
+    "./providers/gmail-sender": {
+      "types": "./dist/providers/gmail-sender/index.d.ts",
+      "default": "./dist/providers/gmail-sender/index.js"
     },
     "./providers/google-auth": {
       "types": "./dist/providers/google-auth/index.d.ts",
@@ -184,8 +200,20 @@
       "providers/events": [
         "./dist/providers/events/index.d.ts"
       ],
+      "providers/gmail-connection": [
+        "./dist/providers/gmail-connection/index.d.ts"
+      ],
       "providers/gmail-credentials": [
         "./dist/providers/gmail-credentials/index.d.ts"
+      ],
+      "providers/gmail-held-mail": [
+        "./dist/providers/gmail-held-mail/index.d.ts"
+      ],
+      "providers/gmail-integration": [
+        "./dist/providers/gmail-integration/index.d.ts"
+      ],
+      "providers/gmail-sender": [
+        "./dist/providers/gmail-sender/index.d.ts"
       ],
       "providers/google-auth": [
         "./dist/providers/google-auth/index.d.ts"

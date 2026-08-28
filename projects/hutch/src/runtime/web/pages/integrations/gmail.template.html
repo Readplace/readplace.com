@@ -1,0 +1,89 @@
+    <main class="gmail">
+      <div class="gmail__container">
+        <a class="gmail__back" href="/integrations?feature=gmail">Integrations</a>
+        <h1 class="gmail__title">Gmail</h1>
+        <p class="gmail__lead">Connected as <span data-test-gmail-account>{{googleAccountEmail}}</span></p>
+        <span class="gmail__status {{stateModifier}}" data-test-gmail-state="{{state}}">{{statusLabel}}</span>
+
+        <div class="gmail__notice gmail__notice--{{noticeVisibility}}" role="status" data-test-gmail-notice>
+          {{#each notices}}
+          <span data-test-gmail-notice-key="{{key}}">{{message}}</span>
+          {{/each}}
+        </div>
+
+        <div class="gmail__alert gmail__alert--{{alertVisibility}}" role="alert" data-test-gmail-alert>
+          {{#each alerts}}
+          <span data-test-gmail-alert-key="{{key}}">{{message}}</span>
+          {{/each}}
+        </div>
+
+        <section class="gmail__step gmail__step--{{stepVisibility}}" data-test-gmail-step>
+          <h2 class="gmail__step-title">Step 2 of 2</h2>
+          <p class="gmail__step-copy">In Gmail, open Settings, then Forwarding and POP/IMAP, and add this address as a forwarding address. Readplace confirms it for you.</p>
+          <div class="gmail__copy-field" data-integrations-copy data-integrations-address="{{gatewayAddress}}">
+            <span class="gmail__copy-value" data-test-gmail-address>{{gatewayAddress}}</span>
+            <button type="button" class="btn btn--ghost btn--compact gmail__copy-button" data-test-gmail-copy hidden>Copy</button>
+          </div>
+          <a class="btn btn--primary" href="{{settingsUrl}}" target="_blank" rel="noopener" data-test-gmail-open-settings>Copy address &amp; open Gmail</a>
+          <p class="gmail__step-copy">Click verify now when you're ready.</p>
+          <form method="POST" action="{{verifyAction}}">
+            <button type="submit" class="btn btn--secondary" data-test-gmail-verify>Verify now</button>
+          </form>
+        </section>
+
+        <section class="gmail__reconnect gmail__reconnect--{{reconnectVisibility}}" data-test-gmail-reconnect>
+          <p class="gmail__step-copy">Google ended the connection. Reconnect to keep forwarding newsletters.</p>
+          <form method="POST" action="{{reconnectAction}}">
+            <button type="submit" class="btn btn--primary" data-test-gmail-reconnect-button>Reconnect Gmail</button>
+          </form>
+        </section>
+
+        <section class="gmail__senders gmail__senders--{{sendersVisibility}}" data-test-gmail-senders>
+          <h2 class="gmail__section-title">Newsletters you forward</h2>
+          <form class="gmail__add" method="POST" action="{{addSenderAction}}">
+            <label class="gmail__add-label" for="gmail-sender">Sender address</label>
+            <input class="gmail__add-input" id="gmail-sender" type="email" name="sender" placeholder="dan@tldr.tech" required />
+            <button type="submit" class="btn btn--primary btn--compact" data-test-gmail-add-sender>Add</button>
+          </form>
+
+          <ul class="gmail__list" data-test-gmail-sender-list>
+            {{#each senders}}
+            <li class="gmail__item" data-test-gmail-sender="{{email}}">
+              <span class="gmail__item-body">
+                <span class="gmail__item-name">{{email}}</span>
+                <span class="gmail__item-detail">{{detail}}</span>
+                <span class="gmail__item-mapped gmail__item-mapped--{{mappedVisibility}}" data-test-gmail-sender-mapped>{{mappedAddress}}</span>
+              </span>
+              <form method="POST" action="{{removeAction}}">
+                <input type="hidden" name="sender" value="{{email}}" />
+                <button type="submit" class="btn btn--ghost btn--compact" data-test-gmail-remove-sender="{{email}}">Remove</button>
+              </form>
+            </li>
+            {{/each}}
+          </ul>
+
+          <div class="gmail__unsorted gmail__unsorted--{{unsortedVisibility}}" data-test-gmail-unsorted>
+            <h2 class="gmail__section-title">Unsorted</h2>
+            <p class="gmail__step-copy">Mail Gmail forwarded from a sender you haven't set up yet.</p>
+            <ul class="gmail__list" data-test-gmail-unsorted-list>
+              {{#each unsorted}}
+              <li class="gmail__item" data-test-gmail-unsorted-sender="{{email}}">
+                <span class="gmail__item-body">
+                  <span class="gmail__item-name">{{email}}</span>
+                  <span class="gmail__item-detail">{{detail}}</span>
+                </span>
+                <form method="POST" action="{{mapAction}}">
+                  <input type="hidden" name="sender" value="{{email}}" />
+                  <button type="submit" class="btn btn--secondary btn--compact" data-test-gmail-map-sender="{{email}}">Give it an inbox</button>
+                </form>
+              </li>
+              {{/each}}
+            </ul>
+          </div>
+
+          <form class="gmail__disconnect" method="POST" action="{{disconnectAction}}">
+            <button type="submit" class="btn btn--ghost btn--compact" data-test-gmail-disconnect>Disconnect Gmail</button>
+          </form>
+        </section>
+      </div>
+    </main>

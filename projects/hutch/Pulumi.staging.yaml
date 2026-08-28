@@ -35,6 +35,9 @@ config:
   hutch:dynamodbOnboardingTable: hutch-onboarding-staging
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-staging
   hutch:dynamodbDigestQueueTable: hutch-digest-queue-staging
+  hutch:dynamodbGmailCredentialsTable: hutch-gmail-credentials-staging
+  hutch:dynamodbGmailConnectionsTable: hutch-gmail-connections-staging
+  hutch:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-staging
   hutch:rateLimitViewCrawl: 10000/3600
   hutch:rateLimitLogin: 5000/900
   hutch:rateLimitLoginAccount: 5000/900

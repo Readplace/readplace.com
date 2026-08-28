@@ -949,4 +949,66 @@ export type GmailForwardingConfirmFailedDetail = z.infer<
 	typeof GmailForwardingConfirmFailedEvent.detailSchema
 >;
 
+export const RewriteGmailFilterCommand = defineEvent({
+	name: "rewrite-gmail-filter",
+	source: "hutch.app",
+	detailType: "RewriteGmailFilter",
+	detailSchema: z.object({
+		userId: z.string(),
+		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed", "requested"]),
+	}),
+});
+export type RewriteGmailFilterDetail = z.infer<typeof RewriteGmailFilterCommand.detailSchema>;
+
+export const GmailFilterRewrittenEvent = defineEvent({
+	name: "gmail-filter-rewritten",
+	source: "hutch.app",
+	detailType: "GmailFilterRewritten",
+	detailSchema: z.object({
+		userId: z.string(),
+		filterId: z.string().optional(),
+		senderCount: z.number(),
+	}),
+});
+export type GmailFilterRewrittenDetail = z.infer<typeof GmailFilterRewrittenEvent.detailSchema>;
+
+export const GmailFilterRewriteFailedEvent = defineEvent({
+	name: "gmail-filter-rewrite-failed",
+	source: "hutch.app",
+	detailType: "GmailFilterRewriteFailed",
+	detailSchema: z.object({
+		userId: z.string(),
+		reason: z.enum([
+			"not-connected",
+			"not-confirmed",
+			"reauth-required",
+			"query-too-long",
+			"rejected",
+		]),
+	}),
+});
+export type GmailFilterRewriteFailedDetail = z.infer<
+	typeof GmailFilterRewriteFailedEvent.detailSchema
+>;
+
+export const DisconnectGmailCommand = defineEvent({
+	name: "disconnect-gmail",
+	source: "hutch.app",
+	detailType: "DisconnectGmail",
+	detailSchema: z.object({ userId: z.string() }),
+});
+export type DisconnectGmailDetail = z.infer<typeof DisconnectGmailCommand.detailSchema>;
+
+export const GmailDisconnectedEvent = defineEvent({
+	name: "gmail-disconnected",
+	source: "hutch.app",
+	detailType: "GmailDisconnected",
+	detailSchema: z.object({
+		userId: z.string(),
+		filterRemoved: z.boolean(),
+		grantRevoked: z.boolean(),
+	}),
+});
+export type GmailDisconnectedDetail = z.infer<typeof GmailDisconnectedEvent.detailSchema>;
+
 export type { HutchEvent, HutchCommand };

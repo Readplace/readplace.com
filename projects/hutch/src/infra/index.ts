@@ -9,6 +9,9 @@ import {
 	CancelSubscriptionCommand,
 	DeleteAccountCommand,
 	ExportUserDataCommand,
+	DisconnectGmailCommand,
+	GmailForwardingConfirmedEvent,
+	RewriteGmailFilterCommand,
 	SendTrialFeedbackEmailCommand,
 	ReaderViewLoadingSucceeded,
 	SubscriptionCancellationScheduledEvent,
@@ -84,6 +87,9 @@ const tableNames = {
 	onboarding: config.require("dynamodbOnboardingTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),
 	digestQueue: config.require("dynamodbDigestQueueTable"),
+	gmailCredentials: config.require("dynamodbGmailCredentialsTable"),
+	gmailConnections: config.require("dynamodbGmailConnectionsTable"),
+	gmailSenders: config.require("dynamodbGmailSendersTable"),
 };
 
 /* Per-stack "<limit>/<windowSeconds>" rules so staging e2e (one CI egress IP
@@ -204,6 +210,8 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -355,6 +363,11 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		RATE_LIMIT_IMPORT_FROM_URL: rateLimitRules.importFromUrl,
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: requireEnv("GOOGLE_LOGIN_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_STATE_SECRET: requireEnv("GMAIL_INTEGRATION_STATE_SECRET"),
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		APPLE_LOGIN_CLIENT_ID: requireEnv("APPLE_LOGIN_CLIENT_ID"),
 		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
 		APPLE_LOGIN_KEY_ID: requireEnv("APPLE_LOGIN_KEY_ID"),
@@ -996,6 +1009,63 @@ const sendTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
 );
 
 eventBus.subscribe(SendTrialFeedbackEmailCommand, sendTrialFeedbackEmailWithSQS);
+
+// --- Gmail forwarding filter worker ---
+
+const rewriteGmailFilterDynamodb = new HutchDynamoDBAccess("hutch-rewrite-gmail-filter-tables", {
+	tables: [
+		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+	],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:PutItem",
+		"dynamodb:UpdateItem",
+		"dynamodb:DeleteItem",
+		"dynamodb:Query",
+	],
+});
+
+const rewriteGmailFilterQueue = new HutchSQS("rewrite-gmail-filter", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const rewriteGmailFilterLambda = new HutchLambda("rewrite-gmail-filter", {
+	entryPoint: "./src/runtime/rewrite-gmail-filter.main.ts",
+	outputDir: ".lib/rewrite-gmail-filter",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+	},
+	policies: [...rewriteGmailFilterDynamodb.policies],
+});
+
+eventBus.grantPublish(rewriteGmailFilterLambda);
+
+const rewriteGmailFilterWithSQS = new HutchSQSBackedLambda("rewrite-gmail-filter", {
+	lambda: rewriteGmailFilterLambda,
+	queue: rewriteGmailFilterQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribeAll(
+	[
+		{ ...RewriteGmailFilterCommand, name: "hutch-rewrite-gmail-filter" },
+		{ ...GmailForwardingConfirmedEvent, name: "hutch-gmail-forwarding-confirmed" },
+		{ ...DisconnectGmailCommand, name: "hutch-disconnect-gmail" },
+	],
+	rewriteGmailFilterWithSQS,
+	{ name: "hutch-rewrite-gmail-filter" },
+);
 
 // --- Analytics Dashboard ---
 // The widget builder lives outside the Pulumi runtime so the dashboard JSON is

@@ -14,3 +14,11 @@ export type GmailGrantResult =
 	| { ok: false; reason: "exchange-failed" };
 
 export type ExchangeGmailCode = (input: { code: string }) => Promise<GmailGrantResult>;
+
+export type RevokeGmailGrantResult =
+	| { ok: true }
+	| { ok: false; reason: "unavailable"; status: number };
+
+export type RevokeGmailGrant = (input: {
+	refreshToken: string;
+}) => Promise<RevokeGmailGrantResult>;

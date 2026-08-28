@@ -1,3 +1,6 @@
+export { initDynamoDbGmailConnection } from "./dynamodb-gmail-connection";
+export { initDynamoDbGmailHeldMail } from "./dynamodb-gmail-held-mail";
+export { initDynamoDbGmailSender } from "./dynamodb-gmail-sender";
 export { initDynamoDbGmailCredentials } from "./dynamodb-gmail-credentials";
 export { initDynamoDbInboxAddress } from "./dynamodb-inbox-address";
 export { initDynamoDbInboxEmail } from "./dynamodb-inbox-email";

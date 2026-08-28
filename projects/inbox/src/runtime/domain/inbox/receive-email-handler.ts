@@ -20,6 +20,7 @@ import {
 	UNROUTED_USER_ID,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
+import type { RouteGmailForwardedEmail } from "../gmail/route-gmail-forwarded-email";
 import type { DownloadEmailImages } from "./download-email-images";
 import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
 import type { StoreEmailBody } from "./store-email-body";
@@ -44,6 +45,7 @@ export function initReceiveEmailHandler(deps: {
 	storeBody: StoreEmailBody;
 	publishEvent: PublishEvent;
 	interceptGmailConfirmation: InterceptGmailConfirmation;
+	routeGmailForwardedEmail: RouteGmailForwardedEmail;
 	logger: HutchLogger;
 	maxEmailBytes: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -56,6 +58,7 @@ export function initReceiveEmailHandler(deps: {
 		storeBody,
 		publishEvent,
 		interceptGmailConfirmation,
+		routeGmailForwardedEmail,
 		logger,
 	} = deps;
 
@@ -221,11 +224,23 @@ export function initReceiveEmailHandler(deps: {
 						await putEmail(auditRow(recipientAddress, userId));
 						continue;
 					}
+					const deliveryAddress =
+						resolved.purpose === "gmail-forwarding"
+							? await routeGmailForwardedEmail({
+									userId,
+									gatewayAddress: recipientAddress,
+									email: parsed.email,
+									receivedAtMessageId,
+									receivedAt,
+									rawEmailS3Key: s3Key,
+								})
+							: recipientAddress;
+					if (deliveryAddress === undefined) continue;
 					const base = {
 						userId,
 						receivedAtMessageId,
 						messageId: parsed.email.messageId,
-						recipientAddress,
+						recipientAddress: deliveryAddress,
 						senderEmail: parsed.email.from,
 						subject: parsed.email.subject,
 						receivedAt,
@@ -260,7 +275,7 @@ export function initReceiveEmailHandler(deps: {
 					await publishEvent(EmailReceivedEvent, {
 						userId,
 						receivedAtMessageId,
-						recipientAddress,
+						recipientAddress: deliveryAddress,
 						origin: "receive",
 					});
 					logger.info("[receive-email] stored", { receivedAtMessageId, outcome });

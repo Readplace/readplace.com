@@ -1,5 +1,7 @@
+export { aliasNameForSender } from "./alias-name-for-sender";
 export {
 	GMAIL_FILTER_QUERY_MAX_LENGTH,
+	ForwardableSenderSchema,
 	buildForwardingFilterQuery,
 	parseForwardableSender,
 } from "./build-forwarding-filter-query";

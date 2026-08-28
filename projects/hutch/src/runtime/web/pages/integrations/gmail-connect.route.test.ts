@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import request from "supertest";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
-import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
+import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
 
@@ -24,21 +24,17 @@ function grantOk(): GmailGrantResult {
 }
 
 function fixtureWithGmail(grant: GmailGrantResult = grantOk()) {
-	const gmailCredentialsStore = initInMemoryGmailCredentials({ now: () => new Date() });
-	const codes: string[] = [];
+	const gmail = initInMemoryGmailIntegration({ grant });
 	const fixture = {
 		...createDefaultTestAppFixture(TEST_APP_ORIGIN),
-		gmailIntegration: {
-			exchangeGmailCode: async ({ code }: { code: string }) => {
-				codes.push(code);
-				return grant;
-			},
-			clientId: "test-client-id",
-			stateSecret: "test-state-secret",
-			gmailCredentialsStore,
-		},
+		gmailIntegration: gmail.bundle,
 	};
-	return { fixture, gmailCredentialsStore, codes };
+	return {
+		fixture,
+		gmailCredentialsStore: gmail.bundle.gmailCredentialsStore,
+		gmailConnectionStore: gmail.bundle.gmailConnectionStore,
+		codes: gmail.exchangedCodes,
+	};
 }
 
 /** Completes the consent redirect the way Google does: the state cookie the

@@ -1,6 +1,11 @@
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
-import type { GmailCredentialsStore } from "@packages/domain/gmail";
+import type {
+	ForwardableSender,
+	GmailConnectionStore,
+	GmailCredentialsStore,
+	GmailSenderStore,
+} from "@packages/domain/gmail";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	ArticleMetadata,
@@ -180,6 +185,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts";
 import type { UserId } from "@packages/domain/user";
+import type { InboxAddress } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
 
@@ -479,6 +485,18 @@ export interface GmailIntegrationBundle {
 	clientId: string;
 	stateSecret: string;
 	gmailCredentialsStore: GmailCredentialsStore;
+	gmailConnectionStore: GmailConnectionStore;
+	gmailSenderStore: GmailSenderStore;
+	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
+	mintSenderAddress: (input: {
+		userId: UserId;
+		senderEmail: ForwardableSender;
+	}) => Promise<InboxAddress>;
+	publishRewriteGmailFilter: (input: {
+		userId: UserId;
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+	}) => Promise<void>;
+	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
 }
 
 export interface AppleAuthBundle {

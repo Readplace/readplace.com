@@ -14,6 +14,8 @@ config:
   inbox:dynamodbInboxEmailsTable: hutch-inbox-emails-staging
   inbox:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-staging
   inbox:dynamodbInboxSavedLinksTable: hutch-inbox-saved-links-staging
+  inbox:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-staging
+  inbox:dynamodbGmailHeldMailTable: hutch-inbox-gmail-held-mail-staging
   inbox:dynamodbSessionsTable: hutch-sessions-d17dbb3
   inbox:dynamodbUsersTable: hutch-users-f90c09e
   inbox:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-staging

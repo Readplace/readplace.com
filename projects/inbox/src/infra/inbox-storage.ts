@@ -7,14 +7,16 @@ import * as aws from "@pulumi/aws";
  * grants its account-deletion worker and its forwarding-address page still need,
  * derived from config rather than from a cross-stack read.
  *
- * All four are keyed for a single Query or point read per access pattern — no
- * GSI, no scan.
+ * Every one is keyed for a single Query or point read per access pattern — no
+ * scan anywhere.
  */
 export class InboxStorage extends pulumi.ComponentResource {
 	public readonly addressesTable: aws.dynamodb.Table;
 	public readonly emailsTable: aws.dynamodb.Table;
 	public readonly emailLinksTable: aws.dynamodb.Table;
 	public readonly savedLinksTable: aws.dynamodb.Table;
+	public readonly gmailSendersTable: aws.dynamodb.Table;
+	public readonly gmailHeldMailTable: aws.dynamodb.Table;
 
 	constructor(
 		name: string,
@@ -25,6 +27,8 @@ export class InboxStorage extends pulumi.ComponentResource {
 				emails: string;
 				emailLinks: string;
 				savedLinks: string;
+				gmailSenders: string;
+				gmailHeldMail: string;
 			};
 		},
 		opts?: pulumi.ComponentResourceOptions,
@@ -109,6 +113,36 @@ export class InboxStorage extends pulumi.ComponentResource {
 			attributes: [
 				{ name: "userId", type: "S" },
 				{ name: "linkKey", type: "S" },
+			],
+		}, { parent: this });
+
+		this.gmailSendersTable = new aws.dynamodb.Table(`hutch-inbox-gmail-senders`, {
+			name: args.tableNames.gmailSenders,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			rangeKey: "senderEmail",
+			attributes: [
+				{ name: "userId", type: "S" },
+				{ name: "senderEmail", type: "S" },
+			],
+		}, { parent: this });
+
+		this.gmailHeldMailTable = new aws.dynamodb.Table(`hutch-inbox-gmail-held-mail`, {
+			name: args.tableNames.gmailHeldMail,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			rangeKey: "receivedAtMessageId",
+			attributes: [
+				{ name: "userId", type: "S" },
+				{ name: "receivedAtMessageId", type: "S" },
+				{ name: "senderReceivedAt", type: "S" },
+			],
+			localSecondaryIndexes: [
+				{ name: "senderReceivedAt-index", rangeKey: "senderReceivedAt", projectionType: "ALL" },
 			],
 		}, { parent: this });
 

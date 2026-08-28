@@ -73,6 +73,10 @@ import { initInMemoryPendingUpload } from "@packages/test-fixtures/providers/pen
 import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/queue/upload-slot-ttl";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
+import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
+import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
+import { aliasNameForSender } from "@packages/domain/gmail";
+import type { ForwardableSender } from "@packages/domain/gmail";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
@@ -82,7 +86,7 @@ import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pen
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { getEnv, requireEnv } from "@packages/require-env";
-import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
+import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
 /**
@@ -146,6 +150,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 			clientSecret: devGoogleClientSecret,
 		}
 		: undefined;
+	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
+	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 	const gmailClientId = getEnv("GMAIL_INTEGRATION_CLIENT_ID");
 	const gmailClientSecret = getEnv("GMAIL_INTEGRATION_CLIENT_SECRET");
 	const gmailStateSeed = getEnv("GMAIL_INTEGRATION_STATE_SECRET");
@@ -166,6 +172,31 @@ export function initDevProviders(input: { appOrigin: string }) {
 					clientId: gmailClientId,
 					stateSecret: deriveGmailStateSigningSecret(gmailStateSeed),
 					gmailCredentialsStore: initInMemoryGmailCredentials({ now: () => new Date() }),
+					gmailConnectionStore: initInMemoryGmailConnection({ now: () => new Date() }),
+					gmailSenderStore: initInMemoryGmailSender({ now: () => new Date() }),
+					mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
+						const entry = await inboxAddressStore.createAddress({
+							userId,
+							domain: inboxAddressDomain,
+							name: GMAIL_FORWARDING_ALIAS,
+							purpose: "gmail-forwarding",
+						});
+						return entry.address;
+					},
+					mintSenderAddress: async ({
+						userId,
+						senderEmail,
+					}: { userId: UserId; senderEmail: ForwardableSender }) => {
+						const entry = await inboxAddressStore.createAddress({
+							userId,
+							domain: inboxAddressDomain,
+							name: aliasNameForSender(senderEmail),
+							purpose: "gmail-mapped",
+						});
+						return entry.address;
+					},
+					publishRewriteGmailFilter: async () => {},
+					publishDisconnectGmail: async () => {},
 				}
 			: undefined;
 	const devAppleClientId = getEnv("APPLE_LOGIN_CLIENT_ID");
@@ -343,8 +374,6 @@ export function initDevProviders(input: { appOrigin: string }) {
 	});
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
-	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
-	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 
 	// In-process counters are valid here because dev runs a single long-lived
 	// server. Defaults are liberal — every local/e2e request shares 127.0.0.1,

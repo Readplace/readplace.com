@@ -4,7 +4,7 @@ export const GMAIL_FILTER_QUERY_MAX_LENGTH = 1024;
 
 const SENDER_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 
-const ForwardableSenderSchema = z
+export const ForwardableSenderSchema = z
 	.string()
 	.trim()
 	.toLowerCase()

@@ -16,6 +16,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly onboardingTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
 	public readonly digestQueueTable: aws.dynamodb.Table;
+	public readonly gmailCredentialsTable: aws.dynamodb.Table;
+	public readonly gmailConnectionsTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
@@ -32,6 +34,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 		onboarding: string;
 		rateLimits: string;
 		digestQueue: string;
+		gmailCredentials: string;
+		gmailConnections: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
 
@@ -113,6 +117,30 @@ export class HutchStorage extends pulumi.ComponentResource {
 		 * keyed by userId. Kept off the users row so notification bookkeeping
 		 * doesn't couple to the auth aggregate; the claim is a direct PK
 		 * conditional write. */
+		this.gmailCredentialsTable = new aws.dynamodb.Table(`hutch-gmail-credentials`, {
+			name: args.tableNames.gmailCredentials,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			attributes: [{ name: "userId", type: "S" }],
+		}, { parent: this });
+
+		this.gmailConnectionsTable = new aws.dynamodb.Table(`hutch-gmail-connections`, {
+			name: args.tableNames.gmailConnections,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			attributes: [
+				{ name: "userId", type: "S" },
+				{ name: "connected", type: "S" },
+			],
+			globalSecondaryIndexes: [
+				{ name: "connected-index", hashKey: "connected", projectionType: "KEYS_ONLY" },
+			],
+		}, { parent: this });
+
 		this.readerReadyNotificationsTable = new aws.dynamodb.Table(`hutch-reader-ready-notifications`, {
 			name: args.tableNames.readerReadyNotifications,
 			billingMode: "PAY_PER_REQUEST",

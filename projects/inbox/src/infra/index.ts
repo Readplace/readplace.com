@@ -83,6 +83,8 @@ const tableNames = {
 	inboxEmails: config.require("dynamodbInboxEmailsTable"),
 	inboxEmailLinks: config.require("dynamodbInboxEmailLinksTable"),
 	inboxSavedLinks: config.require("dynamodbInboxSavedLinksTable"),
+	gmailSenders: config.require("dynamodbGmailSendersTable"),
+	gmailHeldMail: config.require("dynamodbGmailHeldMailTable"),
 	sessions: config.require("dynamodbSessionsTable"),
 	users: config.require("dynamodbUsersTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
@@ -102,6 +104,8 @@ const inboxStorage = new InboxStorage("inbox-storage", {
 		emails: tableNames.inboxEmails,
 		emailLinks: tableNames.inboxEmailLinks,
 		savedLinks: tableNames.inboxSavedLinks,
+		gmailSenders: tableNames.gmailSenders,
+		gmailHeldMail: tableNames.gmailHeldMail,
 	},
 });
 
@@ -230,9 +234,10 @@ const receiveEmailDynamodb = new HutchDynamoDBAccess("inbox-receive-email-dynamo
 	tables: [
 		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
 		{ arn: inboxStorage.addressesTable.arn, includeIndexes: false },
+		{ arn: inboxStorage.gmailSendersTable.arn, includeIndexes: false },
+		{ arn: inboxStorage.gmailHeldMailTable.arn, includeIndexes: false },
 	],
-	// findByAddress is a GetItem and putEmail a (conditional) PutItem — no Query.
-	actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
 const receiveEmailQueue = new HutchSQS("inbox-receive-email", {
@@ -252,6 +257,8 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
+		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
+		DYNAMODB_GMAIL_HELD_MAIL_TABLE: tableNames.gmailHeldMail,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,

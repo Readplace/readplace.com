@@ -51,6 +51,14 @@ import { createPresignerClient } from "./pending-upload/mint-upload-url";
 import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/queue/upload-slot-ttl";
 import { initDynamoDbImportSession } from "./import-session/dynamodb-import-session";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
+import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
+import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
+import {
+	initDynamoDbGmailConnection,
+	initDynamoDbGmailCredentials,
+	initDynamoDbGmailSender,
+} from "@packages/inbox-store";
+import { DisconnectGmailCommand, RewriteGmailFilterCommand } from "@packages/hutch-infra-components";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
@@ -62,7 +70,9 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxAddress } from "@packages/inbox-store";
-import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
+import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
+import { aliasNameForSender } from "@packages/domain/gmail";
+import type { ForwardableSender } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 
 /** `appOrigin` is threaded in rather than read from the environment because the
@@ -85,6 +95,9 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const pendingSignupsTable = requireEnv("DYNAMODB_PENDING_SIGNUPS_TABLE");
 	const googleClientId = requireEnv("GOOGLE_LOGIN_CLIENT_ID");
 	const googleClientSecret = requireEnv("GOOGLE_LOGIN_CLIENT_SECRET");
+	const gmailClientId = requireEnv("GMAIL_INTEGRATION_CLIENT_ID");
+	const gmailClientSecret = requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET");
+	const gmailStateSeed = requireEnv("GMAIL_INTEGRATION_STATE_SECRET");
 	const appleClientId = requireEnv("APPLE_LOGIN_CLIENT_ID");
 	const appleTeamId = requireEnv("APPLE_LOGIN_TEAM_ID");
 	const appleKeyId = requireEnv("APPLE_LOGIN_KEY_ID");
@@ -247,6 +260,62 @@ export function initProdProviders(input: { appOrigin: string }) {
 		tableName: inboxAddressesTable,
 		now: () => new Date(),
 	});
+
+	const gmailIntegration = {
+		exchangeGmailCode: initExchangeGmailCode({
+			clientId: gmailClientId,
+			clientSecret: gmailClientSecret,
+			redirectUri: `${appOriginForRedirect}/integrations/gmail/callback`,
+			fetch: globalThis.fetch,
+		}),
+		clientId: gmailClientId,
+		stateSecret: deriveGmailStateSigningSecret(gmailStateSeed),
+		gmailCredentialsStore: initDynamoDbGmailCredentials({
+			client,
+			tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"),
+			now: () => new Date(),
+		}),
+		gmailConnectionStore: initDynamoDbGmailConnection({
+			client,
+			tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"),
+			now: () => new Date(),
+		}),
+		gmailSenderStore: initDynamoDbGmailSender({
+			client,
+			tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"),
+			now: () => new Date(),
+		}),
+		mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
+			const entry = await inboxAddressStore.createAddress({
+				userId,
+				domain: inboxAddressDomain,
+				name: GMAIL_FORWARDING_ALIAS,
+				purpose: "gmail-forwarding",
+			});
+			return entry.address;
+		},
+		mintSenderAddress: async ({ senderEmail, userId }: {
+			userId: UserId;
+			senderEmail: ForwardableSender;
+		}) => {
+			const entry = await inboxAddressStore.createAddress({
+				userId,
+				domain: inboxAddressDomain,
+				name: aliasNameForSender(senderEmail),
+				purpose: "gmail-mapped",
+			});
+			return entry.address;
+		},
+		publishRewriteGmailFilter: async (detail: {
+			userId: UserId;
+			reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+		}) => {
+			await publishEvent(RewriteGmailFilterCommand, detail);
+		},
+		publishDisconnectGmail: async (detail: { userId: UserId }) => {
+			await publishEvent(DisconnectGmailCommand, detail);
+		},
+	};
 	const { consumeRateLimit } = initDynamoDbRateLimit({
 		client,
 		tableName: rateLimitsTable,
@@ -300,6 +369,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		...stripe,
 		...pendingSignup,
 		googleAuth,
+		gmailIntegration,
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,

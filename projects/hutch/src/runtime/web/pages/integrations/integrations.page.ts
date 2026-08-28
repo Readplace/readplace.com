@@ -10,12 +10,15 @@ import {
 	type GmailIntegrationDependencies,
 	registerGmailConnectRoutes,
 } from "./gmail-connect.page";
+import { registerGmailPageRoutes } from "./gmail.page";
 import { IntegrationsIndexPage } from "./integrations-index.component";
 import { toIntegrationsIndexViewModel } from "./integrations-index.viewmodel";
 
 interface IntegrationsDependencies {
 	buildBannerState: BuildBannerState;
 	requireAuth: RequestHandler;
+	requireNotLocked: RequestHandler;
+	requireWriteAccess: RequestHandler;
 	appOrigin: string;
 	secureCookies: boolean;
 	logError: (message: string, error?: Error) => void;
@@ -36,6 +39,12 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 			requireAuth: deps.requireAuth,
 		};
 		registerGmailConnectRoutes(router, gmail, context);
+		registerGmailPageRoutes(router, gmail, {
+			buildBannerState: deps.buildBannerState,
+			requireAuth: deps.requireAuth,
+			requireNotLocked: deps.requireNotLocked,
+			requireWriteAccess: deps.requireWriteAccess,
+		});
 	}
 
 	router.get("/", deps.requireAuth, async (req: Request, res: Response) => {
