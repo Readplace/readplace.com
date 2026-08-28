@@ -1,0 +1,103 @@
+name: Screen response soak
+
+# Derives the budgets the post-deploy screen-response ratchet gates on. One green
+# deploy proves nothing about a wall-clock threshold, so this runs the suite N
+# independent times and each run reports its own distribution.
+#
+# One job per run, never a loop inside one job: the deploy pipeline gets a fresh
+# github-hosted VM on every push, so the spread that decides the budget is the
+# spread *between* VMs. A warm loop would measure one machine and understate it.
+#
+# Dispatch-only. Run it when the budgets need deriving or re-deriving — a new
+# runner image, a browser bump, or a screen response that legitimately got faster
+# or slower — and set the budgets from the artifacts it uploads.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: How many independent runs to collect
+        required: true
+        default: '20'
+        type: choice
+        options: ['5', '10', '15', '20']
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - id: build
+        run: echo "matrix=$(seq 1 ${{ inputs.runs }} | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  soak:
+    needs: [plan]
+    # max-parallel: 1 because every run measures the same shared staging stack.
+    # Concurrent runs would seed and crawl against each other, and the numbers
+    # would describe contention rather than latency.
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        run: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 40
+    env:
+      AWS_REGION: ap-southeast-2
+      PULUMI_BACKEND_URL: s3://hutch-pulumi-state-572337278115-ap-southeast-2
+      PULUMI_STACK: staging
+      PULUMI_CONFIG_PASSPHRASE: ''
+    steps:
+      - name: Export all repository and environment secrets as env vars
+        env:
+          SECRETS_JSON: ${{ toJson(secrets) }}
+        run: |
+          DELIM="EOF_$(openssl rand -hex 16)"
+          printf '%s' "$SECRETS_JSON" | jq -r --arg d "$DELIM" '
+            to_entries[]
+            | select(.key != "github_token")
+            | "\(.key)<<\($d)\n\(.value)\n\($d)"
+          ' >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm nx run hutch:compile
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Read the staging URL from the pulumi stack
+        working-directory: projects/hutch
+        run: |
+          RAW_URL=$(pulumi stack output apiUrl --stack staging)
+          echo "STAGING_URL=${RAW_URL%/\$default}" >> "$GITHUB_ENV"
+
+      - name: Measure screen response
+        working-directory: projects/hutch
+        continue-on-error: true
+        env:
+          PERF_SCREEN_RESPONSE_SHA: soak-${{ github.run_id }}-run-${{ matrix.run }}
+        run: pnpm perf-screen-response
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: screen-response-soak-run-${{ matrix.run }}
+          path: projects/hutch/test-results-staging/perf/
+          retention-days: 90
+          if-no-files-found: warn
