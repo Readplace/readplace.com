@@ -212,6 +212,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
+		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -368,6 +369,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		GMAIL_INTEGRATION_STATE_SECRET: requireEnv("GMAIL_INTEGRATION_STATE_SECRET"),
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		APPLE_LOGIN_CLIENT_ID: requireEnv("APPLE_LOGIN_CLIENT_ID"),
 		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
 		APPLE_LOGIN_KEY_ID: requireEnv("APPLE_LOGIN_KEY_ID"),
