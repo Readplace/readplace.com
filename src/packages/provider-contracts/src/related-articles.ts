@@ -75,6 +75,11 @@ export interface RelatedTargetArticle {
 	hasStubMetadata: boolean;
 }
 
+export type RelatedTargetLookup =
+	| { state: "absent" }
+	| { state: "purged" }
+	| { state: "found"; article: RelatedTargetArticle };
+
 export type FindRelatedTargetArticle = (
 	url: string,
-) => Promise<RelatedTargetArticle | undefined>;
+) => Promise<RelatedTargetLookup>;

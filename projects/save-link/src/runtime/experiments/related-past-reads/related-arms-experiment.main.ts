@@ -187,8 +187,9 @@ async function anchorFor(input: {
 	key: string;
 	status: string;
 }): Promise<Anchor | undefined> {
-	const target = await findRelatedTargetArticle(input.url);
-	if (!target) return undefined;
+	const lookup = await findRelatedTargetArticle(input.url);
+	if (lookup.state !== "found") return undefined;
+	const target = lookup.article;
 	if (target.crawlStatus === "pending") return undefined;
 	if (target.hasStubMetadata) return undefined;
 	return {

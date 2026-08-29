@@ -96,10 +96,15 @@ export function initComputeRelatedArticlesHandler(
 					});
 				};
 
-				const target = await findRelatedTargetArticle(entry.url);
-				if (!target || target.crawlStatus === "pending") {
+				const lookup = await findRelatedTargetArticle(entry.url);
+				if (lookup.state === "purged") {
+					await skip("the article was purged before its related links were computed");
+					continue;
+				}
+				if (lookup.state === "absent" || lookup.article.crawlStatus === "pending") {
 					throw new MetadataNotReadyError(entry.url);
 				}
+				const target = lookup.article;
 				if (target.hasStubMetadata) {
 					await skip("crawl produced no metadata to compare");
 					continue;

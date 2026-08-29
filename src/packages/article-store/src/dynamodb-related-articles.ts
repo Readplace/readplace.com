@@ -178,15 +178,20 @@ export function initDynamoDbRelatedArticles(deps: {
 			{ url: articleResourceUniqueId.value },
 			{ projection: ARTICLE_FIELDS },
 		);
+		if (!row) return { state: "absent" };
+		if (row.purgedAt) return { state: "purged" };
 		const article = usable(DescribableArticle, row);
-		if (!article) return undefined;
+		if (!article) return { state: "absent" };
 		return {
-			crawlStatus: article.crawlStatus,
-			title: article.title,
-			siteName: article.siteName,
-			description: descriptionOf(article),
-			// Recognised off the stored siteName so the url never has to be re-parsed.
-			hasStubMetadata: article.title === stubMetadataFor(article.siteName).title,
+			state: "found",
+			article: {
+				crawlStatus: article.crawlStatus,
+				title: article.title,
+				siteName: article.siteName,
+				description: descriptionOf(article),
+				// Recognised off the stored siteName so the url never has to be re-parsed.
+				hasStubMetadata: article.title === stubMetadataFor(article.siteName).title,
+			},
 		};
 	};
 

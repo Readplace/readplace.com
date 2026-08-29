@@ -196,11 +196,14 @@ describe("initDynamoDbRelatedArticles", () => {
 			}));
 
 			expect(await store.findRelatedTargetArticle(TARGET_URL)).toEqual({
-				crawlStatus: "ready",
-				title: "A real title",
-				siteName: "Example",
-				description: "The full TLDR of the piece.",
-				hasStubMetadata: false,
+				state: "found",
+				article: {
+					crawlStatus: "ready",
+					title: "A real title",
+					siteName: "Example",
+					description: "The full TLDR of the piece.",
+					hasStubMetadata: false,
+				},
 			});
 		});
 
@@ -229,9 +232,11 @@ describe("initDynamoDbRelatedArticles", () => {
 			}));
 
 			const target = await store.findRelatedTargetArticle(TARGET_URL);
-			expect(target?.description).toBe("A TLDR");
+			assert(target.state === "found", "a crawled row resolves to a found target");
+			expect(target.article.description).toBe("A TLDR");
 			const fallback = await withExcerptOnly.store.findRelatedTargetArticle(TARGET_URL);
-			expect(fallback?.description).toBe("An excerpt");
+			assert(fallback.state === "found", "a crawled row resolves to a found target");
+			expect(fallback.article.description).toBe("An excerpt");
 		});
 
 		it("flags the placeholder title a fresh save starts with as stub metadata", async () => {
@@ -247,29 +252,41 @@ describe("initDynamoDbRelatedArticles", () => {
 			}));
 
 			const target = await store.findRelatedTargetArticle(TARGET_URL);
-			assert(target, "the row exists so a target must be returned");
-			expect(target.hasStubMetadata).toBe(true);
+			assert(target.state === "found", "the row exists so a target must be found");
+			expect(target.article.hasStubMetadata).toBe(true);
 		});
 
-		it("treats a purged article as absent", async () => {
+		it("reports a purged article as purged, distinct from an absent row", async () => {
 			const { store } = build(() => ({
 				Item: {
 					url: "example.com/target",
-					originalUrl: TARGET_URL,
-					title: "A real title",
-					siteName: "Example",
-					excerpt: "An excerpt",
+					title: "example.com",
+					siteName: "example.com",
+					excerpt: "",
+					crawlStatus: "ready",
 					purgedAt: AT.toISOString(),
 				},
 			}));
 
-			expect(await store.findRelatedTargetArticle(TARGET_URL)).toBeUndefined();
+			expect(await store.findRelatedTargetArticle(TARGET_URL)).toEqual({ state: "purged" });
 		});
 
-		it("treats a missing article row as absent", async () => {
+		it("reports a missing article row as absent", async () => {
 			const { store } = build(() => ({ Item: undefined }));
 
-			expect(await store.findRelatedTargetArticle(TARGET_URL)).toBeUndefined();
+			expect(await store.findRelatedTargetArticle(TARGET_URL)).toEqual({ state: "absent" });
+		});
+
+		it("reports a half-written row whose metadata the crawl has not filled in yet as absent", async () => {
+			const { store } = build(() => ({
+				Item: {
+					url: "example.com/target",
+					originalUrl: TARGET_URL,
+					crawlStatus: "pending",
+				},
+			}));
+
+			expect(await store.findRelatedTargetArticle(TARGET_URL)).toEqual({ state: "absent" });
 		});
 	});
 

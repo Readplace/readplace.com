@@ -6,6 +6,7 @@ import type {
 	RelatedArticles,
 	RelatedCandidate,
 	RelatedTargetArticle,
+	RelatedTargetLookup,
 } from "@packages/provider-contracts/related-articles";
 import type { RelatedCandidatePools } from "./related-articles-candidates";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -71,7 +72,7 @@ function candidates(prefix: string, count: number): RelatedCandidate[] {
 
 interface HandlerOverrides {
 	existing?: RelatedArticles;
-	target?: RelatedTargetArticle | undefined;
+	targetLookup?: RelatedTargetLookup;
 	pools?: RelatedCandidatePools;
 	selectRelatedArticles?: SelectRelatedArticles;
 	markOutcome?: MarkRelatedArticlesOutcome;
@@ -90,7 +91,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 	const handler = initComputeRelatedArticlesHandler({
 		findRelatedArticles: async () => overrides.existing ?? { status: "pending" },
 		findRelatedTargetArticle: async () =>
-			"target" in overrides ? overrides.target : crawledTarget(),
+			overrides.targetLookup ?? { state: "found", article: crawledTarget() },
 		gatherRelatedCandidatePools: async () =>
 			overrides.pools ?? {
 				unreadCandidates: candidates("earlier", 150),
@@ -161,7 +162,10 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 	it("announces no skip when another computation had already settled the row", async () => {
 		const { handler, skipped, published } = createHandler({
-			target: crawledTarget({ crawlStatus: "failed", hasStubMetadata: true }),
+			targetLookup: {
+				state: "found",
+				article: crawledTarget({ crawlStatus: "failed", hasStubMetadata: true }),
+			},
 			markOutcome: "superseded",
 		});
 
@@ -209,7 +213,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 	it("logs the wait at info while the crawl is still filling in the article's metadata, so a redelivery that is working as designed stays off the errors dashboard, and still retries", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const { handler, ready, skipped } = createHandler({
-			target: crawledTarget({ crawlStatus: "pending" }),
+			targetLookup: { state: "found", article: crawledTarget({ crawlStatus: "pending" }) },
 			logger,
 		});
 
@@ -226,7 +230,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 	it("logs the same info wait while the article row has not appeared yet, and still retries", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-		const { handler } = createHandler({ target: undefined, logger });
+		const { handler } = createHandler({ targetLookup: { state: "absent" }, logger });
 
 		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
@@ -238,9 +242,33 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(logger.error).not.toHaveBeenCalled();
 	});
 
+	it("skips terminally when the article was purged before its related links were computed, so the message never dead-letters", async () => {
+		const { handler, skipped, published } = createHandler({
+			targetLookup: { state: "purged" },
+		});
+
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+		expect(published).toEqual([
+			{
+				url: TARGET_URL,
+				userId: USER_ID,
+				outcome: "skipped",
+				relatedCount: 0,
+				inputTokens: 0,
+				outputTokens: 0,
+			},
+		]);
+	});
+
 	it("skips when the crawl gave up before writing anything to compare", async () => {
 		const { handler, skipped, published } = createHandler({
-			target: crawledTarget({ crawlStatus: "failed", hasStubMetadata: true }),
+			targetLookup: {
+				state: "found",
+				article: crawledTarget({ crawlStatus: "failed", hasStubMetadata: true }),
+			},
 		});
 
 		await handler(queueEntryEvent, buildLambdaContext(), () => {});
