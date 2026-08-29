@@ -108,7 +108,7 @@ final class ShareViewController: UIViewController {
 		view.addGestureRecognizer(backdropTap)
 
 		card.translatesAutoresizingMaskIntoConstraints = false
-		card.backgroundColor = .systemBackground
+		card.backgroundColor = .brandSurface
 		card.layer.cornerRadius = 16
 		view.addSubview(card)
 
@@ -119,19 +119,18 @@ final class ShareViewController: UIViewController {
 
 		spinner.translatesAutoresizingMaskIntoConstraints = false
 		spinner.startAnimating()
+		spinner.color = .brandTextSecondary
 
 		statusLabel.translatesAutoresizingMaskIntoConstraints = false
 		statusLabel.text = "Preparing…"
 		statusLabel.font = .preferredFont(forTextStyle: .headline)
-		statusLabel.textColor = .label
+		statusLabel.textColor = .brandTextPrimary
 		statusLabel.numberOfLines = 0
 		statusLabel.textAlignment = .center
 
-		// A secondary caption below the title, in the app's .footnote/.secondary
-		// house style.
 		noticeLabel.translatesAutoresizingMaskIntoConstraints = false
 		noticeLabel.font = .preferredFont(forTextStyle: .footnote)
-		noticeLabel.textColor = .secondaryLabel
+		noticeLabel.textColor = .brandTextSecondary
 		noticeLabel.numberOfLines = 0
 		noticeLabel.textAlignment = .center
 		noticeLabel.isHidden = true

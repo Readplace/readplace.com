@@ -64,11 +64,11 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		webView.allowsBackForwardNavigationGestures = true
 		webView.navigationDelegate = context.coordinator
 		webView.uiDelegate = context.coordinator
-		// Let the sheet's system background show through until the page paints, so
+		// Let the sheet's brand surface show through until the page paints, so
 		// the moment the skeleton lifts there is no white flash before the first
 		// paint (mirrors `WebPageView`).
 		webView.isOpaque = false
-		webView.backgroundColor = .systemBackground
+		webView.backgroundColor = .brandSurface
 		controller.view = webView
 
 		// Observe the load before the first navigation starts so the sheet's bar

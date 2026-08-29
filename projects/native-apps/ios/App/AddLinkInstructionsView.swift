@@ -50,17 +50,19 @@ struct AddLinkInstructionsView: View {
 		VStack(spacing: 12) {
 			Image(systemName: "square.and.arrow.up")
 				.font(.system(size: 40))
-				.foregroundStyle(.secondary)
+				.foregroundStyle(Color.brandTextSecondary)
 			Text("Add links with Share")
 				.font(.headline)
+				.foregroundStyle(Color.brandTextPrimary)
 			Text("Open a link in any app, tap Share, then choose Readplace.")
 				.font(.subheadline)
-				.foregroundStyle(.secondary)
+				.foregroundStyle(Color.brandTextSecondary)
 				.multilineTextAlignment(.center)
 			Button("← Back to queue", action: onClose)
 				.padding(.top, 4)
 		}
 		.padding(40)
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
+		.background(Color.brandSurface)
 	}
 }

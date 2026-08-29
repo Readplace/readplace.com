@@ -187,6 +187,8 @@ struct ReadingListView: View {
 				list
 			}
 		}
+		.frame(maxWidth: .infinity, maxHeight: .infinity)
+		.background(Color.brandSurface.ignoresSafeArea())
 		.overlay(alignment: .bottom) {
 			if !viewModel.messages.isEmpty {
 				banner(
@@ -219,6 +221,7 @@ struct ReadingListView: View {
 							Button(affordance.label) { activate(affordance, on: article) }
 						}
 					}
+					.listRowBackground(Color.brandSurface)
 			}
 
 			if viewModel.hasMore {
@@ -229,9 +232,11 @@ struct ReadingListView: View {
 				}
 				.listRowSeparator(.hidden)
 				.onAppear { Task { await viewModel.loadMore() } }
+				.listRowBackground(Color.brandSurface)
 			}
 		}
 		.listStyle(.plain)
+		.scrollContentBackground(.hidden)
 	}
 
 	/// One per-item swipe control, rendered from an advertised affordance. The label
@@ -272,12 +277,13 @@ struct ReadingListView: View {
 		VStack(spacing: 12) {
 			Image(systemName: "tray")
 				.font(.system(size: 44))
-				.foregroundStyle(.secondary)
+				.foregroundStyle(Color.brandTextSecondary)
 			Text("Nothing saved yet")
 				.font(.headline)
+				.foregroundStyle(Color.brandTextPrimary)
 			Text("Open a link in any app, tap Share, and choose Readplace. Tap + for help.")
 				.font(.subheadline)
-				.foregroundStyle(.secondary)
+				.foregroundStyle(Color.brandTextSecondary)
 				.multilineTextAlignment(.center)
 		}
 		.padding(40)

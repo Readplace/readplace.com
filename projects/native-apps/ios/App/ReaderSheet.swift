@@ -28,6 +28,7 @@ struct ReaderSheet: View {
 			}
 		}
 		.tint(.brandAmber)
+		.background(Color.brandSurface.ignoresSafeArea())
 		.task {
 			guard case .loading = bootstrap else { return }
 			bootstrap = ReaderBootstrap(after: await mintSession())
@@ -114,7 +115,7 @@ private struct ReaderSkeletonView: View {
 		}
 		.padding(24)
 		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-		.background(Color(.systemBackground))
+		.background(Color.brandSurface)
 		.onAppear { sweep = true }
 		.accessibilityElement()
 		.accessibilityLabel("Opening reader")
@@ -122,7 +123,7 @@ private struct ReaderSkeletonView: View {
 
 	private func bar(_ width: CGFloat?, _ height: CGFloat) -> some View {
 		RoundedRectangle(cornerRadius: 6)
-			.fill(Color(.secondarySystemBackground))
+			.fill(Color.brandBorder)
 			.frame(maxWidth: width ?? .infinity, alignment: .leading)
 			.frame(height: height)
 			.overlay(shimmer)
@@ -159,12 +160,13 @@ private struct ReaderUnavailableView: View {
 		VStack(spacing: 12) {
 			Image(systemName: "wifi.slash")
 				.font(.system(size: 40))
-				.foregroundStyle(.secondary)
+				.foregroundStyle(Color.brandTextSecondary)
 			Text("Couldn't open the reader")
 				.font(.headline)
+				.foregroundStyle(Color.brandTextPrimary)
 			Text("Check your connection and try again.")
 				.font(.subheadline)
-				.foregroundStyle(.secondary)
+				.foregroundStyle(Color.brandTextSecondary)
 				.multilineTextAlignment(.center)
 			Button("Close", action: onClose)
 				.buttonStyle(.borderedProminent)
@@ -174,6 +176,6 @@ private struct ReaderUnavailableView: View {
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
 		// Opaque so that, layered over a failed page load, the broken page does not
 		// show through; a no-op against the sheet's own background when shown alone.
-		.background(Color(.systemBackground))
+		.background(Color.brandSurface)
 	}
 }

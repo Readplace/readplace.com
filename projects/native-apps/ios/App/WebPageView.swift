@@ -33,9 +33,9 @@ struct WebPageView: UIViewControllerRepresentable {
 		let webView = WKWebView(frame: .zero, configuration: configuration)
 		webView.navigationDelegate = context.coordinator
 		// Let the sheet's background show through until the page paints, so the
-		// load blends into the system light/dark sheet instead of flashing white.
+		// load blends into the sheet's brand surface instead of flashing white.
 		webView.isOpaque = false
-		webView.backgroundColor = .systemBackground
+		webView.backgroundColor = .brandSurface
 		controller.view = webView
 		webView.load(URLRequest(url: url))
 		return controller

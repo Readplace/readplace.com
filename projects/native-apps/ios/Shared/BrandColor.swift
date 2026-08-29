@@ -11,6 +11,12 @@ enum BrandColor {
 	static let warning = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))
 	static let error = dynamic(light: rgb(196, 92, 92), dark: rgb(212, 107, 107))
 	static let splashBackground = rgb(18, 18, 18)
+	static let surface = dynamic(light: rgb(255, 255, 255), dark: rgb(18, 18, 18))
+	static let surfaceSubtle = dynamic(light: rgb(247, 248, 250), dark: rgb(26, 26, 26))
+	static let textPrimary = dynamic(light: rgb(26, 32, 44), dark: rgb(228, 228, 228))
+	static let textSecondary = dynamic(light: rgb(90, 97, 112), dark: rgb(155, 161, 174))
+	static let textMuted = dynamic(light: rgb(140, 145, 157), dark: rgb(107, 107, 107))
+	static let border = dynamic(light: rgb(226, 229, 234), dark: rgb(46, 46, 46))
 
 	private static func dynamic(light: UIColor, dark: UIColor) -> UIColor {
 		UIColor { trait in trait.userInterfaceStyle == .dark ? dark : light }
@@ -28,10 +34,19 @@ extension Color {
 	static let brandWarning = Color(uiColor: BrandColor.warning)
 	static let brandError = Color(uiColor: BrandColor.error)
 	static let brandSplashBackground = Color(uiColor: BrandColor.splashBackground)
+	static let brandSurface = Color(uiColor: BrandColor.surface)
+	static let brandSurfaceSubtle = Color(uiColor: BrandColor.surfaceSubtle)
+	static let brandTextPrimary = Color(uiColor: BrandColor.textPrimary)
+	static let brandTextSecondary = Color(uiColor: BrandColor.textSecondary)
+	static let brandTextMuted = Color(uiColor: BrandColor.textMuted)
+	static let brandBorder = Color(uiColor: BrandColor.border)
 }
 
 extension UIColor {
 	static let brandSuccess = BrandColor.success
 	static let brandWarning = BrandColor.warning
 	static let brandError = BrandColor.error
+	static let brandSurface = BrandColor.surface
+	static let brandTextPrimary = BrandColor.textPrimary
+	static let brandTextSecondary = BrandColor.textSecondary
 }

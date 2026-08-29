@@ -11,18 +11,19 @@ struct ArticleRow: View {
 				Text(article.title)
 					.font(.headline)
 					.lineLimit(2)
+					.foregroundStyle(Color.brandTextPrimary)
 
 				if let subtitle {
 					Text(subtitle)
 						.font(.caption)
-						.foregroundStyle(.secondary)
+						.foregroundStyle(Color.brandTextSecondary)
 						.lineLimit(1)
 				}
 
 				if let excerpt = article.excerpt, !excerpt.isEmpty {
 					Text(excerpt)
 						.font(.subheadline)
-						.foregroundStyle(.secondary)
+						.foregroundStyle(Color.brandTextSecondary)
 						.lineLimit(2)
 				}
 			}
@@ -58,9 +59,9 @@ struct ArticleRow: View {
 
 	private var placeholder: some View {
 		ZStack {
-			Color(.secondarySystemBackground)
+			Color.brandSurfaceSubtle
 			Image(systemName: "doc.text")
-				.foregroundStyle(.tertiary)
+				.foregroundStyle(Color.brandTextMuted)
 		}
 	}
 

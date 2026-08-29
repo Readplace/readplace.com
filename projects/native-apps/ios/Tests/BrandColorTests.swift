@@ -32,6 +32,30 @@ final class BrandColorTests: XCTestCase {
 		assertHex(BrandColor.splashBackground, light: "#121212", dark: "#121212")
 	}
 
+	func testSurfaceMirrorsBackgroundToken() {
+		assertHex(BrandColor.surface, light: "#FFFFFF", dark: "#121212")
+	}
+
+	func testSurfaceSubtleMirrorsSurfaceToken() {
+		assertHex(BrandColor.surfaceSubtle, light: "#F7F8FA", dark: "#1A1A1A")
+	}
+
+	func testTextPrimaryMirrorsTextPrimaryToken() {
+		assertHex(BrandColor.textPrimary, light: "#1A202C", dark: "#E4E4E4")
+	}
+
+	func testTextSecondaryMirrorsTextSecondaryToken() {
+		assertHex(BrandColor.textSecondary, light: "#5A6170", dark: "#9BA1AE")
+	}
+
+	func testTextMutedMirrorsTextMutedToken() {
+		assertHex(BrandColor.textMuted, light: "#8C919D", dark: "#6B6B6B")
+	}
+
+	func testBorderMirrorsBorderToken() {
+		assertHex(BrandColor.border, light: "#E2E5EA", dark: "#2E2E2E")
+	}
+
 	private func assertHex(
 		_ color: UIColor,
 		light: String,
