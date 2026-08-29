@@ -14,7 +14,6 @@ const GRANT: GmailGrantResult = {
 		refreshToken: "refresh-1",
 		accessToken: "access-1",
 		grantedScope: GMAIL_SETTINGS_SCOPE,
-		googleAccountEmail: "reader@gmail.com",
 	},
 };
 
@@ -59,7 +58,6 @@ describe("initInMemoryGmailIntegration", () => {
 		const connection = await gmail.bundle.gmailConnectionStore.createConnection({
 			userId: owner,
 			gatewayAddress: await gmail.bundle.mintGatewayAddress({ userId: owner }),
-			googleAccountEmail: "reader@gmail.com",
 		});
 
 		assert.equal(connection.connectedAt, now.toISOString());

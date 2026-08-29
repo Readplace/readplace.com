@@ -36,13 +36,6 @@ export const GMAIL_PAGE_STYLES = `
 	color: var(--foreground);
 }
 
-.gmail__lead {
-	font-size: 1.0625rem;
-	line-height: 1.7;
-	color: var(--muted-foreground);
-	margin-bottom: 12px;
-}
-
 .gmail__status {
 	display: inline-block;
 	font-size: 0.8125rem;
@@ -226,6 +219,6 @@ export const GMAIL_PAGE_STYLES = `
 }
 
 .gmail__disconnect {
-	margin-top: 8px;
+	margin-top: 24px;
 }
 `;

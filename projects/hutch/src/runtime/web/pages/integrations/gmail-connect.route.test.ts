@@ -18,7 +18,6 @@ function grantOk(): GmailGrantResult {
 			refreshToken: "refresh-value",
 			accessToken: "access-value",
 			grantedScope: GMAIL_SETTINGS_SCOPE,
-			googleAccountEmail: "reader@gmail.com",
 		},
 	};
 }
@@ -90,7 +89,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?connected=1");
+		expect(response.headers.location).toBe("/integrations/gmail?notice=connected");
 		expect(codes).toEqual(["auth-code"]);
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("refresh-value");
 	});
@@ -165,8 +164,8 @@ describe("GET /integrations/gmail/callback", () => {
 	});
 });
 
-describe("GET /integrations once Gmail is connected", () => {
-	it("shows Gmail as connected and drops the connect button", async () => {
+describe("GET /integrations after the Gmail callback", () => {
+	it("shows Gmail waiting for step 2, not a bare connected pill", async () => {
 		const { fixture } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -175,6 +174,7 @@ describe("GET /integrations once Gmail is connected", () => {
 		const response = await agent.get("/integrations");
 
 		expect(response.status).toBe(200);
-		expect(response.text).toContain('data-test-integration-status="connected"');
+		expect(response.text).toContain('data-test-integration-status="awaiting-confirmation"');
+		expect(response.text).toContain('data-test-integration-action="finish-setup"');
 	});
 });

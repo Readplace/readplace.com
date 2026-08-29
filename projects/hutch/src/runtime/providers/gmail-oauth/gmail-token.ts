@@ -7,23 +7,10 @@ const GmailTokenResponse = z.object({
 	refresh_token: z.string().optional(),
 	scope: z.string(),
 	token_type: z.string(),
-	id_token: z.string().optional(),
 });
-
-const GmailIdTokenClaims = z.object({ email: z.string() });
 
 function grantsSettingsScope(scope: string): boolean {
 	return scope.split(" ").includes(GMAIL_SETTINGS_SCOPE);
-}
-
-function accountEmailFrom(idToken: string | undefined): string {
-	if (idToken === undefined) return "";
-	const [, payloadB64] = idToken.split(".");
-	if (payloadB64 === undefined) return "";
-	const claims = GmailIdTokenClaims.safeParse(
-		JSON.parse(Buffer.from(payloadB64, "base64url").toString()),
-	);
-	return claims.success ? claims.data.email : "";
 }
 
 export function initExchangeGmailCode(deps: {
@@ -57,7 +44,6 @@ export function initExchangeGmailCode(deps: {
 				refreshToken,
 				accessToken: parsed.data.access_token,
 				grantedScope: parsed.data.scope,
-				googleAccountEmail: accountEmailFrom(parsed.data.id_token),
 			},
 		};
 	};

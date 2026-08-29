@@ -1,13 +1,24 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { InboxAddressSchema } from "@packages/domain/inbox";
+import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 
+const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
+
 function load(text: string): Document {
 	return new JSDOM(text).window.document;
+}
+
+function integrationActions(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-integration-action]")).map((el) =>
+		el.getAttribute("data-test-integration-action"),
+	);
 }
 
 describe("GET /integrations", () => {
@@ -44,8 +55,48 @@ describe("GET /integrations", () => {
 		assert(gmail, "the Gmail row must render");
 		const status = gmail.querySelector("[data-test-integration-status]");
 		assert(status, "the Gmail row must carry a status");
-		expect(status.getAttribute("data-test-integration-status")).toBe("not-set-up");
+		expect(status.getAttribute("data-test-integration-status")).toBe("disconnected");
 		expect(status.textContent).toBe("Not set up");
+	});
+
+	it("offers only Connect to a reader with no connection", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = load((await agent.get("/integrations")).text);
+
+		expect(integrationActions(doc)).toEqual(["connect"]);
+	});
+
+	it("routes a connected-but-unconfirmed reader to finish setup on the Gmail page", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			grant: {
+				ok: true,
+				grant: {
+					refreshToken: "refresh-value",
+					accessToken: "access-value",
+					grantedScope: GMAIL_SETTINGS_SCOPE,
+				},
+			},
+		});
+		const harness = useApp({
+			...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+			gmailIntegration: gmail.bundle,
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress: GATEWAY });
+
+		const doc = load((await agent.get("/integrations")).text);
+
+		expect(integrationActions(doc)).toEqual(["finish-setup"]);
+		const action = doc.querySelector("[data-test-integration-action='finish-setup']");
+		assert(action, "the finish-setup action renders");
+		const form = action.closest("form");
+		assert(form, "the finish-setup action navigates via a form");
+		expect(form.getAttribute("method")?.toLowerCase()).toBe("get");
+		expect(form.getAttribute("action")).toBe("/integrations/gmail");
 	});
 
 	it("renders the alert an interrupted connection redirects back with", async () => {
@@ -57,17 +108,6 @@ describe("GET /integrations", () => {
 		const alert = doc.querySelector("[data-test-integrations-alert-key]");
 		assert(alert, "the index must render an alert for a redirect that carried an error");
 		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_state");
-	});
-
-	it("renders the notice a completed connection redirects back with", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const doc = load((await agent.get("/integrations?connected=1")).text);
-
-		const notice = doc.querySelector("[data-test-integrations-notice-key]");
-		assert(notice, "the index must confirm a connection the redirect reported");
-		expect(notice.getAttribute("data-test-integrations-notice-key")).toBe("connected");
 	});
 
 	it("keeps the page out of search results", async () => {

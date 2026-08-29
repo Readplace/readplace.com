@@ -8,7 +8,6 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 	return {
 		userId: UserIdSchema.parse("user-1"),
 		gatewayAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
-		googleAccountEmail: "reader@gmail.com",
 		connectedAt: "2026-08-24T00:00:00.000Z",
 		forwardingConfirmedAt: undefined,
 		filterId: undefined,

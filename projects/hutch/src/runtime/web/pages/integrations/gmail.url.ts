@@ -9,7 +9,12 @@ export const GMAIL_SETTINGS_URL = "https://mail.google.com/mail/u/0/#settings/fw
 
 export type GmailPageError = "sender_invalid" | "sender_duplicate" | "sender_unknown";
 
-export type GmailPageNotice = "verifying" | "sender_added" | "sender_removed" | "sender_mapped";
+export type GmailPageNotice =
+	| "connected"
+	| "verifying"
+	| "sender_added"
+	| "sender_removed"
+	| "sender_mapped";
 
 export function buildGmailUrl(
 	params: { error: GmailPageError } | { notice: GmailPageNotice },

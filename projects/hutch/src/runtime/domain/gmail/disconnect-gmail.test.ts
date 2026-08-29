@@ -32,7 +32,6 @@ async function makeHarness(options: {
 		await connections.createConnection({
 			userId: USER,
 			gatewayAddress: GATEWAY,
-			googleAccountEmail: "reader@gmail.com",
 		});
 		await connections.markForwardingConfirmed({ userId: USER });
 		await senders.addSenderToFilter({ userId: USER, senderEmail: TLDR });

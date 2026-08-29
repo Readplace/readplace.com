@@ -20,7 +20,6 @@ const GmailFilterErrorRow = z.object({
 const GmailConnectionRow = z.object({
 	userId: UserIdSchema,
 	gatewayAddress: InboxAddressSchema,
-	googleAccountEmail: z.string(),
 	connectedAt: z.string(),
 	forwardingConfirmedAt: dynamoField(z.string()),
 	filterId: dynamoField(z.string()),
@@ -37,7 +36,6 @@ function toConnection(row: z.infer<typeof GmailConnectionRow>): GmailConnection 
 	return {
 		userId: row.userId,
 		gatewayAddress: row.gatewayAddress,
-		googleAccountEmail: row.googleAccountEmail,
 		connectedAt: row.connectedAt,
 		forwardingConfirmedAt: row.forwardingConfirmedAt,
 		filterId: row.filterId,
@@ -62,13 +60,12 @@ export function initDynamoDbGmailConnection(deps: {
 	});
 
 	return {
-		createConnection: async ({ userId, gatewayAddress, googleAccountEmail }) => {
+		createConnection: async ({ userId, gatewayAddress }) => {
 			const connectedAt = deps.now().toISOString();
 			await table.put({
 				Item: {
 					userId,
 					gatewayAddress,
-					googleAccountEmail,
 					connectedAt,
 					connected: CONNECTED_MARKER,
 				},
@@ -76,7 +73,6 @@ export function initDynamoDbGmailConnection(deps: {
 			return {
 				userId,
 				gatewayAddress,
-				googleAccountEmail,
 				connectedAt,
 				forwardingConfirmedAt: undefined,
 				filterId: undefined,

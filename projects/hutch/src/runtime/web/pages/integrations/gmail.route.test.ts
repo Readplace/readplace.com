@@ -31,7 +31,6 @@ function harnessWithGmail() {
 				refreshToken: "refresh-value",
 				accessToken: "access-value",
 				grantedScope: GMAIL_SETTINGS_SCOPE,
-				googleAccountEmail: "reader@gmail.com",
 			},
 		},
 	});
@@ -58,7 +57,6 @@ async function connectedAgent(options: { confirmed?: boolean } = {}) {
 	await gmail.bundle.gmailConnectionStore.createConnection({
 		userId,
 		gatewayAddress: GATEWAY,
-		googleAccountEmail: "reader@gmail.com",
 	});
 	if (options.confirmed !== false) {
 		await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
@@ -97,6 +95,14 @@ describe("GET /integrations/gmail", () => {
 		const address = doc.querySelector("[data-test-gmail-address]");
 		assert(address, "the gateway address is always rendered");
 		assert.equal(address.textContent, GATEWAY);
+		const disconnect = doc.querySelector(`form[action="${DISCONNECT}"]`);
+		assert(disconnect, "disconnect is reachable while awaiting confirmation");
+		const disconnectParent = disconnect.parentElement;
+		assert(disconnectParent, "the disconnect form sits directly in the page container");
+		assert.equal(disconnectParent.classList.contains("gmail__container"), true);
+		const back = doc.querySelector("a.gmail__back");
+		assert(back, "the page links back to the integrations list");
+		assert.equal(back.getAttribute("href"), "/integrations");
 	});
 
 	it("shows the sender list once the address is confirmed", async () => {
@@ -118,6 +124,15 @@ describe("GET /integrations/gmail", () => {
 
 		const notice = doc.querySelector("[data-test-gmail-notice-key='sender_added']");
 		assert(notice, "a known notice renders");
+	});
+
+	it("greets a fresh connection with the connected notice", async () => {
+		const { agent } = await connectedAgent({ confirmed: false });
+
+		const doc = load((await agent.get(`${GMAIL}?notice=connected`)).text);
+
+		const notice = doc.querySelector("[data-test-gmail-notice-key='connected']");
+		assert(notice, "the connected notice renders after the callback lands here");
 	});
 });
 

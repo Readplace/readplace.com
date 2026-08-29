@@ -60,7 +60,6 @@ async function makeHarness(options: {
 		await connections.createConnection({
 			userId: USER,
 			gatewayAddress: GATEWAY,
-			googleAccountEmail: "reader@gmail.com",
 		});
 		if (options.confirmed !== false) await connections.markForwardingConfirmed({ userId: USER });
 		if (options.revoked === true) {

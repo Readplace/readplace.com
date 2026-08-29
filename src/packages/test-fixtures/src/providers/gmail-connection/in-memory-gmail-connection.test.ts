@@ -15,7 +15,6 @@ function connectedStore(now: () => Date = () => new Date("2026-08-27T00:00:00.00
 			store.createConnection({
 				userId: owner,
 				gatewayAddress: gateway,
-				googleAccountEmail: "reader@gmail.com",
 			}),
 	};
 }
@@ -166,7 +165,6 @@ describe("initInMemoryGmailConnection", () => {
 		await store.createConnection({
 			userId: otherUser,
 			gatewayAddress: gateway,
-			googleAccountEmail: "other@gmail.com",
 		});
 
 		await store.markRevoked({ userId: otherUser, reason: "user-disconnected" });

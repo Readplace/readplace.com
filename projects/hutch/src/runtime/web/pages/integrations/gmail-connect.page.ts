@@ -16,6 +16,7 @@ import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 import { signState, verifyState } from "../../auth/oauth-state";
 import { buildIntegrationsUrl, GMAIL_CALLBACK_PATH } from "./gmail-connect.url";
+import { buildGmailUrl } from "./gmail.url";
 
 const STATE_COOKIE = "hutch_gmail_state";
 const STATE_TTL_MS = 5 * 60 * 1000;
@@ -143,11 +144,10 @@ export function registerGmailConnectRoutes(
 			await gmail.gmailConnectionStore.createConnection({
 				userId,
 				gatewayAddress: await gmail.mintGatewayAddress({ userId }),
-				googleAccountEmail: grant.grant.googleAccountEmail,
 			});
 		} else {
 			await gmail.gmailConnectionStore.clearRevoked({ userId });
 		}
-		res.redirect(303, buildIntegrationsUrl({ connected: true }));
+		res.redirect(303, buildGmailUrl({ notice: "connected" }));
 	});
 }

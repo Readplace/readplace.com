@@ -1,19 +1,26 @@
 import type { IconName } from "@packages/ui-icons";
+import type { GmailConnection, GmailConnectionState } from "@packages/domain/gmail";
+import { gmailConnectionState } from "@packages/domain/gmail";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
+import { GMAIL_PATH } from "./gmail.url";
 
-export type IntegrationStatusKey = "connected" | "not-set-up";
+export interface IntegrationActionViewModel {
+	key: string;
+	method: "GET" | "POST";
+	href: string;
+	label: string;
+	variant: "primary" | "secondary";
+}
 
 export interface IntegrationRowViewModel {
 	key: string;
 	name: string;
 	description: string;
 	iconName: IconName;
-	statusKey: IntegrationStatusKey;
+	statusKey: GmailConnectionState;
 	statusLabel: string;
 	statusModifier: string;
-	connectVisibility: "visible" | "hidden";
-	connectAction: string;
-	connectLabel: string;
+	actions: IntegrationActionViewModel[];
 }
 
 export interface IntegrationsAlertViewModel {
@@ -24,16 +31,62 @@ export interface IntegrationsAlertViewModel {
 export interface IntegrationsIndexViewModel {
 	services: IntegrationRowViewModel[];
 	alerts: IntegrationsAlertViewModel[];
-	notices: IntegrationsAlertViewModel[];
 	hasAlert: boolean;
-	hasNotice: boolean;
 	alertVisibility: "visible" | "hidden";
-	noticeVisibility: "visible" | "hidden";
 }
 
-const STATUS_LABELS: Record<IntegrationStatusKey, string> = {
-	connected: "Connected",
-	"not-set-up": "Not set up",
+const STATUS_LABELS: Record<GmailConnectionState, string> = {
+	disconnected: "Not set up",
+	revoked: "Reconnect needed",
+	"filter-failed": "Needs attention",
+	"awaiting-confirmation": "Step 2 of 2",
+	"ready-to-filter": "Connected",
+	filtering: "Connected",
+};
+
+const GMAIL_ACTIONS: Record<GmailConnectionState, IntegrationActionViewModel> = {
+	disconnected: {
+		key: "connect",
+		method: "POST",
+		href: GMAIL_CONNECT_PATH,
+		label: "Connect Gmail",
+		variant: "primary",
+	},
+	"awaiting-confirmation": {
+		key: "finish-setup",
+		method: "GET",
+		href: GMAIL_PATH,
+		label: "Finish setup",
+		variant: "primary",
+	},
+	"ready-to-filter": {
+		key: "manage",
+		method: "GET",
+		href: GMAIL_PATH,
+		label: "Manage",
+		variant: "secondary",
+	},
+	filtering: {
+		key: "manage",
+		method: "GET",
+		href: GMAIL_PATH,
+		label: "Manage",
+		variant: "secondary",
+	},
+	"filter-failed": {
+		key: "manage",
+		method: "GET",
+		href: GMAIL_PATH,
+		label: "Manage",
+		variant: "primary",
+	},
+	revoked: {
+		key: "reconnect",
+		method: "POST",
+		href: GMAIL_CONNECT_PATH,
+		label: "Reconnect Gmail",
+		variant: "primary",
+	},
 };
 
 export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
@@ -52,19 +105,12 @@ function alertsFor(error: string | undefined): IntegrationsAlertViewModel[] {
 	return [{ key: error, message }];
 }
 
-function noticesFor(connected: boolean): IntegrationsAlertViewModel[] {
-	if (!connected) return [];
-	return [{ key: "connected", message: "Gmail is connected." }];
-}
-
 export function toIntegrationsIndexViewModel(input: {
-	gmailConnected: boolean;
+	connection: GmailConnection | undefined;
 	error?: string;
-	justConnected?: boolean;
 }): IntegrationsIndexViewModel {
-	const gmailStatus: IntegrationStatusKey = input.gmailConnected ? "connected" : "not-set-up";
+	const state = gmailConnectionState(input.connection);
 	const alerts = alertsFor(input.error);
-	const notices = noticesFor(input.justConnected === true);
 	return {
 		services: [
 			{
@@ -72,19 +118,14 @@ export function toIntegrationsIndexViewModel(input: {
 				name: "Gmail",
 				description: "Forward newsletters from Gmail into your Readplace inboxes.",
 				iconName: "mail",
-				statusKey: gmailStatus,
-				statusLabel: STATUS_LABELS[gmailStatus],
-				statusModifier: `integrations__status--${gmailStatus}`,
-				connectVisibility: input.gmailConnected ? "hidden" : "visible",
-				connectAction: GMAIL_CONNECT_PATH,
-				connectLabel: "Connect Gmail",
+				statusKey: state,
+				statusLabel: STATUS_LABELS[state],
+				statusModifier: `integrations__status--${state}`,
+				actions: [GMAIL_ACTIONS[state]],
 			},
 		],
 		alerts,
-		notices,
 		hasAlert: alerts.length > 0,
-		hasNotice: notices.length > 0,
 		alertVisibility: alerts.length > 0 ? "visible" : "hidden",
-		noticeVisibility: notices.length > 0 ? "visible" : "hidden",
 	};
 }

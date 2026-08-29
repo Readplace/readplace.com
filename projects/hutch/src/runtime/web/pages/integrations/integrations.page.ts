@@ -50,11 +50,10 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 	router.get("/", deps.requireAuth, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
-		const refreshToken = await gmail?.gmailCredentialsStore.findRefreshTokenByUserId(userId);
+		const connection = await gmail?.gmailConnectionStore.findConnectionByUserId(userId);
 		const vm = toIntegrationsIndexViewModel({
-			gmailConnected: refreshToken !== undefined,
+			connection,
 			error: typeof req.query.error === "string" ? req.query.error : undefined,
-			justConnected: req.query.connected === "1",
 		});
 		sendComponent(req, res, Base(IntegrationsIndexPage(vm), await deps.buildBannerState(req)));
 	});

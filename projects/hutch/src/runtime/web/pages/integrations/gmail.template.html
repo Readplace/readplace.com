@@ -1,8 +1,7 @@
     <main class="gmail">
       <div class="gmail__container">
-        <a class="gmail__back" href="/integrations?feature=gmail">Integrations</a>
+        <a class="gmail__back" href="{{integrationsPath}}">Integrations</a>
         <h1 class="gmail__title">Gmail</h1>
-        <p class="gmail__lead">Connected as <span data-test-gmail-account>{{googleAccountEmail}}</span></p>
         <span class="gmail__status {{stateModifier}}" data-test-gmail-state="{{state}}">{{statusLabel}}</span>
 
         <div class="gmail__notice gmail__notice--{{noticeVisibility}}" role="status" data-test-gmail-notice>
@@ -80,10 +79,10 @@
               {{/each}}
             </ul>
           </div>
-
-          <form class="gmail__disconnect" method="POST" action="{{disconnectAction}}">
-            <button type="submit" class="btn btn--ghost btn--compact" data-test-gmail-disconnect>Disconnect Gmail</button>
-          </form>
         </section>
+
+        <form class="gmail__disconnect" method="POST" action="{{disconnectAction}}">
+          <button type="submit" class="btn btn--ghost btn--compact" data-test-gmail-disconnect>Disconnect Gmail</button>
+        </form>
       </div>
     </main>

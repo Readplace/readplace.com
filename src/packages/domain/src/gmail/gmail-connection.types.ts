@@ -17,7 +17,6 @@ export type GmailFilterErrorCode = "query-too-long" | "rejected";
 export interface GmailConnection {
 	userId: UserId;
 	gatewayAddress: InboxAddress;
-	googleAccountEmail: string;
 	connectedAt: string;
 	forwardingConfirmedAt: string | undefined;
 	filterId: string | undefined;
@@ -33,7 +32,6 @@ export interface GmailConnectionStore {
 	createConnection: (input: {
 		userId: UserId;
 		gatewayAddress: InboxAddress;
-		googleAccountEmail: string;
 	}) => Promise<GmailConnection>;
 	findConnectionByUserId: (
 		userId: UserId,

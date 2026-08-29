@@ -49,20 +49,17 @@ describe("initDynamoDbGmailConnection", () => {
 		const connection = await store.createConnection({
 			userId: USER,
 			gatewayAddress: GATEWAY,
-			googleAccountEmail: "reader@gmail.com",
 		});
 
 		assert.deepEqual(commands[0].input.Item, {
 			userId: USER,
 			gatewayAddress: GATEWAY,
-			googleAccountEmail: "reader@gmail.com",
 			connectedAt: NOW.toISOString(),
 			connected: "yes",
 		});
 		assert.deepEqual(connection, {
 			userId: USER,
 			gatewayAddress: GATEWAY,
-			googleAccountEmail: "reader@gmail.com",
 			connectedAt: NOW.toISOString(),
 			forwardingConfirmedAt: undefined,
 			filterId: undefined,
@@ -80,7 +77,6 @@ describe("initDynamoDbGmailConnection", () => {
 			Item: {
 				userId: USER,
 				gatewayAddress: GATEWAY,
-				googleAccountEmail: "reader@gmail.com",
 				connectedAt: NOW.toISOString(),
 				forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
 				filterId: "filter-1",
@@ -97,7 +93,6 @@ describe("initDynamoDbGmailConnection", () => {
 		assert.deepEqual(connection, {
 			userId: USER,
 			gatewayAddress: GATEWAY,
-			googleAccountEmail: "reader@gmail.com",
 			connectedAt: NOW.toISOString(),
 			forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
 			filterId: "filter-1",

@@ -2,11 +2,6 @@ import assert from "node:assert/strict";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { initExchangeGmailCode } from "./gmail-token";
 
-function idTokenFor(email: string): string {
-	const payload = Buffer.from(JSON.stringify({ email }), "utf8").toString("base64url");
-	return `header.${payload}.signature`;
-}
-
 function exchangeWith(body: unknown, status = 200) {
 	const calls: { url: string; body: string }[] = [];
 	const fetchFake: typeof globalThis.fetch = async (input, init) => {
@@ -32,7 +27,6 @@ describe("initExchangeGmailCode", () => {
 			refresh_token: "refresh-value",
 			scope: GMAIL_SETTINGS_SCOPE,
 			token_type: "Bearer",
-			id_token: idTokenFor("reader@gmail.com"),
 		});
 
 		const result = await exchange({ code: "auth-code" });
@@ -41,7 +35,6 @@ describe("initExchangeGmailCode", () => {
 		assert.equal(result.grant.refreshToken, "refresh-value");
 		assert.equal(result.grant.accessToken, "access-value");
 		assert.equal(result.grant.grantedScope, GMAIL_SETTINGS_SCOPE);
-		assert.equal(result.grant.googleAccountEmail, "reader@gmail.com");
 	});
 
 	it("posts the authorization code against the registered redirect URI", async () => {
@@ -108,50 +101,5 @@ describe("initExchangeGmailCode", () => {
 		const result = await exchange({ code: "spent-code" });
 
 		assert.deepEqual(result, { ok: false, reason: "exchange-failed" });
-	});
-
-	it("leaves the account email empty when Google returns no id_token", async () => {
-		const { exchange } = exchangeWith({
-			access_token: "a",
-			refresh_token: "r",
-			scope: GMAIL_SETTINGS_SCOPE,
-			token_type: "Bearer",
-		});
-
-		const result = await exchange({ code: "auth-code" });
-
-		assert(result.ok);
-		assert.equal(result.grant.googleAccountEmail, "");
-	});
-
-	it("leaves the account email empty when the id_token is not a readable JWT", async () => {
-		const { exchange } = exchangeWith({
-			access_token: "a",
-			refresh_token: "r",
-			scope: GMAIL_SETTINGS_SCOPE,
-			token_type: "Bearer",
-			id_token: "not-a-jwt",
-		});
-
-		const result = await exchange({ code: "auth-code" });
-
-		assert(result.ok);
-		assert.equal(result.grant.googleAccountEmail, "");
-	});
-
-	it("leaves the account email empty when the id_token payload carries no email claim", async () => {
-		const payload = Buffer.from(JSON.stringify({ sub: "123" }), "utf8").toString("base64url");
-		const { exchange } = exchangeWith({
-			access_token: "a",
-			refresh_token: "r",
-			scope: GMAIL_SETTINGS_SCOPE,
-			token_type: "Bearer",
-			id_token: `header.${payload}.sig`,
-		});
-
-		const result = await exchange({ code: "auth-code" });
-
-		assert(result.ok);
-		assert.equal(result.grant.googleAccountEmail, "");
 	});
 });

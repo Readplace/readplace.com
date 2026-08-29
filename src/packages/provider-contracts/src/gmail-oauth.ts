@@ -4,7 +4,6 @@ export interface GmailGrant {
 	refreshToken: string;
 	accessToken: string;
 	grantedScope: string;
-	googleAccountEmail: string;
 }
 
 export type GmailGrantResult =

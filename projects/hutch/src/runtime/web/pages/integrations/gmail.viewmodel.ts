@@ -14,7 +14,7 @@ import {
 	type GmailPageError,
 	type GmailPageNotice,
 } from "./gmail.url";
-import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
+import { GMAIL_CONNECT_PATH, INTEGRATIONS_PATH } from "./gmail-connect.url";
 
 export interface GmailSenderRowViewModel {
 	email: string;
@@ -39,7 +39,7 @@ export interface GmailPageViewModel {
 	state: GmailConnectionState;
 	stateModifier: string;
 	statusLabel: string;
-	googleAccountEmail: string;
+	integrationsPath: string;
 	gatewayAddress: string;
 	settingsUrl: string;
 	verifyAction: string;
@@ -76,6 +76,7 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 };
 
 export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
+	connected: "Gmail is connected.",
 	verifying: "Checking with Gmail. This page updates once the rule is in place.",
 	sender_added: "Added. Gmail will start forwarding that sender.",
 	sender_removed: "Removed. Gmail will stop forwarding that sender.",
@@ -122,7 +123,7 @@ export function toGmailPageViewModel(input: {
 		state,
 		stateModifier: `gmail__status--${state}`,
 		statusLabel: STATUS_LABELS[state],
-		googleAccountEmail: input.connection.googleAccountEmail,
+		integrationsPath: INTEGRATIONS_PATH,
 		gatewayAddress: input.connection.gatewayAddress,
 		settingsUrl: GMAIL_SETTINGS_URL,
 		verifyAction: GMAIL_VERIFY_PATH,

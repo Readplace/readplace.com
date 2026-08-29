@@ -49,7 +49,6 @@ describe("initGmailForwardingConfirmedHandler", () => {
 		await connections.createConnection({
 			userId: USER,
 			gatewayAddress: GATEWAY,
-			googleAccountEmail: "reader@gmail.com",
 		});
 
 		const response = await run(buildSqsEvent([{ messageId: "evt-1", body: eventBody() }]));

@@ -11,11 +11,10 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 	};
 
 	return {
-		createConnection: async ({ userId, gatewayAddress, googleAccountEmail }) => {
+		createConnection: async ({ userId, gatewayAddress }) => {
 			const connection: GmailConnection = {
 				userId,
 				gatewayAddress,
-				googleAccountEmail,
 				connectedAt: deps.now().toISOString(),
 				forwardingConfirmedAt: undefined,
 				filterId: undefined,

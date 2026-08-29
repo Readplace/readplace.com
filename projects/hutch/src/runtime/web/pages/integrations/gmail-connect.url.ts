@@ -9,11 +9,7 @@ export type GmailConnectError =
 	| "oauth_scope"
 	| "oauth_exchange";
 
-export function buildIntegrationsUrl(
-	params: { error: GmailConnectError } | { connected: true },
-): string {
-	const query = new URLSearchParams(
-		"error" in params ? { error: params.error } : { connected: "1" },
-	);
+export function buildIntegrationsUrl(params: { error: GmailConnectError }): string {
+	const query = new URLSearchParams({ error: params.error });
 	return `${INTEGRATIONS_PATH}?${query.toString()}`;
 }

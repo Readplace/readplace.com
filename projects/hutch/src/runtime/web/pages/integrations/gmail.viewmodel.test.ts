@@ -14,7 +14,6 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 	return {
 		userId: USER,
 		gatewayAddress: GATEWAY,
-		googleAccountEmail: "reader@gmail.com",
 		connectedAt: "2026-08-27T00:00:00.000Z",
 		forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
 		filterId: undefined,
@@ -56,6 +55,7 @@ describe("toGmailPageViewModel", () => {
 		assert.equal(vm.sendersVisibility, "hidden");
 		assert.equal(vm.reconnectVisibility, "hidden");
 		assert.equal(vm.gatewayAddress, GATEWAY);
+		assert.equal(vm.integrationsPath, "/integrations");
 	});
 
 	it("shows the sender list once the address is confirmed", () => {
