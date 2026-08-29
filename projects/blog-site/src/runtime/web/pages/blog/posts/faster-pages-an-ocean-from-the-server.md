@@ -64,4 +64,4 @@ CloudFront's answer to exactly this is [Origin Shield](/view/docs.aws.amazon.com
 
 A first visit from far away spends its opening 2 round trips at an edge nearby and its third on a socket that stays warm between visitors. What's left of the wait is 1 crossing and the render, and the crossing is geography rather than software.
 
-The next article you keep with [the browser extension](https://readplace.com/install) and open in [your readlist](/) starts arriving after 1 trip to Sydney instead of 3, from wherever in the world you're reading this.
+Wherever in the world you're reading this, saving a page with [the browser extension](https://readplace.com/install) and opening it in [your readlist](/) now costs 1 trip to Sydney instead of 3.
