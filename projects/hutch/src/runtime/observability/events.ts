@@ -56,7 +56,18 @@ export const METRICS = {
 		namespace: "Readplace/Imports",
 		name: "ImportsCompleted",
 	},
+	gmailConnections: {
+		namespace: "Readplace/Gmail",
+		name: "GmailConnections",
+	},
 } as const;
+
+export const GMAIL_CONNECTIONS_COUNT_EVENT = "gmail_connections_counted";
+
+export interface GmailConnectionsCountLine {
+	event: typeof GMAIL_CONNECTIONS_COUNT_EVENT;
+	count: number;
+}
 
 /**
  * Destination log group for the never-expire analytics feed. The forward-analytics

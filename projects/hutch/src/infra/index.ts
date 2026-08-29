@@ -21,7 +21,7 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { assertExcludedUserIds, assertExcludedVisitorIds } from "../runtime/observability/excluded-identities";
@@ -56,6 +56,7 @@ const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const userExportBucketName = config.require("userExportBucketName");
 const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
+const gmailConnectionCapWarnThreshold = config.requireNumber("gmailConnectionCapWarnThreshold");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 
 // The inbox stack owns the inbox tables and the SES receiving pipeline. hutch
@@ -810,6 +811,121 @@ new aws.scheduler.Schedule("hutch-digest-flush", {
 		roleArn: digestSchedulerRole.arn,
 		input: JSON.stringify({ trigger: "digest-flush" }),
 	},
+});
+
+// Warns before Google's 100-test-user cap: an OAuth client in
+// Testing status caps test users at 100, and gmail.settings.basic
+// is a restricted scope, so the cap holds until restricted-scope
+// verification + CASA complete. The 101st reader gets Google's own
+// error screen the app cannot intercept, so an hourly tick emits the
+// current connected count as one JSON line, a metric filter turns it
+// into a gauge, and the alarm pages at the configured threshold.
+const countGmailConnectionsQueue = new HutchSQS("count-gmail-connections", {
+	visibilityTimeoutSeconds: 120,
+});
+
+const countGmailConnectionsDynamodb = new HutchDynamoDBAccess("count-gmail-connections-dynamodb", {
+	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true }],
+	actions: ["dynamodb:Query"],
+});
+
+const countGmailConnectionsLambda = new HutchLambda("count-gmail-connections", {
+	entryPoint: "./src/runtime/count-gmail-connections.main.ts",
+	outputDir: ".lib/count-gmail-connections",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environment: {
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+	},
+	policies: [...countGmailConnectionsDynamodb.policies],
+});
+
+new HutchSQSBackedLambda("count-gmail-connections", {
+	lambda: countGmailConnectionsLambda,
+	queue: countGmailConnectionsQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+const countGmailConnectionsSchedulerRole = new aws.iam.Role(
+	"hutch-count-gmail-connections-scheduler-role",
+	{
+		assumeRolePolicy: JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Principal: { Service: "scheduler.amazonaws.com" },
+					Action: "sts:AssumeRole",
+				},
+			],
+		}),
+	},
+);
+
+new aws.iam.RolePolicy("hutch-count-gmail-connections-scheduler-role-policy", {
+	role: countGmailConnectionsSchedulerRole.id,
+	policy: countGmailConnectionsQueue.queueArn.apply((arn) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Action: ["sqs:SendMessage"],
+					Resource: arn,
+				},
+			],
+		}),
+	),
+});
+
+new aws.scheduler.Schedule("hutch-count-gmail-connections", {
+	scheduleExpression: "rate(1 hour)",
+	flexibleTimeWindow: { mode: "OFF" },
+	state: "ENABLED",
+	target: {
+		arn: countGmailConnectionsQueue.queueArn,
+		roleArn: countGmailConnectionsSchedulerRole.arn,
+		input: JSON.stringify({ trigger: "count-gmail-connections" }),
+	},
+});
+
+new aws.cloudwatch.LogMetricFilter("gmail-connections-filter", {
+	name: "gmail-connections",
+	logGroupName: countGmailConnectionsLambda.logGroupName,
+	pattern: `{ $.event = "${GMAIL_CONNECTIONS_COUNT_EVENT}" }`,
+	metricTransformation: {
+		name: METRICS.gmailConnections.name,
+		namespace: METRICS.gmailConnections.namespace,
+		value: "$.count",
+		unit: "Count",
+	},
+});
+
+const gmailConnectionCapTopic = new aws.sns.Topic("gmail-connection-cap-topic", {
+	name: "gmail-connection-cap-topic",
+});
+
+new aws.sns.TopicSubscription("gmail-connection-cap-alert-email", {
+	topic: gmailConnectionCapTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("gmail-connection-cap-alarm", {
+	name: "gmail-connection-cap-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: METRICS.gmailConnections.name,
+	namespace: METRICS.gmailConnections.namespace,
+	period: 3600,
+	statistic: "Maximum",
+	threshold: gmailConnectionCapWarnThreshold,
+	treatMissingData: "ignore",
+	alarmDescription:
+		"Gmail connections are approaching Google's 100-test-user cap for an unverified restricted-scope client",
+	alarmActions: [gmailConnectionCapTopic.arn],
 });
 
 // --- Reader-ready fan-out ---
