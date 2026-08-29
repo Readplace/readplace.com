@@ -66,7 +66,7 @@ config:
   hutch:inboxAddressDomain: read.place
   hutch:rawEmailBucketName: hutch-inbox-raw-email-prod
   hutch:alertEmail: readplace+devops@readplace.com
-  hutch:gmailConnectionCapWarnThreshold: 90
+  hutch:gmailConnectionCapWarnThreshold: 50
   hutch:googleWorkspaceMail:
     domain: readplace.com
     # Route53 allows one TXT record per name, so this array is the COMPLETE apex
