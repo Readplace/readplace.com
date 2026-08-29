@@ -429,6 +429,404 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.readerPresentation, "an href the client can't resolve never opens a blank sheet")
 	}
 
+	private func readArticle(id: String) -> String {
+		"""
+		{ "class": ["article"], "rel": ["item"],
+			"properties": { "id": "\(id)", "url": "https://example.com/\(id)", "status": "read", "isRead": true },
+			"links": [{ "rel": ["read"], "href": "/queue/\(id)/view" }],
+			"actions": [
+				{ "name": "update-status", "title": "Mark as unread", "href": "/queue/\(id)/status?status=read", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "unread" }] }
+			] }
+		"""
+	}
+
+	private static let readTabLandingQuery = "landing=after-toggle"
+	private static let readTabLanding = "/queue?\(readTabLandingQuery)"
+
+	private func holding(
+		_ handler: @escaping (URLRequest, Data) -> StubURLProtocol.Stub,
+		requestsWhere shouldHold: @escaping (URLRequest) -> Bool,
+		untilOneWhere releases: @escaping (URLRequest) -> Bool
+	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		let gate = DispatchSemaphore(value: 0)
+		return { request, body in
+			var stub = handler(request, body)
+			if shouldHold(request) { stub = stub.held(until: gate) }
+			if releases(request) { stub = stub.releasing(gate) }
+			return stub
+		}
+	}
+
+	private func awaitRecordedRequests(_ count: Int) async {
+		let deadline = Date().addingTimeInterval(2)
+		while StubURLProtocol.records.count < count, Date() < deadline { await Task.yield() }
+	}
+
+	private func assertReleasedByTheOtherResponse(_ started: Date, file: StaticString = #filePath, line: UInt = #line) {
+		XCTAssertLessThan(
+			Date().timeIntervalSince(started), 1.5,
+			"precondition: the held response was released by the Read tab's response, not by the hold's timeout",
+			file: file, line: line
+		)
+	}
+
+	private func isReadTabRequest(_ request: URLRequest) -> Bool {
+		request.url?.path == "/queue" && (request.url?.query ?? "").contains("status=read")
+	}
+
+	private func tabbedQueueHandler(
+		readTabExtraLinks: String = "",
+		readTabAfterStatusPost: [String]? = nil
+	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		let unreadTab = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "u1"), Fixtures.article(id: "u2")],
+			total: 2, tabsJSON: Fixtures.tabs(current: "unread")
+		)
+		let readEntities = [readArticle(id: "r1")]
+		var statusPosted = false
+		return { request, _ in
+			let url = request.url
+			if url?.path.hasSuffix("/status") == true {
+				statusPosted = true
+				return .redirect(to: (url?.query ?? "").contains("status=read") ? Self.readTabLanding : "/queue")
+			}
+			switch (url?.path, url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query.contains("status=read") || query.contains(Self.readTabLandingQuery):
+				let entities = statusPosted ? (readTabAfterStatusPost ?? readEntities) : readEntities
+				return .json(200, Fixtures.collection(
+					entitiesJSON: entities, extraLinks: readTabExtraLinks, total: entities.count,
+					tabsJSON: Fixtures.tabs(current: "read")
+				))
+			case ("/queue", _):
+				return .json(200, unreadTab)
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	func testRefreshExposesTheServersTabsAndSelectsTheCurrentOne() async {
+		StubURLProtocol.setHandler(tabbedQueueHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		XCTAssertEqual(viewModel.tabs, [], "no tabs before a collection has loaded")
+		XCTAssertNil(viewModel.selectedTabHref)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.tabs.map(\.label), ["To Read", "Read"], "the tab set and labels are the server's, verbatim")
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=unread", "the entry point's collection decides the initial selection")
+		XCTAssertEqual(
+			viewModel.tabs.first(where: \.isCurrent)?.id, viewModel.selectedTabHref,
+			"the selection is the current tab's identity, so a picker keyed on tab ids highlights it"
+		)
+	}
+
+	func testSelectTabFollowsTheTabsHrefAndReplacesTheListAndItsPagination() async {
+		let readNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=read&page=2\" }"
+		StubURLProtocol.setHandler(tabbedQueueHandler(readTabExtraLinks: readNext))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2"])
+		XCTAssertFalse(viewModel.hasMore, "precondition: the To Read tab fits on one page")
+
+		await viewModel.select(tabHref: "/queue?status=read")
+
+		let tabRequest = StubURLProtocol.records.last?.request.url
+		XCTAssertEqual(tabRequest?.path, "/queue")
+		XCTAssertEqual(tabRequest?.query, "status=read", "the tab's server-built href is followed as-is; the client builds no status query")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["r1"], "the tab's collection replaces the list")
+		XCTAssertTrue(viewModel.hasMore, "pagination state is the new tab's: it advertises a next page")
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read", "the selection follows the response's current tab")
+
+		await viewModel.loadMore()
+
+		XCTAssertEqual(
+			StubURLProtocol.records.last?.request.url?.query, "status=read&page=2",
+			"load-more follows the new tab's next link, not the old tab's"
+		)
+	}
+
+	func testSelectingTheTabAlreadyShownIsANoOp() async {
+		StubURLProtocol.setHandler(tabbedQueueHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let requestsAfterLoad = StubURLProtocol.records.count
+
+		await viewModel.select(tabHref: "/queue?status=unread")
+
+		XCTAssertEqual(StubURLProtocol.records.count, requestsAfterLoad, "re-selecting the tab already shown issues no request")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2"], "and leaves the list in place")
+	}
+
+	func testInvokeUpdateStatusOnTheReadTabStaysOnTheReadTab() async throws {
+		StubURLProtocol.setHandler(tabbedQueueHandler(readTabAfterStatusPost: [readArticle(id: "r2")]))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.select(tabHref: "/queue?status=read")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["r1"])
+
+		let target = viewModel.articles[0]
+		await viewModel.invoke(try updateStatusAction(of: target), on: target)
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["r2"],
+			"the collection the mutation redirected to is adopted — the Read tab's, not the entry point's"
+		)
+		XCTAssertEqual(
+			viewModel.selectedTabHref, "/queue?status=read",
+			"the selection follows the adopted collection's current tab, so the app stays on Read"
+		)
+		XCTAssertNil(viewModel.errorText)
+	}
+
+	private func reReadAfterSelectingTheReadTab(
+		_ reconcile: (ReadingListViewModel) async -> Void
+	) async -> (path: String?, query: String?) {
+		StubURLProtocol.setHandler(tabbedQueueHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.select(tabHref: "/queue?status=read")
+		let requestsBefore = StubURLProtocol.records.count
+
+		await reconcile(viewModel)
+
+		XCTAssertEqual(StubURLProtocol.records.count, requestsBefore + 1, "the reconciliation is exactly one re-read")
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read", "the selection survives the re-read")
+		let url = StubURLProtocol.records.last?.request.url
+		return (url?.path, url?.query)
+	}
+
+	func testReaderStatusChangedReReadsTheSelectedTab() async {
+		let reRead = await reReadAfterSelectingTheReadTab { await $0.readerStatusChanged() }
+		XCTAssertEqual(reRead.path, "/queue")
+		XCTAssertEqual(reRead.query, "status=read", "the reader's status change re-reads the selected tab, not the entry point")
+	}
+
+	func testHandleForegroundReReadsTheSelectedTab() async {
+		let reRead = await reReadAfterSelectingTheReadTab { await $0.handleForeground() }
+		XCTAssertEqual(reRead.path, "/queue")
+		XCTAssertEqual(reRead.query, "status=read", "the foreground converge re-reads the selected tab, not the entry point")
+	}
+
+	func testWebSheetDismissalReReadsTheSelectedTab() async {
+		let reRead = await reReadAfterSelectingTheReadTab { await $0.handleWebSheetDismissal() }
+		XCTAssertEqual(reRead.path, "/queue")
+		XCTAssertEqual(reRead.query, "status=read", "the dismissal probe re-reads the selected tab, not the entry point")
+	}
+
+	func testALoadMoreInFlightWhenTheTabChangesNeverLandsUnderTheNewTab() async {
+		let unreadNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }"
+		let tabbed = tabbedQueueHandler()
+		StubURLProtocol.setHandler(holding({ request, body in
+			let query = request.url?.query ?? ""
+			if query.contains("page=2") {
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u3"), Fixtures.article(id: "u4")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=3\" }",
+					page: 2, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			}
+			if request.url?.path == "/queue", !query.contains("status=read") {
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u1"), Fixtures.article(id: "u2")],
+					extraLinks: unreadNext, total: 4, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			}
+			return tabbed(request, body)
+		}, requestsWhere: { ($0.url?.query ?? "").contains("page=2") }, untilOneWhere: isReadTabRequest))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2"])
+
+		let requestsBefore = StubURLProtocol.records.count
+		let started = Date()
+		let more = Task { await viewModel.loadMore() }
+		await awaitRecordedRequests(requestsBefore + 1)
+		await viewModel.select(tabHref: "/queue?status=read")
+		await more.value
+
+		assertReleasedByTheOtherResponse(started)
+		XCTAssertEqual(StubURLProtocol.records.count, requestsBefore + 2, "precondition: the To Read page request was in flight alongside the Read tab's")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["r1"], "the To Read page that landed late is discarded, not appended under the Read tab")
+		XCTAssertFalse(viewModel.hasMore, "the discarded page's next link is not adopted either")
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read")
+	}
+
+	func testAFirstPageReadInFlightWhenTheTabChangesDoesNotSnapTheSelectionBack() async {
+		var unreadReads = 0
+		StubURLProtocol.setHandler(holding(tabbedQueueHandler(), requestsWhere: { request in
+			guard request.url?.path == "/queue", !(request.url?.query ?? "").contains("status=read") else { return false }
+			unreadReads += 1
+			return unreadReads > 1
+		}, untilOneWhere: isReadTabRequest))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2"])
+
+		let requestsBefore = StubURLProtocol.records.count
+		let started = Date()
+		let foreground = Task { await viewModel.handleForeground() }
+		await awaitRecordedRequests(requestsBefore + 1)
+		await viewModel.select(tabHref: "/queue?status=read")
+		await foreground.value
+
+		assertReleasedByTheOtherResponse(started)
+		XCTAssertEqual(StubURLProtocol.records.count, requestsBefore + 2, "precondition: the foreground re-read was in flight alongside the Read tab's request")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["r1"], "the late To Read collection is discarded")
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read", "the selection the user made is not overridden by a superseded read")
+		XCTAssertFalse(viewModel.isLoading, "the superseded read leaves the loading state to the load that replaced it")
+	}
+
+	func testAMutationInFlightWhenTheTabChangesDoesNotAdoptTheOldTabsCollection() async throws {
+		StubURLProtocol.setHandler(holding(tabbedQueueHandler(), requestsWhere: { request in
+			request.url?.path == "/queue" && request.url?.query == nil
+				&& StubURLProtocol.records.contains { $0.request.url?.path.hasSuffix("/status") == true }
+		}, untilOneWhere: isReadTabRequest))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let target = viewModel.articles[0]
+		let toggle = try updateStatusAction(of: target)
+
+		let requestsBefore = StubURLProtocol.records.count
+		let started = Date()
+		let marked = Task { await viewModel.invoke(toggle, on: target) }
+		await awaitRecordedRequests(requestsBefore + 2)
+		await viewModel.select(tabHref: "/queue?status=read")
+		await marked.value
+
+		assertReleasedByTheOtherResponse(started)
+		XCTAssertEqual(StubURLProtocol.records.count, requestsBefore + 3, "precondition: the mutation, its redirected re-list and the Read tab's request all went out")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["r1"], "the collection the mutation redirected to belongs to the tab the user left, so it is not adopted")
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read")
+	}
+
+	func testAStalePageLoadNeverBlocksTheNewTabsOwnPageLoad() async {
+		let unreadNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }"
+		let readNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=read&page=2\" }"
+		let isReadPageTwo: (URLRequest) -> Bool = { $0.url?.query == "status=read&page=2" }
+		StubURLProtocol.setHandler(holding({ request, _ in
+			let url = request.url
+			switch (url?.path, url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "status=unread&page=2"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u3")], page: 2, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			case ("/queue", "status=read&page=2"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [self.readArticle(id: "r2")], page: 2, tabsJSON: Fixtures.tabs(current: "read")
+				))
+			case ("/queue", let query) where query.contains("status=read"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [self.readArticle(id: "r1")], extraLinks: readNext, total: 2,
+					tabsJSON: Fixtures.tabs(current: "read")
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u1"), Fixtures.article(id: "u2")],
+					extraLinks: unreadNext, total: 3, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}, requestsWhere: { $0.url?.query == "status=unread&page=2" }, untilOneWhere: isReadPageTwo))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2"])
+
+		let requestsBefore = StubURLProtocol.records.count
+		let started = Date()
+		let stale = Task { await viewModel.loadMore() }
+		await awaitRecordedRequests(requestsBefore + 1)
+		await viewModel.select(tabHref: "/queue?status=read")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["r1"], "precondition: the Read tab is shown while the To Read page is still in flight")
+		await viewModel.loadMore()
+		await stale.value
+
+		assertReleasedByTheOtherResponse(started)
+		XCTAssertEqual(StubURLProtocol.records.count, requestsBefore + 3, "the stale To Read page, the Read tab, and the Read tab's own next page were all requested")
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["r1", "r2"],
+			"the Read tab's own next page loads: a page request the tab switch superseded neither blocks it nor lands under it"
+		)
+		XCTAssertFalse(viewModel.hasMore)
+	}
+
+	func testATabWhoseLoadFailedAfterADeepScrollStillReconcilesOnTheNextRead() async {
+		let unreadNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }"
+		var readTabDown = true
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query.contains("page=2"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u3")], page: 2, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			case ("/queue", let query) where query.contains("status=read"):
+				return readTabDown
+					? .json(500, "{}")
+					: .json(200, Fixtures.collection(entitiesJSON: [self.readArticle(id: "r1")], tabsJSON: Fixtures.tabs(current: "read")))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u1"), Fixtures.article(id: "u2")],
+					extraLinks: unreadNext, total: 3, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2", "u3"], "precondition: two pages of To Read are loaded")
+
+		await viewModel.select(tabHref: "/queue?status=read")
+		XCTAssertNotNil(viewModel.errorText, "precondition: the Read tab's load failed")
+		XCTAssertTrue(viewModel.articles.isEmpty)
+
+		readTabDown = false
+		await viewModel.handleForeground()
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["r1"],
+			"an empty tab is a fresh single page, so the foreground re-read reconciles it instead of holding a scroll position it no longer has"
+		)
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read")
+	}
+
+	func testSelectionIsKeptWhenAFollowedCollectionCarriesNoCurrentTab() async {
+		let uncurrent = """
+		{ "label": "To Read", "rel": "tab", "href": "/queue?status=unread" },
+		{ "label": "Read", "rel": "tab", "href": "/queue?status=read" }
+		"""
+		let unfiltered = Fixtures.collection(entitiesJSON: [Fixtures.article(id: "any")], tabsJSON: uncurrent)
+		let tabbed = tabbedQueueHandler()
+		StubURLProtocol.setHandler { request, body in
+			switch request.url?.path {
+			case "/queue/purge": return .redirect(to: "/queue?all")
+			case "/queue" where request.url?.query == "all": return .json(200, unfiltered)
+			default: return tabbed(request, body)
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.select(tabHref: "/queue?status=read")
+
+		await viewModel.invokeCollection(purgeAction)
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["any"], "the followed collection is still adopted")
+		XCTAssertEqual(viewModel.tabs.map(\.isCurrent), [false, false], "and its tabs are shown as the server sent them")
+		XCTAssertEqual(
+			viewModel.selectedTabHref, "/queue?status=read",
+			"with no current tab in the response, the selection the user made is kept"
+		)
+	}
+
 	// MARK: - Mark as read
 
 	/// A two-item queue whose `/queue/{id}/status` POST behaves per `statusStub`.
@@ -578,41 +976,48 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testInvokeUpdateStatusKeepsTheRowWhenItTogglesBackToUnread() async throws {
-		// A read item's update-status toggles to "unread", which stays in the
-		// unread-only list — and the adopted post-action collection still carries
-		// the row, so it stays in place.
-		let readArticle = """
-			{ "class": ["article"], "rel": ["item"],
-				"properties": { "id": "a1", "url": "https://example.com/x", "status": "read" },
-				"links": [{ "rel": ["read"], "href": "/queue/a1/view" }],
-				"actions": [
-					{ "name": "update-status", "href": "/queue/a1/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "unread" }] }
-				] }
-			"""
+	func testInvokeUpdateStatusOnADeepScrolledReadTabDropsTheActedRow() async throws {
+		let readNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=read&page=2\" }"
 		StubURLProtocol.setHandler { request, _ in
-			let path = request.url?.path ?? ""
-			if path.hasSuffix("/status") { return .redirect(to: "/queue") }
-			switch path {
-			case "/":
+			let url = request.url
+			if url?.path.hasSuffix("/status") == true { return .redirect(to: Self.readTabLanding) }
+			switch (url?.path, url?.query ?? "") {
+			case ("/", _):
 				return .redirect(to: "/queue")
-			case "/queue":
-				return .json(200, Fixtures.collection(entitiesJSON: [readArticle]))
+			case ("/queue", let query) where query.contains("page=2"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [self.readArticle(id: "r3"), self.readArticle(id: "r4")],
+					page: 2, tabsJSON: Fixtures.tabs(current: "read")
+				))
+			case ("/queue", let query) where query.contains("status=read") || query.contains(Self.readTabLandingQuery):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [self.readArticle(id: "r1"), self.readArticle(id: "r2")],
+					extraLinks: readNext, total: 4, tabsJSON: Fixtures.tabs(current: "read")
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u1")], tabsJSON: Fixtures.tabs(current: "unread")
+				))
 			default:
 				return .json(404, "{}")
 			}
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
-		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"])
+		await viewModel.select(tabHref: "/queue?status=read")
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["r1", "r2", "r3", "r4"], "precondition: two pages of the Read tab are loaded")
 
-		let target = viewModel.articles[0]
-		await viewModel.invoke(try updateStatusAction(of: target), on: target)
+		let target = viewModel.articles[2]
+		let toggle = try updateStatusAction(of: target)
+		XCTAssertEqual(toggle.fields?.first?.value, "unread", "precondition: a read item's toggle targets unread")
+		await viewModel.invoke(toggle, on: target)
 
 		XCTAssertEqual(
-			viewModel.articles.map(\.id), ["a1"],
-			"a toggle back to unread leaves the row in the unread-only list"
+			viewModel.articles.map(\.id), ["r1", "r2", "r4"],
+			"a toggle to unread leaves the Read tab: the acted row is dropped while the deep-scrolled list holds position"
 		)
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read", "the app stays on the tab it acted from")
 		XCTAssertNil(viewModel.errorText)
 	}
 

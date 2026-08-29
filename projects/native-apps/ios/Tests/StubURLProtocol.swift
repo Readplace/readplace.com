@@ -9,11 +9,25 @@ final class StubURLProtocol: URLProtocol {
 		let status: Int
 		let headers: [String: String]
 		let body: Data
+		private(set) var heldUntil: DispatchSemaphore?
+		private(set) var releases: DispatchSemaphore?
 
 		init(status: Int, headers: [String: String] = ["Content-Type": "application/vnd.siren+json"], body: Data = Data()) {
 			self.status = status
 			self.headers = headers
 			self.body = body
+		}
+
+		func held(until gate: DispatchSemaphore) -> Stub {
+			var copy = self
+			copy.heldUntil = gate
+			return copy
+		}
+
+		func releasing(_ gate: DispatchSemaphore) -> Stub {
+			var copy = self
+			copy.releases = gate
+			return copy
 		}
 
 		static func json(_ status: Int, _ string: String) -> Stub {
@@ -59,6 +73,8 @@ final class StubURLProtocol: URLProtocol {
 	override class func canInit(with request: URLRequest) -> Bool { true }
 	override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
+	private var stopped = false
+
 	override func startLoading() {
 		let body = StubURLProtocol.readBody(request)
 		StubURLProtocol.lock.lock()
@@ -72,31 +88,41 @@ final class StubURLProtocol: URLProtocol {
 		}
 		do {
 			let stub = try handler(request, body)
-			let response = HTTPURLResponse(
-				url: url,
-				statusCode: stub.status,
-				httpVersion: "HTTP/1.1",
-				headerFields: stub.headers
-			)!
-			// URLSession only routes a custom protocol's response through the
-			// redirect machinery (willPerformHTTPRedirection, then a fresh load
-			// of the new request) when the protocol signals wasRedirectedTo;
-			// a 3xx delivered via didReceive is treated as the final response.
-			if (300...399).contains(stub.status), let location = stub.headers["Location"],
-				let redirectURL = URL(string: location, relativeTo: url) {
-				client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: redirectURL), redirectResponse: response)
-				client?.urlProtocolDidFinishLoading(self)
-				return
+			guard let gate = stub.heldUntil else { return deliver(stub, for: url) }
+			DispatchQueue.global().async { [self] in
+				_ = gate.wait(timeout: .now() + 2)
+				deliver(stub, for: url)
 			}
-			client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-			if !stub.body.isEmpty { client?.urlProtocol(self, didLoad: stub.body) }
-			client?.urlProtocolDidFinishLoading(self)
 		} catch {
 			client?.urlProtocol(self, didFailWithError: error)
 		}
 	}
 
-	override func stopLoading() {}
+	private func deliver(_ stub: Stub, for url: URL) {
+		defer { stub.releases?.signal() }
+		guard !stopped else { return }
+		let response = HTTPURLResponse(
+			url: url,
+			statusCode: stub.status,
+			httpVersion: "HTTP/1.1",
+			headerFields: stub.headers
+		)!
+		// URLSession only routes a custom protocol's response through the
+		// redirect machinery (willPerformHTTPRedirection, then a fresh load
+		// of the new request) when the protocol signals wasRedirectedTo;
+		// a 3xx delivered via didReceive is treated as the final response.
+		if (300...399).contains(stub.status), let location = stub.headers["Location"],
+			let redirectURL = URL(string: location, relativeTo: url) {
+			client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: redirectURL), redirectResponse: response)
+			client?.urlProtocolDidFinishLoading(self)
+			return
+		}
+		client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+		if !stub.body.isEmpty { client?.urlProtocol(self, didLoad: stub.body) }
+		client?.urlProtocolDidFinishLoading(self)
+	}
+
+	override func stopLoading() { stopped = true }
 
 	/// `URLSession` moves `httpBody` into `httpBodyStream` by the time a protocol
 	/// sees the request, so read the stream to capture POST bodies.

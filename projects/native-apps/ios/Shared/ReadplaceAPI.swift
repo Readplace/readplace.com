@@ -51,6 +51,7 @@ struct QueuePage {
 	/// conservative in what you render), so the caller renders whatever survives
 	/// without re-checking. Empty when the server offered none.
 	let noticeMessages: [ServerMessage]
+	let tabs: [QueueTab]
 
 	init(collection: SirenCollection) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
@@ -61,7 +62,10 @@ struct QueuePage {
 		affordances = actionAffordances + linkAffordances
 		warning = collection.properties?.warning
 		noticeMessages = (collection.properties?.messages ?? []).filter(\.isRenderable)
+		tabs = (collection.properties?.tabs ?? []).map(QueueTab.init(tab:))
 	}
+
+	var currentTabHref: String? { tabs.first(where: \.isCurrent)?.href }
 
 	/// The advertised action with this name, when present and invokable. The
 	/// share-sheet save journey needs a specific action to build its bespoke body

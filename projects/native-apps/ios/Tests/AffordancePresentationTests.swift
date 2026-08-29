@@ -29,14 +29,14 @@ final class AffordancePresentationTests: XCTestCase {
 		}
 	}
 
-	func testUpdateStatusMapsToAReadControlWhoseRemovalIsTransitionDependent() {
+	func testUpdateStatusMapsToAReadControlThatRemovesTheItemFromItsTab() {
 		let presentation = AffordancePresentation(token: "update-status")
 		XCTAssertEqual(presentation.systemImage, "checkmark.circle")
 		XCTAssertEqual(presentation.tint, .brandSuccess)
 		XCTAssertFalse(presentation.isDestructive)
-		XCTAssertFalse(
+		XCTAssertTrue(
 			presentation.removesItem,
-			"update-status is a server toggle, so whether it removes the row depends on the field value, not the token"
+			"every list is partitioned by status, so a toggle in either direction leaves the tab it was invoked from"
 		)
 		XCTAssertTrue(presentation.isToolbarControl)
 	}
@@ -99,7 +99,7 @@ final class AffordancePresentationTests: XCTestCase {
 		)
 	}
 
-	// MARK: - Transition-aware removal
+	// MARK: - Row removal
 
 	private func action(
 		name: String,
@@ -109,37 +109,29 @@ final class AffordancePresentationTests: XCTestCase {
 		SirenAction(name: name, href: href, method: "POST", title: nil, type: nil, fields: fields)
 	}
 
-	func testUpdateStatusRemovesTheRowWhenItsStatusValueMovesTheItemToRead() throws {
-		// The server toggle on an unread item targets "read", which leaves the
-		// unread-only list, so the row is dropped optimistically.
-		let toRead = action(name: "update-status", fields: [SirenField(name: "status", type: "text", value: "read")])
-		let affordance = try XCTUnwrap(Affordance(action: toRead))
-		XCTAssertTrue(affordance.removesItemFromUnreadList, "a transition to read leaves the unread-only list")
-	}
-
-	func testUpdateStatusKeepsTheRowWhenItsStatusValueTogglesBackToUnread() throws {
-		// The same action on an already-read item targets "unread"; the row stays in
-		// the unread-only list, so nothing is removed — the next load reconciles it.
-		let toUnread = action(name: "update-status", fields: [SirenField(name: "status", type: "text", value: "unread")])
-		let affordance = try XCTUnwrap(Affordance(action: toUnread))
-		XCTAssertFalse(affordance.removesItemFromUnreadList, "a transition to unread does not leave the unread-only list")
+	func testUpdateStatusRemovesTheRowWhicheverWayItsStatusValueToggles() throws {
+		for value in ["read", "unread"] {
+			let toggle = action(name: "update-status", fields: [SirenField(name: "status", type: "text", value: value)])
+			let affordance = try XCTUnwrap(Affordance(action: toggle))
+			XCTAssertTrue(affordance.removesItemFromList, "a toggle to \(value) leaves the tab it was invoked from")
+		}
 	}
 
 	func testDeleteAlwaysRemovesTheRowRegardlessOfFields() throws {
 		let delete = action(name: "delete", href: "/queue/a1/delete")
 		let affordance = try XCTUnwrap(Affordance(action: delete))
-		XCTAssertTrue(affordance.removesItemFromUnreadList, "delete removes the item unconditionally")
+		XCTAssertTrue(affordance.removesItemFromList, "delete removes the item unconditionally")
 	}
 
 	func testAnUnrelatedActionDoesNotRemoveTheRow() throws {
 		let other = action(name: "view-original", href: "/queue/a1/original")
 		let affordance = try XCTUnwrap(Affordance(action: other))
-		XCTAssertFalse(affordance.removesItemFromUnreadList, "an action with no read transition leaves the list untouched")
+		XCTAssertFalse(affordance.removesItemFromList, "an action with no removal semantics leaves the list untouched")
 	}
 
 	func testANavigableLinkNeverRemovesARow() throws {
 		let link = try XCTUnwrap(Affordance(link: SirenLink(rel: ["save"], href: "/save", title: nil)))
-		XCTAssertFalse(link.removesItemFromUnreadList, "a navigable link acts on no row, so it removes nothing")
+		XCTAssertFalse(link.removesItemFromList, "a navigable link acts on no row, so it removes nothing")
 	}
 
 	// MARK: - Bare-control invokability

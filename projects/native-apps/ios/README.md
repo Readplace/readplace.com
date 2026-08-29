@@ -76,11 +76,13 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   whole attempt and the in-flight PKCE secrets never leave memory. **Login uses
   this identical flow**, differing only in the `screen_hint`.
 - **List** your reading list by walking the Siren API from the one entry point
-  it knows, following whatever the server hands back: the collection (unread
-  only), each article (title, site, excerpt, thumbnail, read state), with
-  pull-to-refresh, infinite scroll via the `next` link, and swipe-to-**mark-read**
-  via each item's server-declared status action (the marked row leaves the unread
-  list; the article is kept, not deleted). The client follows the server's hrefs,
+  it knows, following whatever the server hands back: the collection's status
+  tabs (labels and hrefs are the server's, rendered verbatim; the selected tab
+  follows the response's `current` entry), each article (title, site, excerpt,
+  thumbnail, read state), with pull-to-refresh, infinite scroll via the `next`
+  link, and swipe-to-**mark-read** via each item's server-declared status action
+  (the acted row leaves the tab it was invoked from; the article is kept, not
+  deleted). The client follows the server's hrefs,
   link `rel`s and action/field names — never hard-coded URLs — so a server view
   change needs no app release. A link or action advertised without an href is
   treated as read-only.

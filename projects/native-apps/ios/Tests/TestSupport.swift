@@ -245,15 +245,17 @@ enum Fixtures {
 		page: Int = 1,
 		total: Int = 1,
 		actionsJSON: String = collectionActions,
-		messagesJSON: String? = nil
+		messagesJSON: String? = nil,
+		tabsJSON: String? = nil
 	) -> String {
 		// Injected into `properties` only when set, so a caller that doesn't opt in
 		// models a server that emits no collection-level notices.
 		let messages = messagesJSON.map { ", \"messages\": [\($0)]" } ?? ""
+		let tabs = tabsJSON.map { ", \"tabs\": [\($0)]" } ?? ""
 		return """
 		{
 			"class": ["collection", "articles"],
-			"properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages) },
+			"properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages)\(tabs) },
 			"entities": [\(entitiesJSON.joined(separator: ",\n"))],
 			"links": [
 				{ "rel": ["self"], "href": "/queue?page=\(page)" },
@@ -261,6 +263,14 @@ enum Fixtures {
 			],
 			"actions": [\(actionsJSON)]
 		}
+		"""
+	}
+
+	static func tabs(current: String) -> String {
+		func rel(_ status: String) -> String { status == current ? "current" : "tab" }
+		return """
+		{ "label": "To Read", "rel": "\(rel("unread"))", "href": "/queue?status=unread" },
+		{ "label": "Read", "rel": "\(rel("read"))", "href": "/queue?status=read" }
 		"""
 	}
 

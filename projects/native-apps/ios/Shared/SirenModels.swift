@@ -178,6 +178,12 @@ extension SirenEntity {
 	}
 }
 
+struct CollectionTab: Decodable, Hashable {
+	let label: String
+	let rel: String
+	let href: String
+}
+
 struct CollectionProperties: Decodable {
 	let warning: SirenWarning?
 	/// Server-authored notices the client may render generically (e.g. the iOS
@@ -185,10 +191,11 @@ struct CollectionProperties: Decodable {
 	/// forward-added channel: an older server never emits it, and iOS is a shipped
 	/// client, so its absence must decode cleanly rather than fail the collection.
 	let messages: [ServerMessage]?
+	let tabs: [CollectionTab]?
 }
 
 extension CollectionProperties {
-	private enum CodingKeys: String, CodingKey { case warning, messages }
+	private enum CodingKeys: String, CodingKey { case warning, messages, tabs }
 
 	/// Decodes the warning and messages leniently so an evolving or malformed value
 	/// degrades to no banner rather than failing the whole collection decode: both
@@ -198,6 +205,7 @@ extension CollectionProperties {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		warning = try container.decodeLossyIfPresent(SirenWarning.self, forKey: .warning)
 		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
+		tabs = try container.decodeLossyArrayIfPresent(CollectionTab.self, forKey: .tabs)
 	}
 }
 
@@ -410,6 +418,19 @@ extension Article {
 		actions = entity.actions ?? []
 		links = entity.links ?? []
 		readHref = links.first { $0.rel.contains("read") }?.href
+	}
+}
+
+struct QueueTab: Identifiable, Hashable {
+	let label: String
+	let href: String
+	let isCurrent: Bool
+	var id: String { href }
+
+	init(tab: CollectionTab) {
+		label = tab.label
+		href = tab.href
+		isCurrent = tab.rel == "current"
 	}
 }
 

@@ -13,13 +13,11 @@ struct AffordancePresentation {
 	/// Whether the control mutates server state with no undo — the View uses this
 	/// to mark a swipe action destructive and to confirm before invoking.
 	let isDestructive: Bool
-	/// Whether invoking the control unconditionally removes the item it acts on from
-	/// the current (unread-only) list, knowable from the wire token alone. Only
-	/// `delete` qualifies: it always removes the item regardless of any field value.
-	/// `update-status` is a server toggle (it may set the status to `read` OR
-	/// `unread`), so whether it removes the row depends on the action's `status`
-	/// field `value`, not the token — that transition-aware decision lives in
-	/// `Affordance.removesItemFromUnreadList`, not here.
+	/// Whether invoking the control removes the item it acts on from the list it
+	/// was invoked from, knowable from the wire token alone. `delete` always removes
+	/// the item, and every list is partitioned by status, so `update-status` — a
+	/// toggle in either direction — always moves the item out of the tab it was
+	/// listed under.
 	let removesItem: Bool
 	/// Whether the wire token alone allows presenting this affordance as a
 	/// collection toolbar control. `false` for two kinds excluded structurally (not
@@ -75,7 +73,7 @@ struct AffordancePresentation {
 			systemImage = "checkmark.circle"
 			tint = .brandSuccess
 			isDestructive = false
-			removesItem = false
+			removesItem = true
 			isToolbarControl = true
 			isRecognizedToken = true
 			showsTitle = false
@@ -213,20 +211,12 @@ extension Affordance {
 		}
 	}
 
-	/// Whether invoking this affordance removes the item it acts on from the
-	/// unread-only reading list — the row the post-action adoption drops when the
+	/// Whether invoking this affordance removes the item it acts on from the list
+	/// it was invoked from — the row the post-action adoption drops when the
 	/// server's returned collection can't confirm it (a deep-scrolled merge keeps
 	/// rows the fresh head doesn't cover, and a non-collection response carries no
-	/// re-list direction at all). `delete` always removes (known from the token).
-	/// `update-status` is a server toggle, so it removes the row only when its
-	/// `status` field's server-supplied `value` moves the item out of the
-	/// unread-only list (`read`); a toggle back to `unread` leaves the row in place.
-	var removesItemFromUnreadList: Bool {
-		if presentation.removesItem { return true }
-		guard case let .action(action) = invocation else { return false }
-		let status = (action.fields ?? []).first { $0.name == "status" }?.value
-		return status == "read"
-	}
+	/// re-list direction at all).
+	var removesItemFromList: Bool { presentation.removesItem }
 }
 
 extension Article {

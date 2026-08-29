@@ -492,6 +492,48 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
 	}
 
+	func testCollectionTabsDecodeLabelRelAndHrefWithTheCurrentOneMarked() throws {
+		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()], tabsJSON: Fixtures.tabs(current: "unread"))
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(page.tabs.map(\.label), ["To Read", "Read"], "labels are the server's, in wire order")
+		XCTAssertEqual(page.tabs.map(\.href), ["/queue?status=unread", "/queue?status=read"])
+		XCTAssertEqual(page.tabs.map(\.isCurrent), [true, false])
+		XCTAssertEqual(page.tabs.map(\.id), page.tabs.map(\.href), "a tab's identity is its href — the value a selection control's tag must equal")
+		XCTAssertEqual(page.currentTabHref, "/queue?status=unread", "the current tab is the one whose rel is current")
+	}
+
+	func testCurrentTabHrefFollowsWhicheverTabTheServerMarksCurrent() throws {
+		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()], tabsJSON: Fixtures.tabs(current: "read"))
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(page.currentTabHref, "/queue?status=read")
+	}
+
+	func testCollectionDropsAMalformedTabButKeepsTheValidOne() throws {
+		let hrefless = "{ \"label\": \"To Read\", \"rel\": \"tab\" }"
+		let valid = "{ \"label\": \"Read\", \"rel\": \"current\", \"href\": \"/queue?status=read\" }"
+		let json = Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], tabsJSON: "\(hrefless), \(valid)")
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(page.tabs.map(\.label), ["Read"], "the hrefless tab is dropped; the valid one survives")
+		XCTAssertEqual(page.currentTabHref, "/queue?status=read")
+		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
+	}
+
+	func testCollectionWithoutTabsExposesNoneAndNoCurrentTab() throws {
+		let page = QueuePage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [Fixtures.article()])))
+		XCTAssertEqual(page.tabs, [], "a server that advertises no tabs yields an empty set, not a failed decode")
+		XCTAssertNil(page.currentTabHref)
+	}
+
+	func testCurrentTabHrefIsNilWhenNoTabIsCurrent() throws {
+		let none = """
+		{ "label": "To Read", "rel": "tab", "href": "/queue?status=unread" },
+		{ "label": "Read", "rel": "tab", "href": "/queue?status=read" }
+		"""
+		let page = QueuePage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [], tabsJSON: none)))
+		XCTAssertEqual(page.tabs.map(\.isCurrent), [false, false])
+		XCTAssertNil(page.currentTabHref)
+	}
+
 	func testSirenDateParsesWithAndWithoutFractionalSeconds() throws {
 		let base = SirenDecodingTests.utc(2026, 5, 30, 10, 0, 0)
 		XCTAssertEqual(try XCTUnwrap(SirenDate.parse("2026-05-30T10:00:00Z")), base)

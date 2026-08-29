@@ -34,7 +34,20 @@ struct ReadingListView: View {
 
 	var body: some View {
 		NavigationStack {
-			content
+			VStack(spacing: 0) {
+				if !viewModel.tabs.isEmpty {
+					Picker("Filter", selection: tabSelection) {
+						ForEach(viewModel.tabs) { tab in
+							Text(tab.label).tag(Optional(tab.id))
+						}
+					}
+					.pickerStyle(.segmented)
+					.padding(.horizontal)
+					.padding(.bottom, 8)
+				}
+				content
+			}
+				.background(Color.brandSurface.ignoresSafeArea())
 				.navigationTitle("Reading List")
 				.toolbar {
 					ToolbarItem(placement: .navigationBarLeading) {
@@ -127,6 +140,13 @@ struct ReadingListView: View {
 					Text("This can't be undone.")
 				}
 		}
+	}
+
+	private var tabSelection: Binding<String?> {
+		Binding(
+			get: { viewModel.selectedTabHref },
+			set: { if let href = $0 { Task { await viewModel.select(tabHref: href) } } }
+		)
 	}
 
 	@MainActor

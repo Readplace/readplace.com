@@ -28,8 +28,12 @@ final class ReadingListViewModel: ObservableObject {
 	/// injected by the client and kept canonical, so any add-links-help the server
 	/// also advertises is deduped rather than rendered as a second +.
 	@Published private(set) var collectionAffordances: [Affordance] = [ReadingListViewModel.addLinksHelp]
+	@Published private(set) var tabs: [QueueTab] = []
+	@Published private(set) var selectedTabHref: String?
 
 	private var nextHref: String?
+	private var currentTabHref: String?
+	private var tabGeneration = 0
 	/// The server-advertised `create-session` action from the loaded collection,
 	/// followed to mint the reader's browser session. Nil against a server that
 	/// hasn't advertised it, in which case the API falls back to a fixed path.
@@ -86,7 +90,25 @@ final class ReadingListViewModel: ObservableObject {
 		await fetchFirstPage()
 	}
 
+	func select(tabHref: String) async {
+		guard tabHref != currentTabHref else { return }
+		tabGeneration += 1
+		currentTabHref = tabHref
+		selectedTabHref = tabHref
+		articles = []
+		nextHref = nil
+		hasMore = false
+		hasPaginated = false
+		isLoadingMore = false
+		await fetchFirstPage()
+	}
+
+	private func tabUnchanged(since generation: Int) -> Bool {
+		generation == tabGeneration
+	}
+
 	private func fetchFirstPage() async {
+		let generation = tabGeneration
 		isLoading = true
 		errorText = nil
 		// A locked account's reads still succeed, so a fresh load reconciles a
@@ -94,9 +116,11 @@ final class ReadingListViewModel: ObservableObject {
 		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
 		messages = []
 		do {
-			let page = try await api.loadQueue()
+			let page = try await api.loadQueue(path: currentTabHref)
+			guard tabUnchanged(since: generation) else { return }
 			apply(page, replacing: true)
 		} catch {
+			guard tabUnchanged(since: generation) else { return }
 			handle(error)
 		}
 		isLoading = false
@@ -104,14 +128,15 @@ final class ReadingListViewModel: ObservableObject {
 
 	func loadMore() async {
 		guard let next = nextHref, !isLoadingMore else { return }
+		let generation = tabGeneration
 		isLoadingMore = true
 		do {
 			let page = try await api.loadQueue(path: next)
-			apply(page, replacing: false)
+			if tabUnchanged(since: generation) { apply(page, replacing: false) }
 		} catch {
-			handle(error)
+			if tabUnchanged(since: generation) { handle(error) }
 		}
-		isLoadingMore = false
+		if tabUnchanged(since: generation) { isLoadingMore = false }
 	}
 
 	/// Invokes one of an item's advertised actions via the action's own
@@ -124,9 +149,11 @@ final class ReadingListViewModel: ObservableObject {
 	/// the website appears right here). A failure surfaces the error and leaves the
 	/// current list in place; there is no optimistic removal to roll back.
 	func invoke(_ action: SirenAction, on article: Article) async {
-		let removesItem = Affordance(action: action)?.removesItemFromUnreadList ?? false
+		let removesItem = Affordance(action: action)?.removesItemFromList ?? false
+		let generation = tabGeneration
 		do {
 			let page = try await api.invoke(action: action)
+			guard tabUnchanged(since: generation) else { return }
 			adopt(page, droppingId: removesItem ? article.id : nil)
 		} catch {
 			handle(error)
@@ -140,8 +167,11 @@ final class ReadingListViewModel: ObservableObject {
 	/// collection, a fresh first-page load converges instead. A failure surfaces
 	/// the error and leaves the current list in place.
 	func invokeCollection(_ action: SirenAction) async {
+		let generation = tabGeneration
 		do {
-			if let page = try await api.invoke(action: action) {
+			let page = try await api.invoke(action: action)
+			guard tabUnchanged(since: generation) else { return }
+			if let page {
 				apply(page, replacing: true)
 			} else {
 				await fetchFirstPage()
@@ -228,14 +258,17 @@ final class ReadingListViewModel: ObservableObject {
 	/// discarded.
 	private func reloadAndAdopt(droppingId removedId: String?) async {
 		guard !isLoading else { return }
+		let generation = tabGeneration
 		isLoading = true
-		defer { isLoading = false }
 		do {
-			let page = try await api.loadQueue()
+			let page = try await api.loadQueue(path: currentTabHref)
+			guard tabUnchanged(since: generation) else { return }
 			adopt(page, droppingId: removedId)
 		} catch {
+			guard tabUnchanged(since: generation) else { return }
 			handle(error)
 		}
+		isLoading = false
 	}
 
 	/// Opens the reader for a tapped row. A row whose server response carries no
@@ -343,6 +376,11 @@ final class ReadingListViewModel: ObservableObject {
 		if replacing {
 			applyToolbar(page)
 			sessionAction = page.action(named: "create-session")
+			tabs = page.tabs
+			if let current = page.currentTabHref {
+				currentTabHref = current
+				selectedTabHref = current
+			}
 		}
 		warningText = page.warning?.message
 	}
