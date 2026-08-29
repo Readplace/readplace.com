@@ -205,7 +205,7 @@ export async function seedPerfDataset(input: {
 			await post({
 				page,
 				url: `${baseURL}/queue/${articleId}/assign`,
-				form: { readlist: slug, returnTo: `/queue/${articleId}/view` },
+				form: { queue: slug, returnTo: `/queue/${articleId}/view` },
 				what: `filing ${articleId} into ${slug}`,
 			});
 		}
