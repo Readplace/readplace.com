@@ -8,6 +8,11 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import { toArticleCollectionEntity } from "./collection-siren";
 
+const tabs = [
+	{ label: "To Read", status: "unread" },
+	{ label: "Read", status: "read" },
+] as const;
+
 function makeArticle(idHint: string): SavedArticle {
 	const url = `https://example.com/${idHint}`;
 	return {
@@ -37,7 +42,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(entity.class).toContain("collection");
 		expect(entity.class).toContain("articles");
@@ -52,7 +57,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2 });
+		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs });
 
 		expect(entity.properties).toMatchObject({
 			pageSize: 20,
@@ -72,12 +77,84 @@ describe("toArticleCollectionEntity", () => {
 			status: "unread",
 			order: "desc",
 			page: 2,
-		});
+		}, { tabs });
 
 		expect(entity.properties?.pages).toEqual([
 			{ label: "1", rel: "prev", href: "/queue?status=unread&order=desc&page=1" },
 			{ label: "2", rel: "current", href: "/queue?status=unread&order=desc&page=2" },
 			{ label: "3", rel: "next", href: "/queue?status=unread&order=desc&page=3" },
+		]);
+	});
+
+	it("advertises the status tabs with the served one current, each href carrying only the status", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			total: 42,
+			hasMore: true,
+			page: 2,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(
+			result,
+			{ status: "unread", page: 2, url: "https://example.com/1" },
+			{ tabs },
+		);
+
+		expect(entity.properties?.tabs).toEqual([
+			{ label: "To Read", rel: "current", href: "/queue?status=unread" },
+			{ label: "Read", rel: "tab", href: "/queue?status=read" },
+		]);
+	});
+
+	it("marks the read tab current and carries the requested order into every tab href", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, { status: "read", order: "asc" }, { tabs });
+
+		expect(entity.properties?.tabs).toEqual([
+			{ label: "To Read", rel: "tab", href: "/queue?status=unread&order=asc" },
+			{ label: "Read", rel: "current", href: "/queue?status=read&order=asc" },
+		]);
+	});
+
+	it("marks no tab current on a collection that is not filtered by status", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
+
+		expect(entity.properties?.tabs).toEqual([
+			{ label: "To Read", rel: "tab", href: "/queue?status=unread" },
+			{ label: "Read", rel: "tab", href: "/queue?status=read" },
+		]);
+	});
+
+	it("bakes the collection's status into each embedded update-status href so the redirect lands back on the same tab", () => {
+		const read: SavedArticle = { ...makeArticle("1"), status: "read", readAt: new Date("2026-03-04T12:00:00.000Z") };
+		const unread = makeArticle("2");
+		const readList: FindArticlesResult = { articles: [read], total: 1, hasMore: false, page: 1, pageSize: 20 };
+		const unreadList: FindArticlesResult = { articles: [unread], total: 1, hasMore: false, page: 1, pageSize: 20 };
+
+		const onReadTab = toArticleCollectionEntity(readList, { status: "read", order: "asc" }, { tabs });
+		const onUnreadTab = toArticleCollectionEntity(unreadList, { status: "unread" }, { tabs });
+
+		const updateStatusHref = (entity: ReturnType<typeof toArticleCollectionEntity>) =>
+			entity.entities?.[0].actions?.find((a) => a.name === "update-status")?.href;
+		expect([updateStatusHref(onReadTab), updateStatusHref(onUnreadTab)]).toEqual([
+			`/queue/${read.id.value}/status?status=read&order=asc`,
+			`/queue/${unread.id.value}/status?status=unread`,
 		]);
 	});
 
@@ -90,7 +167,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(entity.properties?.pages).toEqual([
 			{ label: "1", rel: "current", href: "/queue?page=1" },
@@ -106,7 +183,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(entity.entities).toHaveLength(2);
 		expect(entity.entities?.[0].rel).toContain("item");
@@ -122,7 +199,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(Object.keys(entity.entities?.[0].properties ?? {})).toEqual([
 			"id",
@@ -156,6 +233,7 @@ describe("toArticleCollectionEntity", () => {
 			result,
 			{},
 			{
+				tabs,
 				crawlByUrl: new Map<string, ArticleCrawl | undefined>([
 					[
 						blocked.url,
@@ -186,7 +264,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(
 			(entity.entities ?? []).map((sub) => sub.properties?.needsBrowserCapture),
@@ -202,7 +280,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(entity.links).toContainEqual({ rel: ["self"], href: "/queue" });
 		expect(entity.links).toContainEqual({ rel: ["root"], href: "/queue" });
@@ -218,7 +296,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { surfacePlatform: "ios" });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, surfacePlatform: "ios" });
 
 		expect(entity.links).toContainEqual({
 			rel: ["account"],
@@ -236,7 +314,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(entity.links).toContainEqual({
 			rel: ["add-links-help"],
@@ -254,7 +332,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		const nextLink = entity.links?.find((l) => l.rel.includes("next"));
 		expect(nextLink?.href).toContain("page=2");
@@ -269,7 +347,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2 });
+		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs });
 
 		const prevLink = entity.links?.find((l) => l.rel.includes("prev"));
 		expect(prevLink?.href).toContain("page=1");
@@ -284,7 +362,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2 });
+		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
 		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "prev"]);
@@ -299,7 +377,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
 		expect(linkRels).toEqual(["self", "root", "account", "add-links-help"]);
@@ -317,7 +395,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, {
 			status: "unread",
 			order: "desc",
-		});
+		}, { tabs });
 
 		const nextLink = entity.links?.find((l) => l.rel.includes("next"));
 		expect(nextLink?.href).toContain("status=unread");
@@ -333,7 +411,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		const saveAction = entity.actions?.find((a) => a.name === "save-article");
 		expect(saveAction?.method).toBe("POST");
@@ -350,7 +428,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		const titles = Object.fromEntries(
 			(entity.actions ?? []).map((a) => [a.name, a.title]),
@@ -371,7 +449,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		const saveArticlesAction = entity.actions?.find((a) => a.name === "save-articles");
 		expect(saveArticlesAction?.href).toBe("/queue/save-articles");
@@ -391,7 +469,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		const sessionAction = entity.actions?.find((a) => a.name === "create-session");
 		expect(sessionAction?.href).toBe("/auth/session");
@@ -407,7 +485,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		const filterAction = entity.actions?.find(
 			(a) => a.name === "search",
@@ -433,7 +511,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{},
-			{ warning: { code: "unsupported_scheme", message: "Only http and https URLs can be saved" } },
+			{ tabs, warning: { code: "unsupported_scheme", message: "Only http and https URLs can be saved" } },
 		);
 
 		expect(entity.properties).toMatchObject({
@@ -453,7 +531,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		for (const sub of entity.entities ?? []) {
 			const readLink = sub.links?.find((l) => l.rel.includes("read"));
@@ -470,7 +548,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(entity.properties).not.toHaveProperty("warning");
 	});
@@ -484,7 +562,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { showSaveInProgressNotice: true });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, showSaveInProgressNotice: true });
 
 		expect(entity.properties).toMatchObject({
 			messages: [
@@ -505,7 +583,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {});
+		const entity = toArticleCollectionEntity(result, {}, { tabs });
 
 		expect(entity.properties).not.toHaveProperty("messages");
 	});
@@ -518,7 +596,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		expect(() => toArticleCollectionEntity(result, {})).toThrow(
+		expect(() => toArticleCollectionEntity(result, {}, { tabs })).toThrow(
 			"Siren collection requires a total",
 		);
 	});

@@ -164,7 +164,7 @@ import {
 import type { QueueRailViewModel } from "./queue.component";
 import { queueReturnQuery } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
-import { tabQuery } from "./queue.tabs";
+import { QUEUE_TAB_STATUSES, tabQuery } from "./queue.tabs";
 import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./queue.error";
@@ -1366,6 +1366,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						url: filterUrl,
 					},
 					{
+						tabs: QUEUE_TAB_STATUSES,
 						surfacePlatform: nativeSurfaceOf(req),
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
 						crawlByUrl,
@@ -1494,6 +1495,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					collection,
 					{ page: collection.page },
 					{
+						tabs: QUEUE_TAB_STATUSES,
 						warning: { code: validation.error.code, message: validation.error.message },
 						surfacePlatform: nativeSurfaceOf(req),
 						crawlByUrl,

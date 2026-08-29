@@ -1,49 +1,31 @@
 import assert from "node:assert";
-import type {
-	FindArticlesResult,
-	SortOrder,
-} from "@packages/provider-contracts/article-store";
-import type { ArticleStatus } from "@packages/domain/article";
+import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
 import type { SirenEntity, SirenLink } from "./siren";
 import { buildPageList } from "./page-list";
+import { buildTabList, type StatusTab } from "./tab-list";
+import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
-
-interface CollectionQueryParams {
-	status?: ArticleStatus;
-	order?: SortOrder;
-	page?: number;
-	url?: string;
-}
 
 interface CollectionWarning {
 	readonly code: string;
 	readonly message: string;
 }
 
-function buildQueryString(params: CollectionQueryParams): string {
-	const search = new URLSearchParams();
-	if (params.status) search.set("status", params.status);
-	if (params.order) search.set("order", params.order);
-	if (params.page) search.set("page", String(params.page));
-	if (params.url) search.set("url", params.url);
-	const qs = search.toString();
-	return qs ? `?${qs}` : "";
-}
-
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
 	options: {
+		tabs: readonly StatusTab[];
 		warning?: CollectionWarning;
 		surfacePlatform?: NativeClientPlatform;
 		showSaveInProgressNotice?: boolean;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
-	} = {},
+	},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
 	assert(total !== undefined, "Siren collection requires a total");
@@ -94,6 +76,11 @@ export function toArticleCollectionEntity(
 			totalPages,
 			hrefForPage: (pageNumber) => `/queue${buildQueryString({ ...queryParams, page: pageNumber })}`,
 		}),
+		tabs: buildTabList({
+			tabs: options.tabs,
+			currentStatus: queryParams.status,
+			hrefForStatus: (status) => `/queue${buildQueryString({ status, order: queryParams.order })}`,
+		}),
 	};
 	if (options.warning) properties.warning = options.warning;
 	// Offered only to a native app's own requests (header-gated, never `?platform=`),
@@ -106,7 +93,10 @@ export function toArticleCollectionEntity(
 		class: ["collection", "articles"],
 		properties,
 		entities: articles.map((article) =>
-			toArticleSubEntity(article, options.crawlByUrl?.get(article.url)),
+			toArticleSubEntity(article, {
+				crawl: options.crawlByUrl?.get(article.url),
+				collectionQuery: { status: queryParams.status, order: queryParams.order },
+			}),
 		),
 		links,
 		actions: [

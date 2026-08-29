@@ -20,6 +20,7 @@ The client's job is to interpret the Siren format and follow what the server say
 - Server schemas: [projects/hutch/src/runtime/web/api/siren.ts](../../../projects/hutch/src/runtime/web/api/siren.ts)
 - Collection emission: [projects/hutch/src/runtime/web/api/collection-siren.ts](../../../projects/hutch/src/runtime/web/api/collection-siren.ts)
 - Entity emission: [projects/hutch/src/runtime/web/api/article-siren.ts](../../../projects/hutch/src/runtime/web/api/article-siren.ts)
+- Status tab list: [projects/hutch/src/runtime/web/api/tab-list.ts](../../../projects/hutch/src/runtime/web/api/tab-list.ts)
 - Content negotiation: [projects/hutch/src/runtime/web/content-negotiation.ts](../../../projects/hutch/src/runtime/web/content-negotiation.ts)
 - Client implementations: see [Per-Client Implementations](#per-client-implementations)
 
@@ -153,6 +154,28 @@ This is a **published interface**: `pages`, `label`, `rel`, and `href` are the c
 - **`label` is the server's display string.** A client renders it verbatim and never parses it, derives it from array position, or reads a page number out of an `href` — that is what keeps the server free to change page identity or elide entries later.
 - **`href` is opaque and server-built**, resolved through the client's one href resolver like any other. A client that builds `?page=` itself has reintroduced the coupling this removes.
 - **Which entries to display is client presentation.** The server sends the full list; windowing it (a few around the current page, plus the first and last) is the client's own layout decision, and `rel` is never used as a CSS class.
+
+## Status Tabs Are Server-Owned — `properties.tabs`
+
+The queue is partitioned by status into tabs — today *To Read* and *Read* — and the tab set, each tab's label, and where each tab lives are **server policy**. A rename or a new tab reaches every client without a release only if no client holds that list itself. The same reasoning as `pages` rules out links and actions as the vehicle (a titled affordance phantom-renders as a control on every shipped build; a title-less one has nowhere to carry the label), so tabs ride collection `properties`, where an unknown key is inert on every shipped client:
+
+```jsonc
+"properties": {
+  "tabs": [
+    { "label": "To Read", "rel": "tab",     "href": "/queue?status=unread" },
+    { "label": "Read",    "rel": "current", "href": "/queue?status=read" }
+  ]
+}
+```
+
+This is a **published interface**: `tabs`, `label`, `rel`, and `href` are the contract, and renaming any of them is a breaking change. Entries carry no counts; a count is an additive property if a client ever needs one.
+
+- **`rel` is `current` for the tab the response lists and `tab` for every other.** A collection that is not filtered by status (the invalid-URL save refusal lists every status) carries no `current` entry at all — the same rule as an out-of-range page in `pages` — and a client keeps whatever tab it had selected.
+- **`label` is the server's display string**, rendered verbatim and never parsed.
+- **`href` is opaque and server-built** — resolved through the client's one href resolver, never assembled from a status the client knows. The server carries the request's sort order into each tab's href; a client that builds `?status=` itself has reintroduced the coupling this removes.
+- **A tab's contents arrive only by following its `href`.** An entry describes a tab, not its items.
+- **Entity mutation hrefs carry the tab.** Each embedded item's `update-status` `href` is built with the collection's own status (and order) baked in, so the `303` the mutation answers with lands the client back on the tab it acted from — a client stays on *Read* after toggling an item unread there, without ever knowing how the server encodes a tab. The href is opaque, so this is non-breaking for every shipped client; the save response's entity (no collection context) keeps the bare href.
+- **Presentation is the client's.** A segmented control, a tab bar, or a menu is a layout decision; `rel` is never used as a style token.
 
 ## Entity-Level vs Collection-Level Actions
 

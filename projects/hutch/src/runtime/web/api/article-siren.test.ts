@@ -152,6 +152,20 @@ describe("toArticleSubEntity", () => {
 		});
 	});
 
+	it("bakes the collection query into the update-status href so the mutation's redirect returns to the tab it was invoked from", () => {
+		const subEntity = toArticleSubEntity(makeArticle(), {
+			collectionQuery: { status: "unread", order: "asc" },
+		});
+		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
+		expect(updateStatus?.href).toBe(`/queue/${ARTICLE_ID}/status?status=unread&order=asc`);
+	});
+
+	it("keeps a bare update-status href when the entity is emitted outside any collection", () => {
+		const subEntity = toArticleSubEntity(makeArticle());
+		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
+		expect(updateStatus?.href).toBe(`/queue/${ARTICLE_ID}/status`);
+	});
+
 	it("includes read link when article has no content", () => {
 		const article = makeArticle({ content: undefined });
 		const subEntity = toArticleSubEntity(article);
@@ -180,8 +194,7 @@ describe("toArticleSubEntity", () => {
 
 	it("asks for a browser capture when the crawl failed because an origin edge refused our servers", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
-			status: "failed",
-			reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+			crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
 		});
 
 		expect(subEntity.properties?.needsBrowserCapture).toBe(true);
@@ -189,8 +202,7 @@ describe("toArticleSubEntity", () => {
 
 	it("asks for a browser capture on a rate-limited row too — the user's own connection is not the one the origin throttled", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
-			status: "failed",
-			reason: JSON.stringify({ kind: "blocked", cause: "rate-limited" }),
+			crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "rate-limited" }) },
 		});
 
 		expect(subEntity.properties?.needsBrowserCapture).toBe(true);
@@ -198,8 +210,7 @@ describe("toArticleSubEntity", () => {
 
 	it("asks for no browser capture when robots.txt is the blocker — the site asked us not to crawl it, and a capture would route around that", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
-			status: "failed",
-			reason: JSON.stringify({ kind: "blocked", cause: "robots" }),
+			crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "robots" }) },
 		});
 
 		expect(subEntity.properties?.needsBrowserCapture).toBe(false);
@@ -233,7 +244,7 @@ describe("toArticleSubEntity", () => {
 		];
 
 		for (const [label, crawl] of cases) {
-			const subEntity = toArticleSubEntity(makeArticle(), crawl);
+			const subEntity = toArticleSubEntity(makeArticle(), { crawl });
 			expect([label, subEntity.properties?.needsBrowserCapture]).toEqual([label, false]);
 		}
 	});

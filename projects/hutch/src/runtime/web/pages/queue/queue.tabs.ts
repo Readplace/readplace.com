@@ -46,6 +46,9 @@ export const QUEUE_TABS: readonly QueueTab[] = TAB_IDS.map((id) => ({
 	...TAB_DEFINITIONS[id],
 }));
 
+export const QUEUE_TAB_STATUSES: readonly { label: string; status: ArticleStatus }[] =
+	QUEUE_TABS.map((tab) => ({ label: tab.label, status: tab.query.status }));
+
 export function tabQuery(tab: TabId): TabQuery {
 	return TAB_DEFINITIONS[tab].query;
 }

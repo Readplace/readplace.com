@@ -13,6 +13,7 @@ import {
 import { initReadabilityParser } from "@packages/article-parser";
 
 import { SIREN_MEDIA_TYPE } from "./siren";
+import { parseQueueUrl } from "../pages/queue/queue.url";
 import { NATIVE_CLIENT_HEADER } from "../onboarding/native-client";
 import { SIREN_DISCOVERY_MAX_AGE_SECONDS } from "../siren-discovery-cache";
 import {
@@ -562,6 +563,103 @@ describe("POST /queue (Siren save article)", () => {
 		expect(updateStatus.fields).toEqual([
 			{ name: "status", type: "text", value: "read" },
 		]);
+	});
+});
+
+describe("GET /queue status tabs (Siren)", () => {
+	async function saveAndMarkRead(harness: ReturnType<typeof useApp>, accessToken: string) {
+		const saveResponse = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/read-me" });
+		const articleId: string = saveResponse.body.properties.id;
+		await request(harness.server)
+			.post(`/queue/${articleId}/status`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.type("form")
+			.send({ status: "read" });
+		return articleId;
+	}
+
+	it("advertises both tabs with the served one current and a toggle back to unread on each read item", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		const articleId = await saveAndMarkRead(harness, accessToken);
+
+		const response = await request(harness.server)
+			.get("/queue?status=read")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties.tabs).toEqual([
+			{ label: "To Read", rel: "tab", href: "/queue?status=unread" },
+			{ label: "Read", rel: "current", href: "/queue?status=read" },
+		]);
+		expect(response.body.entities.map((e: { properties: { id: string } }) => e.properties.id)).toEqual([articleId]);
+		const updateStatus = response.body.entities[0].actions.find(
+			(a: { name: string }) => a.name === "update-status",
+		);
+		expect(updateStatus).toEqual(
+			expect.objectContaining({
+				title: "Mark as unread",
+				href: `/queue/${articleId}/status?status=read`,
+				fields: [{ name: "status", type: "text", value: "unread" }],
+			}),
+		);
+	});
+
+	it("marks the To Read tab current on the default listing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.body.properties.tabs).toEqual([
+			{ label: "To Read", rel: "current", href: "/queue?status=unread" },
+			{ label: "Read", rel: "tab", href: "/queue?status=read" },
+		]);
+	});
+
+	it("sends a client that toggles an item from the Read tab back to the Read tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		await saveAndMarkRead(harness, accessToken);
+		const listing = await request(harness.server)
+			.get("/queue?status=read")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+		const updateStatus = listing.body.entities[0].actions.find(
+			(a: { name: string }) => a.name === "update-status",
+		);
+		assert(updateStatus, "expected update-status action on the read item");
+
+		const mutation = await request(harness.server)
+			.post(updateStatus.href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.type("form")
+			.send(Object.fromEntries(updateStatus.fields.map((f: { name: string; value: string }) => [f.name, f.value])))
+			.redirects(0);
+
+		expect(mutation.status).toBe(303);
+		const location = new URL(mutation.headers.location, TEST_APP_ORIGIN);
+		expect(parseQueueUrl(Object.fromEntries(location.searchParams)).tab).toBe("done");
+
+		const landed = await request(harness.server)
+			.get(`${location.pathname}${location.search}`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(landed.status).toBe(200);
+		expect(landed.body.properties.tabs.find((t: { rel: string }) => t.rel === "current")?.label).toBe("Read");
+		expect(landed.body.entities).toEqual([]);
 	});
 });
 

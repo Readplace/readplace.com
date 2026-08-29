@@ -2,6 +2,7 @@ import { parseCrawlFailureReason } from "@packages/article-state-types";
 import { displayableReadTime, type SavedArticle } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
+import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 
 function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 	if (crawl?.status !== "failed") return false;
@@ -12,7 +13,7 @@ function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 
 export function toArticleSubEntity(
 	article: SavedArticle,
-	crawl?: ArticleCrawl,
+	options: { crawl?: ArticleCrawl; collectionQuery?: CollectionQueryParams } = {},
 ): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
@@ -44,14 +45,14 @@ export function toArticleSubEntity(
 			// indicator from one server-authored boolean rather than re-deriving it
 			// from the `status` vocabulary it would otherwise have to hard-code.
 			isRead,
-			needsBrowserCapture: needsBrowserCapture(crawl),
+			needsBrowserCapture: needsBrowserCapture(options.crawl),
 		},
 		links,
 		actions: [
 			{
 				name: "update-status",
 				title: isRead ? "Mark as unread" : "Mark as read",
-				href: `/queue/${id}/status`,
+				href: `/queue/${id}/status${buildQueryString(options.collectionQuery ?? {})}`,
 				method: "POST",
 				type: "application/x-www-form-urlencoded",
 				fields: [{ name: "status", type: "text", value: targetStatus }],
