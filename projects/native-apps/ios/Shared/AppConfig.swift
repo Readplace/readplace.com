@@ -6,6 +6,7 @@ import Foundation
 enum ServerEnvironment {
 	case production
 	case staging
+	case local
 
 	var baseURL: String {
 		switch self {
@@ -14,6 +15,7 @@ enum ServerEnvironment {
 		// endpoint (pulumi stack output appOrigin --stack staging). Keep in sync
 		// with the server's OAuth client registration if the gateway is replaced.
 		case .staging: return "https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com"
+		case .local: return "http://127.0.0.1:3000"
 		}
 	}
 }
@@ -26,11 +28,10 @@ enum ServerEnvironment {
 /// is registered on that client and is identical across production and staging,
 /// so sign-in needs no per-environment callback registration.
 enum AppConfig {
-	/// The server this build targets, fixed at compile time. Builds with the
-	/// `STAGING` Swift compilation condition select staging; every other build
-	/// is production. There is no runtime override.
 	#if STAGING
 	static let serverEnvironment: ServerEnvironment = .staging
+	#elseif LOCAL_SERVER
+	static let serverEnvironment: ServerEnvironment = .local
 	#else
 	static let serverEnvironment: ServerEnvironment = .production
 	#endif

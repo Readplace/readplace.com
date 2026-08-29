@@ -64,8 +64,9 @@ on an emulator and not on every device). The Android copies under `res/raw/` are
 same assets transcoded once — AAC in an `.m4a`, and 8-bit H.264 — with the visible
 frames and audible loop unchanged.
 
-**A `local` flavor.** iOS has production and staging only. Android adds `local`,
-pointing at a hutch dev server on the Mac through `adb reverse`, because the server
+**A `local` flavor.** Android's `local` flavor (the counterpart of iOS's
+`LOCAL_SERVER` condition, `make run-local`) points at a hutch dev server on the
+Mac through `adb reverse`, because the server
 changes that register the Android client have to exist somewhere the emulator can
 sign in against before they are deployed. It opens cleartext for localhost only, in
 its own manifest overlay, so production and staging stay strict.

@@ -19,6 +19,10 @@ final class AppConfigTests: XCTestCase {
 		)
 	}
 
+	func testLocalBaseURL() {
+		XCTAssertEqual(ServerEnvironment.local.baseURL, "http://127.0.0.1:3000")
+	}
+
 	/// Pins the `#if STAGING` selection in `AppConfig` to the active compilation
 	/// condition: the production suite compiles the `#else` arm, the `test-staging`
 	/// smoke pass the `STAGING` arm. A mis-wired switch fails one of the two runs
@@ -26,6 +30,8 @@ final class AppConfigTests: XCTestCase {
 	func testServerBaseURLMatchesActiveCompilationCondition() {
 		#if STAGING
 		XCTAssertEqual(AppConfig.serverBaseURL, ServerEnvironment.staging.baseURL)
+		#elseif LOCAL_SERVER
+		XCTAssertEqual(AppConfig.serverBaseURL, ServerEnvironment.local.baseURL)
 		#else
 		XCTAssertEqual(AppConfig.serverBaseURL, ServerEnvironment.production.baseURL)
 		#endif

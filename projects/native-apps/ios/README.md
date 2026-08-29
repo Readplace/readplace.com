@@ -139,7 +139,7 @@ extension uses. See [`../../../.claude/skills/hypermedia-api-design/SKILL.md`](.
 ```
 projects/native-apps/ios/
 ├── project.yml                  # XcodeGen spec (source of truth for the project)
-├── Makefile                     # make ipa / ipa-staging / generate / open / test / clean
+├── Makefile                     # make ipa / ipa-staging / generate / open / test / test-staging / run-local / clean
 ├── scripts/build-unsigned-ipa.sh  # one command → installable unsigned .ipa
 ├── App/                         # the SwiftUI app target (lists + sign-in)
 ├── ShareExtension/              # the share-sheet target (renders + saves)
@@ -194,6 +194,12 @@ without typing a URL. Same bundle id, so it replaces the prod app on a device.
 
 Run the tests with `make test` (boots a simulator); it also recompiles the
 `STAGING` condition as a smoke pass — run that alone with `make test-staging`.
+
+To run the app in a simulator against a local server, start `pnpm dev` in
+`projects/hutch` (it listens on `http://127.0.0.1:3000`, which the Simulator
+reaches as the Mac's own loopback) and run `make run-local`: it compiles the
+`LOCAL_SERVER` condition, then installs and launches the app on the newest
+iPhone simulator.
 
 ---
 
@@ -330,8 +336,8 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   variants so it stays legible on both login backgrounds, rendered from the brand
   geometry by `scripts/make-brandmark.sh`.
 - **Builds from the repo's devbox shell.** Every Xcode entry point — `make test`,
-  `make test-staging`, and `build-unsigned-ipa.sh` (so `nx run ios:compile`
-  too) — runs through [`scripts/xc.sh`](./scripts/xc.sh), which scrubs the nix
+  `make test-staging`, `make run-local`, and `build-unsigned-ipa.sh` (so
+  `nx run ios:compile` too) — runs through [`scripts/xc.sh`](./scripts/xc.sh), which scrubs the nix
   toolchain out of the environment and points at the real Xcode. This is
   load-bearing, not tidiness: `xcodebuild` treats environment variables as
   build-setting overrides, and the devbox/nix shell exports `CC`/`CXX`/`LD`/`AR`/…
@@ -397,7 +403,9 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   registration.
 - **The server URL is fixed at build time** in `AppConfig.serverBaseURL` — there
   is no Server field on the sign-in screen. `make ipa` targets production;
-  `make ipa-staging` compiles with the `STAGING` condition to target staging.
+  `make ipa-staging` compiles with the `STAGING` condition to target staging;
+  `make run-local` compiles with `LOCAL_SERVER` to target a dev server on
+  `http://127.0.0.1:3000`.
   Sign-in returns through the native `readplace://oauth-callback` redirect
   (`AppConfig.nativeCallbackURL`), registered for `ios-app` in
   `built-in-clients.ts` and identical across production and staging.

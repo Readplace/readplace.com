@@ -1,4 +1,4 @@
-.PHONY: ipa ipa-staging generate open test test-staging require-sim clean
+.PHONY: ipa ipa-staging generate open test test-staging run-local require-sim clean
 
 # Build an UNSIGNED .ipa you can sideload onto your iPhone. Generates the Xcode
 # project first (the build script no longer self-generates).
@@ -68,6 +68,15 @@ test-staging: generate require-sim
 	./scripts/xc.sh xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)' \
 		-only-testing:ReadplaceTests/AppConfigTests \
 		SWIFT_ACTIVE_COMPILATION_CONDITIONS=STAGING
+
+run-local: generate require-sim
+	./scripts/xc.sh xcrun simctl bootstatus '$(SIM_DEVICE)' -b
+	./scripts/xc.sh xcodebuild build -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)' \
+		-derivedDataPath build/DerivedData \
+		SWIFT_ACTIVE_COMPILATION_CONDITIONS=LOCAL_SERVER
+	./scripts/xc.sh xcrun simctl install '$(SIM_DEVICE)' build/DerivedData/Build/Products/Debug-iphonesimulator/Readplace.app
+	./scripts/xc.sh xcrun simctl launch '$(SIM_DEVICE)' com.readplace
+	open -a Simulator
 
 # Remove generated project + build artifacts; sources are the source of truth.
 clean:

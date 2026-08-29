@@ -6,13 +6,10 @@ description: Run the Readplace iOS app in a Simulator and see its screen. Use wh
 # Running the app in a Simulator
 
 ```bash
+(cd projects/hutch && pnpm dev) &            # the build below talks to http://127.0.0.1:3000
 cd projects/native-apps/ios
-make test                                    # builds a simulator .app under build/DerivedData
-D=$(xcrun simctl list devices available | grep -m1 -oE '[0-9A-F-]{36}')   # or pick a UDID
-xcrun simctl boot "$D" && sleep 20
-xcrun simctl install "$D" build/DerivedData/Build/Products/Debug-iphonesimulator/Readplace.app
-xcrun simctl launch "$D" com.readplace
-open -a Simulator
+make run-local                               # LOCAL_SERVER build: boots the newest iPhone simulator, installs, launches
+D=$(xcrun simctl list devices booted | grep -m1 -oE '[0-9A-F-]{36}')   # the device make just booted
 ```
 
 Every Xcode/`swiftc` invocation goes through `./scripts/xc.sh` — it scrubs the devbox/nix
