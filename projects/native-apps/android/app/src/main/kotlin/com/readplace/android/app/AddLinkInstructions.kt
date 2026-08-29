@@ -33,7 +33,7 @@ import com.readplace.android.core.Href
  * link discovered from the server.
  *
  * Chromeless, like the reader and account sheets: the page renders its own
- * "← Back to queue" deep link, which the WebView intercepts to dismiss, so all
+ * "← Back to readlist" deep link, which the WebView intercepts to dismiss, so all
  * three in-app sheets return to the native list the same way rather than this
  * one alone wearing a native app bar. If the URL can't be resolved or the page
  * fails to load, a local fallback still teaches Share — and carries its own
@@ -78,7 +78,7 @@ fun AddLinkInstructions(baseUrl: String, onDismiss: () -> Unit) {
  * A self-contained native version of the help page, shown when the WebView
  * can't be displayed. It still delivers the core instruction so the feature
  * degrades gracefully, and — unlike the happy path, whose back link the page
- * renders — carries its own native "Back to queue" button, mirroring the
+ * renders — carries its own native "Back to readlist" button, mirroring the
  * reader sheet's native unavailable view.
  */
 @Composable
@@ -110,7 +110,7 @@ private fun AddLinkFallback(onClose: () -> Unit) {
 			onClick = onClose,
 			modifier = Modifier.padding(top = 4.dp),
 		) {
-			Text(text = "← Back to queue")
+			Text(text = "← Back to readlist")
 		}
 	}
 }

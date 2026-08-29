@@ -152,7 +152,7 @@ const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string 
 	{
 		question: "Do I need an account to import?",
 		answer:
-			"No. Paste a link or upload a file and review the results straight away — an account is only asked for when you save the selection to your queue.",
+			"No. Paste a link or upload a file and review the results straight away — an account is only asked for when you save the selection to your readlist.",
 	},
 	{
 		question: "What file formats work?",
@@ -177,7 +177,7 @@ const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string 
 ];
 
 const IMPORT_DESCRIPTION =
-	"Paste a link or upload a bookmark, Pocket, or newsletter export and Readplace lists every URL for your reading queue. No account needed to start.";
+	"Paste a link or upload a bookmark, Pocket, or newsletter export and Readplace lists every URL for your reading readlist. No account needed to start.";
 
 export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonce: CspNonce; saveTip: SaveTip }): PageBody {
 	const panel = PANEL_CONFIG[vm.mode];
@@ -196,18 +196,18 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 
 	return {
 		seo: {
-			title: "Import Links into Your Reading Queue — Readplace",
+			title: "Import Links into Your Readlist — Readplace",
 			description: IMPORT_DESCRIPTION,
 			canonicalUrl: "/import",
 			robots: "index, follow",
 			keywords:
-				"import links, import bookmarks, import links into a reading queue, import bookmarks to a read-it-later app, reading queue import, read-it-later import, bookmarks HTML import, newsletter link extractor, Pocket import, import reading list, bulk save links",
+				"import links, import bookmarks, import links into a reading readlist, import bookmarks to a read-it-later app, reading readlist import, read-it-later import, bookmarks HTML import, newsletter link extractor, Pocket import, import reading list, bulk save links",
 			structuredData: [
 				{
 					"@context": "https://schema.org",
 					"@type": "WebPage",
 					"@id": "https://readplace.com/import",
-					name: "Import Links into Your Reading Queue",
+					name: "Import Links into Your Readlist",
 					url: "https://readplace.com/import",
 					description: IMPORT_DESCRIPTION,
 					isPartOf: { "@type": "WebSite", name: "Readplace", url: "https://readplace.com" },

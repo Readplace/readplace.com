@@ -1,0 +1,7 @@
+<nav class="readlist__filters" aria-label="Article filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
+          <div class="readlist__filters-strip">
+            {{#each tabs}}
+            <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}} data-test-filter="{{testFilter}}"><span class="readlist__filter-label"{{#if widestLabel}} data-widest="{{widestLabel}}"{{/if}}><span{{#if labelId}} id="{{labelId}}" hx-preserve{{/if}}>{{label}}</span></span></a>
+            {{/each}}
+          </div>
+        </nav>

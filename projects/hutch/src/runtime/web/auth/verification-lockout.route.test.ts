@@ -85,7 +85,7 @@ describe("Email verification lockout", () => {
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
 		assert(
-			doc.querySelector("[data-test-empty-queue]"),
+			doc.querySelector("[data-test-empty-readlist]"),
 			"the queue list must still render while locked, not a lock wall",
 		);
 		expect(doc.querySelector("h1")?.textContent).not.toBe("Your account is locked");

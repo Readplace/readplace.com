@@ -1,13 +1,13 @@
 import assert from "node:assert";
 import { ReaderArticleHashIdSchema, displayableReadTime } from "@packages/domain/article";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
-import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesByUser,
 	ReadArticleContent,
-	UpdateArticleStatusAcrossQueues,
+	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
@@ -31,7 +31,7 @@ interface McpArticleOperationDeps {
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	findRelatedArticles: FindRelatedArticles;
-	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
+	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
 }
 
 export function toMcpArticle(article: SavedArticle): McpArticle {
@@ -121,7 +121,7 @@ export function initMcpArticleOperations(
 	deps: McpArticleOperationDeps,
 ): Pick<
 	McpServerDeps,
-	| "listQueue"
+	| "listReadlist"
 	| "getArticle"
 	| "getArticleContent"
 	| "getArticleSummary"
@@ -156,10 +156,10 @@ export function initMcpArticleOperations(
 		if (article.status === status) {
 			return { status: "ok", article: toMcpArticle(article) };
 		}
-		const updated = await deps.updateArticleStatusAcrossQueues({
+		const updated = await deps.updateArticleStatusAcrossReadlists({
 			id: article.id,
 			userId,
-			addressed: DEFAULT_QUEUE_SLUG,
+			addressed: DEFAULT_READLIST_SLUG,
 			status,
 		});
 		if (!updated) return { status: "not_found" };
@@ -167,7 +167,7 @@ export function initMcpArticleOperations(
 	}
 
 	return {
-		listQueue: async ({ userId, status, sort, order, page, pageSize }) => {
+		listReadlist: async ({ userId, status, sort, order, page, pageSize }) => {
 			const result = await deps.findArticlesByUser({
 				userId,
 				status,

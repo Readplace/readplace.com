@@ -298,12 +298,12 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
-      "src/runtime/web/pages/queue/queue-rename.client.ts",
+      "src/runtime/web/pages/readlist/readlist-rename.client.ts",
     ),
-    outfile: path.join(OUT_DIR, "queue-rename.client.js"),
-    globalName: "QueueRename",
+    outfile: path.join(OUT_DIR, "readlist-rename.client.js"),
+    globalName: "ReadlistRename",
     footer: [
-      "QueueRename.initQueueRename({",
+      "ReadlistRename.initReadlistRename({",
       "  document: window.document,",
       "  fetchFn: function (url, init) { return window.fetch(url, init); },",
       "  placeCaretAtEnd: function (element) {",

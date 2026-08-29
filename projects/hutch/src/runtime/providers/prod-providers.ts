@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
 import { initOnboardingSignals } from "./onboarding-signals/dynamodb-onboarding-signals";
-import { initDynamoDbQueueDefinitions, initDynamoDbSavedArticleStore } from "@packages/article-store";
+import { initDynamoDbReadlistDefinitions, initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initSubmitFreshness } from "@packages/save-article";
@@ -48,7 +48,7 @@ import { initPutPendingHtml } from "./pending-html/put-pending-html";
 import { initPutPendingPdf } from "./pending-pdf/put-pending-pdf";
 import { initS3PendingUpload } from "./pending-upload/s3-pending-upload";
 import { createPresignerClient } from "./pending-upload/mint-upload-url";
-import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/queue/upload-slot-ttl";
+import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initDynamoDbImportSession } from "./import-session/dynamodb-import-session";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
@@ -128,7 +128,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 	const onboardingSignals = initOnboardingSignals({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
-	const queueDefinitions = initDynamoDbQueueDefinitions({ client, userArticlesTableName: userArticlesTable });
+	const queueDefinitions = initDynamoDbReadlistDefinitions({ client, userArticlesTableName: userArticlesTable });
 	const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
 	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
 	const readArticleContent = initReadArticleContent({

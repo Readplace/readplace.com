@@ -530,7 +530,7 @@ async function saveAllTabsFlow() {
 	const tooBigEl = document.querySelector<HTMLElement>("[data-test-save-all-too-big]");
 	const failedListEl = document.querySelector<HTMLElement>("[data-test-save-all-failed]");
 	const hintEl = document.getElementById("save-all-hint");
-	const queueButton = document.getElementById("save-all-view-queue");
+	const readlistButton = document.getElementById("save-all-view-readlist");
 
 	if (titleEl) titleEl.textContent = "Saving tabs\u2026";
 	if (summaryEl) summaryEl.textContent = "";
@@ -543,7 +543,7 @@ async function saveAllTabsFlow() {
 		failedListEl.hidden = true;
 	}
 	if (hintEl) hintEl.hidden = false;
-	if (queueButton) queueButton.hidden = true;
+	if (readlistButton) readlistButton.hidden = true;
 
 	const result = await send<GuardedResult<BulkSaveResult>>({
 		type: "save-all-tabs",
@@ -595,7 +595,7 @@ async function saveAllTabsFlow() {
 		return;
 	}
 
-	if (queueButton) queueButton.hidden = false;
+	if (readlistButton) readlistButton.hidden = false;
 	performance.mark(SAVE_ALL_RENDERED_MARK);
 }
 
@@ -628,7 +628,7 @@ async function bootstrap() {
 }
 
 document
-	.getElementById("save-all-view-queue")
+	.getElementById("save-all-view-readlist")
 	?.addEventListener("click", async () => {
 		await showListView();
 	});

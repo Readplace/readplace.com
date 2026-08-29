@@ -52,7 +52,7 @@ export type ResolveCanonicalAlias = (url: string) => Promise<string | undefined>
 export type ResolveCanonicalIdentity = (url: string) => Promise<string>;
 
 /** Stamp the redirect destination onto the origin article at `id(articleUrl)` so
- * the reader / queue / API can show where it lives while `url` stays the lookup
+ * the reader / readlist / API can show where it lives while `url` stays the lookup
  * identity. Best-effort and idempotent; a no-op when the target is not a real
  * article row. */
 export type SetArticleDisplayUrl = (params: {

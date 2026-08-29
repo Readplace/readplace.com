@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { QueueSlugSchema } from "@packages/domain/queue";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
 	type ActionButtons,
 	ChromelessReader,
@@ -11,11 +11,11 @@ import {
 const BACK = {
 	topHref: "/queue?utm_content=back-top",
 	bottomHref: "/queue?utm_content=back-bottom",
-	label: "Back to queue",
+	label: "Back to readlist",
 };
 
 const ACTION_BTNS: ActionButtons = {
-	queuePicker: undefined,
+	readlistPicker: undefined,
 	backLink: BACK,
 	markReadActions: [
 		{
@@ -39,28 +39,28 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-describe("queue picker", () => {
-	it("renders one assign form per offered queue inside an anchored disclosure", () => {
+describe("readlist picker", () => {
+	it("renders one assign form per offered readlist inside an anchored disclosure", () => {
 		const { top } = StickyReader({
 			actionBtns: {
 				...ACTION_BTNS,
-				queuePicker: {
+				readlistPicker: {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
 					options: [
-						{ slug: QueueSlugSchema.parse("work"), label: "Work" },
-						{ slug: QueueSlugSchema.parse("later"), label: "Later" },
+						{ slug: ReadlistSlugSchema.parse("work"), label: "Work" },
+						{ slug: ReadlistSlugSchema.parse("later"), label: "Later" },
 					],
 				},
 			},
 		});
 		const doc = parse(top.to("text/html").body);
 
-		const slot = doc.querySelector("[data-test-queues-slot]");
-		assert(slot, "the queues slot must render");
-		expect(slot.classList.contains("article-body__queues-slot--visible")).toBe(true);
-		assert(doc.querySelector("[data-test-queues-trigger]"), "the trigger must render");
-		const forms = Array.from(doc.querySelectorAll(".article-body__queues-form"));
+		const slot = doc.querySelector("[data-test-readlists-slot]");
+		assert(slot, "the readlists slot must render");
+		expect(slot.classList.contains("article-body__readlists-slot--visible")).toBe(true);
+		assert(doc.querySelector("[data-test-readlists-trigger]"), "the trigger must render");
+		const forms = Array.from(doc.querySelectorAll(".article-body__readlists-form"));
 		expect(forms.map((form) => form.getAttribute("action"))).toEqual([
 			"/queue/abc/assign",
 			"/queue/abc/assign",
@@ -72,7 +72,7 @@ describe("queue picker", () => {
 			forms.map((form) => form.querySelector('input[name="returnTo"]')?.getAttribute("value")),
 		).toEqual(["/queue/abc/view", "/queue/abc/view"]);
 		expect(
-			Array.from(doc.querySelectorAll("[data-test-assign-queue]"), (el) => el.textContent),
+			Array.from(doc.querySelectorAll("[data-test-assign-readlist]"), (el) => el.textContent),
 		).toEqual(["Work", "Later"]);
 	});
 
@@ -80,9 +80,9 @@ describe("queue picker", () => {
 		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
 		const doc = parse(top.to("text/html").body);
 
-		const slot = doc.querySelector("[data-test-queues-slot]");
-		assert(slot, "the queues slot must render");
-		expect(slot.classList.contains("article-body__queues-slot--hidden")).toBe(true);
+		const slot = doc.querySelector("[data-test-readlists-slot]");
+		assert(slot, "the readlists slot must render");
+		expect(slot.classList.contains("article-body__readlists-slot--hidden")).toBe(true);
 	});
 });
 
@@ -110,7 +110,7 @@ describe("mark-read confirmation", () => {
 						label: "Mark as read",
 						testAction: "mark-read",
 						fields: [{ name: "status", value: "read" }],
-						confirmPopoverId: "queue-mark-status-confirm-abc",
+						confirmPopoverId: "readlist-mark-status-confirm-abc",
 					},
 				],
 			},
@@ -120,7 +120,7 @@ describe("mark-read confirmation", () => {
 		const trigger = doc.querySelector(".article-body__confirm-trigger");
 		assert(trigger, "the popover trigger must render");
 		expect(trigger.getAttribute("type")).toBe("button");
-		expect(trigger.getAttribute("popovertarget")).toBe("queue-mark-status-confirm-abc");
+		expect(trigger.getAttribute("popovertarget")).toBe("readlist-mark-status-confirm-abc");
 		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
 		expect(trigger.getAttribute("data-test-action")).toBe("mark-read");
 		expect(trigger.getAttribute("aria-label")).toBe("Mark as read");
@@ -159,7 +159,7 @@ describe("RegularReader", () => {
 
 		// In flight the visible label is visibility:hidden (dropped from the a11y
 		// tree) and the loader is aria-hidden, so aria-label keeps the button named
-		// while it is disabled — parity with the queue and toast mark-read controls.
+		// while it is disabled — parity with the readlist and toast mark-read controls.
 		expect(topDoc.querySelector("[data-test-mark-read-btn]")?.getAttribute("aria-label")).toBe(
 			"Mark as read",
 		);
@@ -176,7 +176,7 @@ describe("RegularReader", () => {
 	});
 
 	it("renders hidden slots when given no action buttons (ViewPage/AdminRecrawl parity)", () => {
-		const { top, bottom } = RegularReader({ actionBtns: { queuePicker: undefined } });
+		const { top, bottom } = RegularReader({ actionBtns: { readlistPicker: undefined } });
 		const topDoc = parse(top.to("text/html").body);
 		const bottomDoc = parse(bottom.to("text/html").body);
 

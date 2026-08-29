@@ -63,7 +63,7 @@ export function summarizeBulkSave(params: {
 	const clientSkipped = params.tabCount - params.saveableCount;
 	const skipped = params.result.skipped + clientSkipped;
 	let summary = `Saved ${params.result.saved - params.result.alreadySaved}`;
-	if (params.result.alreadySaved > 0) summary += ` · Already in queue ${params.result.alreadySaved}`;
+	if (params.result.alreadySaved > 0) summary += ` · Already in readlist ${params.result.alreadySaved}`;
 	summary += ` · Skipped ${skipped}`;
 	if (params.result.failed > 0) summary += ` · Failed ${params.result.failed}`;
 	if (params.result.pendingRetry > 0) summary += ` · Retrying ${params.result.pendingRetry}`;

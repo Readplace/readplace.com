@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
-import { QUEUE_PATH } from "../web/pages/queue/queue.url";
+import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { type ExcludedIdentities, excludeInternalVisitorsClauses } from "./excluded-identities";
 import {
 	ANALYTICS_EVENTS,
@@ -112,11 +112,11 @@ function anyOriginClause(logGroupNames: readonly string[]): string {
 
 /**
  * The authenticated reader permalink, as a Logs Insights regex literal. Derived
- * from QUEUE_PATH so it cannot drift from the mount point the path is built
+ * from READLIST_PATH so it cannot drift from the mount point the path is built
  * from — the previous hand-written pattern matched `/<id>/view`, one segment
  * short of the real `/queue/<id>/view`, so the widget silently plotted nothing.
  */
-const READER_VIEW_PATH_PATTERN = `/^${QUEUE_PATH.replaceAll("/", "\\/")}\\/[^\\/]+\\/view$/`;
+const READER_VIEW_PATH_PATTERN = `/^${READLIST_PATH.replaceAll("/", "\\/")}\\/[^\\/]+\\/view$/`;
 
 const READER_SAVE_SURFACES = [SAVE_SURFACES.readerView] as const;
 

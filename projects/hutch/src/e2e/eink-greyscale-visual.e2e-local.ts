@@ -10,7 +10,7 @@ import {
 	waitForImagePixels,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { neutraliseVolatileChrome } from "./queue-nav.browser";
+import { neutraliseVolatileChrome } from "./readlist-nav.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
@@ -24,7 +24,7 @@ const CONTRAST_SENSITIVE = {
 } as const;
 
 const READER_ROOT = "main.reader";
-const QUEUE_LIST = "[data-test-article-list]";
+const READLIST_LIST = "[data-test-article-list]";
 const THUMBNAIL_URL = "https://cdn.example.com/eink-greyscale-thumbnail.svg";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
@@ -48,10 +48,10 @@ const READER_BODY = [
 	"<p>Every page here renders on the server and every interaction is a plain form, so what is left for the panel is legibility.</p>",
 ].join("");
 
-const QUEUE_ARTICLES = [
+const READLIST_ARTICLES = [
 	{
 		slug: "eink-greyscale-second",
-		title: "The second article in the queue",
+		title: "The second article in the readlist",
 		savedAt: "2026-07-11T09:14:00.000Z",
 		excerpt: "A fixed excerpt, long enough to occupy the two lines a real card excerpt occupies.",
 	},
@@ -72,7 +72,7 @@ async function pinThumbnail(page: Page): Promise<void> {
 	);
 }
 
-async function seedReaderAndQueue(page: Page, stamp: string): Promise<{ email: string; readerUrl: string }> {
+async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email: string; readerUrl: string }> {
 	const email = `eink-greyscale-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -80,12 +80,12 @@ async function seedReaderAndQueue(page: Page, stamp: string): Promise<{ email: s
 	assert.equal(created.status(), 201, "the e2e user fixture must create the owner");
 	const { userId } = CreatedUser.parse(await created.json());
 
-	for (const article of QUEUE_ARTICLES) {
+	for (const article of READLIST_ARTICLES) {
 		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 			data: {
 				url: `https://example.com/${article.slug}`,
 				title: article.title,
-				content: "<p>Seeded body for the greyscale queue baseline.</p>",
+				content: "<p>Seeded body for the greyscale readlist baseline.</p>",
 				contentFetchedAt: FETCHED_AT,
 				savedAt: article.savedAt,
 				savedByUserId: userId,
@@ -94,7 +94,7 @@ async function seedReaderAndQueue(page: Page, stamp: string): Promise<{ email: s
 				generatedSummary: { summary: "Seeded summary.", excerpt: article.excerpt },
 			},
 		});
-		assert.equal(seeded.status(), 201, "the seed endpoint must create the queue article");
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the readlist article");
 	}
 
 	const reader = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
@@ -152,7 +152,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
 async function settle(page: Page, target: string): Promise<void> {
@@ -182,7 +182,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 		test(`the reader keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await pinThumbnail(page);
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
-			const { email, readerUrl } = await seedReaderAndQueue(
+			const { email, readerUrl } = await seedReaderAndReadlist(
 				page,
 				`reader-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
@@ -197,21 +197,21 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 		});
 
-		test(`the queue keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+		test(`the readlist keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await pinThumbnail(page);
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
-			const { email } = await seedReaderAndQueue(
+			const { email } = await seedReaderAndReadlist(
 				page,
-				`queue-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+				`readlist-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
 			await loginAs(page, email);
-			await expect(page.locator("[data-test-article]")).toHaveCount(QUEUE_ARTICLES.length + 1);
+			await expect(page.locator("[data-test-article]")).toHaveCount(READLIST_ARTICLES.length + 1);
 			await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
-			await waitForImagePixels(page, ".queue-article__thumbnail");
-			await settle(page, QUEUE_LIST);
+			await waitForImagePixels(page, ".readlist-article__thumbnail");
+			await settle(page, READLIST_LIST);
 
-			await expect(page.locator(QUEUE_LIST)).toHaveScreenshot(
-				`eink-queue-${theme}.png`,
+			await expect(page.locator(READLIST_LIST)).toHaveScreenshot(
+				`eink-readlist-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

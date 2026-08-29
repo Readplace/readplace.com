@@ -39,7 +39,7 @@ That is seven steps across two apps, and at the end you keep no record of what y
 
 **Long articles get cut off.** Paste a 5,000-word piece and you can run into the model's token limit, so you split the article into chunks, paste it twice, and hope the context carries across the break. Reading turned into project management.
 
-**You lose the queue.** Reading is rarely one article at a time. It's fifteen tabs opened on Monday with a vague plan to clear them by Sunday, and copy-paste gives you nothing to manage that backlog with.
+**You lose the readlist.** Reading is rarely one article at a time. It's fifteen tabs opened on Monday with a vague plan to clear them by Sunday, and copy-paste gives you nothing to manage that backlog with.
 
 ## The same scene, one click
 
@@ -63,7 +63,7 @@ Speed is the part you feel first. The other part is whether a month of reading a
 
 With copy-paste, each article is disposable by design. You pull out a summary, discard the source, and end up with no trail back to the piece, no library to browse, and no way to revisit what caught your attention last month.
 
-With Readplace, a saved article becomes part of an archive you own. The summary is there for a quick scan, the full text is there when you want the depth, and the reading list behaves like a queue you can work through instead of a wall of tabs one crash away from disappearing.
+With Readplace, a saved article becomes part of an archive you own. The summary is there for a quick scan, the full text is there when you want the depth, and the reading list behaves like a readlist you can work through instead of a wall of tabs one crash away from disappearing.
 
 ## If this is you
 

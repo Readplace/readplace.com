@@ -123,7 +123,7 @@ class ReadingListViewModelTest {
 		name = "purge-all", href = "/queue/purge", method = "POST", title = "Purge", type = null, fields = null,
 	)
 
-	/** A locked account: the queue loads, but invoking a collection action is refused
+	/** A locked account: the readlist loads, but invoking a collection action is refused
 	 * with a server-authored message. */
 	private fun lockedAccountHandler(): (Record) -> Stub = { record ->
 		when (record.path) {
@@ -134,17 +134,17 @@ class ReadingListViewModelTest {
 		}
 	}
 
-	/** A two-item queue whose `/queue/{id}/status` POST behaves per `statusStub`.
-	 * The first collection GET serves the two rows; when `laterQueue` is given,
+	/** A two-item readlist whose `/queue/{id}/status` POST behaves per `statusStub`.
+	 * The first collection GET serves the two rows; when `laterReadlist` is given,
 	 * every subsequent collection GET serves it instead — the post-action truth a
 	 * followed redirect (or a convergence load) returns. */
-	private fun markReadHandler(laterQueue: String? = null, statusStub: (String) -> Stub): (Record) -> Stub {
-		val queueGets = AtomicInteger()
+	private fun markReadHandler(laterReadlist: String? = null, statusStub: (String) -> Stub): (Record) -> Stub {
+		val readlistGets = AtomicInteger()
 		return { record ->
 			when {
 				record.path.endsWith("/status") -> statusStub(record.path)
 				record.path == "/" -> Stub.redirect(to = "/queue")
-				record.path == "/queue" && queueGets.incrementAndGet() > 1 && laterQueue != null -> Stub.json(200, laterQueue)
+				record.path == "/queue" && readlistGets.incrementAndGet() > 1 && laterReadlist != null -> Stub.json(200, laterReadlist)
 				record.path == "/queue" ->
 					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), total = 2))
 				else -> Stub.json(404, "{}")
@@ -152,7 +152,7 @@ class ReadingListViewModelTest {
 		}
 	}
 
-	/** A two-page queue; `firstPage` answers every first-page read. */
+	/** A two-page readlist; `firstPage` answers every first-page read. */
 	private fun twoPageHandler(firstPage: (Record) -> Stub): (Record) -> Stub = { record ->
 		when {
 			record.path == "/" -> Stub.redirect(to = "/queue")
@@ -168,7 +168,7 @@ class ReadingListViewModelTest {
 			Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
 		}
 
-	/** A three-page queue. */
+	/** A three-page readlist. */
 	private fun threePageHandler(): (Record) -> Stub = { record ->
 		when {
 			record.path == "/" -> Stub.redirect(to = "/queue")
@@ -189,7 +189,7 @@ class ReadingListViewModelTest {
 		}
 	}
 
-	/** A two-page queue behind a flippable "account deleted" switch: once flipped,
+	/** A two-page readlist behind a flippable "account deleted" switch: once flipped,
 	 * the server behaves as `POST /account/delete` leaves it — every authenticated
 	 * call 401s and the token refresh is rejected (all sessions destroyed, all
 	 * OAuth tokens revoked). */
@@ -203,14 +203,14 @@ class ReadingListViewModelTest {
 		}
 	}
 
-	/** A one-item queue; from the second collection GET on, `laterQueue` (when
+	/** A one-item readlist; from the second collection GET on, `laterReadlist` (when
 	 * given) is served instead — the truth a landed heal reconciles with. */
-	private fun blockedCaptureHandler(laterQueue: String? = null): (Record) -> Stub {
-		val queueGets = AtomicInteger()
+	private fun blockedCaptureHandler(laterReadlist: String? = null): (Record) -> Stub {
+		val readlistGets = AtomicInteger()
 		return { record ->
 			when {
 				record.path == "/" -> Stub.redirect(to = "/queue")
-				record.path == "/queue" && queueGets.incrementAndGet() > 1 && laterQueue != null -> Stub.json(200, laterQueue)
+				record.path == "/queue" && readlistGets.incrementAndGet() > 1 && laterReadlist != null -> Stub.json(200, laterReadlist)
 				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
 				else -> Stub.json(404, "{}")
 			}
@@ -223,7 +223,7 @@ class ReadingListViewModelTest {
 	fun `the add-links help URL is the client-held help path with the app-shell marker`() = runTest {
 		// The + control opens the help page at a path the client holds, resolved
 		// against the API base — not a link discovered from the server — so it is
-		// available before (and regardless of) any queue load. It carries the
+		// available before (and regardless of) any readlist load. It carries the
 		// app-shell marker so the server serves it chromeless, with the deep-link
 		// back to the native list this sheet intercepts.
 		val viewModel = viewModel()
@@ -410,12 +410,12 @@ class ReadingListViewModelTest {
 	@Test
 	fun `the toolbar tracks the current response's affordances`() = runTest {
 		val futureOnly = """{ "name": "purge-all", "title": "Purge", "href": "/queue/purge", "method": "POST" }"""
-		val queueGets = AtomicInteger()
+		val readlistGets = AtomicInteger()
 		server.handle { record ->
 			when (record.path) {
 				"/" -> Stub.redirect(to = "/queue")
 				"/queue" ->
-					if (queueGets.incrementAndGet() == 1) {
+					if (readlistGets.incrementAndGet() == 1) {
 						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
 					} else {
 						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), actionsJson = futureOnly))
@@ -573,13 +573,13 @@ class ReadingListViewModelTest {
 
 	@Test
 	fun `invokeCollection submits the action and reloads from the server`() = runTest {
-		val queueGets = AtomicInteger()
+		val readlistGets = AtomicInteger()
 		server.handle { record ->
 			when {
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue/purge" && record.method == "POST" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" ->
-					if (queueGets.incrementAndGet() == 1) {
+					if (readlistGets.incrementAndGet() == 1) {
 						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
 					} else {
 						Stub.json(200, Fixtures.collection(emptyList()))
@@ -623,13 +623,13 @@ class ReadingListViewModelTest {
 		// A collection action whose 2xx response is not a Siren collection (a 204, or
 		// a redirect to an HTML confirmation) carries no collection to adopt, so the
 		// view model re-lists from the entry point to reflect the new server state.
-		val queueGets = AtomicInteger()
+		val readlistGets = AtomicInteger()
 		server.handle { record ->
 			when (record.path) {
 				"/" -> Stub.redirect(to = "/queue")
 				"/queue/purge" -> Stub(204)
 				"/queue" ->
-					if (queueGets.incrementAndGet() == 1) {
+					if (readlistGets.incrementAndGet() == 1) {
 						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
 					} else {
 						Stub.json(200, Fixtures.collection(emptyList()))
@@ -643,7 +643,7 @@ class ReadingListViewModelTest {
 
 		viewModel.invokeCollection(purgeAction)
 
-		assertEquals("with no collection to adopt, the invoke falls back to a fresh first-page load", 2, queueGets.get())
+		assertEquals("with no collection to adopt, the invoke falls back to a fresh first-page load", 2, readlistGets.get())
 		assertEquals("the fallback reload reflects the server's post-invoke state", emptyList<String>(), viewModel.articleIds)
 		assertNull(viewModel.state.value.errorText)
 	}
@@ -700,7 +700,7 @@ class ReadingListViewModelTest {
 		// the post-action truth and replaces the list — the marked row is gone and
 		// an item marked unread on the website (w1) appears without a refresh.
 		val postAction = Fixtures.collection(listOf(Fixtures.article("a2"), Fixtures.article("w1")), total = 2)
-		server.handle(markReadHandler(laterQueue = postAction) { Stub.redirect(to = "/queue") })
+		server.handle(markReadHandler(laterReadlist = postAction) { Stub.redirect(to = "/queue") })
 		val viewModel = viewModel()
 		viewModel.refresh()
 		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
@@ -863,13 +863,13 @@ class ReadingListViewModelTest {
 
 	@Test
 	fun `invoking delete adopts the server's post-action collection`() = runTest {
-		val queueGets = AtomicInteger()
+		val readlistGets = AtomicInteger()
 		server.handle { record ->
 			when {
 				record.path.endsWith("/delete") -> Stub.redirect(to = "/queue")
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" ->
-					if (queueGets.incrementAndGet() == 1) {
+					if (readlistGets.incrementAndGet() == 1) {
 						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), total = 2))
 					} else {
 						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2"))))
@@ -951,7 +951,7 @@ class ReadingListViewModelTest {
 		// no longer lists the read item (a1) and brings in an item marked unread on
 		// the website (w1).
 		val postAction = Fixtures.collection(listOf(Fixtures.article("a2"), Fixtures.article("w1")), total = 2)
-		server.handle(markReadHandler(laterQueue = postAction) { Stub.redirect(to = "/queue") })
+		server.handle(markReadHandler(laterReadlist = postAction) { Stub.redirect(to = "/queue") })
 		val viewModel = viewModel()
 		viewModel.refresh()
 
@@ -995,7 +995,7 @@ class ReadingListViewModelTest {
 			listOf(Fixtures.article("a1"), Fixtures.article("a2"), Fixtures.article("w1")),
 			total = 3,
 		)
-		server.handle(markReadHandler(laterQueue = postForeground) { Stub.redirect(to = "/queue") })
+		server.handle(markReadHandler(laterReadlist = postForeground) { Stub.redirect(to = "/queue") })
 		val viewModel = viewModel()
 		viewModel.refresh()
 		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
@@ -1314,7 +1314,7 @@ class ReadingListViewModelTest {
 			listOf(Fixtures.article("a1"), Fixtures.article("a2"), Fixtures.article("s1")),
 			total = 3,
 		)
-		server.handle(markReadHandler(laterQueue = postDismissal) { Stub.redirect(to = "/queue") })
+		server.handle(markReadHandler(laterReadlist = postDismissal) { Stub.redirect(to = "/queue") })
 		val viewModel = viewModel()
 		viewModel.refresh()
 		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
@@ -1478,7 +1478,7 @@ class ReadingListViewModelTest {
 	@Test
 	fun `capturing the open blocked article heals it and reconciles the list`() = runTest {
 		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
-		server.handle(blockedCaptureHandler(laterQueue = postHeal))
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
 		val healed = mutableListOf<String>()
 		val viewModel = viewModel(healBlockedArticle = { url -> healed += url; HealBlockedOutcome.HEALED })
 		viewModel.refresh()
@@ -1523,7 +1523,7 @@ class ReadingListViewModelTest {
 	@Test
 	fun `an empty capture tells the user and leaves the list alone`() = runTest {
 		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
-		server.handle(blockedCaptureHandler(laterQueue = postHeal))
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
 		val viewModel = viewModel(healBlockedArticle = { HealBlockedOutcome.CAPTURE_WAS_EMPTY })
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
@@ -1591,7 +1591,7 @@ class ReadingListViewModelTest {
 	// region Draining what the share target staged
 
 	@Test
-	fun `two foregrounds racing one another drain the staged queue once`() = runTest {
+	fun `two foregrounds racing one another drain the staged readlist once`() = runTest {
 		var drains = 0
 		val viewModel = viewModel(
 			drainUploadJobs = {
@@ -1605,7 +1605,7 @@ class ReadingListViewModelTest {
 		first.join()
 		second.join()
 
-		assertEquals("a sweep already under way owns the queue; the second one steps aside", 1, drains)
+		assertEquals("a sweep already under way owns the readlist; the second one steps aside", 1, drains)
 	}
 
 	@Test
@@ -1652,7 +1652,7 @@ class ReadingListViewModelTest {
 
 	@Test
 	fun `a collection warning populates the warning text`() = runTest {
-		val warnedQueue = """
+		val warnedReadlist = """
 			{
 				"class": ["collection", "articles"],
 				"properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
@@ -1661,7 +1661,7 @@ class ReadingListViewModelTest {
 				"actions": []
 			}
 		"""
-		server.handle { record -> if (record.path == "/") Stub.redirect(to = "/queue") else Stub.json(200, warnedQueue) }
+		server.handle { record -> if (record.path == "/") Stub.redirect(to = "/queue") else Stub.json(200, warnedReadlist) }
 		val viewModel = viewModel()
 
 		viewModel.refresh()
@@ -1671,7 +1671,7 @@ class ReadingListViewModelTest {
 
 	@Test
 	fun `mintReaderSession follows the server's create-session action`() = runTest {
-		val queueWithSession = """
+		val readlistWithSession = """
 			{
 				"class": ["collection", "articles"],
 				"properties": { "total": 1, "page": 1, "pageSize": 20 },
@@ -1683,7 +1683,7 @@ class ReadingListViewModelTest {
 		server.handle { record ->
 			when (record.path) {
 				"/" -> Stub.redirect(to = "/queue")
-				"/queue" -> Stub.json(200, queueWithSession)
+				"/queue" -> Stub.json(200, readlistWithSession)
 				"/custom/session" -> Stub(204, headers = mapOf("Set-Cookie" to "sess=v; Path=/"))
 				else -> Stub.json(404, "{}")
 			}
@@ -1723,7 +1723,7 @@ class ReadingListViewModelTest {
 
 	@Test
 	fun `dismissing the warning banner clears it`() = runTest {
-		val warnedQueue = """
+		val warnedReadlist = """
 			{
 				"class": ["collection", "articles"],
 				"properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
@@ -1732,7 +1732,7 @@ class ReadingListViewModelTest {
 				"actions": []
 			}
 		"""
-		server.handle { record -> if (record.path == "/") Stub.redirect(to = "/queue") else Stub.json(200, warnedQueue) }
+		server.handle { record -> if (record.path == "/") Stub.redirect(to = "/queue") else Stub.json(200, warnedReadlist) }
 		val viewModel = viewModel()
 		viewModel.refresh()
 		assertEquals("precondition: the load shows its warning", "Cannot save that link.", viewModel.state.value.warningText)

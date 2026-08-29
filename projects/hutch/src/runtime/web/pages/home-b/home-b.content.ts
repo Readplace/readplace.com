@@ -27,7 +27,7 @@ export const HOME_B_CONTENT = {
 		reassuranceDefault:
 			"No credit card. Google, Apple, or an email address — about twenty seconds.",
 		reassuranceArrival:
-			"No credit card, and the article you were just reading is in your queue by the time you land.",
+			"No credit card, and the article you were just reading is in your readlist by the time you land.",
 		trialTerms: TRIAL_TERMS,
 		// Default secondary action: open any link in the reader first.
 		pasteLead: "Or open any link in the reader first",
@@ -113,7 +113,7 @@ export const HOME_B_CONTENT = {
 		{
 			question: "What happens to my articles if I stop paying?",
 			answer:
-				"You keep reading every one of them. Saving new links and importing stop; the queue and the reader stay, and you can still export.",
+				"You keep reading every one of them. Saving new links and importing stop; the readlist and the reader stay, and you can still export.",
 		},
 		{
 			question: "Can I bring my Pocket export?",

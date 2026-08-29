@@ -31,7 +31,7 @@ enum APIError: LocalizedError {
 
 /// One page of the reading-list collection plus the collection-level actions
 /// and pagination links the server advertised.
-struct QueuePage {
+struct ReadlistPage {
 	let articles: [Article]
 	let nextHref: String?
 	/// Every collection-level action and navigable link the server advertised, in
@@ -51,7 +51,7 @@ struct QueuePage {
 	/// conservative in what you render), so the caller renders whatever survives
 	/// without re-checking. Empty when the server offered none.
 	let noticeMessages: [ServerMessage]
-	let tabs: [QueueTab]
+	let tabs: [ReadlistTab]
 
 	init(collection: SirenCollection) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
@@ -62,7 +62,7 @@ struct QueuePage {
 		affordances = actionAffordances + linkAffordances
 		warning = collection.properties?.warning
 		noticeMessages = (collection.properties?.messages ?? []).filter(\.isRenderable)
-		tabs = (collection.properties?.tabs ?? []).map(QueueTab.init(tab:))
+		tabs = (collection.properties?.tabs ?? []).map(ReadlistTab.init(tab:))
 	}
 
 	var currentTabHref: String? { tabs.first(where: \.isCurrent)?.href }
@@ -136,7 +136,7 @@ final class ReadplaceAPI {
 	/// one URL the client knows — and follows wherever the server redirects;
 	/// otherwise it follows a link href the server already handed back (e.g. the
 	/// `next` link).
-	func loadQueue(path: String? = nil) async throws -> QueuePage {
+	func loadReadlist(path: String? = nil) async throws -> ReadlistPage {
 		let url: URL
 		if let path {
 			url = try absoluteURL(path)
@@ -148,7 +148,7 @@ final class ReadplaceAPI {
 		request.httpMethod = "GET"
 		let (data, http) = try await send(request)
 		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
-		return QueuePage(collection: try decodeSiren(SirenCollection.self, data: data, response: http))
+		return ReadlistPage(collection: try decodeSiren(SirenCollection.self, data: data, response: http))
 	}
 
 	/// Invokes a simple entity action via its own server-declared href, method and
@@ -164,7 +164,7 @@ final class ReadplaceAPI {
 	/// client back to one — the post-action truth the caller adopts, carrying
 	/// whatever changed elsewhere (e.g. an item marked unread on the website) — or
 	/// nil when the response is no collection: the server directed no re-list.
-	func invoke(action: SirenAction, values: [String: String] = [:]) async throws -> QueuePage? {
+	func invoke(action: SirenAction, values: [String: String] = [:]) async throws -> ReadlistPage? {
 		var fields = values
 		for declared in action.fields ?? [] where fields[declared.name] == nil {
 			if let value = declared.value { fields[declared.name] = value }
@@ -184,12 +184,12 @@ final class ReadplaceAPI {
 	/// direction. The `collection` class is the discriminator because every
 	/// `SirenCollection` field is optional, so any JSON object would otherwise
 	/// pass the decode.
-	private func postActionCollection(data: Data, response: HTTPURLResponse) -> QueuePage? {
+	private func postActionCollection(data: Data, response: HTTPURLResponse) -> ReadlistPage? {
 		guard isSirenMediaType(response.value(forHTTPHeaderField: "Content-Type")),
 			let collection = try? JSONDecoder().decode(SirenCollection.self, from: data),
 			(collection.`class` ?? []).contains("collection")
 		else { return nil }
-		return QueuePage(collection: collection)
+		return ReadlistPage(collection: collection)
 	}
 
 	// MARK: - Reader session
@@ -262,7 +262,7 @@ final class ReadplaceAPI {
 	/// cookies an earlier request left in the jar — keeping the caller's
 	/// empty-means-failed-mint check honest, and deliberately dropping a signal the server
 	/// re-sets on every Siren response (e.g. `hutch_ext_alive`) with an unchanged value:
-	/// already in `prior` from the queue load that precedes a mint, re-set unchanged it
+	/// already in `prior` from the readlist load that precedes a mint, re-set unchanged it
 	/// never enters the delta, and injecting it into the reader would fake
 	/// extension-installed onboarding from the app. The delta is why this is not literally
 	/// "every cookie the response set": a cookie re-set with an unchanged value is

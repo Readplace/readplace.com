@@ -22,7 +22,7 @@ function multipartBody(filename: string, content: Buffer): { body: Buffer; conte
 const useApp = useTestServer();
 
 describe("Import page SEO", () => {
-	it("marks GET /import as indexable with the reading-queue title and description", async () => {
+	it("marks GET /import as indexable with the reading-readlist title and description", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(harness.server).get("/import");
@@ -35,12 +35,12 @@ describe("Import page SEO", () => {
 		expect(doc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
 			"https://readplace.com/import",
 		);
-		expect(doc.title).toBe("Import Links into Your Reading Queue — Readplace");
+		expect(doc.title).toBe("Import Links into Your Readlist — Readplace");
 		expect(doc.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(
-			"Paste a link or upload a bookmark, Pocket, or newsletter export and Readplace lists every URL for your reading queue. No account needed to start.",
+			"Paste a link or upload a bookmark, Pocket, or newsletter export and Readplace lists every URL for your reading readlist. No account needed to start.",
 		);
 		expect(doc.querySelector('meta[name="keywords"]')?.getAttribute("content")).toContain(
-			"import links into a reading queue",
+			"import links into a reading readlist",
 		);
 	});
 

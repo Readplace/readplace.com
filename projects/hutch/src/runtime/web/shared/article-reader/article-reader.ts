@@ -9,7 +9,7 @@ import { HtmlPage } from "@packages/web-shell";
 import type { Component } from "@packages/web-shell";
 
 import {
-	type ReaderQueueTags,
+	type ReaderReadlistTags,
 	renderArticleHeaderOob,
 	renderDocumentTitleOob,
 } from "../article-body/article-header/article-header.component";
@@ -289,7 +289,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		article: GlobalArticleData | null,
 		displayUrl: string,
 		provenance: SaveProvenance | undefined,
-		queueTags: ReaderQueueTags | undefined,
+		readlistTags: ReaderReadlistTags | undefined,
 	): string {
 		if (!article) return "";
 		const headerOob = renderArticleHeaderOob({
@@ -298,7 +298,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			readTime: displayableReadTime(article),
 			url: displayUrl,
 			provenance,
-			queueTags,
+			readlistTags,
 		});
 		const titleOob = renderDocumentTitleOob(
 			deps.formatDocumentTitle(article.metadata.title),
@@ -332,7 +332,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.queueTags),
+			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.readlistTags),
 			appOrigin: deps.appOrigin,
 		}));
 	}
@@ -363,7 +363,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.queueTags),
+			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.readlistTags),
 			appOrigin: deps.appOrigin,
 		}));
 	}

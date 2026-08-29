@@ -30,7 +30,7 @@ export async function signUpPerfUser(input: {
 			element.value = String(Date.now() - backdateMs);
 		}, SIGNUP_BACKDATE_MS);
 	await page.locator('[data-test-action="signup"]').click();
-	await page.waitForSelector("body.page-queue", { timeout: NAVIGATION_TIMEOUT_MS });
+	await page.waitForSelector("body.page-readlist", { timeout: NAVIGATION_TIMEOUT_MS });
 }
 
 export async function dismissOnboarding(input: { page: Page; baseURL: string }): Promise<void> {

@@ -833,7 +833,7 @@ describe("Import routes", () => {
 			]);
 		});
 
-		it("imports selected URLs into the user's queue and deletes the session", async () => {
+		it("imports selected URLs into the user's readlist and deletes the session", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, articleStore } = harness;
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -941,10 +941,10 @@ describe("Import routes", () => {
 
 			await agent.post(`${sessionPath}/commit`);
 
-			const queueResponse = await agent.get(
+			const readlistResponse = await agent.get(
 				"/queue?import_imported=1&import_total=3&import_skipped=2",
 			);
-			const doc = new JSDOM(queueResponse.text).window.document;
+			const doc = new JSDOM(readlistResponse.text).window.document;
 			const skipped = doc.querySelectorAll("[data-test-import-skipped-row]");
 			expect(skipped.length).toBe(2);
 			const urls = Array.from(skipped).map(
@@ -953,8 +953,8 @@ describe("Import routes", () => {
 			expect(urls).toContain("http://localhost/secret");
 			expect(urls).toContain("http://router.home.arpa/");
 
-			const clearCookie = findCookie(queueResponse.headers, "import_skipped=");
-			assert(clearCookie, "queue must clear the import_skipped cookie");
+			const clearCookie = findCookie(readlistResponse.headers, "import_skipped=");
+			assert(clearCookie, "readlist must clear the import_skipped cookie");
 			expect(clearCookie).toMatch(/Expires=Thu, 01 Jan 1970/);
 
 			const again = await agent.get("/queue");

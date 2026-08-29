@@ -30,7 +30,7 @@ import type {
 import { EmailRejectedError, type SendEmail } from "@packages/provider-contracts/email";
 import { buildDigestPreview } from "../web/digest-preview";
 import { buildDigestEmailHtml, type DigestEmailItem } from "../web/digest-email";
-import { buildOwnerReaderPath } from "../web/pages/queue/owner-reader-link";
+import { buildOwnerReaderPath } from "../web/pages/readlist/owner-reader-link";
 
 const EMAIL_FROM = "Fayner from Readplace <readplace@readplace.com>";
 const DIGEST_BCC = "readplace+reader_ready@readplace.com";

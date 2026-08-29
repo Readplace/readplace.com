@@ -194,7 +194,7 @@ describe("GET /robots.txt", () => {
 		expect(agents).toEqual(["User-agent: *"]);
 	});
 
-	it("opens the shared queue permalinks so crawlers can follow the redirect to the public /view page", async () => {
+	it("opens the shared readlist permalinks so crawlers can follow the redirect to the public /view page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/robots.txt");
 		expect(response.text).toContain("Allow: /queue/*/view$");

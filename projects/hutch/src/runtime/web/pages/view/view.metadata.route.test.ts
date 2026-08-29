@@ -298,7 +298,7 @@ describe("View routes", () => {
 			expect(meta?.getAttribute("content")).toBe("5;url=/queue");
 			const link = doc.querySelector(".save-error__link");
 			expect(link?.getAttribute("href")).toBe("/queue");
-			expect(link?.textContent).toContain("Go to your queue");
+			expect(link?.textContent).toContain("Go to your readlist");
 		});
 
 		it("returns a 404 for a bare GET /view — the paste-a-link form now lives on the homepage", async () => {
@@ -411,7 +411,7 @@ describe("View routes", () => {
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("failed");
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Queue");
+			expect(action.textContent).toBe("Save to My Readlist");
 		});
 	});
 

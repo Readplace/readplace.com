@@ -1,6 +1,6 @@
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
-import { encodeQueueCursor } from "./cursor";
+import { encodeReadlistCursor } from "./cursor";
 import {
 	initMcpServer,
 	type McpArticle,
@@ -14,7 +14,7 @@ const context = { userId, oauthClientId: "dyn-registered-mcp-client" };
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {
 		saveLink: async () => ({ ok: true, title: "Example", url: "https://example.com/" }),
-		listQueue: async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }),
+		listReadlist: async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }),
 		getArticle: async () => null,
 		getArticleContent: async () => ({ status: "not_found" }),
 		getArticleSummary: async () => ({ status: "not_found" }),
@@ -79,14 +79,14 @@ describe("initMcpServer", () => {
 		});
 	});
 
-	it("instructs that the mark tools change the queue and only deleting stays app-only", async () => {
+	it("instructs that the mark tools change the readlist and only deleting stays app-only", async () => {
 		const server = initMcpServer(fakeDeps());
 		const response = await server.handle(
 			{ jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
 			context,
 		);
 		for (const claim of [
-			"mark_as_read and mark_as_unread really change the queue",
+			"mark_as_read and mark_as_unread really change the readlist",
 			"a summary you produced is not the same as the user reading it",
 			"delete_article changes nothing",
 			"Readplace app",
@@ -283,17 +283,17 @@ describe("initMcpServer", () => {
 	});
 
 	describe("tools/call list_queue", () => {
-		it("reports an empty queue with the exact legacy text", async () => {
+		it("reports an empty readlist with the exact legacy text", async () => {
 			const server = initMcpServer(fakeDeps());
 			const response = await call(server, 8, "list_queue");
 			expect(response).toMatchObject({
 				id: 8,
-				result: { content: [{ type: "text", text: "Your Readplace queue is empty." }] },
+				result: { content: [{ type: "text", text: "Your Readplace readlist is empty." }] },
 			});
 		});
 
 		it("formats saved articles, exposes ids in structuredContent, and forwards the status filter", async () => {
-			const listQueue = jest.fn(async () => ({
+			const listReadlist = jest.fn(async () => ({
 				total: 2,
 				page: 1,
 				pageSize: 20,
@@ -302,9 +302,9 @@ describe("initMcpServer", () => {
 					mcpArticle({ id: "b".repeat(32), url: "https://b.test/", title: "", status: "read" }),
 				],
 			}));
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const server = initMcpServer(fakeDeps({ listReadlist }));
 			const response = await call(server, 9, "list_queue", { status: "unread" });
-			expect(listQueue).toHaveBeenCalledWith({
+			expect(listReadlist).toHaveBeenCalledWith({
 				userId,
 				status: "unread",
 				page: 1,
@@ -329,13 +329,13 @@ describe("initMcpServer", () => {
 		});
 
 		it("flags that only the first page is shown when the total exceeds the listed articles", async () => {
-			const listQueue = jest.fn(async () => ({
+			const listReadlist = jest.fn(async () => ({
 				total: 5,
 				page: 1,
 				pageSize: 20,
 				articles: [mcpArticle({ title: "A" }), mcpArticle({ title: "B" })],
 			}));
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const server = initMcpServer(fakeDeps({ listReadlist }));
 			const response = await call(server, 14, "list_queue");
 			expect(response).toMatchObject({
 				result: {
@@ -347,13 +347,13 @@ describe("initMcpServer", () => {
 		});
 
 		it("emits a nextCursor when more pages remain", async () => {
-			const listQueue = jest.fn(async () => ({
+			const listReadlist = jest.fn(async () => ({
 				total: 5,
 				page: 1,
 				pageSize: 2,
 				articles: [mcpArticle({ title: "A" }), mcpArticle({ title: "B" })],
 			}));
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const server = initMcpServer(fakeDeps({ listReadlist }));
 			const response = await call(server, 20, "list_queue", { limit: 2 });
 			expect(response).toMatchObject({
 				result: { structuredContent: { nextCursor: expect.any(String) } },
@@ -361,16 +361,16 @@ describe("initMcpServer", () => {
 		});
 
 		it("continues from a cursor at the next page", async () => {
-			const cursor = encodeQueueCursor({ page: 2, pageSize: 2 });
-			const listQueue = jest.fn(async () => ({
+			const cursor = encodeReadlistCursor({ page: 2, pageSize: 2 });
+			const listReadlist = jest.fn(async () => ({
 				total: 5,
 				page: 2,
 				pageSize: 2,
 				articles: [mcpArticle({ title: "C" }), mcpArticle({ title: "D" })],
 			}));
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const server = initMcpServer(fakeDeps({ listReadlist }));
 			const response = await call(server, 21, "list_queue", { cursor });
-			expect(listQueue).toHaveBeenCalledWith({
+			expect(listReadlist).toHaveBeenCalledWith({
 				userId,
 				page: 2,
 				pageSize: 2,
@@ -384,14 +384,14 @@ describe("initMcpServer", () => {
 		});
 
 		it("reports no-more-articles for a page past the end", async () => {
-			const cursor = encodeQueueCursor({ page: 9, pageSize: 2 });
-			const listQueue = jest.fn(async () => ({
+			const cursor = encodeReadlistCursor({ page: 9, pageSize: 2 });
+			const listReadlist = jest.fn(async () => ({
 				total: 5,
 				page: 9,
 				pageSize: 2,
 				articles: [],
 			}));
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const server = initMcpServer(fakeDeps({ listReadlist }));
 			const response = await call(server, 22, "list_queue", { cursor });
 			expect(response).toMatchObject({
 				result: { content: [{ text: "No more saved articles." }] },
@@ -408,10 +408,10 @@ describe("initMcpServer", () => {
 		});
 
 		it("maps sort:read to the readAt index when status is read", async () => {
-			const listQueue = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const listReadlist = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
+			const server = initMcpServer(fakeDeps({ listReadlist }));
 			await call(server, 24, "list_queue", { status: "read", sort: "read", order: "asc" });
-			expect(listQueue).toHaveBeenCalledWith({
+			expect(listReadlist).toHaveBeenCalledWith({
 				userId,
 				status: "read",
 				sort: "readAt",
@@ -422,23 +422,23 @@ describe("initMcpServer", () => {
 		});
 
 		it("maps sort:saved to the savedAt index", async () => {
-			const listQueue = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const listReadlist = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
+			const server = initMcpServer(fakeDeps({ listReadlist }));
 			await call(server, 25, "list_queue", { sort: "saved" });
-			expect(listQueue).toHaveBeenCalledWith(
+			expect(listReadlist).toHaveBeenCalledWith(
 				expect.objectContaining({ sort: "savedAt" }),
 			);
 		});
 
 		it("refuses sort:read without status:read", async () => {
-			const listQueue = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const listReadlist = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
+			const server = initMcpServer(fakeDeps({ listReadlist }));
 			const response = await call(server, 26, "list_queue", { sort: "read" });
 			expect(response).toMatchObject({
 				id: 26,
 				result: { isError: true, content: [{ text: expect.stringContaining('status:"read"') }] },
 			});
-			expect(listQueue).not.toHaveBeenCalled();
+			expect(listReadlist).not.toHaveBeenCalled();
 		});
 
 		it("returns an error result for an invalid status", async () => {
@@ -448,11 +448,11 @@ describe("initMcpServer", () => {
 		});
 
 		it("logs the cause when the listing throws and answers without echoing it", async () => {
-			const listQueue = jest.fn(async () => {
+			const listReadlist = jest.fn(async () => {
 				throw new Error("db down");
 			});
 			const logError = jest.fn();
-			const server = initMcpServer(fakeDeps({ listQueue, logError }));
+			const server = initMcpServer(fakeDeps({ listReadlist, logError }));
 			const response = await call(server, 11, "list_queue");
 			expect(response).toMatchObject({
 				id: 11,
@@ -460,7 +460,7 @@ describe("initMcpServer", () => {
 					isError: true,
 					content: [
 						{
-							text: "Could not list your queue — something went wrong on Readplace's side. Try again in a moment.",
+							text: "Could not list your readlist — something went wrong on Readplace's side. Try again in a moment.",
 						},
 					],
 				},
@@ -789,13 +789,13 @@ describe("initMcpServer", () => {
 			});
 		});
 
-		it("says so plainly when nothing in the queue relates", async () => {
+		it("says so plainly when nothing in the readlist relates", async () => {
 			const server = initMcpServer(
 				fakeDeps({ getRelatedArticles: async () => ({ status: "ready", articles: [] }) }),
 			);
 			const response = await call(server, 58, "get_related_articles", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
-				result: { content: [{ text: expect.stringContaining("No saves in the queue") }] },
+				result: { content: [{ text: expect.stringContaining("No saves in the readlist") }] },
 			});
 		});
 
@@ -1027,7 +1027,7 @@ describe("initMcpServer", () => {
 		});
 
 		it("leaves the read tools, the status writes, and delete_article open when inactive (the Terms keep view and export available, and the web lets a lapsed reader mark read)", async () => {
-			const listQueue = jest.fn(async () => ({
+			const listReadlist = jest.fn(async () => ({
 				total: 1,
 				page: 1,
 				pageSize: 20,
@@ -1040,7 +1040,7 @@ describe("initMcpServer", () => {
 			const markAsRead = jest.fn(async () => marked);
 			const markAsUnread = jest.fn(async () => marked);
 			const server = initMcpServer(
-				fakeDeps({ resolveToolAccess: inactive, listQueue, markAsRead, markAsUnread }),
+				fakeDeps({ resolveToolAccess: inactive, listReadlist, markAsRead, markAsUnread }),
 			);
 			for (const tool of [
 				"list_queue",
@@ -1056,7 +1056,7 @@ describe("initMcpServer", () => {
 				expect(response).not.toMatchObject({ result: { isError: true } });
 				expect(response).not.toMatchObject({ result: { content: [{ text: UPSELL }] } });
 			}
-			expect(listQueue).toHaveBeenCalled();
+			expect(listReadlist).toHaveBeenCalled();
 			expect(markAsRead).toHaveBeenCalledTimes(1);
 			expect(markAsUnread).toHaveBeenCalledTimes(1);
 		});
@@ -1110,7 +1110,7 @@ describe("initMcpServer", () => {
 			const response = await call(server, 72, "list_queue");
 			expect(response).toMatchObject({
 				result: {
-					content: [{ type: "text", text: "Your Readplace queue is empty." }],
+					content: [{ type: "text", text: "Your Readplace readlist is empty." }],
 					structuredContent: { total: 0, count: 0, articles: [] },
 				},
 			});
@@ -1191,7 +1191,7 @@ describe("initMcpServer", () => {
 		it("records the sort order carried by a pagination cursor, so page two of an ascending listing is not misread as the default", async () => {
 			const { server, records } = recording();
 			await call(server, 1, "list_queue", {
-				cursor: encodeQueueCursor({ page: 2, pageSize: 20, order: "asc" }),
+				cursor: encodeReadlistCursor({ page: 2, pageSize: 20, order: "asc" }),
 			});
 			expect(records[0]).toMatchObject({ tool: "list_queue", sortOrder: "asc" });
 		});

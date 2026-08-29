@@ -1,16 +1,16 @@
-import { QUEUE_PATH } from "./pages/queue/queue.url";
+import { READLIST_PATH } from "./pages/readlist/readlist.url";
 
 const ROBOTS_CONTENT_SIGNAL = "search=yes, ai-input=yes";
 
 const QUEUE_PERMALINK_ALLOWS = [
-	`Allow: ${QUEUE_PATH}/*/view$`,
-	`Allow: ${QUEUE_PATH}/*/view?`,
-	`Allow: ${QUEUE_PATH}/*/read$`,
-	`Allow: ${QUEUE_PATH}/*/read?`,
+	`Allow: ${READLIST_PATH}/*/view$`,
+	`Allow: ${READLIST_PATH}/*/view?`,
+	`Allow: ${READLIST_PATH}/*/read$`,
+	`Allow: ${READLIST_PATH}/*/read?`,
 ];
 
 const SHARED_DISALLOWS = [
-	`Disallow: ${QUEUE_PATH}`,
+	`Disallow: ${READLIST_PATH}`,
 	"Disallow: /export",
 	"Disallow: /oauth",
 	"Disallow: /forgot-password",

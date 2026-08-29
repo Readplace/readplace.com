@@ -11,7 +11,7 @@ keywords: "import newsletter links, save all links from a page, bulk save articl
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace now imports links from one page. Open your queue, hit Import, and switch to the "Paste a link" tab. Drop in a newsletter issue or any page that lists articles. Readplace loads the page and lists every outbound link, each one checked by default. Untick what you skip, then click Import. The articles appear as cards right away and fill in their titles and excerpts within seconds. One page can hold up to 2,000 links, and the same screen still takes a file upload too.
+Readplace now imports links from one page. Open your readlist, hit Import, and switch to the "Paste a link" tab. Drop in a newsletter issue or any page that lists articles. Readplace loads the page and lists every outbound link, each one checked by default. Untick what you skip, then click Import. The articles appear as cards right away and fill in their titles and excerpts within seconds. One page can hold up to 2,000 links, and the same screen still takes a file upload too.
 
 </div>
 </details>
@@ -22,7 +22,7 @@ Readplace now collapses all of that into one paste.
 
 ## Paste the page, pick the links
 
-Open your queue and find the Import button next to the save bar, then switch to the "Paste a link" tab. Drop in the address of a newsletter issue, a blogroll, or any page that lists articles. Readplace loads that page and reads out every link on it that points somewhere else.
+Open your readlist and find the Import button next to the save bar, then switch to the "Paste a link" tab. Drop in the address of a newsletter issue, a blogroll, or any page that lists articles. Readplace loads that page and reads out every link on it that points somewhere else.
 
 You get a plain, checkable list, and every link starts ticked.
 
@@ -32,7 +32,7 @@ Untick the ones you want to skip, then click Import. Readplace keeps only the ou
 
 The cards appear the moment you import, and each one starts with nothing but the site name. Over the next few seconds the title, the excerpt, and the full reading copy fill in as Readplace reads each page in turn, so the list populates in front of you instead of leaving you on a spinner.
 
-The same import screen still takes a file. If you have an HTML or JSON export from an old read-it-later app, upload it and pick from the exact same checkable list you'd get from a pasted link. Both paths end in the same place, with the articles you chose sitting in your queue.
+The same import screen still takes a file. If you have an HTML or JSON export from an old read-it-later app, upload it and pick from the exact same checkable list you'd get from a pasted link. Both paths end in the same place, with the articles you chose sitting in your readlist.
 
 ## Built for newsletter readers
 
@@ -42,6 +42,6 @@ People who read a lot of newsletters get the most out of this. A weekly roundup 
 
 ## Try it on this week's newsletter
 
-Open the newsletter sitting in your inbox right now. Copy the link to its web version, open your Readplace queue, and paste it into the Import box. Pick the few pieces you actually mean to read, and let the rest go.
+Open the newsletter sitting in your inbox right now. Copy the link to its web version, open your Readplace readlist, and paste it into the Import box. Pick the few pieces you actually mean to read, and let the rest go.
 
 [Create an account](https://readplace.com) or [view the source on GitHub](https://github.com/Readplace/readplace.com).

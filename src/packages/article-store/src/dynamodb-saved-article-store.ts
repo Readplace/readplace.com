@@ -10,7 +10,7 @@ import {
 import { z } from "zod";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { MinutesSchema, ArticleStatusSchema, SaveProvenanceSchema } from "@packages/domain/article";
-import { DEFAULT_QUEUE_SLUG, QueueSlugSchema, type QueueSlug } from "@packages/domain/queue";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
@@ -21,15 +21,15 @@ import assert from "node:assert";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
-	AssignSavedArticleToQueue,
-	MoveQueueArticles,
+	AssignSavedArticleToReadlist,
+	MoveReadlistArticles,
 	BumpArticleSavedAt,
 	FindSavedUrls,
 	CountArticlesByUser,
-	CountQueueArticles,
+	CountReadlistArticles,
 	DeleteAllUserArticles,
 	DeleteArticle,
-	DeleteQueueArticle,
+	DeleteReadlistArticle,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -41,30 +41,30 @@ import type {
 	FindArticlesByUser,
 	FindArticlesQuery,
 	FindArticlesResult,
-	FindQueueArticleById,
-	FindQueueArticles,
+	FindReadlistArticleById,
+	FindReadlistArticles,
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
-	MarkQueueArticleViewed,
+	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
 	SaveArticleParams,
-	SaveQueueArticle,
+	SaveReadlistArticle,
 	UpdateArticleStatus,
-	UpdateArticleStatusAcrossQueues,
+	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import {
-	QUEUE_DEFINITION_KEY_PREFIX,
+	READLIST_DEFINITION_KEY_PREFIX,
 	decodeUserArticlePartition,
 	partitionFor,
-	queueDefinitionKey,
-	queuePartitionValue,
-} from "./user-queue-partition";
+	readlistDefinitionKey,
+	readlistPartitionValue,
+} from "./user-readlist-partition";
 
 const ArticleContentRow = z.object({
 	content: dynamoField(z.string()),
@@ -203,17 +203,17 @@ export function initDynamoDbSavedArticleStore(deps: {
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
 	readContent: ContentProvider;
-	saveQueueArticle: SaveQueueArticle;
-	findQueueArticles: FindQueueArticles;
-	countQueueArticles: CountQueueArticles;
-	findQueueArticleById: FindQueueArticleById;
-	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
-	deleteQueueArticle: DeleteQueueArticle;
-	markQueueArticleViewed: MarkQueueArticleViewed;
+	saveReadlistArticle: SaveReadlistArticle;
+	findReadlistArticles: FindReadlistArticles;
+	countReadlistArticles: CountReadlistArticles;
+	findReadlistArticleById: FindReadlistArticleById;
+	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
+	deleteReadlistArticle: DeleteReadlistArticle;
+	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
-	assignSavedArticleToQueue: AssignSavedArticleToQueue;
-	moveQueueArticles: MoveQueueArticles;
+	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
+	moveReadlistArticles: MoveReadlistArticles;
 } {
 	const { client, tableName, userArticlesTableName, logger, now } = deps;
 
@@ -232,10 +232,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 		tableName: userArticlesTableName,
 		schema: SaveCursorRow,
 	});
-	const queueSlugRows = defineDynamoTable({
+	const readlistSlugRows = defineDynamoTable({
 		client,
 		tableName: userArticlesTableName,
-		schema: z.object({ queueSlug: QueueSlugSchema }),
+		schema: z.object({ queueSlug: ReadlistSlugSchema }),
 	});
 
 	const claimWallClockSpan = async (userId: UserId, span: { nowMs: number; endMs: number }): Promise<{ Attributes?: z.infer<typeof SaveCursorRow> }> =>
@@ -436,8 +436,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const saveArticle: SaveArticle = (params) => writeSave(params.userId, params);
 	const saveArticleKeepingPosition: SaveArticle = (params) =>
 		writeSaveKeepingPosition(params.userId, params);
-	const saveQueueArticle: SaveQueueArticle = ({ queue, ...params }) =>
-		writeSave(queuePartitionValue({ userId: params.userId, queue }), params);
+	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) =>
+		writeSave(readlistPartitionValue({ userId: params.userId, readlist }), params);
 
 	const findInPartition = async (
 		partition: string,
@@ -456,8 +456,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const findArticleById: FindArticleById = (routeId, userId) =>
 		findInPartition(userId, userId, routeId);
 
-	const findQueueArticleById: FindQueueArticleById = ({ id, userId, queue }) =>
-		findInPartition(queuePartitionValue({ userId, queue }), userId, id);
+	const findReadlistArticleById: FindReadlistArticleById = ({ id, userId, readlist }) =>
+		findInPartition(readlistPartitionValue({ userId, readlist }), userId, id);
 
 	const findArticlesInPartition = async (
 		partition: string,
@@ -574,8 +574,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const findArticlesByUser: FindArticlesByUser = (query) =>
 		findArticlesInPartition(query.userId, query);
 
-	const findQueueArticles: FindQueueArticles = (query) =>
-		findArticlesInPartition(queuePartitionValue({ userId: query.userId, queue: query.queue }), query);
+	const findReadlistArticles: FindReadlistArticles = (query) =>
+		findArticlesInPartition(readlistPartitionValue({ userId: query.userId, readlist: query.readlist }), query);
 
 	const countArticlesInPartition = async (
 		partition: string,
@@ -611,8 +611,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const countArticlesByUser: CountArticlesByUser = (query) =>
 		countArticlesInPartition(query.userId, query);
 
-	const countQueueArticles: CountQueueArticles = (query) =>
-		countArticlesInPartition(queuePartitionValue({ userId: query.userId, queue: query.queue }), query);
+	const countReadlistArticles: CountReadlistArticles = (query) =>
+		countArticlesInPartition(readlistPartitionValue({ userId: query.userId, readlist: query.readlist }), query);
 
 	const deleteInPartition = async (
 		partition: string,
@@ -635,8 +635,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const deleteArticle: DeleteArticle = (routeId, userId) => deleteInPartition(userId, routeId);
 
-	const deleteQueueArticle: DeleteQueueArticle = ({ id, userId, queue }) =>
-		deleteInPartition(queuePartitionValue({ userId, queue }), id);
+	const deleteReadlistArticle: DeleteReadlistArticle = ({ id, userId, readlist }) =>
+		deleteInPartition(readlistPartitionValue({ userId, readlist }), id);
 
 	const forEachPartitionRow = (
 		partition: string,
@@ -652,16 +652,16 @@ export function initDynamoDbSavedArticleStore(deps: {
 			onPage,
 		);
 
-	const listUserQueueSlugs = async (userId: UserId): Promise<QueueSlug[]> => {
-		const slugs: QueueSlug[] = [];
+	const listUserReadlistSlugs = async (userId: UserId): Promise<ReadlistSlug[]> => {
+		const slugs: ReadlistSlug[] = [];
 		await forEachQueryPage(
-			queueSlugRows,
+			readlistSlugRows,
 			{
 				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
 				ExpressionAttributeNames: { "#url": "url" },
 				ExpressionAttributeValues: {
 					":userId": userId,
-					":prefix": QUEUE_DEFINITION_KEY_PREFIX,
+					":prefix": READLIST_DEFINITION_KEY_PREFIX,
 				},
 			},
 			async (rows) => {
@@ -678,12 +678,12 @@ export function initDynamoDbSavedArticleStore(deps: {
 			);
 		};
 		await forEachPartitionRow(userId, deletePage);
-		const slugs = await listUserQueueSlugs(userId);
+		const slugs = await listUserReadlistSlugs(userId);
 		for (const slug of slugs) {
-			await forEachPartitionRow(queuePartitionValue({ userId, queue: slug }), deletePage);
+			await forEachPartitionRow(readlistPartitionValue({ userId, readlist: slug }), deletePage);
 		}
 		await Promise.all(
-			slugs.map((slug) => userArticles.delete({ Key: { userId, url: queueDefinitionKey(slug) } })),
+			slugs.map((slug) => userArticles.delete({ Key: { userId, url: readlistDefinitionKey(slug) } })),
 		);
 		// The save-cursor sentinel carries no savedAt, so the userId-savedAt-index
 		// sweep above can never see it; without this delete a userId-bearing row
@@ -697,8 +697,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 			for (const row of rows) seen.add(row.url);
 		};
 		await forEachPartitionRow(userId, collect);
-		for (const slug of await listUserQueueSlugs(userId)) {
-			await forEachPartitionRow(queuePartitionValue({ userId, queue: slug }), collect);
+		for (const slug of await listUserReadlistSlugs(userId)) {
+			await forEachPartitionRow(readlistPartitionValue({ userId, readlist: slug }), collect);
 		}
 		const normalizedUrls = [...seen];
 		if (normalizedUrls.length === 0) return [];
@@ -756,14 +756,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const updateArticleStatus: UpdateArticleStatus = (routeId, userId, status) =>
 		updateStatusInPartition(userId, userId, routeId, status);
 
-	const updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues = async ({
+	const updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists = async ({
 		id,
 		userId,
 		addressed,
 		status,
 	}) => {
 		const updated = await updateStatusInPartition(
-			partitionFor({ userId, queue: addressed }),
+			partitionFor({ userId, readlist: addressed }),
 			userId,
 			id,
 			status,
@@ -772,10 +772,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const saves = await listUserSavesForUrl({ userId, url: updated.url });
 		await Promise.all(
 			saves
-				.map((save) => save.queue ?? DEFAULT_QUEUE_SLUG)
+				.map((save) => save.readlist ?? DEFAULT_READLIST_SLUG)
 				.filter((slug) => slug !== addressed)
 				.map((slug) =>
-					updateStatusInPartition(partitionFor({ userId, queue: slug }), userId, id, status),
+					updateStatusInPartition(partitionFor({ userId, readlist: slug }), userId, id, status),
 				),
 		);
 		return updated;
@@ -834,9 +834,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await stampUserArticleIfStillSaved({ partition: userId, url, at, updateExpression: "SET viewedAt = :at" });
 	};
 
-	const markQueueArticleViewed: MarkQueueArticleViewed = async ({ userId, queue, url, at }) => {
+	const markReadlistArticleViewed: MarkReadlistArticleViewed = async ({ userId, readlist, url, at }) => {
 		await stampUserArticleIfStillSaved({
-			partition: queuePartitionValue({ userId, queue }),
+			partition: readlistPartitionValue({ userId, readlist }),
 			url,
 			at,
 			updateExpression: "SET viewedAt = :at",
@@ -885,8 +885,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 		const savers: { userId: UserId; viewedAt?: Date }[] = [];
 		for (const row of rows) {
-			const { userId, queue } = decodeUserArticlePartition(row.userId);
-			if (queue !== undefined) continue;
+			const { userId, readlist } = decodeUserArticlePartition(row.userId);
+			if (readlist !== undefined) continue;
 			savers.push({ userId, viewedAt: toOptionalDate(row.viewedAt) });
 		}
 		return savers;
@@ -894,7 +894,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const listUserSavesForUrl: ListUserSavesForUrl = async ({ userId, url }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const slugs = await listUserQueueSlugs(userId);
+		const slugs = await listUserReadlistSlugs(userId);
 		const rows = await batchGetFromTable({
 			client,
 			tableName: userArticlesTableName,
@@ -902,23 +902,23 @@ export function initDynamoDbSavedArticleStore(deps: {
 			keys: [
 				{ userId, url: articleResourceUniqueId.value },
 				...slugs.map((slug) => ({
-					userId: queuePartitionValue({ userId, queue: slug }),
+					userId: readlistPartitionValue({ userId, readlist: slug }),
 					url: articleResourceUniqueId.value,
 				})),
 			],
 			projection: ["userId"],
 		});
 		return rows.map((row) => {
-			const { queue } = decodeUserArticlePartition(row.userId);
-			return queue === undefined ? {} : { queue };
+			const { readlist } = decodeUserArticlePartition(row.userId);
+			return readlist === undefined ? {} : { readlist };
 		});
 	};
 
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls }) => {
-		const slugs = await listUserQueueSlugs(userId);
+		const slugs = await listUserReadlistSlugs(userId);
 		const partitions = [
 			userId,
-			...slugs.map((slug) => queuePartitionValue({ userId, queue: slug })),
+			...slugs.map((slug) => readlistPartitionValue({ userId, readlist: slug })),
 		];
 		const normalizedUrls = [
 			...new Set(urls.map((url) => ArticleResourceUniqueId.parse(url).value)),
@@ -932,11 +932,11 @@ export function initDynamoDbSavedArticleStore(deps: {
 			),
 			projection: ["userId", "url"],
 		});
-		const byNormalizedUrl = new Map<string, { queue?: QueueSlug }[]>();
+		const byNormalizedUrl = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const row of rows) {
-			const { queue } = decodeUserArticlePartition(row.userId);
+			const { readlist } = decodeUserArticlePartition(row.userId);
 			const saves = byNormalizedUrl.get(row.url) ?? [];
-			saves.push(queue === undefined ? {} : { queue });
+			saves.push(readlist === undefined ? {} : { readlist });
 			byNormalizedUrl.set(row.url, saves);
 		}
 		return new Map(
@@ -947,9 +947,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		);
 	};
 
-	const assignSavedArticleToQueue: AssignSavedArticleToQueue = async ({
+	const assignSavedArticleToReadlist: AssignSavedArticleToReadlist = async ({
 		userId,
-		queue,
+		readlist,
 		url,
 		savedAt,
 	}) => {
@@ -959,7 +959,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		try {
 			await userArticles.put({
 				Item: {
-					userId: queuePartitionValue({ userId, queue }),
+					userId: readlistPartitionValue({ userId, readlist }),
 					url: articleResourceUniqueId.value,
 					status: source.status,
 					savedAt: savedAt.toISOString(),
@@ -996,9 +996,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return true;
 	};
 
-	const moveQueueArticles: MoveQueueArticles = async ({ userId, from, to }) => {
-		const source = queuePartitionValue({ userId, queue: from });
-		const destination = queuePartitionValue({ userId, queue: to });
+	const moveReadlistArticles: MoveReadlistArticles = async ({ userId, from, to }) => {
+		const source = readlistPartitionValue({ userId, readlist: from });
+		const destination = readlistPartitionValue({ userId, readlist: to });
 		let moved = 0;
 		await forEachPartitionRow(source, async (rows) => {
 			const copied = await Promise.all(
@@ -1129,16 +1129,16 @@ export function initDynamoDbSavedArticleStore(deps: {
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,
 		readContent,
-		saveQueueArticle,
-		findQueueArticles,
-		countQueueArticles,
-		findQueueArticleById,
-		updateArticleStatusAcrossQueues,
-		deleteQueueArticle,
-		markQueueArticleViewed,
+		saveReadlistArticle,
+		findReadlistArticles,
+		countReadlistArticles,
+		findReadlistArticleById,
+		updateArticleStatusAcrossReadlists,
+		deleteReadlistArticle,
+		markReadlistArticleViewed,
 		listUserSavesForUrl,
 		listUserSavesForUrls,
-		assignSavedArticleToQueue,
-		moveQueueArticles,
+		assignSavedArticleToReadlist,
+		moveReadlistArticles,
 	};
 }

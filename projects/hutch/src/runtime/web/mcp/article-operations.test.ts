@@ -1,12 +1,12 @@
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
-import { DEFAULT_QUEUE_SLUG } from "@packages/domain/queue";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesByUser,
 	ReadArticleContent,
-	UpdateArticleStatusAcrossQueues,
+	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindRelatedArticles } from "@packages/provider-contracts/related-articles";
@@ -45,7 +45,7 @@ interface DepOverrides {
 	readArticleContent?: ReadArticleContent;
 	findGeneratedSummary?: FindGeneratedSummary;
 	findRelatedArticles?: FindRelatedArticles;
-	updateArticleStatusAcrossQueues?: UpdateArticleStatusAcrossQueues;
+	updateArticleStatusAcrossReadlists?: UpdateArticleStatusAcrossReadlists;
 }
 
 function buildOps(overrides: DepOverrides = {}) {
@@ -65,8 +65,8 @@ function buildOps(overrides: DepOverrides = {}) {
 			overrides.findGeneratedSummary ?? (async () => undefined),
 		findRelatedArticles:
 			overrides.findRelatedArticles ?? (async () => ({ status: "pending" })),
-		updateArticleStatusAcrossQueues:
-			overrides.updateArticleStatusAcrossQueues ?? (async () => null),
+		updateArticleStatusAcrossReadlists:
+			overrides.updateArticleStatusAcrossReadlists ?? (async () => null),
 	});
 }
 
@@ -171,7 +171,7 @@ describe("toSummaryResult", () => {
 });
 
 describe("initMcpArticleOperations", () => {
-	describe("listQueue", () => {
+	describe("listReadlist", () => {
 		it("forwards the query (excluding content) and maps rows to MCP articles", async () => {
 			const article = buildArticle();
 			const findArticlesByUser = jest.fn(async () => ({
@@ -183,7 +183,7 @@ describe("initMcpArticleOperations", () => {
 			}));
 			const ops = buildOps({ findArticlesByUser });
 
-			const result = await ops.listQueue({
+			const result = await ops.listReadlist({
 				userId,
 				status: "read",
 				sort: "readAt",
@@ -220,7 +220,7 @@ describe("initMcpArticleOperations", () => {
 				}),
 			});
 
-			await expect(ops.listQueue({ userId })).rejects.toThrow(
+			await expect(ops.listReadlist({ userId })).rejects.toThrow(
 				"includeTotal query must return a total",
 			);
 		});
@@ -396,15 +396,15 @@ describe("initMcpArticleOperations", () => {
 				readAt: new Date("2026-03-03T00:00:00.000Z"),
 			};
 			const findArticleById = jest.fn(async () => stored);
-			const updateArticleStatusAcrossQueues = jest.fn(async () => written);
-			const ops = buildOps({ findArticleById, updateArticleStatusAcrossQueues });
+			const updateArticleStatusAcrossReadlists = jest.fn(async () => written);
+			const ops = buildOps({ findArticleById, updateArticleStatusAcrossReadlists });
 
 			const result = await ops.markAsRead({ userId, id: stored.id.value });
 
-			expect(updateArticleStatusAcrossQueues).toHaveBeenCalledWith({
+			expect(updateArticleStatusAcrossReadlists).toHaveBeenCalledWith({
 				id: stored.id,
 				userId,
-				addressed: DEFAULT_QUEUE_SLUG,
+				addressed: DEFAULT_READLIST_SLUG,
 				status: "read",
 			});
 			expect(result).toEqual({ status: "ok", article: toMcpArticle(written) });
@@ -420,18 +420,18 @@ describe("initMcpArticleOperations", () => {
 				readAt: new Date("2026-03-03T00:00:00.000Z"),
 			});
 			const written = { ...stored, status: "unread" as const, readAt: undefined };
-			const updateArticleStatusAcrossQueues = jest.fn(async () => written);
+			const updateArticleStatusAcrossReadlists = jest.fn(async () => written);
 			const ops = buildOps({
 				findArticleById: async () => stored,
-				updateArticleStatusAcrossQueues,
+				updateArticleStatusAcrossReadlists,
 			});
 
 			const result = await ops.markAsUnread({ userId, id: stored.id.value });
 
-			expect(updateArticleStatusAcrossQueues).toHaveBeenCalledWith({
+			expect(updateArticleStatusAcrossReadlists).toHaveBeenCalledWith({
 				id: stored.id,
 				userId,
-				addressed: DEFAULT_QUEUE_SLUG,
+				addressed: DEFAULT_READLIST_SLUG,
 				status: "unread",
 			});
 			expect(result).toEqual({ status: "ok", article: toMcpArticle(written) });
@@ -444,15 +444,15 @@ describe("initMcpArticleOperations", () => {
 				status: "read",
 				readAt: new Date("2026-03-03T00:00:00.000Z"),
 			});
-			const updateArticleStatusAcrossQueues = jest.fn(async () => stored);
+			const updateArticleStatusAcrossReadlists = jest.fn(async () => stored);
 			const ops = buildOps({
 				findArticleById: async () => stored,
-				updateArticleStatusAcrossQueues,
+				updateArticleStatusAcrossReadlists,
 			});
 
 			const result = await ops.markAsRead({ userId, id: stored.id.value });
 
-			expect(updateArticleStatusAcrossQueues).not.toHaveBeenCalled();
+			expect(updateArticleStatusAcrossReadlists).not.toHaveBeenCalled();
 			expect(result).toEqual({ status: "ok", article: toMcpArticle(stored) });
 			expect(result).toMatchObject({
 				article: { readAt: "2026-03-03T00:00:00.000Z" },
@@ -461,48 +461,48 @@ describe("initMcpArticleOperations", () => {
 
 		it("leaves an already-unread article alone", async () => {
 			const stored = buildArticle();
-			const updateArticleStatusAcrossQueues = jest.fn(async () => stored);
+			const updateArticleStatusAcrossReadlists = jest.fn(async () => stored);
 			const ops = buildOps({
 				findArticleById: async () => stored,
-				updateArticleStatusAcrossQueues,
+				updateArticleStatusAcrossReadlists,
 			});
 
 			const result = await ops.markAsUnread({ userId, id: stored.id.value });
 
-			expect(updateArticleStatusAcrossQueues).not.toHaveBeenCalled();
+			expect(updateArticleStatusAcrossReadlists).not.toHaveBeenCalled();
 			expect(result).toEqual({ status: "ok", article: toMcpArticle(stored) });
 		});
 
 		it("reports not_found and writes nothing for an id the user does not own", async () => {
-			const updateArticleStatusAcrossQueues = jest.fn(async () => buildArticle());
+			const updateArticleStatusAcrossReadlists = jest.fn(async () => buildArticle());
 			const ops = buildOps({
 				findArticleById: async () => null,
-				updateArticleStatusAcrossQueues,
+				updateArticleStatusAcrossReadlists,
 			});
 
 			expect(
 				await ops.markAsRead({ userId, id: "0".repeat(32) }),
 			).toEqual({ status: "not_found" });
-			expect(updateArticleStatusAcrossQueues).not.toHaveBeenCalled();
+			expect(updateArticleStatusAcrossReadlists).not.toHaveBeenCalled();
 		});
 
 		it("reports not_found without hitting the store for a malformed id", async () => {
 			const findArticleById = jest.fn(async () => null);
-			const updateArticleStatusAcrossQueues = jest.fn(async () => buildArticle());
-			const ops = buildOps({ findArticleById, updateArticleStatusAcrossQueues });
+			const updateArticleStatusAcrossReadlists = jest.fn(async () => buildArticle());
+			const ops = buildOps({ findArticleById, updateArticleStatusAcrossReadlists });
 
 			expect(
 				await ops.markAsRead({ userId, id: "not-a-hash" }),
 			).toEqual({ status: "not_found" });
 			expect(findArticleById).not.toHaveBeenCalled();
-			expect(updateArticleStatusAcrossQueues).not.toHaveBeenCalled();
+			expect(updateArticleStatusAcrossReadlists).not.toHaveBeenCalled();
 		});
 
 		it("reports not_found when the row is gone by the time the write runs", async () => {
 			const article = buildArticle();
 			const ops = buildOps({
 				findArticleById: async () => article,
-				updateArticleStatusAcrossQueues: async () => null,
+				updateArticleStatusAcrossReadlists: async () => null,
 			});
 
 			expect(

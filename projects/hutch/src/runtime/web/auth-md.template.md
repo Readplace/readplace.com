@@ -1,7 +1,7 @@
 # auth.md
 
 Readplace publishes this file so AI agents can obtain delegated access to a
-signed-in user's reading queue. Readplace is both the OAuth 2.0 authorization
+signed-in user's reading readlist. Readplace is both the OAuth 2.0 authorization
 server and the protected resource; its issuer is `{{baseUrl}}`.
 
 An MCP-capable client does not need this recipe: add `{{baseUrl}}/mcp` as an MCP
@@ -11,7 +11,7 @@ automatically.
 ## Audience
 
 This recipe is for agents acting **on behalf of a Readplace user** — saving
-links to, reading, and managing that user's queue. Readplace has no machine-only
+links to, reading, and managing that user's readlist. Readplace has no machine-only
 or anonymous identity: every credential is bound to a human Readplace account
 that explicitly authorizes the agent.
 
@@ -81,7 +81,7 @@ to that one resource.
 
 `scope` is optional and makes no difference: Readplace does not sub-divide
 access, so every token carries the same full read/write access to the user's
-queue (see step 6). The discovery metadata labels that single access level
+readlist (see step 6). The discovery metadata labels that single access level
 `queue`. The user signs in if needed and approves, then Readplace redirects to
 `YOUR_REDIRECT_URI?code=AUTH_CODE&state=OPAQUE_VALUE`.
 
@@ -99,7 +99,7 @@ The response is JSON with `access_token`, `refresh_token`, and
 
 ## 6. Use the access_token
 
-The queue API is a [Siren](https://github.com/kevinswiber/siren) hypermedia API.
+The readlist API is a [Siren](https://github.com/kevinswiber/siren) hypermedia API.
 Send the bearer token on every request, start at the entry point, and follow the
 links and actions it returns:
 
@@ -110,7 +110,7 @@ Accept: application/vnd.siren+json
 ```
 
 A Readplace access token carries full read/write access to the authenticated
-user's reading queue — the single access level the discovery metadata labels
+user's reading readlist — the single access level the discovery metadata labels
 `queue`. Readplace does not sub-divide or separately enforce scopes. When the
 access token expires, refresh it:
 
@@ -130,7 +130,7 @@ grant_type=refresh_token&refresh_token=REFRESH_TOKEN&client_id=YOUR_CLIENT_ID
 | `400 invalid_redirect_uri` | A registered `redirect_uri` is not `https` or loopback |
 | `400 invalid_client_metadata` | Registration metadata is unsupported (e.g. a non-`none` auth method) |
 | `401 access_denied` | The user is not signed in, or denied the request |
-| `401` from the queue API | The bearer token is missing, expired, or revoked |
+| `401` from the readlist API | The bearer token is missing, expired, or revoked |
 
 ## 8. Revoke
 

@@ -18,7 +18,7 @@ The page that imports your old reading list used to carry a noindex tag, so sear
 
 Readplace's import page did its job. It also told search engines to skip it.
 
-The page has been open to anyone, no login required. Upload a file or paste a link, and it reads out every web address inside and lays them in a checkable list. The account waits until the end, the moment you save the selection to your queue. [I moved the signup to the commit step for a reason](/blog/import-links-before-signing-up), and none of that reason survives if no reader can reach the page.
+The page has been open to anyone, no login required. Upload a file or paste a link, and it reads out every web address inside and lays them in a checkable list. The account waits until the end, the moment you save the selection to your readlist. [I moved the signup to the commit step for a reason](/blog/import-links-before-signing-up), and none of that reason survives if no reader can reach the page.
 
 A reader leaves Pocket, or Omnivore, or whatever shut down this month, and goes looking for somewhere to put the list they kept. They open a search, or they ask an assistant where to move a reading list. The page built to catch them was carrying a `noindex, nofollow` tag, so neither one could see it.
 

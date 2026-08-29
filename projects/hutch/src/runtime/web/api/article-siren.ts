@@ -85,7 +85,7 @@ export function toSavedArticleEntity(params: {
 					content: { type: "text/html", body: "Saved to your reading list" },
 				},
 			]
-		: [{ type: "success", content: { type: "text/html", body: "Already in your queue" } }];
+		: [{ type: "success", content: { type: "text/html", body: "Already in your readlist" } }];
 	if (!params.createdUserArticle && params.wroteUserArticle) {
 		messages.push({
 			type: "success",
@@ -97,7 +97,7 @@ export function toSavedArticleEntity(params: {
 		properties: { ...entity.properties, messages },
 		links: [
 			...(entity.links ?? []),
-			{ rel: ["collection"], title: "View Queue", href: "/queue" },
+			{ rel: ["collection"], title: "View Readlist", href: "/queue" },
 		],
 	};
 }

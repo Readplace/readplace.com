@@ -6,11 +6,11 @@
     {{#if provenanceLabel}}
     <span class="article-body__provenance" data-test-reader-provenance title="{{provenanceLabel}}">{{{provenanceIconSvg}}}{{provenanceLabel}}</span>
     {{/if}}
-    {{#each queueTags.tags}}
-    <span class="article-body__queue-tag" data-test-queue-tag="{{slug}}">{{label}}<form class="article-body__queue-tag-remove-form" method="POST" action="{{../queueTags.unassignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+    {{#each readlistTags.tags}}
+    <span class="article-body__readlist-tag" data-test-readlist-tag="{{slug}}">{{label}}<form class="article-body__readlist-tag-remove-form" method="POST" action="{{../readlistTags.unassignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
       <input type="hidden" name="queue" value="{{slug}}">
-      <input type="hidden" name="returnTo" value="{{../queueTags.returnTo}}">
-      <button class="article-body__queue-tag-remove" type="submit" data-test-unassign-queue="{{slug}}">{{icon "x"}}<span class="sr-only">Remove from {{label}}</span></button>
+      <input type="hidden" name="returnTo" value="{{../readlistTags.returnTo}}">
+      <button class="article-body__readlist-tag-remove" type="submit" data-test-unassign-readlist="{{slug}}">{{icon "x"}}<span class="sr-only">Remove from {{label}}</span></button>
     </form></span>
     {{/each}}
   </div>

@@ -1,0 +1,137 @@
+export type ViewPageActionKey =
+	| 'anonymous-visit-view-page'
+	| 'anonymous-visit-view-page-crawl-fails'
+
+export type AuthActionKey =
+	| 'submit-signup-form'
+	| 'click-logout'
+	| 'navigate-to-login'
+	| 'submit-login-form'
+
+export type OnboardingActionKey =
+	| 'onboarding-install-extension-incomplete'
+	| 'onboarding-save-first-article'
+
+export type CleanupActionKey = 'cleanup-previous-articles'
+
+export type PasswordResetActionKey =
+	| 'navigate-to-forgot-password'
+	| 'submit-forgot-password-form'
+	| 'navigate-to-reset-password'
+	| 'submit-reset-password-form'
+	| 'login-with-new-password'
+
+export type SavePermalinkActionKey =
+	| 'save-via-permalink'
+	| 'delete-permalink-article'
+
+export type BannerOnReaderActionKey =
+	| 'verify-banner-on-public-view'
+	| 'save-and-verify-banner-on-private-reader'
+	| 'cleanup-banner-test-article'
+
+export type ImportActionKey =
+	| 'import-all-three-checked'
+	| 'import-middle-unchecked'
+	| 'import-select-all-deselect-some'
+	| 'import-deselect-all-select-some'
+	| 'import-paginated-select-all-spans-pages'
+
+export type ImportFromUrlActionKey =
+	| 'import-from-url-happy-path'
+	| 'import-from-url-page-returns-500'
+	| 'import-from-url-page-has-no-links'
+
+export const TEST_ARTICLE_COUNT = 4
+export const PAGINATION_ARTICLE_COUNT = 17
+export const SEED_ARTICLE_COUNT = 2
+
+type TestArticleIndex = 1 | 2 | 3 | 4
+type PaginationIndex =
+	| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+	| 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17
+type SeedIndex = 1 | 2
+
+export type SaveArticleKey = `save-article-${TestArticleIndex}`
+export type PaginationArticleKey = `save-pagination-article-${PaginationIndex}`
+export type SeedActionKey = `seed-article-${SeedIndex}`
+
+export type ReadlistActionKey =
+	| SaveArticleKey
+	| PaginationArticleKey
+	| 'verify-page1-has-next'
+	| 'navigate-to-page2'
+	| 'verify-page2'
+	| 'navigate-back-to-page1'
+	| 'verify-back-on-page1'
+	| 'resave-existing-article-triggers-refresh'
+	| 'delete-pagination-articles'
+	| 'verify-newest-first-order'
+	| 'sort-oldest-first'
+	| 'verify-oldest-first-order'
+	| 'read-first-article'
+	| 'verify-first-is-read'
+	| 'delete-last-article'
+	| 'check-read-tab'
+	| 'check-unread-tab'
+	| 'cleanup-delete-all'
+
+export type ReadlistFlowActionKey =
+	| ViewPageActionKey
+	| AuthActionKey
+	| OnboardingActionKey
+	| CleanupActionKey
+	| PasswordResetActionKey
+	| SavePermalinkActionKey
+	| BannerOnReaderActionKey
+	| SeedActionKey
+	| ReadlistActionKey
+	| ImportActionKey
+	| ImportFromUrlActionKey
+
+// Fails to compile if the tuple omits any union member — keeps action-skipping
+// callers from silently dropping a key the local test registers.
+type AssertExhaustive<U, Tuple extends readonly U[]> =
+	[Exclude<U, Tuple[number]>] extends [never] ? Tuple : ['missing keys', Exclude<U, Tuple[number]>]
+
+export const ONBOARDING_ACTION_KEYS = [
+	'onboarding-install-extension-incomplete',
+	'onboarding-save-first-article',
+] as const satisfies AssertExhaustive<OnboardingActionKey, readonly OnboardingActionKey[]>
+
+export const PASSWORD_RESET_ACTION_KEYS = [
+	'navigate-to-forgot-password',
+	'submit-forgot-password-form',
+	'navigate-to-reset-password',
+	'submit-reset-password-form',
+	'login-with-new-password',
+] as const satisfies AssertExhaustive<PasswordResetActionKey, readonly PasswordResetActionKey[]>
+
+/** Not exported — staging runs these actions for real (no skipFactory), so
+ * the tuple's only job is the compile-time exhaustiveness check on
+ * BannerOnReaderActionKey. */
+const _BANNER_ON_READER_ACTION_KEYS = [
+	'verify-banner-on-public-view',
+	'save-and-verify-banner-on-private-reader',
+	'cleanup-banner-test-article',
+] as const satisfies AssertExhaustive<BannerOnReaderActionKey, readonly BannerOnReaderActionKey[]>
+void _BANNER_ON_READER_ACTION_KEYS;
+
+export const SEED_ACTION_KEYS = [
+	'seed-article-1',
+	'seed-article-2',
+] as const satisfies AssertExhaustive<SeedActionKey, readonly SeedActionKey[]>
+
+export const IMPORT_ACTION_KEYS = [
+	'import-all-three-checked',
+	'import-middle-unchecked',
+	'import-select-all-deselect-some',
+	'import-deselect-all-select-some',
+	'import-paginated-select-all-spans-pages',
+] as const satisfies AssertExhaustive<ImportActionKey, readonly ImportActionKey[]>
+
+export const IMPORT_FROM_URL_ACTION_KEYS = [
+	'import-from-url-happy-path',
+	'import-from-url-page-returns-500',
+	'import-from-url-page-has-no-links',
+] as const satisfies AssertExhaustive<ImportFromUrlActionKey, readonly ImportFromUrlActionKey[]>

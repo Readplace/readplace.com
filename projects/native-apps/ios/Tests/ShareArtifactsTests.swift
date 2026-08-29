@@ -32,7 +32,7 @@ final class ShareArtifactsTests: XCTestCase {
 		let cache = DiscoveryHTTPCache.directory(in: container)
 		try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
 		let entry = cache.appendingPathComponent("entry")
-		try Data("a cached queue response".utf8).write(to: entry)
+		try Data("a cached readlist response".utf8).write(to: entry)
 
 		ShareArtifacts.purge(appGroupId: TokenStore.resolvedAppGroupId)
 

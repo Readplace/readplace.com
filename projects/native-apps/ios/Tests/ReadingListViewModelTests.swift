@@ -27,7 +27,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testAddLinksHelpURLIsTheClientHeldHelpPathWithTheAppShellMarker() {
 		// The + control opens the help page at a path the client holds, resolved
 		// against the API base — not a link discovered from the server — so it is
-		// available before (and regardless of) any queue load. It carries the
+		// available before (and regardless of) any readlist load. It carries the
 		// app-shell marker so the server serves it chromeless, with the deep-link
 		// back to the native list this sheet intercepts.
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
@@ -38,7 +38,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	/// A locked account: the queue loads, but invoking a collection action is refused
+	/// A locked account: the readlist loads, but invoking a collection action is refused
 	/// with a server-authored message.
 	private func lockedAccountHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
 		return { request, _ in
@@ -241,15 +241,15 @@ final class ReadingListViewModelTests: XCTestCase {
 		let futureOnly = """
 		{ "name": "purge-all", "title": "Purge", "href": "/queue/purge", "method": "POST" }
 		"""
-		var queueGETs = 0
+		var readlistGETs = 0
 		StubURLProtocol.setHandler { request, _ in
 			let path = request.url?.path ?? ""
 			switch path {
 			case "/":
 				return .redirect(to: "/queue")
 			case "/queue":
-				queueGETs += 1
-				return queueGETs == 1
+				readlistGETs += 1
+				return readlistGETs == 1
 					? .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
 					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], actionsJSON: futureOnly))
 			default:
@@ -309,7 +309,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testInvokeCollectionSubmitsTheActionAndReloadsFromTheServer() async throws {
-		var queueGETs = 0
+		var readlistGETs = 0
 		StubURLProtocol.setHandler { request, _ in
 			let path = request.url?.path ?? ""
 			let method = request.httpMethod ?? "GET"
@@ -319,8 +319,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			case ("/queue/purge", "POST"):
 				return .redirect(to: "/queue")
 			case ("/queue", _):
-				queueGETs += 1
-				return queueGETs == 1
+				readlistGETs += 1
+				return readlistGETs == 1
 					? .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
 					: .json(200, Fixtures.collection(entitiesJSON: []))
 			default:
@@ -368,7 +368,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		// A collection action whose 2xx response is not a Siren collection (a 204, or
 		// a redirect to an HTML confirmation) carries no collection to adopt, so the
 		// view model re-lists from the entry point to reflect the new server state.
-		var queueGETs = 0
+		var readlistGETs = 0
 		StubURLProtocol.setHandler { request, _ in
 			let path = request.url?.path ?? ""
 			switch path {
@@ -377,8 +377,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			case "/queue/purge":
 				return StubURLProtocol.Stub(status: 204)
 			case "/queue":
-				queueGETs += 1
-				return queueGETs == 1
+				readlistGETs += 1
+				return readlistGETs == 1
 					? .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
 					: .json(200, Fixtures.collection(entitiesJSON: []))
 			default:
@@ -392,7 +392,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let purge = SirenAction(name: "purge-all", href: "/queue/purge", method: "POST", title: "Purge", type: nil, fields: nil)
 		await viewModel.invokeCollection(purge)
 
-		XCTAssertEqual(queueGETs, 2, "with no collection to adopt, the invoke falls back to a fresh first-page load")
+		XCTAssertEqual(readlistGETs, 2, "with no collection to adopt, the invoke falls back to a fresh first-page load")
 		XCTAssertTrue(viewModel.articles.isEmpty, "the fallback reload reflects the server's post-invoke state")
 		XCTAssertNil(viewModel.errorText)
 	}
@@ -474,7 +474,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		request.url?.path == "/queue" && (request.url?.query ?? "").contains("status=read")
 	}
 
-	private func tabbedQueueHandler(
+	private func tabbedReadlistHandler(
 		readTabExtraLinks: String = "",
 		readTabAfterStatusPost: [String]? = nil
 	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
@@ -508,7 +508,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testRefreshExposesTheServersTabsAndSelectsTheCurrentOne() async {
-		StubURLProtocol.setHandler(tabbedQueueHandler())
+		StubURLProtocol.setHandler(tabbedReadlistHandler())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		XCTAssertEqual(viewModel.tabs, [], "no tabs before a collection has loaded")
 		XCTAssertNil(viewModel.selectedTabHref)
@@ -525,7 +525,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	func testSelectTabFollowsTheTabsHrefAndReplacesTheListAndItsPagination() async {
 		let readNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=read&page=2\" }"
-		StubURLProtocol.setHandler(tabbedQueueHandler(readTabExtraLinks: readNext))
+		StubURLProtocol.setHandler(tabbedReadlistHandler(readTabExtraLinks: readNext))
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2"])
@@ -549,7 +549,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testSelectingTheTabAlreadyShownIsANoOp() async {
-		StubURLProtocol.setHandler(tabbedQueueHandler())
+		StubURLProtocol.setHandler(tabbedReadlistHandler())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		let requestsAfterLoad = StubURLProtocol.records.count
@@ -561,7 +561,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testInvokeUpdateStatusOnTheReadTabStaysOnTheReadTab() async throws {
-		StubURLProtocol.setHandler(tabbedQueueHandler(readTabAfterStatusPost: [readArticle(id: "r2")]))
+		StubURLProtocol.setHandler(tabbedReadlistHandler(readTabAfterStatusPost: [readArticle(id: "r2")]))
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		await viewModel.select(tabHref: "/queue?status=read")
@@ -584,7 +584,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	private func reReadAfterSelectingTheReadTab(
 		_ reconcile: (ReadingListViewModel) async -> Void
 	) async -> (path: String?, query: String?) {
-		StubURLProtocol.setHandler(tabbedQueueHandler())
+		StubURLProtocol.setHandler(tabbedReadlistHandler())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		await viewModel.select(tabHref: "/queue?status=read")
@@ -618,7 +618,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	func testALoadMoreInFlightWhenTheTabChangesNeverLandsUnderTheNewTab() async {
 		let unreadNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }"
-		let tabbed = tabbedQueueHandler()
+		let tabbed = tabbedReadlistHandler()
 		StubURLProtocol.setHandler(holding({ request, body in
 			let query = request.url?.query ?? ""
 			if query.contains("page=2") {
@@ -656,7 +656,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	func testAFirstPageReadInFlightWhenTheTabChangesDoesNotSnapTheSelectionBack() async {
 		var unreadReads = 0
-		StubURLProtocol.setHandler(holding(tabbedQueueHandler(), requestsWhere: { request in
+		StubURLProtocol.setHandler(holding(tabbedReadlistHandler(), requestsWhere: { request in
 			guard request.url?.path == "/queue", !(request.url?.query ?? "").contains("status=read") else { return false }
 			unreadReads += 1
 			return unreadReads > 1
@@ -680,7 +680,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testAMutationInFlightWhenTheTabChangesDoesNotAdoptTheOldTabsCollection() async throws {
-		StubURLProtocol.setHandler(holding(tabbedQueueHandler(), requestsWhere: { request in
+		StubURLProtocol.setHandler(holding(tabbedReadlistHandler(), requestsWhere: { request in
 			request.url?.path == "/queue" && request.url?.query == nil
 				&& StubURLProtocol.records.contains { $0.request.url?.path.hasSuffix("/status") == true }
 		}, untilOneWhere: isReadTabRequest))
@@ -805,7 +805,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		{ "label": "Read", "rel": "tab", "href": "/queue?status=read" }
 		"""
 		let unfiltered = Fixtures.collection(entitiesJSON: [Fixtures.article(id: "any")], tabsJSON: uncurrent)
-		let tabbed = tabbedQueueHandler()
+		let tabbed = tabbedReadlistHandler()
 		StubURLProtocol.setHandler { request, body in
 			switch request.url?.path {
 			case "/queue/purge": return .redirect(to: "/queue?all")
@@ -829,15 +829,15 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	// MARK: - Mark as read
 
-	/// A two-item queue whose `/queue/{id}/status` POST behaves per `statusStub`.
-	/// The first collection GET serves the two rows; when `laterQueue` is given,
+	/// A two-item readlist whose `/queue/{id}/status` POST behaves per `statusStub`.
+	/// The first collection GET serves the two rows; when `laterReadlist` is given,
 	/// every subsequent collection GET serves it instead — the post-action truth a
 	/// followed redirect (or a convergence load) returns.
 	private func markReadHandler(
-		laterQueue: String? = nil,
+		laterReadlist: String? = nil,
 		statusStub: @escaping (String) -> StubURLProtocol.Stub
 	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
-		var queueGETs = 0
+		var readlistGETs = 0
 		return { request, _ in
 			let path = request.url?.path ?? ""
 			if path.hasSuffix("/status") { return statusStub(path) }
@@ -845,8 +845,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			case "/":
 				return .redirect(to: "/queue")
 			case "/queue":
-				queueGETs += 1
-				if queueGETs > 1, let laterQueue { return .json(200, laterQueue) }
+				readlistGETs += 1
+				if readlistGETs > 1, let laterReadlist { return .json(200, laterReadlist) }
 				return .json(200, Fixtures.collection(
 					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
 					total: 2
@@ -871,7 +871,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let postAction = Fixtures.collection(
 			entitiesJSON: [Fixtures.article(id: "a2"), Fixtures.article(id: "w1")], total: 2
 		)
-		StubURLProtocol.setHandler(markReadHandler(laterQueue: postAction) { _ in .redirect(to: "/queue") })
+		StubURLProtocol.setHandler(markReadHandler(laterReadlist: postAction) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
@@ -1054,7 +1054,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testInvokeDeleteAdoptsTheServersPostActionCollection() async throws {
-		var queueGETs = 0
+		var readlistGETs = 0
 		StubURLProtocol.setHandler { request, _ in
 			let path = request.url?.path ?? ""
 			if path.hasSuffix("/delete") { return .redirect(to: "/queue") }
@@ -1062,8 +1062,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			case "/":
 				return .redirect(to: "/queue")
 			case "/queue":
-				queueGETs += 1
-				return queueGETs == 1
+				readlistGETs += 1
+				return readlistGETs == 1
 					? .json(200, Fixtures.collection(
 						entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], total: 2
 					))
@@ -1172,7 +1172,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let postAction = Fixtures.collection(
 			entitiesJSON: [Fixtures.article(id: "a2"), Fixtures.article(id: "w1")], total: 2
 		)
-		StubURLProtocol.setHandler(markReadHandler(laterQueue: postAction) { _ in .redirect(to: "/queue") })
+		StubURLProtocol.setHandler(markReadHandler(laterReadlist: postAction) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 
@@ -1197,7 +1197,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			],
 			total: 3
 		)
-		StubURLProtocol.setHandler(markReadHandler(laterQueue: postForeground) { _ in .redirect(to: "/queue") })
+		StubURLProtocol.setHandler(markReadHandler(laterReadlist: postForeground) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
@@ -1268,7 +1268,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertFalse(unseenSave.exists, "the reload consumed the marker — the next return holds position again")
 	}
 
-	/// A three-page queue.
+	/// A three-page readlist.
 	private func threePageHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
 		return { request, _ in
 			let url = request.url
@@ -1449,7 +1449,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	// MARK: - Web sheet dismissal
 
-	/// A two-page queue behind a flippable "account deleted" switch: once flipped,
+	/// A two-page readlist behind a flippable "account deleted" switch: once flipped,
 	/// the server behaves as `POST /account/delete` leaves it — every authenticated
 	/// call 401s and the token refresh is rejected (all sessions destroyed, all
 	/// OAuth tokens revoked).
@@ -1565,7 +1565,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			],
 			total: 3
 		)
-		StubURLProtocol.setHandler(markReadHandler(laterQueue: postDismissal) { _ in .redirect(to: "/queue") })
+		StubURLProtocol.setHandler(markReadHandler(laterReadlist: postDismissal) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
@@ -1695,18 +1695,18 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	private func blockedCaptureHandler(
-		laterQueue: String? = nil,
-		queueGETsBeforeTheHealReconciles: Int = 2,
+		laterReadlist: String? = nil,
+		readlistGETsBeforeTheHealReconciles: Int = 2,
 		saveContentStub: @escaping () -> StubURLProtocol.Stub = { .json(201, Fixtures.article(id: "a1")) }
 	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
-		var queueGETs = 0
+		var readlistGETs = 0
 		return { request, _ in
 			switch request.url?.path {
 			case "/":
 				return .redirect(to: "/queue")
 			case "/queue":
-				queueGETs += 1
-				if queueGETs > queueGETsBeforeTheHealReconciles, let laterQueue { return .json(200, laterQueue) }
+				readlistGETs += 1
+				if readlistGETs > readlistGETsBeforeTheHealReconciles, let laterReadlist { return .json(200, laterReadlist) }
 				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
 			case "/queue/save-content":
 				return saveContentStub()
@@ -1724,7 +1724,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let postHeal = Fixtures.collection(
 			entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "h1")], total: 2
 		)
-		StubURLProtocol.setHandler(blockedCaptureHandler(laterQueue: postHeal))
+		StubURLProtocol.setHandler(blockedCaptureHandler(laterReadlist: postHeal))
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
@@ -1764,7 +1764,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "h1")], total: 2
 		)
 		StubURLProtocol.setHandler(
-			blockedCaptureHandler(laterQueue: postHeal, queueGETsBeforeTheHealReconciles: 1)
+			blockedCaptureHandler(laterReadlist: postHeal, readlistGETsBeforeTheHealReconciles: 1)
 		)
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
@@ -1829,7 +1829,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testTwoForegroundsRacingOneAnotherDrainTheStagedQueueOnce() async throws {
+	func testTwoForegroundsRacingOneAnotherDrainTheStagedReadlistOnce() async throws {
 		StubURLProtocol.setHandler(stagedUploadHandler())
 		let jobs = UploadJobStore(containerURL: TestSupport.temporaryContainer())
 		try await jobs.admit(stagedJob())
@@ -1844,7 +1844,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		await first
 		await second
 
-		XCTAssertEqual(captor.capturedURLs.count, 1, "a sweep already under way owns the queue; the second one steps aside")
+		XCTAssertEqual(captor.capturedURLs.count, 1, "a sweep already under way owns the readlist; the second one steps aside")
 		XCTAssertEqual(StubURLProtocol.records(path: "/queue/save-content").count, 1)
 		XCTAssertEqual(jobs.loadAll(now: Date()), [])
 	}
@@ -1884,7 +1884,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testCollectionWarningPopulatesWarningText() async {
-		let warnedQueue = """
+		let warnedReadlist = """
 		{
 			"class": ["collection", "articles"],
 			"properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
@@ -1894,7 +1894,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 		"""
 		StubURLProtocol.setHandler { request, _ in
-			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, warnedQueue)
+			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, warnedReadlist)
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
@@ -1904,7 +1904,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testMintReaderSessionFollowsTheServersCreateSessionAction() async {
-		let queueWithSession = """
+		let readlistWithSession = """
 		{
 			"class": ["collection", "articles"],
 			"properties": { "total": 1, "page": 1, "pageSize": 20 },
@@ -1916,7 +1916,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/": return .redirect(to: "/queue")
-			case "/queue": return .json(200, queueWithSession)
+			case "/queue": return .json(200, readlistWithSession)
 			case "/custom/session": return StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "sess=v; Path=/"])
 			default: return .json(404, "{}")
 			}

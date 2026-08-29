@@ -133,7 +133,7 @@ describe("initInMemoryRelatedArticles", () => {
 		]);
 	});
 
-	it("drops a relation the reader has deleted from their queue", async () => {
+	it("drops a relation the reader has deleted from their readlist", async () => {
 		const { articleStore, store, save } = build();
 		await save({ userId: USER_ID, url: URL, title: "Target" });
 		const related = await save({

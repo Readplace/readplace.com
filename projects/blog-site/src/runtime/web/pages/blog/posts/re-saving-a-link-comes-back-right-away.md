@@ -11,7 +11,7 @@ keywords: "fast read it later save, instant save article, why is saving an artic
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-You save a link you kept a while back. Readplace already has it, but its saved copy has aged past fresh, so the save used to go back out to the original page, download it again, read it through, and store the new copy before it would answer you. You waited on a page Readplace already had. Readplace runs a background job whose only purpose is that refresh, and the job is [idempotent](/view/en.wikipedia.org/wiki/Idempotence), so asking it to run again lands where the first run did. The save leans on that job now instead of redoing its work. It records your save, and when the copy is settled but stale it hands the refresh over with one message, then answers right away. Your card is back at the top of the queue immediately, and the fresh copy lands a moment later when the job catches up. Every place you save from rides the same path, the save bar on the site, the browser extension, and the iPhone app, so all of them stop waiting on the crawl.
+You save a link you kept a while back. Readplace already has it, but its saved copy has aged past fresh, so the save used to go back out to the original page, download it again, read it through, and store the new copy before it would answer you. You waited on a page Readplace already had. Readplace runs a background job whose only purpose is that refresh, and the job is [idempotent](/view/en.wikipedia.org/wiki/Idempotence), so asking it to run again lands where the first run did. The save leans on that job now instead of redoing its work. It records your save, and when the copy is settled but stale it hands the refresh over with one message, then answers right away. Your card is back at the top of the readlist immediately, and the fresh copy lands a moment later when the job catches up. Every place you save from rides the same path, the save bar on the site, the browser extension, and the iPhone app, so all of them stop waiting on the crawl.
 
 </div>
 </details>
@@ -20,7 +20,7 @@ Every save Readplace takes runs through one accept step. On a re-save of an arti
 
 A crawl of a live page is not cheap. The server reaches the origin, waits for the bytes, runs the page through a readability parse, and writes the clean copy to storage. All of that ran inside your save request. You clicked save on something Readplace already had, and the request sat on a fresh fetch of the origin before it came back.
 
-Re-saving isn't rare. A newsletter drops a link you kept last week, and saving it again moves it back to the top of your queue. You hit save on a page you filed months ago. Each of those went down the slow path whenever the stored copy had aged past its freshness limit.
+Re-saving isn't rare. A newsletter drops a link you kept last week, and saving it again moves it back to the top of your readlist. You hit save on a page you filed months ago. Each of those went down the slow path whenever the stored copy had aged past its freshness limit.
 
 Readplace already runs a background job whose only purpose is that refresh. It picks up an article once its saved copy goes stale, fetches the page, parses it, and stores the new copy, on its own time and well after any save. The job is [idempotent](/view/en.wikipedia.org/wiki/Idempotence), so running it twice on the same article leaves the result the first run would have. The save request was doing that job a second time, in the foreground, while you waited.
 
@@ -28,7 +28,7 @@ Readplace already runs a background job whose only purpose is that refresh. It p
 
 ## The crawl inside the request
 
-The accept step has one thing it must finish before it can answer: record that you saved the link. Your card can't appear in the queue until the row exists. Everything past that, the fresh copy of the page included, can happen after the response goes out.
+The accept step has one thing it must finish before it can answer: record that you saved the link. Your card can't appear in the readlist until the row exists. Everything past that, the fresh copy of the page included, can happen after the response goes out.
 
 The old code didn't draw that line. When it found an existing article whose content had aged past the stale limit, it ran the whole crawl right there, then answered. The refresh was correct. Its place was wrong. It sat on the one path a person waits on, to produce a copy the background job would have produced anyway.
 
@@ -52,6 +52,6 @@ The iPhone app posts its save to the same step, so it hands off the same way, th
 
 ## Save something you already saved
 
-Open a page you kept a few months back and save it again. The card returns to the top of your queue right away, and the clean copy updates a moment later when the background job catches up. The newsletter pipeline already saved through a hand-off like this one. The save bar on the site, the [browser extension](https://readplace.com/install), and the iPhone app all share that one accept step, and it was still waiting on the crawl. Now it hands off too.
+Open a page you kept a few months back and save it again. The card returns to the top of your readlist right away, and the clean copy updates a moment later when the background job catches up. The newsletter pipeline already saved through a hand-off like this one. The save bar on the site, the [browser extension](https://readplace.com/install), and the iPhone app all share that one accept step, and it was still waiting on the crawl. Now it hands off too.
 
-Crawling inside the request made the save look thorough. Handing the crawl to the job that already owns it makes the save fast and fetches the page just as fresh. A queue to watch it in starts at [readplace.com](/).
+Crawling inside the request made the save look thorough. Handing the crawl to the job that already owns it makes the save fast and fetches the page just as fresh. A readlist to watch it in starts at [readplace.com](/).

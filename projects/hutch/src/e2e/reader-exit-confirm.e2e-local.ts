@@ -8,7 +8,7 @@ const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 
 const OWNER_PASSWORD = "password123";
 const CONTENT_FETCHED_AT = "2026-05-14T11:20:00.000Z";
-// The exit link's destination must NOT share a body class with the queue: the
+// The exit link's destination must NOT share a body class with the readlist: the
 // mark-read POST's own 303 lands on /queue, so an exit link pointing there
 // would leave "the link was followed" indistinguishable from a broken
 // interception falling back to the native form submit.
@@ -53,7 +53,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(OWNER_PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
 test.describe("Leaving the reader through an article link asks to mark it read", () => {
@@ -78,8 +78,8 @@ test.describe("Leaving the reader through an article link asks to mark it read",
 		await expect(page.locator(".article-body__title")).toHaveText("Reader Exit Confirm");
 
 		await page.locator('[data-test-action="exit-confirm-yes"]').click();
-		// page-privacy, not page-queue: only the intercepted path follows the
-		// clicked link — a native fallback submit would 303 to the queue instead.
+		// page-privacy, not page-readlist: only the intercepted path follows the
+		// clicked link — a native fallback submit would 303 to the readlist instead.
 		await page.waitForSelector("body.page-privacy");
 
 		// The mark-read POST is fire-and-forget across the unload, so poll the Done

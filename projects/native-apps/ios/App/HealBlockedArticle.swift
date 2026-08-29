@@ -25,7 +25,7 @@ struct HealBlockedArticle {
 	func run(url: URL) async throws -> HealBlockedOutcome {
 		let captured = await captor.capture(url: url)
 		guard let html = captured.rawHtml, !html.isEmpty else { return .captureWasEmpty }
-		let page = try await api.loadQueue()
+		let page = try await api.loadReadlist()
 		guard let action = page.action(named: "save-content") else { return .noSaveContentAction }
 		try await api.saveContent(
 			action: action,

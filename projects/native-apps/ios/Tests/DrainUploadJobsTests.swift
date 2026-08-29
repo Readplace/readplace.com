@@ -56,7 +56,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		)
 	}
 
-	private func serveQueue(
+	private func serveReadlist(
 		actionsJSON: String = Fixtures.collectionActions,
 		saveContent: @escaping () -> StubURLProtocol.Stub = { .json(201, Fixtures.article(id: "a1")) }
 	) {
@@ -89,7 +89,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		try await jobs.admit(admitted)
 		let form = TestSupport.multipartForm(content: Data("<html>staged by the share sheet</html>".utf8))
 		let ready = try await jobs.stageReady(admitted, form: form)
-		serveQueue()
+		serveReadlist()
 
 		await makeDrain(jobs: jobs, captor: emptyCaptor()).run()
 
@@ -159,7 +159,7 @@ final class DrainUploadJobsTests: XCTestCase {
 	func testCapturesAPendingJobOnDeviceThenUploadsWhatItRendered() async throws {
 		let jobs = makeStore()
 		try await jobs.admit(job(title: "Title from the share sheet"))
-		serveQueue()
+		serveReadlist()
 		let captor = FakeHTMLCaptor(
 			page: CapturedPage(rawHtml: "<html>rendered in the app</html>", title: "Rendered", mediaType: "text/html")
 		)
@@ -251,7 +251,7 @@ final class DrainUploadJobsTests: XCTestCase {
 	func testDropsAPendingJobWhoseOnDeviceCaptureComesBackEmpty() async throws {
 		let jobs = makeStore()
 		try await jobs.admit(job())
-		serveQueue()
+		serveReadlist()
 		let captor = emptyCaptor()
 
 		await makeDrain(jobs: jobs, captor: captor).run()
@@ -271,7 +271,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		let admitted = job()
 		try await jobs.admit(admitted)
 		let ready = try await jobs.stageReady(admitted, form: TestSupport.multipartForm())
-		serveQueue(saveContent: { .json(403, Fixtures.accountLockedError()) })
+		serveReadlist(saveContent: { .json(403, Fixtures.accountLockedError()) })
 
 		await makeDrain(jobs: jobs, captor: emptyCaptor()).run()
 
@@ -287,7 +287,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		let admitted = job()
 		try await jobs.admit(admitted)
 		let ready = try await jobs.stageReady(admitted, form: TestSupport.multipartForm())
-		serveQueue(saveContent: {
+		serveReadlist(saveContent: {
 			.json(415, Fixtures.sirenError(code: "unsupported_media_type", message: "That content can't be saved."))
 		})
 
@@ -302,7 +302,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		let admitted = job()
 		try await jobs.admit(admitted)
 		let ready = try await jobs.stageReady(admitted, form: TestSupport.multipartForm())
-		serveQueue(saveContent: { .json(503, Fixtures.sirenError(code: "unavailable", message: "Try again later.")) })
+		serveReadlist(saveContent: { .json(503, Fixtures.sirenError(code: "unavailable", message: "Try again later.")) })
 
 		await makeDrain(jobs: jobs, captor: emptyCaptor()).run()
 
@@ -319,7 +319,7 @@ final class DrainUploadJobsTests: XCTestCase {
 	func testKeepsAMidSweepCaptureStagedWhenItsUploadFailsTransiently() async throws {
 		let jobs = makeStore()
 		try await jobs.admit(job())
-		serveQueue(saveContent: { .json(503, Fixtures.sirenError(code: "unavailable", message: "Try again later.")) })
+		serveReadlist(saveContent: { .json(503, Fixtures.sirenError(code: "unavailable", message: "Try again later.")) })
 		let captor = FakeHTMLCaptor(
 			page: CapturedPage(rawHtml: "<html>rendered once</html>", title: "Rendered", mediaType: "text/html")
 		)
@@ -333,7 +333,7 @@ final class DrainUploadJobsTests: XCTestCase {
 			"the render already happened; losing it to the retry would re-pay the capture"
 		)
 
-		serveQueue()
+		serveReadlist()
 		await makeDrain(jobs: jobs, captor: captor, now: { Self.epoch.addingTimeInterval(60) }).run()
 
 		XCTAssertEqual(
@@ -352,7 +352,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		let admitted = job(attempts: 7)
 		try await jobs.admit(admitted)
 		let ready = try await jobs.stageReady(admitted, form: TestSupport.multipartForm())
-		serveQueue(saveContent: { .json(503, "{}") })
+		serveReadlist(saveContent: { .json(503, "{}") })
 
 		await makeDrain(jobs: jobs, captor: emptyCaptor()).run()
 
@@ -368,7 +368,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		let second = job(id: "j2", url: "https://example.com/two", createdAt: Self.epoch.addingTimeInterval(1))
 		try await jobs.admit(second)
 		let readySecond = try await jobs.stageReady(second, form: TestSupport.multipartForm(url: "https://example.com/two"))
-		serveQueue(saveContent: { .json(401, "{}") })
+		serveReadlist(saveContent: { .json(401, "{}") })
 
 		await makeDrain(jobs: jobs, captor: emptyCaptor()).run()
 
@@ -378,7 +378,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		)
 		XCTAssertEqual(
 			jobs.loadAll(now: Self.epoch.addingTimeInterval(1)), [readyFirst, readySecond],
-			"a dead session costs no job its place in the queue"
+			"a dead session costs no job its place in the readlist"
 		)
 	}
 
@@ -393,7 +393,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		let saveArticleOnly = """
 		{ "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }
 		"""
-		serveQueue(actionsJSON: saveArticleOnly)
+		serveReadlist(actionsJSON: saveArticleOnly)
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html"))
 
 		await makeDrain(jobs: jobs, captor: captor).run()
@@ -412,7 +412,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		let waiting = job(nextAttemptAt: Self.epoch.addingTimeInterval(60))
 		try await jobs.admit(waiting)
 		let ready = try await jobs.stageReady(waiting, form: TestSupport.multipartForm())
-		serveQueue()
+		serveReadlist()
 
 		await makeDrain(jobs: jobs, captor: emptyCaptor()).run()
 

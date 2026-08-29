@@ -39,7 +39,7 @@ final class ReadplaceAPITests: XCTestCase {
 
 	// MARK: - Listing
 
-	func testLoadQueueFollowsEntryPointRedirectAndPreservesAuthHeader() async throws {
+	func testLoadReadlistFollowsEntryPointRedirectAndPreservesAuthHeader() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
@@ -52,23 +52,23 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		let page = try await makeAPI(store: store).loadQueue()
+		let page = try await makeAPI(store: store).loadReadlist()
 
 		XCTAssertEqual(page.articles.map(\.id), ["a1", "a2"])
-		let queueRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
-		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
-		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
+		let readlistRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
+		XCTAssertEqual(readlistRequest.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
+		XCTAssertEqual(readlistRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
 		XCTAssertEqual(
-			queueRequest.value(forHTTPHeaderField: "X-Readplace-Client"), "ios",
+			readlistRequest.value(forHTTPHeaderField: "X-Readplace-Client"), "ios",
 			"the iOS client header must survive the GET / → /queue redirect so the server records onboarding"
 		)
 		XCTAssertEqual(
-			queueRequest.value(forHTTPHeaderField: AppConfig.saveContinuityHeader), AppConfig.saveContinuityBackground,
+			readlistRequest.value(forHTTPHeaderField: AppConfig.saveContinuityHeader), AppConfig.saveContinuityBackground,
 			"this build's saves survive the share sheet, so the server must drop the 'don't close this' notice"
 		)
 	}
 
-	func testLoadQueueRefreshesOnceAndRetriesOn401() async throws {
+	func testLoadReadlistRefreshesOnceAndRetriesOn401() async throws {
 		let store = TestSupport.loggedInStore(access: "stale", refresh: "r1")
 		var entryAttempts = 0
 		StubURLProtocol.setHandler { request, _ in
@@ -86,7 +86,7 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		let page = try await makeAPI(store: store).loadQueue()
+		let page = try await makeAPI(store: store).loadReadlist()
 
 		XCTAssertEqual(page.articles.map(\.id), ["fresh"])
 		XCTAssertEqual(entryAttempts, 2, "should retry exactly once after a refresh")
@@ -96,7 +96,7 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(retried?.value(forHTTPHeaderField: "Authorization"), "Bearer fresh-access")
 	}
 
-	func testLoadQueueThrowsUnauthorizedWhenRefreshFailsAndDoesNotLoop() async {
+	func testLoadReadlistThrowsUnauthorizedWhenRefreshFailsAndDoesNotLoop() async {
 		let store = TestSupport.loggedInStore(access: "stale")
 		var entryAttempts = 0
 		StubURLProtocol.setHandler { request, _ in
@@ -112,7 +112,7 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 
 		do {
-			_ = try await makeAPI(store: store).loadQueue()
+			_ = try await makeAPI(store: store).loadReadlist()
 			XCTFail("Expected unauthorized")
 		} catch let error as APIError {
 			guard case .unauthorized = error else {
@@ -125,7 +125,7 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
 	}
 
-	func testLoadQueueRejectsANonSirenBody() async {
+	func testLoadReadlistRejectsANonSirenBody() async {
 		// The client negotiated Siren with Accept; a 200 carrying a different media
 		// type (e.g. a proxy HTML login page) is surfaced as unsupportedMediaType
 		// rather than blind-decoded into a generic decode failure.
@@ -143,7 +143,7 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 		do {
-			_ = try await makeAPI(store: store).loadQueue()
+			_ = try await makeAPI(store: store).loadReadlist()
 			XCTFail("Expected unsupportedMediaType")
 		} catch let error as APIError {
 			guard case .unsupportedMediaType(let type) = error else {
@@ -155,7 +155,7 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 	}
 
-	func testLoadQueueAcceptsSirenWithCharsetParameter() async throws {
+	func testLoadReadlistAcceptsSirenWithCharsetParameter() async throws {
 		// The negotiated type may arrive with a charset parameter; the essence still
 		// matches, so the body parses.
 		let store = TestSupport.loggedInStore()
@@ -172,12 +172,12 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		let page = try await makeAPI(store: store).loadQueue()
+		let page = try await makeAPI(store: store).loadReadlist()
 
 		XCTAssertEqual(page.articles.map(\.id), ["a1"])
 	}
 
-	func testLoadQueueSurfacesADecodeFailureForAMalformedSirenBody() async {
+	func testLoadReadlistSurfacesADecodeFailureForAMalformedSirenBody() async {
 		// A 200 carrying the negotiated Siren type but a body that fails a root decode
 		// (an array where the collection object is expected) is surfaced as the opaque
 		// .decoding — the underlying DecodingError is logged, never handed to the caller.
@@ -195,7 +195,7 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 		do {
-			_ = try await makeAPI(store: store).loadQueue()
+			_ = try await makeAPI(store: store).loadReadlist()
 			XCTFail("Expected decoding")
 		} catch let error as APIError {
 			guard case .decoding = error else {
@@ -210,7 +210,7 @@ final class ReadplaceAPITests: XCTestCase {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
 		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
 		do {
-			_ = try await makeAPI(store: store).loadQueue()
+			_ = try await makeAPI(store: store).loadReadlist()
 			XCTFail("Expected noToken")
 		} catch let error as APIError {
 			guard case .noToken = error else { return XCTFail("Expected .noToken, got \(error)") }

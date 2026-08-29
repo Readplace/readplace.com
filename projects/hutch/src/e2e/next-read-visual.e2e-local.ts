@@ -81,7 +81,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(OWNER_PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
 /** Seeds an owner reader whose relations are already settled, so the 3s poll
@@ -113,7 +113,7 @@ async function openRevealedCard(
 	});
 	const relatedId = await seedArticle(page, {
 		url: relatedUrl,
-		title: "The Attention Economy Runs On Your Unread Queue",
+		title: "The Attention Economy Runs On Your Unread Readlist",
 		userId,
 		savedAt: RELATED_SAVED_AT,
 	});

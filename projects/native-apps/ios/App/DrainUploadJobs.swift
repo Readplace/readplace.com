@@ -14,7 +14,7 @@ struct DrainUploadJobs {
 		jobs.removeOrphanedBytes()
 		let due = jobs.loadAll(now: now())
 		guard !due.isEmpty else { return }
-		guard let page = try? await api.loadQueue() else { return }
+		guard let page = try? await api.loadReadlist() else { return }
 		guard let action = page.action(named: "save-content") else {
 			for job in due { jobs.remove(job) }
 			return

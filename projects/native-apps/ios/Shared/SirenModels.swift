@@ -421,7 +421,7 @@ extension Article {
 	}
 }
 
-struct QueueTab: Identifiable, Hashable {
+struct ReadlistTab: Identifiable, Hashable {
 	let label: String
 	let href: String
 	let isCurrent: Bool

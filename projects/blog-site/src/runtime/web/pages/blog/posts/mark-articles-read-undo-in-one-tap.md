@@ -1,24 +1,24 @@
 ---
 title: "Mark Articles Read, Undo in One Tap"
-description: "Your Readplace queue now shows a clear Read or Unread label on every article. Mark an item read or unread with one tap, and undo a mis-tap with a single click."
+description: "Your Readplace readlist now shows a clear Read or Unread label on every article. Mark an item read or unread with one tap, and undo a mis-tap with a single click."
 slug: "mark-articles-read-undo-in-one-tap"
 date: "2026-06-02"
 author: "Fayner Brack"
-keywords: "read it later, reading queue, mark as read, mark as unread, undo, read status, save articles, reading list, readplace"
+keywords: "read it later, readlist, mark as read, mark as unread, undo, read status, save articles, reading list, readplace"
 ---
 
 <details class="blog-tldr">
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Your queue now shows a plain Read or Unread label on every article. Mark an item read or unread with one tap, and a short confirmation slides in with an Undo button, so a mis-tap takes one click to fix. The filter tab reads "Read" instead of "Done", and the status buttons stay disabled until an article finishes saving.
+Your readlist now shows a plain Read or Unread label on every article. Mark an item read or unread with one tap, and a short confirmation slides in with an Undo button, so a mis-tap takes one click to fix. The filter tab reads "Read" instead of "Done", and the status buttons stay disabled until an article finishes saving.
 
 </div>
 </details>
 
-You open your queue to pick the next thing to read, and you want a fast answer to one question: what have you read, and what is left?
+You open your readlist to pick the next thing to read, and you want a fast answer to one question: what have you read, and what is left?
 
-The old queue marked unread items with a small dot next to the title. The dot was easy to miss, and a read article sat next to an unread one looking nearly the same at a glance, so the list struggled to answer that question.
+The old readlist marked unread items with a small dot next to the title. The dot was easy to miss, and a read article sat next to an unread one looking nearly the same at a glance, so the list struggled to answer that question.
 
 Now every article carries a plain label. "Unread" or "Read" sits right under the title, beside the source and the read time. You scan the list and you know where you stand. No squinting at dots.
 
@@ -34,7 +34,7 @@ So I added a confirmation. Mark an article and a short message appears, "Marked 
 
 ## A clearer filter and fewer surprises
 
-The queue keeps two filters at the top, one for unread articles and one for the ones you have finished.
+The readlist keeps two filters at the top, one for unread articles and one for the ones you have finished.
 
 That second tab used to read "Done". It reads "Read" now, to match the label on the cards, so the same word means the same thing whether you are looking at a filter or a card.
 
@@ -42,10 +42,10 @@ I also closed a small trap. An article you just saved spends a few seconds being
 
 ## Why this matters for your reading
 
-A read-it-later queue earns its keep by being honest about what you have read. Unread means you have not opened it, and read means you have. The label says so, the filter says the same, and a wrong tap costs you one click to fix.
+A read-it-later readlist earns its keep by being honest about what you have read. Unread means you have not opened it, and read means you have. The label says so, the filter says the same, and a wrong tap costs you one click to fix.
 
-Small friction adds up. A queue that hides where you stand makes you re-read pieces you already finished, or lose track of the one piece you actually meant to get to, and after a while you stop trusting the list and start keeping the real one in your head.
+Small friction adds up. A readlist that hides where you stand makes you re-read pieces you already finished, or lose track of the one piece you actually meant to get to, and after a while you stop trusting the list and start keeping the real one in your head.
 
-Clear labels and a working Undo keep that from happening, so the time you spend with the queue goes to reading rather than checking.
+Clear labels and a working Undo keep that from happening, so the time you spend with the readlist goes to reading rather than checking.
 
-Open your queue and try it. Mark something read, watch the label change, then hit Undo and watch it come back. Start at [readplace.com](/).
+Open your readlist and try it. Mark something read, watch the label change, then hit Undo and watch it come back. Start at [readplace.com](/).

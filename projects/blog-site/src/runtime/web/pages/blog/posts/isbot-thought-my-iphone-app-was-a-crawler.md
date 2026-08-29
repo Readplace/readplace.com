@@ -64,4 +64,4 @@ What gets kept did not change. The classifier reads the raw User-Agent, writes d
 
 TBH the 11% wasn't the part that stung. A wrong label costs no error and no failed request, so nothing complains... it sits in the data until a person finds a number odd. This one sat for 90 days in a pipeline one person reads.
 
-The row for the next article you finish in [the iPhone app](/blog/readplace-iphone-app-on-the-app-store) lands in the right column, and the queue it belongs to starts at [readplace.com](/).
+The row for the next article you finish in [the iPhone app](/blog/readplace-iphone-app-on-the-app-store) lands in the right column, and the readlist it belongs to starts at [readplace.com](/).

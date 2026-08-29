@@ -11,7 +11,7 @@ keywords: "reader view, remove autoplay video, read article without video, distr
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace's reader used to leave a dead box where a native video tag sat in an article. Now each one becomes a short line of text with a link to the original page. This applies to video tags in the HTML, not to YouTube or Vimeo embeds. You read the article clean, and if you want the video, one tap takes you to it on the source site. The fix works for articles in your queue and for any link you open at readplace.com/view.
+Readplace's reader used to leave a dead box where a native video tag sat in an article. Now each one becomes a short line of text with a link to the original page. This applies to video tags in the HTML, not to YouTube or Vimeo embeds. You read the article clean, and if you want the video, one tap takes you to it on the source site. The fix works for articles in your readlist and for any link you open at readplace.com/view.
 
 </div>
 </details>
@@ -62,7 +62,7 @@ This sits next to how the reader already handles pictures and text, where it kee
 
 The callout travels with the article.
 
-Open something from your queue and it is there. Paste a fresh link at [readplace.com/view](/view) and it shows up in that clean reader too. Share a view link with a friend, and they read the same tidy version, video link included, with no account needed.
+Open something from your readlist and it is there. Paste a fresh link at [readplace.com/view](/view) and it shows up in that clean reader too. Share a view link with a friend, and they read the same tidy version, video link included, with no account needed.
 
 The 3 saves that first tripped me up were a tutorial, a recipe, and a product review, and those are the kinds of pages where this shows up most, since they lean on embedded clips to carry a point the text could make on its own. The words still hold. Now the clip sits one tap behind a link instead of blocking the page.
 

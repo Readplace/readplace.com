@@ -1,6 +1,6 @@
 export { initDynamoDbArticleStore } from "./dynamodb-article-store";
 export { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
-export { initDynamoDbQueueDefinitions } from "./dynamodb-queue-definitions";
+export { initDynamoDbReadlistDefinitions } from "./dynamodb-readlist-definitions";
 export { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
 export { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 export { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";

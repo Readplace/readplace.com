@@ -4,33 +4,33 @@ description: "The Readplace browser extension used to make you wait for the whol
 slug: "save-a-link-and-close-the-tab"
 date: "2026-08-01"
 author: "Fayner Brack"
-keywords: "save articles fast browser extension, read it later extension instant save, chrome extension read it later, firefox extension read it later, save a link before the page uploads, background upload queue browser extension, extension save without signing you out, pocket alternative browser extension, save an article without waiting, read it later save button fast"
+keywords: "save articles fast browser extension, read it later extension instant save, chrome extension read it later, firefox extension read it later, save a link before the page uploads, background upload readlist browser extension, extension save without signing you out, pocket alternative browser extension, save an article without waiting, read it later save button fast"
 ---
 
 <details class="blog-tldr">
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Clicking save in the browser extension used to read the whole rendered page, upload it, and only then say Saved. That wait had nothing to do with whether the link was in your queue. Readplace now posts a save with the URL alone and paints Saved the instant the server records it. Capturing the page and uploading it move to a persisted background queue, woken on a timer, so they finish after the popup closes and pick themselves back up if the browser reclaims the worker mid-upload. The job is keyed to the exact address you saved from, not the page's canonical URL, so the bytes land on the article you watched appear rather than a near neighbour. One change had to land first. A background upload that runs an hour later meets an expired access token, and a 401 used to sign you out on the spot. The fetch layer now refreshes the token and replays the request, and only tears the session down if the refresh itself fails. Chrome and Firefox both save this way now. What you give up is the wait. What you keep is the link, even if you close the tab a second after the button turns green.
+Clicking save in the browser extension used to read the whole rendered page, upload it, and only then say Saved. That wait had nothing to do with whether the link was in your readlist. Readplace now posts a save with the URL alone and paints Saved the instant the server records it. Capturing the page and uploading it move to a persisted background readlist, woken on a timer, so they finish after the popup closes and pick themselves back up if the browser reclaims the worker mid-upload. The job is keyed to the exact address you saved from, not the page's canonical URL, so the bytes land on the article you watched appear rather than a near neighbour. One change had to land first. A background upload that runs an hour later meets an expired access token, and a 401 used to sign you out on the spot. The fetch layer now refreshes the token and replays the request, and only tears the session down if the refresh itself fails. Chrome and Firefox both save this way now. What you give up is the wait. What you keep is the link, even if you close the tab a second after the button turns green.
 
 </div>
 </details>
 
 Saving a link and uploading its page are two different jobs. The browser extension used to run them as one. A click on save, and the button sat on "Saving" while it read the whole rendered page, uploaded the bytes, and waited for the server to answer. Only then did it say Saved.
 
-None of that work decides whether the link is in your queue. The save is finished the instant the server writes the row and answers [201](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/201). Capturing the page and uploading it are a separate errand, and the old popup made you stand in line for it before it would admit the first job was done.
+None of that work decides whether the link is in your readlist. The save is finished the instant the server writes the row and answers [201](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/201). Capturing the page and uploading it are a separate errand, and the old popup made you stand in line for it before it would admit the first job was done.
 
-> **A save should tell you the link is in your queue, not make you wait for the page to arrive.**
+> **A save should tell you the link is in your readlist, not make you wait for the page to arrive.**
 
 ## The save answers first
 
-The popup now posts a save that carries the URL and nothing else, and it repaints the button the moment the server records it. No page read. No upload. No pre-flight round trip to ask whether the link was already there. The button turns on the one request that puts the link in your queue.
+The popup now posts a save that carries the URL and nothing else, and it repaints the button the moment the server records it. No page read. No upload. No pre-flight round trip to ask whether the link was already there. The button turns on the one request that puts the link in your readlist.
 
-That pre-flight check is worth a word, because dropping it changed a behaviour. The extension used to ask the server whether you had this link already, then decide what to do. It doesn't ask now. A second save of the same link is an upsert, the same thing the website's save bar has always done: save it again and the article moves back to the top of your queue, unread.
+That pre-flight check is worth a word, because dropping it changed a behaviour. The extension used to ask the server whether you had this link already, then decide what to do. It doesn't ask now. A second save of the same link is an upsert, the same thing the website's save bar has always done: save it again and the article moves back to the top of your readlist, unread.
 
 ## The upload that outlives the popup
 
-Capture and upload didn't vanish. They moved to a queue that keeps running after the popup is gone. A background wake nudges it, it walks the pending jobs oldest first, and it writes down each job before the capture starts.
+Capture and upload didn't vanish. They moved to a readlist that keeps running after the popup is gone. A background wake nudges it, it walks the pending jobs oldest first, and it writes down each job before the capture starts.
 
 That last part is the one that matters when things go wrong. A background page in an extension is disposable. The browser can decide the worker is idle and reclaim it, and if that lands in the middle of a capture, the job is already recorded, so the next wake finds it and starts over. The captured bytes wait their turn in the browser's own on-disk store, [IndexedDB](/view/developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), so a page you saved before you shut the laptop is still there to upload when it opens.
 

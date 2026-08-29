@@ -16,9 +16,9 @@ export const PASTE_A_LINK: LandingPageActionInput = {
 	placeholder: "https://example.com/paper.pdf",
 };
 
-export const QUEUE_SHOT = {
+export const READLIST_SHOT = {
 	path: "/screenshots/queue.webp",
-	alt: "The Readplace queue listing saved articles with thumbnails and short previews",
+	alt: "The Readplace readlist listing saved articles with thumbnails and short previews",
 	width: 1440,
 	height: 900,
 } as const;
@@ -44,7 +44,7 @@ export const FOUNDER_LINE =
 export const TRIAL_TERMS = `${STRIPE_TRIAL_PERIOD_DAYS} days free, no card. After that ${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}.`;
 
 /** The sentence this whole product is arguing for. Every offer section lands on
- * it, because for a reader who has already lost one queue it answers the
+ * it, because for a reader who has already lost one readlist it answers the
  * objection that a price tag raises. */
 export const READ_ONLY_CLOSE =
 	"If you never subscribe, nothing is charged and the account goes read-only, not dark — you keep reading every article you saved, and you can still export.";

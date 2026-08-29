@@ -9,29 +9,29 @@ import type {
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import {
-	DEFAULT_QUEUE_SLUG,
-	QUEUE_MAX_PER_USER,
-	QueueLimitReachedError,
-	type QueueSlug,
-} from "@packages/domain/queue";
+	DEFAULT_READLIST_SLUG,
+	READLIST_MAX_PER_USER,
+	ReadlistLimitReachedError,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
-	AssignSavedArticleToQueue,
-	MoveQueueArticles,
+	AssignSavedArticleToReadlist,
+	MoveReadlistArticles,
 	FindSavedUrls,
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
-	CountQueueArticles,
-	CreateQueueDefinition,
-	DeleteQueueDefinition,
+	CountReadlistArticles,
+	CreateReadlistDefinition,
+	DeleteReadlistDefinition,
 	DeleteAllUserArticles,
 	DeleteArticle,
-	DeleteQueueArticle,
-	ListQueueDefinitions,
-	RenameQueueDefinition,
+	DeleteReadlistArticle,
+	ListReadlistDefinitions,
+	RenameReadlistDefinition,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -43,12 +43,12 @@ import type {
 	FindArticlesByUser,
 	FindArticlesQuery,
 	FindArticlesResult,
-	FindQueueArticleById,
-	FindQueueArticles,
+	FindReadlistArticleById,
+	FindReadlistArticles,
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
-	MarkQueueArticleViewed,
+	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
@@ -56,9 +56,9 @@ import type {
 	SaveArticle,
 	SaveArticleGlobally,
 	SaveArticleParams,
-	SaveQueueArticle,
+	SaveReadlistArticle,
 	UpdateArticleStatus,
-	UpdateArticleStatusAcrossQueues,
+	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 
 interface GlobalArticle {
@@ -83,7 +83,7 @@ interface GlobalArticle {
 
 interface UserArticle {
 	userId: UserId;
-	queue?: QueueSlug;
+	readlist?: ReadlistSlug;
 	url: string;
 	status: ArticleStatus;
 	savedAt: Date;
@@ -141,21 +141,21 @@ export function initInMemoryArticleStore(): {
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
-	saveQueueArticle: SaveQueueArticle;
-	findQueueArticles: FindQueueArticles;
-	countQueueArticles: CountQueueArticles;
-	findQueueArticleById: FindQueueArticleById;
-	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
-	deleteQueueArticle: DeleteQueueArticle;
-	markQueueArticleViewed: MarkQueueArticleViewed;
+	saveReadlistArticle: SaveReadlistArticle;
+	findReadlistArticles: FindReadlistArticles;
+	countReadlistArticles: CountReadlistArticles;
+	findReadlistArticleById: FindReadlistArticleById;
+	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
+	deleteReadlistArticle: DeleteReadlistArticle;
+	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
-	assignSavedArticleToQueue: AssignSavedArticleToQueue;
-	moveQueueArticles: MoveQueueArticles;
-	createQueueDefinition: CreateQueueDefinition;
-	deleteQueueDefinition: DeleteQueueDefinition;
-	listQueueDefinitions: ListQueueDefinitions;
-	renameQueueDefinition: RenameQueueDefinition;
+	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
+	moveReadlistArticles: MoveReadlistArticles;
+	createReadlistDefinition: CreateReadlistDefinition;
+	deleteReadlistDefinition: DeleteReadlistDefinition;
+	listReadlistDefinitions: ListReadlistDefinitions;
+	renameReadlistDefinition: RenameReadlistDefinition;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
@@ -170,17 +170,17 @@ export function initInMemoryArticleStore(): {
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
-	setQueueArticleStatus: (params: {
+	setReadlistArticleStatus: (params: {
 		id: ReaderArticleHashId;
 		userId: UserId;
-		queue: QueueSlug;
+		readlist: ReadlistSlug;
 		status: ArticleStatus;
 	}) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
 	const saveCursors = new Map<UserId, number>();
-	const queueDefinitions = new Map<string, { userId: UserId; slug: QueueSlug; label: string; createdAt: Date }>();
+	const readlistDefinitions = new Map<string, { userId: UserId; slug: ReadlistSlug; label: string; createdAt: Date }>();
 
 	const allocateSavedAtSequence: AllocateSavedAtSequence = async ({ userId, count }) => {
 		assert(count > 0, "a savedAt sequence allocates at least one instant");
@@ -202,11 +202,11 @@ export function initInMemoryArticleStore(): {
 			userArticles.has(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value)),
 		);
 
-	function userArticleKey(userId: UserId, url: string, queue?: QueueSlug): string {
-		return queue === undefined ? `${userId}:${url}` : `${userId}#queue/${queue}:${url}`;
+	function userArticleKey(userId: UserId, url: string, readlist?: ReadlistSlug): string {
+		return readlist === undefined ? `${userId}:${url}` : `${userId}#readlist/${readlist}:${url}`;
 	}
 
-	function queueDefinitionKey(userId: UserId, slug: QueueSlug): string {
+	function readlistDefinitionKey(userId: UserId, slug: ReadlistSlug): string {
 		return `${userId}:${slug}`;
 	}
 
@@ -244,7 +244,7 @@ export function initInMemoryArticleStore(): {
 		article.savedAt = params.savedAt;
 	};
 
-	const saveInto = async (queue: QueueSlug | undefined, params: SaveArticleParams) => {
+	const saveInto = async (readlist: ReadlistSlug | undefined, params: SaveArticleParams) => {
 		const globallySavedAt = new Date();
 		const { created } = await saveArticleGlobally({
 			url: params.url,
@@ -257,7 +257,7 @@ export function initInMemoryArticleStore(): {
 		}
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 
-		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value, queue);
+		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value, readlist);
 		const existing = userArticles.get(uaKey);
 		const newerSaveWon = existing !== undefined && existing.savedAt.getTime() >= params.savedAt.getTime();
 		if (!newerSaveWon) {
@@ -265,7 +265,7 @@ export function initInMemoryArticleStore(): {
 				? { ...existing, savedAt: params.savedAt, provenance: params.provenance }
 				: {
 					userId: params.userId,
-					queue,
+					readlist,
 					url: articleResourceUniqueId.value,
 					status: "unread",
 					savedAt: params.savedAt,
@@ -286,7 +286,7 @@ export function initInMemoryArticleStore(): {
 
 	const saveArticle: SaveArticle = (params) => saveInto(undefined, params);
 
-	const saveQueueArticle: SaveQueueArticle = ({ queue, ...params }) => saveInto(queue, params);
+	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) => saveInto(readlist, params);
 
 	const saveArticleKeepingPosition: SaveArticle = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -318,11 +318,11 @@ export function initInMemoryArticleStore(): {
 		return toSavedArticle(article, ua);
 	};
 
-	const findQueueArticleById: FindQueueArticleById = async ({ id, userId, queue }) => {
+	const findReadlistArticleById: FindReadlistArticleById = async ({ id, userId, readlist }) => {
 		const article = findArticleByRouteId(id);
 		if (!article) return null;
 
-		const ua = userArticles.get(userArticleKey(userId, article.url, queue));
+		const ua = userArticles.get(userArticleKey(userId, article.url, readlist));
 		if (!ua) return null;
 
 		return toSavedArticle(article, ua);
@@ -353,7 +353,7 @@ export function initInMemoryArticleStore(): {
 	};
 
 	const listPartition = async (
-		queue: QueueSlug | undefined,
+		readlist: ReadlistSlug | undefined,
 		query: FindArticlesQuery,
 	): Promise<FindArticlesResult> => {
 		const page = query.page ?? 1;
@@ -362,7 +362,7 @@ export function initInMemoryArticleStore(): {
 		const sort = query.sort ?? "savedAt";
 
 		let userArts = Array.from(userArticles.values()).filter(
-			(ua) => ua.userId === query.userId && ua.queue === queue,
+			(ua) => ua.userId === query.userId && ua.readlist === readlist,
 		);
 
 		if (query.status) {
@@ -396,14 +396,14 @@ export function initInMemoryArticleStore(): {
 
 	const findArticlesByUser: FindArticlesByUser = (query) => listPartition(undefined, query);
 
-	const findQueueArticles: FindQueueArticles = (query) => listPartition(query.queue, query);
+	const findReadlistArticles: FindReadlistArticles = (query) => listPartition(query.readlist, query);
 
 	const countPartition = (
-		queue: QueueSlug | undefined,
+		readlist: ReadlistSlug | undefined,
 		query: { userId: UserId; status?: ArticleStatus; countLimit?: number },
 	): number => {
 		let userArts = Array.from(userArticles.values()).filter(
-			(ua) => ua.userId === query.userId && ua.queue === queue,
+			(ua) => ua.userId === query.userId && ua.readlist === readlist,
 		);
 		if (query.status) {
 			userArts = userArts.filter((ua) => ua.status === query.status);
@@ -413,17 +413,17 @@ export function initInMemoryArticleStore(): {
 
 	const countArticlesByUser: CountArticlesByUser = async (query) => countPartition(undefined, query);
 
-	const countQueueArticles: CountQueueArticles = async (query) => countPartition(query.queue, query);
+	const countReadlistArticles: CountReadlistArticles = async (query) => countPartition(query.readlist, query);
 
 	const deleteFrom = (
-		queue: QueueSlug | undefined,
+		readlist: ReadlistSlug | undefined,
 		id: ReaderArticleHashId,
 		userId: UserId,
 	): boolean => {
 		const article = findArticleByRouteId(id);
 		if (!article) return false;
 
-		const uaKey = userArticleKey(userId, article.url, queue);
+		const uaKey = userArticleKey(userId, article.url, readlist);
 		if (!userArticles.has(uaKey)) return false;
 
 		userArticles.delete(uaKey);
@@ -432,15 +432,15 @@ export function initInMemoryArticleStore(): {
 
 	const deleteArticle: DeleteArticle = async (id, userId) => deleteFrom(undefined, id, userId);
 
-	const deleteQueueArticle: DeleteQueueArticle = async ({ id, userId, queue }) =>
-		deleteFrom(queue, id, userId);
+	const deleteReadlistArticle: DeleteReadlistArticle = async ({ id, userId, readlist }) =>
+		deleteFrom(readlist, id, userId);
 
 	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
 		for (const [key, ua] of userArticles) {
 			if (ua.userId === userId) userArticles.delete(key);
 		}
-		for (const [key, definition] of queueDefinitions) {
-			if (definition.userId === userId) queueDefinitions.delete(key);
+		for (const [key, definition] of readlistDefinitions) {
+			if (definition.userId === userId) readlistDefinitions.delete(key);
 		}
 		saveCursors.delete(userId);
 	};
@@ -455,28 +455,28 @@ export function initInMemoryArticleStore(): {
 		return [...urls];
 	};
 
-	const assignSavedArticleToQueue: AssignSavedArticleToQueue = async ({
+	const assignSavedArticleToReadlist: AssignSavedArticleToReadlist = async ({
 		userId,
-		queue,
+		readlist,
 		url,
 		savedAt,
 	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const source = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
 		if (!source) return { assigned: false };
-		const targetKey = userArticleKey(userId, articleResourceUniqueId.value, queue);
+		const targetKey = userArticleKey(userId, articleResourceUniqueId.value, readlist);
 		if (userArticles.has(targetKey)) return { assigned: false };
-		userArticles.set(targetKey, { ...source, queue, savedAt });
+		userArticles.set(targetKey, { ...source, readlist, savedAt });
 		return { assigned: true };
 	};
 
-	const moveQueueArticles: MoveQueueArticles = async ({ userId, from, to }) => {
+	const moveReadlistArticles: MoveReadlistArticles = async ({ userId, from, to }) => {
 		let moved = 0;
 		for (const source of [...userArticles.values()]) {
-			if (source.userId !== userId || source.queue !== from) continue;
+			if (source.userId !== userId || source.readlist !== from) continue;
 			const targetKey = userArticleKey(userId, source.url, to);
 			if (!userArticles.has(targetKey)) {
-				userArticles.set(targetKey, { ...source, queue: to });
+				userArticles.set(targetKey, { ...source, readlist: to });
 				moved += 1;
 			}
 			userArticles.delete(userArticleKey(userId, source.url, from));
@@ -486,16 +486,16 @@ export function initInMemoryArticleStore(): {
 
 	const listUserSavesForUrl: ListUserSavesForUrl = async ({ userId, url }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const saves: { queue?: QueueSlug }[] = [];
+		const saves: { readlist?: ReadlistSlug }[] = [];
 		for (const ua of userArticles.values()) {
 			if (ua.userId !== userId || ua.url !== articleResourceUniqueId.value) continue;
-			saves.push(ua.queue === undefined ? {} : { queue: ua.queue });
+			saves.push(ua.readlist === undefined ? {} : { readlist: ua.readlist });
 		}
 		return saves;
 	};
 
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls }) => {
-		const saves = new Map<string, { queue?: QueueSlug }[]>();
+		const saves = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const url of urls) {
 			saves.set(url, await listUserSavesForUrl({ userId, url }));
 		}
@@ -503,7 +503,7 @@ export function initInMemoryArticleStore(): {
 	};
 
 	const updateStatusIn = (
-		queue: QueueSlug | undefined,
+		readlist: ReadlistSlug | undefined,
 		id: ReaderArticleHashId,
 		userId: UserId,
 		status: ArticleStatus,
@@ -511,7 +511,7 @@ export function initInMemoryArticleStore(): {
 		const article = findArticleByRouteId(id);
 		if (!article) return null;
 
-		const uaKey = userArticleKey(userId, article.url, queue);
+		const uaKey = userArticleKey(userId, article.url, readlist);
 		const ua = userArticles.get(uaKey);
 		if (!ua) return null;
 
@@ -528,40 +528,40 @@ export function initInMemoryArticleStore(): {
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) =>
 		updateStatusIn(undefined, id, userId, status);
 
-	const setQueueArticleStatus = async (params: {
+	const setReadlistArticleStatus = async (params: {
 		id: ReaderArticleHashId;
 		userId: UserId;
-		queue: QueueSlug;
+		readlist: ReadlistSlug;
 		status: ArticleStatus;
 	}): Promise<void> => {
-		const updated = updateStatusIn(params.queue, params.id, params.userId, params.status);
-		assert(updated, "setQueueArticleStatus needs the queue to already hold the article");
+		const updated = updateStatusIn(params.readlist, params.id, params.userId, params.status);
+		assert(updated, "setReadlistArticleStatus needs the readlist to already hold the article");
 	};
 
-	const updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues = async ({
+	const updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists = async ({
 		id,
 		userId,
 		addressed,
 		status,
 	}) => {
-		const addressedQueue = addressed === DEFAULT_QUEUE_SLUG ? undefined : addressed;
-		const updated = updateStatusIn(addressedQueue, id, userId, status);
+		const addressedReadlist = addressed === DEFAULT_READLIST_SLUG ? undefined : addressed;
+		const updated = updateStatusIn(addressedReadlist, id, userId, status);
 		if (!updated) return null;
 		const saves = await listUserSavesForUrl({ userId, url: updated.url });
 		for (const save of saves) {
-			if (save.queue === addressedQueue) continue;
-			updateStatusIn(save.queue, id, userId, status);
+			if (save.readlist === addressedReadlist) continue;
+			updateStatusIn(save.readlist, id, userId, status);
 		}
 		return updated;
 	};
 
-	const createQueueDefinition: CreateQueueDefinition = async (params) => {
-		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
-		const owned = [...queueDefinitions.values()].filter((d) => d.userId === params.userId);
-		if (owned.length >= QUEUE_MAX_PER_USER) throw new QueueLimitReachedError(QUEUE_MAX_PER_USER);
-		const key = queueDefinitionKey(params.userId, params.slug);
-		if (queueDefinitions.has(key)) return { created: false };
-		queueDefinitions.set(key, {
+	const createReadlistDefinition: CreateReadlistDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const owned = [...readlistDefinitions.values()].filter((d) => d.userId === params.userId);
+		if (owned.length >= READLIST_MAX_PER_USER) throw new ReadlistLimitReachedError(READLIST_MAX_PER_USER);
+		const key = readlistDefinitionKey(params.userId, params.slug);
+		if (readlistDefinitions.has(key)) return { created: false };
+		readlistDefinitions.set(key, {
 			userId: params.userId,
 			slug: params.slug,
 			label: params.label,
@@ -570,21 +570,21 @@ export function initInMemoryArticleStore(): {
 		return { created: true };
 	};
 
-	const renameQueueDefinition: RenameQueueDefinition = async (params) => {
-		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
-		const definition = queueDefinitions.get(queueDefinitionKey(params.userId, params.slug));
+	const renameReadlistDefinition: RenameReadlistDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
 		if (!definition) return { renamed: false };
 		definition.label = params.label;
 		return { renamed: true };
 	};
 
-	const deleteQueueDefinition: DeleteQueueDefinition = async (params) => {
-		assert(params.slug !== DEFAULT_QUEUE_SLUG, "the default queue is implicit and holds no definition row");
-		return { deleted: queueDefinitions.delete(queueDefinitionKey(params.userId, params.slug)) };
+	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		return { deleted: readlistDefinitions.delete(readlistDefinitionKey(params.userId, params.slug)) };
 	};
 
-	const listQueueDefinitions: ListQueueDefinitions = async (userId) =>
-		[...queueDefinitions.values()]
+	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
+		[...readlistDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
 			.map(({ slug, label, createdAt }) => ({ slug, label, createdAt }))
 			.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.slug.localeCompare(b.slug));
@@ -596,9 +596,9 @@ export function initInMemoryArticleStore(): {
 		ua.viewedAt = at;
 	};
 
-	const markQueueArticleViewed: MarkQueueArticleViewed = async ({ userId, queue, url, at }) => {
+	const markReadlistArticleViewed: MarkReadlistArticleViewed = async ({ userId, readlist, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value, queue));
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value, readlist));
 		if (!ua) return;
 		ua.viewedAt = at;
 	};
@@ -628,7 +628,7 @@ export function initInMemoryArticleStore(): {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const result: { userId: UserId; viewedAt?: Date }[] = [];
 		for (const ua of userArticles.values()) {
-			if (ua.url === articleResourceUniqueId.value && ua.queue === undefined) {
+			if (ua.url === articleResourceUniqueId.value && ua.readlist === undefined) {
 				result.push({ userId: ua.userId, viewedAt: ua.viewedAt });
 			}
 		}
@@ -763,21 +763,21 @@ export function initInMemoryArticleStore(): {
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,
-		saveQueueArticle,
-		findQueueArticles,
-		countQueueArticles,
-		findQueueArticleById,
-		updateArticleStatusAcrossQueues,
-		deleteQueueArticle,
-		markQueueArticleViewed,
+		saveReadlistArticle,
+		findReadlistArticles,
+		countReadlistArticles,
+		findReadlistArticleById,
+		updateArticleStatusAcrossReadlists,
+		deleteReadlistArticle,
+		markReadlistArticleViewed,
 		listUserSavesForUrl,
 		listUserSavesForUrls,
-		assignSavedArticleToQueue,
-		moveQueueArticles,
-		createQueueDefinition,
-		deleteQueueDefinition,
-		listQueueDefinitions,
-		renameQueueDefinition,
+		assignSavedArticleToReadlist,
+		moveReadlistArticles,
+		createReadlistDefinition,
+		deleteReadlistDefinition,
+		listReadlistDefinitions,
+		renameReadlistDefinition,
 		getSummaryToggleState,
 		readContent,
 		writeContent,
@@ -787,6 +787,6 @@ export function initInMemoryArticleStore(): {
 		setDisplayUrl,
 		setCrawlVersions,
 		setPurgedAt,
-		setQueueArticleStatus,
+		setReadlistArticleStatus,
 	};
 }

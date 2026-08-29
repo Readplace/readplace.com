@@ -41,7 +41,7 @@ export function initSaveRoutes(deps: {
 
 		if (!url) {
 			const redirectUrl = req.userId ? "/queue" : "/";
-			const linkLabel = req.userId ? "Go to your queue" : "Go to homepage";
+			const linkLabel = req.userId ? "Go to your readlist" : "Go to homepage";
 			sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
 			return;
 		}

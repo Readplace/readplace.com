@@ -2,7 +2,7 @@ import XCTest
 @testable import Readplace
 
 /// End-to-end coverage of the share-save journey: `SaveSharedPage.run` drives the
-/// real list → save → queue decision tree through the production API, token and
+/// real list → save → readlist decision tree through the production API, token and
 /// upload-queue types, with the page capture faked by `FakeHTMLCaptor` and the
 /// network by `StubURLProtocol`.
 @MainActor
@@ -16,10 +16,10 @@ final class SaveSharedPageTests: XCTestCase {
 		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 	}
 
-	/// Every save shares the same shape: the queue, and a URL-only save that
+	/// Every save shares the same shape: the readlist, and a URL-only save that
 	/// answers 201. Anything else — including a content upload, which this journey
 	/// never makes — lands in the 404 arm and fails loudly.
-	private func serveQueueAndSave(messagesJSON: String? = nil, extra: @escaping (URLRequest) -> StubURLProtocol.Stub? = { _ in nil }) {
+	private func serveReadlistAndSave(messagesJSON: String? = nil, extra: @escaping (URLRequest) -> StubURLProtocol.Stub? = { _ in nil }) {
 		StubURLProtocol.setHandler { request, _ in
 			if let stub = extra(request) { return stub }
 			switch request.url?.path {
@@ -86,7 +86,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		let saver = makeSaver(store: store, captor: captor, container: container)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -116,11 +116,11 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertEqual(contentPart.text, "<html><body>hi</body></html>")
 	}
 
-	func testQueuesTheJobBeforeItReportsTheLinkSaved() async throws {
+	func testReadlistsTheJobBeforeItReportsTheLinkSaved() async throws {
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil), delay: 0.2)
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var statesWhenReported: [UploadJob.State] = []
 		let saver = makeSaver(store: store, captor: captor, container: container)
@@ -145,7 +145,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// which is the moment the save is reported.
 		let store = TestSupport.loggedInStore()
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var recordedWhenReported = false
 		let saver = makeSaver(
@@ -171,7 +171,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil))
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		let saver = makeSaver(store: store, captor: captor, container: container)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -188,7 +188,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil), delay: 0.2)
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var savePostsWhenReported = -1
 		var readyWhenReported = true
@@ -218,7 +218,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>slow</html>", title: "Slow", mediaType: nil), delay: 0.3)
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		let saver = makeSaver(store: store, captor: captor, container: container, stillSavingAfter: 0.05)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -234,7 +234,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>slow</html>", title: "Slow", mediaType: nil), delay: 0.3)
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var stillSaving = 0
 		let saver = makeSaver(store: store, captor: captor, container: container, stillSavingAfter: 0.05)
@@ -254,7 +254,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil))
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var stillSaving = 0
 		let saver = makeSaver(store: store, captor: captor, container: container, stillSavingAfter: 30)
@@ -292,7 +292,7 @@ final class SaveSharedPageTests: XCTestCase {
 			}
 		}
 		"""
-		serveQueueAndSave(extra: { request in
+		serveReadlistAndSave(extra: { request in
 			guard request.url?.path == "/queue", request.httpMethod == "POST" else { return nil }
 			return .json(201, savedBody)
 		})
@@ -320,7 +320,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>never used</html>", title: "never used", mediaType: nil))
 		let container = TestSupport.temporaryContainer()
 		let pdfBytes = Data("%PDF-1.7\nshared pdf body".utf8)
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		let saver = makeSaver(store: store, captor: captor, container: container)
 		let outcome = await saver.run(
@@ -352,7 +352,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: "application/pdf"))
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		let saver = makeSaver(store: store, captor: captor, container: container)
 		let outcome = await saver.run(url: URL(string: "https://example.com/paper.pdf")!, fallbackTitle: "Paper", sharedPdf: nil)
@@ -376,7 +376,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		let saver = makeSaver(store: store, captor: captor, container: container)
 		let outcome = await saver.run(
@@ -403,7 +403,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// stays as it was admitted, for the app to capture on device.
 		let store = TestSupport.loggedInStore()
 		let container = TestSupport.temporaryContainer()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		let saver = makeSaver(
 			store: store,
@@ -418,7 +418,7 @@ final class SaveSharedPageTests: XCTestCase {
 		assertUploadedNothing()
 	}
 
-	func testQueuesNothingWhenTheServerAdvertisesNoContentAction() async throws {
+	func testReadlistsNothingWhenTheServerAdvertisesNoContentAction() async throws {
 		// The server offers the URL-only save but no `save-content`. There is
 		// nowhere to send the capture, so nothing is queued for the app.
 		let store = TestSupport.loggedInStore()
@@ -451,11 +451,11 @@ final class SaveSharedPageTests: XCTestCase {
 		assertUploadedNothing()
 	}
 
-	func testQueuesNothingWithoutASharedContainer() async throws {
+	func testReadlistsNothingWithoutASharedContainer() async throws {
 		// A build whose App Group container cannot be resolved still saves the link;
 		// only the enrichment upload is lost.
 		let store = TestSupport.loggedInStore()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		let saver = SaveSharedPage(
 			store: store,
@@ -474,7 +474,7 @@ final class SaveSharedPageTests: XCTestCase {
 	func testRefusesWhenTheServerRefusesTheSave() async throws {
 		// The server refuses the save with a message-only error (e.g. a locked
 		// account). The journey must surface it as `.refused` so the shell shows the
-		// server's message, and must queue nothing for an article that never landed.
+		// server's message, and must readlist nothing for an article that never landed.
 		let store = TestSupport.loggedInStore()
 		let container = TestSupport.temporaryContainer()
 		StubURLProtocol.setHandler { request, _ in
@@ -557,7 +557,7 @@ final class SaveSharedPageTests: XCTestCase {
 	}
 
 	func testReturnsNoSaveActionWhenServerOffersNoUrlOnlySave() async throws {
-		// The queue loaded but advertised no `save-article`, so there is no link to
+		// The readlist loaded but advertised no `save-article`, so there is no link to
 		// save and nothing to enrich.
 		let store = TestSupport.loggedInStore()
 		let container = TestSupport.temporaryContainer()
@@ -591,8 +591,8 @@ final class SaveSharedPageTests: XCTestCase {
 		assertUploadedNothing()
 	}
 
-	func testFailsWhenQueueResponseIsUndecodable() async throws {
-		// The queue replied 200 with the negotiated Siren media type but a body
+	func testFailsWhenReadlistResponseIsUndecodable() async throws {
+		// The readlist replied 200 with the negotiated Siren media type but a body
 		// that is not a Siren collection (a JSON array), so the journey surfaces
 		// the API's own decode message as .failed — and attempts no save.
 		let store = TestSupport.loggedInStore()
@@ -641,12 +641,12 @@ final class SaveSharedPageTests: XCTestCase {
 	}
 
 	func testSurfacesTheServerSaveNoticeAsSoonAsTheListLoads() async throws {
-		// The queue collection carries the server's save notice. The journey must
+		// The readlist collection carries the server's save notice. The journey must
 		// hand it to the shell as soon as the list loads — before the save lands —
 		// so the caption is on screen for the whole phase it describes.
 		let store = TestSupport.loggedInStore()
 		let notice = "{ \"type\": \"warning\", \"content\": { \"type\": \"text/html\", \"body\": \"Don't close this — it's still saving.\" } }"
-		serveQueueAndSave(messagesJSON: notice)
+		serveReadlistAndSave(messagesJSON: notice)
 
 		var noticed: [ServerMessage] = []
 		var savePostsWhenNoticed = -1
@@ -678,7 +678,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// A server that emits no collection notice still drives the callback once — with
 		// no messages — so the shell can leave the caption hidden rather than assume it.
 		let store = TestSupport.loggedInStore()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var callbackCount = 0
 		var lastMessages: [ServerMessage] = []

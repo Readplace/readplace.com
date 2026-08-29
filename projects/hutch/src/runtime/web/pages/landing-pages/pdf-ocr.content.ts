@@ -98,7 +98,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to PDFs I already saved if I stop paying?",
 			answer:
-				"You keep reading them. The account goes read-only: the queue, the reader view, the extracted text and export all keep working. Saving new links and importing are what stop.",
+				"You keep reading them. The account goes read-only: the readlist, the reader view, the extracted text and export all keep working. Saving new links and importing are what stop.",
 		},
 	],
 	offer: {

@@ -34,7 +34,7 @@ function page(state: string, panel: string): string {
 		<input id="other-input" type="url" name="url">
 		<button id="other-save" type="submit">Other</button>
 	</form>
-	<a id="cta" href="https://readplace.com/save?url=x" data-save-tip="${state}">Save to My Queue</a>
+	<a id="cta" href="https://readplace.com/save?url=x" data-save-tip="${state}">Save to My Readlist</a>
 	<a id="plain-cta" href="https://readplace.com/elsewhere">Elsewhere</a>
 	${panel}
 </main>`;

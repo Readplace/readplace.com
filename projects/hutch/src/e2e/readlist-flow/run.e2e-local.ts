@@ -1,0 +1,158 @@
+import assert from 'node:assert/strict'
+import { captureCheckpoint, test } from '@packages/e2e-harness'
+import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
+import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
+import { createImportActions, type ImportProgress } from './import-actions'
+import { createImportFromUrlActions, type ImportFromUrlProgress } from './import-from-url-actions'
+import { createOnboardingActions, type OnboardingProgress } from './onboarding-actions'
+import { createPasswordResetActions, type PasswordResetProgress } from './password-reset-actions'
+import { createSavePermalinkActions, type SavePermalinkProgress } from './save-permalink-actions'
+import { createSeedActions, type SeedProgress } from './seed-actions'
+import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
+import { createLocalTestArticles, type ReadlistProgress } from './readlist-actions'
+import { runReadlistFlow } from './readlist-flow'
+import { visualCheckpoints } from './visual-checkpoints'
+import { requireEnv } from "@packages/require-env"
+
+const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
+
+test.describe('Readlist management flow (local)', () => {
+	test('signup, logout, reset password, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page }) => {
+
+		const authData = {
+			email: 'e2e-test@example.com',
+			password: 'test-password-123',
+		}
+
+		const seedProgress: SeedProgress = {
+			articlesSeeded: false,
+		}
+
+		const cleanupProgress: CleanupProgress = {
+			previousArticlesDeleted: false,
+		}
+
+		const passwordResetProgress: PasswordResetProgress = {
+			navigatedToForgotPassword: false,
+			submittedForgotPassword: false,
+			navigatedToResetPassword: false,
+			submittedResetPassword: false,
+			loggedInWithNewPassword: false,
+		}
+
+		const onboardingProgress: OnboardingProgress = {
+			installedExtension: false,
+			savedFirstArticle: false,
+		}
+
+		const savePermalinkProgress: SavePermalinkProgress = {
+			savedViaPermalink: false,
+			deletedPermalinkArticle: false,
+		}
+
+		const bannerOnReaderProgress: BannerOnReaderProgress = {
+			bannerVerifiedOnPublicView: false,
+			bannerVerifiedOnPrivateReader: false,
+			bannerTestArticleDeleted: false,
+		}
+
+		const viewPageProgress: ViewPageProgress = {
+			visitedAnonymously: false,
+			visitedCrawlFailure: false,
+		}
+
+		const readlistProgress: ReadlistProgress = {
+			allArticlesAdded: false,
+			paginationArticlesAdded: false,
+			verifiedPage1HasNext: false,
+			navigatedToPage2: false,
+			verifiedPage2: false,
+			navigatedBackToPage1: false,
+			verifiedBackOnPage1: false,
+			refreshedExistingArticle: false,
+			paginationArticlesDeleted: false,
+			verifiedNewestFirst: false,
+			sortedOldestFirst: false,
+			verifiedOldestFirst: false,
+			openedFirstArticle: false,
+			backFromReader: false,
+			verifiedReadStatus: false,
+			deletedLastArticle: false,
+			checkedReadTab: false,
+			checkedUnreadTab: false,
+			cleanupDeleted: false,
+		}
+
+		const importProgress: ImportProgress = {
+			allThreeImported: false,
+			middleUncheckedImported: false,
+			selectAllDeselectSomeImported: false,
+			deselectAllSelectSomeImported: false,
+			paginatedSelectAllSpansPagesImported: false,
+		}
+
+		const importFromUrlProgress: ImportFromUrlProgress = {
+			happyPathImported: false,
+			pageError500Surfaced: false,
+			pageWithoutLinksSurfaced: false,
+		}
+
+		const firedCheckpointActions = new Set<string>()
+
+		await runReadlistFlow(page, {
+			baseURL: BASE_URL,
+			testArticles: createLocalTestArticles(BASE_URL),
+			authData,
+			passwordResetProgress,
+			readlistProgress,
+			preReadlistActionFactories: {
+				anonymousView: createAnonymousViewPageActions(
+					{ baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?view=1`, unfetchableUrl: `${BASE_URL}/e2e/unfetchable` },
+					viewPageProgress,
+				),
+				onboarding: createOnboardingActions(onboardingProgress),
+				seed: createSeedActions(seedProgress, [`${BASE_URL}/privacy?seed=1`, `${BASE_URL}/privacy?seed=2`]),
+				cleanup: createCleanupActions(cleanupProgress),
+				passwordReset: createPasswordResetActions(
+					{ email: authData.email, oldPassword: authData.password, newPassword: 'reset-password-456', baseUrl: BASE_URL },
+					authData,
+					passwordResetProgress,
+				),
+				savePermalink: createSavePermalinkActions(
+					{ baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?permalink=1` },
+					cleanupProgress,
+					savePermalinkProgress,
+				),
+				bannerOnReader: createBannerOnReaderActions(
+					{
+						baseUrl: BASE_URL,
+						// /e2e/unfetchable fails the crawl synchronously and terminally, so
+						// "latest article not fully parsed" (the banner's show condition) is
+						// a stable state, not a race against the in-memory parse pipeline
+						// finishing before the page renders.
+						publicViewTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-public-view=${Date.now()}`,
+						privateReaderTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-private-reader=${Date.now()}`,
+					},
+					cleanupProgress,
+					bannerOnReaderProgress,
+				),
+				importActions: createImportActions({ baseUrl: BASE_URL }, readlistProgress, importProgress),
+				importFromUrlActions: createImportFromUrlActions({ baseUrl: BASE_URL }, readlistProgress, importFromUrlProgress),
+			},
+			preReadlistProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress, importFromUrlProgress],
+			onActionComplete: async (actionName) => {
+				const checkpoint = visualCheckpoints.get(actionName)
+				if (!checkpoint) return
+				firedCheckpointActions.add(actionName)
+				await captureCheckpoint(page, checkpoint)
+			},
+			maxNavigations: 120,
+		})
+
+		assert.deepEqual(
+			[...firedCheckpointActions].sort(),
+			[...visualCheckpoints.keys()].sort(),
+			'every ledgered checkpoint must fire during the flow — a ledger entry whose action no longer runs leaves its committed baseline uncompared',
+		)
+	})
+})

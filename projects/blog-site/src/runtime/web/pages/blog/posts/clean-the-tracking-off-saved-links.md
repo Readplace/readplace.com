@@ -13,7 +13,7 @@ banner: "I strip the tracking tags off the newsletter links you save"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-A link a newsletter sends you carries a tail the sender bolted on to count the click: utm_source, utm_medium, utm_campaign, sometimes a run of them. Readplace saves the article links out of a newsletter into your queue, and until this week it kept those tags in the saved copy. It clears them now, off the card's link, the URL you read, and the copy that lands in your queue. Only the utm tags go. The strip-tracking function Readplace already had does more than that, dropping gi, source, and sk too, and those can be the parameter that makes a link resolve, so reusing it would hand back a shorter address that 404s. The cleanup also waits for the crawl. A link fresh out of an email is often an email provider's redirect whose real target sits in a path token and which may sign its own query, so rewriting it before it resolves risks a 403 rather than a tidier link. Readplace stores and crawls the link byte for byte, then clears the utm tail once the crawl has followed the wrapper to the page. Because the stored identity of an article already ignores utm, cleaning the visible URL this late changes the card, not the record behind it.
+A link a newsletter sends you carries a tail the sender bolted on to count the click: utm_source, utm_medium, utm_campaign, sometimes a run of them. Readplace saves the article links out of a newsletter into your readlist, and until this week it kept those tags in the saved copy. It clears them now, off the card's link, the URL you read, and the copy that lands in your readlist. Only the utm tags go. The strip-tracking function Readplace already had does more than that, dropping gi, source, and sk too, and those can be the parameter that makes a link resolve, so reusing it would hand back a shorter address that 404s. The cleanup also waits for the crawl. A link fresh out of an email is often an email provider's redirect whose real target sits in a path token and which may sign its own query, so rewriting it before it resolves risks a 403 rather than a tidier link. Readplace stores and crawls the link byte for byte, then clears the utm tail once the crawl has followed the wrapper to the page. Because the stored identity of an article already ignores utm, cleaning the visible URL this late changes the card, not the record behind it.
 
 </div>
 </details>
@@ -22,7 +22,7 @@ Look at the end of a link a newsletter sent you. Past the real address sits a ta
 
 The obvious thing to do with that tail is cut it off. A trimmed link reads like the same link with the noise gone. Cut the wrong piece, though, or cut it too soon, and the address stops opening.
 
-Readplace [saves the article links out of a newsletter into your queue](/blog/save-newsletter-links-to-your-queue). Until this week it carried the utm tags in with them. The Extracted Articles tab showed the tracking spelled out in the URL, and a saved copy kept it in the address. Those tags come off now: the link on the card, the URL you read under it, and the copy that lands in your queue.
+Readplace [saves the article links out of a newsletter into your readlist](/blog/save-newsletter-links-to-your-readlist). Until this week it carried the utm tags in with them. The Extracted Articles tab showed the tracking spelled out in the URL, and a saved copy kept it in the address. Those tags come off now: the link on the card, the URL you read under it, and the copy that lands in your readlist.
 
 ## The parameter that was doing the work
 
@@ -44,8 +44,8 @@ Cleaning the URL this late can't split your library either. The stored identity 
 
 ## Open a saved link and look at the end
 
-The tags being gone shows up most when a link leaves your queue. Copy a saved article's URL to send to someone, and with the utm tail on it you'd be passing along the campaign id the newsletter stamped for you, tying that person's click back to your subscription. The link Readplace hands you is the article's own address, with the sender's bookkeeping taken off.
+The tags being gone shows up most when a link leaves your readlist. Copy a saved article's URL to send to someone, and with the utm tail on it you'd be passing along the campaign id the newsletter stamped for you, tying that person's click back to your subscription. The link Readplace hands you is the article's own address, with the sender's bookkeeping taken off.
 
 Stripping every tracking tag off a link is the fast idea of clean. Stripping only the tags you can show do nothing, after the link has resolved to a page, is the one that still opens when you tap it.
 
-Forward the next issue you get to [a Readplace address](/blog/save-newsletter-links-to-your-queue). Once the crawl catches up, open the saved article and read the link sitting at the top, the utm tail gone and the page still loading behind it. The first address is yours to set up at [readplace.com](/).
+Forward the next issue you get to [a Readplace address](/blog/save-newsletter-links-to-your-readlist). Once the crawl catches up, open the saved article and read the link sitting at the top, the utm tail gone and the page still loading behind it. The first address is yours to set up at [readplace.com](/).

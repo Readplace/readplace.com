@@ -64,7 +64,7 @@ export interface LandingPageOffer {
  *
  * Every claim was checked against the code that implements it. Read the limits
  * before editing anything above them: obvious-sounding claims (a diff that
- * rejects every altered token, an assistant that can tidy your queue, an export
+ * rejects every altered token, an assistant that can tidy your readlist, an export
  * containing your articles, an Export entry in the nav) are contradicted by the
  * implementation.
  *

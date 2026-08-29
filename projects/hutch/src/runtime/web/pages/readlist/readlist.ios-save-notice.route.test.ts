@@ -1,0 +1,98 @@
+import request from "supertest";
+import {
+	TEST_APP_ORIGIN,
+	createDefaultTestAppFixture,
+} from "@packages/test-fixtures";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import {
+	NATIVE_CLIENT_HEADER,
+	SAVE_CONTINUITY_BACKGROUND,
+	SAVE_CONTINUITY_HEADER,
+} from "../../onboarding/native-client";
+import { createAccessToken } from "../../test-helpers/oauth-token";
+import { useTestServer } from "../../../test-app";
+
+const useApp = useTestServer();
+
+const SAVE_NOTICE_BODY = "Don't close this — it's still saving.";
+
+/** The iOS Share Extension reads a "don't close this" caption off the readlist
+ * collection it fetches during a save. The server offers that notice only to the
+ * native app — recognised by the `X-Readplace-Client: ios` header — and never to
+ * a browser, the extension, or the app's own in-app web surface (reached by the
+ * spoofable `?platform=ios`, which also doesn't need it). */
+describe("Readlist save-in-progress notice (GET /queue, Siren)", () => {
+	it("carries the notice on properties.messages for the native iOS app", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(NATIVE_CLIENT_HEADER, "ios");
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties.messages).toEqual([
+			{ type: "warning", content: { type: "text/html", body: SAVE_NOTICE_BODY } },
+		]);
+	});
+
+	it("omits the notice for an app build that finishes the upload in the background", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(NATIVE_CLIENT_HEADER, "ios")
+			.set(SAVE_CONTINUITY_HEADER, SAVE_CONTINUITY_BACKGROUND);
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties.messages).toBeUndefined();
+	});
+
+	it("keeps the notice when the continuity header carries an unknown value", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(NATIVE_CLIENT_HEADER, "ios")
+			.set(SAVE_CONTINUITY_HEADER, "foreground");
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties.messages).toEqual([
+			{ type: "warning", content: { type: "text/html", body: SAVE_NOTICE_BODY } },
+		]);
+	});
+
+	it("omits the notice for a Siren request without the iOS client header", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`);
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties.messages).toBeUndefined();
+	});
+
+	it("does not offer the notice to the spoofable in-app web surface (?platform=ios)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue?platform=ios")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`);
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties.messages).toBeUndefined();
+	});
+});

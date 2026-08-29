@@ -29,7 +29,7 @@ class ShareArtifactsTest {
 		val discoveryCache = DiscoveryHttpCache(temporaryFolder.newFolder("cache"))
 		discoveryCache.cache.directory.mkdirs()
 		val entry = File(discoveryCache.cache.directory, "entry")
-		entry.writeText("a cached queue response")
+		entry.writeText("a cached readlist response")
 
 		ShareArtifacts(jobs, unseenSave, discoveryCache).purge()
 

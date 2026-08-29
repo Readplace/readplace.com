@@ -246,7 +246,7 @@ async function injectSaveCurrentTab(
 }
 
 /**
- * Polls the saved queue (via an independent Siren walk, as pdf-save-scenario
+ * Polls the saved readlist (via an independent Siren walk, as pdf-save-scenario
  * does) for the item saved under PAGE_A's url and asserts its extracted title
  * carries A's marker and never B's. The title is derived server-side from the
  * captured HTML, so it is the observable proof of *which page's* content was
@@ -264,7 +264,7 @@ async function assertSavedContentIsPageA(): Promise<void> {
 		fetchFn: (...args) => fetch(...args),
 		refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 		onUnauthorized: async () => {
-			throw new Error("Unauthorized while walking the saved queue");
+			throw new Error("Unauthorized while walking the saved readlist");
 		},
 		logger: HutchLogger.from(consoleLogger),
 		onAdvertisedActions: () => {},

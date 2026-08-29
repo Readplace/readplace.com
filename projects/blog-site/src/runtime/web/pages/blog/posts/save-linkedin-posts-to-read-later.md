@@ -54,6 +54,6 @@ Readplace does this work on its own side, on every save, and you paste the link 
 
 ## Try it
 
-Find a LinkedIn post worth a second read, copy its link, and paste it into your Readplace queue. It opens with its paragraphs intact, a title on top, and a short summary.
+Find a LinkedIn post worth a second read, copy its link, and paste it into your Readplace readlist. It opens with its paragraphs intact, a title on top, and a short summary.
 
 Start at [readplace.com](/) or [install the browser extension](https://readplace.com/install).

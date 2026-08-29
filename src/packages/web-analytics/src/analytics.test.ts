@@ -1191,7 +1191,7 @@ describe("deriveSaveSurface", () => {
 		expect(surfaceFor("")).toBe(SAVE_SURFACES.unknown);
 	});
 
-	it.each([SAVE_SURFACES.queueSaveBar, SAVE_SURFACES.extension, SAVE_SURFACES.mcp])(
+	it.each([SAVE_SURFACES.readlistSaveBar, SAVE_SURFACES.extension, SAVE_SURFACES.mcp])(
 		"refuses %s, a surface the server assigns to its own emissions, so a link claiming it records as unknown",
 		(forged) => {
 			expect(surfaceFor(forged)).toBe(SAVE_SURFACES.unknown);

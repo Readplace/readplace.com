@@ -193,7 +193,7 @@ export async function runPdfSaveScenario(
 		const current = items.find((item) => item.id === savedId);
 		assert(
 			current,
-			`Saved article id ${savedId} disappeared from the queue mid-poll`,
+			`Saved article id ${savedId} disappeared from the readlist mid-poll`,
 		);
 		lastTitle = current.title;
 		if (current.title.includes(config.expectedTitleSubstring)) return;

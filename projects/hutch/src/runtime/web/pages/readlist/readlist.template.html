@@ -1,0 +1,80 @@
+    <main class="{{mainClass}}">
+      {{{onboardingHtml}}}
+      <div class="readlist__body">
+        {{{readlistNavHtml}}}
+        <div class="readlist__content">
+          {{#if readlistErrorFlash}}<p class="readlist__error-flash" role="alert" data-test-readlist-error>{{readlistErrorFlash}}</p>{{/if}}
+          <div class="readlist__header">
+            <h1 class="readlist__title">{{readlistTitle}}</h1>
+          </div>
+          <aside class="readlist-banner {{subscriptionBannerStateClass}}" aria-live="polite" data-test-subscription-banner>
+            {{#if subscriptionBannerIsTrialCountdown}}
+            <p class="readlist-banner__message" data-test-banner-message><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
+            <a class="btn btn--primary btn--compact readlist-banner__cta" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
+            {{/if}}
+            {{#if subscriptionBannerIsCancellationScheduled}}
+            <p class="readlist-banner__message" data-test-banner-message><strong>Subscription ending <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time>.</strong> You still have full access until then.</p>
+            <a class="btn btn--primary btn--compact readlist-banner__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate</a>
+            {{/if}}
+            {{#if subscriptionBannerIsInactive}}
+            <p class="readlist-banner__message" data-test-banner-message><strong>Subscription not active.</strong> Your saved articles are still here.</p>
+            <a class="btn btn--primary btn--compact readlist-banner__cta" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
+            {{/if}}
+          </aside>
+          <div id="status-toast">{{{statusToastHtml}}}</div>
+          <form class="{{saveFormClass}}" method="POST" action="{{saveAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".readlist__save-btn" data-save-tip="{{saveTipState}}" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
+            <input class="readlist__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}"{{#if accessIsReadOnly}} disabled{{/if}}>
+            <button class="btn btn--primary btn--field readlist__save-btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="readlist__save-btn-label">Save</span><span class="readlist__save-btn-saving">Saving…</span></button>
+          </form>
+          {{#if saveError}}<p class="readlist__save-error" data-test-save-error{{#if saveErrorCode}} data-test-saveable-url-code="{{saveErrorCode}}"{{/if}}>{{saveError}}</p>{{/if}}
+          {{#if importFlash}}<p class="readlist__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
+          {{#if hasImportSkipped}}
+          <div class="readlist__import-skipped" data-test-import-skipped role="status">
+            <p class="readlist__import-skipped-title">Couldn't import these links:</p>
+            <ul class="readlist__import-skipped-list">
+              {{#each importSkippedEntries}}
+              <li class="readlist__import-skipped-row" data-test-import-skipped-row>
+                <span class="readlist__import-skipped-reason" data-test-import-skipped-reason>{{reasonLabel}}</span>
+                <span class="readlist__import-skipped-url" data-test-import-skipped-url>{{url}}</span>
+              </li>
+              {{/each}}
+            </ul>
+            {{#if importSkippedAndMore}}<p class="readlist__import-skipped-more" data-test-import-skipped-more>And {{importSkippedAndMore}} more.</p>{{/if}}
+          </div>
+          {{/if}}
+          {{{filtersHtml}}}
+          {{{countsSpanHtml}}}
+          <div class="readlist__listing">
+            <div class="readlist__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+              <a class="readlist__sort-link" href="{{sortUrl}}" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
+            </div>
+            {{#if isEmpty}}
+            <div class="readlist__empty" data-test-empty-readlist>
+              <h2 class="readlist__empty-title">{{emptyTitle}}</h2>
+              {{#if saveBarHidden}}
+              <p class="readlist__empty-text">Every link you save lands in <a href="{{defaultReadlistUrl}}">{{defaultReadlistLabel}}</a>. Open an article there to add it to this readlist.</p>
+              {{else}}
+              <p class="readlist__empty-text">Paste a URL above to save a link. Or <a href="/install">set up one-tap saving</a> from {{saveSurfacesShort}}.</p>
+              {{/if}}
+            </div>
+            {{/if}}
+            {{#if hasArticles}}
+            <div class="readlist__list" data-test-article-list>
+              {{#each articleHtmls}}{{{this}}}{{/each}}
+            </div>
+            {{/if}}
+          </div>
+          {{#if showPagination}}
+          <nav class="readlist__pagination" aria-label="Pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
+            {{#if hasPrev}}<a class="readlist__pagination-link" href="{{prevUrl}}" data-test-pagination-prev>{{icon "arrow-left"}} Previous</a>{{/if}}
+            <span class="readlist__pagination-info" id="readlist-pagination-info" data-test-pagination-info>Page {{currentPage}}</span>
+            {{#if hasNext}}<a class="readlist__pagination-link" href="{{nextUrl}}" data-test-pagination-next>Next {{icon "arrow-right"}}</a>{{/if}}
+          </nav>
+          {{/if}}
+        </div>
+      </div>
+      {{{readlistDeleteConfirmHtml}}}
+      {{{deleteConfirmsHtml}}}
+      {{{markStatusConfirmsHtml}}}
+      {{{saveTipHtml}}}
+    </main>

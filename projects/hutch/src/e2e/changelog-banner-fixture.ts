@@ -10,7 +10,7 @@ assert(
 );
 
 export const E2E_CHANGELOG_BANNER: ChangelogBanner = {
-	hook: "Readplace now folds a whole Pocket export into your queue in one pass.",
+	hook: "Readplace now folds a whole Pocket export into your readlist in one pass.",
 	href: "/blog/e2e-changelog-fixture",
 	version: E2E_CHANGELOG_VERSION,
 };

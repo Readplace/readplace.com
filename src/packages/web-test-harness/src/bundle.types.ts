@@ -14,7 +14,7 @@ import type {
 	ReaderArticleHashId,
 	ValidateSaveableUrl,
 } from "@packages/domain/article";
-import type { QueueSlug } from "@packages/domain/queue";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	FindRelatedArticles,
 	MarkRelatedArticlesReady,
@@ -81,21 +81,21 @@ import type {
 	FindSubscriptionByUserId,
 	FindSubscriptionNextCharge,
 	FindUserArticleNotificationState,
-	SaveQueueArticle,
-	FindQueueArticles,
-	CountQueueArticles,
-	FindQueueArticleById,
-	UpdateArticleStatusAcrossQueues,
-	DeleteQueueArticle,
-	MarkQueueArticleViewed,
-	AssignSavedArticleToQueue,
-	MoveQueueArticles,
+	SaveReadlistArticle,
+	FindReadlistArticles,
+	CountReadlistArticles,
+	FindReadlistArticleById,
+	UpdateArticleStatusAcrossReadlists,
+	DeleteReadlistArticle,
+	MarkReadlistArticleViewed,
+	AssignSavedArticleToReadlist,
+	MoveReadlistArticles,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
-	CreateQueueDefinition,
-	DeleteQueueDefinition,
-	ListQueueDefinitions,
-	RenameQueueDefinition,
+	CreateReadlistDefinition,
+	DeleteReadlistDefinition,
+	ListReadlistDefinitions,
+	RenameReadlistDefinition,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
@@ -329,21 +329,21 @@ export interface ArticleStoreBundle {
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
-	saveQueueArticle: SaveQueueArticle;
-	findQueueArticles: FindQueueArticles;
-	countQueueArticles: CountQueueArticles;
-	findQueueArticleById: FindQueueArticleById;
-	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
-	deleteQueueArticle: DeleteQueueArticle;
-	markQueueArticleViewed: MarkQueueArticleViewed;
+	saveReadlistArticle: SaveReadlistArticle;
+	findReadlistArticles: FindReadlistArticles;
+	countReadlistArticles: CountReadlistArticles;
+	findReadlistArticleById: FindReadlistArticleById;
+	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
+	deleteReadlistArticle: DeleteReadlistArticle;
+	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
-	assignSavedArticleToQueue: AssignSavedArticleToQueue;
-	moveQueueArticles: MoveQueueArticles;
-	createQueueDefinition: CreateQueueDefinition;
-	deleteQueueDefinition: DeleteQueueDefinition;
-	listQueueDefinitions: ListQueueDefinitions;
-	renameQueueDefinition: RenameQueueDefinition;
+	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
+	moveReadlistArticles: MoveReadlistArticles;
+	createReadlistDefinition: CreateReadlistDefinition;
+	deleteReadlistDefinition: DeleteReadlistDefinition;
+	listReadlistDefinitions: ListReadlistDefinitions;
+	renameReadlistDefinition: RenameReadlistDefinition;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
 		lastSummaryClosedAt?: Date;
@@ -361,10 +361,10 @@ export interface ArticleStoreBundle {
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
-	setQueueArticleStatus: (params: {
+	setReadlistArticleStatus: (params: {
 		id: ReaderArticleHashId;
 		userId: UserId;
-		queue: QueueSlug;
+		readlist: ReadlistSlug;
 		status: ArticleStatus;
 	}) => Promise<void>;
 }

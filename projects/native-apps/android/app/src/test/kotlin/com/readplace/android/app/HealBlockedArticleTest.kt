@@ -35,7 +35,7 @@ class HealBlockedArticleTest {
 	private fun htmlCaptor(html: String = "<html>hi</html>", title: String? = null): RecordingHtmlCaptor =
 		RecordingHtmlCaptor(CapturedPage.Html(html = html, title = title))
 
-	private fun serveQueueAndSaveContent(
+	private fun serveReadlistAndSaveContent(
 		actionsJson: String = Fixtures.COLLECTION_ACTIONS,
 		saveContentStub: () -> Stub = { Stub.json(201, Fixtures.article("healed")) },
 	) {
@@ -70,7 +70,7 @@ class HealBlockedArticleTest {
 			html = "<html><body>the page the crawler was blocked from</body></html>",
 			title = "Captured",
 		)
-		serveQueueAndSaveContent()
+		serveReadlistAndSaveContent()
 
 		val outcome = makeHealer(store = loggedInStore(access = "access-1"), captor = captor).run(url = blockedUrl)
 
@@ -109,7 +109,7 @@ class HealBlockedArticleTest {
 
 	@Test
 	fun `sends no title part when the render named the page nothing`() = runTest {
-		serveQueueAndSaveContent()
+		serveReadlistAndSaveContent()
 
 		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor(title = null)).run(url = blockedUrl)
 
@@ -146,7 +146,7 @@ class HealBlockedArticleTest {
 
 	@Test
 	fun `uploads nothing when the server advertises no content action`() = runTest {
-		serveQueueAndSaveContent(actionsJson = Fixtures.SAVE_ARTICLE_ONLY)
+		serveReadlistAndSaveContent(actionsJson = Fixtures.SAVE_ARTICLE_ONLY)
 
 		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl)
 
@@ -164,7 +164,7 @@ class HealBlockedArticleTest {
 
 	@Test
 	fun `surfaces the server's refusal to the caller`() = runTest {
-		serveQueueAndSaveContent(saveContentStub = { Stub.json(403, Fixtures.accountLockedError()) })
+		serveReadlistAndSaveContent(saveContentStub = { Stub.json(403, Fixtures.accountLockedError()) })
 
 		val error = failsWith<ApiError.Refused> {
 			makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl)

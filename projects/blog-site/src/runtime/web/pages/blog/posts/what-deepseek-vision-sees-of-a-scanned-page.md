@@ -94,4 +94,4 @@ I had been pricing a way to buy layout at 76 dots per inch, while the same page 
 
 Nothing about scanned PDFs changed this week. Tesseract still does the reading and the 3 text stages still run on top.
 
-What changed is that the upgrade came off the table for a reason I can point at, and the next thing to try is a flag on a command line rather than a new vendor. Save a scanned PDF to [your queue](/) and it takes the path it took last month. I just know what the alternative would have cost, down to the pixel.
+What changed is that the upgrade came off the table for a reason I can point at, and the next thing to try is a flag on a command line rather than a new vendor. Save a scanned PDF to [your readlist](/) and it takes the path it took last month. I just know what the alternative would have cost, down to the pixel.

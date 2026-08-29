@@ -27,7 +27,7 @@ class DrainUploadJobs(
 		val due = jobs.loadAll(now())
 		if (due.isEmpty()) return
 		val page = try {
-			api.loadQueue()
+			api.loadReadlist()
 		} catch (_: ApiError) {
 			return
 		} catch (_: IOException) {

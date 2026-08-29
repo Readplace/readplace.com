@@ -23,19 +23,19 @@ import {
 	summarizeScreenResponse,
 } from "./screen-response-latency";
 import {
-	QUEUES_TRIGGER,
-	QUEUE_COUNTS,
-	QUEUE_NAV,
+	READLISTS_TRIGGER,
+	READLIST_COUNTS,
+	READLIST_NAV,
 	type NavigationKind,
 	type ScreenResponseOp,
 	type ScreenResponseOpId,
 	assignButton,
 	assignOp,
-	backToQueueOp,
+	backToReadlistOp,
 	openArticleOp,
-	queueNavLink,
-	queueSwitchOp,
-	queueTag,
+	readlistNavLink,
+	readlistSwitchOp,
+	readlistTag,
 	tabSwitchOp,
 	terminalCard,
 	unassignButton,
@@ -44,7 +44,7 @@ import { installScreenResponseProbe } from "./screen-response-probe.browser";
 import {
 	type SeededDataset,
 	assertNoRepeatingPollers,
-	queueUrl,
+	readlistUrl,
 	readerUrl,
 	seedPerfDataset,
 } from "./seed";
@@ -52,7 +52,7 @@ import {
 const PROBE_KEYS = {
 	armKey: "readplace.screen-response.arm",
 	pendingKey: "readplace.screen-response.pending",
-	offClockSelector: QUEUE_COUNTS,
+	offClockSelector: READLIST_COUNTS,
 };
 
 const SAMPLE_TIMEOUT_MS = 60_000;
@@ -101,7 +101,7 @@ function countsSettled(page: Page): Promise<unknown> {
 async function openListing(input: { page: Page; url: string }): Promise<void> {
 	const counts = countsSettled(input.page);
 	await input.page.goto(input.url, { waitUntil: "load" });
-	await expect(input.page.locator(QUEUE_NAV)).toHaveCount(1);
+	await expect(input.page.locator(READLIST_NAV)).toHaveCount(1);
 	await counts;
 	await input.page.waitForFunction(() => "htmx" in window, undefined, {
 		timeout: SAMPLE_TIMEOUT_MS,
@@ -264,21 +264,21 @@ async function gate(input: {
 }
 
 async function collectFirsts(browser: Browser): Promise<{
-	queueSwitch: ScreenResponseSample[];
+	readlistSwitch: ScreenResponseSample[];
 	tabSwitch: ScreenResponseSample[];
 }> {
 	const perContext = budgets.meta.samples.freshContexts;
-	const queueSwitch: ScreenResponseSample[] = [];
+	const readlistSwitch: ScreenResponseSample[] = [];
 	const tabSwitch: ScreenResponseSample[] = [];
 	for (let index = 0; index < perContext.warmups + perContext.measured; index += 1) {
 		const context = await newPerfContext(browser);
 		try {
 			const page = await context.newPage();
-			await openListing({ page, url: queueUrl({ baseURL: BASE_URL, queue: dataset.alphaSlug }) });
-			queueSwitch.push(
+			await openListing({ page, url: readlistUrl({ baseURL: BASE_URL, readlist: dataset.alphaSlug }) });
+			readlistSwitch.push(
 				await measureListing({
 					page,
-					op: queueSwitchOp({ id: "queue-switch-first", slug: dataset.bravoSlug }),
+					op: readlistSwitchOp({ id: "readlist-switch-first", slug: dataset.bravoSlug }),
 				}),
 			);
 			tabSwitch.push(
@@ -291,23 +291,23 @@ async function collectFirsts(browser: Browser): Promise<{
 			await context.close();
 		}
 	}
-	return { queueSwitch, tabSwitch };
+	return { readlistSwitch, tabSwitch };
 }
 
-async function collectQueueSwitchSubsequent(browser: Browser): Promise<ScreenResponseSample[]> {
+async function collectReadlistSwitchSubsequent(browser: Browser): Promise<ScreenResponseSample[]> {
 	const counts = budgets.meta.samples.longLivedContext;
 	const context = await newPerfContext(browser);
 	try {
 		const page = await context.newPage();
-		await openListing({ page, url: queueUrl({ baseURL: BASE_URL, queue: dataset.alphaSlug }) });
+		await openListing({ page, url: readlistUrl({ baseURL: BASE_URL, readlist: dataset.alphaSlug }) });
 		const samples: ScreenResponseSample[] = [];
 		for (let index = 0; index < counts.warmups + counts.measured; index += 1) {
 			const slug = index % 2 === 0 ? dataset.bravoSlug : dataset.alphaSlug;
-			await expect(page.locator(queueNavLink(slug))).toHaveCount(1);
+			await expect(page.locator(readlistNavLink(slug))).toHaveCount(1);
 			samples.push(
 				await measureListing({
 					page,
-					op: queueSwitchOp({ id: "queue-switch-subsequent", slug }),
+					op: readlistSwitchOp({ id: "readlist-switch-subsequent", slug }),
 				}),
 			);
 		}
@@ -322,7 +322,7 @@ async function collectTabSwitchSubsequent(browser: Browser): Promise<ScreenRespo
 	const context = await newPerfContext(browser);
 	try {
 		const page = await context.newPage();
-		await openListing({ page, url: queueUrl({ baseURL: BASE_URL, queue: dataset.alphaSlug }) });
+		await openListing({ page, url: readlistUrl({ baseURL: BASE_URL, readlist: dataset.alphaSlug }) });
 		const samples: ScreenResponseSample[] = [];
 		for (let index = 0; index < counts.warmups + counts.measured; index += 1) {
 			samples.push(
@@ -352,11 +352,11 @@ async function collectAssign(browser: Browser): Promise<ScreenResponseSample[]> 
 		await assertNoRepeatingPollers({ page, where: "the reader the assign is measured on" });
 		const samples: ScreenResponseSample[] = [];
 		for (let index = 0; index < counts.warmups + counts.measured; index += 1) {
-			await page.locator(QUEUES_TRIGGER).click();
+			await page.locator(READLISTS_TRIGGER).click();
 			await expect(page.locator(assignButton(dataset.assignSlug))).toBeVisible();
 			samples.push(await measure({ page, op: assignOp({ slug: dataset.assignSlug }) }));
 			await page.locator(unassignButton(dataset.assignSlug)).click();
-			await expect(page.locator(queueTag(dataset.assignSlug))).toHaveCount(0);
+			await expect(page.locator(readlistTag(dataset.assignSlug))).toHaveCount(0);
 		}
 		return samples;
 	} finally {
@@ -381,7 +381,7 @@ async function collectOpenAndBack(browser: Browser): Promise<{
 				await measure({ page, op: openArticleOp({ articleId: dataset.openArticleId }) }),
 			);
 			await assertNoRepeatingPollers({ page, where: "the reader the open landed on" });
-			backs.push(await measureListing({ page, op: backToQueueOp() }));
+			backs.push(await measureListing({ page, op: backToReadlistOp() }));
 		}
 		return { opens, backs };
 	} finally {
@@ -419,18 +419,18 @@ test.describe.serial("screen response against the deployed staging stack", () =>
 		}
 	});
 
-	test("queue-switch-first and tab-switch-first, one sample per fresh browser context", async ({
+	test("readlist-switch-first and tab-switch-first, one sample per fresh browser context", async ({
 		browser,
 	}) => {
 		test.setTimeout(OP_TIMEOUT_MS);
 		const warmups = budgets.meta.samples.freshContexts.warmups;
 		const firsts = await collectFirsts(browser);
 		await gate({
-			opId: "queue-switch-first",
+			opId: "readlist-switch-first",
 			navigation: "same-document",
 			warmups,
-			samples: firsts.queueSwitch,
-			recollect: async () => (await collectFirsts(browser)).queueSwitch,
+			samples: firsts.readlistSwitch,
+			recollect: async () => (await collectFirsts(browser)).readlistSwitch,
 		});
 		await gate({
 			opId: "tab-switch-first",
@@ -441,16 +441,16 @@ test.describe.serial("screen response against the deployed staging stack", () =>
 		});
 	});
 
-	test("queue-switch-subsequent, bouncing between two seeded queues in one context", async ({
+	test("readlist-switch-subsequent, bouncing between two seeded readlists in one context", async ({
 		browser,
 	}) => {
 		test.setTimeout(OP_TIMEOUT_MS);
 		await gate({
-			opId: "queue-switch-subsequent",
+			opId: "readlist-switch-subsequent",
 			navigation: "same-document",
 			warmups: budgets.meta.samples.longLivedContext.warmups,
-			samples: await collectQueueSwitchSubsequent(browser),
-			recollect: () => collectQueueSwitchSubsequent(browser),
+			samples: await collectReadlistSwitchSubsequent(browser),
+			recollect: () => collectReadlistSwitchSubsequent(browser),
 		});
 	});
 
@@ -467,12 +467,12 @@ test.describe.serial("screen response against the deployed staging stack", () =>
 		});
 	});
 
-	test("assign-to-queue from the reader, reset through the tag's own unassign", async ({
+	test("assign-to-readlist from the reader, reset through the tag's own unassign", async ({
 		browser,
 	}) => {
 		test.setTimeout(OP_TIMEOUT_MS);
 		await gate({
-			opId: "assign-to-queue",
+			opId: "assign-to-readlist",
 			navigation: "same-document",
 			warmups: budgets.meta.samples.longLivedContext.warmups,
 			samples: await collectAssign(browser),
@@ -480,7 +480,7 @@ test.describe.serial("screen response against the deployed staging stack", () =>
 		});
 	});
 
-	test("open-article and back-to-queue, measured as one paired loop", async ({ browser }) => {
+	test("open-article and back-to-readlist, measured as one paired loop", async ({ browser }) => {
 		test.setTimeout(OP_TIMEOUT_MS);
 		const warmups = budgets.meta.samples.longLivedContext.warmups;
 		const paired = await collectOpenAndBack(browser);
@@ -492,7 +492,7 @@ test.describe.serial("screen response against the deployed staging stack", () =>
 			recollect: async () => (await collectOpenAndBack(browser)).opens,
 		});
 		await gate({
-			opId: "back-to-queue",
+			opId: "back-to-readlist",
 			navigation: "new-document",
 			warmups,
 			samples: paired.backs,

@@ -102,17 +102,17 @@ export function createSaveLinkActions(config: {
 		async execute(driver: WebDriver): Promise<void> {
 			await driver.executeScript(INSTALL_REVEAL_PROBE);
 
-			const queueButton = await driver.findElement(
-				By.css(CSS_SELECTORS.savedViewQueueButton),
+			const readlistButton = await driver.findElement(
+				By.css(CSS_SELECTORS.savedViewReadlistButton),
 			);
-			await queueButton.click();
+			await readlistButton.click();
 
 			await captureTransitionFrames({ driver, flow: config.transitionFlow });
 
 			const revealed = await waitForUi(
 				driver,
 				() => readRevealSnapshot(driver),
-				"the saved view's queue control never revealed the list view",
+				"the saved view's readlist control never revealed the list view",
 			);
 			assert.ok(revealed, "the reveal probe resolved without a snapshot");
 			assert.ok(
@@ -157,7 +157,7 @@ export function createSaveLinkActions(config: {
 		},
 	});
 
-	/** Saves a second non-"pagination" URL so the queue ends up with 12 items
+	/** Saves a second non-"pagination" URL so the readlist ends up with 12 items
 	 * total but only 10 match the filter — keeps the pagination assertion
 	 * (page 2 = 2 items) and the filter-with-match assertion (filter hides
 	 * pagination because ≤10 matches) consistent. */

@@ -17,7 +17,7 @@ export const TRANSITIONING_VIEW = "transitioning";
 export const ELEMENT_IDS = {
 	loginButton: "login-button",
 	loginError: "login-error",
-	viewQueueButton: "view-queue-button",
+	viewReadlistButton: "view-readlist-button",
 	logoutButton: "logout-button",
 	filterInput: "filter-input",
 	linkList: "link-list",
@@ -37,7 +37,7 @@ export const CSS_SELECTORS = {
 	 * button on /login and silently navigated the page away). */
 	submitButton: '[data-test-form="login"] button[type="submit"]',
 	approveButton: 'button[value="approve"]',
-	savedViewQueueButton: "#saved-affordances button",
+	savedViewReadlistButton: "#saved-affordances button",
 	listItem: "#link-list .list-view__item",
 	listItemTitle: "#link-list .list-view__item-title",
 	deleteButton: "#link-list .list-view__delete",

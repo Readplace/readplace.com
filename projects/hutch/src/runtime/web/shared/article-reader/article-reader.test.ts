@@ -589,7 +589,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -613,7 +613,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -637,7 +637,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -663,7 +663,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -691,7 +691,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: "/queue/abc/summary-toggle",
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -716,7 +716,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -742,7 +742,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -765,7 +765,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -793,7 +793,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -819,7 +819,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -843,7 +843,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -867,7 +867,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -891,7 +891,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -913,7 +913,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -945,7 +945,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -981,7 +981,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1010,7 +1010,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1036,7 +1036,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1066,7 +1066,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1092,7 +1092,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1131,7 +1131,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1165,7 +1165,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1200,7 +1200,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1227,7 +1227,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1258,7 +1258,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1285,7 +1285,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1312,7 +1312,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1345,7 +1345,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1378,7 +1378,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1402,7 +1402,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1427,7 +1427,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1451,7 +1451,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
-				queueTags: undefined,
+				readlistTags: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");

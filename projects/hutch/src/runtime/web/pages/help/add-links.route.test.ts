@@ -226,7 +226,7 @@ describe("GET /help/add-links", () => {
 		]);
 	});
 
-	it("renders a Back to queue deep link when hosted in the app web sheet", async () => {
+	it("renders a Back to readlist deep link when hosted in the app web sheet", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(server).get("/help/add-links?shell=app");
@@ -235,7 +235,7 @@ describe("GET /help/add-links", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const back = doc.querySelector("[data-test-help-back-link]");
 		expect(back?.getAttribute("href")).toBe("readplace://reader/close");
-		expect(back?.textContent?.trim()).toBe("Back to queue");
+		expect(back?.textContent?.trim()).toBe("Back to readlist");
 		// The chromeless variant hard-codes the home-indicator pad the app sheet needs.
 		expect(doc.querySelector("main")?.className).toBe("help help--app");
 	});

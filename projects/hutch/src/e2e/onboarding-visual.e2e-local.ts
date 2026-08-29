@@ -24,14 +24,14 @@ const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
 const DESKTOP = { width: 1280, height: 900 };
 
-const ONBOARDING_CARD = "main.queue .onboarding";
-const STEPS_LIST = "main.queue .onboarding__steps";
-const ANY_STEP = "main.queue [data-test-onboarding-step]";
-const COMPLETED_STEP = 'main.queue [data-test-onboarding-step="install-extension"]';
+const ONBOARDING_CARD = "main.readlist .onboarding";
+const STEPS_LIST = "main.readlist .onboarding__steps";
+const ANY_STEP = "main.readlist [data-test-onboarding-step]";
+const COMPLETED_STEP = 'main.readlist [data-test-onboarding-step="install-extension"]';
 const OUTSTANDING_STEP =
-	'main.queue [data-test-onboarding-step="save-first-article-via-extension"]';
-const SUCCESS_TITLE = "main.queue .onboarding__success-title";
-const SUCCESS_MESSAGE = "main.queue .onboarding__success-message";
+	'main.readlist [data-test-onboarding-step="save-first-article-via-extension"]';
+const SUCCESS_TITLE = "main.readlist .onboarding__success-title";
+const SUCCESS_MESSAGE = "main.readlist .onboarding__success-message";
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
@@ -70,10 +70,10 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
-async function reloadQueueWithOnboardingCookies(
+async function reloadReadlistWithOnboardingCookies(
 	page: Page,
 	cookies: readonly { name: string; value: string }[],
 ): Promise<void> {
@@ -85,12 +85,12 @@ async function reloadQueueWithOnboardingCookies(
 		})),
 	);
 	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
 async function checklistSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
-	await waitForImagePixels(page, "main.queue .onboarding__avatar");
+	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
 	await expect(page.locator(OUTSTANDING_STEP)).toBeVisible();
 }
 
@@ -120,7 +120,7 @@ async function completedRowTakesNoSpace(page: Page): Promise<void> {
 
 async function successSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
-	await waitForImagePixels(page, "main.queue .onboarding__avatar");
+	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
 	await expect(page.locator(SUCCESS_TITLE)).toBeVisible();
 }
 
@@ -161,7 +161,7 @@ test.describe("Onboarding card", () => {
 		const email = `onboarding-step-hidden-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUser(page, email);
 		await loginAs(page, email);
-		await reloadQueueWithOnboardingCookies(page, [
+		await reloadReadlistWithOnboardingCookies(page, [
 			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
 		]);
 
@@ -173,10 +173,10 @@ test.describe("Onboarding card", () => {
 		const userId = await createVerifiedUser(page, email);
 		// Logging in first renders the checklist with the milestone still to go,
 		// which is the sighting that makes finishing it worth congratulating; a
-		// queue seeded deep enough before that would earn no card at all.
+		// readlist seeded deep enough before that would earn no card at all.
 		await loginAs(page, email);
 		await seedSavesReachingMilestone(page, userId);
-		await reloadQueueWithOnboardingCookies(page, [
+		await reloadReadlistWithOnboardingCookies(page, [
 			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
 			{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },
 			{ name: DISMISS_COOKIE_NAME, value: "stale-version" },

@@ -36,7 +36,7 @@ Readplace's TL;DR curates nothing. You already saved the article, so the choice 
 
 The summary answers a narrower question: when is the right moment to read this?
 
-Picture your queue on a Tuesday morning. You have 15 minutes before a meeting and 30 saved articles, and the TL;DR is what tells you which ones are a quick scan and which ones want a full hour. It sorts your own list by effort, and it leaves the list itself in your hands rather than an algorithm's.
+Picture your readlist on a Tuesday morning. You have 15 minutes before a meeting and 30 saved articles, and the TL;DR is what tells you which ones are a quick scan and which ones want a full hour. It sorts your own list by effort, and it leaves the list itself in your hands rather than an algorithm's.
 
 > **The summary helps you decide when to read an article, not whether you were allowed to save it.**
 

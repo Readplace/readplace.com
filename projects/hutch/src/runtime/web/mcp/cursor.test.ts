@@ -1,6 +1,6 @@
-import { decodeQueueCursor, encodeQueueCursor } from "./cursor";
+import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
 
-describe("queue cursor codec", () => {
+describe("readlist cursor codec", () => {
 	it("round-trips a full cursor", () => {
 		const cursor = {
 			page: 3,
@@ -9,23 +9,23 @@ describe("queue cursor codec", () => {
 			sort: "readAt" as const,
 			order: "asc" as const,
 		};
-		expect(decodeQueueCursor(encodeQueueCursor(cursor))).toEqual(cursor);
+		expect(decodeReadlistCursor(encodeReadlistCursor(cursor))).toEqual(cursor);
 	});
 
 	it("round-trips a minimal cursor with no filters", () => {
 		const cursor = { page: 2, pageSize: 20 };
-		expect(decodeQueueCursor(encodeQueueCursor(cursor))).toEqual(cursor);
+		expect(decodeReadlistCursor(encodeReadlistCursor(cursor))).toEqual(cursor);
 	});
 
 	it("returns null for a token that is not base64url-encoded JSON", () => {
-		expect(decodeQueueCursor("!!!not base64!!!")).toBeNull();
+		expect(decodeReadlistCursor("!!!not base64!!!")).toBeNull();
 	});
 
 	it("returns null for valid JSON of the wrong shape", () => {
 		const token = Buffer.from(JSON.stringify({ page: 0, pageSize: 5 }), "utf8").toString(
 			"base64url",
 		);
-		expect(decodeQueueCursor(token)).toBeNull();
+		expect(decodeReadlistCursor(token)).toBeNull();
 	});
 
 	it("returns null for a pageSize beyond the allowed maximum", () => {
@@ -33,7 +33,7 @@ describe("queue cursor codec", () => {
 			JSON.stringify({ page: 1, pageSize: 9999 }),
 			"utf8",
 		).toString("base64url");
-		expect(decodeQueueCursor(token)).toBeNull();
+		expect(decodeReadlistCursor(token)).toBeNull();
 	});
 
 	it("returns null for a cursor that sorts by read date without a read status", () => {
@@ -41,6 +41,6 @@ describe("queue cursor codec", () => {
 			JSON.stringify({ page: 1, pageSize: 10, status: "unread", sort: "readAt" }),
 			"utf8",
 		).toString("base64url");
-		expect(decodeQueueCursor(token)).toBeNull();
+		expect(decodeReadlistCursor(token)).toBeNull();
 	});
 });

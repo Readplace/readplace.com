@@ -16,7 +16,7 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
-import { initSaveArticleAtQueueTop, initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
+import { initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -131,12 +131,12 @@ export function initSubmitLinkCommandHandler(deps: {
 						deps.publishEvent(QueueEntryCreatedEvent, params),
 				});
 
-				const saveArticleAtQueueTop = initSaveArticleAtQueueTop({
+				const saveArticleAtReadlistTop = initSaveArticleAtReadlistTop({
 					allocateSavedAt: deps.allocateSavedAt,
 					saveArticleFromUrl,
 				});
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				await saveArticleAtQueueTop({ userId, url: validation.url, freshness, provenance });
+				await saveArticleAtReadlistTop({ userId, url: validation.url, freshness, provenance });
 
 				for (const link of enrichment) {
 					try {

@@ -3,11 +3,11 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
 import {
-	DEFAULT_QUEUE_SLUG,
-	QUEUE_MAX_PER_USER,
-	QueueLimitReachedError,
-	QueueSlugSchema,
-} from "@packages/domain/queue";
+	DEFAULT_READLIST_SLUG,
+	READLIST_MAX_PER_USER,
+	ReadlistLimitReachedError,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { SaveArticleParams } from "./article-store.types";
 import { initInMemoryArticleStore } from "./in-memory-article-store";
@@ -15,8 +15,8 @@ import { initInMemoryArticleStore } from "./in-memory-article-store";
 const USER_A = "user-a" as UserId;
 const USER_B = "user-b" as UserId;
 const URL = "https://example.com/article";
-const WORK = QueueSlugSchema.parse("work");
-const LATER = QueueSlugSchema.parse("later");
+const WORK = ReadlistSlugSchema.parse("work");
+const LATER = ReadlistSlugSchema.parse("later");
 
 function makeArticleParams(
 	overrides?: Partial<SaveArticleParams>,
@@ -440,7 +440,7 @@ describe("initInMemoryArticleStore", () => {
 			expect(second.createdUserArticle).toBe(false);
 		});
 
-		it("should report a queue entry as created for each user saving an already-known URL", async () => {
+		it("should report a readlist entry as created for each user saving an already-known URL", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			const other = await store.saveArticle(makeArticleParams({ userId: USER_B }));
@@ -448,7 +448,7 @@ describe("initInMemoryArticleStore", () => {
 			expect(other.createdUserArticle).toBe(true);
 		});
 
-		it("should bump savedAt to top on re-save so the article moves to the head of the queue", async () => {
+		it("should bump savedAt to top on re-save so the article moves to the head of the readlist", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved: first } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
@@ -1044,26 +1044,26 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
-	describe("multiple queues", () => {
-		it("keeps the same URL as an independent copy in each queue the reader saved it into", async () => {
+	describe("multiple readlists", () => {
+		it("keeps the same URL as an independent copy in each readlist the reader saved it into", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
-			await store.deleteQueueArticle({ id: saved.id, userId: USER_A, queue: WORK });
+			await store.deleteReadlistArticle({ id: saved.id, userId: USER_A, readlist: WORK });
 
 			expect(await store.findArticleById(saved.id, USER_A)).not.toBeNull();
 			expect(
-				await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK }),
+				await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK }),
 			).toBeNull();
 		});
 
-		it("marks a status change in every queue the reader holds the article in", async () => {
+		it("marks a status change in every readlist the reader holds the article in", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
-			const updated = await store.updateArticleStatusAcrossQueues({
+			const updated = await store.updateArticleStatusAcrossReadlists({
 				id: saved.id,
 				userId: USER_A,
 				addressed: WORK,
@@ -1073,71 +1073,71 @@ describe("initInMemoryArticleStore", () => {
 			expect(updated?.status).toBe("read");
 			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("read");
 			expect(
-				(await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK }))?.status,
+				(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK }))?.status,
 			).toBe("read");
 		});
 
-		it("reverses the status in every queue when the reader marks it unread again", async () => {
+		it("reverses the status in every readlist when the reader marks it unread again", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
-			await store.updateArticleStatusAcrossQueues({
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			await store.updateArticleStatusAcrossReadlists({
 				id: saved.id,
 				userId: USER_A,
-				addressed: DEFAULT_QUEUE_SLUG,
+				addressed: DEFAULT_READLIST_SLUG,
 				status: "read",
 			});
 
-			await store.updateArticleStatusAcrossQueues({
+			await store.updateArticleStatusAcrossReadlists({
 				id: saved.id,
 				userId: USER_A,
-				addressed: DEFAULT_QUEUE_SLUG,
+				addressed: DEFAULT_READLIST_SLUG,
 				status: "unread",
 			});
 
 			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("unread");
 			expect(
-				(await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK }))?.status,
+				(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK }))?.status,
 			).toBe("unread");
 		});
 
 		it("reports every URL's memberships from one batched membership read", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			const saves = await store.listUserSavesForUrls({
 				userId: USER_A,
 				urls: [URL, "https://example.com/never-saved"],
 			});
 
-			expect(saves.get(URL)).toEqual([{}, { queue: WORK }]);
+			expect(saves.get(URL)).toEqual([{}, { readlist: WORK }]);
 			expect(saves.get("https://example.com/never-saved")).toEqual([]);
 		});
 
-		it("deletes only the copy in the queue the reader deleted it from", async () => {
+		it("deletes only the copy in the readlist the reader deleted it from", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			expect(
-				await store.deleteQueueArticle({ id: saved.id, userId: USER_A, queue: WORK }),
+				await store.deleteReadlistArticle({ id: saved.id, userId: USER_A, readlist: WORK }),
 			).toBe(true);
 			expect(
-				await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK }),
+				await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK }),
 			).toBeNull();
 			expect(await store.findArticleById(saved.id, USER_A)).not.toBeNull();
 		});
 
-		it("answers false when the queue never held the article", async () => {
+		it("answers false when the readlist never held the article", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
 
 			expect(
-				await store.deleteQueueArticle({ id: saved.id, userId: USER_A, queue: WORK }),
+				await store.deleteReadlistArticle({ id: saved.id, userId: USER_A, readlist: WORK }),
 			).toBe(false);
 			expect(
-				await store.updateArticleStatusAcrossQueues({
+				await store.updateArticleStatusAcrossReadlists({
 					id: saved.id,
 					userId: USER_A,
 					addressed: WORK,
@@ -1147,69 +1147,69 @@ describe("initInMemoryArticleStore", () => {
 			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("unread");
 		});
 
-		it("keeps queue copies out of the default listing and counts", async () => {
+		it("keeps readlist copies out of the default listing and counts", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			const listing = await store.findArticlesByUser({ userId: USER_A });
 			expect(listing.articles).toEqual([]);
 			expect(await store.countArticlesByUser({ userId: USER_A })).toBe(0);
-			expect(await store.countQueueArticles({ userId: USER_A, queue: WORK })).toBe(1);
+			expect(await store.countReadlistArticles({ userId: USER_A, readlist: WORK })).toBe(1);
 		});
 
-		it("lists only the addressed queue's copies", async () => {
+		it("lists only the addressed readlist's copies", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({
+			await store.saveReadlistArticle({
 				...makeArticleParams({ url: "https://example.com/second" }),
-				queue: WORK,
+				readlist: WORK,
 			});
 
-			const work = await store.findQueueArticles({ userId: USER_A, queue: WORK });
+			const work = await store.findReadlistArticles({ userId: USER_A, readlist: WORK });
 			expect(work.articles.map((a) => a.url)).toEqual(["https://example.com/second"]);
 		});
 
-		it("reports every queue holding a URL so a delete can tell the last copy from one of many", async () => {
+		it("reports every readlist holding a URL so a delete can tell the last copy from one of many", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			expect(
 				await store.listUserSavesForUrl({
 					userId: USER_A,
 					url: "https://example.com/article",
 				}),
-			).toEqual([{}, { queue: "work" }]);
+			).toEqual([{}, { readlist: "work" }]);
 		});
 
-		it("assigns the default copy into a queue keeping its read state", async () => {
+		it("assigns the default copy into a readlist keeping its read state", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.updateArticleStatus(saved.id, USER_A, "read");
 
-			const result = await store.assignSavedArticleToQueue({
+			const result = await store.assignSavedArticleToReadlist({
 				userId: USER_A,
-				queue: WORK,
+				readlist: WORK,
 				url: "https://example.com/article",
 				savedAt: new Date("2026-08-24T10:00:00.000Z"),
 			});
 
 			expect(result).toEqual({ assigned: true });
-			const copy = await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK });
-			assert(copy, "the queue must hold the assigned copy");
+			const copy = await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK });
+			assert(copy, "the readlist must hold the assigned copy");
 			expect(copy.status).toBe("read");
 			expect(copy.savedAt).toEqual(new Date("2026-08-24T10:00:00.000Z"));
 			expect(
 				await store.listUserSavesForUrl({ userId: USER_A, url: "https://example.com/article" }),
-			).toEqual([{}, { queue: "work" }]);
+			).toEqual([{}, { readlist: "work" }]);
 		});
 
-		it("does not assign what the default queue does not hold", async () => {
+		it("does not assign what the default readlist does not hold", async () => {
 			const store = initInMemoryArticleStore();
 
-			const result = await store.assignSavedArticleToQueue({
+			const result = await store.assignSavedArticleToReadlist({
 				userId: USER_A,
-				queue: WORK,
+				readlist: WORK,
 				url: "https://example.com/article",
 				savedAt: new Date("2026-08-24T10:00:00.000Z"),
 			});
@@ -1217,44 +1217,44 @@ describe("initInMemoryArticleStore", () => {
 			expect(result).toEqual({ assigned: false });
 		});
 
-		it("keeps the first copy when the same queue is assigned twice", async () => {
+		it("keeps the first copy when the same readlist is assigned twice", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
-			await store.assignSavedArticleToQueue({
+			await store.assignSavedArticleToReadlist({
 				userId: USER_A,
-				queue: WORK,
+				readlist: WORK,
 				url: "https://example.com/article",
 				savedAt: new Date("2026-08-24T10:00:00.000Z"),
 			});
 
-			const again = await store.assignSavedArticleToQueue({
+			const again = await store.assignSavedArticleToReadlist({
 				userId: USER_A,
-				queue: WORK,
+				readlist: WORK,
 				url: "https://example.com/article",
 				savedAt: new Date("2026-08-24T11:00:00.000Z"),
 			});
 
 			expect(again).toEqual({ assigned: false });
-			const copy = await store.findQueueArticleById({ id: saved.id, userId: USER_A, queue: WORK });
-			assert(copy, "the queue must hold the assigned copy");
+			const copy = await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK });
+			assert(copy, "the readlist must hold the assigned copy");
 			expect(copy.savedAt).toEqual(new Date("2026-08-24T10:00:00.000Z"));
 		});
 
-		it("stamps viewedAt on the addressed queue's copy only", async () => {
+		it("stamps viewedAt on the addressed readlist's copy only", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			const at = new Date("2026-08-19T10:00:00.000Z");
 
-			await store.markQueueArticleViewed({
+			await store.markReadlistArticleViewed({
 				userId: USER_A,
-				queue: WORK,
+				readlist: WORK,
 				url: "https://example.com/article",
 				at,
 			});
-			await store.markQueueArticleViewed({
+			await store.markReadlistArticleViewed({
 				userId: USER_A,
-				queue: LATER,
+				readlist: LATER,
 				url: "https://example.com/article",
 				at,
 			});
@@ -1265,36 +1265,36 @@ describe("initInMemoryArticleStore", () => {
 			assert.ok(saved.id);
 		});
 
-		it("keeps a queue copy out of the reader-ready fan-out", async () => {
+		it("keeps a readlist copy out of the reader-ready fan-out", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			expect(await store.findUserArticlesByUrl("https://example.com/article")).toEqual([]);
 		});
 
-		it("covers a queue-only URL when listing everything the reader saved", async () => {
+		it("covers a readlist-only URL when listing everything the reader saved", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			expect(await store.listUserArticleUrls(USER_A)).toEqual([
 				"https://example.com/article",
 			]);
 		});
 
-		it("reports a URL held in two queues once", async () => {
+		it("reports a URL held in two readlists once", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			expect(await store.listUserArticleUrls(USER_A)).toEqual([
 				"https://example.com/article",
 			]);
 		});
 
-		it("drops every queue copy and definition when the account is deleted", async () => {
+		it("drops every readlist copy and definition when the account is deleted", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
-			await store.createQueueDefinition({
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			await store.createReadlistDefinition({
 				userId: USER_A,
 				slug: WORK,
 				label: "Work Reading",
@@ -1303,176 +1303,176 @@ describe("initInMemoryArticleStore", () => {
 
 			await store.deleteAllUserArticles(USER_A);
 
-			expect(await store.findQueueArticles({ userId: USER_A, queue: WORK })).toMatchObject({
+			expect(await store.findReadlistArticles({ userId: USER_A, readlist: WORK })).toMatchObject({
 				articles: [],
 			});
-			expect(await store.listQueueDefinitions(USER_A)).toEqual([]);
+			expect(await store.listReadlistDefinitions(USER_A)).toEqual([]);
 		});
 	});
 
-	describe("moveQueueArticles", () => {
-		it("hands every copy to the destination carrying the read state it had in the queue it left", async () => {
+	describe("moveReadlistArticles", () => {
+		it("hands every copy to the destination carrying the read state it had in the readlist it left", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
-			await store.setQueueArticleStatus({
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			await store.setReadlistArticleStatus({
 				id: saved.id,
 				userId: USER_A,
-				queue: WORK,
+				readlist: WORK,
 				status: "read",
 			});
 
-			expect(await store.moveQueueArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
+			expect(await store.moveReadlistArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
 				moved: 1,
 			});
-			const inLater = await store.findQueueArticleById({
+			const inLater = await store.findReadlistArticleById({
 				id: saved.id,
 				userId: USER_A,
-				queue: LATER,
+				readlist: LATER,
 			});
 			expect(inLater?.status).toBe("read");
-			expect(await store.countQueueArticles({ userId: USER_A, queue: WORK })).toBe(0);
+			expect(await store.countReadlistArticles({ userId: USER_A, readlist: WORK })).toBe(0);
 			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("unread");
 		});
 
 		it("drains the source even for a copy the destination already holds, and does not count it", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: LATER });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: LATER });
 
-			expect(await store.moveQueueArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
+			expect(await store.moveReadlistArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
 				moved: 0,
 			});
-			expect(await store.countQueueArticles({ userId: USER_A, queue: WORK })).toBe(0);
-			expect(await store.countQueueArticles({ userId: USER_A, queue: LATER })).toBe(1);
+			expect(await store.countReadlistArticles({ userId: USER_A, readlist: WORK })).toBe(0);
+			expect(await store.countReadlistArticles({ userId: USER_A, readlist: LATER })).toBe(1);
 		});
 
-		it("leaves another reader's queue of the same name alone", async () => {
+		it("leaves another reader's readlist of the same name alone", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveQueueArticle({ ...makeArticleParams(), queue: WORK });
-			await store.saveQueueArticle({ ...makeArticleParams({ userId: USER_B }), queue: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			await store.saveReadlistArticle({ ...makeArticleParams({ userId: USER_B }), readlist: WORK });
 
-			expect(await store.moveQueueArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
+			expect(await store.moveReadlistArticles({ userId: USER_A, from: WORK, to: LATER })).toEqual({
 				moved: 1,
 			});
-			expect(await store.countQueueArticles({ userId: USER_B, queue: WORK })).toBe(1);
+			expect(await store.countReadlistArticles({ userId: USER_B, readlist: WORK })).toBe(1);
 		});
 	});
 
-	describe("queue definitions", () => {
-		it("lists a reader's own queues oldest first", async () => {
+	describe("readlist definitions", () => {
+		it("lists a reader's own readlists oldest first", async () => {
 			const store = initInMemoryArticleStore();
-			await store.createQueueDefinition({
+			await store.createReadlistDefinition({
 				userId: USER_A,
 				slug: LATER,
 				label: "Later",
 				createdAt: new Date("2026-08-19T11:00:00.000Z"),
 			});
-			await store.createQueueDefinition({
+			await store.createReadlistDefinition({
 				userId: USER_A,
 				slug: WORK,
 				label: "Work Reading",
 				createdAt: new Date("2026-08-19T10:00:00.000Z"),
 			});
-			await store.createQueueDefinition({
+			await store.createReadlistDefinition({
 				userId: USER_B,
 				slug: WORK,
 				label: "Someone else",
 				createdAt: new Date("2026-08-19T09:00:00.000Z"),
 			});
 
-			expect((await store.listQueueDefinitions(USER_A)).map((d) => d.slug)).toEqual([
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.slug)).toEqual([
 				"work",
 				"later",
 			]);
 		});
 
-		it("orders queues created in the same instant by slug", async () => {
+		it("orders readlists created in the same instant by slug", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			await store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
-			await store.createQueueDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+			await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
 
-			expect((await store.listQueueDefinitions(USER_A)).map((d) => d.slug)).toEqual([
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.slug)).toEqual([
 				"later",
 				"work",
 			]);
 		});
 
-		it("renames a queue in place, leaving its address and position alone", async () => {
+		it("renames a readlist in place, leaving its address and position alone", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			await store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
-			await store.createQueueDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+			await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
 
 			expect(
-				await store.renameQueueDefinition({ userId: USER_A, slug: WORK, label: "Deep Work" }),
+				await store.renameReadlistDefinition({ userId: USER_A, slug: WORK, label: "Deep Work" }),
 			).toEqual({ renamed: true });
 			expect(
-				(await store.listQueueDefinitions(USER_A)).map((d) => [d.slug, d.label]),
+				(await store.listReadlistDefinitions(USER_A)).map((d) => [d.slug, d.label]),
 			).toEqual([
 				["later", "Later"],
 				["work", "Deep Work"],
 			]);
 		});
 
-		it("reports a queue the reader does not hold as unrenamed", async () => {
+		it("reports a readlist the reader does not hold as unrenamed", async () => {
 			const store = initInMemoryArticleStore();
 
 			expect(
-				await store.renameQueueDefinition({ userId: USER_A, slug: WORK, label: "Deep Work" }),
+				await store.renameReadlistDefinition({ userId: USER_A, slug: WORK, label: "Deep Work" }),
 			).toEqual({ renamed: false });
 		});
 
 		it("drops the definition it deletes and leaves the reader's others", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			await store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
-			await store.createQueueDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+			await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
 
-			expect(await store.deleteQueueDefinition({ userId: USER_A, slug: WORK })).toEqual({
+			expect(await store.deleteReadlistDefinition({ userId: USER_A, slug: WORK })).toEqual({
 				deleted: true,
 			});
-			expect((await store.listQueueDefinitions(USER_A)).map((d) => d.slug)).toEqual(["later"]);
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.slug)).toEqual(["later"]);
 		});
 
-		it("reports a queue the reader does not hold as undeleted", async () => {
+		it("reports a readlist the reader does not hold as undeleted", async () => {
 			const store = initInMemoryArticleStore();
 
-			expect(await store.deleteQueueDefinition({ userId: USER_A, slug: WORK })).toEqual({
+			expect(await store.deleteReadlistDefinition({ userId: USER_A, slug: WORK })).toEqual({
 				deleted: false,
 			});
 		});
 
-		it("never deletes another reader's queue of the same name", async () => {
+		it("never deletes another reader's readlist of the same name", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			await store.createQueueDefinition({ userId: USER_B, slug: WORK, label: "Theirs", createdAt });
+			await store.createReadlistDefinition({ userId: USER_B, slug: WORK, label: "Theirs", createdAt });
 
-			expect(await store.deleteQueueDefinition({ userId: USER_A, slug: WORK })).toEqual({
+			expect(await store.deleteReadlistDefinition({ userId: USER_A, slug: WORK })).toEqual({
 				deleted: false,
 			});
-			expect((await store.listQueueDefinitions(USER_B)).map((d) => d.label)).toEqual(["Theirs"]);
+			expect((await store.listReadlistDefinitions(USER_B)).map((d) => d.label)).toEqual(["Theirs"]);
 		});
 
-		it("never renames another reader's queue of the same name", async () => {
+		it("never renames another reader's readlist of the same name", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			await store.createQueueDefinition({ userId: USER_B, slug: WORK, label: "Theirs", createdAt });
+			await store.createReadlistDefinition({ userId: USER_B, slug: WORK, label: "Theirs", createdAt });
 
 			expect(
-				await store.renameQueueDefinition({ userId: USER_A, slug: WORK, label: "Mine" }),
+				await store.renameReadlistDefinition({ userId: USER_A, slug: WORK, label: "Mine" }),
 			).toEqual({ renamed: false });
-			expect((await store.listQueueDefinitions(USER_B)).map((d) => d.label)).toEqual(["Theirs"]);
+			expect((await store.listReadlistDefinitions(USER_B)).map((d) => d.label)).toEqual(["Theirs"]);
 		});
 
 		it("refuses a slug the reader already holds", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			await store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
 
 			expect(
-				await store.createQueueDefinition({
+				await store.createReadlistDefinition({
 					userId: USER_A,
 					slug: WORK,
 					label: "Work again",
@@ -1484,18 +1484,18 @@ describe("initInMemoryArticleStore", () => {
 		it("raises the limit error at the per-reader cap", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			for (let index = 0; index < QUEUE_MAX_PER_USER; index += 1) {
-				await store.createQueueDefinition({
+			for (let index = 0; index < READLIST_MAX_PER_USER; index += 1) {
+				await store.createReadlistDefinition({
 					userId: USER_A,
-					slug: QueueSlugSchema.parse(`queue${index}`),
-					label: `Queue ${index}`,
+					slug: ReadlistSlugSchema.parse(`readlist${index}`),
+					label: `Readlist ${index}`,
 					createdAt,
 				});
 			}
 
 			await expect(
-				store.createQueueDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt }),
-			).rejects.toThrow(QueueLimitReachedError);
+				store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt }),
+			).rejects.toThrow(ReadlistLimitReachedError);
 		});
 	});
 

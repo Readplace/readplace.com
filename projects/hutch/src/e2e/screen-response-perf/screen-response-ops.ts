@@ -1,11 +1,11 @@
 export const SCREEN_RESPONSE_OP_IDS = [
-	"queue-switch-first",
-	"queue-switch-subsequent",
+	"readlist-switch-first",
+	"readlist-switch-subsequent",
 	"tab-switch-first",
 	"tab-switch-subsequent",
-	"assign-to-queue",
+	"assign-to-readlist",
 	"open-article",
-	"back-to-queue",
+	"back-to-readlist",
 ] as const;
 
 export type ScreenResponseOpId = (typeof SCREEN_RESPONSE_OP_IDS)[number];
@@ -32,23 +32,23 @@ export interface ScreenResponseOp {
 	readonly navigation: NavigationKind;
 }
 
-export const DEFAULT_QUEUE_SLUG = "default";
+export const DEFAULT_READLIST_SLUG = "default";
 
-export const QUEUE_NAV = "nav[data-test-queue-nav]";
-export const QUEUE_FILTERS = "nav[data-test-filters]";
+export const READLIST_NAV = "nav[data-test-readlist-nav]";
+export const READLIST_FILTERS = "nav[data-test-filters]";
 export const ARTICLE_CARD = "[data-test-article]";
-export const EMPTY_QUEUE = "[data-test-empty-queue]";
-export const QUEUE_COUNTS = "[data-test-queue-counts]";
+export const EMPTY_READLIST = "[data-test-empty-readlist]";
+export const READLIST_COUNTS = "[data-test-readlist-counts]";
 export const ARTICLE_HEADER = "#article-header";
 export const READER_SLOT_READY = '[data-test-reader-slot][data-reader-status="ready"]';
 export const READER_CONTENT = "[data-test-reader-content]";
 export const READER_TITLE = "[data-test-reader-title]";
 export const BACK_LINK = "a[data-test-back-link]";
-export const QUEUES_TRIGGER = "summary[data-test-queues-trigger]";
+export const READLISTS_TRIGGER = "summary[data-test-readlists-trigger]";
 export const REPEATING_POLLER = '[hx-trigger*="every"]';
 
-export function queueNavLink(slug: string): string {
-	return `${QUEUE_NAV} a[data-test-queue="${slug}"]`;
+export function readlistNavLink(slug: string): string {
+	return `${READLIST_NAV} a[data-test-readlist="${slug}"]`;
 }
 
 const TAB_TEST_FILTERS = {
@@ -57,7 +57,7 @@ const TAB_TEST_FILTERS = {
 } satisfies Record<TabId, string>;
 
 export function filterLink(tab: TabId): string {
-	return `${QUEUE_FILTERS} a[data-test-filter="${TAB_TEST_FILTERS[tab]}"]`;
+	return `${READLIST_FILTERS} a[data-test-filter="${TAB_TEST_FILTERS[tab]}"]`;
 }
 
 export function articleCard(articleId: string): string {
@@ -73,15 +73,15 @@ export function terminalCard(articleId: string): string {
 }
 
 export function assignButton(slug: string): string {
-	return `button[data-test-assign-queue="${slug}"]`;
+	return `button[data-test-assign-readlist="${slug}"]`;
 }
 
-export function queueTag(slug: string): string {
-	return `${ARTICLE_HEADER} [data-test-queue-tag="${slug}"]`;
+export function readlistTag(slug: string): string {
+	return `${ARTICLE_HEADER} [data-test-readlist-tag="${slug}"]`;
 }
 
 export function unassignButton(slug: string): string {
-	return `${queueTag(slug)} button[data-test-unassign-queue="${slug}"]`;
+	return `${readlistTag(slug)} button[data-test-unassign-readlist="${slug}"]`;
 }
 
 function listingSettled(activeLink: string): ScreenResponsePredicate {
@@ -89,19 +89,19 @@ function listingSettled(activeLink: string): ScreenResponsePredicate {
 		required: [{ selector: `${activeLink}[aria-current="page"]`, laidOut: true }],
 		oneOf: [
 			{ selector: ARTICLE_CARD, laidOut: true },
-			{ selector: EMPTY_QUEUE, laidOut: true },
+			{ selector: EMPTY_READLIST, laidOut: true },
 		],
 	};
 }
 
-export function queueSwitchOp(input: {
-	id: Extract<ScreenResponseOpId, "queue-switch-first" | "queue-switch-subsequent">;
+export function readlistSwitchOp(input: {
+	id: Extract<ScreenResponseOpId, "readlist-switch-first" | "readlist-switch-subsequent">;
 	slug: string;
 }): ScreenResponseOp {
 	return {
 		id: input.id,
-		trigger: queueNavLink(input.slug),
-		predicate: listingSettled(queueNavLink(input.slug)),
+		trigger: readlistNavLink(input.slug),
+		predicate: listingSettled(readlistNavLink(input.slug)),
 		expectedOneOf: ARTICLE_CARD,
 		navigation: "same-document",
 	};
@@ -122,10 +122,10 @@ export function tabSwitchOp(input: {
 
 export function assignOp(input: { slug: string }): ScreenResponseOp {
 	return {
-		id: "assign-to-queue",
+		id: "assign-to-readlist",
 		trigger: assignButton(input.slug),
 		predicate: {
-			required: [{ selector: queueTag(input.slug), laidOut: true }],
+			required: [{ selector: readlistTag(input.slug), laidOut: true }],
 			oneOf: [{ selector: READER_CONTENT, laidOut: true }],
 		},
 		expectedOneOf: READER_CONTENT,
@@ -149,11 +149,11 @@ export function openArticleOp(input: { articleId: string }): ScreenResponseOp {
 	};
 }
 
-export function backToQueueOp(): ScreenResponseOp {
+export function backToReadlistOp(): ScreenResponseOp {
 	return {
-		id: "back-to-queue",
+		id: "back-to-readlist",
 		trigger: BACK_LINK,
-		predicate: listingSettled(queueNavLink(DEFAULT_QUEUE_SLUG)),
+		predicate: listingSettled(readlistNavLink(DEFAULT_READLIST_SLUG)),
 		expectedOneOf: ARTICLE_CARD,
 		navigation: "new-document",
 	};

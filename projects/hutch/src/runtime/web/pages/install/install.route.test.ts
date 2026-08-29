@@ -655,7 +655,7 @@ describe("GET /install", () => {
 		assert(video.getAttribute("aria-label"), "the recording must carry a label");
 
 		expect(figure.querySelector("figcaption")?.textContent).toBe(
-			"Tap Share in any browser, choose Readplace, and the page is in your queue.",
+			"Tap Share in any browser, choose Readplace, and the page is in your readlist.",
 		);
 	});
 

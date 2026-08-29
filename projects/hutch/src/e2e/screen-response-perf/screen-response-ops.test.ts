@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import {
 	ARTICLE_CARD,
-	EMPTY_QUEUE,
+	EMPTY_READLIST,
 	READER_CONTENT,
 	SCREEN_RESPONSE_OP_IDS,
 	assignOp,
-	backToQueueOp,
+	backToReadlistOp,
 	filterLink,
 	openArticleOp,
-	queueNavLink,
-	queueSwitchOp,
+	readlistNavLink,
+	readlistSwitchOp,
 	tabSwitchOp,
 	terminalCard,
 	unassignButton,
@@ -20,34 +20,34 @@ describe("screen response operations", () => {
 		assert.equal(new Set(SCREEN_RESPONSE_OP_IDS).size, SCREEN_RESPONSE_OP_IDS.length);
 	});
 
-	it("switches queues by clicking the nav link of the target slug", () => {
-		const op = queueSwitchOp({ id: "queue-switch-first", slug: "abc123" });
+	it("switches readlists by clicking the nav link of the target slug", () => {
+		const op = readlistSwitchOp({ id: "readlist-switch-first", slug: "abc123" });
 
-		assert.equal(op.trigger, 'nav[data-test-queue-nav] a[data-test-queue="abc123"]');
+		assert.equal(op.trigger, 'nav[data-test-readlist-nav] a[data-test-readlist="abc123"]');
 		assert.equal(op.navigation, "same-document");
 	});
 
-	it("stops the queue-switch clock only once the target link is the current page", () => {
-		const op = queueSwitchOp({ id: "queue-switch-subsequent", slug: "abc123" });
+	it("stops the readlist-switch clock only once the target link is the current page", () => {
+		const op = readlistSwitchOp({ id: "readlist-switch-subsequent", slug: "abc123" });
 
 		assert.deepEqual(
 			op.predicate.required.map((condition) => condition.selector),
-			['nav[data-test-queue-nav] a[data-test-queue="abc123"][aria-current="page"]'],
+			['nav[data-test-readlist-nav] a[data-test-readlist="abc123"][aria-current="page"]'],
 		);
 	});
 
-	it("accepts either real cards or the empty-queue notice, and expects cards", () => {
-		const op = queueSwitchOp({ id: "queue-switch-first", slug: "abc123" });
+	it("accepts either real cards or the empty-readlist notice, and expects cards", () => {
+		const op = readlistSwitchOp({ id: "readlist-switch-first", slug: "abc123" });
 
 		assert.deepEqual(
 			op.predicate.oneOf.map((condition) => condition.selector),
-			[ARTICLE_CARD, EMPTY_QUEUE],
+			[ARTICLE_CARD, EMPTY_READLIST],
 		);
 		assert.equal(op.expectedOneOf, ARTICLE_CARD);
 	});
 
 	it("requires every listing condition to be laid out, not merely present", () => {
-		const op = queueSwitchOp({ id: "queue-switch-first", slug: "abc123" });
+		const op = readlistSwitchOp({ id: "readlist-switch-first", slug: "abc123" });
 
 		assert.deepEqual(
 			[...op.predicate.required, ...op.predicate.oneOf].map((condition) => condition.laidOut),
@@ -55,10 +55,10 @@ describe("screen response operations", () => {
 		);
 	});
 
-	it("distinguishes the two queue slugs a switch bounces between", () => {
+	it("distinguishes the two readlist slugs a switch bounces between", () => {
 		assert.notEqual(
-			queueSwitchOp({ id: "queue-switch-first", slug: "alpha" }).trigger,
-			queueSwitchOp({ id: "queue-switch-first", slug: "bravo" }).trigger,
+			readlistSwitchOp({ id: "readlist-switch-first", slug: "alpha" }).trigger,
+			readlistSwitchOp({ id: "readlist-switch-first", slug: "bravo" }).trigger,
 		);
 	});
 
@@ -80,22 +80,22 @@ describe("screen response operations", () => {
 		);
 	});
 
-	it("stops the assign clock on the queue tag appearing in the article header", () => {
-		const op = assignOp({ slug: "target-queue" });
+	it("stops the assign clock on the readlist tag appearing in the article header", () => {
+		const op = assignOp({ slug: "target-readlist" });
 
-		assert.equal(op.trigger, 'button[data-test-assign-queue="target-queue"]');
+		assert.equal(op.trigger, 'button[data-test-assign-readlist="target-readlist"]');
 		assert.deepEqual(
 			op.predicate.required.map((condition) => condition.selector),
-			['#article-header [data-test-queue-tag="target-queue"]'],
+			['#article-header [data-test-readlist-tag="target-readlist"]'],
 		);
 		assert.equal(op.expectedOneOf, READER_CONTENT);
 	});
 
 	it("resets an assign through the tag's own unassign button", () => {
 		assert.equal(
-			unassignButton("target-queue"),
-			'#article-header [data-test-queue-tag="target-queue"] ' +
-				'button[data-test-unassign-queue="target-queue"]',
+			unassignButton("target-readlist"),
+			'#article-header [data-test-readlist-tag="target-readlist"] ' +
+				'button[data-test-unassign-readlist="target-readlist"]',
 		);
 	});
 
@@ -125,13 +125,13 @@ describe("screen response operations", () => {
 		);
 	});
 
-	it("lands the back link on the default queue, which is where the reader returns", () => {
-		const op = backToQueueOp();
+	it("lands the back link on the default readlist, which is where the reader returns", () => {
+		const op = backToReadlistOp();
 
 		assert.equal(op.trigger, "a[data-test-back-link]");
 		assert.deepEqual(
 			op.predicate.required.map((condition) => condition.selector),
-			[`${queueNavLink("default")}[aria-current="page"]`],
+			[`${readlistNavLink("default")}[aria-current="page"]`],
 		);
 		assert.equal(op.navigation, "new-document");
 	});

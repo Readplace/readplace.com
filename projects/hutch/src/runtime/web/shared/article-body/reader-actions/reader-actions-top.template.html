@@ -6,17 +6,17 @@
   {{else}}
   <div class="article-body__back-slot article-body__back-slot--hidden" data-test-back-slot></div>
   {{/if}}
-  {{#if queuePicker}}
-  <div class="article-body__queues-slot article-body__queues-slot--visible" data-test-queues-slot>
-    <details class="article-body__queues">
-      <summary class="article-body__queues-trigger" data-test-queues-trigger>Add to queue {{icon "chevron-down"}}</summary>
-      <ul class="article-body__queues-menu">
-        {{#each queuePicker.options}}
-        <li class="article-body__queues-item">
-          <form class="article-body__queues-form" method="POST" action="{{../queuePicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+  {{#if readlistPicker}}
+  <div class="article-body__readlists-slot article-body__readlists-slot--visible" data-test-readlists-slot>
+    <details class="article-body__readlists">
+      <summary class="article-body__readlists-trigger" data-test-readlists-trigger>Add to readlist {{icon "chevron-down"}}</summary>
+      <ul class="article-body__readlists-menu">
+        {{#each readlistPicker.options}}
+        <li class="article-body__readlists-item">
+          <form class="article-body__readlists-form" method="POST" action="{{../readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
             <input type="hidden" name="queue" value="{{slug}}">
-            <input type="hidden" name="returnTo" value="{{../queuePicker.returnTo}}">
-            <button class="article-body__queues-option" type="submit" data-test-assign-queue="{{slug}}">{{label}}</button>
+            <input type="hidden" name="returnTo" value="{{../readlistPicker.returnTo}}">
+            <button class="article-body__readlists-option" type="submit" data-test-assign-readlist="{{slug}}">{{label}}</button>
           </form>
         </li>
         {{/each}}
@@ -24,7 +24,7 @@
     </details>
   </div>
   {{else}}
-  <div class="article-body__queues-slot article-body__queues-slot--hidden" data-test-queues-slot></div>
+  <div class="article-body__readlists-slot article-body__readlists-slot--hidden" data-test-readlists-slot></div>
   {{/if}}
   {{#if markRead}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--visible" data-test-mark-read-slot>

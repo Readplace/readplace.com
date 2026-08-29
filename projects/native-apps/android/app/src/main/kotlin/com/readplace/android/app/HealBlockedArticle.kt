@@ -26,7 +26,7 @@ class HealBlockedArticle(
 	suspend fun run(url: String): HealBlockedOutcome {
 		val captured = captor.capture(url)
 		if (captured !is CapturedPage.Html || captured.html.isEmpty()) return HealBlockedOutcome.CAPTURE_WAS_EMPTY
-		val page = api.loadQueue()
+		val page = api.loadReadlist()
 		val action = page.action(named = "save-content") ?: return HealBlockedOutcome.NO_SAVE_CONTENT_ACTION
 		api.saveContent(
 			action,

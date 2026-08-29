@@ -48,7 +48,7 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * End-to-end coverage of the share-save journey: [SaveSharedPage.run] drives the
- * real list → save → queue decision tree through the production API, token and
+ * real list → save → readlist decision tree through the production API, token and
  * upload-queue types, with the page capture faked by [FakeHtmlCaptor] and the
  * network by [RecordingServer].
  */
@@ -121,10 +121,10 @@ class SaveSharedPageTest {
 	private fun TestScope.jobStore(container: File): UploadJobStore =
 		UploadJobStore(filesRoot = container, io = StandardTestDispatcher(testScheduler))
 
-	/** Every save shares the same shape: the queue, and a URL-only save that
+	/** Every save shares the same shape: the readlist, and a URL-only save that
 	 * answers 201. Anything else — including a content upload, which this journey
 	 * never makes — lands in the 404 arm and fails loudly. */
-	private fun serveQueueAndSave(
+	private fun serveReadlistAndSave(
 		messagesJson: String? = null,
 		extra: (RecordingServer.Record) -> Stub? = { null },
 	) {
@@ -205,7 +205,7 @@ class SaveSharedPageTest {
 		val store = loggedInStore(access = "access-1")
 		val captor = FakeHtmlCaptor(page = html(html = "<html><body>hi</body></html>"))
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = captor, container = container)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
@@ -239,11 +239,11 @@ class SaveSharedPageTest {
 	}
 
 	@Test
-	fun `queues the job before it reports the link saved`() = runTest {
+	fun `readlists the job before it reports the link saved`() = runTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html(), renderTakes = 200.milliseconds)
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var statesWhenReported: List<UploadJob.State> = emptyList()
 		val saver = makeSaver(store = store, captor = captor, container = container)
@@ -270,7 +270,7 @@ class SaveSharedPageTest {
 		// which is the moment the save is reported.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var recordedWhenReported = false
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html()), container = container)
@@ -292,7 +292,7 @@ class SaveSharedPageTest {
 	fun `marks the job ready once the capture is staged`() = runTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html()), container = container)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
@@ -310,7 +310,7 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html(), renderTakes = 200.milliseconds)
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var savePostsWhenReported = -1
 		var readyWhenReported = true
@@ -341,7 +341,7 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html(html = "<html>slow</html>", title = "Slow"), renderTakes = 300.milliseconds)
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = captor, container = container, stillSavingAfter = 50.milliseconds)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
@@ -358,7 +358,7 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html(html = "<html>slow</html>", title = "Slow"), renderTakes = 300.milliseconds)
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var stillSaving = 0
 		val saver = makeSaver(store = store, captor = captor, container = container, stillSavingAfter = 50.milliseconds)
@@ -378,7 +378,7 @@ class SaveSharedPageTest {
 	fun `says nothing about still saving when the journey settles first`() = runTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var stillSaving = 0
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html()), container = container, stillSavingAfter = 30.seconds)
@@ -409,7 +409,7 @@ class SaveSharedPageTest {
 				{ "type": "success", "content": { "type": "application/pdf", "body": "%PDF-" } }
 			""",
 		)
-		serveQueueAndSave(extra = { record ->
+		serveReadlistAndSave(extra = { record ->
 			if (record.path == "/queue" && record.method == "POST") Stub.json(201, savedBody) else null
 		})
 
@@ -440,7 +440,7 @@ class SaveSharedPageTest {
 		val captor = FakeHtmlCaptor(page = html(html = "<html>never used</html>", title = "never used"))
 		val container = temporaryFolder.newFolder("files")
 		val pdfBytes = "%PDF-1.7\nshared pdf body".toByteArray(Charsets.UTF_8)
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = captor, container = container)
 		val outcome = saver.run(url = "https://example.com/paper.pdf", fallbackTitle = "Paper", sharedPdf = { pdfBytes })
@@ -463,7 +463,7 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		val pdfBytes = "%PDF-1.7\nunnamed".toByteArray(Charsets.UTF_8)
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.Empty), container = container)
 		val outcome = saver.run(url = "https://example.com/paper.pdf", fallbackTitle = "", sharedPdf = { pdfBytes })
@@ -480,7 +480,7 @@ class SaveSharedPageTest {
 		// not running under the share sheet's memory budget — fetch them.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.PdfDetected), container = container)
 		val outcome = saver.run(url = "https://example.com/paper.pdf", fallbackTitle = "Paper", sharedPdf = null)
@@ -503,7 +503,7 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html(html = "<html><body>hi</body></html>"))
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = captor, container = container)
 		val outcome = saver.run(
@@ -524,7 +524,7 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html())
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = captor, container = container)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = { null })
@@ -539,7 +539,7 @@ class SaveSharedPageTest {
 	fun `uses the shared title when the rendered page has none`() = runTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html(title = null)), container = container)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = "Shared title", sharedPdf = null)
@@ -554,7 +554,7 @@ class SaveSharedPageTest {
 	fun `stages no title when neither the page nor the share carries one`() = runTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html(title = "")), container = container)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
@@ -571,7 +571,7 @@ class SaveSharedPageTest {
 		// stays as it was admitted, for the app to capture on device.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.Empty), container = container)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = "Shared title", sharedPdf = null)
@@ -586,7 +586,7 @@ class SaveSharedPageTest {
 	fun `leaves the job pending when the rendered page is blank`() = runTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html(html = "")), container = container)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
@@ -598,7 +598,7 @@ class SaveSharedPageTest {
 	}
 
 	@Test
-	fun `queues nothing when the server advertises no content action`() = runTest {
+	fun `readlists nothing when the server advertises no content action`() = runTest {
 		// The server offers the URL-only save but no `save-content`. There is
 		// nowhere to send the capture, so nothing is queued for the app.
 		val store = loggedInStore()
@@ -628,11 +628,11 @@ class SaveSharedPageTest {
 	}
 
 	@Test
-	fun `queues nothing without a shared store`() = runTest {
+	fun `readlists nothing without a shared store`() = runTest {
 		// A build whose shared file store cannot be resolved still saves the link;
 		// only the enrichment upload is lost.
 		val store = loggedInStore()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = SaveSharedPage(
 			store = store,
@@ -650,13 +650,13 @@ class SaveSharedPageTest {
 	}
 
 	@Test
-	fun `still reports the link saved when the queue cannot be written`() = runTest {
-		// The link is on the server before the queue is touched; a queue that
+	fun `still reports the link saved when the readlist cannot be written`() = runTest {
+		// The link is on the server before the readlist is touched; a readlist that
 		// cannot admit or stage costs the enrichment upload and nothing else.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		File(container, "upload-queue").writeText("a file where the queue directory should be")
-		serveQueueAndSave()
+		File(container, "upload-queue").writeText("a file where the readlist directory should be")
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html()), container = container)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
@@ -672,8 +672,8 @@ class SaveSharedPageTest {
 	fun `still reports the link saved when the detected pdf cannot be recorded`() = runTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		File(container, "upload-queue").writeText("a file where the queue directory should be")
-		serveQueueAndSave()
+		File(container, "upload-queue").writeText("a file where the readlist directory should be")
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.PdfDetected), container = container)
 		val outcome = saver.run(url = "https://example.com/paper.pdf", fallbackTitle = "Paper", sharedPdf = null)
@@ -687,7 +687,7 @@ class SaveSharedPageTest {
 	fun `refuses when the server refuses the save`() = runTest {
 		// The server refuses the save with a message-only error (e.g. a locked
 		// account). The journey must surface it as Refused so the shell shows the
-		// server's message, and must queue nothing for an article that never landed.
+		// server's message, and must readlist nothing for an article that never landed.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		server.handle { record ->
@@ -799,7 +799,7 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `returns no save action when the server offers no url-only save`() = runTest {
-		// The queue loaded but advertised no `save-article`, so there is no link to
+		// The readlist loaded but advertised no `save-article`, so there is no link to
 		// save and nothing to enrich.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
@@ -825,8 +825,8 @@ class SaveSharedPageTest {
 	}
 
 	@Test
-	fun `fails when the queue response is undecodable`() = runTest {
-		// The queue replied 200 with the negotiated Siren media type but a body
+	fun `fails when the readlist response is undecodable`() = runTest {
+		// The readlist replied 200 with the negotiated Siren media type but a body
 		// that is not a Siren collection (a JSON array), so the journey surfaces
 		// the API's own decode message as Failed — and attempts no save.
 		val store = loggedInStore()
@@ -853,7 +853,7 @@ class SaveSharedPageTest {
 		// something the user can act on, rather than showing an empty card.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html()), container = container)
 		val outcome = saver.run(
@@ -876,7 +876,7 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html(), renderTakes = 10.minutes)
 		val container = temporaryFolder.newFolder("files")
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var outcome: SaveSharedOutcome? = null
 		val saver = makeSaver(store = store, captor = captor, container = container)
@@ -898,12 +898,12 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `surfaces the server save notice as soon as the list loads`() = runTest {
-		// The queue collection carries the server's save notice. The journey must
+		// The readlist collection carries the server's save notice. The journey must
 		// hand it to the shell as soon as the list loads — before the save lands —
 		// so the caption is on screen for the whole phase it describes.
 		val store = loggedInStore()
 		val notice = """{ "type": "warning", "content": { "type": "text/html", "body": "Don't close this — it's still saving." } }"""
-		serveQueueAndSave(messagesJson = notice)
+		serveReadlistAndSave(messagesJson = notice)
 
 		var noticed: List<ServerMessage> = emptyList()
 		var savePostsWhenNoticed = -1
@@ -933,7 +933,7 @@ class SaveSharedPageTest {
 		// A server that emits no collection notice still drives the callback once — with
 		// no messages — so the shell can leave the caption hidden rather than assume it.
 		val store = loggedInStore()
-		serveQueueAndSave()
+		serveReadlistAndSave()
 
 		var callbackCount = 0
 		var lastMessages: List<ServerMessage> = listOf(ServerMessage("warning", ServerMessage.Content("text/html", "stale")))

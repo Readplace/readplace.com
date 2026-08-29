@@ -68,4 +68,4 @@ Save a photo-heavy piece and the photos hold up. A recipe with step-by-step shot
 
 The lesson I took from this one is small but it cost me a morning: when you cap a resource, count the thing the user cares about, not the file that happens to represent it. A photo is one thing to a reader even when it is 8 files to a browser.
 
-Try it with the next article you mean to read. Paste the link into your queue, open it tomorrow, and check the pictures. Start saving at [readplace.com](/).
+Try it with the next article you mean to read. Paste the link into your readlist, open it tomorrow, and check the pictures. Start saving at [readplace.com](/).

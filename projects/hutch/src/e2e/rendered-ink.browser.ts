@@ -8,9 +8,9 @@ export interface RenderedInk {
 }
 
 export function collectRenderedInk(rootSelector: string): RenderedInk[] {
-	/* A queue tab is an anchor, but it paints an opaque brand fill and carries its
+	/* A readlist tab is an anchor, but it paints an opaque brand fill and carries its
 	 * label on that fill exactly as a button does. */
-	const FILLED_CONTROL = "button, .btn, .queue-nav__link";
+	const FILLED_CONTROL = "button, .btn, .readlist-nav__link";
 	const OPAQUE = 1;
 	const TRANSPARENT = 0;
 	const HAIRLINE_PX = 1;

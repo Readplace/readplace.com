@@ -4,7 +4,7 @@ import {
 	SAVE_LINK_LOG_GROUPS,
 } from "@packages/hutch-infra-components";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
-import { QUEUE_PATH } from "../web/pages/queue/queue.url";
+import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import {
 	ANALYTICS_EVENTS,
 	ANALYTICS_LOG_GROUP,
@@ -190,9 +190,9 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const source = opens.match(/\| filter path like \/(\S+)\/ \|/)?.[1];
 		assert(source, "the opens widget must filter on a regex literal");
 		const pattern = new RegExp(source);
-		expect(pattern.test(`${QUEUE_PATH}/58b83c9aad6a5c0a32f6d8caa3a69bbc/view`)).toBe(true);
+		expect(pattern.test(`${READLIST_PATH}/58b83c9aad6a5c0a32f6d8caa3a69bbc/view`)).toBe(true);
 		expect(pattern.test("/view/example.com/some-article")).toBe(false);
-		expect(pattern.test(QUEUE_PATH)).toBe(false);
+		expect(pattern.test(READLIST_PATH)).toBe(false);
 	});
 
 	it("the device-mix widget slices pageviews by the composite device_class / browser key so the audience's device+browser usage is visible at pageview scale (not just the authenticated-reader cohort), excluding pageviews logged before the field shipped and the no-signal \"other\" (no-User-Agent) bucket so the pie reads as real devices", () => {

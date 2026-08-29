@@ -393,7 +393,7 @@ describe("GET /", () => {
 			"/install?client=android&utm_source=home-ways&utm_medium=internal&utm_content=android",
 			"/mcp?utm_source=home-ways&utm_medium=internal&utm_content=mcp",
 			"/import?utm_source=home-ways&utm_medium=internal&utm_content=import",
-			"/blog/save-newsletter-links-to-your-queue?utm_source=home-ways&utm_medium=internal&utm_content=inbox",
+			"/blog/save-newsletter-links-to-your-readlist?utm_source=home-ways&utm_medium=internal&utm_content=inbox",
 			"/embed?utm_source=home-ways&utm_medium=internal&utm_content=embed",
 		]);
 	});

@@ -18,7 +18,7 @@ A shortened link, a Google News URL, or a newsletter tracker points at the real 
 
 Newsletter links rarely point straight at the article. The address wraps another one, sometimes two or three deep, before the real page shows up. A shortener works the same way. Google News wraps the link before it hands it over. Any email that counts your clicks routes you through a tracker first.
 
-Readplace saves the article, not the address you pasted. So the fetch has to walk that chain to the end. Otherwise the copy in your queue is the tracker page, not the story.
+Readplace saves the article, not the address you pasted. So the fetch has to walk that chain to the end. Otherwise the copy in your readlist is the tracker page, not the story.
 
 ## Three fetchers, and none of them chase
 
@@ -64,7 +64,7 @@ One more thing moved with it. The curl path builds a single timeout budget when 
 
 ## What a redirected link brings back
 
-Paste a shortener, a Google News URL, or a newsletter link that buries the article behind a tracker, and the save resolves the chain to the real page and stops there. It stops the same way whether the fetch went out over curl, HTTP/2, or the hand-built request, because all three ask the same loop where to go next. The copy that lands in your queue is [the article, held at the moment it was fetched](/blog/saved-articles-outlast-the-original-page), and not the hop in front of it.
+Paste a shortener, a Google News URL, or a newsletter link that buries the article behind a tracker, and the save resolves the chain to the real page and stops there. It stops the same way whether the fetch went out over curl, HTTP/2, or the hand-built request, because all three ask the same loop where to go next. The copy that lands in your readlist is [the article, held at the moment it was fetched](/blog/saved-articles-outlast-the-original-page), and not the hop in front of it.
 
 None of this shows on the page you read. A save that followed 3 redirects looks exactly like one that needed none. That is the point of it. The reader pastes an address and gets the article, and the hops it took to get there stay where they belong, out of the way.
 

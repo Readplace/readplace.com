@@ -6,9 +6,9 @@ describe("transitionFramesPath", () => {
 			transitionFramesPath({
 				root: undefined,
 				runId: undefined,
-				flow: "extension-view-queue-chrome",
+				flow: "extension-view-readlist-chrome",
 			}),
-		).toBe("test-results/transition-frames/extension-view-queue-chrome");
+		).toBe("test-results/transition-frames/extension-view-readlist-chrome");
 	});
 
 	it("keys a trail under the run it came from when an artifact root is set", () => {
@@ -16,9 +16,9 @@ describe("transitionFramesPath", () => {
 			transitionFramesPath({
 				root: "/frames",
 				runId: "4242",
-				flow: "extension-view-queue-firefox",
+				flow: "extension-view-readlist-firefox",
 			}),
-		).toBe("/frames/4242/frames/extension-view-queue-firefox");
+		).toBe("/frames/4242/frames/extension-view-readlist-firefox");
 	});
 
 	it("files a trail with no run id under a local run", () => {
@@ -26,8 +26,8 @@ describe("transitionFramesPath", () => {
 			transitionFramesPath({
 				root: "/frames",
 				runId: undefined,
-				flow: "extension-view-queue-chrome",
+				flow: "extension-view-readlist-chrome",
 			}),
-		).toBe("/frames/local/frames/extension-view-queue-chrome");
+		).toBe("/frames/local/frames/extension-view-readlist-chrome");
 	});
 });

@@ -95,7 +95,7 @@ final class UploadJobStoreTests: XCTestCase {
 		}
 	}
 
-	func testResurrectsNothingWhenStagingIntoAPurgedQueue() async throws {
+	func testResurrectsNothingWhenStagingIntoAPurgedReadlist() async throws {
 		let store = makeStore()
 		let admitted = job(id: "j1")
 		try await store.admit(admitted)
@@ -103,11 +103,11 @@ final class UploadJobStoreTests: XCTestCase {
 
 		do {
 			_ = try await store.stageReady(admitted, form: TestSupport.multipartForm())
-			XCTFail("staging into a purged queue must throw rather than re-create it")
+			XCTFail("staging into a purged readlist must throw rather than re-create it")
 		} catch {
 			XCTAssertEqual(
 				store.loadAll(now: Self.epoch), [],
-				"a sign-out purge is final: an in-flight capture must not write the queue back into being"
+				"a sign-out purge is final: an in-flight capture must not write the readlist back into being"
 			)
 			XCTAssertFalse(FileManager.default.fileExists(atPath: store.bytesURL(for: admitted).path))
 		}
@@ -138,8 +138,8 @@ final class UploadJobStoreTests: XCTestCase {
 		let store = makeStore()
 		let survivor = job(id: "j1")
 		try await store.admit(survivor)
-		let queue = store.bytesURL(for: survivor).deletingLastPathComponent()
-		try Data("{ not a record".utf8).write(to: queue.appendingPathComponent("broken.json"))
+		let readlist = store.bytesURL(for: survivor).deletingLastPathComponent()
+		try Data("{ not a record".utf8).write(to: readlist.appendingPathComponent("broken.json"))
 
 		XCTAssertEqual(store.loadAll(now: Self.epoch), [survivor])
 	}
@@ -185,7 +185,7 @@ final class UploadJobStoreTests: XCTestCase {
 		XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
 	}
 
-	func testPurgeAllEmptiesTheQueue() async throws {
+	func testPurgeAllEmptiesTheReadlist() async throws {
 		let store = makeStore()
 		let admitted = job(id: "j1")
 		try await store.admit(admitted)
@@ -199,7 +199,7 @@ final class UploadJobStoreTests: XCTestCase {
 
 	// MARK: - Shared container
 
-	func testResolvesTheQueueInsideTheEntitledAppGroupContainer() async throws {
+	func testResolvesTheReadlistInsideTheEntitledAppGroupContainer() async throws {
 		let store = try XCTUnwrap(
 			UploadJobStore.inSharedContainer(appGroupId: TokenStore.resolvedAppGroupId),
 			"the App Group this build is entitled to must resolve to a container"
@@ -212,7 +212,7 @@ final class UploadJobStoreTests: XCTestCase {
 		XCTAssertEqual(store.loadAll(now: Self.epoch).filter { $0.id == admitted.id }, [admitted])
 	}
 
-	func testResolvesNoQueueForAnAppGroupThisBuildIsNotEntitledTo() {
+	func testResolvesNoReadlistForAnAppGroupThisBuildIsNotEntitledTo() {
 		XCTAssertNil(UploadJobStore.inSharedContainer(appGroupId: "group.com.readplace.not-entitled"))
 	}
 }

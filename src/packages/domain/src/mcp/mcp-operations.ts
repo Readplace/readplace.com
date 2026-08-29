@@ -1,6 +1,6 @@
 import assert from "node:assert";
 
-/** What invoking the operation does to the queue. An `appOnly` operation exists
+/** What invoking the operation does to the readlist. An `appOnly` operation exists
  * so an assistant can answer the request, but it changes nothing: the user
  * performs it in the Readplace app. */
 export type McpOperationEffect = "save" | "read" | "update" | "appOnly";
@@ -26,16 +26,16 @@ export const MCP_OPERATIONS = [
 		name: "save_link",
 		title: "Save a link to Readplace",
 		description:
-			"Save a web page (article, blog post, or PDF) to the user's Readplace reading queue so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving.",
+			"Save a web page (article, blog post, or PDF) to the user's Readplace reading readlist so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving.",
 		summary:
-			"saves a URL to the user's queue; the title, excerpt, and clean reader view fill in moments later.",
+			"saves a URL to the user's readlist; the title, excerpt, and clean reader view fill in moments later.",
 		effect: "save",
 	},
 	{
 		name: "list_queue",
 		title: "List saved articles",
 		description:
-			"List the pages the user has saved to their Readplace reading queue, optionally filtered to unread or already-read items. Each item includes an `id` you can pass to get_article, get_article_content, or get_article_summary. Use `limit` and the `nextCursor` from a previous result to page through a long queue.",
+			"List the pages the user has saved to their Readplace reading readlist, optionally filtered to unread or already-read items. Each item includes an `id` you can pass to get_article, get_article_content, or get_article_summary. Use `limit` and the `nextCursor` from a previous result to page through a long readlist.",
 		summary: "lists what the user has saved, filtered to unread or already-read.",
 		effect: "read",
 	},
@@ -65,29 +65,29 @@ export const MCP_OPERATIONS = [
 	},
 	{
 		name: "get_related_articles",
-		title: "Get related articles from the user's own queue",
+		title: "Get related articles from the user's own readlist",
 		description:
-			"Return other articles in the user's own Readplace queue that relate to one saved article, looked up by id, each tagged unread or read and carrying a short reason and an id you can pass to get_article. An unread pick is the natural next read; a read pick is one they finished earlier and may want again. Articles the user has deleted are left out. Reports its status (pending or skipped) when no relations have been worked out.",
+			"Return other articles in the user's own Readplace readlist that relate to one saved article, looked up by id, each tagged unread or read and carrying a short reason and an id you can pass to get_article. An unread pick is the natural next read; a read pick is one they finished earlier and may want again. Articles the user has deleted are left out. Reports its status (pending or skipped) when no relations have been worked out.",
 		summary:
-			"returns saves in the same queue that relate to one article, each tagged unread or read.",
+			"returns saves in the same readlist that relate to one article, each tagged unread or read.",
 		effect: "read",
 	},
 	{
 		name: "mark_as_read",
 		title: "Mark a saved article read",
 		description:
-			"Mark one saved article read in the user's Readplace queue, looked up by the id from a list_queue result. The article stays in the queue and leaves the unread list. An article the user filed into more than one queue is marked read in every one of them, not just the first. Marking an already-read article read again changes nothing. Do this when the user has read the piece or asks you to — a summary you produced is not the same as the user reading it.",
+			"Mark one saved article read in the user's Readplace readlist, looked up by the id from a list_queue result. The article stays in the readlist and leaves the unread list. An article the user filed into more than one readlist is marked read in every one of them, not just the first. Marking an already-read article read again changes nothing. Do this when the user has read the piece or asks you to — a summary you produced is not the same as the user reading it.",
 		summary:
-			"marks one saved article read in every queue it is on; it stays in the queue and leaves the unread list.",
+			"marks one saved article read in every readlist it is on; it stays in the readlist and leaves the unread list.",
 		effect: "update",
 	},
 	{
 		name: "mark_as_unread",
 		title: "Mark a saved article unread",
 		description:
-			"Mark one saved article unread in the user's Readplace queue, looked up by the id from a list_queue result. It returns to the unread list and its read date is cleared, in every queue the user filed it into. This is the undo for mark_as_read.",
+			"Mark one saved article unread in the user's Readplace readlist, looked up by the id from a list_queue result. It returns to the unread list and its read date is cleared, in every readlist the user filed it into. This is the undo for mark_as_read.",
 		summary:
-			"marks one saved article unread again in every queue it is on; the undo for mark_as_read.",
+			"marks one saved article unread again in every readlist it is on; the undo for mark_as_read.",
 		effect: "update",
 	},
 	{

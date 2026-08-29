@@ -14,7 +14,7 @@ shipped wire contract pinned in `src/packages/supported-clients`).
 | File | Suggested caption (for the listing description) |
 |---|---|
 | `01-save-from-extension.png` | One click saves the full page you're reading — not just the link. |
-| `02-queue.png` | Everything waits in one queue, with a short AI preview of every save. |
+| `02-queue.png` | Everything waits in one readlist, with a short AI preview of every save. |
 | `03-reader-tldr.png` | Read without the clutter — with a TL;DR before you commit. |
 | `04-import-links.png` | Moving from Pocket or a folder of tabs? Paste a link and import everything. |
 | `05-most-complete-version.png` | Readplace keeps the most complete version of what you saved. |
@@ -36,7 +36,7 @@ Chrome uses these on discovery surfaces (category pages, the homepage
 carousel), so a listing without them is rarely featured. Both are built from
 the brand lockup in `og-image-1200x630.png` (navy `#2B3A55`, white serif
 ampersand with the `#C8923C` dot, Georgia wordmark); the marquee adds the real
-queue capture in a framed card. Same specs as screenshots: opaque RGB PNG.
+readlist capture in a framed card. Same specs as screenshots: opaque RGB PNG.
 
 **Specs (checked into this set):** exactly 1280×800, opaque RGB PNG — no alpha
 channel. Apple's media pipeline hangs forever on PNGs with alpha (see

@@ -11,7 +11,7 @@ describe("MCP operations", () => {
 			name: "save_link",
 			title: "Save a link to Readplace",
 			description:
-				"Save a web page (article, blog post, or PDF) to the user's Readplace reading queue so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving.",
+				"Save a web page (article, blog post, or PDF) to the user's Readplace reading readlist so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving.",
 		});
 	});
 

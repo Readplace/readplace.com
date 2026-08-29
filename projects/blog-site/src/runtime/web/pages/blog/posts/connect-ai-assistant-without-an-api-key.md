@@ -1,6 +1,6 @@
 ---
 title: "Connect Your AI Assistant to Readplace With No API Key to Copy"
-description: "Connecting your AI assistant to Readplace needs no API key. The MCP client registers itself, you approve one OAuth sign-in, and you can revoke that access anytime. Then your assistant can save pages to your queue and list them back."
+description: "Connecting your AI assistant to Readplace needs no API key. The MCP client registers itself, you approve one OAuth sign-in, and you can revoke that access anytime. Then your assistant can save pages to your readlist and list them back."
 slug: "connect-ai-assistant-without-an-api-key"
 date: "2026-06-21"
 author: "Fayner Brack"
@@ -11,7 +11,7 @@ keywords: "MCP OAuth, connect AI assistant no API key, dynamic client registrati
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Connecting a tool to your AI assistant usually starts with an API key, a secret you generate once and keep somewhere safe. Readplace's MCP server skips it. You point Claude, ChatGPT, Perplexity, or a developer client at `readplace.com/mcp`, the assistant registers itself, and Readplace sends you to a sign-in to approve the connection. You don't create a credential or hand one over, and you can revoke the assistant's access whenever you want. Once connected, the assistant can save a page to your reading queue and read your list back.
+Connecting a tool to your AI assistant usually starts with an API key, a secret you generate once and keep somewhere safe. Readplace's MCP server skips it. You point Claude, ChatGPT, Perplexity, or a developer client at `readplace.com/mcp`, the assistant registers itself, and Readplace sends you to a sign-in to approve the connection. You don't create a credential or hand one over, and you can revoke the assistant's access whenever you want. Once connected, the assistant can save a page to your readlist and read your list back.
 
 </div>
 </details>
@@ -44,8 +44,8 @@ The token Readplace gives you after you sign in is scoped to your account and re
 
 Setup is the part you do once. What matters is what comes after.
 
-Once connected, your assistant gets two tools. `save_link` adds a page to your reading queue, and the title, excerpt, and clean reader view fill in moments later, so the card shows up right away and finishes on its own. `list_queue` reads back what you have saved, filtered to unread or already read.
+Once connected, your assistant gets two tools. `save_link` adds a page to your readlist, and the title, excerpt, and clean reader view fill in moments later, so the card shows up right away and finishes on its own. `list_queue` reads back what you have saved, filtered to unread or already read.
 
-People pay for Claude, ChatGPT, and Perplexity to find articles and summarise them. The save step used to mean leaving the chat and doing it by hand. Now you ask in plain language, and the page lands in your queue inside the conversation. Every page the assistant saves gets the same reader view and summary as one you save yourself.
+People pay for Claude, ChatGPT, and Perplexity to find articles and summarise them. The save step used to mean leaving the chat and doing it by hand. Now you ask in plain language, and the page lands in your readlist inside the conversation. Every page the assistant saves gets the same reader view and summary as one you save yourself.
 
 The per-client steps live at [readplace.com/mcp](https://readplace.com/mcp), the same address you hand your assistant. Open it from the browser you read in and connect from there. For more on the server and the two tools, the [earlier writeup on saving from your assistant](/blog/save-articles-with-your-ai-assistant) goes deeper.

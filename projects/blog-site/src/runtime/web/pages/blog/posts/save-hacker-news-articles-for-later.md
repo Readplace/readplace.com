@@ -11,7 +11,7 @@ keywords: "hacker news, save articles, read it later, hn reader, readplace"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Tabs are a guilt system, not a reading system. Split discovery from reading: save HN articles to a queue during your morning scan, then read from the queue when you have time. AI summaries let you triage 30 to 40 saved articles in minutes. Readplace's browser extension works on news.ycombinator.com, and one click saves the article and generates a summary.
+Tabs are a guilt system, not a reading system. Split discovery from reading: save HN articles to a readlist during your morning scan, then read from the readlist when you have time. AI summaries let you triage 30 to 40 saved articles in minutes. Readplace's browser extension works on news.ycombinator.com, and one click saves the article and generates a summary.
 
 </div>
 </details>
@@ -52,7 +52,7 @@ A tool that captures only the link throws away half of what made the post worth 
 
 I spent about 10 years processing articles through r/programming, r/webdev, and HN, and I landed on a rhythm that holds up under a busy week.
 
-**Morning scan.** A quick pass through the front page where anything that looks interesting gets saved to a queue, and nothing gets read yet.
+**Morning scan.** A quick pass through the front page where anything that looks interesting gets saved to a readlist, and nothing gets read yet.
 
 **Lunch or commute.** The 5-to-10-minute reads. Practical posts, release announcements, short opinion pieces that fit a coffee break.
 
@@ -66,7 +66,7 @@ When you scan HN in the morning, your job is to triage, not to read. The reader 
 
 Tabs crash, links die, and you lose the context you opened them in. There's a subtler cost too: a tab bar has no sense of priority. Tabs sit in the order you opened them, and that order has no relationship to what's actually worth your next 20 minutes.
 
-A reading queue gives you one place to go when those 20 minutes show up.
+A readlist gives you one place to go when those 20 minutes show up.
 
 You stop hunting through tabs, and you stop trying to re-find the article you half-remember from 3 days ago, because it's already in the list.
 
@@ -78,7 +78,7 @@ After a full week of HN browsing you might be sitting on 30 or 40 saved articles
 
 Some seemed interesting at the time and aren't anymore. Some cover the same ground as a piece you already finished.
 
-This is where the type of reader who saves more than they read gets stuck, because the queue starts to feel like the tab bar it replaced. AI-generated summaries break that loop by letting you scan the whole queue in a few minutes and decide what earns a deep read.
+This is where the type of reader who saves more than they read gets stuck, because the readlist starts to feel like the tab bar it replaced. AI-generated summaries break that loop by letting you scan the whole readlist in a few minutes and decide what earns a deep read.
 
 Does that 25-minute article on event sourcing cover ground you already know? A two-sentence summary answers that in seconds, and you can drop it without guilt.
 
@@ -88,9 +88,9 @@ Think of it as `head -20` for articles. Just enough to decide whether you want t
 
 I built my reading system over a decade of processing thousands of articles from r/programming, r/webdev, and HN, and the pattern held steady the whole time: save fast, read later, triage hard, keep what matters. Readplace is that rhythm turned into a product I use myself.
 
-The Readplace browser extension works on news.ycombinator.com, so you can save an article or a comment thread straight from the page. One click during your morning scan, and it lands in your queue for when you have time to read it properly.
+The Readplace browser extension works on news.ycombinator.com, so you can save an article or a comment thread straight from the page. One click during your morning scan, and it lands in your readlist for when you have time to read it properly.
 
-Once you trust the queue, you can close the tab without feeling like you lost the article. The tab guilt goes away, the dead links stop costing you, and the "I read something about this last week, where was it?" question goes away with them.
+Once you trust the readlist, you can close the tab without feeling like you lost the article. The tab guilt goes away, the dead links stop costing you, and the "I read something about this last week, where was it?" question goes away with them.
 
 What's left is a list of things worth reading, ready when you are.
 

@@ -14,7 +14,7 @@ async function signUpFreshUser(page: Page, email: string): Promise<void> {
 		el.value = String(Date.now() - 5000);
 	});
 	await page.locator('[data-test-action="signup"]').click();
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
 test.describe("The save tip meets a reader at the URL box", () => {

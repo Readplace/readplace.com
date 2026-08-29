@@ -52,7 +52,7 @@ export const SAVE_SURFACES = {
 	embed: "embed",
 	webmcp: "webmcp",
 	unknown: "unknown",
-	queueSaveBar: "queue_save_bar",
+	readlistSaveBar: "queue_save_bar",
 	extension: "extension",
 	mcp: "mcp",
 } as const;

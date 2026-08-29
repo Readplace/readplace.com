@@ -441,7 +441,7 @@ describe("View routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Queue");
+			expect(action.textContent).toBe("Save to My Readlist");
 			const href = action.getAttribute("href");
 			assert(href, "action must have an href");
 			const parsed = new URL(href, "http://localhost");
@@ -543,7 +543,7 @@ describe("View routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Queue");
+			expect(action.textContent).toBe("Save to My Readlist");
 			expect(action.getAttribute("href")?.startsWith("/save?")).toBe(true);
 		});
 
@@ -595,7 +595,7 @@ describe("View routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Queue");
+			expect(action.textContent).toBe("Save to My Readlist");
 			expect(action.getAttribute("href")?.startsWith("/save?")).toBe(true);
 		});
 
@@ -650,7 +650,7 @@ describe("View routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Queue");
+			expect(action.textContent).toBe("Save to My Readlist");
 			expect(action.getAttribute("href")?.startsWith("/save?")).toBe(true);
 		});
 

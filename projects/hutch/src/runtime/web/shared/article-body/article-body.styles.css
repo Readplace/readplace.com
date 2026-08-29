@@ -41,20 +41,20 @@
   display: none;
 }
 
-.article-body__queues-slot--visible {
+.article-body__readlists-slot--visible {
   display: inline-flex;
   margin-left: auto;
 }
 
-.article-body__queues-slot--hidden {
+.article-body__readlists-slot--hidden {
   display: none;
 }
 
-.article-body__queues {
+.article-body__readlists {
   position: relative;
 }
 
-.article-body__queues-trigger {
+.article-body__readlists-trigger {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -71,20 +71,20 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.article-body__queues-trigger::-webkit-details-marker {
+.article-body__readlists-trigger::-webkit-details-marker {
   display: none;
 }
 
-.article-body__queues-trigger:hover {
+.article-body__readlists-trigger:hover {
   background: var(--color-surface);
 }
 
-.article-body__queues-trigger svg {
+.article-body__readlists-trigger svg {
   width: 0.875em;
   height: 0.875em;
 }
 
-.article-body__queues-menu {
+.article-body__readlists-menu {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
@@ -99,11 +99,11 @@
   box-shadow: var(--shadow-md);
 }
 
-.article-body__queues-form {
+.article-body__readlists-form {
   margin: 0;
 }
 
-.article-body__queues-option {
+.article-body__readlists-option {
   display: block;
   width: 100%;
   min-height: 44px;
@@ -119,7 +119,7 @@
   transition: background 0.15s ease;
 }
 
-.article-body__queues-option:hover {
+.article-body__readlists-option:hover {
   background: var(--color-surface);
 }
 
@@ -242,7 +242,7 @@
   margin-right: 0.25rem;
 }
 
-.article-body__queue-tag {
+.article-body__readlist-tag {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -254,12 +254,12 @@
   border-radius: var(--radius-sm);
 }
 
-.article-body__queue-tag-remove-form {
+.article-body__readlist-tag-remove-form {
   display: inline-flex;
   margin: 0;
 }
 
-.article-body__queue-tag-remove {
+.article-body__readlist-tag-remove {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -274,12 +274,12 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.article-body__queue-tag-remove:hover {
+.article-body__readlist-tag-remove:hover {
   background: var(--color-border);
   color: var(--color-text-primary);
 }
 
-.article-body__queue-tag-remove svg {
+.article-body__readlist-tag-remove svg {
   width: 0.75rem;
   height: 0.75rem;
 }

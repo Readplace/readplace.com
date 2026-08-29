@@ -12,7 +12,7 @@ const APP_HOST = "readplace.com";
 describe("keepSameHostLinksInSamePage", () => {
 	it("forces a same-host target=_blank link to navigate the reader tab (_top)", () => {
 		const out = keepSameHostLinksInSamePage({
-			html: '<a href="https://readplace.com/queue" target="_blank" rel="noopener">Queue</a>',
+			html: '<a href="https://readplace.com/queue" target="_blank" rel="noopener">Readlist</a>',
 			appHost: APP_HOST,
 		});
 		const [link] = anchors(out);

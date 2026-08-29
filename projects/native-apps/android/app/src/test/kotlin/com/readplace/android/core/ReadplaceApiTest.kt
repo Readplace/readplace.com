@@ -132,7 +132,7 @@ class ReadplaceApiTest {
 	// region Listing
 
 	@Test
-	fun `loadQueue follows the entry-point redirect and re-attaches the client's headers on the hop`() = runTest {
+	fun `loadReadlist follows the entry-point redirect and re-attaches the client's headers on the hop`() = runTest {
 		val store = loggedInStore(access = "access-1")
 		server.handle { record ->
 			when (record.path) {
@@ -142,7 +142,7 @@ class ReadplaceApiTest {
 			}
 		}
 
-		val page = api(store).loadQueue()
+		val page = api(store).loadReadlist()
 
 		assertEquals(listOf("a1", "a2"), page.articles.map { it.id })
 		val hop = server.records("/queue").first()
@@ -167,12 +167,12 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `loadQueue follows a href the server handed back`() = runTest {
+	fun `loadReadlist follows a href the server handed back`() = runTest {
 		server.handle { record ->
 			if (record.path == "/queue") Stub.json(200, Fixtures.collection(listOf(Fixtures.article("p2")), page = 2)) else Stub.json(404, "{}")
 		}
 
-		val page = api().loadQueue(path = "/queue?page=2")
+		val page = api().loadReadlist(path = "/queue?page=2")
 
 		assertEquals(listOf("p2"), page.articles.map { it.id })
 		assertEquals("2", server.records.single().request.url.queryParameter("page"))
@@ -180,7 +180,7 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `loadQueue refreshes once and retries on a 401`() = runTest {
+	fun `loadReadlist refreshes once and retries on a 401`() = runTest {
 		val store = loggedInStore(access = "stale", refresh = "r1")
 		val entryAttempts = AtomicInteger()
 		server.handle { record ->
@@ -196,7 +196,7 @@ class ReadplaceApiTest {
 			}
 		}
 
-		val page = api(store).loadQueue()
+		val page = api(store).loadReadlist()
 
 		assertEquals(listOf("fresh"), page.articles.map { it.id })
 		assertEquals("should retry exactly once after a refresh", 2, entryAttempts.get())
@@ -206,7 +206,7 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `loadQueue is unauthorized when the refresh fails, without retrying`() = runTest {
+	fun `loadReadlist is unauthorized when the refresh fails, without retrying`() = runTest {
 		val store = loggedInStore(access = "stale")
 		val entryAttempts = AtomicInteger()
 		server.handle { record ->
@@ -220,7 +220,7 @@ class ReadplaceApiTest {
 			}
 		}
 
-		val error = failsWith<ApiError.Unauthorized> { api(store).loadQueue() }
+		val error = failsWith<ApiError.Unauthorized> { api(store).loadReadlist() }
 
 		assertEquals("Your session expired. Please sign in again.", error.message)
 		assertEquals("must not retry the entry point when refresh fails", 1, entryAttempts.get())
@@ -228,17 +228,17 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `loadQueue is unauthorized when the refresh fails on transport`() = runTest {
+	fun `loadReadlist is unauthorized when the refresh fails on transport`() = runTest {
 		val store = loggedInStore(access = "stale")
 		server.handle { Stub.json(401, "{}") }
 
-		failsWith<ApiError.Unauthorized> { api(store, oauthBaseUrl = unreachableBaseUrl()).loadQueue() }
+		failsWith<ApiError.Unauthorized> { api(store, oauthBaseUrl = unreachableBaseUrl()).loadReadlist() }
 
 		assertEquals("must not retry the entry point when refresh fails", 1, server.records("/").size)
 	}
 
 	@Test
-	fun `loadQueue is unauthorized when a refreshed bearer is still refused`() = runTest {
+	fun `loadReadlist is unauthorized when a refreshed bearer is still refused`() = runTest {
 		val store = loggedInStore(access = "stale", refresh = "r1")
 		server.handle { record ->
 			when (record.path) {
@@ -248,14 +248,14 @@ class ReadplaceApiTest {
 			}
 		}
 
-		failsWith<ApiError.Unauthorized> { api(store).loadQueue() }
+		failsWith<ApiError.Unauthorized> { api(store).loadReadlist() }
 
 		assertEquals("one retry with the refreshed bearer, never a second refresh", 2, server.records("/").size)
 		assertEquals(1, server.records("/oauth/token").size)
 	}
 
 	@Test
-	fun `loadQueue rejects a non-Siren body`() = runTest {
+	fun `loadReadlist rejects a non-Siren body`() = runTest {
 		// The client negotiated Siren with Accept; a 200 carrying a different media
 		// type (e.g. a proxy HTML login page) is surfaced as unsupportedMediaType
 		// rather than blind-decoded into a generic decode failure.
@@ -267,23 +267,23 @@ class ReadplaceApiTest {
 			}
 		}
 
-		val error = failsWith<ApiError.UnsupportedMediaType> { api().loadQueue() }
+		val error = failsWith<ApiError.UnsupportedMediaType> { api().loadReadlist() }
 
 		assertEquals("text/html", error.mediaType)
 		assertEquals("The server replied in a format this app doesn't understand.", error.message)
 	}
 
 	@Test
-	fun `loadQueue rejects a body with no media type at all`() = runTest {
+	fun `loadReadlist rejects a body with no media type at all`() = runTest {
 		server.handle { Stub(200, headers = emptyMap(), body = "{}".toByteArray()) }
 
-		val error = failsWith<ApiError.UnsupportedMediaType> { api().loadQueue() }
+		val error = failsWith<ApiError.UnsupportedMediaType> { api().loadReadlist() }
 
 		assertNull(error.mediaType)
 	}
 
 	@Test
-	fun `loadQueue accepts Siren with a charset parameter`() = runTest {
+	fun `loadReadlist accepts Siren with a charset parameter`() = runTest {
 		// The negotiated type may arrive with a charset parameter; the essence still
 		// matches, so the body parses.
 		server.handle { record ->
@@ -298,52 +298,52 @@ class ReadplaceApiTest {
 			}
 		}
 
-		val page = api().loadQueue()
+		val page = api().loadReadlist()
 
 		assertEquals(listOf("a1"), page.articles.map { it.id })
 	}
 
 	@Test
-	fun `loadQueue surfaces a decode failure for a malformed Siren body`() = runTest {
+	fun `loadReadlist surfaces a decode failure for a malformed Siren body`() = runTest {
 		// A 200 carrying the negotiated Siren type but a body that fails a root decode
 		// (an array where the collection object is expected) is surfaced as the opaque
 		// Decoding — which key or type mismatched is never handed to the caller.
 		server.handle { record -> if (record.path == "/") Stub.redirect(to = "/queue") else Stub.json(200, "[1,2,3]") }
 
-		val error = failsWith<ApiError.Decoding> { api().loadQueue() }
+		val error = failsWith<ApiError.Decoding> { api().loadReadlist() }
 
 		assertEquals("Could not read the server response.", error.message)
 	}
 
 	@Test
-	fun `loadQueue surfaces a decode failure for a body that is not JSON`() = runTest {
+	fun `loadReadlist surfaces a decode failure for a body that is not JSON`() = runTest {
 		server.handle { Stub.json(200, "not json") }
 
-		failsWith<ApiError.Decoding> { api().loadQueue() }
+		failsWith<ApiError.Decoding> { api().loadReadlist() }
 	}
 
 	@Test
-	fun `loadQueue without a token fails before any request`() = runTest {
+	fun `loadReadlist without a token fails before any request`() = runTest {
 		val store = TokenStore(RecordingTokenStorage())
 		server.handle { Stub.json(200, "{}") }
 
-		val error = failsWith<ApiError.NoToken> { api(store).loadQueue() }
+		val error = failsWith<ApiError.NoToken> { api(store).loadReadlist() }
 
 		assertEquals("Not signed in. Open Readplace and sign in first.", error.message)
 		assertEquals(0, server.records.size)
 	}
 
 	@Test
-	fun `loadQueue with an unusable base URL is a decode failure`() = runTest {
+	fun `loadReadlist with an unusable base URL is a decode failure`() = runTest {
 		server.handle { Stub.json(200, "{}") }
 
-		failsWith<ApiError.Decoding> { api(baseUrl = "not a url").loadQueue() }
+		failsWith<ApiError.Decoding> { api(baseUrl = "not a url").loadReadlist() }
 
 		assertEquals(0, server.records.size)
 	}
 
 	@Test
-	fun `loadQueue reads the page's next link, warning, notices and named actions`() = runTest {
+	fun `loadReadlist reads the page's next link, warning, notices and named actions`() = runTest {
 		server.handle {
 			Stub.json(
 				200,
@@ -359,7 +359,7 @@ class ReadplaceApiTest {
 			)
 		}
 
-		val page = api().loadQueue()
+		val page = api().loadReadlist()
 
 		assertEquals("/queue?page=2", page.nextHref)
 		assertEquals(SirenWarning(code = "invalid-url", message = "Couldn't save that."), page.warning)
@@ -381,7 +381,7 @@ class ReadplaceApiTest {
 	fun `a non-Siren error body is a generic server error`() = runTest {
 		server.handle { Stub(502, headers = mapOf("Content-Type" to "text/html"), body = "<html>bad gateway</html>".toByteArray()) }
 
-		val error = failsWith<ApiError.Server> { api().loadQueue() }
+		val error = failsWith<ApiError.Server> { api().loadReadlist() }
 
 		assertEquals(502, error.status)
 		assertNull(error.code)
@@ -910,7 +910,7 @@ class ReadplaceApiTest {
 	fun `a redirect loop is cut off`() = runTest {
 		server.handle { Stub.redirect(to = "/") }
 
-		val error = failsWith<IOException> { api().loadQueue() }
+		val error = failsWith<IOException> { api().loadReadlist() }
 
 		assertEquals("Too many redirects: 21", error.message)
 		assertEquals(21, server.records("/").size)

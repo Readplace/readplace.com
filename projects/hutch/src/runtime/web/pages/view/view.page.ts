@@ -82,7 +82,7 @@ interface ViewDependencies {
 
 async function renderError(deps: ViewDependencies, req: Request, res: Response): Promise<void> {
 	const redirectUrl = req.userId ? "/queue" : "/";
-	const linkLabel = req.userId ? "Go to your queue" : "Go to homepage";
+	const linkLabel = req.userId ? "Go to your readlist" : "Go to homepage";
 	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
 }
 
@@ -282,7 +282,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const saveTip = buildSaveTip(req, { kind: "article", mode: "gating" });
 		const actions: ViewAction[] = [
 			{
-				name: "Save to My Queue",
+				name: "Save to My Readlist",
 				href: `/save?${saveParams.toString()}`,
 				variant: "primary",
 				saveTipState: saveTip.state,
@@ -352,7 +352,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
-			queueTags: undefined,
+			readlistTags: undefined,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};
@@ -380,7 +380,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
-			queueTags: undefined,
+			readlistTags: undefined,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};

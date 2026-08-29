@@ -1,6 +1,6 @@
 ---
 title: "Your AI Assistant Finds Readplace in DNS, Before It Loads a Page"
-description: "Readplace publishes agent-discovery records in DNS, so an AI assistant can find your reading queue's tools the same way a browser finds the site. Readplace signs the zone with DNSSEC, so the agent trusts the answer it gets back."
+description: "Readplace publishes agent-discovery records in DNS, so an AI assistant can find your readlist's tools the same way a browser finds the site. Readplace signs the zone with DNSSEC, so the agent trusts the answer it gets back."
 slug: "ai-assistant-finds-readplace-in-dns"
 date: "2026-06-19"
 author: "Fayner Brack"
@@ -22,7 +22,7 @@ You tell your AI assistant to save an article for later. First it has to find th
 
 Every time you open a site, your computer asks DNS for its address. DNS is the web's phone book. Readplace adds two extra entries to its own listing, under a name set aside for agents: `_agents.readplace.com`.
 
-The first record, `_index`, sends an agent to the apex. There it reads the discovery files: the OAuth login, the docs written for machines, and the skills index. The second record, `_mcp`, sends the agent to the MCP endpoint, where it picks up the tools to save a link and list your queue. An agent reads DNS, follows the record, and arrives at the right page with no setup from you.
+The first record, `_index`, sends an agent to the apex. There it reads the discovery files: the OAuth login, the docs written for machines, and the skills index. The second record, `_mcp`, sends the agent to the MCP endpoint, where it picks up the tools to save a link and list your readlist. An agent reads DNS, follows the record, and arrives at the right page with no setup from you.
 
 ## Why DNS and not just a link
 
@@ -32,11 +32,11 @@ Readplace already advertises its agent tools in an HTTP header on every page. Th
 
 A phone book helps only if no one tampers with the entries. Readplace signs its DNS zone with DNSSEC. A signed zone lets a resolver check two things: the answer came from Readplace, and it reached the agent unchanged. So when your assistant asks where to save your reading, it gets a reply it can verify, not one a stranger forged to point somewhere else.
 
-This matters for a read-it-later app. The agent is about to act on your account. A trustworthy answer at the discovery step keeps your saved articles going to your queue and nowhere else.
+This matters for a read-it-later app. The agent is about to act on your account. A trustworthy answer at the discovery step keeps your saved articles going to your readlist and nowhere else.
 
 ## What this means for your reading
 
-You use Claude, ChatGPT, or another assistant, and you want it to reach your saved articles and act on them. The less setup that takes, the more often you actually do it. With these records in place, an agent finds Readplace on its own, asks for your approval through OAuth, then saves a page to your queue inside the chat. You stop copying links between apps.
+You use Claude, ChatGPT, or another assistant, and you want it to reach your saved articles and act on them. The less setup that takes, the more often you actually do it. With these records in place, an agent finds Readplace on its own, asks for your approval through OAuth, then saves a page to your readlist inside the chat. You stop copying links between apps.
 
 This builds on two things Readplace shipped already. Your assistant can [save articles through the MCP server](/blog/save-articles-with-your-ai-assistant), and it reads the [discovery files](/blog/ai-agents-discover-readplace) that describe the API in plain text. The DNS records put those same tools one step closer, so the agent reaches them before it ever opens the site.
 

@@ -5,7 +5,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ReaderArticleHashId } from "@packages/domain/article";
-import type { QueueSlug } from "@packages/domain/queue";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 
 export interface SaveArticleParams {
@@ -240,97 +240,97 @@ export type DeleteAllUserArticles = (userId: UserId) => Promise<void>;
  * partition-key form) so they can be fed back into the URL-keyed content ops. */
 export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;
 
-export interface QueueDefinitionData {
-	slug: QueueSlug;
+export interface ReadlistDefinitionData {
+	slug: ReadlistSlug;
 	label: string;
 	createdAt: Date;
 }
 
-export type CreateQueueDefinition = (params: {
+export type CreateReadlistDefinition = (params: {
 	userId: UserId;
-	slug: QueueSlug;
+	slug: ReadlistSlug;
 	label: string;
 	createdAt: Date;
 }) => Promise<{ created: boolean }>;
 
-export type ListQueueDefinitions = (userId: UserId) => Promise<QueueDefinitionData[]>;
+export type ListReadlistDefinitions = (userId: UserId) => Promise<ReadlistDefinitionData[]>;
 
-export type RenameQueueDefinition = (params: {
+export type RenameReadlistDefinition = (params: {
 	userId: UserId;
-	slug: QueueSlug;
+	slug: ReadlistSlug;
 	label: string;
 }) => Promise<{ renamed: boolean }>;
 
-export type DeleteQueueDefinition = (params: {
+export type DeleteReadlistDefinition = (params: {
 	userId: UserId;
-	slug: QueueSlug;
+	slug: ReadlistSlug;
 }) => Promise<{ deleted: boolean }>;
 
-export interface SaveQueueArticleParams extends SaveArticleParams {
-	queue: QueueSlug;
+export interface SaveReadlistArticleParams extends SaveArticleParams {
+	readlist: ReadlistSlug;
 }
 
-export type SaveQueueArticle = (
-	params: SaveQueueArticleParams,
+export type SaveReadlistArticle = (
+	params: SaveReadlistArticleParams,
 ) => Promise<{ saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean }>;
 
-export interface FindQueueArticlesQuery extends FindArticlesQuery {
-	queue: QueueSlug;
+export interface FindReadlistArticlesQuery extends FindArticlesQuery {
+	readlist: ReadlistSlug;
 }
 
-export type FindQueueArticles = (query: FindQueueArticlesQuery) => Promise<FindArticlesResult>;
+export type FindReadlistArticles = (query: FindReadlistArticlesQuery) => Promise<FindArticlesResult>;
 
-export interface CountQueueArticlesQuery extends CountArticlesQuery {
-	queue: QueueSlug;
+export interface CountReadlistArticlesQuery extends CountArticlesQuery {
+	readlist: ReadlistSlug;
 }
 
-export type CountQueueArticles = (query: CountQueueArticlesQuery) => Promise<number>;
+export type CountReadlistArticles = (query: CountReadlistArticlesQuery) => Promise<number>;
 
-export type FindQueueArticleById = (params: {
+export type FindReadlistArticleById = (params: {
 	id: ReaderArticleHashId;
 	userId: UserId;
-	queue: QueueSlug;
+	readlist: ReadlistSlug;
 }) => Promise<SavedArticle | null>;
 
-export type UpdateArticleStatusAcrossQueues = (params: {
+export type UpdateArticleStatusAcrossReadlists = (params: {
 	id: ReaderArticleHashId;
 	userId: UserId;
-	addressed: QueueSlug;
+	addressed: ReadlistSlug;
 	status: ArticleStatus;
 }) => Promise<SavedArticle | null>;
 
-export type DeleteQueueArticle = (params: {
+export type DeleteReadlistArticle = (params: {
 	id: ReaderArticleHashId;
 	userId: UserId;
-	queue: QueueSlug;
+	readlist: ReadlistSlug;
 }) => Promise<boolean>;
 
-export type MarkQueueArticleViewed = (params: {
+export type MarkReadlistArticleViewed = (params: {
 	userId: UserId;
-	queue: QueueSlug;
+	readlist: ReadlistSlug;
 	url: string;
 	at: Date;
 }) => Promise<void>;
 
-export type AssignSavedArticleToQueue = (params: {
+export type AssignSavedArticleToReadlist = (params: {
 	userId: UserId;
-	queue: QueueSlug;
+	readlist: ReadlistSlug;
 	url: string;
 	savedAt: Date;
 }) => Promise<{ assigned: boolean }>;
 
-export type MoveQueueArticles = (params: {
+export type MoveReadlistArticles = (params: {
 	userId: UserId;
-	from: QueueSlug;
-	to: QueueSlug;
+	from: ReadlistSlug;
+	to: ReadlistSlug;
 }) => Promise<{ moved: number }>;
 
 export type ListUserSavesForUrl = (params: {
 	userId: UserId;
 	url: string;
-}) => Promise<{ queue?: QueueSlug }[]>;
+}) => Promise<{ readlist?: ReadlistSlug }[]>;
 
 export type ListUserSavesForUrls = (params: {
 	userId: UserId;
 	urls: readonly string[];
-}) => Promise<Map<string, { queue?: QueueSlug }[]>>;
+}) => Promise<Map<string, { readlist?: ReadlistSlug }[]>>;

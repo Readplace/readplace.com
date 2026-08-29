@@ -31,7 +31,7 @@ export const SaveLinkArgs = z.object({
 	url: z.string().min(1),
 });
 
-export const ListQueueArgs = z.object({
+export const ListReadlistArgs = z.object({
 	status: z.enum(["unread", "read"]).optional(),
 	sort: z.enum(["saved", "read"]).optional(),
 	order: z.enum(["asc", "desc"]).optional(),
@@ -74,7 +74,7 @@ export const SAVE_LINK_TOOL: McpToolDefinition = {
 	},
 };
 
-export const LIST_QUEUE_TOOL: McpToolDefinition = {
+export const LIST_READLIST_TOOL: McpToolDefinition = {
 	...mcpOperationMetadata("list_queue"),
 	inputSchema: {
 		type: "object",
@@ -206,7 +206,7 @@ export const DELETE_ARTICLE_TOOL: McpToolDefinition = {
 
 export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	SAVE_LINK_TOOL,
-	LIST_QUEUE_TOOL,
+	LIST_READLIST_TOOL,
 	GET_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,

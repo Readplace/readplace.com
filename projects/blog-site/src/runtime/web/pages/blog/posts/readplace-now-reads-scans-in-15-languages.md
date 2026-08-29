@@ -21,7 +21,7 @@ TELA E MEN E ALL
 Hy ARMER ZEA M FA
 ```
 
-That is what Readplace gave a reader who saved a scanned Chinese page. It was 737 characters long, so nothing downstream noticed anything was wrong. The article went into the queue looking saved.
+That is what Readplace gave a reader who saved a scanned Chinese page. It was 737 characters long, so nothing downstream noticed anything was wrong. The article went into the readlist looking saved.
 
 ## The 15 that work
 

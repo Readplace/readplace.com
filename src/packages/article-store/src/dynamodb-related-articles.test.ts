@@ -900,7 +900,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			]);
 		});
 
-		it("never reads an article row when every relation has left the reader's queue", async () => {
+		it("never reads an article row when every relation has left the reader's readlist", async () => {
 			const { sent, store } = build((command) => {
 				if (command.constructorName === "GetCommand") {
 					return {

@@ -277,7 +277,7 @@ describe("GlobalNav component", () => {
 
 		const queue = doc.querySelector('[data-test-nav-item="queue"]');
 		assert(queue, "queue nav item must render");
-		expect(queue.textContent).toBe("Queue");
+		expect(queue.textContent).toBe("Readlist");
 	});
 
 	it("renders guest nav items (install, features, import, login) as a flat list without group structure, install left of features", () => {

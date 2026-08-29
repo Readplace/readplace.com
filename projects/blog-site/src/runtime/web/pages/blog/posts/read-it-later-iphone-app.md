@@ -1,6 +1,6 @@
 ---
 title: "Read It Later on Your iPhone, From the Share Sheet"
-description: "The Readplace iPhone app saves from the iOS share sheet. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your reading queue and renders in the background, with no copy-paste and no opening the app first."
+description: "The Readplace iPhone app saves from the iOS share sheet. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your readlist and renders in the background, with no copy-paste and no opening the app first."
 slug: "read-it-later-iphone-app"
 date: "2026-06-09"
 lastModified: "2026-07-26"
@@ -12,7 +12,7 @@ keywords: "read it later iphone app, save articles iphone, ios share sheet, save
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace has an iPhone app. It plugs into the iOS share sheet, the same menu you use to send a link to a friend. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your reading queue and renders in the background, so you stay where you are. The app also lists your saved articles, with pull-to-refresh and a swipe that marks an item read or deletes it. Tapping an article opens the clean Readplace reader inside the app. The app is on the App Store, and takes a couple of minutes to set up.
+Readplace has an iPhone app. It plugs into the iOS share sheet, the same menu you use to send a link to a friend. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your readlist and renders in the background, so you stay where you are. The app also lists your saved articles, with pull-to-refresh and a swipe that marks an item read or deletes it. Tapping an article opens the clean Readplace reader inside the app. The app is on the App Store, and takes a couple of minutes to set up.
 
 </div>
 </details>
@@ -23,7 +23,7 @@ You spot it on your phone, mid-something, and you want it parked for a quiet hal
 
 The iPhone app cuts the step out. It hooks into the iOS share sheet, the same menu you already use to send a link to a friend, so the place you save from is the place you were already going to tap anyway.
 
-Open the page in Safari, Chrome, or any browser, tap Share, and pick Readplace. The link drops into your reading queue. One tap from the page you already have open, with no copy-paste and no need to open the app first.
+Open the page in Safari, Chrome, or any browser, tap Share, and pick Readplace. The link drops into your readlist. One tap from the page you already have open, with no copy-paste and no need to open the app first.
 
 ## How saving works
 
@@ -35,7 +35,7 @@ Switch back to your browser and carry on. A moment later the article shows up at
 
 This is the part worth trying first. If saving from the share sheet works on your phone, the browsing and the setup below are the easy bits.
 
-## Browse your queue
+## Browse your readlist
 
 The app also shows your saved articles. They appear in order, you pull down to refresh, and you swipe an item left to mark it read or delete it, so you can see what you have lined up and clear the ones you are done with without leaving the app.
 

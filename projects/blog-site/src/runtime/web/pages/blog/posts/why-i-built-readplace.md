@@ -22,7 +22,7 @@ You might know me as the creator of [js-cookie](https://www.jsdelivr.com/package
 
 For ten years I ran my own reading on Gmail filters, DynamoDB tables, and a stack of Reddit automations. Links came in from everywhere, got filed, and waited for me. The pipeline worked, and it taught me the thing that shaped everything about Readplace: **the bottleneck was never saving. It was deciding what *not* to read.**
 
-Saving is easy. Every app can save. What a decade of a growing queue actually needs is help telling the four articles worth your evening from the forty you optimistically clipped. That is why every saved article in Readplace opens with the reading time and a TL;DR already there, not to replace reading, but to let you skip well.
+Saving is easy. Every app can save. What a decade of a growing readlist actually needs is help telling the four articles worth your evening from the forty you optimistically clipped. That is why every saved article in Readplace opens with the reading time and a TL;DR already there, not to replace reading, but to let you skip well.
 
 For the curious: as of mid-2026 that reading habit adds up to around 350k Reddit karma over 11,850 submissions and 15k on Hacker News over 2,700, all inside the decade since 2016. On average I read about 40% of what I find and share 60–70% of what I read. The ratio has shifted over time, as more comes in and the curation gets sharper.
 
@@ -36,7 +36,7 @@ So I started turning my personal system into Readplace, built in Australia, one 
 
 Here's the part that matters most, and it isn't a feature.
 
-A sentence about "we'll always let you export your data" does not survive an acquisition. What survives is the code. So the behaviour is written in rather than promised: if you ever stop paying, your account goes **read-only, not dark**. Your queue, your saved articles, and the reader all keep working. You keep reading everything you saved. Only saving new links and importing pause. And export carries no subscription gate, so you can pull everything out as JSON any time, paying or not.
+A sentence about "we'll always let you export your data" does not survive an acquisition. What survives is the code. So the behaviour is written in rather than promised: if you ever stop paying, your account goes **read-only, not dark**. Your readlist, your saved articles, and the reader all keep working. You keep reading everything you saved. Only saving new links and importing pause. And export carries no subscription gate, so you can pull everything out as JSON any time, paying or not.
 
 The infrastructure sits in Sydney under Australian privacy law. The codebase is [on GitHub](https://github.com/Readplace/readplace.com) and source-available, so the branch that decides what a cancelled account can still do is something you can go and read rather than take my word for.
 

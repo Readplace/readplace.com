@@ -58,4 +58,4 @@ Being able to leave on your own terms is part of trusting a place with your read
 
 ## Where the phrase waits
 
-The delete control sits at the bottom of your account page, under a heading marked Danger zone, four typed words from the end of the account. If you don't have a reading queue to guard yet, one starts at [readplace.com](/) or with [the browser extension](https://readplace.com/install).
+The delete control sits at the bottom of your account page, under a heading marked Danger zone, four typed words from the end of the account. If you don't have a readlist to guard yet, one starts at [readplace.com](/) or with [the browser extension](https://readplace.com/install).

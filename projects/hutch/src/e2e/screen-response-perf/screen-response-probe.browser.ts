@@ -104,7 +104,7 @@ export function installScreenResponseProbe(keys: ScreenResponseProbeKeys): void 
 		const state = pending;
 		if (state === null) return;
 		if (state.phases[phase] !== undefined) return;
-		/** The queue's counts span fires its own request on load, inside the
+		/** The readlist's counts span fires its own request on load, inside the
 		 * measurement window; without this its beforeRequest/afterSwap would be
 		 * recorded as the navigation's own phases, and a stale settle from the
 		 * previous sample would land in the next one. */

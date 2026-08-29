@@ -92,7 +92,7 @@ describe("initHeadlineRotator", () => {
 		});
 
 		assert.equal(timers.pendingCount(), 1);
-		// Run the scheduled tick, then both swap timers it queues, then the
+		// Run the scheduled tick, then both swap timers it readlists, then the
 		// re-scheduled tick so the rotation comes back to rest.
 		timers.runOnce();
 		timers.runOnce();

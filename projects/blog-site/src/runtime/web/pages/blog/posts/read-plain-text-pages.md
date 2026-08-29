@@ -16,7 +16,7 @@ Readplace now reads plain text pages. A `.txt` link used to show a "not a webpag
 </div>
 </details>
 
-I saved a Project Gutenberg book to my queue. The card showed up, the AI summary landed under it a few seconds later, and then I tapped to read and got a screen that told me the link was not a webpage. Readplace had fetched the file and summarised it, so the work was done, but the part I wanted, reading it, was the part it blocked.
+I saved a Project Gutenberg book to my readlist. The card showed up, the AI summary landed under it a few seconds later, and then I tapped to read and got a screen that told me the link was not a webpage. Readplace had fetched the file and summarised it, so the work was done, but the part I wanted, reading it, was the part it blocked.
 
 That bug is fixed now. Plain text pages open in the same reader you use for articles and PDFs.
 
@@ -36,7 +36,7 @@ You end up with a title, clean paragraphs, and a short summary at the top.
 
 ## Where this helps
 
-Project Gutenberg holds over 70,000 free books, most of them served as plain text. Save one to your queue and read it with a summary, the same as any article.
+Project Gutenberg holds over 70,000 free books, most of them served as plain text. Save one to your readlist and read it with a summary, the same as any article.
 
 The RFCs that describe how email and the web actually work also ship as plain text. Save the one you keep meaning to get to.
 
@@ -54,6 +54,6 @@ For you that means fewer dead ends like this one.
 
 ## Try it
 
-Open Project Gutenberg, pick a book, and copy its plain text link. Paste it into your Readplace queue.
+Open Project Gutenberg, pick a book, and copy its plain text link. Paste it into your Readplace readlist.
 
 It reads like any other saved article, summary and all. Start at [readplace.com](/).

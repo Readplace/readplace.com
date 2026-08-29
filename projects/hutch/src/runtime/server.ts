@@ -92,20 +92,20 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
-	FindQueueArticles,
-	CountQueueArticles,
-	FindQueueArticleById,
-	UpdateArticleStatusAcrossQueues,
-	DeleteQueueArticle,
-	MarkQueueArticleViewed,
-	AssignSavedArticleToQueue,
-	MoveQueueArticles,
+	FindReadlistArticles,
+	CountReadlistArticles,
+	FindReadlistArticleById,
+	UpdateArticleStatusAcrossReadlists,
+	DeleteReadlistArticle,
+	MarkReadlistArticleViewed,
+	AssignSavedArticleToReadlist,
+	MoveReadlistArticles,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
-	ListQueueDefinitions,
-	RenameQueueDefinition,
-	CreateQueueDefinition,
-	DeleteQueueDefinition,
+	ListReadlistDefinitions,
+	RenameReadlistDefinition,
+	CreateReadlistDefinition,
+	DeleteReadlistDefinition,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
@@ -191,17 +191,17 @@ import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
-import { initQueueRoutes } from "./web/pages/queue/queue.page";
+import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
 import {
 	ChromelessReader,
 	StickyReader,
 } from "./web/shared/article-body/reader-actions/reader-actions.component";
-import { QUEUE_PATH } from "./web/pages/queue/queue.url";
+import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
+import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
@@ -218,7 +218,7 @@ import { buildMcpServerCard } from "./web/mcp/server-card";
 import { MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./web/mcp/protocol";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
-import { initSaveArticleAtQueueTop, initSaveArticleFromUrl } from "@packages/save-article";
+import { initSaveArticleAtReadlistTop, initSaveArticleFromUrl } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -330,20 +330,20 @@ interface AppDependencies {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
-	findQueueArticles: FindQueueArticles;
-	countQueueArticles: CountQueueArticles;
-	findQueueArticleById: FindQueueArticleById;
-	updateArticleStatusAcrossQueues: UpdateArticleStatusAcrossQueues;
-	deleteQueueArticle: DeleteQueueArticle;
-	markQueueArticleViewed: MarkQueueArticleViewed;
+	findReadlistArticles: FindReadlistArticles;
+	countReadlistArticles: CountReadlistArticles;
+	findReadlistArticleById: FindReadlistArticleById;
+	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
+	deleteReadlistArticle: DeleteReadlistArticle;
+	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
-	assignSavedArticleToQueue: AssignSavedArticleToQueue;
-	moveQueueArticles: MoveQueueArticles;
-	listQueueDefinitions: ListQueueDefinitions;
-	renameQueueDefinition: RenameQueueDefinition;
-	createQueueDefinition: CreateQueueDefinition;
-	deleteQueueDefinition: DeleteQueueDefinition;
+	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
+	moveReadlistArticles: MoveReadlistArticles;
+	listReadlistDefinitions: ListReadlistDefinitions;
+	renameReadlistDefinition: RenameReadlistDefinition;
+	createReadlistDefinition: CreateReadlistDefinition;
+	deleteReadlistDefinition: DeleteReadlistDefinition;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	sendEmail: SendEmail;
@@ -532,7 +532,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			}
 			try {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				const { saved } = await initSaveArticleAtQueueTop({
+				const { saved } = await initSaveArticleAtReadlistTop({
 					allocateSavedAt: deps.allocateSavedAt,
 					saveArticleFromUrl: initSaveArticleFromUrl(deps),
 				})({
@@ -559,7 +559,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			readArticleContent: deps.readArticleContent,
 			findGeneratedSummary: deps.findGeneratedSummary,
 			findRelatedArticles: deps.findRelatedArticles,
-			updateArticleStatusAcrossQueues: deps.updateArticleStatusAcrossQueues,
+			updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
 		}),
 	});
 
@@ -856,7 +856,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			setSirenDiscoveryRedirectCaching(res);
 		}
 		if (req.userId || sirenDiscovery) {
-			res.redirect(303, QUEUE_PATH);
+			res.redirect(303, READLIST_PATH);
 			return;
 		}
 
@@ -1184,7 +1184,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateAccessToken: deps.validateAccessToken,
 	});
 
-	const queueRouter = initQueueRoutes({
+	const queueRouter = initReadlistRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
 		secureCookies,
@@ -1200,20 +1200,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,
 		markArticleViewed: deps.markArticleViewed,
-		findQueueArticles: deps.findQueueArticles,
-		countQueueArticles: deps.countQueueArticles,
-		findQueueArticleById: deps.findQueueArticleById,
-		updateArticleStatusAcrossQueues: deps.updateArticleStatusAcrossQueues,
-		deleteQueueArticle: deps.deleteQueueArticle,
-		markQueueArticleViewed: deps.markQueueArticleViewed,
+		findReadlistArticles: deps.findReadlistArticles,
+		countReadlistArticles: deps.countReadlistArticles,
+		findReadlistArticleById: deps.findReadlistArticleById,
+		updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
+		deleteReadlistArticle: deps.deleteReadlistArticle,
+		markReadlistArticleViewed: deps.markReadlistArticleViewed,
 		listUserSavesForUrl: deps.listUserSavesForUrl,
 		listUserSavesForUrls: deps.listUserSavesForUrls,
-		assignSavedArticleToQueue: deps.assignSavedArticleToQueue,
-		moveQueueArticles: deps.moveQueueArticles,
-		listQueueDefinitions: deps.listQueueDefinitions,
-		renameQueueDefinition: deps.renameQueueDefinition,
-		createQueueDefinition: deps.createQueueDefinition,
-		deleteQueueDefinition: deps.deleteQueueDefinition,
+		assignSavedArticleToReadlist: deps.assignSavedArticleToReadlist,
+		moveReadlistArticles: deps.moveReadlistArticles,
+		listReadlistDefinitions: deps.listReadlistDefinitions,
+		renameReadlistDefinition: deps.renameReadlistDefinition,
+		createReadlistDefinition: deps.createReadlistDefinition,
+		deleteReadlistDefinition: deps.deleteReadlistDefinition,
 		markSummaryToggled: deps.markSummaryToggled,
 		markRelatedDismissed: deps.markRelatedDismissed,
 		publishLinkSaved: deps.publishLinkSaved,
@@ -1269,7 +1269,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * stay publicly reachable. Shared reader permalinks (people copy them from
 	 * the browser URL bar) redirect non-owners and anonymous visitors to
 	 * `/view/<url>` instead of bouncing them to /login. */
-	app.use(QUEUE_PATH, extensionCors, queueRouter);
+	app.use(READLIST_PATH, extensionCors, queueRouter);
 
 	const importRouter = initImportSessionRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,

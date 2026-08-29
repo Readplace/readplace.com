@@ -47,10 +47,10 @@ class DiscoveryHttpCacheTest {
 	@Test
 	fun `serves a repeat discovery from disk for as long as the server allowed`() {
 		val client = OkHttpClient.Builder().cache(DiscoveryHttpCache(temporaryFolder.root).cache).build()
-		publish("the queue")
+		publish("the readlist")
 
-		assertEquals("the queue", discover(client))
-		assertEquals("the queue", discover(client))
+		assertEquals("the readlist", discover(client))
+		assertEquals("the readlist", discover(client))
 
 		assertEquals("the server defines the lifetime, not the client", 1, server.requestCount)
 	}
@@ -71,17 +71,17 @@ class DiscoveryHttpCacheTest {
 	fun `purge forgets a discovery the cache had been serving`() {
 		val discovery = DiscoveryHttpCache(temporaryFolder.root)
 		val client = OkHttpClient.Builder().cache(discovery.cache).build()
-		publish("queue for account A")
-		assertEquals("queue for account A", discover(client))
-		assertEquals("queue for account A", discover(client))
+		publish("readlist for account A")
+		assertEquals("readlist for account A", discover(client))
+		assertEquals("readlist for account A", discover(client))
 		assertEquals("precondition: the cache is serving the response", 1, server.requestCount)
 
 		discovery.purge()
 
-		publish("queue for account B")
+		publish("readlist for account B")
 		assertEquals(
-			"a queue cached for one account must not be served to the next",
-			"queue for account B",
+			"a readlist cached for one account must not be served to the next",
+			"readlist for account B",
 			discover(client),
 		)
 		assertEquals(2, server.requestCount)

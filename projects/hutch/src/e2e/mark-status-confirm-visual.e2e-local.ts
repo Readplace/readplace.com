@@ -23,7 +23,7 @@ const PANEL_BODY = `${PANEL} .confirm-popover__body`;
 const PANEL_ITEMS = `${PANEL} .confirm-popover__items`;
 const PANEL_CONFIRM = `${PANEL} [data-test-action="mark-status-confirm"]`;
 const PANEL_NEVER = `${PANEL} [data-test-action="mark-status-confirm-never"]`;
-const MARK_READ_TRIGGER = 'main.queue [data-test-action="mark-read"]';
+const MARK_READ_TRIGGER = 'main.readlist [data-test-action="mark-read"]';
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
@@ -33,7 +33,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
 async function openMarkReadConfirm(page: Page, stamp: string): Promise<void> {
@@ -61,13 +61,13 @@ async function openMarkReadConfirm(page: Page, stamp: string): Promise<void> {
 	await loginAs(page, email);
 
 	await page.goto(`${BASE_URL}/queue?feature=queues`, { waitUntil: "domcontentloaded" });
-	await page.click('[data-test-action="new-queue"]');
-	await page.waitForSelector("[data-queue-rename]");
+	await page.click('[data-test-action="new-readlist"]');
+	await page.waitForSelector("[data-readlist-rename]");
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
-	await page.click("[data-test-queues-trigger]");
-	await page.click("[data-test-assign-queue]");
-	await page.waitForSelector("[data-test-queue-tag]");
+	await page.click("[data-test-readlists-trigger]");
+	await page.click("[data-test-assign-readlist]");
+	await page.waitForSelector("[data-test-readlist-tag]");
 
 	await page.goto(`${BASE_URL}/queue?feature=queues`, { waitUntil: "domcontentloaded" });
 	await page.click(MARK_READ_TRIGGER);
@@ -78,12 +78,12 @@ async function panelOpen(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function titleLeadsTheQueueListThenBothChoices(page: Page): Promise<void> {
+async function titleLeadsTheReadlistListThenBothChoices(page: Page): Promise<void> {
 	const panel = await measuredBox(page, PANEL);
 	const stacked = [
 		["title", await measuredBox(page, PANEL_TITLE)],
 		["introduction", await measuredBox(page, PANEL_BODY)],
-		["queue list", await measuredBox(page, PANEL_ITEMS)],
+		["readlist list", await measuredBox(page, PANEL_ITEMS)],
 		["confirm choice", await measuredBox(page, PANEL_CONFIRM)],
 		["silence choice", await measuredBox(page, PANEL_NEVER)],
 	] as const;
@@ -117,7 +117,7 @@ function checkpoint(name: string): VisualCheckpoint {
 	return {
 		name,
 		settled: panelOpen,
-		geometry: titleLeadsTheQueueListThenBothChoices,
+		geometry: titleLeadsTheReadlistListThenBothChoices,
 		target: PANEL,
 		capture: "element",
 		pinnedText: [],
@@ -130,16 +130,16 @@ const MARK_STATUS_CONFIRM_DARK = checkpoint("mark-status-confirm-dark");
 test.describe("Mark-as-read confirmation panel", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("names every queue the change reaches, then both answers (light)", async ({
+	test("names every readlist the change reaches, then both answers (light)", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openMarkReadConfirm(page, `light-${testInfo.workerIndex}-${Date.now()}`);
-		await expect(page.locator(`${PANEL_ITEMS} li`)).toHaveText(["My Queue", "New Queue"]);
+		await expect(page.locator(`${PANEL_ITEMS} li`)).toHaveText(["All", "New Readlist"]);
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_LIGHT);
 	});
 
-	test("names every queue the change reaches, then both answers (dark)", async ({
+	test("names every readlist the change reaches, then both answers (dark)", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });

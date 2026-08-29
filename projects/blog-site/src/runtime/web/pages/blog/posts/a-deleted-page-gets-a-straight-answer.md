@@ -11,7 +11,7 @@ keywords: "saved article 404 page not found, link rot read it later, deleted pag
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Save a link to a page its site has since deleted, and the explanation under it used to blame a bot wall and pitch the browser extension as the cure. Readplace now tells that page's story straight: when a site answers 404 or 410, the notice says the page no longer exists at that address, your link and its place in the queue stay saved, and the capture offer is left out, because a browser capture cannot reach a page that isn't there. The bot-wall explanation and the capture path stay on the failures they're true for, where opening the page in your own browser still rescues the save. 22 of last week's failed crawls ended at a 404, so the wrong advice was showing more often than a corner case would.
+Save a link to a page its site has since deleted, and the explanation under it used to blame a bot wall and pitch the browser extension as the cure. Readplace now tells that page's story straight: when a site answers 404 or 410, the notice says the page no longer exists at that address, your link and its place in the readlist stay saved, and the capture offer is left out, because a browser capture cannot reach a page that isn't there. The bot-wall explanation and the capture path stay on the failures they're true for, where opening the page in your own browser still rescues the save. 22 of last week's failed crawls ended at a 404, so the wrong advice was showing more often than a corner case would.
 
 </div>
 </details>
@@ -22,7 +22,7 @@ The trouble was the story the reader told about them.
 
 ## An explanation written for a different failure
 
-A saved link whose page has died still keeps its card. Open it, and the reader leads with "Your link is saved", which stays true whatever the crawl found: the URL, the title, and the card's place in your queue survive. Under that title sat the explanation, and until this week a deleted page got this one:
+A saved link whose page has died still keeps its card. Open it, and the reader leads with "Your link is saved", which stays true whatever the crawl found: the URL, the title, and the card's place in your readlist survive. Under that title sat the explanation, and until this week a deleted page got this one:
 
 "We couldn't pull the article text. The site may be blocking automated fetches. Save it with the browser extension and iPhone app instead."
 
@@ -58,4 +58,4 @@ A link saved from this morning's newsletter rarely dies before the crawl reaches
 
 Readplace can't bring back what a site deleted before the save existed. What it does now is say so in the notice, and keep [the clean copy](/blog/read-any-article-clean-reader) of every page the crawl reached while that page was still standing.
 
-Both kinds of link sit in the queue at [readplace.com](/) today. They just stopped sharing an explanation.
+Both kinds of link sit in the readlist at [readplace.com](/) today. They just stopped sharing an explanation.

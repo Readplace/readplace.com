@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { QueueSlugSchema } from "@packages/domain/queue";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
 	renderArticleHeader,
 	renderArticleHeaderOob,
@@ -13,7 +13,7 @@ const baseInput = {
 	readTime: { value: "3", label: "~3 min read" },
 	url: "https://example.com/post",
 	provenance: undefined,
-	queueTags: undefined,
+	readlistTags: undefined,
 };
 
 function parse(html: string): Document {
@@ -76,21 +76,21 @@ describe("read time", () => {
 	});
 });
 
-describe("queue tags", () => {
-	it("renders a removable chip per queue holding the article", () => {
+describe("readlist tags", () => {
+	it("renders a removable chip per readlist holding the article", () => {
 		const doc = parse(
 			renderArticleHeader({
 				...baseInput,
-				queueTags: {
+				readlistTags: {
 					unassignUrl: "/queue/abc123/unassign",
 					returnTo: "/queue/abc123/view",
-					tags: [{ slug: QueueSlugSchema.parse("work"), label: "Work" }],
+					tags: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
 				},
 			}),
 		);
 
-		const tag = doc.querySelector('[data-test-queue-tag="work"]');
-		assert(tag, "the queue tag must render in the meta row");
+		const tag = doc.querySelector('[data-test-readlist-tag="work"]');
+		assert(tag, "the readlist tag must render in the meta row");
 		expect(tag.textContent).toContain("Work");
 		const form = tag.querySelector("form");
 		assert(form, "the tag must carry its un-assign form");
@@ -99,15 +99,15 @@ describe("queue tags", () => {
 		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
 			"/queue/abc123/view",
 		);
-		const remove = form.querySelector('[data-test-unassign-queue="work"]');
+		const remove = form.querySelector('[data-test-unassign-readlist="work"]');
 		assert(remove, "the tag must carry its remove button");
 	});
 
-	it("renders no chip for an article that lives only in the default queue", () => {
+	it("renders no chip for an article that lives only in the default readlist", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 
-		const tags = Array.from(doc.querySelectorAll("[data-test-queue-tag]"), (el) =>
-			el.getAttribute("data-test-queue-tag"),
+		const tags = Array.from(doc.querySelectorAll("[data-test-readlist-tag]"), (el) =>
+			el.getAttribute("data-test-readlist-tag"),
 		);
 		expect(tags).toEqual([]);
 	});

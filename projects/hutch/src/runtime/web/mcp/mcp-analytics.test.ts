@@ -56,7 +56,7 @@ describe("initRecordMcpToolCall", () => {
 		});
 	});
 
-	it("also puts a successful save_link into the shared save funnel as surface=mcp, so MCP saves compare against the extension and the queue save bar", () => {
+	it("also puts a successful save_link into the shared save funnel as surface=mcp, so MCP saves compare against the extension and the readlist save bar", () => {
 		const captured = run({ tool: "save_link", outcome: "ok", submittedUrl: "https://example.com/a" });
 		expect(captured).toHaveLength(2);
 		expect(captured[1]).toMatchObject({

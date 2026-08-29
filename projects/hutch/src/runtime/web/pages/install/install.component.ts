@@ -147,7 +147,7 @@ function buildTabGroups(active: ClientName, androidTabRevealed: boolean): Instal
 }
 
 const BROWSER_SETUP_OUTRO =
-	"You sign in once and your queue syncs across every browser and device. Right-click to save all your open tabs, or a link you haven't opened yet.";
+	"You sign in once and your readlist syncs across every browser and device. Right-click to save all your open tabs, or a link you haven't opened yet.";
 
 const APP_SETUP_OUTRO =
 	"Save what you want to read while you're out, then read it in the app or at readplace.com when you have the time. Any feedback is welcome in-app.";
@@ -166,7 +166,7 @@ const IPHONE_DEMO = {
 	platform: "ios",
 	ariaLabel:
 		"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
-	caption: "Tap Share in any browser, choose Readplace, and the page is in your queue.",
+	caption: "Tap Share in any browser, choose Readplace, and the page is in your readlist.",
 } satisfies NativeAppDemoCopy;
 
 /** The panel copy each client GROUP needs. Indexed by the group a client
@@ -254,7 +254,7 @@ const PANEL_DATA = {
 	gemini: {
 		group: "aiAssistant",
 		intro:
-			"The same MCP server connects from the Gemini CLI. Add it once and Gemini can save pages to your queue and read your list back, right inside the conversation.",
+			"The same MCP server connects from the Gemini CLI. Add it once and Gemini can save pages to your readlist and read your list back, right inside the conversation.",
 		promptLabel: "Run this once",
 		prompt: "gemini mcp add --transport http readplace https://readplace.com/mcp",
 		requirement:
@@ -263,7 +263,7 @@ const PANEL_DATA = {
 	claude: {
 		group: "aiAssistant",
 		intro:
-			"Readplace runs an MCP server. Connect it once and Claude can save pages to your queue and read your list back, right inside the conversation.",
+			"Readplace runs an MCP server. Connect it once and Claude can save pages to your readlist and read your list back, right inside the conversation.",
 		promptLabel: "Or just ask Claude",
 		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
 		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
@@ -384,7 +384,7 @@ export function InstallPage(params: {
 			canonicalUrl: "https://readplace.com/install",
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,
-			ogImageAlt: "The Readplace queue listing saved articles with thumbnails and short previews",
+			ogImageAlt: "The Readplace readlist listing saved articles with thumbnails and short previews",
 			structuredData: [
 				{
 					"@context": "https://schema.org",

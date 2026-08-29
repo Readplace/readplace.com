@@ -112,7 +112,7 @@ function saveArticlesAction() {
 	};
 }
 
-function queueCollectionBody(
+function readlistCollectionBody(
 	entities: ReturnType<typeof savedArticleEntity>[],
 ): string {
 	return JSON.stringify({
@@ -134,14 +134,14 @@ function tokenGrantBody(): string {
 	});
 }
 
-const QUEUE_ETAG = '"queue-v1"';
-const SAVED_QUEUE_ETAG = '"queue-v2"';
+const READLIST_ETAG = '"readlist-v1"';
+const SAVED_READLIST_ETAG = '"readlist-v2"';
 
 function entryPointRoute(): PerfRoute {
 	return {
 		status: 200,
-		body: queueCollectionBody([]),
-		headers: { etag: QUEUE_ETAG },
+		body: readlistCollectionBody([]),
+		headers: { etag: READLIST_ETAG },
 	};
 }
 
@@ -269,7 +269,7 @@ function repeatSave(): SaveLatencyScenario {
 				[COLLECTION_CALL]: (init) => {
 					assert.equal(
 						new Headers(init.headers).get("If-None-Match"),
-						QUEUE_ETAG,
+						READLIST_ETAG,
 						"a repeat walk must revalidate the entry point it already holds",
 					);
 					return { status: 304 };
@@ -299,7 +299,7 @@ function repeatSave(): SaveLatencyScenario {
 	};
 }
 
-function saveThenViewQueue(): SaveLatencyScenario {
+function saveThenViewReadlist(): SaveLatencyScenario {
 	return {
 		name: "a list opened from the saved view",
 		expectedCalls: [ENTRY_POINT_CALL, SAVE_CALL, COLLECTION_CALL],
@@ -311,13 +311,13 @@ function saveThenViewQueue(): SaveLatencyScenario {
 				[COLLECTION_CALL]: (init) => {
 					assert.equal(
 						new Headers(init.headers).get("If-None-Match"),
-						QUEUE_ETAG,
+						READLIST_ETAG,
 						"opening the list must revalidate the entry point the save already holds",
 					);
 					return {
 						status: 200,
-						body: queueCollectionBody([savedArticleEntity()]),
-						headers: { etag: SAVED_QUEUE_ETAG },
+						body: readlistCollectionBody([savedArticleEntity()]),
+						headers: { etag: SAVED_READLIST_ETAG },
 					};
 				},
 			});
@@ -390,7 +390,7 @@ function saveAllTabs(): SaveLatencyScenario {
 	};
 }
 
-const SCENARIOS = [warmSave(), coldBootSave(), repeatSave(), saveThenViewQueue()];
+const SCENARIOS = [warmSave(), coldBootSave(), repeatSave(), saveThenViewReadlist()];
 const SAVE_ALL_SCENARIOS = [saveAllTabs()];
 
 /** Registers one gated test per scenario and hands back the means they measure,

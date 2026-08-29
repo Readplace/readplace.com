@@ -10,7 +10,7 @@ test.describe('Admin extend-trial flow (local)', () => {
 		await runExtendTrialFlow(page, {
 			baseURL: BASE_URL,
 			admin: { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD },
-			// A user of its own so the parallel queue-flow spec never sees this
+			// A user of its own so the parallel readlist-flow spec never sees this
 			// flow's admin mutations on its account.
 			target: {
 				email: 'extend-trial-target-e2e@example.com',

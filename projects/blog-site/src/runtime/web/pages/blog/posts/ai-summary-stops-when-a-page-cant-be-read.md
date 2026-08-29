@@ -4,7 +4,7 @@ description: "Some pages can't be turned into an article, so their AI TL;DR has 
 slug: "ai-summary-stops-when-a-page-cant-be-read"
 date: "2026-07-15"
 author: "Fayner Brack"
-keywords: "ai summary stuck, read it later ai summary, why ai summary fails, article that cant be summarized, ai tldr reliability, read it later summary not working, summary pipeline retry loop, dead letter queue summary, ai summary for unreadable page, reliable ai article summary"
+keywords: "ai summary stuck, read it later ai summary, why ai summary fails, article that cant be summarized, ai tldr reliability, read it later summary not working, summary pipeline retry loop, dead letter readlist summary, ai summary for unreadable page, reliable ai article summary"
 ---
 
 <details class="blog-tldr">
@@ -16,13 +16,13 @@ Some pages can't be turned into a clean article. A 404, a page that is only an i
 </div>
 </details>
 
-About 170 messages a month were landing in a queue for jobs that had given up. Each one asked for the same thing, a summary of an article whose page Readplace could not read. There was no text to hand the model, so the job failed, went back in line, and failed again.
+About 170 messages a month were landing in a readlist for jobs that had given up. Each one asked for the same thing, a summary of an article whose page Readplace could not read. There was no text to hand the model, so the job failed, went back in line, and failed again.
 
 When you save a link, two jobs run behind it. One crawls the page, fetches it and cleans it into the reader copy you keep. The other writes the [TL;DR](/blog/how-ai-tldr-actually-works) from that copy. Each keeps its own state, and the summary waits on the crawl to hand it something to read.
 
 Some pages have no article to give. The address is a 404, or the page is a bare image or a video with no words, or a paywall stands where the body should be, or the page draws nothing until JavaScript runs. The crawler calls those failed or unsupported. Both are terminal. The page has been looked at, and no clean copy is coming from it.
 
-The summary job did not read that verdict. It ran anyway, reached for the article text, and found none. An assertion in its path said the text must be there, so a missing body threw an error. The record went back onto the queue, ran again, and after a set number of tries landed in the [dead-letter queue](/view/docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html), where the summary was marked failed.
+The summary job did not read that verdict. It ran anyway, reached for the article text, and found none. An assertion in its path said the text must be there, so a missing body threw an error. The record went back onto the readlist, ran again, and after a set number of tries landed in the [dead-letter readlist](/view/docs.aws.amazon.com/AWSSimpleReadlistService/latest/SQSDeveloperGuide/sqs-dead-letter-readlists.html), where the summary was marked failed.
 
 That failed state is what a second job watches. A stale-check reprimes failed summaries, running the model again up to a budget, so a summary lost to a brief model outage heals on its own. It reads one fact, that the summary failed, and reprimes. It could not tell a model that was down for a minute from a page that holds no text to summarize. So it reprimed a job that had nothing to work with, which failed, which it reprimed again.
 

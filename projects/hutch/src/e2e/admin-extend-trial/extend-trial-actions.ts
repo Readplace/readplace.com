@@ -58,7 +58,7 @@ export function createExtendTrialActions(
 				)
 				// The admin gate's redirect carries no ?return, so login lands on the
 				// default /queue; the next action walks back to the admin page.
-				await page.waitForSelector('body.page-queue')
+				await page.waitForSelector('body.page-readlist')
 				progress.loggedInAsAdmin = true
 			},
 		},
@@ -67,7 +67,7 @@ export function createExtendTrialActions(
 			isAvailable: async (page) => {
 				if (!progress.loggedInAsAdmin) return false
 				if (progress.openedAdminPage) return false
-				return isOnPage(page, 'page-queue')
+				return isOnPage(page, 'page-readlist')
 			},
 			execute: async (page) => {
 				await page.goto(`${config.baseURL}/admin/extend-trial`)

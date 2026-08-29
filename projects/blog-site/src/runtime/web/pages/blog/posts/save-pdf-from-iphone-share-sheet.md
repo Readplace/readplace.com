@@ -43,7 +43,7 @@ For a web page, the app loads the address in a hidden browser view and captures 
 
 That second trip is the one worth avoiding. The same idea runs in the [browser extension I wrote about when it started saving PDFs from your own tab](/blog/save-pdfs-straight-from-your-browser): a PDF behind a login or a bot check is one a crawler asks for and gets a block page instead of the file. The phone already has the bytes. Sending the ones it was handed means the save does not ride on a fresh request the site can refuse.
 
-> **The app sends the file it already has, so a PDF a crawler would be blocked from still lands in your queue.**
+> **The app sends the file it already has, so a PDF a crawler would be blocked from still lands in your readlist.**
 
 Before it sends anything, the app reads the first few bytes for the marker every PDF opens with, so a mislabelled file does not go up as one. If that check fails, or the PDF runs past the 25 MiB the extension will carry, it falls back to sending the link alone and lets the server crawler fetch it, which allows far larger files.
 
@@ -68,4 +68,4 @@ when: f2,c2=2 -> ok | Sends the link | A failed marker check, or a PDF past the 
 else: ok | Uploads the bytes | The share sheet passes the app its bytes directly, so the app uploads those bytes as they are and skips the browser view.
 ```
 
-So the share sheet now offers Readplace for a PDF wherever one shows up on the phone, from Safari's viewer to a mail attachment to a file that came off a web page. Share it, and the app sends the bytes it was already holding, which is what gets a login-guarded PDF into your queue. The iPhone app is on the App Store, linked from [readplace.com/install](https://readplace.com/install?client=iphone). Put a PDF into it from your phone and open it back in the [in-app reader](/blog/read-saved-articles-in-the-iphone-app).
+So the share sheet now offers Readplace for a PDF wherever one shows up on the phone, from Safari's viewer to a mail attachment to a file that came off a web page. Share it, and the app sends the bytes it was already holding, which is what gets a login-guarded PDF into your readlist. The iPhone app is on the App Store, linked from [readplace.com/install](https://readplace.com/install?client=iphone). Put a PDF into it from your phone and open it back in the [in-app reader](/blog/read-saved-articles-in-the-iphone-app).

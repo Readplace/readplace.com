@@ -158,10 +158,10 @@ function createRoutingFetch(routes: Record<string, RouteHandler>): {
 function withEntryPoint(
 	routes: Record<string, RouteHandler>,
 ): Record<string, RouteHandler> {
-	const queueRoute = routes["GET http://localhost:3000/queue"];
-	if (!queueRoute)
+	const readlistRoute = routes["GET http://localhost:3000/queue"];
+	if (!readlistRoute)
 		throw new Error("withEntryPoint requires a GET /queue route");
-	return { "GET http://localhost:3000/": queueRoute, ...routes };
+	return { "GET http://localhost:3000/": readlistRoute, ...routes };
 }
 
 function createDeps(
@@ -5515,8 +5515,8 @@ describe("initSirenReadingList deferred content upload", () => {
 });
 
 
-/** The reader's queue is not a dependency of saving to it. A save fetched every
- * page of the queue twice before this budget existed — the walker collected all
+/** The reader's readlist is not a dependency of saving to it. A save fetched every
+ * page of the readlist twice before this budget existed — the walker collected all
  * pages eagerly, and a save walks twice — which is why the cost is asserted as
  * an exact request list rather than a maximum. Anything that reintroduces a
  * collection read here shows up as an extra entry. */
@@ -5535,7 +5535,7 @@ describe("initSirenReadingList request budget", () => {
 		};
 	}
 
-	it("spends one entry-point walk and the save itself, and never reads the queue", async () => {
+	it("spends one entry-point walk and the save itself, and never reads the readlist", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {

@@ -144,7 +144,7 @@ describe("phase spans", () => {
 describe("budget verdicts", () => {
 	it("records a number without gating it while the budget is still bootstrapping", () => {
 		const verdict = budgetVerdict({
-			opId: "queue-switch-first",
+			opId: "readlist-switch-first",
 			budget: bootstrapBudget,
 			stats: summarizeMs([9000]),
 		});
@@ -198,12 +198,12 @@ describe("budget verdicts", () => {
 
 	it("names the operation and prints every sample when it breaches", () => {
 		const verdict = budgetVerdict({
-			opId: "back-to-queue",
+			opId: "back-to-readlist",
 			budget: lockedBudget,
 			stats: summarizeMs([700, 200]),
 		});
 
-		assert.match(verdict.message, /^back-to-queue: max 700\.0ms exceeds the 500ms budget/);
+		assert.match(verdict.message, /^back-to-readlist: max 700\.0ms exceeds the 500ms budget/);
 		assert.match(verdict.message, /samples: 200, 700$/);
 	});
 });
@@ -246,7 +246,7 @@ describe("budgets file", () => {
 
 	it("rejects budgets that drop an operation the suite measures", () => {
 		const budgets = readBudgets(__dirname);
-		const { "back-to-queue": _dropped, ...remaining } = budgets.ops;
+		const { "back-to-readlist": _dropped, ...remaining } = budgets.ops;
 
 		assert.throws(() => parseBudgets({ ...budgets, ops: remaining }));
 	});
@@ -264,12 +264,12 @@ describe("control probe", () => {
 
 describe("report", () => {
 	const result: OpResult = {
-		opId: "queue-switch-subsequent",
+		opId: "readlist-switch-subsequent",
 		navigation: "same-document",
 		stats: summarizeMs([180, 220]),
 		phases: { beforeRequestMs: 12, afterSwapMs: 190, afterSettleMs: 205 },
 		verdict: budgetVerdict({
-			opId: "queue-switch-subsequent",
+			opId: "readlist-switch-subsequent",
 			budget: lockedBudget,
 			stats: summarizeMs([180, 220]),
 		}),
@@ -280,7 +280,7 @@ describe("report", () => {
 	it("puts the gated maximum and its budget in the table", () => {
 		const table = formatResultsTable([result]);
 
-		assert.match(table, /\| queue-switch-subsequent \| same-document \| 2 \| 220\.0 \| 500 \| within \|/);
+		assert.match(table, /\| readlist-switch-subsequent \| same-document \| 2 \| 220\.0 \| 500 \| within \|/);
 	});
 
 	it("dashes the budget column while the operation is still report-only", () => {
@@ -288,7 +288,7 @@ describe("report", () => {
 			{
 				...result,
 				verdict: budgetVerdict({
-					opId: "queue-switch-subsequent",
+					opId: "readlist-switch-subsequent",
 					budget: bootstrapBudget,
 					stats: result.stats,
 				}),
@@ -317,12 +317,12 @@ describe("report", () => {
 
 	it("names the operations a partial run never got to", () => {
 		assert.deepEqual(missingOpResults([result]), [
-			"queue-switch-first",
+			"readlist-switch-first",
 			"tab-switch-first",
 			"tab-switch-subsequent",
-			"assign-to-queue",
+			"assign-to-readlist",
 			"open-article",
-			"back-to-queue",
+			"back-to-readlist",
 		]);
 	});
 });

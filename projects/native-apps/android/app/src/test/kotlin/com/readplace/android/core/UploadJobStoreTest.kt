@@ -24,9 +24,9 @@ class UploadJobStoreTest {
 	private fun TestScope.makeStore(): UploadJobStore =
 		UploadJobStore(filesRoot = temporaryFolder.root, io = StandardTestDispatcher(testScheduler))
 
-	private fun queueDirectory(): File = File(temporaryFolder.root, "upload-queue")
+	private fun readlistDirectory(): File = File(temporaryFolder.root, "upload-queue")
 
-	private fun queueEntries(): List<String> = queueDirectory().list().orEmpty().sorted()
+	private fun readlistEntries(): List<String> = readlistDirectory().list().orEmpty().sorted()
 
 	private fun job(
 		id: String,
@@ -59,7 +59,7 @@ class UploadJobStoreTest {
 	// region admitting
 
 	@Test
-	fun `admits a job under the upload queue of the files root`() = runTest {
+	fun `admits a job under the upload readlist of the files root`() = runTest {
 		val store = makeStore()
 		val admitted = job(id = "j1")
 
@@ -69,7 +69,7 @@ class UploadJobStoreTest {
 		assertEquals(
 			"a queued upload is a durable promise, so it must sit under the files root the system " +
 				"does not purge, never the cache",
-			queueDirectory(),
+			readlistDirectory(),
 			store.bytesFile(admitted).parentFile,
 		)
 	}
@@ -90,7 +90,7 @@ class UploadJobStoreTest {
 		assertEquals(
 			"the superseded job's staged body goes with its record",
 			listOf("j2.json", "j3.json"),
-			queueEntries(),
+			readlistEntries(),
 		)
 	}
 
@@ -132,7 +132,7 @@ class UploadJobStoreTest {
 	}
 
 	@Test
-	fun `resurrects nothing when staging into a purged queue`() = runTest {
+	fun `resurrects nothing when staging into a purged readlist`() = runTest {
 		val store = makeStore()
 		val admitted = job(id = "j1")
 		store.admit(admitted)
@@ -140,10 +140,10 @@ class UploadJobStoreTest {
 
 		try {
 			store.stageReady(admitted, multipartForm())
-			fail("staging into a purged queue must throw rather than re-create it")
+			fail("staging into a purged readlist must throw rather than re-create it")
 		} catch (_: IOException) {
 			assertEquals(
-				"a sign-out purge is final: an in-flight capture must not write the queue back into being",
+				"a sign-out purge is final: an in-flight capture must not write the readlist back into being",
 				emptyList<UploadJob>(),
 				store.loadAll(now = epoch),
 			)
@@ -181,7 +181,7 @@ class UploadJobStoreTest {
 		val store = makeStore()
 		val survivor = job(id = "j1")
 		store.admit(survivor)
-		File(queueDirectory(), "broken.json").writeText("{ not a record")
+		File(readlistDirectory(), "broken.json").writeText("{ not a record")
 
 		assertEquals(listOf(survivor), store.loadAll(now = epoch))
 	}
@@ -191,7 +191,7 @@ class UploadJobStoreTest {
 		val store = makeStore()
 		val survivor = job(id = "j1")
 		store.admit(survivor)
-		File(queueDirectory(), "unreadable.json").mkdirs()
+		File(readlistDirectory(), "unreadable.json").mkdirs()
 
 		assertEquals(listOf(survivor), store.loadAll(now = epoch))
 	}
@@ -210,7 +210,7 @@ class UploadJobStoreTest {
 		store.update(retried)
 
 		assertEquals(listOf(retried), store.loadAll(now = epoch.plusSeconds(60)))
-		assertEquals(listOf("j1.json"), queueEntries())
+		assertEquals(listOf("j1.json"), readlistEntries())
 	}
 
 	@Test
@@ -225,7 +225,7 @@ class UploadJobStoreTest {
 		store.remove(ready)
 
 		assertEquals(listOf(survivor), store.loadAll(now = epoch))
-		assertEquals(listOf("j2.json"), queueEntries())
+		assertEquals(listOf("j2.json"), readlistEntries())
 	}
 
 	@Test
@@ -238,11 +238,11 @@ class UploadJobStoreTest {
 
 		store.removeOrphanedBytes()
 
-		assertEquals(listOf("j1.json", "j1.multipart"), queueEntries())
+		assertEquals(listOf("j1.json", "j1.multipart"), readlistEntries())
 	}
 
 	@Test
-	fun `purge all empties the queue`() = runTest {
+	fun `purge all empties the readlist`() = runTest {
 		val store = makeStore()
 		val admitted = job(id = "j1")
 		store.admit(admitted)
@@ -251,7 +251,7 @@ class UploadJobStoreTest {
 		store.purgeAll()
 
 		assertEquals(emptyList<UploadJob>(), store.loadAll(now = epoch))
-		assertFalse(queueDirectory().exists())
+		assertFalse(readlistDirectory().exists())
 	}
 
 	// endregion

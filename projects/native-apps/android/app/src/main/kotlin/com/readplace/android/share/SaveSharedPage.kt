@@ -4,7 +4,7 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.MultipartForm
-import com.readplace.android.core.QueuePage
+import com.readplace.android.core.ReadlistPage
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.TokenStore
@@ -47,7 +47,7 @@ class SaveSharedPage(
 	 * [sharedPdf] lazily loads the bytes of a PDF the share sheet delivered as a
 	 * file (null when the payload carried none) — a closure rather than the bytes
 	 * so a share that fails the guards above never pays for the load. [onNotice]
-	 * receives any server-authored save notice (the queue collection's
+	 * receives any server-authored save notice (the readlist collection's
 	 * `noticeMessages`) as soon as the list loads. [onSaved] fires the moment the
 	 * link is on the server — carrying the server's confirmation. All default to
 	 * no-ops so the outcome-only callers stay untouched.
@@ -97,7 +97,7 @@ class SaveSharedPage(
 		onSaved: (List<ServerMessage>) -> Unit,
 		onStillSaving: () -> Unit,
 	): SaveSharedOutcome {
-		val page = api.loadQueue()
+		val page = api.loadReadlist()
 		onNotice(page.noticeMessages)
 		val action = page.action(named = "save-article") ?: return SaveSharedOutcome.NoSaveAction
 		val confirmation = api.saveArticle(action, url)
@@ -118,7 +118,7 @@ class SaveSharedPage(
 		return SaveSharedOutcome.SavedAwaitingUpload(confirmation.messages)
 	}
 
-	private suspend fun admit(page: QueuePage, url: String, title: String?): UploadJob? {
+	private suspend fun admit(page: ReadlistPage, url: String, title: String?): UploadJob? {
 		if (jobs == null || page.action(named = "save-content") == null) return null
 		val now = clock.instant()
 		val job = UploadJob(

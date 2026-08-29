@@ -64,7 +64,7 @@ const CLIENT_CATEGORY_FEATURES = {
 	urlOnly: {
 		name: "Connect Your AI Assistant",
 		description:
-			"Readplace runs an MCP server, so ChatGPT, Gemini, Claude, Perplexity, and other AI assistants can save links to your queue and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
+			"Readplace runs an MCP server, so ChatGPT, Gemini, Claude, Perplexity, and other AI assistants can save links to your readlist and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
 		linkHref: "/mcp",
 		linkLabel: "How to connect",
 	},
@@ -94,7 +94,7 @@ interface WayToSave {
 const WAYS_TO_SAVE: readonly WayToSave[] = [
 	{
 		name: "Paste a link on this page",
-		body: "It opens in the reader with a TL;DR in seconds — an article or a PDF, no account and nothing to install. Save it from there and it goes to your queue; that is the point where I ask for an account.",
+		body: "It opens in the reader with a TL;DR in seconds — an article or a PDF, no account and nothing to install. Save it from there and it goes to your readlist; that is the point where I ask for an account.",
 		linkLabel: "Try it now",
 		linkHref: "#paste-a-link",
 		trackContent: "paste",
@@ -129,7 +129,7 @@ const WAYS_TO_SAVE: readonly WayToSave[] = [
 	},
 	{
 		name: "ChatGPT, Claude, or Gemini",
-		body: "Readplace runs an MCP server. Paste one URL into your assistant's connector settings, sign in once, and it can save links to your queue and read the list back inside the conversation.",
+		body: "Readplace runs an MCP server. Paste one URL into your assistant's connector settings, sign in once, and it can save links to your readlist and read the list back inside the conversation.",
 		linkLabel: "Connect your assistant",
 		linkHref: "/mcp",
 		trackContent: "mcp",
@@ -145,12 +145,12 @@ const WAYS_TO_SAVE: readonly WayToSave[] = [
 		name: "Your newsletters",
 		body: "Every account gets its own address at read.place, shaped like netflix-a7b2c9@read.place. Subscribe with it, or forward an issue to it, and Readplace saves the article links out of the email. You can hold up to 25, one per newsletter.",
 		linkLabel: "How that works",
-		linkHref: "/blog/save-newsletter-links-to-your-queue",
+		linkHref: "/blog/save-newsletter-links-to-your-readlist",
 		trackContent: "inbox",
 	},
 	{
 		name: "A save button on your own site",
-		body: "If you publish, the snippet is a plain link — under 1 KB, no JavaScript, no tracking — that puts your article in a reader's queue in one click.",
+		body: "If you publish, the snippet is a plain link — under 1 KB, no JavaScript, no tracking — that puts your article in a reader's readlist in one click.",
 		linkLabel: "Get the snippet",
 		linkHref: "/embed",
 		trackContent: "embed",

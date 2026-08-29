@@ -4,7 +4,7 @@
         {{#if selfRegistered}}
         <p class="oauth-authorize__notice"><strong>{{clientName}}</strong> registered itself with Readplace and will send your authorization to <strong>{{redirectHost}}</strong>. Continue only if you recognise it.</p>
         {{/if}}
-        <p class="oauth-authorize__text"><strong>{{clientName}}</strong> wants full read and write access to your Readplace reading queue, including saving and deleting links.</p>
+        <p class="oauth-authorize__text"><strong>{{clientName}}</strong> wants full read and write access to your Readplace reading readlist, including saving and deleting links.</p>
         {{#if userEmail}}<p class="oauth-authorize__account">Signed in as <strong>{{userEmail}}</strong></p>{{/if}}
         <form method="POST" action="/oauth/authorize">
           <input type="hidden" name="client_id" value="{{clientId}}">

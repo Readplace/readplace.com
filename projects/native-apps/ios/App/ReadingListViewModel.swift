@@ -17,9 +17,9 @@ final class ReadingListViewModel: ObservableObject {
 	/// The "add links via Share" help page the reading list's + control opens in a
 	/// webview. A client-owned path resolved against the API base — the client holds
 	/// it itself rather than reading it from the server's add-links-help link — so the
-	/// + control works before (and regardless of) a queue load. It carries the
+	/// + control works before (and regardless of) a readlist load. It carries the
 	/// app-shell marker so the server renders the page chromeless with a "← Back to
-	/// queue" deep link, the same way the account page does inside this sheet.
+	/// readlist" deep link, the same way the account page does inside this sheet.
 	let addLinksHelpURL: URL?
 
 	/// The collection-level controls the toolbar renders. The server's own collection
@@ -28,7 +28,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// injected by the client and kept canonical, so any add-links-help the server
 	/// also advertises is deduped rather than rendered as a second +.
 	@Published private(set) var collectionAffordances: [Affordance] = [ReadingListViewModel.addLinksHelp]
-	@Published private(set) var tabs: [QueueTab] = []
+	@Published private(set) var tabs: [ReadlistTab] = []
 	@Published private(set) var selectedTabHref: String?
 
 	private var nextHref: String?
@@ -116,7 +116,7 @@ final class ReadingListViewModel: ObservableObject {
 		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
 		messages = []
 		do {
-			let page = try await api.loadQueue(path: currentTabHref)
+			let page = try await api.loadReadlist(path: currentTabHref)
 			guard tabUnchanged(since: generation) else { return }
 			apply(page, replacing: true)
 		} catch {
@@ -131,7 +131,7 @@ final class ReadingListViewModel: ObservableObject {
 		let generation = tabGeneration
 		isLoadingMore = true
 		do {
-			let page = try await api.loadQueue(path: next)
+			let page = try await api.loadReadlist(path: next)
 			if tabUnchanged(since: generation) { apply(page, replacing: false) }
 		} catch {
 			if tabUnchanged(since: generation) { handle(error) }
@@ -242,7 +242,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// user's explicit "re-read now" gesture, which is the one place a jump to the
 	/// top is expected. With no collection to adopt (a non-collection response) the
 	/// server directed no re-list, so again only the confirmed removal is applied.
-	private func adopt(_ page: QueuePage?, droppingId removedId: String?) {
+	private func adopt(_ page: ReadlistPage?, droppingId removedId: String?) {
 		guard !hasPaginated, let page else {
 			if let removedId { articles.removeAll { $0.id == removedId } }
 			return
@@ -261,7 +261,7 @@ final class ReadingListViewModel: ObservableObject {
 		let generation = tabGeneration
 		isLoading = true
 		do {
-			let page = try await api.loadQueue(path: currentTabHref)
+			let page = try await api.loadReadlist(path: currentTabHref)
 			guard tabUnchanged(since: generation) else { return }
 			adopt(page, droppingId: removedId)
 		} catch {
@@ -348,7 +348,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// rows the list doesn't already hold. `droppingId` matters only for a replacing
 	/// load; an append never re-introduces a removed row because its ids are already
 	/// present.
-	private func apply(_ page: QueuePage, replacing: Bool, droppingId removedId: String? = nil) {
+	private func apply(_ page: ReadlistPage, replacing: Bool, droppingId removedId: String? = nil) {
 		if replacing {
 			articles = page.articles.filter { $0.id != removedId }
 			hasPaginated = false
@@ -395,7 +395,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// a same-token server affordance is dropped first (via the single isAddLinksHelp
 	/// source), so the injected control stays canonical and a server that re-advertises
 	/// add-links-help never renders a duplicate +.
-	private func applyToolbar(_ page: QueuePage) {
+	private func applyToolbar(_ page: ReadlistPage) {
 		let serverControls = page.affordances.filter {
 			$0.isToolbarControl && !Affordance.isAddLinksHelp($0.token)
 		}

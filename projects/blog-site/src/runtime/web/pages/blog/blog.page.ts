@@ -52,6 +52,7 @@ const SLUG_REDIRECTS: Record<string, string> = {
 	"hutch-vs-readwise-reader": "readplace-vs-readwise-reader",
 	"hutch-vs-instapaper": "readplace-vs-instapaper",
 	"hutch-vs-karakeep-hosted-vs-self-hosted-read-it-later": "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later",
+	"save-newsletter-links-to-your-queue": "save-newsletter-links-to-your-readlist",
 };
 
 const BLOG_POST_PRIORITY: Record<string, string> = {

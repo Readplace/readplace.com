@@ -155,13 +155,13 @@ const ScreenResponseBudgetsSchema = z.object({
 		}),
 	}),
 	ops: z.object({
-		"queue-switch-first": OpBudgetSchema,
-		"queue-switch-subsequent": OpBudgetSchema,
+		"readlist-switch-first": OpBudgetSchema,
+		"readlist-switch-subsequent": OpBudgetSchema,
 		"tab-switch-first": OpBudgetSchema,
 		"tab-switch-subsequent": OpBudgetSchema,
-		"assign-to-queue": OpBudgetSchema,
+		"assign-to-readlist": OpBudgetSchema,
 		"open-article": OpBudgetSchema,
-		"back-to-queue": OpBudgetSchema,
+		"back-to-readlist": OpBudgetSchema,
 	} satisfies Record<ScreenResponseOpId, z.ZodType>),
 });
 

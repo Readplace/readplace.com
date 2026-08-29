@@ -46,7 +46,7 @@ The number of emails did not go up. What each email carries did.
 
 ## How it knows you were waiting
 
-Readplace records two moments for every save: when the reader view finishes building, and when you first open that reader. If the open lands before the finish, you were sitting in front of a loading page. That is the signal the digest runs on. A save you opened only after it was done never enters the queue, and one you did not open at all does not either.
+Readplace records two moments for every save: when the reader view finishes building, and when you first open that reader. If the open lands before the finish, you were sitting in front of a loading page. That is the signal the digest runs on. A save you opened only after it was done never enters the readlist, and one you did not open at all does not either.
 
 That is also why the email can trust its own list. Six hours is long enough to read a piece, delete it, or save it again. So each row is re-checked the moment the digest is built, against the live state of that article. A row that no longer holds up is dropped before the email goes out, not after.
 

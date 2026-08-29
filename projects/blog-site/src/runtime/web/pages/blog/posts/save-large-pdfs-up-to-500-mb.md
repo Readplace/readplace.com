@@ -48,7 +48,7 @@ A key that points at storage is a key that could be pointed at the wrong thing. 
 
 The size has to match what was uploaded. The write has to be recent, measured against a window twice the key's own life, about 30 minutes, so a big file whose upload ran long still counts, while a stale write left from an hour ago does not. And the file has to actually be a PDF, which Readplace tests by reading the five bytes every PDF opens with, `%PDF-`.
 
-A staged object that misses any of those checks is refused. The check sits on the server, past the browser, so a request that skips the page and posts straight at the route answers the same questions. Nothing lands in your queue on the strength of a key alone.
+A staged object that misses any of those checks is refused. The check sits on the server, past the browser, so a request that skips the page and posts straight at the route answers the same questions. Nothing lands in your readlist on the strength of a key alone.
 
 ```rp-figure
 kind: rule

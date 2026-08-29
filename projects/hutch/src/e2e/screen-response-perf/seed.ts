@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { type Page, expect } from "@playwright/test";
 import {
 	ARTICLE_CARD,
-	QUEUE_NAV,
+	READLIST_NAV,
 	READER_SLOT_READY,
 	REPEATING_POLLER,
 	type TabId,
-	queueNavLink,
+	readlistNavLink,
 	terminalCard,
 } from "./screen-response-ops";
 
@@ -15,15 +15,15 @@ const CRAWL_SETTLE_TIMEOUT_MS = 300_000;
 const READER_SETTLE_TIMEOUT_MS = 180_000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-/** The queue lists from an eventually-consistent GSI, so a save can still be
+/** The readlist lists from an eventually-consistent GSI, so a save can still be
  * propagating when the listing is read back. */
 const GSI_PROPAGATION_SETTLE_MS = 2000;
 
-const ARTICLES_PER_SWITCH_QUEUE = 4;
-const READ_PER_SWITCH_QUEUE = 2;
-const CARDS_PER_TAB = ARTICLES_PER_SWITCH_QUEUE - READ_PER_SWITCH_QUEUE;
+const ARTICLES_PER_SWITCH_READLIST = 4;
+const READ_PER_SWITCH_READLIST = 2;
+const CARDS_PER_TAB = ARTICLES_PER_SWITCH_READLIST - READ_PER_SWITCH_READLIST;
 const DEDICATED_ARTICLES = 2;
-const TOTAL_ARTICLES = ARTICLES_PER_SWITCH_QUEUE * 2 + DEDICATED_ARTICLES;
+const TOTAL_ARTICLES = ARTICLES_PER_SWITCH_READLIST * 2 + DEDICATED_ARTICLES;
 
 export interface SeededDataset {
 	assignArticleId: string;
@@ -32,12 +32,12 @@ export interface SeededDataset {
 	bravoSlug: string;
 	assignSlug: string;
 	cardsPerSwitchTab: number;
-	defaultQueueUnreadCards: number;
+	defaultReadlistUnreadCards: number;
 }
 
-export function queueUrl(input: { baseURL: string; queue?: string; tab?: TabId }): string {
+export function readlistUrl(input: { baseURL: string; readlist?: string; tab?: TabId }): string {
 	const params = new URLSearchParams();
-	if (input.queue !== undefined) params.set("queue", input.queue);
+	if (input.readlist !== undefined) params.set("queue", input.readlist);
 	if (input.tab === "done") params.set("tab", "done");
 	params.append("feature", "queues");
 	return `${input.baseURL}/queue?${params.toString()}`;
@@ -59,26 +59,26 @@ async function post(input: {
 
 async function queueSlugsOn(page: Page): Promise<string[]> {
 	return page
-		.locator(`${QUEUE_NAV} a[data-test-queue]`)
+		.locator(`${READLIST_NAV} a[data-test-readlist]`)
 		.evaluateAll((links) =>
 			links.flatMap((link) => {
-				const slug = link.getAttribute("data-test-queue");
+				const slug = link.getAttribute("data-test-readlist");
 				return slug === null ? [] : [slug];
 			}),
 		);
 }
 
-async function createQueue(input: { page: Page; baseURL: string }): Promise<string> {
+async function createReadlist(input: { page: Page; baseURL: string }): Promise<string> {
 	const { page } = input;
-	await page.goto(queueUrl({ baseURL: input.baseURL }), { waitUntil: "domcontentloaded" });
+	await page.goto(readlistUrl({ baseURL: input.baseURL }), { waitUntil: "domcontentloaded" });
 	const before = await queueSlugsOn(page);
-	await page.locator('[data-test-action="new-queue"]').click();
-	await page.waitForSelector(QUEUE_NAV, { timeout: NAVIGATION_TIMEOUT_MS });
+	await page.locator('[data-test-action="new-readlist"]').click();
+	await page.waitForSelector(READLIST_NAV, { timeout: NAVIGATION_TIMEOUT_MS });
 	await expect
 		.poll(async () => (await queueSlugsOn(page)).length, { timeout: NAVIGATION_TIMEOUT_MS })
 		.toBe(before.length + 1);
 	const created = (await queueSlugsOn(page)).filter((slug) => !before.includes(slug));
-	assert.equal(created.length, 1, `creating a queue produced ${created.length} new slugs`);
+	assert.equal(created.length, 1, `creating a readlist produced ${created.length} new slugs`);
 	return created[0];
 }
 
@@ -147,12 +147,12 @@ export async function settleReader(input: {
 export async function settleListing(input: {
 	page: Page;
 	baseURL: string;
-	queue?: string;
+	readlist?: string;
 	tab?: TabId;
 	expectedCards: number;
 }): Promise<void> {
 	const { page } = input;
-	const url = queueUrl({ baseURL: input.baseURL, queue: input.queue, tab: input.tab });
+	const url = readlistUrl({ baseURL: input.baseURL, readlist: input.readlist, tab: input.tab });
 	await page.goto(url, { waitUntil: "domcontentloaded" });
 	await expect(page.locator(ARTICLE_CARD)).toHaveCount(input.expectedCards, {
 		timeout: CRAWL_SETTLE_TIMEOUT_MS,
@@ -171,10 +171,10 @@ export async function seedPerfDataset(input: {
 }): Promise<SeededDataset> {
 	const { page, baseURL, runId, diagnostic } = input;
 
-	const alphaSlug = await createQueue({ page, baseURL });
-	const bravoSlug = await createQueue({ page, baseURL });
-	const assignSlug = await createQueue({ page, baseURL });
-	diagnostic(`queues: alpha=${alphaSlug} bravo=${bravoSlug} assign=${assignSlug}`);
+	const alphaSlug = await createReadlist({ page, baseURL });
+	const bravoSlug = await createReadlist({ page, baseURL });
+	const assignSlug = await createReadlist({ page, baseURL });
+	diagnostic(`readlists: alpha=${alphaSlug} bravo=${bravoSlug} assign=${assignSlug}`);
 
 	for (let index = 0; index < TOTAL_ARTICLES; index += 1) {
 		await post({
@@ -185,17 +185,17 @@ export async function seedPerfDataset(input: {
 		});
 	}
 
-	const defaultQueueUrl = queueUrl({ baseURL });
+	const defaultReadlistUrl = readlistUrl({ baseURL });
 	const ids = await waitForEveryCardTerminal({
 		page,
-		url: defaultQueueUrl,
+		url: defaultReadlistUrl,
 		expectedCards: TOTAL_ARTICLES,
 	});
 	diagnostic(`${ids.length} fixture articles reached a terminal card state`);
 
 	const [assignArticleId, openArticleId, ...filed] = ids;
-	const alphaArticles = filed.slice(0, ARTICLES_PER_SWITCH_QUEUE);
-	const bravoArticles = filed.slice(ARTICLES_PER_SWITCH_QUEUE);
+	const alphaArticles = filed.slice(0, ARTICLES_PER_SWITCH_READLIST);
+	const bravoArticles = filed.slice(ARTICLES_PER_SWITCH_READLIST);
 
 	for (const [slug, articles] of [
 		[alphaSlug, alphaArticles],
@@ -205,11 +205,11 @@ export async function seedPerfDataset(input: {
 			await post({
 				page,
 				url: `${baseURL}/queue/${articleId}/assign`,
-				form: { queue: slug, returnTo: `/queue/${articleId}/view` },
+				form: { readlist: slug, returnTo: `/queue/${articleId}/view` },
 				what: `filing ${articleId} into ${slug}`,
 			});
 		}
-		for (const articleId of articles.slice(0, READ_PER_SWITCH_QUEUE)) {
+		for (const articleId of articles.slice(0, READ_PER_SWITCH_READLIST)) {
 			await post({
 				page,
 				url: `${baseURL}/queue/${articleId}/status`,
@@ -230,24 +230,24 @@ export async function seedPerfDataset(input: {
 
 	await page.waitForTimeout(GSI_PROPAGATION_SETTLE_MS);
 
-	const defaultQueueUnreadCards = TOTAL_ARTICLES - READ_PER_SWITCH_QUEUE * 2;
-	await settleListing({ page, baseURL, expectedCards: defaultQueueUnreadCards });
+	const defaultReadlistUnreadCards = TOTAL_ARTICLES - READ_PER_SWITCH_READLIST * 2;
+	await settleListing({ page, baseURL, expectedCards: defaultReadlistUnreadCards });
 	for (const slug of [alphaSlug, bravoSlug]) {
-		await settleListing({ page, baseURL, queue: slug, expectedCards: CARDS_PER_TAB });
+		await settleListing({ page, baseURL, readlist: slug, expectedCards: CARDS_PER_TAB });
 		await settleListing({
 			page,
 			baseURL,
-			queue: slug,
+			readlist: slug,
 			tab: "done",
 			expectedCards: CARDS_PER_TAB,
 		});
 	}
-	await settleListing({ page, baseURL, queue: assignSlug, expectedCards: 0 });
+	await settleListing({ page, baseURL, readlist: assignSlug, expectedCards: 0 });
 	await settleReader({ page, baseURL, articleId: assignArticleId });
 	await settleReader({ page, baseURL, articleId: openArticleId });
 
-	await page.goto(queueUrl({ baseURL, queue: alphaSlug }), { waitUntil: "domcontentloaded" });
-	await expect(page.locator(queueNavLink(bravoSlug))).toHaveCount(1);
+	await page.goto(readlistUrl({ baseURL, readlist: alphaSlug }), { waitUntil: "domcontentloaded" });
+	await expect(page.locator(readlistNavLink(bravoSlug))).toHaveCount(1);
 
 	return {
 		assignArticleId,
@@ -256,7 +256,7 @@ export async function seedPerfDataset(input: {
 		bravoSlug,
 		assignSlug,
 		cardsPerSwitchTab: CARDS_PER_TAB,
-		defaultQueueUnreadCards,
+		defaultReadlistUnreadCards,
 	};
 }
 /* c8 ignore stop */

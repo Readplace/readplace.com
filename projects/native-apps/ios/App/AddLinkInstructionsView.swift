@@ -8,7 +8,7 @@ import SwiftUI
 /// discovered from the server.
 ///
 /// Chromeless, like the reader and account sheets: the page renders its own
-/// "← Back to queue" deep link, which the webview intercepts to dismiss, so all
+/// "← Back to readlist" deep link, which the webview intercepts to dismiss, so all
 /// three in-app sheets return to the native list the same way rather than this
 /// one alone wearing a native nav bar. If the URL can't be resolved or the page
 /// fails to load, a local fallback still teaches Share — and carries its own
@@ -44,7 +44,7 @@ struct AddLinkInstructionsView: View {
 	/// A self-contained native version of the help page, shown when the webview
 	/// can't be displayed. It still delivers the core instruction so the feature
 	/// degrades gracefully, and — unlike the happy path, whose back link the page
-	/// renders — carries its own native "Back to queue" button, mirroring the
+	/// renders — carries its own native "Back to readlist" button, mirroring the
 	/// reader sheet's native unavailable view.
 	private var fallback: some View {
 		VStack(spacing: 12) {
@@ -58,7 +58,7 @@ struct AddLinkInstructionsView: View {
 				.font(.subheadline)
 				.foregroundStyle(Color.brandTextSecondary)
 				.multilineTextAlignment(.center)
-			Button("← Back to queue", action: onClose)
+			Button("← Back to readlist", action: onClose)
 				.padding(.top, 4)
 		}
 		.padding(40)

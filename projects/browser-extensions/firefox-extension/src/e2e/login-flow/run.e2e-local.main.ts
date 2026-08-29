@@ -38,7 +38,7 @@ const READY_NONCE = randomUUID();
 
 const TEST_LINK_URL = "https://example.com/test-article";
 const TEST_LINK_TITLE = "Test Article";
-const TRANSITION_FLOW = "extension-view-queue-firefox";
+const TRANSITION_FLOW = "extension-view-readlist-firefox";
 
 // The suite must always end: a test cancelled by --test-timeout skips its
 // teardown, and the orphaned e2e-server child then holds this process open

@@ -241,7 +241,7 @@ async function initCore() {
 		refreshTokens: auth.refreshTokens,
 		/** A 401 that survived the refresh-and-replay ends the session, not just an
 		 * explicit logout, so the captured page bytes go with it rather than waiting
-		 * on the queue's own next wake. Not awaited: the queue's own upload reaches
+		 * on the readlist's own next wake. Not awaited: the readlist's own upload reaches
 		 * this through the same serialised chain the purge joins, so awaiting it
 		 * here would deadlock that pass — it is already purging for itself. */
 		onUnauthorized: async () => {
@@ -339,7 +339,7 @@ browser.commands.onCommand.addListener((command) => {
  * URL, a redirect target) would land the bytes on a different article than the one
  * the user just saw appear. The popup's response is already on its way, so the
  * worker is held open for the capture and upload that follow it. */
-function queueContentUpload(
+function readlistContentUpload(
 	uploadQueue: UploadQueue,
 	target: { url: string; title: string; tabId?: number },
 ): void {
@@ -463,7 +463,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 					const pending = new Promise<unknown>((resolve) => {
 						core.once("saved-current-tab", {
 							success: (value: SaveUrlResult) => {
-								if (value.ok) queueContentUpload(uploadQueue, target);
+								if (value.ok) readlistContentUpload(uploadQueue, target);
 								resolve({ ok: true, value });
 							},
 							failure: (err) => resolve({ ok: false, ...err }),

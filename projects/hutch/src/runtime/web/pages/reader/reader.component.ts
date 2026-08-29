@@ -15,11 +15,11 @@ import type {
 	MarkReadAction,
 	RenderReaderActions,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
-import type { ReaderQueueFiling } from "../queue/reader-queue-filing";
+import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
 import {
 	markStatusConfirmPopoverId,
 	renderMarkStatusConfirm,
-} from "../queue/mark-status-confirm.component";
+} from "../readlist/mark-status-confirm.component";
 import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
@@ -98,11 +98,11 @@ export function ReaderPage(
 		 * same toolbar; the variant carries the page body class that decides where it
 		 * pins, so the markup and the CSS that pins it can never drift apart. */
 		renderActions: RenderReaderActions;
-		queueFiling: ReaderQueueFiling;
+		readlistFiling: ReaderReadlistFiling;
 		crawlVersions?: LocalTime[];
 		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 		exitMarkReadConfirm?: boolean;
-		markStatusConfirmQueueLabels?: readonly string[];
+		markStatusConfirmReadlistLabels?: readonly string[];
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -110,14 +110,14 @@ export function ReaderPage(
 	const markReadLabel = isRead ? "Mark as unread" : "Mark as read";
 	const markReadStatus: ArticleStatus = isRead ? "unread" : "read";
 	const markStatusConfirm =
-		options.markStatusConfirmQueueLabels === undefined
+		options.markStatusConfirmReadlistLabels === undefined
 			? undefined
 			: {
 					articleId,
 					popoverId: markStatusConfirmPopoverId(articleId),
 					url: `/queue/${articleId}/status`,
 					status: markReadStatus,
-					queueLabels: options.markStatusConfirmQueueLabels,
+					queueLabels: options.markStatusConfirmReadlistLabels,
 				};
 	const markReadActions: MarkReadAction[] = [
 		{
@@ -135,7 +135,7 @@ export function ReaderPage(
 		actionBtns: {
 			backLink: options.backLink,
 			markReadActions,
-			queuePicker: options.queueFiling.picker,
+			readlistPicker: options.readlistFiling.picker,
 		},
 	});
 	const innerContent = renderArticleBody({
@@ -146,7 +146,7 @@ export function ReaderPage(
 		// the share path below stays on `article.url` (the /view identity).
 		url: article.displayUrl ?? article.url,
 		provenance: article.provenance,
-		queueTags: options.queueFiling.tags,
+		readlistTags: options.readlistFiling.tags,
 		content: article.content,
 		crawl: options.crawl,
 		readerPollUrl: options.readerPollUrl,

@@ -464,7 +464,7 @@ describe("runPdfSaveScenario", () => {
 		).rejects.toThrow(/saveUrl failed/);
 	});
 
-	it("rejects when the saved article disappears from the queue mid-poll", async () => {
+	it("rejects when the saved article disappears from the readlist mid-poll", async () => {
 		const collections = [
 			collectionResponse([]),
 			collectionResponse([articleEntity(STUB_TITLE)]),
@@ -491,7 +491,7 @@ describe("runPdfSaveScenario", () => {
 				pollIntervalMs: 1,
 				pollTimeoutMs: 5_000,
 			}),
-		).rejects.toThrow(/disappeared from the queue/);
+		).rejects.toThrow(/disappeared from the readlist/);
 	});
 
 	it("propagates a 401 from a Siren call as Unauthorized", async () => {

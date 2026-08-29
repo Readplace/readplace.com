@@ -1,24 +1,24 @@
 ---
 title: "Connect ChatGPT to Your Reading List in One Click"
-description: "ChatGPT can save a page to your Readplace queue, read back a saved article's clean copy and its TL;DR, surface related saves, and mark one read. Connecting it used to mean turning on Developer Mode and hand-building a custom connector. Readplace is an official ChatGPT plugin now, so the setup is an Add button and one sign-in."
+description: "ChatGPT can save a page to your Readplace readlist, read back a saved article's clean copy and its TL;DR, surface related saves, and mark one read. Connecting it used to mean turning on Developer Mode and hand-building a custom connector. Readplace is an official ChatGPT plugin now, so the setup is an Add button and one sign-in."
 slug: "connect-chatgpt-in-one-click"
 date: "2026-08-18"
 author: "Fayner Brack"
-keywords: "connect chatgpt to reading list, readplace chatgpt plugin, official chatgpt plugin, chatgpt read it later, save articles from chatgpt, chatgpt reading queue, chatgpt mcp connector, add readplace to chatgpt, ai assistant reading list, pocket alternative chatgpt"
+keywords: "connect chatgpt to reading list, readplace chatgpt plugin, official chatgpt plugin, chatgpt read it later, save articles from chatgpt, chatgpt readlist, chatgpt mcp connector, add readplace to chatgpt, ai assistant reading list, pocket alternative chatgpt"
 tags: ["changelog"]
-banner: "I made ChatGPT one click away from your reading queue"
+banner: "I made ChatGPT one click away from your readlist"
 ---
 
 <details class="blog-tldr">
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-ChatGPT's plugin directory now carries an official Readplace listing. Adding it is an Add button and one sign-in, and a connected chat can then save a page to your reading queue, list what is waiting in it, read back a saved article's clean copy and its TL;DR, hand you other saves that relate to it, and mark one read or unread. Deleting stays in the app: the tool for it removes nothing and points you back to Readplace. The route this replaces was a walkthrough that opened on a toggle called Developer Mode, then asked you to build a custom connector by hand, paste in a server URL, and pick the authentication method yourself. That walkthrough still works if you want it, and Claude and the Gemini CLI connect to the same server exactly as they did before.
+ChatGPT's plugin directory now carries an official Readplace listing. Adding it is an Add button and one sign-in, and a connected chat can then save a page to your readlist, list what is waiting in it, read back a saved article's clean copy and its TL;DR, hand you other saves that relate to it, and mark one read or unread. Deleting stays in the app: the tool for it removes nothing and points you back to Readplace. The route this replaces was a walkthrough that opened on a toggle called Developer Mode, then asked you to build a custom connector by hand, paste in a server URL, and pick the authentication method yourself. That walkthrough still works if you want it, and Claude and the Gemini CLI connect to the same server exactly as they did before.
 
 </div>
 </details>
 
-ChatGPT can save an article to a Readplace queue, list what is waiting in it, read back a saved article's clean copy and its TL;DR, and mark one read when it is finished. It has been able to do that since June.
+ChatGPT can save an article to a Readplace readlist, list what is waiting in it, read back a saved article's clean copy and its TL;DR, and mark one read when it is finished. It has been able to do that since June.
 
 Getting it connected took a walkthrough.
 
@@ -28,9 +28,9 @@ Open the listing, choose Add, approve the sign-in. [The install page](/install?c
 
 ## The 9 tools behind the chat
 
-A connected chat reaches 9 tools on the Readplace [MCP](/view/modelcontextprotocol.io) server, and 8 of them do what they say. [Saving a link](/blog/save-articles-with-your-ai-assistant) puts the URL in your queue and lets the title, the clean copy, and the TL;DR fill in behind it, the same way a save from the browser extension does. Listing the queue reads back what is waiting, filtered to unread or already read. [Reading one back](/blog/ai-assistant-reads-your-saved-articles) returns its details, its clean text, or its TL;DR, depending on which you asked for.
+A connected chat reaches 9 tools on the Readplace [MCP](/view/modelcontextprotocol.io) server, and 8 of them do what they say. [Saving a link](/blog/save-articles-with-your-ai-assistant) puts the URL in your readlist and lets the title, the clean copy, and the TL;DR fill in behind it, the same way a save from the browser extension does. Listing the readlist reads back what is waiting, filtered to unread or already read. [Reading one back](/blog/ai-assistant-reads-your-saved-articles) returns its details, its clean text, or its TL;DR, depending on which you asked for.
 
-A newer one hands over [other saves in your own queue that relate to an article](/blog/the-next-read-under-your-article-stopped-guessing), each tagged unread or read and carrying a short reason. Marking read and marking unread make the same write the app makes, so a swipe in the iPhone app and a sentence in a chat land in the same place.
+A newer one hands over [other saves in your own readlist that relate to an article](/blog/the-next-read-under-your-article-stopped-guessing), each tagged unread or read and carrying a short reason. Marking read and marking unread make the same write the app makes, so a swipe in the iPhone app and a sentence in a chat land in the same place.
 
 The 9th refuses. Ask a connected ChatGPT to delete a saved article and the tool answers with a note pointing you back to Readplace, because it removes nothing. Deleting is the one action on a saved article with no way back, and [the website itself now asks before it happens](/blog/confirm-before-deleting-a-saved-article). Handing that to an assistant would have skipped the question.
 
@@ -62,4 +62,4 @@ So does the shortest route of all. Paste "Connect to readplace.com so you can sa
 
 ## Where the Add button lives
 
-[The listing](https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a) sits in ChatGPT's plugin directory, and [the install page](/install?client=chatgpt) keeps both routes on one panel, the plugin leading and the server URL underneath. Add it, then hand ChatGPT a link mid-conversation and ask it to keep the article. It lands in [your queue](/) with its TL;DR filling in behind it, and the chat carries on without you leaving it.
+[The listing](https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a) sits in ChatGPT's plugin directory, and [the install page](/install?client=chatgpt) keeps both routes on one panel, the plugin leading and the server URL underneath. Add it, then hand ChatGPT a link mid-conversation and ask it to keep the article. It lands in [your readlist](/) with its TL;DR filling in behind it, and the chat carries on without you leaving it.

@@ -1,6 +1,6 @@
 ---
 title: "Read Any Article in a Clean Reader, No Account Needed"
-description: "Paste any link at readplace.com/view and the article opens in a clean reader with a short summary, no signup. Share the link, and anyone reads it the same way. One button saves it to your own queue."
+description: "Paste any link at readplace.com/view and the article opens in a clean reader with a short summary, no signup. Share the link, and anyone reads it the same way. One button saves it to your own readlist."
 slug: "read-any-article-clean-reader"
 date: "2026-06-05"
 author: "Fayner Brack"
@@ -11,7 +11,7 @@ keywords: "reader view, read any article, distraction-free reader, clean reader 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-You can read any article in Readplace without an account. Paste a link at readplace.com/view and the page opens in a clean reader, clutter stripped out, with a short summary on top. Share that link and the next person reads it the same way, no signup. One button saves the article to your own queue. Readplace can also hand back the same article as plain markdown, which helps notes apps and AI assistants read it cleanly.
+You can read any article in Readplace without an account. Paste a link at readplace.com/view and the page opens in a clean reader, clutter stripped out, with a short summary on top. Share that link and the next person reads it the same way, no signup. One button saves the article to your own readlist. Readplace can also hand back the same article as plain markdown, which helps notes apps and AI assistants read it cleanly.
 
 </div>
 </details>
@@ -38,11 +38,11 @@ So the page won't leave you staring at a spinner. You start reading, and the res
 
 ## One button to keep it
 
-Under every article sits a "Save to My Queue" button. Tap it and the article joins your reading list with its summary and images included, so the same link you shared a minute ago is the one that grows your own queue.
+Under every article sits a "Save to My Readlist" button. Tap it and the article joins your reading list with its summary and images included, so the same link you shared a minute ago is the one that grows your own readlist.
 
 You read a clean copy first, and you save the ones worth keeping.
 
-> **The link you shared with a friend is the same one you save to grow your own reading queue.**
+> **The link you shared with a friend is the same one you save to grow your own readlist.**
 
 ## A clean copy for your tools
 

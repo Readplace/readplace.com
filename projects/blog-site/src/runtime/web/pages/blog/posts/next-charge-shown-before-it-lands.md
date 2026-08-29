@@ -80,6 +80,6 @@ A page that shows the charge before it lands belongs to the same idea. A subscri
 
 ## Where your next charge shows
 
-If you are on a trial or already subscribed, open your account page in the 30 days before your renewal and the date and amount are sitting there, in your own currency. Outside that window the quiet is the feature working, and a saved copy of everything you kept [outlasts the pages it came from](/blog/saved-articles-outlast-the-original-page) either way. A reading queue of your own starts at [readplace.com](/).
+If you are on a trial or already subscribed, open your account page in the 30 days before your renewal and the date and amount are sitting there, in your own currency. Outside that window the quiet is the feature working, and a saved copy of everything you kept [outlasts the pages it came from](/blog/saved-articles-outlast-the-original-page) either way. A readlist of your own starts at [readplace.com](/).
 
 Showing a price before someone subscribes is the easy half. Showing it before every charge after that is the half that counts.

@@ -10,7 +10,7 @@ assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
 const BASE_URL = `http://localhost:${E2E_PORT}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
 const VIEWPORT = { width: 1280, height: 900 };
-const QUEUE_ROOT = "main.queue";
+const READLIST_ROOT = "main.readlist";
 const READER_ROOT = "main.reader";
 const AUTH_ROOT = "main.auth-page";
 const SETTLE_MS = 45000;
@@ -92,7 +92,7 @@ async function signUpFreshUser(page: Page, email: string): Promise<void> {
 		el.value = String(Date.now() - 5000);
 	});
 	await page.locator('[data-test-action="signup"]').click();
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
 async function saveArticle(page: Page, url: string, expectedCards: number): Promise<void> {
@@ -175,16 +175,16 @@ function assertContrast(
 	}
 }
 
-async function auditQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
-	await page.waitForSelector("body.page-queue");
+async function auditReadlist(page: Page, where: { theme: string; view: string }): Promise<void> {
+	await page.waitForSelector("body.page-readlist");
 	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
 	await waitForCardsSettled(page);
 	await page.mouse.move(0, 0);
 
-	const measurements = await stableMeasurements(page, QUEUE_ROOT);
+	const measurements = await stableMeasurements(page, READLIST_ROOT);
 	assert.ok(
 		measurements.length > 0,
-		`${where.theme}/${where.view}: the audit measured nothing inside ${QUEUE_ROOT}`,
+		`${where.theme}/${where.view}: the audit measured nothing inside ${READLIST_ROOT}`,
 	);
 	assertContrast(measurements, where);
 
@@ -219,7 +219,7 @@ async function auditAuth(page: Page, where: { theme: string; view: string }): Pr
 /** A closed popover has a zero rect, so the delete confirmation is invisible to
  * the pass above and its surfaces would ship unmeasured. Opening it puts the
  * panel in the top layer, which changes painting only — it stays a DOM
- * descendant of the queue root, so the same walk reaches it. */
+ * descendant of the readlist root, so the same walk reaches it. */
 async function auditDeleteConfirmation(
 	page: Page,
 	where: { theme: string; view: string },
@@ -233,7 +233,7 @@ async function auditDeleteConfirmation(
 	// solid red; measuring that would audit a state the guidelines exempt.
 	await page.mouse.move(0, 0);
 
-	const measurements = await stableMeasurements(page, QUEUE_ROOT);
+	const measurements = await stableMeasurements(page, READLIST_ROOT);
 	assertContrast(measurements, { ...where, view: `${where.view}/delete-confirm` });
 
 	await page.keyboard.press("Escape");
@@ -242,10 +242,10 @@ async function auditDeleteConfirmation(
 	});
 }
 
-test.describe("Queue colour roles hold their WCAG contrast in both themes", () => {
+test.describe("Readlist colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 
-	test("every rendered queue surface clears its contrast minimum", async ({ page }, testInfo) => {
+	test("every rendered readlist surface clears its contrast minimum", async ({ page }, testInfo) => {
 		const run = `${testInfo.workerIndex}-${Date.now()}`;
 		await signUpFreshUser(page, `colour-contrast-${run}@example.com`);
 		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-unread=${run}`, 1);
@@ -274,7 +274,7 @@ test.describe("Queue colour roles hold their WCAG contrast in both themes", () =
 						timeout: SETTLE_MS,
 					});
 				}
-				await auditQueue(page, { theme, view });
+				await auditReadlist(page, { theme, view });
 			}
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 			await auditReader(page, { theme, view: "reader" });

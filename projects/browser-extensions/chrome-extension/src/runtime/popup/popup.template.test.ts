@@ -58,7 +58,7 @@ describe("shortcut hints", () => {
 	it("closes the bulk-save view with the save-all shortcut, hidden until the server advertises bulk save", () => {
 		expect(template).toContain(
 			[
-				'    <button id="save-all-view-queue" class="saved-view__action" hidden>View Queue</button>',
+				'    <button id="save-all-view-readlist" class="saved-view__action" hidden>View Readlist</button>',
 				'    <p id="save-all-shortcut-hint" class="shortcut-hint" hidden>Tip: Use <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> to save all tabs</p>',
 				"  </div>",
 			].join("\n"),

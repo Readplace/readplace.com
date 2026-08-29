@@ -14,7 +14,7 @@ import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import type { AnalyticsEvent } from "@packages/web-analytics";
-import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
+import { httpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initCachedUserCount } from "./web/auth/cached-user-count";
 import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";

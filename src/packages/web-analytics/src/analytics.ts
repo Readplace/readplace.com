@@ -272,7 +272,7 @@ export interface ViewOpenedEvent {
 
 /**
  * Emitted when a user signals intent to save an article to their queue. Born on
- * the public reader's "Save to My Queue" click — the warmest funnel moment,
+ * the public reader's "Save to My Readlist" click — the warmest funnel moment,
  * where an anonymous click redirects to /login and would otherwise vanish — and
  * since extended additively to every other save surface (queue save bar, browser
  * extension) so the funnel can be sliced by `surface` and `outcome`. The event

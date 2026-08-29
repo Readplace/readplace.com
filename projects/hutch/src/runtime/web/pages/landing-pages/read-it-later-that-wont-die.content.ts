@@ -10,7 +10,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	keywords:
 		"read it later app, pocket shut down, omnivore shut down, export reading list, read only account, data portability, article archive, cancel subscription keep data, source available reading app",
 	headline: "Cancel and it goes read-only, not dark",
-	eyebrow: "For readers who have already lost a queue once",
+	eyebrow: "For readers who have already lost a readlist once",
 	titleLead: "Stop paying and it goes read-only, not ",
 	titleHighlight: "dark",
 	titleTail: ".",
@@ -30,7 +30,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	steps: [
 		{
 			heading: "Reading keeps working",
-			body: "A cancelled account resolves to read-only. Your queue, your articles and the reader view all keep working, and you can still mark things read or delete them. Saving new links and running imports stop.",
+			body: "A cancelled account resolves to read-only. Your readlist, your articles and the reader view all keep working, and you can still mark things read or delete them. Saving new links and running imports stop.",
 		},
 		{
 			heading: "Export keeps working",
@@ -56,7 +56,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	limits: [
 		"The export lists what you saved — URL, title, excerpt and read history. It does not contain the full article text.",
 		"The export runs in the background and arrives as an emailed download link. The link works for 7 days; after that, request another.",
-		"A read-only account loses Import, Inbox and Account from the nav; Queue and sign-out stay. Export was never a nav entry — it lives on the account page, which the header's subscription notice still reaches.",
+		"A read-only account loses Import, Inbox and Account from the nav; Readlist and sign-out stay. Export was never a nav entry — it lives on the account page, which the header's subscription notice still reaches.",
 		"Source-available is not open source. The code is on GitHub to read, but no licence grants you rights to reuse it.",
 		"None of this promises Readplace outlives Pocket. It describes what happens to your account if you stop paying.",
 	],

@@ -33,7 +33,7 @@ const SERVER_ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
 
 const TEST_LINK_URL = "https://example.com/reader-link-article";
 const TEST_LINK_TITLE = "Reader Link Article";
-const TRANSITION_FLOW = "extension-view-queue-chrome";
+const TRANSITION_FLOW = "extension-view-readlist-chrome";
 
 // The suite must always end: a test cancelled by --test-timeout skips its
 // teardown, and the orphaned e2e-server child then holds this process open

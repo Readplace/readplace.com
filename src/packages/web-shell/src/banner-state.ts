@@ -146,7 +146,7 @@ export interface BannerState {
 	verification?: VerificationStatus;
 	/** When true, the SSR markup carries data-show-extension-suggestion="true"
 	 * so the banner client can reveal the dismissible extension-suggestion banner
-	 * (subject to its own localStorage dismissal). Defaults to false; the queue
+	 * (subject to its own localStorage dismissal). Defaults to false; the readlist
 	 * and view page handlers set it when the latest article is not fully parsed. */
 	showExtensionSuggestionBanner?: boolean;
 	/** Switches the banner copy: when true the message tells the reader to re-save
@@ -184,7 +184,7 @@ export interface BannerState {
 	cspNonce: CspNonce;
 }
 
-const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", iconName: "inbox" });
+const NAV_READLIST = navItem({ key: "queue", label: "Readlist", path: "/queue", method: "GET", iconName: "inbox" });
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-input" });
 const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", iconName: "mail" });
 const NAV_INTEGRATIONS = navItem({
@@ -212,7 +212,7 @@ export function buildGuestNavItems(): NavItem[] {
  * iterates the returned groups (then their items) — no inline conditionals.
  * Adding a destination means pushing a NavItem into the right group here, not
  * editing the template. Item order within a group is preserved so the flat
- * rendered order stays queue → import → inbox → account → logout.
+ * rendered order stays readlist → import → inbox → account → logout.
  * Export is deliberately absent: it lives on the account page instead. The
  * header only fits so many entries beside the trial countdown before the
  * countdown is squeezed, so a destination reachable from a page it already
@@ -221,7 +221,7 @@ export function buildNavGroups(input: {
 	accessIsReadOnly: boolean;
 	gmailFeatureEnabled: boolean;
 }): NavGroup[] {
-	const library: NavItem[] = [NAV_QUEUE];
+	const library: NavItem[] = [NAV_READLIST];
 	// Saving and minting an address are write actions gated by requireWriteAccess,
 	// so a read-only user gets neither entry. They keep access to existing
 	// addresses by direct link.

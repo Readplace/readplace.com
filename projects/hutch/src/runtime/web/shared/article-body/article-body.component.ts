@@ -4,7 +4,7 @@ import type { DisplayableReadTime } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { render } from "@packages/web-shell";
-import { renderArticleHeader, type ReaderQueueTags } from "./article-header/article-header.component";
+import { renderArticleHeader, type ReaderReadlistTags } from "./article-header/article-header.component";
 import { renderCrawlBookmark, type CrawlBookmarkRemoval } from "./crawl-bookmark/crawl-bookmark.component";
 import { renderProgressBar } from "./progress-bar.component";
 import type { ProgressTick, SaveProvenance } from "@packages/domain/article";
@@ -50,7 +50,7 @@ export interface ArticleBodyInput {
 	/** Where the owner's save came from. Per-user, so only the owner reader
 	 * passes it; the public `/view` and the admin recrawl omit it. */
 	provenance?: SaveProvenance;
-	queueTags?: ReaderQueueTags;
+	readlistTags?: ReaderReadlistTags;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -86,7 +86,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		readTime: input.readTime,
 		url: input.url,
 		provenance: input.provenance,
-		queueTags: input.queueTags,
+		readlistTags: input.readlistTags,
 	});
 
 	return render(ARTICLE_BODY_TEMPLATE, {

@@ -20,7 +20,7 @@ Importing your saved links into Readplace used to need an account first. Now the
 
 Bringing a saved reading list into a new app usually starts with making an account. The importer sits behind a signup form, so you hand over an email and a password before you have watched a single one of your own links arrive.
 
-Readplace moved that form to the end. The upload, the review, and the picking now happen logged out. The account is asked for once, at the step that commits the links to your queue.
+Readplace moved that form to the end. The upload, the review, and the picking now happen logged out. The account is asked for once, at the step that commits the links to your readlist.
 
 ## What you do before the account
 

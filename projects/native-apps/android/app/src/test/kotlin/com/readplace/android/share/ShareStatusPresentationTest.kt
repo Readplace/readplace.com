@@ -14,7 +14,7 @@ class ShareStatusPresentationTest {
 
 	@Test
 	fun `saved is success`() {
-		// The no-queue outcome: there is no content waiting on the app, so the card
+		// The no-readlist outcome: there is no content waiting on the app, so the card
 		// has nothing to add under the title.
 		val status = present(SaveSharedOutcome.Saved(emptyList()))
 		assertEquals("Saved", status.message)

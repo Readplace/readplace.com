@@ -4,7 +4,7 @@ import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@p
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
-import { DEFAULT_QUEUE_SLUG, QueueSlugSchema } from "@packages/domain/queue";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
@@ -25,17 +25,17 @@ type CommandResponse = Record<string, unknown> | (() => Record<string, unknown>)
 
 /** Records every command sent and replays canned responses keyed by command
  * type, so a test can assert the exact UpdateExpression / ConditionExpression /
- * IndexName the store builds. Each command type can be given a FIFO queue of
+ * IndexName the store builds. Each command type can be given a FIFO readlist of
  * responses (to drive the store's `do/while` pagination loops over
  * `LastEvaluatedKey`) plus a default for any further calls. A function response
  * is invoked so a test can throw to simulate a failed conditional write. */
 function createFakeClient(
-	responses: Partial<Record<string, { queue?: CommandResponse[]; default?: CommandResponse }>> = {},
+	responses: Partial<Record<string, { readlist?: CommandResponse[]; default?: CommandResponse }>> = {},
 ): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
 	const commands: CapturedCommand[] = [];
-	const queues = new Map<string, CommandResponse[]>();
+	const readlists = new Map<string, CommandResponse[]>();
 	for (const [name, spec] of Object.entries(responses)) {
-		queues.set(name, [...(spec?.queue ?? [])]);
+		readlists.set(name, [...(spec?.readlist ?? [])]);
 	}
 	const resolve = (value: CommandResponse): Record<string, unknown> =>
 		typeof value === "function" ? value() : value;
@@ -43,8 +43,8 @@ function createFakeClient(
 		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
-			const queue = queues.get(name);
-			if (queue && queue.length > 0) return resolve(queue.shift() as CommandResponse);
+			const readlist = readlists.get(name);
+			if (readlist && readlist.length > 0) return resolve(readlist.shift() as CommandResponse);
 			const fallback = responses[name]?.default;
 			return fallback ? resolve(fallback) : {};
 		}) as DynamoDBDocumentClient["send"],
@@ -263,7 +263,7 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 	it("findUserArticlesByUrl follows LastEvaluatedKey across pages before returning every saver", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [{ userId: "abc123", url: "x", status: "unread", savedAt: "2026-05-30T09:00:00.000Z" }], Count: 1, LastEvaluatedKey: { url: "x", userId: "abc123" } },
 					{ Items: [{ userId: "def456", url: "x", status: "unread", savedAt: "2026-05-30T09:00:00.000Z" }], Count: 1 },
 				],
@@ -376,7 +376,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticle inserts the global row, upserts the user row, and returns the saved article", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem({ readAt: "2026-05-30T11:00:00.000Z", status: "read" }) }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem({ readAt: "2026-05-30T11:00:00.000Z", status: "read" }) }],
 			},
 		});
 
@@ -406,7 +406,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticle stamps provenance on the user row and reads it back onto the saved article", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem({ provenance }) }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem({ provenance }) }],
 			},
 		});
 
@@ -434,7 +434,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("reads a row saved before provenance was captured without one, so the reader can leave the tag off", async () => {
 		const { client } = createFakeClient({
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
 		});
 
@@ -453,7 +453,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticle reports the user row as created when the update returned no prior item", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
 		});
 
@@ -477,7 +477,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		const { client } = createFakeClient({
 			UpdateCommand: { default: { Attributes: userArticleItem() } },
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
 		});
 
@@ -501,7 +501,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 				},
 			},
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
 		});
 
@@ -522,7 +522,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticle stamps the user row with the caller's savedAt and the global row with its own clock", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
 		});
 
@@ -550,7 +550,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticle only overwrites a user row whose savedAt is older, so a slow save cannot demote a newer one", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
 		});
 
@@ -580,7 +580,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 				},
 			},
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem({ savedAt: "2026-05-30T11:45:00.000Z" }) }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem({ savedAt: "2026-05-30T11:45:00.000Z" }) }],
 			},
 		});
 
@@ -599,7 +599,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 
 	it("saveArticle reports whether the user-row write applied, so a losing save never flips the winner's status", async () => {
 		const winning = createFakeClient({
-			GetCommand: { queue: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
 		});
 		const losing = createFakeClient({
 			UpdateCommand: {
@@ -607,7 +607,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 					throw new ConditionalCheckFailedException({ $metadata: {}, message: "newer save won" });
 				},
 			},
-			GetCommand: { queue: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
 		});
 		const params = {
 			userId: USER,
@@ -650,7 +650,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		let updates = 0;
 		const { client, commands } = createFakeClient({
 			UpdateCommand: {
-				queue: [
+				readlist: [
 					() => {
 						updates += 1;
 						throw new ConditionalCheckFailedException({ $metadata: {}, message: "cursor ahead" });
@@ -678,7 +678,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
 		};
 		const { client, commands } = createFakeClient({
-			UpdateCommand: { queue: [ccfe, ccfe, {}] },
+			UpdateCommand: { readlist: [ccfe, ccfe, {}] },
 		});
 
 		const allocated = await initStore(client).allocateSavedAt({ userId: USER });
@@ -711,7 +711,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		const cursorAheadMs = STORE_NOW.getTime() + 5;
 		const { client, commands } = createFakeClient({
 			UpdateCommand: {
-				queue: [
+				readlist: [
 					() => {
 						throw new ConditionalCheckFailedException({ $metadata: {}, message: "cursor ahead" });
 					},
@@ -736,7 +736,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
 		};
 		const { client, commands } = createFakeClient({
-			UpdateCommand: { queue: [ccfe, ccfe, {}] },
+			UpdateCommand: { readlist: [ccfe, ccfe, {}] },
 		});
 
 		const allocated = await initStore(client).allocateSavedAtSequence({ userId: USER, count: 2 });
@@ -808,20 +808,20 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		const throttled = () => {
 			throw new Error("throttled");
 		};
-		const first = createFakeClient({ UpdateCommand: { queue: [throttled] } });
+		const first = createFakeClient({ UpdateCommand: { readlist: [throttled] } });
 		await expect(initStore(first.client).allocateSavedAt({ userId: USER })).rejects.toThrow("throttled");
 
 		const ccfe = () => {
 			throw new ConditionalCheckFailedException({ $metadata: {}, message: "cursor ahead" });
 		};
-		const second = createFakeClient({ UpdateCommand: { queue: [ccfe, throttled] } });
+		const second = createFakeClient({ UpdateCommand: { readlist: [ccfe, throttled] } });
 		await expect(initStore(second.client).allocateSavedAt({ userId: USER })).rejects.toThrow("throttled");
 	});
 
 	it("saveArticleKeepingPosition only writes the user row when it does not exist yet, so a content upload never repositions", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
 		});
 
@@ -849,7 +849,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 				},
 			},
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem({ savedAt: "2026-05-30T08:00:00.000Z", status: "read" }) }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem({ savedAt: "2026-05-30T08:00:00.000Z", status: "read" }) }],
 			},
 		});
 
@@ -876,7 +876,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 				},
 			},
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
 		});
 
@@ -971,7 +971,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("uses the savedAt index with no filter by default and joins each user row to its article", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 1 },
 					{ Items: [userArticleItem()], Count: 1 },
 				],
@@ -992,7 +992,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("applies a status FilterExpression and the readAt index when sorting by readAt", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [userArticleItem({ status: "read", readAt: "2026-05-30T11:00:00.000Z" })], Count: 1 },
 				],
 			},
@@ -1017,7 +1017,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("passes a metadata-only projection to BatchGet when excludeContent is set", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [{ Items: [userArticleItem()], Count: 1 }],
+				readlist: [{ Items: [userArticleItem()], Count: 1 }],
 			},
 			BatchGetCommand: { default: { Responses: { articles: [articleItem({ content: undefined })] } } },
 		});
@@ -1034,7 +1034,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("sums COUNT pages and walks item pages, skipping earlier pages to reach the requested page", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 1, LastEvaluatedKey: { url: "p1" } },
 					{ Items: [], Count: 2 },
 					{ Items: [userArticleItem({ url: "a" })], Count: 1, LastEvaluatedKey: { url: "a" } },
@@ -1055,7 +1055,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("returns an empty page when no user rows match", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 0 },
 					{ Items: [], Count: 0 },
 				],
@@ -1071,7 +1071,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("drops a user row whose article was deleted from the global table between query and batch-get", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 1 },
 					{ Items: [userArticleItem({ url: "orphan" })], Count: 1 },
 				],
@@ -1087,7 +1087,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 	it("issues no COUNT query and leaves total undefined when includeTotal is not requested", async () => {
 		const { client, commands } = createFakeClient({
-			QueryCommand: { queue: [{ Items: [userArticleItem()], Count: 1 }] },
+			QueryCommand: { readlist: [{ Items: [userArticleItem()], Count: 1 }] },
 			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
 		});
 
@@ -1101,7 +1101,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("sums every COUNT page into total when includeTotal is requested", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 4, LastEvaluatedKey: { url: "p1" } },
 					{ Items: [], Count: 3 },
 					{ Items: [userArticleItem()], Count: 1 },
@@ -1122,7 +1122,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("reports hasMore and truncates to the page when a row exists beyond it, in a single query", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [{ Items: [userArticleItem({ url: "a" }), userArticleItem({ url: "b" })], Count: 2 }],
+				readlist: [{ Items: [userArticleItem({ url: "a" }), userArticleItem({ url: "b" })], Count: 2 }],
 			},
 			BatchGetCommand: {
 				default: { Responses: { articles: [articleItem({ url: "a", originalUrl: "https://example.com/a" })] } },
@@ -1142,7 +1142,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 	it("asks for one row beyond the default page size so a full page needs no second query", async () => {
 		const { client, commands } = createFakeClient({
-			QueryCommand: { queue: [{ Items: [userArticleItem()], Count: 1 }] },
+			QueryCommand: { readlist: [{ Items: [userArticleItem()], Count: 1 }] },
 			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
 		});
 
@@ -1155,7 +1155,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 	it("reports hasMore false on the last page", async () => {
 		const { client } = createFakeClient({
-			QueryCommand: { queue: [{ Items: [userArticleItem()], Count: 1 }] },
+			QueryCommand: { readlist: [{ Items: [userArticleItem()], Count: 1 }] },
 			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
 		});
 
@@ -1170,7 +1170,7 @@ describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 	it("sums COUNT pages without fetching rows", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 5, LastEvaluatedKey: { url: "p1" } },
 					{ Items: [], Count: 3 },
 				],
@@ -1186,7 +1186,7 @@ describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 
 	it("applies a status FilterExpression when counting by status", async () => {
 		const { client, commands } = createFakeClient({
-			QueryCommand: { queue: [{ Items: [], Count: 2 }] },
+			QueryCommand: { readlist: [{ Items: [], Count: 2 }] },
 		});
 
 		const total = await initStore(client).countArticlesByUser({ userId: USER, status: "unread" });
@@ -1199,7 +1199,7 @@ describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 	it("stops paging once countLimit rows have been counted", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 5, LastEvaluatedKey: { url: "p1" } },
 					{ Items: [], Count: 3 },
 				],
@@ -1215,7 +1215,7 @@ describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 	it("keeps paging while the count is still short of countLimit", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 2, LastEvaluatedKey: { url: "p1" } },
 					{ Items: [], Count: 1, LastEvaluatedKey: { url: "p2" } },
 					{ Items: [], Count: 1 },
@@ -1232,7 +1232,7 @@ describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 	it("clamps the reported total to countLimit when the last page overshoots it", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 3, LastEvaluatedKey: { url: "p1" } },
 					{ Items: [], Count: 4, LastEvaluatedKey: { url: "p2" } },
 				],
@@ -1303,7 +1303,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 	it("pages the userId-savedAt-index and deletes every userArticles row by its (userId, url) key across pages", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [userArticleItem({ url: "a" })], Count: 1, LastEvaluatedKey: { userId: USER, url: "a" } },
 					{ Items: [userArticleItem({ url: "b" })], Count: 1 },
 				],
@@ -1346,7 +1346,7 @@ describe("initDynamoDbSavedArticleStore listUserArticleUrls", () => {
 	it("pages the user's rows and resolves each to its global original URL via a batch get", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [userArticleItem({ url: "example.com/one" })], Count: 1, LastEvaluatedKey: { userId: USER, url: "example.com/one" } },
 					{ Items: [userArticleItem({ url: "example.com/two" })], Count: 1 },
 				],
@@ -1384,7 +1384,7 @@ describe("initDynamoDbSavedArticleStore listUserArticleUrls", () => {
 	it("skips a normalized row whose global original URL is missing (legacy row)", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: {
-				queue: [{ Items: [userArticleItem({ url: "example.com/legacy" })], Count: 1 }],
+				readlist: [{ Items: [userArticleItem({ url: "example.com/legacy" })], Count: 1 }],
 			},
 			BatchGetCommand: { default: { Responses: { articles: [{}] } } },
 		});
@@ -1697,26 +1697,26 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 	});
 });
 
-const WORK = QueueSlugSchema.parse("work");
+const WORK = ReadlistSlugSchema.parse("work");
 const WORK_PARTITION = `${USER}#queue/work`;
-const LATER = QueueSlugSchema.parse("later");
+const LATER = ReadlistSlugSchema.parse("later");
 const LATER_PARTITION = `${USER}#queue/later`;
 
 function queueDefinitionItem(slug = "work"): Record<string, unknown> {
 	return { userId: USER, url: `readplace:queue-def/${slug}`, queueSlug: slug };
 }
 
-describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
-	it("saveQueueArticle keys the copy on the queue partition and answers with the base user id", async () => {
+describe("initDynamoDbSavedArticleStore readlist-scoped writes", () => {
+	it("saveReadlistArticle keys the copy on the readlist partition and answers with the base user id", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
-				queue: [{ Item: articleItem() }, { Item: userArticleItem({ userId: WORK_PARTITION }) }],
+				readlist: [{ Item: articleItem() }, { Item: userArticleItem({ userId: WORK_PARTITION }) }],
 			},
 		});
 
-		const { saved } = await initStore(client).saveQueueArticle({
+		const { saved } = await initStore(client).saveReadlistArticle({
 			userId: USER,
-			queue: WORK,
+			readlist: WORK,
 			url: URL,
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
 			estimatedReadTime: TWO_MINUTES,
@@ -1734,10 +1734,10 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 		expect(saved.userId).toBe(USER);
 	});
 
-	it("updateArticleStatusAcrossQueues writes the addressed copy and every other copy of the same URL", async () => {
+	it("updateArticleStatusAcrossReadlists writes the addressed copy and every other copy of the same URL", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [articleItem()], Count: 1 },
 					{ Items: [queueDefinitionItem()], Count: 1 },
 				],
@@ -1759,7 +1759,7 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 			},
 		});
 
-		const saved = await initStore(client).updateArticleStatusAcrossQueues({
+		const saved = await initStore(client).updateArticleStatusAcrossReadlists({
 			id: ReaderArticleHashId.fromHash(ROUTE_ID),
 			userId: USER,
 			addressed: WORK,
@@ -1776,10 +1776,10 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 		expect(saved?.status).toBe("read");
 	});
 
-	it("updateArticleStatusAcrossQueues addressing the default queue writes the base partition first", async () => {
+	it("updateArticleStatusAcrossReadlists addressing the default readlist writes the base partition first", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [articleItem()], Count: 1 },
 					{ Items: [queueDefinitionItem()], Count: 1 },
 				],
@@ -1793,10 +1793,10 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 			},
 		});
 
-		await initStore(client).updateArticleStatusAcrossQueues({
+		await initStore(client).updateArticleStatusAcrossReadlists({
 			id: ReaderArticleHashId.fromHash(ROUTE_ID),
 			userId: USER,
-			addressed: DEFAULT_QUEUE_SLUG,
+			addressed: DEFAULT_READLIST_SLUG,
 			status: "unread",
 		});
 
@@ -1808,7 +1808,7 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 		]);
 	});
 
-	it("updateArticleStatusAcrossQueues writes nothing further when the addressed queue does not hold the article", async () => {
+	it("updateArticleStatusAcrossReadlists writes nothing further when the addressed readlist does not hold the article", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
 			UpdateCommand: {
@@ -1818,7 +1818,7 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 			},
 		});
 
-		const saved = await initStore(client).updateArticleStatusAcrossQueues({
+		const saved = await initStore(client).updateArticleStatusAcrossReadlists({
 			id: ReaderArticleHashId.fromHash(ROUTE_ID),
 			userId: USER,
 			addressed: WORK,
@@ -1830,16 +1830,16 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 		expect(commands.filter((c) => c.name === "BatchGetCommand")).toHaveLength(0);
 	});
 
-	it("deleteQueueArticle removes only the copy's row", async () => {
+	it("deleteReadlistArticle removes only the copy's row", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
 		});
 
 		expect(
-			await initStore(client).deleteQueueArticle({
+			await initStore(client).deleteReadlistArticle({
 				id: ReaderArticleHashId.fromHash(ROUTE_ID),
 				userId: USER,
-				queue: WORK,
+				readlist: WORK,
 			}),
 		).toBe(true);
 		expect(commands.find((c) => c.name === "DeleteCommand")?.input.Key).toEqual({
@@ -1848,12 +1848,12 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 		});
 	});
 
-	it("markQueueArticleViewed stamps the copy's row", async () => {
+	it("markReadlistArticleViewed stamps the copy's row", async () => {
 		const { client, commands } = createFakeClient();
 
-		await initStore(client).markQueueArticleViewed({
+		await initStore(client).markReadlistArticleViewed({
 			userId: USER,
-			queue: WORK,
+			readlist: WORK,
 			url: URL,
 			at: new Date("2026-05-30T12:00:00.000Z"),
 		});
@@ -1864,8 +1864,8 @@ describe("initDynamoDbSavedArticleStore queue-scoped writes", () => {
 	});
 });
 
-describe("initDynamoDbSavedArticleStore queue-scoped reads", () => {
-	it("findQueueArticles queries the queue partition on the existing savedAt index", async () => {
+describe("initDynamoDbSavedArticleStore readlist-scoped reads", () => {
+	it("findReadlistArticles queries the readlist partition on the existing savedAt index", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
 				default: { Items: [userArticleItem({ userId: WORK_PARTITION })], Count: 1 },
@@ -1873,9 +1873,9 @@ describe("initDynamoDbSavedArticleStore queue-scoped reads", () => {
 			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
 		});
 
-		const result = await initStore(client).findQueueArticles({
+		const result = await initStore(client).findReadlistArticles({
 			userId: USER,
-			queue: WORK,
+			readlist: WORK,
 			pageSize: 20,
 		});
 
@@ -1887,12 +1887,12 @@ describe("initDynamoDbSavedArticleStore queue-scoped reads", () => {
 		expect(result.articles.map((a) => a.userId)).toEqual([USER]);
 	});
 
-	it("countQueueArticles counts the queue partition", async () => {
+	it("countReadlistArticles counts the readlist partition", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [], Count: 4 } },
 		});
 
-		expect(await initStore(client).countQueueArticles({ userId: USER, queue: WORK })).toBe(4);
+		expect(await initStore(client).countReadlistArticles({ userId: USER, readlist: WORK })).toBe(4);
 		expect(
 			(countQueries(commands)[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[
 				":userId"
@@ -1900,16 +1900,16 @@ describe("initDynamoDbSavedArticleStore queue-scoped reads", () => {
 		).toBe(WORK_PARTITION);
 	});
 
-	it("findQueueArticleById reads the copy's row and reports the base user id", async () => {
+	it("findReadlistArticleById reads the copy's row and reports the base user id", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
 			GetCommand: { default: { Item: userArticleItem({ userId: WORK_PARTITION }) } },
 		});
 
-		const found = await initStore(client).findQueueArticleById({
+		const found = await initStore(client).findReadlistArticleById({
 			id: ReaderArticleHashId.fromHash(ROUTE_ID),
 			userId: USER,
-			queue: WORK,
+			readlist: WORK,
 		});
 
 		expect(commands.find((c) => c.name === "GetCommand")?.input.Key).toEqual({
@@ -1919,23 +1919,23 @@ describe("initDynamoDbSavedArticleStore queue-scoped reads", () => {
 		expect(found?.userId).toBe(USER);
 	});
 
-	it("findQueueArticleById answers null when the queue holds no copy of the article", async () => {
+	it("findReadlistArticleById answers null when the readlist holds no copy of the article", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
 		});
 
 		expect(
-			await initStore(client).findQueueArticleById({
+			await initStore(client).findReadlistArticleById({
 				id: ReaderArticleHashId.fromHash(ROUTE_ID),
 				userId: USER,
-				queue: WORK,
+				readlist: WORK,
 			}),
 		).toBeNull();
 	});
 });
 
-describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
-	it("findUserArticlesByUrl reports the savers of the default queue and skips queue copies", async () => {
+describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
+	it("findUserArticlesByUrl reports the savers of the default readlist and skips readlist copies", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: {
 				default: {
@@ -1955,7 +1955,7 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		]);
 	});
 
-	it("assignSavedArticleToQueue copies the default row's state into the queue partition at the given savedAt", async () => {
+	it("assignSavedArticleToReadlist copies the default row's state into the readlist partition at the given savedAt", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
 				default: {
@@ -1968,9 +1968,9 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 			},
 		});
 
-		const result = await initStore(client).assignSavedArticleToQueue({
+		const result = await initStore(client).assignSavedArticleToReadlist({
 			userId: USER,
-			queue: QueueSlugSchema.parse("work"),
+			readlist: ReadlistSlugSchema.parse("work"),
 			url: URL,
 			savedAt: new Date("2026-08-24T10:00:00.000Z"),
 		});
@@ -1989,14 +1989,14 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		expect(put.input.ConditionExpression).toContain("attribute_not_exists");
 	});
 
-	it("assignSavedArticleToQueue writes no readAt or provenance the default row does not carry", async () => {
+	it("assignSavedArticleToReadlist writes no readAt or provenance the default row does not carry", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: { default: { Item: userArticleItem() } },
 		});
 
-		const result = await initStore(client).assignSavedArticleToQueue({
+		const result = await initStore(client).assignSavedArticleToReadlist({
 			userId: USER,
-			queue: QueueSlugSchema.parse("work"),
+			readlist: ReadlistSlugSchema.parse("work"),
 			url: URL,
 			savedAt: new Date("2026-08-24T10:00:00.000Z"),
 		});
@@ -2012,12 +2012,12 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		});
 	});
 
-	it("assignSavedArticleToQueue writes nothing when the default row is gone", async () => {
+	it("assignSavedArticleToReadlist writes nothing when the default row is gone", async () => {
 		const { client, commands } = createFakeClient();
 
-		const result = await initStore(client).assignSavedArticleToQueue({
+		const result = await initStore(client).assignSavedArticleToReadlist({
 			userId: USER,
-			queue: QueueSlugSchema.parse("work"),
+			readlist: ReadlistSlugSchema.parse("work"),
 			url: URL,
 			savedAt: new Date("2026-08-24T10:00:00.000Z"),
 		});
@@ -2026,7 +2026,7 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		expect(commands.filter((c) => c.name === "PutCommand")).toEqual([]);
 	});
 
-	it("assignSavedArticleToQueue surfaces a write failure that is not the copy already existing", async () => {
+	it("assignSavedArticleToReadlist surfaces a write failure that is not the copy already existing", async () => {
 		const { client } = createFakeClient({
 			GetCommand: { default: { Item: userArticleItem() } },
 			PutCommand: {
@@ -2037,16 +2037,16 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		});
 
 		await expect(
-			initStore(client).assignSavedArticleToQueue({
+			initStore(client).assignSavedArticleToReadlist({
 				userId: USER,
-				queue: QueueSlugSchema.parse("work"),
+				readlist: ReadlistSlugSchema.parse("work"),
 				url: URL,
 				savedAt: new Date("2026-08-24T10:00:00.000Z"),
 			}),
 		).rejects.toThrow("throughput exceeded");
 	});
 
-	it("assignSavedArticleToQueue reports an already-filed article without rewriting it", async () => {
+	it("assignSavedArticleToReadlist reports an already-filed article without rewriting it", async () => {
 		const { client } = createFakeClient({
 			GetCommand: { default: { Item: userArticleItem() } },
 			PutCommand: {
@@ -2056,9 +2056,9 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 			},
 		});
 
-		const result = await initStore(client).assignSavedArticleToQueue({
+		const result = await initStore(client).assignSavedArticleToReadlist({
 			userId: USER,
-			queue: QueueSlugSchema.parse("work"),
+			readlist: ReadlistSlugSchema.parse("work"),
 			url: URL,
 			savedAt: new Date("2026-08-24T10:00:00.000Z"),
 		});
@@ -2066,7 +2066,7 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		expect(result).toEqual({ assigned: false });
 	});
 
-	it("moveQueueArticles hands each row to the destination partition carrying the state it had in the source", async () => {
+	it("moveReadlistArticles hands each row to the destination partition carrying the state it had in the source", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
 				default: {
@@ -2084,7 +2084,7 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 			},
 		});
 
-		const result = await initStore(client).moveQueueArticles({
+		const result = await initStore(client).moveReadlistArticles({
 			userId: USER,
 			from: WORK,
 			to: LATER,
@@ -2104,11 +2104,11 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		});
 		expect(put.input.ConditionExpression).toContain("attribute_not_exists");
 		const remove = commands.find((c) => c.name === "DeleteCommand");
-		assert(remove, "the source row must be taken out of the queue being emptied");
+		assert(remove, "the source row must be taken out of the readlist being emptied");
 		expect(remove.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
 	});
 
-	it("moveQueueArticles drains a row the destination already holds without counting it as moved", async () => {
+	it("moveReadlistArticles drains a row the destination already holds without counting it as moved", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
 				default: { Items: [userArticleItem({ userId: WORK_PARTITION })], Count: 1 },
@@ -2120,7 +2120,7 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 			},
 		});
 
-		const result = await initStore(client).moveQueueArticles({
+		const result = await initStore(client).moveReadlistArticles({
 			userId: USER,
 			from: WORK,
 			to: LATER,
@@ -2132,10 +2132,10 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		expect(remove.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
 	});
 
-	it("moveQueueArticles walks every page the source partition answers with", async () => {
+	it("moveReadlistArticles walks every page the source partition answers with", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{
 						Items: [userArticleItem({ userId: WORK_PARTITION })],
 						Count: 1,
@@ -2152,12 +2152,12 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		});
 
 		expect(
-			await initStore(client).moveQueueArticles({ userId: USER, from: WORK, to: LATER }),
+			await initStore(client).moveReadlistArticles({ userId: USER, from: WORK, to: LATER }),
 		).toEqual({ moved: 2 });
 		expect(commands.filter((c) => c.name === "DeleteCommand")).toHaveLength(2);
 	});
 
-	it("moveQueueArticles surfaces a write failure that is not the destination already holding the row", async () => {
+	it("moveReadlistArticles surfaces a write failure that is not the destination already holding the row", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: {
 				default: { Items: [userArticleItem({ userId: WORK_PARTITION })], Count: 1 },
@@ -2170,11 +2170,11 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		});
 
 		await expect(
-			initStore(client).moveQueueArticles({ userId: USER, from: WORK, to: LATER }),
+			initStore(client).moveReadlistArticles({ userId: USER, from: WORK, to: LATER }),
 		).rejects.toThrow("throughput exceeded");
 	});
 
-	it("listUserSavesForUrl reads the default row and one key per queue the user owns", async () => {
+	it("listUserSavesForUrl reads the default row and one key per readlist the user owns", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [queueDefinitionItem()], Count: 1 } },
 			BatchGetCommand: {
@@ -2186,7 +2186,7 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 
 		const saves = await initStore(client).listUserSavesForUrl({ userId: USER, url: URL });
 
-		expect(saves).toEqual([{}, { queue: "work" }]);
+		expect(saves).toEqual([{}, { readlist: "work" }]);
 		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
 		expect(
 			(batchGet?.input.RequestItems as Record<string, { Keys: Record<string, string>[] }>)[
@@ -2219,7 +2219,7 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 			urls: [URL, otherUrl],
 		});
 
-		expect(saves.get(URL)).toEqual([{}, { queue: "work" }]);
+		expect(saves.get(URL)).toEqual([{}, { readlist: "work" }]);
 		expect(saves.get(otherUrl)).toEqual([]);
 		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
 		expect(
@@ -2234,10 +2234,10 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		]);
 	});
 
-	it("deleteAllUserArticles sweeps every queue partition and removes the definition rows", async () => {
+	it("deleteAllUserArticles sweeps every readlist partition and removes the definition rows", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [userArticleItem({ url: "a" })], Count: 1 },
 					{ Items: [queueDefinitionItem()], Count: 1 },
 					{ Items: [userArticleItem({ userId: WORK_PARTITION, url: "b" })], Count: 1 },
@@ -2255,10 +2255,10 @@ describe("initDynamoDbSavedArticleStore cross-queue bookkeeping", () => {
 		]);
 	});
 
-	it("listUserArticleUrls covers a URL the user only ever saved into a queue", async () => {
+	it("listUserArticleUrls covers a URL the user only ever saved into a readlist", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
+				readlist: [
 					{ Items: [], Count: 0 },
 					{ Items: [queueDefinitionItem()], Count: 1 },
 					{ Items: [userArticleItem({ userId: WORK_PARTITION, url: "example.com/only" })], Count: 1 },

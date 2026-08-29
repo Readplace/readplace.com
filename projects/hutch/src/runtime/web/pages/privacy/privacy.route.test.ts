@@ -26,7 +26,7 @@ describe("GET /privacy", () => {
 		expect(response.text).toMatch(/^# /);
 	});
 
-	it("tells a reader what a connected AI assistant can do with their queue and how to cut it off", async () => {
+	it("tells a reader what a connected AI assistant can do with their readlist and how to cut it off", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 

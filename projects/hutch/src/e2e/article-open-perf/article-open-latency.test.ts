@@ -121,7 +121,7 @@ describe("splitWarmup", () => {
 });
 
 describe("navigationKindOf", () => {
-	it("reports a boosted arm, where the article arrives in the queue's own document", () => {
+	it("reports a boosted arm, where the article arrives in the readlist's own document", () => {
 		expect(
 			navigationKindOf([
 				boostedSample({ elapsedMs: 100 }),

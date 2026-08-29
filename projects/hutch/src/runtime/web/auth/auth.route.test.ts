@@ -2136,7 +2136,7 @@ describe("Auth routes", () => {
 			const pending = doc.querySelector("[data-test-pending-save]");
 			assert(pending, "pending-save line must be rendered");
 			expect(pending.textContent).toBe("Saving: example.com");
-			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Sign up and this article is saved to your queue");
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Sign up and this article is saved to your readlist");
 		});
 
 		it("shows the pending article host with a save-aware subtitle on GET /login", async () => {
@@ -2148,7 +2148,7 @@ describe("Auth routes", () => {
 			const pending = doc.querySelector("[data-test-pending-save]");
 			assert(pending, "pending-save line must be rendered");
 			expect(pending.textContent).toBe("Saving: example.com");
-			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Sign in and this article is saved to your queue");
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Sign in and this article is saved to your readlist");
 		});
 
 		it("keeps the pending article host on the 422 re-render when the signup submit fails validation", async () => {

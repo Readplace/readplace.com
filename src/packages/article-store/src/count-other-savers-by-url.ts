@@ -5,7 +5,7 @@ import {
 } from "@packages/hutch-storage-client";
 import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
-import { queuePartitionPrefix } from "./user-queue-partition";
+import { readlistPartitionPrefix } from "./user-readlist-partition";
 
 const UserArticleKeyRow = z.object({
 	userId: z.string(),
@@ -39,12 +39,12 @@ export function initCountOtherSaversByUrl(deps: {
 			const { count, lastEvaluatedKey } = await userArticles.query({
 				IndexName: "url-index",
 				KeyConditionExpression: "#url = :url",
-				FilterExpression: "userId <> :excluded AND NOT begins_with(userId, :excludedQueues)",
+				FilterExpression: "userId <> :excluded AND NOT begins_with(userId, :excludedReadlists)",
 				ExpressionAttributeNames: { "#url": "url" },
 				ExpressionAttributeValues: {
 					":url": id.value,
 					":excluded": params.excludeUserId,
-					":excludedQueues": queuePartitionPrefix(params.excludeUserId),
+					":excludedReadlists": readlistPartitionPrefix(params.excludeUserId),
 				},
 				Select: "COUNT",
 				ExclusiveStartKey: startKey,

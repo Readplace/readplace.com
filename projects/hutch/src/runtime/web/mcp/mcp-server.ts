@@ -11,7 +11,7 @@ import type {
 	SortOrder,
 } from "@packages/provider-contracts/article-store";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
-import { decodeQueueCursor, encodeQueueCursor } from "./cursor";
+import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
 import type { ToolAccess } from "./tool-access";
 import {
 	ArticleIdArgs,
@@ -20,8 +20,8 @@ import {
 	GET_ARTICLE_SUMMARY_TOOL,
 	GET_RELATED_ARTICLES_TOOL,
 	GET_ARTICLE_TOOL,
-	LIST_QUEUE_TOOL,
-	ListQueueArgs,
+	LIST_READLIST_TOOL,
+	ListReadlistArgs,
 	MARK_AS_READ_TOOL,
 	MARK_AS_UNREAD_TOOL,
 	SAVE_LINK_TOOL,
@@ -29,15 +29,15 @@ import {
 	TOOL_DEFINITIONS,
 } from "./tool-definitions";
 
-/** The user's queue in the Readplace app. Deletion happens here, not over MCP —
+/** The user's readlist in the Readplace app. Deletion happens here, not over MCP —
  * delete_article points the user at this URL. */
-const APP_QUEUE_URL = "https://readplace.com/queue";
+const APP_READLIST_URL = "https://readplace.com/queue";
 
 /** The tools a read-only (lapsed) subscription pauses. The Terms keep view and
  * export open for a lapsed account and scope the pause to "new saves", so only
  * save_link is gated. Marking read or unread stays open because the web's own
  * status route carries neither the lock gate nor the write-access gate: a
- * lapsed reader can mark read in their queue, and MCP matches that. */
+ * lapsed reader can mark read in their readlist, and MCP matches that. */
 const PAYWALLED_TOOLS: ReadonlySet<string> = new Set([SAVE_LINK_TOOL.name]);
 
 type SaveLinkResult =
@@ -94,7 +94,7 @@ export type ArticleStatusResult =
 	| { readonly status: "not_found" }
 	| { readonly status: "ok"; readonly article: McpArticle };
 
-export interface ListQueueResult {
+export interface ListReadlistResult {
 	readonly total: number;
 	readonly page: number;
 	readonly pageSize: number;
@@ -104,22 +104,22 @@ export interface ListQueueResult {
 /** The domain operations the tools delegate to. The composition root wires
  * these to the same save/list/read/status pipeline the hypermedia `/queue` API
  * uses, so an MCP `save_link` and an extension save are the identical write, a
- * mark-read over MCP is the identical write to the one the queue page makes,
- * and the read tools see exactly what the user's own queue shows. */
+ * mark-read over MCP is the identical write to the one the readlist page makes,
+ * and the read tools see exactly what the user's own readlist shows. */
 export interface McpServerDeps {
 	saveLink: (params: {
 		userId: AuthenticatedUserId;
 		url: string;
 		oauthClientId: string;
 	}) => Promise<SaveLinkResult>;
-	listQueue: (params: {
+	listReadlist: (params: {
 		userId: AuthenticatedUserId;
 		status?: ArticleStatus;
 		sort?: SortField;
 		order?: SortOrder;
 		page?: number;
 		pageSize?: number;
-	}) => Promise<ListQueueResult>;
+	}) => Promise<ListReadlistResult>;
 	getArticle: (params: {
 		userId: AuthenticatedUserId;
 		id: string;
@@ -257,7 +257,7 @@ function toolError(value: string): ToolResult {
 }
 
 function notFoundResult(id: string): ToolResult {
-	return data(`No saved article with id ${id} is in your queue.`, {
+	return data(`No saved article with id ${id} is in your readlist.`, {
 		found: false,
 	});
 }
@@ -301,7 +301,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (saves in their queue that relate to it, each tagged unread or read). mark_as_read and mark_as_unread really change the queue: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
+				"save_link adds a URL to the user's Readplace reading readlist; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (saves in their readlist that relate to it, each tagged unread or read). mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
 		};
 	}
 
@@ -333,18 +333,18 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			});
 			if (!outcome.ok) return toolError(outcome.message);
 			return text(
-				`Saved "${outcome.title}" to your Readplace queue (${outcome.url}). The reader view is loading in the background.`,
+				`Saved "${outcome.title}" to your Readplace readlist (${outcome.url}). The reader view is loading in the background.`,
 			);
 		} catch (error) {
 			return unexpectedFailure(SAVE_LINK_TOOL.name, error, "save the link");
 		}
 	}
 
-	async function runListQueue(
+	async function runListReadlist(
 		rawArgs: unknown,
 		context: McpRequestContext,
 	): Promise<ToolResult> {
-		const args = ListQueueArgs.safeParse(rawArgs);
+		const args = ListReadlistArgs.safeParse(rawArgs);
 		if (!args.success) {
 			return toolError(
 				'list_queue arguments are invalid: `status` must be "unread" or "read", `sort` "saved" or "read", `order` "asc" or "desc".',
@@ -358,7 +358,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		let sort: SortField | undefined;
 		let order: SortOrder | undefined;
 		if (a.cursor !== undefined) {
-			const decoded = decodeQueueCursor(a.cursor);
+			const decoded = decodeReadlistCursor(a.cursor);
 			if (!decoded) {
 				return toolError(
 					"That pagination cursor is invalid. Call list_queue again without a cursor to start from the first page.",
@@ -380,7 +380,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		}
 
 		try {
-			const outcome = await deps.listQueue({
+			const outcome = await deps.listReadlist({
 				userId: context.userId,
 				status,
 				sort,
@@ -390,7 +390,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			});
 			const hasMore = outcome.page * outcome.pageSize < outcome.total;
 			const nextCursor = hasMore
-				? encodeQueueCursor({
+				? encodeReadlistCursor({
 						page: outcome.page + 1,
 						pageSize: outcome.pageSize,
 						status,
@@ -408,7 +408,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			if (outcome.articles.length === 0) {
 				return data(
 					outcome.total === 0
-						? "Your Readplace queue is empty."
+						? "Your Readplace readlist is empty."
 						: "No more saved articles.",
 					structuredContent,
 				);
@@ -429,7 +429,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			}
 			return data(`${header}\n${lines.join("\n")}`, structuredContent);
 		} catch (error) {
-			return unexpectedFailure(LIST_QUEUE_TOOL.name, error, "list your queue");
+			return unexpectedFailure(LIST_READLIST_TOOL.name, error, "list your readlist");
 		}
 	}
 
@@ -556,7 +556,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				case "ready":
 					return data(
 						result.articles.length === 0
-							? "No saves in the queue relate to that article."
+							? "No saves in the readlist relate to that article."
 							: result.articles
 									.map(
 										(related) =>
@@ -619,7 +619,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			{
 				tool: MARK_AS_READ_TOOL.name,
 				confirmation:
-					"Marked read — it stays in your Readplace queue and has left your unread list.",
+					"Marked read — it stays in your Readplace readlist and has left your unread list.",
 				apply: deps.markAsRead,
 			},
 			rawArgs,
@@ -644,11 +644,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 
 	function runDeleteArticle(): ToolResult {
 		return data(
-			`Deleting a saved article is done in the Readplace app, not by your assistant, so nothing is removed by mistake. Open your queue at ${APP_QUEUE_URL} to delete an article.`,
+			`Deleting a saved article is done in the Readplace app, not by your assistant, so nothing is removed by mistake. Open your readlist at ${APP_READLIST_URL} to delete an article.`,
 			{
 				action: DELETE_ARTICLE_TOOL.name,
 				performed: false,
-				completeInApp: APP_QUEUE_URL,
+				completeInApp: APP_READLIST_URL,
 			},
 		);
 	}
@@ -665,8 +665,8 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		switch (name) {
 			case SAVE_LINK_TOOL.name:
 				return runSaveLink(rawArgs, context);
-			case LIST_QUEUE_TOOL.name:
-				return runListQueue(rawArgs, context);
+			case LIST_READLIST_TOOL.name:
+				return runListReadlist(rawArgs, context);
 			case GET_ARTICLE_TOOL.name:
 				return runGetArticle(rawArgs, context);
 			case GET_ARTICLE_CONTENT_TOOL.name:
@@ -711,11 +711,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		name: string,
 		rawArgs: unknown,
 	): SortOrder | undefined {
-		if (name !== LIST_QUEUE_TOOL.name) return undefined;
-		const args = ListQueueArgs.safeParse(rawArgs);
+		if (name !== LIST_READLIST_TOOL.name) return undefined;
+		const args = ListReadlistArgs.safeParse(rawArgs);
 		if (!args.success) return undefined;
 		if (args.data.cursor === undefined) return args.data.order;
-		return decodeQueueCursor(args.data.cursor)?.order;
+		return decodeReadlistCursor(args.data.cursor)?.order;
 	}
 
 	async function handleToolsCall(

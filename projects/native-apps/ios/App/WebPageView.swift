@@ -11,7 +11,7 @@ import WebKit
 /// untested; the URL it loads is discovered by the view model, which is.
 struct WebPageView: UIViewControllerRepresentable {
 	let url: URL
-	/// Invoked when the hosted page activates its "Back to queue" deep link, so the
+	/// Invoked when the hosted page activates its "Back to readlist" deep link, so the
 	/// caller dismisses the sheet — the page renders no chrome of its own.
 	let onClose: () -> Void
 	let onFinish: () -> Void
@@ -54,7 +54,7 @@ struct WebPageView: UIViewControllerRepresentable {
 			self.onFail = onFail
 		}
 
-		/// The chromeless help page's only navigation is its "Back to queue" deep
+		/// The chromeless help page's only navigation is its "Back to readlist" deep
 		/// link; intercept it to dismiss, reusing the reader's `readplace://reader/close`
 		/// contract so the one close link lives in one decision. The page links out
 		/// nowhere else, so `ReaderNavigation`'s external/logout branches never fire

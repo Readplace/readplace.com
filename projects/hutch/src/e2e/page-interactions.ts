@@ -5,7 +5,7 @@ export function isOnPage(page: Page, bodyClass: string): Promise<boolean> {
 	return page.locator(`body.${bodyClass}`).count().then(count => count > 0).catch(() => false)
 }
 
-/** A queue card re-fetches itself every 3s until its crawl is terminal, so with
+/** A readlist card re-fetches itself every 3s until its crawl is terminal, so with
  * several pending cards the page never gets the 500ms of silence networkidle
  * needs and the wait never returns. Give up on the quiet and carry on: callers
  * re-poll their own state, whereas an unbounded wait ends the whole run. */
@@ -43,10 +43,10 @@ export async function clickAndWaitForPageReload(page: Page, locator: ReturnType<
  * article hash may start with a digit, which is not a legal CSS ident.
  */
 /**
- * Marking read takes two clicks for a reader who owns a queue: the visible
+ * Marking read takes two clicks for a reader who owns a readlist: the visible
  * control is a popover trigger, not a submit. The trigger and the plain form
  * answer to different test hooks, so `popovertarget` is what tells the two
- * apart — a reader with no custom queue never sees a panel and the same locator
+ * apart — a reader with no custom readlist never sees a panel and the same locator
  * is an ordinary submit button.
  *
  * The same hazards as the delete flow apply: opening the panel navigates

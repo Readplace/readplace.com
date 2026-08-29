@@ -22,7 +22,7 @@ Open the same tab on Readplace and the list is short.
 
 The app loads its own code, one web font from a public CDN, one login cookie, two measurement cookies, and not much beyond that.
 
-A read-it-later app sees what you save. Your queue is a record of what you worry about, what you want to learn, and the things you keep to yourself. That list deserves better than an ad network.
+A read-it-later app sees what you save. Your readlist is a record of what you worry about, what you want to learn, and the things you keep to yourself. That list deserves better than an ad network.
 
 I still want to know whether the product works. Did a Hacker News post send 100 readers or 5? Do people who try the public reader come back and save something? Two small tools answer questions like those, and both run on my own servers.
 
@@ -64,4 +64,4 @@ You do not have to take my word for any of this.
 
 Open your browser's developer tools, load readplace.com, and read the network and cookie tabs. Count what loads, and count what gets set.
 
-Then start a queue and watch how little it costs you to do that. Save your first article at [readplace.com](/).
+Then start a readlist and watch how little it costs you to do that. Save your first article at [readplace.com](/).

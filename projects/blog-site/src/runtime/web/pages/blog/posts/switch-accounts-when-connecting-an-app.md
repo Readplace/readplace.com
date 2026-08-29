@@ -56,7 +56,7 @@ So the switch carries a flag, [`prompt=select_account`](/view/developers.google.
 
 ## One screen, every client
 
-The fix lives on the server, in the page Readplace draws for the consent step. The iPhone app, the Chrome and Firefox extensions, and [an AI assistant connecting over the same OAuth screen](/blog/connect-ai-assistant-without-an-api-key) all read that page from the server. So they got the account line and the switch at the same moment, with no app update to build and nothing to wait on in a review queue.
+The fix lives on the server, in the page Readplace draws for the consent step. The iPhone app, the Chrome and Firefox extensions, and [an AI assistant connecting over the same OAuth screen](/blog/connect-ai-assistant-without-an-api-key) all read that page from the server. So they got the account line and the switch at the same moment, with no app update to build and nothing to wait on in a review readlist.
 
 That is the payoff of drawing the screen on the server. A client is a thin shell around a page Readplace controls, so a change to the page reaches every client the second it deploys.
 

@@ -1,6 +1,6 @@
 import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { QUEUE_SHOT, EARLY_USER_QUOTE, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
+import { READLIST_SHOT, EARLY_USER_QUOTE, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
@@ -8,7 +8,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	description:
 		"Readplace is a read-it-later app. Upload the export file Pocket gave you, pick the links you still want, and review them before you make an account.",
 	keywords:
-		"pocket alternative, pocket replacement, pocket shut down, import pocket export, move pocket links, read it later app, pocket export html, reading queue, save articles for later, pocket migration",
+		"pocket alternative, pocket replacement, pocket shut down, import pocket export, move pocket links, read it later app, pocket export html, reading readlist, save articles for later, pocket migration",
 	headline: "Move your Pocket links without signing up first",
 	eyebrow: "For readers whose read-it-later app shut down",
 	titleLead: "Your Pocket links, ",
@@ -21,7 +21,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	secondaryActions: [
 		{ key: "guide", label: "Read the recovery guide", href: "/blog/pocket-migration" },
 	],
-	reassurance: "No account needed to start. Nothing is saved to a queue until you say so.",
+	reassurance: "No account needed to start. Nothing is saved to a readlist until you say so.",
 	stepsTitle: "How the import works",
 	stepsLede: "Three steps, and you only sign up at the last one.",
 	steps: [
@@ -35,15 +35,15 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		},
 		{
 			heading: "Sign up to save the selection",
-			body: "You land back on the same review with your choices intact, and the links go into your queue.",
+			body: "You land back on the same review with your choices intact, and the links go into your readlist.",
 		},
 	],
 	proof: {
 		title: "Where the links land",
 		screenshot: {
-			...QUEUE_SHOT,
+			...READLIST_SHOT,
 			caption:
-				"Everything you kept arrives in one queue, with a short preview so you can tell what is still worth your time.",
+				"Everything you kept arrives in one readlist, with a short preview so you can tell what is still worth your time.",
 		},
 		quote: EARLY_USER_QUOTE,
 	},
@@ -66,7 +66,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		{
 			question: "Do I need an account to import?",
 			answer:
-				"No. Upload the file and review the results straight away. An account is asked for when you save the selection to your queue.",
+				"No. Upload the file and review the results straight away. An account is asked for when you save the selection to your readlist.",
 		},
 		{
 			question: "What file formats work?",
@@ -95,7 +95,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to my links if I stop paying?",
 			answer:
-				"You keep reading every one of them. The account goes read-only: the queue, the reader and export all keep working, and you can still mark things read or delete them. Saving new links and importing are what stop.",
+				"You keep reading every one of them. The account goes read-only: the readlist, the reader and export all keep working, and you can still mark things read or delete them. Saving new links and importing are what stop.",
 		},
 	],
 	offer: {

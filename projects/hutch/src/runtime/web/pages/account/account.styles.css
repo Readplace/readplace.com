@@ -58,7 +58,7 @@
 }
 
 /* Founding, active and trial are healthy states — they stay on the neutral chassis.
- * Tints match the queue banner and the header chip, which render the same states. */
+ * Tints match the readlist banner and the header chip, which render the same states. */
 .account-card--cancellation-scheduled {
   background: var(--warning-bg);
   border-color: var(--color-warning);

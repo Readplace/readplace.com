@@ -54,7 +54,7 @@ sealed class ApiError(message: String) : Exception(message) {
  * One page of the reading-list collection plus the collection-level actions
  * and pagination links the server advertised.
  */
-class QueuePage(collection: SirenCollection) {
+class ReadlistPage(collection: SirenCollection) {
 	val articles: List<Article>
 	val nextHref: String?
 
@@ -171,11 +171,11 @@ class ReadplaceApi(
 	 * one URL the client knows — and follows wherever the server redirects;
 	 * otherwise it follows a link href the server already handed back (e.g. the
 	 * `next` link). */
-	suspend fun loadQueue(path: String? = null): QueuePage {
+	suspend fun loadReadlist(path: String? = null): ReadlistPage {
 		val url = if (path != null) absoluteUrl(path) else entryPoint("/")
 		val answer = send(Request.Builder().url(url).get().build())
 		if (answer.status != 200) throw apiError(answer)
-		return QueuePage(decodeSiren(answer, SirenDecoding::collection))
+		return ReadlistPage(decodeSiren(answer, SirenDecoding::collection))
 	}
 
 	/**
@@ -193,7 +193,7 @@ class ReadplaceApi(
 	 * marked unread on the website) — or null when the response is no collection:
 	 * the server directed no re-list.
 	 */
-	suspend fun invoke(action: SirenAction, values: Map<String, String> = emptyMap()): QueuePage? {
+	suspend fun invoke(action: SirenAction, values: Map<String, String> = emptyMap()): ReadlistPage? {
 		val fields = LinkedHashMap(values)
 		for (declared in action.fields.orEmpty()) {
 			if (declared.name in fields) continue
@@ -211,11 +211,11 @@ class ReadplaceApi(
 	 * those is an error — it just means the server issued no re-list direction. The
 	 * `collection` class is the discriminator because every [SirenCollection] field
 	 * is optional, so any JSON object would otherwise pass the decode. */
-	private fun postActionCollection(answer: Answer): QueuePage? {
+	private fun postActionCollection(answer: Answer): ReadlistPage? {
 		if (!isSirenMediaType(answer.contentType)) return null
 		val collection = jsonElementOf(answer.body)?.let { SirenDecoding.collection(it) } ?: return null
 		if (!collection.classes.orEmpty().contains("collection")) return null
-		return QueuePage(collection)
+		return ReadlistPage(collection)
 	}
 
 	// endregion
@@ -283,7 +283,7 @@ class ReadplaceApi(
 	 * `prior` drops the cookies an earlier request left in the jar — keeping the
 	 * caller's empty-means-failed-mint check honest, and deliberately dropping a
 	 * signal the server re-sets on every Siren response (e.g. `hutch_ext_alive`)
-	 * with an unchanged value: already in `prior` from the queue load that precedes
+	 * with an unchanged value: already in `prior` from the readlist load that precedes
 	 * a mint, re-set unchanged it never enters the delta, and injecting it into the
 	 * reader would fake extension-installed onboarding from the app. The delta is
 	 * why this is not literally "every cookie the response set": a cookie re-set

@@ -29,7 +29,7 @@ import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	encodeImportSkippedCookie,
 } from "./import-skipped-cookie";
-import { QUEUE_PATH } from "../queue/queue.url";
+import { READLIST_PATH } from "../readlist/readlist.url";
 import { ImportAcquirePage, ImportPage } from "./import.component";
 import { importErrorMessageMapping } from "./import.error";
 import { toImportAcquireViewModel, toImportViewModel } from "./import.viewmodel";
@@ -226,7 +226,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	router.get("/:id", async (req: Request, res: Response) => {
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		if (!parsedId.success) {
-			res.redirect(303, QUEUE_PATH);
+			res.redirect(303, READLIST_PATH);
 			return;
 		}
 
@@ -367,12 +367,12 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		await deps.importSessionStore.deleteImportSession({ id: parsedId.data, userId });
 
 		if (skipped.length > 0) {
-			/** Cookie carries the skipped URL list so the queue page can render
+			/** Cookie carries the skipped URL list so the readlist page can render
 			 * a "couldn't import these N links" banner. Cleared on the next
-			 * queue render. Capped at MAX_COOKIE_ITEMS to stay under the 4 KiB
+			 * readlist render. Capped at MAX_COOKIE_ITEMS to stay under the 4 KiB
 			 * cookie limit on large skip volumes. */
 			res.cookie(IMPORT_SKIPPED_COOKIE_NAME, encodeImportSkippedCookie(skipped), {
-				path: QUEUE_PATH,
+				path: READLIST_PATH,
 				maxAge: 5 * 60 * 1000,
 				sameSite: "lax",
 				httpOnly: true,
@@ -395,7 +395,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		});
 		res.redirect(
 			303,
-			`${QUEUE_PATH}?import_imported=${saveable.length}&import_total=${session.totalUrls}&import_skipped=${skipped.length}`,
+			`${READLIST_PATH}?import_imported=${saveable.length}&import_total=${session.totalUrls}&import_skipped=${skipped.length}`,
 		);
 	});
 

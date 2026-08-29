@@ -60,7 +60,7 @@ describe("renderReaderReady", () => {
 	it("retargets a same-host link to the reader's own tab", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: '<a href="https://readplace.com/queue" target="_blank">Queue</a>',
+				content: '<a href="https://readplace.com/queue" target="_blank">Readlist</a>',
 				appOrigin: "https://readplace.com",
 			}),
 		);

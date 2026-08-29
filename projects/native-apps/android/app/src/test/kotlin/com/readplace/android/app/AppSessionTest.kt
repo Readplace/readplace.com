@@ -490,7 +490,7 @@ class AppSessionTest {
 		session.logout()
 
 		assertEquals(
-			"captured page bytes and cached queue responses must not outlive the session that authorised them",
+			"captured page bytes and cached readlist responses must not outlive the session that authorised them",
 			1,
 			uploads.purges,
 		)
@@ -559,7 +559,7 @@ class AppSessionTest {
 	}
 
 	@Test
-	fun `a logged-in session's API renders the queue with the bearer preserved across the entry-point 303`() = runTest {
+	fun `a logged-in session's API renders the readlist with the bearer preserved across the entry-point 303`() = runTest {
 		server.handle { record ->
 			when (record.path) {
 				"/" -> Stub.redirect(to = "/queue")
@@ -570,13 +570,13 @@ class AppSessionTest {
 		val session = session(store = loggedInStore(access = "access-1"))
 		assertTrue(session.isLoggedIn.value)
 
-		val page = session.makeApi().loadQueue()
+		val page = session.makeApi().loadReadlist()
 
 		assertEquals(listOf("a1", "a2"), page.articles.map { it.id })
 		// Proves the bearer token + Siren Accept survived the entry-point 303.
-		val queueRequest = server.records("/queue").single()
-		assertEquals("Bearer access-1", queueRequest.header("Authorization"))
-		assertEquals(AppConfig.SIREN_MEDIA_TYPE, queueRequest.header("Accept"))
+		val readlistRequest = server.records("/queue").single()
+		assertEquals("Bearer access-1", readlistRequest.header("Authorization"))
+		assertEquals(AppConfig.SIREN_MEDIA_TYPE, readlistRequest.header("Accept"))
 	}
 
 	// endregion

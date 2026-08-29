@@ -21,7 +21,7 @@ const baseInput: ViewPageInput = {
 	summary: { status: "skipped" },
 	actions: [
 		{
-			name: "Save to My Queue",
+			name: "Save to My Readlist",
 			href: "/save?url=https%3A%2F%2Fexample.com%2Fpost",
 			variant: "primary",
 		},
@@ -96,7 +96,7 @@ describe("ViewPage", () => {
 		const doc = render({
 			...baseInput,
 			actions: [
-				{ name: "Save to My Queue", href: "/save?url=x", variant: "primary" },
+				{ name: "Save to My Readlist", href: "/save?url=x", variant: "primary" },
 			],
 		});
 
@@ -106,7 +106,7 @@ describe("ViewPage", () => {
 		assert(link, "cta action link must be rendered");
 		expect(link.tagName).toBe("A");
 		expect(link.getAttribute("href")).toBe("/save?url=x");
-		expect(link.textContent).toBe("Save to My Queue");
+		expect(link.textContent).toBe("Save to My Readlist");
 	});
 
 	it("renders a 'Read in your queue' action when the model points to /queue/:id/view", () => {
@@ -137,7 +137,7 @@ describe("ViewPage", () => {
 					variant: "primary",
 				},
 				{
-					name: "Save to My Queue",
+					name: "Save to My Readlist",
 					href: "/save?url=x",
 					variant: "secondary",
 				},

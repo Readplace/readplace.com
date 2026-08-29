@@ -4,7 +4,7 @@ description: "Most suggestion engines point at stock somebody wants moved. The c
 slug: "a-suggestion-with-no-warehouse-behind-it"
 date: "2026-08-18"
 author: "Fayner Brack"
-keywords: "read it later suggestions from your own saves, reading queue recommendations, what to read next, resurface saved articles, read it later backlog, next read from your own queue, ai picks from your own library, reading app without an algorithmic feed, related articles from saved links, pocket alternative suggestions"
+keywords: "read it later suggestions from your own saves, readlist recommendations, what to read next, resurface saved articles, read it later backlog, next read from your own readlist, ai picks from your own library, reading app without an algorithmic feed, related articles from saved links, pocket alternative suggestions"
 ---
 
 <details class="blog-tldr">
@@ -16,7 +16,7 @@ Nothing sits behind the card at the end of a finished article except the same ac
 </div>
 </details>
 
-97 seconds after a link landed in a test queue on 4 August 2026, a small language model finished deciding which of that account's own older saves the new article belonged with. That account was the whole of what it could see.
+97 seconds after a link landed in a test readlist on 4 August 2026, a small language model finished deciding which of that account's own older saves the new article belonged with. That account was the whole of what it could see.
 
 A suggestion surface usually has a warehouse behind it. The shop recommends its own stock, and the streaming service works through a catalogue it has already paid for.
 
@@ -42,7 +42,7 @@ At most 3 candidates survive, and each leaves with a sentence of 120 characters 
 
 None of that runs while anyone reads. The picks are written onto the saved row at save time, and the reader looks up what is already sitting there. Marking an article read costs no model call, and marking it unread costs none either.
 
-The save I opened with is why the slot no longer renders once and stops looking. Its first 2 attempts failed because the page had not finished crawling, the queue redelivered them, and the answer only landed 97 seconds in, by which point the old slot had already rendered empty for the whole page view. It asks again every 3 seconds now, and gives up after 300 tries when nothing ever settles.
+The save I opened with is why the slot no longer renders once and stops looking. Its first 2 attempts failed because the page had not finished crawling, the readlist redelivered them, and the answer only landed 97 seconds in, by which point the old slot had already rendered empty for the whole page view. It asks again every 3 seconds now, and gives up after 300 tries when nothing ever settles.
 
 ## Every card carries a date
 
@@ -54,7 +54,7 @@ It shows one pick at a time, the first of the 3 still unread. A line reading Nex
 
 A save date answers a different question than a feed does. The collaborative half of a [recommender system](/view/en.wikipedia.org/wiki/Recommender_system) reports what people with tastes like yours opened today. The card reports what you set aside for yourself in June, and how long it has been waiting since.
 
-Following the card means leaving the article underneath, and that is the article a queue most often gets wrong. A reader reaches the last line, moves on, and the article sits in the list as unread. So the web reader asks on the way out.
+Following the card means leaving the article underneath, and that is the article a readlist most often gets wrong. A reader reaches the last line, moves on, and the article sits in the list as unread. So the web reader asks on the way out.
 
 A panel names the article being left and asks "Did you read it?". The 2 buttons spell out both outcomes, "Yes, Mark as Read" [files it](/blog/mark-articles-read-undo-in-one-tap) and "No, Continue and Keep Unread" leaves it waiting. Closing the panel cancels the exit.
 
@@ -90,4 +90,4 @@ So the card is easy to refuse. The dismiss button in its corner posts to the acc
 
 Neither of the 2 things that have to be true is mine to arrange. A reader filled the account over months, then read tonight's article down to its last line, both for reasons of their own. The librarian only sorts what that left behind.
 
-Somewhere in [your queue](/) is a save you have stopped thinking about, waiting on a different article entirely, whichever one you finish next.
+Somewhere in [your readlist](/) is a save you have stopped thinking about, waiting on a different article entirely, whichever one you finish next.

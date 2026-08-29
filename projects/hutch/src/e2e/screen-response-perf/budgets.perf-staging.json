@@ -11,7 +11,7 @@
     }
   },
   "ops": {
-    "queue-switch-first": {
+    "readlist-switch-first": {
       "level": "error",
       "budgetMs": 800,
       "baseline": {
@@ -22,7 +22,7 @@
       },
       "note": "budgetMs is baseline.maxMs rounded up to the next 50ms — 4.8% above the worst run the soak saw. That worst run is an outlier: 17 of the 19 landed between 279 and 414ms and the median max was 379ms, so the gate still sits 2.11x the median run. Ratchet target once the listing cache lands — this is the cache-miss arm."
     },
-    "queue-switch-subsequent": {
+    "readlist-switch-subsequent": {
       "level": "error",
       "budgetMs": 450,
       "baseline": {
@@ -55,7 +55,7 @@
       },
       "note": "budgetMs was raised from 400 to 450 after a 20-run soak measured 449ms for this operation, above the 400ms gate. That 449 was a lone outlier 68ms clear of the next worst — the other 19 runs spanned 257 to 381ms with a 332ms median max, and the operation's median max improved from 347 to 331 over the same soak — but the suite's confirmation re-measure reproduced it, so it is a real tail rather than a hiccup. Cache-hit arm of the To-Read/Read switch."
     },
-    "assign-to-queue": {
+    "assign-to-readlist": {
       "level": "error",
       "budgetMs": 750,
       "baseline": {
@@ -77,7 +77,7 @@
       },
       "note": "budgetMs is baseline.maxMs rounded up to the next 50ms — 6.4% above the worst run the soak saw. The soak spanned 347 to 564ms with a 414ms median max. Ratchet target when visible cards are prefetched; expect responseStart to collapse on a prefetch hit."
     },
-    "back-to-queue": {
+    "back-to-readlist": {
       "level": "error",
       "budgetMs": 700,
       "baseline": {

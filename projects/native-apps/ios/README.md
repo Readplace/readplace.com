@@ -123,7 +123,7 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   (`AppConfig.addLinksHelpPath`), so the instructions ship via a hutch deploy
   rather than an App Store release. The sheet is chromeless like the reader and
   account: it carries the `?shell=app` marker, so the page renders its own
-  **← Back to queue** deep link, which the webview intercepts to dismiss — all
+  **← Back to readlist** deep link, which the webview intercepts to dismiss — all
   three in-app sheets return to the list identically, instead of this one wearing
   a native nav bar. If the page can't load, a native fallback still teaches Share
   and carries its own back button. There is no in-app paste box; capturing a page

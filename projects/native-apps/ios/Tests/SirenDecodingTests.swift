@@ -308,7 +308,7 @@ final class SirenDecodingTests: XCTestCase {
 			Fixtures.article(id: "good"),
 			"{ \"class\": [\"article\"] }",
 		], total: 2)
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.articles.map(\.id), ["good"])
 	}
 
@@ -320,7 +320,7 @@ final class SirenDecodingTests: XCTestCase {
 		let valid = "{ \"name\": \"save-article\", \"title\": \"Save a link\", \"href\": \"/queue\", \"method\": \"POST\" }"
 		let malformed = "{ \"href\": \"/x\", \"method\": \"POST\" }"
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()], actionsJSON: "\(valid), \(malformed)")
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(
 			page.affordances.compactMap(\.action).map(\.name), ["save-article"],
 			"a malformed action is dropped; the valid ones still render"
@@ -334,7 +334,7 @@ final class SirenDecodingTests: XCTestCase {
 		// fine and is dropped later by Article.init?.
 		let malformedEntity = "{ \"properties\": { \"url\": \"https://example.com/x\" } }"
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article(id: "good"), malformedEntity], total: 2)
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.articles.map(\.id), ["good"], "a malformed entity is dropped, not page-blanking")
 	}
 
@@ -346,13 +346,13 @@ final class SirenDecodingTests: XCTestCase {
 			extraLinks: ", { \"href\": \"/broken\" }, { \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }",
 			page: 1
 		)
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.nextHref, "/queue?page=2", "a malformed link is dropped; valid links still resolve")
 	}
 
 	func testCollectionExposesAffordances() throws {
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()])
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		// The complete set of advertised collection actions, labelled by the server's
 		// title. The toolbar derives its own presentable subset from this client-side;
 		// the share-sheet save journey resolves its bespoke action from it by name.
@@ -372,7 +372,7 @@ final class SirenDecodingTests: XCTestCase {
 		// to build its bespoke body — the contract's sanctioned exception for
 		// special-body actions, distinct from the looped toolbar rendering.
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()])
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.action(named: "save-content")?.href, "/queue/save-content")
 		XCTAssertEqual(page.action(named: "save-article")?.href, "/queue")
 		XCTAssertNil(page.action(named: "no-such-action"))
@@ -385,7 +385,7 @@ final class SirenDecodingTests: XCTestCase {
 			entitiesJSON: [Fixtures.article()],
 			extraLinks: ", { \"rel\": [\"save\"], \"href\": \"/save\", \"title\": \"Save a link\" }"
 		)
-		let page = QueuePage(collection: try decodeCollection(withSave))
+		let page = ReadlistPage(collection: try decodeCollection(withSave))
 		let saveLink = try XCTUnwrap(page.affordances.first { $0.link?.rel.first == "save" })
 		XCTAssertEqual(saveLink.label, "Save a link")
 		XCTAssertEqual(saveLink.link?.href, "/save")
@@ -397,11 +397,11 @@ final class SirenDecodingTests: XCTestCase {
 			extraLinks: ", { \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }",
 			page: 1
 		)
-		let page = QueuePage(collection: try decodeCollection(withNext))
+		let page = ReadlistPage(collection: try decodeCollection(withNext))
 		XCTAssertEqual(page.nextHref, "/queue?page=2")
 
 		let noNext = Fixtures.collection(entitiesJSON: [Fixtures.article()])
-		let lastPage = QueuePage(collection: try decodeCollection(noNext))
+		let lastPage = ReadlistPage(collection: try decodeCollection(noNext))
 		XCTAssertNil(lastPage.nextHref)
 	}
 
@@ -409,7 +409,7 @@ final class SirenDecodingTests: XCTestCase {
 		let json = """
 		{ "class": ["collection", "articles"], "properties": { "total": 0, "page": 1, "pageSize": 20 }, "links": [{ "rel": ["self"], "href": "/queue" }], "actions": [] }
 		"""
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertTrue(page.articles.isEmpty)
 		XCTAssertNil(page.nextHref)
 	}
@@ -418,7 +418,7 @@ final class SirenDecodingTests: XCTestCase {
 		let json = """
 		{ "class": ["collection", "articles"], "properties": { "total": 0, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } }, "links": [], "actions": [] }
 		"""
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.warning?.code, "not-saveable")
 		XCTAssertEqual(page.warning?.message, "Cannot save that link.")
 	}
@@ -430,7 +430,7 @@ final class SirenDecodingTests: XCTestCase {
 		let json = """
 		{ "class": ["collection", "articles"], "properties": { "total": 0, "page": 1, "pageSize": 20, "warning": { "message": "Cannot save that link." } }, "links": [], "actions": [] }
 		"""
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertNil(page.warning?.code, "a code-less warning still decodes")
 		XCTAssertEqual(page.warning?.message, "Cannot save that link.")
 	}
@@ -445,7 +445,7 @@ final class SirenDecodingTests: XCTestCase {
 			"entities": [\(Fixtures.article(id: "a1"))],
 			"links": [], "actions": [] }
 		"""
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertNil(page.warning, "a warning missing its required message degrades to no banner")
 		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
 	}
@@ -461,7 +461,7 @@ final class SirenDecodingTests: XCTestCase {
 			entitiesJSON: [Fixtures.article()],
 			messagesJSON: "\(renderable), \(nonRenderable)"
 		)
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(
 			page.noticeMessages.map(\.content.body), ["Don't close this — it's still saving."],
 			"only the text/html message is kept; the non-renderable one is dropped"
@@ -469,7 +469,7 @@ final class SirenDecodingTests: XCTestCase {
 	}
 
 	func testCollectionWithoutMessagesExposesNoNotices() throws {
-		let page = QueuePage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [Fixtures.article()])))
+		let page = ReadlistPage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [Fixtures.article()])))
 		XCTAssertTrue(page.noticeMessages.isEmpty, "a collection that carries no messages surfaces no notices")
 	}
 
@@ -477,14 +477,14 @@ final class SirenDecodingTests: XCTestCase {
 		// A message missing its required `content` is dropped per-element rather than
 		// failing the whole collection decode — the messages channel is non-fatal, like
 		// actions/links/entities above. The valid notice and the rest of the page still
-		// decode, so one evolving/malformed notice can never blank the queue.
+		// decode, so one evolving/malformed notice can never blank the readlist.
 		let malformed = "{ \"type\": \"warning\" }"
 		let valid = "{ \"type\": \"warning\", \"content\": { \"type\": \"text/html\", \"body\": \"Don't close this — it's still saving.\" } }"
 		let json = Fixtures.collection(
 			entitiesJSON: [Fixtures.article(id: "a1")],
 			messagesJSON: "\(malformed), \(valid)"
 		)
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(
 			page.noticeMessages.map(\.content.body), ["Don't close this — it's still saving."],
 			"the malformed message is dropped; the valid notice still surfaces"
@@ -494,7 +494,7 @@ final class SirenDecodingTests: XCTestCase {
 
 	func testCollectionTabsDecodeLabelRelAndHrefWithTheCurrentOneMarked() throws {
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()], tabsJSON: Fixtures.tabs(current: "unread"))
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.tabs.map(\.label), ["To Read", "Read"], "labels are the server's, in wire order")
 		XCTAssertEqual(page.tabs.map(\.href), ["/queue?status=unread", "/queue?status=read"])
 		XCTAssertEqual(page.tabs.map(\.isCurrent), [true, false])
@@ -504,7 +504,7 @@ final class SirenDecodingTests: XCTestCase {
 
 	func testCurrentTabHrefFollowsWhicheverTabTheServerMarksCurrent() throws {
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()], tabsJSON: Fixtures.tabs(current: "read"))
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.currentTabHref, "/queue?status=read")
 	}
 
@@ -512,14 +512,14 @@ final class SirenDecodingTests: XCTestCase {
 		let hrefless = "{ \"label\": \"To Read\", \"rel\": \"tab\" }"
 		let valid = "{ \"label\": \"Read\", \"rel\": \"current\", \"href\": \"/queue?status=read\" }"
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], tabsJSON: "\(hrefless), \(valid)")
-		let page = QueuePage(collection: try decodeCollection(json))
+		let page = ReadlistPage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.tabs.map(\.label), ["Read"], "the hrefless tab is dropped; the valid one survives")
 		XCTAssertEqual(page.currentTabHref, "/queue?status=read")
 		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
 	}
 
 	func testCollectionWithoutTabsExposesNoneAndNoCurrentTab() throws {
-		let page = QueuePage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [Fixtures.article()])))
+		let page = ReadlistPage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [Fixtures.article()])))
 		XCTAssertEqual(page.tabs, [], "a server that advertises no tabs yields an empty set, not a failed decode")
 		XCTAssertNil(page.currentTabHref)
 	}
@@ -529,7 +529,7 @@ final class SirenDecodingTests: XCTestCase {
 		{ "label": "To Read", "rel": "tab", "href": "/queue?status=unread" },
 		{ "label": "Read", "rel": "tab", "href": "/queue?status=read" }
 		"""
-		let page = QueuePage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [], tabsJSON: none)))
+		let page = ReadlistPage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [], tabsJSON: none)))
 		XCTAssertEqual(page.tabs.map(\.isCurrent), [false, false])
 		XCTAssertNil(page.currentTabHref)
 	}

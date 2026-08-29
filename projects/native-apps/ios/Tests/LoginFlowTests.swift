@@ -6,7 +6,7 @@ import XCTest
 /// in the in-app auth session (carrying `screen_hint=login`), which captures the
 /// `readplace://oauth-callback` redirect and hands it to `completeSignIn`, which
 /// exchanges the code and flips the session to logged-in; then a reading-list
-/// load renders the queue with the bearer token preserved across the entry-point
+/// load renders the readlist with the bearer token preserved across the entry-point
 /// 303.
 @MainActor
 final class LoginFlowTests: XCTestCase {
@@ -155,7 +155,7 @@ final class LoginFlowTests: XCTestCase {
 
 		XCTAssertEqual(
 			purges, 1,
-			"captured page bytes and cached queue responses must not outlive the session that authorised them"
+			"captured page bytes and cached readlist responses must not outlive the session that authorised them"
 		)
 	}
 
@@ -200,7 +200,7 @@ final class LoginFlowTests: XCTestCase {
 		await readerWipe.value
 	}
 
-	func testLoggedInThenLoadQueueRendersArticles() async throws {
+	func testLoggedInThenLoadReadlistRendersArticles() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 		XCTAssertTrue(session.isLoggedIn)
@@ -225,9 +225,9 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertFalse(viewModel.isLoading)
 
 		// Proves the bearer token + Siren Accept survived the entry-point 303.
-		let queueRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
-		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
-		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
+		let readlistRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
+		XCTAssertEqual(readlistRequest.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
+		XCTAssertEqual(readlistRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
 	}
 
 	func testCallbackCarryingAnErrorParamIsDeniedWithoutExchanging() async {

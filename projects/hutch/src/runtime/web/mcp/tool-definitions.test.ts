@@ -5,8 +5,8 @@ import {
 	GET_ARTICLE_SUMMARY_TOOL,
 	GET_ARTICLE_TOOL,
 	GET_RELATED_ARTICLES_TOOL,
-	LIST_QUEUE_TOOL,
-	ListQueueArgs,
+	LIST_READLIST_TOOL,
+	ListReadlistArgs,
 	MARK_AS_READ_TOOL,
 	MARK_AS_UNREAD_TOOL,
 	SAVE_LINK_TOOL,
@@ -41,7 +41,7 @@ describe("MCP tool definitions", () => {
 			});
 		}
 		for (const tool of [
-			LIST_QUEUE_TOOL,
+			LIST_READLIST_TOOL,
 			GET_ARTICLE_TOOL,
 			GET_ARTICLE_CONTENT_TOOL,
 			GET_ARTICLE_SUMMARY_TOOL,
@@ -69,17 +69,17 @@ describe("MCP tool definitions", () => {
 
 	describe("list_queue", () => {
 		it("accepts an optional unread/read status in both shapes", () => {
-			expect(LIST_QUEUE_TOOL.inputSchema).toMatchObject({
+			expect(LIST_READLIST_TOOL.inputSchema).toMatchObject({
 				properties: { status: { enum: ["unread", "read"] } },
 			});
-			expect(ListQueueArgs.safeParse({}).success).toBe(true);
-			expect(ListQueueArgs.safeParse({ status: "unread" }).success).toBe(true);
-			expect(ListQueueArgs.safeParse({ status: "read" }).success).toBe(true);
-			expect(ListQueueArgs.safeParse({ status: "archived" }).success).toBe(false);
+			expect(ListReadlistArgs.safeParse({}).success).toBe(true);
+			expect(ListReadlistArgs.safeParse({ status: "unread" }).success).toBe(true);
+			expect(ListReadlistArgs.safeParse({ status: "read" }).success).toBe(true);
+			expect(ListReadlistArgs.safeParse({ status: "archived" }).success).toBe(false);
 		});
 
 		it("accepts the pagination and sort controls", () => {
-			expect(LIST_QUEUE_TOOL.inputSchema).toMatchObject({
+			expect(LIST_READLIST_TOOL.inputSchema).toMatchObject({
 				properties: {
 					sort: { enum: ["saved", "read"] },
 					order: { enum: ["asc", "desc"] },
@@ -88,12 +88,12 @@ describe("MCP tool definitions", () => {
 				},
 			});
 			expect(
-				ListQueueArgs.safeParse({ sort: "read", order: "asc", limit: 5 }).success,
+				ListReadlistArgs.safeParse({ sort: "read", order: "asc", limit: 5 }).success,
 			).toBe(true);
-			expect(ListQueueArgs.safeParse({ cursor: "abc" }).success).toBe(true);
-			expect(ListQueueArgs.safeParse({ sort: "newest" }).success).toBe(false);
-			expect(ListQueueArgs.safeParse({ limit: 0 }).success).toBe(false);
-			expect(ListQueueArgs.safeParse({ limit: 101 }).success).toBe(false);
+			expect(ListReadlistArgs.safeParse({ cursor: "abc" }).success).toBe(true);
+			expect(ListReadlistArgs.safeParse({ sort: "newest" }).success).toBe(false);
+			expect(ListReadlistArgs.safeParse({ limit: 0 }).success).toBe(false);
+			expect(ListReadlistArgs.safeParse({ limit: 101 }).success).toBe(false);
 		});
 	});
 
@@ -170,7 +170,7 @@ describe("MCP tool definitions", () => {
 		);
 
 		it("strips an injected userId from every validator instead of forwarding it", () => {
-			expect(ListQueueArgs.parse({ status: "unread", userId: "victim" })).not.toHaveProperty("userId");
+			expect(ListReadlistArgs.parse({ status: "unread", userId: "victim" })).not.toHaveProperty("userId");
 			expect(ArticleIdArgs.parse({ id: "abc", userId: "victim" })).not.toHaveProperty("userId");
 			expect(SaveLinkArgs.parse({ url: "https://example.com/", userId: "victim" })).not.toHaveProperty("userId");
 		});

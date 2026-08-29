@@ -170,19 +170,19 @@ async function logIn(page: Page): Promise<void> {
 	await page.locator("#email").fill(PERF_USER.email);
 	await page.locator("#password").fill(PERF_USER.password);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
-	await page.waitForSelector("body.page-queue");
+	await page.waitForSelector("body.page-readlist");
 }
 
 /** htmx has to be live before the click or a boosted link falls back to a plain
  * navigation, which would silently measure the unboosted arm. Waiting costs the
  * unboosted arm nothing: the wait ends before the clock starts. */
-async function openQueue(page: Page): Promise<void> {
+async function openReadlist(page: Page): Promise<void> {
 	await page.goto(`${ORIGIN}/queue`, { waitUntil: "load" });
 	await page.waitForFunction(() => window.htmx !== undefined);
 }
 
 async function measureOpen(page: Page, articleId: string): Promise<ArticleOpenSample> {
-	await openQueue(page);
+	await openReadlist(page);
 	await page.locator(`[data-test-article="${articleId}"] ${TITLE_SELECTOR}`).click();
 	await page.waitForFunction(() => window.readplaceArticleOpen !== undefined, undefined, {
 		timeout: OPEN_TIMEOUT_MS,
@@ -270,7 +270,7 @@ function writeReport(input: {
 	return reportPaths;
 }
 
-test("article open from the queue, measured across cpu and network conditions", async (t) => {
+test("article open from the readlist, measured across cpu and network conditions", async (t) => {
 	const server = await startPerfServer();
 	armSuiteFailsafe(server);
 	try {

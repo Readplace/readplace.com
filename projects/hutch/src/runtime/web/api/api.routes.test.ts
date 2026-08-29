@@ -13,7 +13,7 @@ import {
 import { initReadabilityParser } from "@packages/article-parser";
 
 import { SIREN_MEDIA_TYPE } from "./siren";
-import { parseQueueUrl } from "../pages/queue/queue.url";
+import { parseReadlistUrl } from "../pages/readlist/readlist.url";
 import { NATIVE_CLIENT_HEADER } from "../onboarding/native-client";
 import { SIREN_DISCOVERY_MAX_AGE_SECONDS } from "../siren-discovery-cache";
 import {
@@ -341,7 +341,7 @@ describe("POST /queue (Siren save article)", () => {
 
 		expect(response.status).toBe(201);
 		expect(response.body.properties.messages).toEqual([
-			{ type: "success", content: { type: "text/html", body: "Already in your queue" } },
+			{ type: "success", content: { type: "text/html", body: "Already in your readlist" } },
 			{ type: "success", content: { type: "text/html", body: "Moved back to the top of your reading list" } },
 		]);
 	});
@@ -370,7 +370,7 @@ describe("POST /queue (Siren save article)", () => {
 
 		expect(response.status).toBe(201);
 		expect(response.body.properties.messages).toEqual([
-			{ type: "success", content: { type: "text/html", body: "Already in your queue" } },
+			{ type: "success", content: { type: "text/html", body: "Already in your readlist" } },
 		]);
 	});
 
@@ -650,7 +650,7 @@ describe("GET /queue status tabs (Siren)", () => {
 
 		expect(mutation.status).toBe(303);
 		const location = new URL(mutation.headers.location, TEST_APP_ORIGIN);
-		expect(parseQueueUrl(Object.fromEntries(location.searchParams)).tab).toBe("done");
+		expect(parseReadlistUrl(Object.fromEntries(location.searchParams)).tab).toBe("done");
 
 		const landed = await request(harness.server)
 			.get(`${location.pathname}${location.search}`)

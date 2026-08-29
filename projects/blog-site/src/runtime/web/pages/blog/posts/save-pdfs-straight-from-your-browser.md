@@ -1,6 +1,6 @@
 ---
 title: "Save PDFs Straight From Your Browser, Even the Blocked Ones"
-description: "Some PDFs sit behind bot protection or a login, so crawlers get turned away. Readplace now reads the PDF from your own browser tab and saves a clean copy to your queue. Open it in your browser, and you can save it."
+description: "Some PDFs sit behind bot protection or a login, so crawlers get turned away. Readplace now reads the PDF from your own browser tab and saves a clean copy to your readlist. Open it in your browser, and you can save it."
 slug: "save-pdfs-straight-from-your-browser"
 date: "2026-06-06"
 author: "Fayner Brack"
@@ -11,7 +11,7 @@ keywords: "save pdf, read it later pdf, save pdf to read later, save pdf browser
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace can now save a PDF straight from your browser. Open the file in a tab, click save in the extension, and the extension reads the bytes from that tab. The request carries your own session, so sites that block crawlers still let the file through. Readplace reads the text, runs OCR on scanned pages, and drops a clean copy into your queue. HTML articles save the same way as before.
+Readplace can now save a PDF straight from your browser. Open the file in a tab, click save in the extension, and the extension reads the bytes from that tab. The request carries your own session, so sites that block crawlers still let the file through. Readplace reads the text, runs OCR on scanned pages, and drops a clean copy into your readlist. HTML articles save the same way as before.
 
 </div>
 </details>
@@ -54,6 +54,6 @@ So the same PDF that blocks a crawler opens for you, and Readplace borrows that 
 
 ## Try it
 
-Find the PDF your old app gave up on. Open it in your browser, then click save in the Readplace extension, and watch it land in your queue with the text pulled out for search and reading.
+Find the PDF your old app gave up on. Open it in your browser, then click save in the Readplace extension, and watch it land in your readlist with the text pulled out for search and reading.
 
 [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).

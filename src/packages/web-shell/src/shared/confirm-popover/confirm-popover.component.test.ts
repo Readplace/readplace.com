@@ -59,7 +59,7 @@ describe("renderConfirmPopover", () => {
 	});
 
 	it("renders a bulleted list under the body and describes the panel by both", () => {
-		const doc = renderPanel({ bodyItems: ["My Queue", "Work", "Later"] });
+		const doc = renderPanel({ bodyItems: ["All", "Work", "Later"] });
 
 		const panel = doc.querySelector(".confirm-popover");
 		assert(panel, "panel must be rendered");
@@ -70,13 +70,13 @@ describe("renderConfirmPopover", () => {
 		assert(items, "the list must be rendered");
 		expect(items.tagName).toBe("UL");
 		expect([...items.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
-			"My Queue",
+			"All",
 			"Work",
 			"Later",
 		]);
 	});
 
-	it("escapes each item, so a queue named after markup stays text", () => {
+	it("escapes each item, so a readlist named after markup stays text", () => {
 		const doc = renderPanel({ bodyItems: ['<img src=x onerror="alert(1)">'] });
 
 		const items = doc.getElementById("thing-confirm-42-items");
@@ -86,7 +86,7 @@ describe("renderConfirmPopover", () => {
 	});
 
 	it("tightens the body above a list so the sentence reads as its introduction", () => {
-		const withList = renderPanel({ bodyItems: ["My Queue"] });
+		const withList = renderPanel({ bodyItems: ["All"] });
 		const withoutList = renderPanel();
 
 		const introduced = withList.getElementById("thing-confirm-42-body");
@@ -113,7 +113,7 @@ describe("renderConfirmPopover", () => {
 	it("describes the panel by lead, body and list when all three are present", () => {
 		const doc = renderPanel({
 			lead: { text: "The Article Title", screenReaderOnly: true },
-			bodyItems: ["My Queue"],
+			bodyItems: ["All"],
 		});
 
 		const panel = doc.querySelector(".confirm-popover");

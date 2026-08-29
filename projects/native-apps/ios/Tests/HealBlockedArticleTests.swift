@@ -21,7 +21,7 @@ final class HealBlockedArticleTests: XCTestCase {
 		)
 	}
 
-	private func serveQueueAndSaveContent(
+	private func serveReadlistAndSaveContent(
 		actionsJSON: String = Fixtures.collectionActions,
 		saveContentStub: @escaping () -> StubURLProtocol.Stub = { .json(201, Fixtures.article(id: "healed")) }
 	) {
@@ -43,7 +43,7 @@ final class HealBlockedArticleTests: XCTestCase {
 		let captor = FakeHTMLCaptor(
 			page: CapturedPage(rawHtml: "<html><body>the page the crawler was blocked from</body></html>", title: "Captured", mediaType: "text/html")
 		)
-		serveQueueAndSaveContent()
+		serveReadlistAndSaveContent()
 
 		let outcome = try await makeHealer(store: TestSupport.loggedInStore(access: "access-1"), captor: captor).run(url: blockedURL)
 
@@ -81,7 +81,7 @@ final class HealBlockedArticleTests: XCTestCase {
 	}
 
 	func testSendsNoTitlePartWhenTheRenderNamedThePageNothing() async throws {
-		serveQueueAndSaveContent()
+		serveReadlistAndSaveContent()
 
 		let outcome = try await makeHealer(
 			store: TestSupport.loggedInStore(),
@@ -116,7 +116,7 @@ final class HealBlockedArticleTests: XCTestCase {
 		let saveArticleOnly = """
 		{ "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }
 		"""
-		serveQueueAndSaveContent(actionsJSON: saveArticleOnly)
+		serveReadlistAndSaveContent(actionsJSON: saveArticleOnly)
 
 		let outcome = try await makeHealer(
 			store: TestSupport.loggedInStore(),
@@ -135,7 +135,7 @@ final class HealBlockedArticleTests: XCTestCase {
 	}
 
 	func testSurfacesTheServersRefusalToTheCaller() async throws {
-		serveQueueAndSaveContent(saveContentStub: { .json(403, Fixtures.accountLockedError()) })
+		serveReadlistAndSaveContent(saveContentStub: { .json(403, Fixtures.accountLockedError()) })
 
 		do {
 			_ = try await makeHealer(

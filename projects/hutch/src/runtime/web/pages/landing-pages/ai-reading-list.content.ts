@@ -1,22 +1,22 @@
 import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { QUEUE_SHOT, FOUNDER_LINE, TRIAL_TERMS, START_TRIAL } from "./landing-pages.copy";
+import { READLIST_SHOT, FOUNDER_LINE, TRIAL_TERMS, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const AI_READING_LIST_CONTENT: LandingPageContent = {
 	title: "Save Links from Claude, ChatGPT or Gemini — MCP | Readplace",
 	description:
-		"Connect Readplace to your assistant once, then save links mid-conversation and read them later. It can add to your queue and read it back, never delete.",
+		"Connect Readplace to your assistant once, then save links mid-conversation and read them later. It can add to your readlist and read it back, never delete.",
 	keywords:
-		"mcp server, model context protocol, claude mcp, chatgpt connector, save links from claude, ai reading list, reading queue mcp, claude integration, gemini cli mcp, oauth pkce mcp",
-	headline: "Save links from your assistant, read your queue back",
+		"mcp server, model context protocol, claude mcp, chatgpt connector, save links from claude, ai reading list, reading readlist mcp, claude integration, gemini cli mcp, oauth pkce mcp",
+	headline: "Save links from your assistant, read your readlist back",
 	eyebrow: "For readers who live in Claude, ChatGPT or Gemini",
-	titleLead: "Your assistant can add to your queue. It cannot ",
+	titleLead: "Your assistant can add to your readlist. It cannot ",
 	titleHighlight: "empty",
 	titleTail: " it.",
-	lede: "Connect it once, then save links out of a conversation as they come up and read them later in a clean queue. Your assistant can read that queue back too — an article, its reader view, its summary — and mark one read or unread when you have got to it. Deleting stays in the app, on purpose.",
+	lede: "Connect it once, then save links out of a conversation as they come up and read them later in a clean readlist. Your assistant can read that readlist back too — an article, its reader view, its summary — and mark one read or unread when you have got to it. Deleting stays in the app, on purpose.",
 	ogImageAlt:
-		"Readplace — connect Claude, ChatGPT or Gemini to a reading queue they can add to but not empty.",
+		"Readplace — connect Claude, ChatGPT or Gemini to a reading readlist they can add to but not empty.",
 	primaryAction: { key: "connect", label: "Set up the connection", href: "/mcp" },
 	secondaryActions: [],
 	reassurance:
@@ -34,23 +34,23 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		},
 		{
 			heading: "Ask it to save or recall things",
-			body: "Save a link mid-conversation, ask what is in your queue, or pull an article's text or summary to talk about it.",
+			body: "Save a link mid-conversation, ask what is in your readlist, or pull an article's text or summary to talk about it.",
 		},
 	],
 	proof: {
 		title: "What your assistant is writing into",
 		screenshot: {
-			...QUEUE_SHOT,
+			...READLIST_SHOT,
 			caption:
-				"A link saved mid-conversation lands in the same queue you read from in the browser and on your phone.",
+				"A link saved mid-conversation lands in the same readlist you read from in the browser and on your phone.",
 		},
 		founderLine: FOUNDER_LINE,
 	},
 	mechanismTitle: "Eight tools that act, one that refuses",
 	mechanismLede: "The refusal is the design, not a gap in it.",
 	mechanismParagraphs: [
-		"Eight tools do something: save a link, list your queue, pull an article's details, its reader view, its summary, or the articles related to it, and mark one read or unread.",
-		"One more — delete — exists only to tell your assistant to send you to the app. It returns without changing anything. An assistant that misreads a sentence can add a link to your queue or mark one read; it cannot empty it.",
+		"Eight tools do something: save a link, list your readlist, pull an article's details, its reader view, its summary, or the articles related to it, and mark one read or unread.",
+		"One more — delete — exists only to tell your assistant to send you to the app. It returns without changing anything. An assistant that misreads a sentence can add a link to your readlist or mark one read; it cannot empty it.",
 		"That asymmetry is deliberate. A stray save costs you one line in a list, and a stray read mark costs you one sentence to undo. A stray delete costs you something you meant to read.",
 	],
 	limitsTitle: "What this does not do",
@@ -68,9 +68,9 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 				"Claude on any plan including Free. ChatGPT through the official Readplace plugin, added in one click. Gemini free through the CLI, or the Gemini app with a Google AI Ultra subscription.",
 		},
 		{
-			question: "Can my assistant delete things from my queue?",
+			question: "Can my assistant delete things from my readlist?",
 			answer:
-				"No. Delete returns without acting and tells the assistant to send you to the app. It can save a link and mark an article read or unread; taking one out of the queue is yours to do.",
+				"No. Delete returns without acting and tells the assistant to send you to the app. It can save a link and mark an article read or unread; taking one out of the readlist is yours to do.",
 		},
 		{
 			question: "What do I paste into the connector?",
@@ -85,7 +85,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		{
 			question: "What can it read?",
 			answer:
-				"Your queue listing, an article's details, its reader view text, and its summary.",
+				"Your readlist listing, an article's details, its reader view text, and its summary.",
 		},
 		{
 			question: "Do I need a credit card to start?",
@@ -94,15 +94,15 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to the connection if I stop paying?",
 			answer:
-				"It stays connected and goes read-only, the same as the account does in a browser. Your assistant can still list your queue, pull an article, its reader view or its summary, and mark things read or unread as you work through them. Saving is the one tool that stops, and it comes back with a note that new saves are paused rather than an error.",
+				"It stays connected and goes read-only, the same as the account does in a browser. Your assistant can still list your readlist, pull an article, its reader view or its summary, and mark things read or unread as you work through them. Saving is the one tool that stops, and it comes back with a note that new saves are paused rather than an error.",
 		},
 	],
 	offer: {
 		title: "What it costs",
 		paragraphs: [
-			`Connecting costs nothing. The queue behind the connection is a subscription: ${TRIAL_TERMS}`,
+			`Connecting costs nothing. The readlist behind the connection is a subscription: ${TRIAL_TERMS}`,
 			`${MONTHLY_EQUIVALENT_DISPLAY} a month is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
-			"If the subscription lapses, only saving refuses. Your assistant can still list your queue, pull an article's text or summary, and mark things read as you work through them — it just cannot add anything new.",
+			"If the subscription lapses, only saving refuses. Your assistant can still list your readlist, pull an article's text or summary, and mark things read as you work through them — it just cannot add anything new.",
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

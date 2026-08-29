@@ -44,7 +44,7 @@ Then I hit a second case that the first fix did not cover.
 
 A thin first copy can be short enough that Readplace skips the summary step outright and tags the link "too short to summarise". The page later upgrades to the full article, now long enough to summarise well, but my new worker ignored it, because it only looked at links that already had a summary to rebuild. The link was tagged as skipped, so it stayed skipped. I had to widen the trigger to cover the upgrade-from-nothing path, where the summary the crawler passed on during the first read finally gets written against the full article.
 
-## Why this mattered for the queue
+## Why this mattered for the readlist
 
 A summary you cannot trust is worse than no summary at all.
 

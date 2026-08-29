@@ -12,7 +12,7 @@ const READER_CLOSE_HREF = "readplace://reader/close";
 
 export const APP_BACK_LINK = {
 	topHref: READER_CLOSE_HREF,
-	label: "Back to queue",
+	label: "Back to readlist",
 } as const;
 
 /** Dismisses the sheet and signs the user out locally. Deleting the account

@@ -234,7 +234,7 @@ describe("summarizeBulkSave", () => {
 				tabCount: 5,
 				saveableCount: 5,
 			}).summary,
-		).toBe("Saved 3 · Already in queue 2 · Skipped 0");
+		).toBe("Saved 3 · Already in readlist 2 · Skipped 0");
 	});
 
 	it("titles the report Not signed in when the session died mid-run", () => {

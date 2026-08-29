@@ -45,7 +45,7 @@ struct SaveSharedPage {
 	/// `sharedPdf` lazily loads the bytes of a PDF the share sheet delivered as a
 	/// file (nil when the payload carried none) — a closure rather than the bytes
 	/// so a share that fails the guards above never pays for the load. `onNotice`
-	/// receives any server-authored save notice (the queue collection's
+	/// receives any server-authored save notice (the readlist collection's
 	/// `noticeMessages`) as soon as the list loads. `onSaved` fires the moment the
 	/// link is on the server — carrying the server's confirmation. All default to
 	/// no-ops so the outcome-only callers stay untouched.
@@ -73,7 +73,7 @@ struct SaveSharedPage {
 		defer { content.cancel() }
 
 		do {
-			let page = try await api.loadQueue()
+			let page = try await api.loadReadlist()
 			onNotice(page.noticeMessages)
 			guard let action = page.action(named: "save-article") else { return .noSaveAction }
 			let confirmation = try await api.saveArticle(action: action, url: url.absoluteString)
@@ -99,7 +99,7 @@ struct SaveSharedPage {
 
 	private static let pdfMagic = Data("%PDF-".utf8)
 
-	private func admit(page: QueuePage, url: URL, title: String?) async -> UploadJob? {
+	private func admit(page: ReadlistPage, url: URL, title: String?) async -> UploadJob? {
 		guard let jobs, page.action(named: "save-content") != nil else { return nil }
 		let now = Date()
 		let job = UploadJob(

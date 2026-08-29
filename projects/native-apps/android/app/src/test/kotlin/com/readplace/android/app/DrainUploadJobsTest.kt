@@ -83,7 +83,7 @@ class DrainUploadJobsTest {
 			now = now,
 		)
 
-	private fun serveQueue(
+	private fun serveReadlist(
 		actionsJson: String = Fixtures.COLLECTION_ACTIONS,
 		saveContent: () -> Stub = { Stub.json(201, Fixtures.article("a1")) },
 	) {
@@ -125,7 +125,7 @@ class DrainUploadJobsTest {
 		jobs.admit(admitted)
 		val form = multipartForm(content = "<html>staged by the share sheet</html>".toByteArray(Charsets.UTF_8))
 		val ready = jobs.stageReady(admitted, form)
-		serveQueue()
+		serveReadlist()
 
 		makeDrain(jobs, emptyCaptor()).run()
 
@@ -200,7 +200,7 @@ class DrainUploadJobsTest {
 	fun `captures a pending job on device then uploads what it rendered`() = runTest {
 		val jobs = makeStore()
 		jobs.admit(job(title = "Title from the share sheet"))
-		serveQueue()
+		serveReadlist()
 		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>rendered in the app</html>", title = "Rendered"))
 
 		makeDrain(jobs, captor).run()
@@ -222,7 +222,7 @@ class DrainUploadJobsTest {
 	fun `falls back to the shared title when the render named the page nothing`() = runTest {
 		val jobs = makeStore()
 		jobs.admit(job(title = "Title from the share sheet"))
-		serveQueue()
+		serveReadlist()
 		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>untitled</html>", title = ""))
 
 		makeDrain(jobs, captor).run()
@@ -297,7 +297,7 @@ class DrainUploadJobsTest {
 	fun `drops a pending job whose on-device capture comes back empty`() = runTest {
 		val jobs = makeStore()
 		jobs.admit(job())
-		serveQueue()
+		serveReadlist()
 		val captor = emptyCaptor()
 
 		makeDrain(jobs, captor).run()
@@ -314,7 +314,7 @@ class DrainUploadJobsTest {
 	fun `drops a pending job whose render produced an empty document`() = runTest {
 		val jobs = makeStore()
 		jobs.admit(job())
-		serveQueue()
+		serveReadlist()
 
 		makeDrain(jobs, RecordingHtmlCaptor(CapturedPage.Html(html = "", title = "Rendered"))).run()
 
@@ -326,7 +326,7 @@ class DrainUploadJobsTest {
 	fun `drops a pending job whose on-device capture found a pdf instead of a page`() = runTest {
 		val jobs = makeStore()
 		jobs.admit(job())
-		serveQueue()
+		serveReadlist()
 
 		makeDrain(jobs, RecordingHtmlCaptor(CapturedPage.PdfDetected)).run()
 
@@ -347,7 +347,7 @@ class DrainUploadJobsTest {
 		val admitted = job()
 		jobs.admit(admitted)
 		val ready = jobs.stageReady(admitted, multipartForm())
-		serveQueue(saveContent = { Stub.json(403, Fixtures.accountLockedError()) })
+		serveReadlist(saveContent = { Stub.json(403, Fixtures.accountLockedError()) })
 
 		makeDrain(jobs, emptyCaptor()).run()
 
@@ -365,7 +365,7 @@ class DrainUploadJobsTest {
 		val admitted = job()
 		jobs.admit(admitted)
 		val ready = jobs.stageReady(admitted, multipartForm())
-		serveQueue(saveContent = {
+		serveReadlist(saveContent = {
 			Stub.json(415, Fixtures.sirenError(code = "unsupported_media_type", message = "That content can't be saved."))
 		})
 
@@ -385,7 +385,7 @@ class DrainUploadJobsTest {
 		val admitted = job()
 		jobs.admit(admitted)
 		val ready = jobs.stageReady(admitted, multipartForm())
-		serveQueue(saveContent = { Stub.json(503, Fixtures.sirenError(code = "unavailable", message = "Try again later.")) })
+		serveReadlist(saveContent = { Stub.json(503, Fixtures.sirenError(code = "unavailable", message = "Try again later.")) })
 
 		makeDrain(jobs, emptyCaptor()).run()
 
@@ -407,7 +407,7 @@ class DrainUploadJobsTest {
 	fun `keeps a mid-sweep capture staged when its upload fails transiently`() = runTest {
 		val jobs = makeStore()
 		jobs.admit(job())
-		serveQueue(saveContent = { Stub.json(503, Fixtures.sirenError(code = "unavailable", message = "Try again later.")) })
+		serveReadlist(saveContent = { Stub.json(503, Fixtures.sirenError(code = "unavailable", message = "Try again later.")) })
 		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>rendered once</html>", title = "Rendered"))
 
 		makeDrain(jobs, captor).run()
@@ -419,7 +419,7 @@ class DrainUploadJobsTest {
 			jobs.bytesFile(waiting).exists(),
 		)
 
-		serveQueue()
+		serveReadlist()
 		makeDrain(jobs, captor, now = { epoch.plusSeconds(60) }).run()
 
 		assertEquals(
@@ -439,7 +439,7 @@ class DrainUploadJobsTest {
 		val admitted = job(attempts = 7)
 		jobs.admit(admitted)
 		val ready = jobs.stageReady(admitted, multipartForm())
-		serveQueue(saveContent = { Stub.json(503, "{}") })
+		serveReadlist(saveContent = { Stub.json(503, "{}") })
 
 		makeDrain(jobs, emptyCaptor()).run()
 
@@ -456,7 +456,7 @@ class DrainUploadJobsTest {
 		val second = job(id = "j2", url = "https://example.com/two", createdAt = epoch.plusSeconds(1))
 		jobs.admit(second)
 		val readySecond = jobs.stageReady(second, multipartForm(url = "https://example.com/two"))
-		serveQueue(saveContent = { Stub.json(401, "{}") })
+		serveReadlist(saveContent = { Stub.json(401, "{}") })
 
 		makeDrain(jobs, emptyCaptor()).run()
 
@@ -466,7 +466,7 @@ class DrainUploadJobsTest {
 			server.records("/queue/save-content").size,
 		)
 		assertEquals(
-			"a dead session costs no job its place in the queue",
+			"a dead session costs no job its place in the readlist",
 			listOf(readyFirst, readySecond),
 			jobs.loadAll(now = epoch.plusSeconds(1)),
 		)
@@ -478,7 +478,7 @@ class DrainUploadJobsTest {
 		val admitted = job()
 		jobs.admit(admitted)
 		val ready = jobs.stageReady(admitted, multipartForm())
-		serveQueue(
+		serveReadlist(
 			actionsJson = """
 				{ "name": "save-content", "href": "readplace://oauth-callback/android", "method": "POST", "type": "multipart/form-data", "fields": [] }
 			""",
@@ -506,7 +506,7 @@ class DrainUploadJobsTest {
 		jobs.admit(admitted)
 		val ready = jobs.stageReady(admitted, multipartForm())
 		assertTrue(jobs.bytesFile(ready).delete())
-		serveQueue()
+		serveReadlist()
 
 		makeDrain(jobs, emptyCaptor()).run()
 
@@ -519,12 +519,12 @@ class DrainUploadJobsTest {
 	}
 
 	@Test
-	fun `records no retry into a queue purged mid-sweep`() = runTest {
+	fun `records no retry into a readlist purged mid-sweep`() = runTest {
 		val jobs = makeStore()
 		val admitted = job()
 		jobs.admit(admitted)
 		jobs.stageReady(admitted, multipartForm())
-		serveQueue(saveContent = {
+		serveReadlist(saveContent = {
 			jobs.purgeAll()
 			Stub.json(503, "{}")
 		})
@@ -532,7 +532,7 @@ class DrainUploadJobsTest {
 		makeDrain(jobs, emptyCaptor()).run()
 
 		assertEquals(
-			"a sign-out purge is final: the retry must not write the queue back into being",
+			"a sign-out purge is final: the retry must not write the readlist back into being",
 			emptyList<UploadJob>(),
 			jobs.loadAll(now = epoch.plusSeconds(60)),
 		)
@@ -550,7 +550,7 @@ class DrainUploadJobsTest {
 		jobs.admit(staged)
 		val ready = jobs.stageReady(staged, multipartForm(url = "https://example.com/one"))
 		jobs.admit(job(id = "j2", url = "https://example.com/two", createdAt = epoch.plusSeconds(1)))
-		serveQueue(actionsJson = Fixtures.SAVE_ARTICLE_ONLY)
+		serveReadlist(actionsJson = Fixtures.SAVE_ARTICLE_ONLY)
 		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>hi</html>", title = null))
 
 		makeDrain(jobs, captor).run()
@@ -571,7 +571,7 @@ class DrainUploadJobsTest {
 		val waiting = job(nextAttemptAt = epoch.plusSeconds(60))
 		jobs.admit(waiting)
 		val ready = jobs.stageReady(waiting, multipartForm())
-		serveQueue()
+		serveReadlist()
 
 		makeDrain(jobs, emptyCaptor()).run()
 
@@ -589,7 +589,7 @@ class DrainUploadJobsTest {
 		val second = job(id = "j2", url = "https://example.com/two", createdAt = epoch.plusSeconds(1))
 		jobs.admit(second)
 		val readySecond = jobs.stageReady(second, multipartForm(url = "https://example.com/two"))
-		serveQueue(saveContent = {
+		serveReadlist(saveContent = {
 			store.clear()
 			Stub.json(201, Fixtures.article("a1"))
 		})
@@ -614,7 +614,7 @@ class DrainUploadJobsTest {
 		jobs.admit(job(id = "j1", url = "https://example.com/one"))
 		val second = job(id = "j2", url = "https://example.com/two", createdAt = epoch.plusSeconds(1))
 		jobs.admit(second)
-		serveQueue()
+		serveReadlist()
 		lateinit var sweep: Job
 		val captor = RecordingHtmlCaptor(CapturedPage.Empty) { sweep.cancel() }
 		val drain = makeDrain(jobs, captor)
@@ -637,7 +637,7 @@ class DrainUploadJobsTest {
 		val orphan = jobs.bytesFile(job(id = "orphan"))
 		checkNotNull(orphan.parentFile).mkdirs()
 		orphan.writeText("stranded")
-		serveQueue()
+		serveReadlist()
 
 		makeDrain(jobs, emptyCaptor()).run()
 
@@ -672,7 +672,7 @@ class DrainUploadJobsTest {
 		val admitted = job()
 		jobs.admit(admitted)
 		val ready = jobs.stageReady(admitted, multipartForm())
-		serveQueue()
+		serveReadlist()
 
 		makeDrain(jobs, emptyCaptor(), baseUrl = unreachableBaseUrl()).run()
 

@@ -14,7 +14,7 @@ const WORKSPACE_ROOT = path.resolve(PROJECT_ROOT, '..', '..');
 const PLAYWRIGHT_CONFIG = 'playwright.config.local-dev.ts';
 const VISUAL_SPEC_PATTERNS = [
   'src/e2e/**/*-visual.e2e-local.ts',
-  'src/e2e/queue-flow/run.e2e-local.ts',
+  'src/e2e/readlist-flow/run.e2e-local.ts',
 ];
 
 function playwrightImage() {

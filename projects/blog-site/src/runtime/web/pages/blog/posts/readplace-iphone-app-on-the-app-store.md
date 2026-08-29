@@ -11,7 +11,7 @@ keywords: "read it later app iphone app store, readplace iphone app, save articl
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-The Readplace iPhone app was invite-only on TestFlight since June. Apple approved it, so it installs from the App Store like anything else, with no invite and no second app to set up first. What it does has not changed. Share a page or a PDF from any browser on the phone and it saves to your queue in the background, your list is in the app with pull to refresh and a swipe that marks an article read, and tapping one opens your saved copy with its TL;DR instead of the original site. The part that took the longest was signing in. App Store review turned down an earlier build for handing the login to the default browser, so the login now runs inside a sheet the app owns and never leaves. The same app runs on a Mac. What it still does not do: no Android version, no offline reading, and no search or tags. It needs iOS 16 or later, and a Readplace account.
+The Readplace iPhone app was invite-only on TestFlight since June. Apple approved it, so it installs from the App Store like anything else, with no invite and no second app to set up first. What it does has not changed. Share a page or a PDF from any browser on the phone and it saves to your readlist in the background, your list is in the app with pull to refresh and a swipe that marks an article read, and tapping one opens your saved copy with its TL;DR instead of the original site. The part that took the longest was signing in. App Store review turned down an earlier build for handing the login to the default browser, so the login now runs inside a sheet the app owns and never leaves. The same app runs on a Mac. What it still does not do: no Android version, no offline reading, and no search or tags. It needs iOS 16 or later, and a Readplace account.
 
 </div>
 </details>
@@ -24,9 +24,9 @@ None of the saving changed, and the saving was always the point. The app exists 
 
 ## What it does on the phone
 
-Open a page in Safari, Chrome, or whatever browser you use, tap Share, and pick Readplace. The link lands in your queue and renders in the background, so you stay on the page you were reading. [A PDF goes the same way](/blog/save-pdf-from-iphone-share-sheet), and the app uploads the bytes the share sheet handed it rather than asking the site for the file a second time, which is what gets a PDF behind a login into your queue at all.
+Open a page in Safari, Chrome, or whatever browser you use, tap Share, and pick Readplace. The link lands in your readlist and renders in the background, so you stay on the page you were reading. [A PDF goes the same way](/blog/save-pdf-from-iphone-share-sheet), and the app uploads the bytes the share sheet handed it rather than asking the site for the file a second time, which is what gets a PDF behind a login into your readlist at all.
 
-Your queue is in the app. Pull down to refresh, scroll for more, and swipe a row to mark an article read. Tap one and [the clean reader opens inside the app](/blog/read-saved-articles-in-the-iphone-app) with the TL;DR above the text, off the copy on Readplace's servers rather than the live page. View original is one tap away for the times you want the source.
+Your readlist is in the app. Pull down to refresh, scroll for more, and swipe a row to mark an article read. Tap one and [the clean reader opens inside the app](/blog/read-saved-articles-in-the-iphone-app) with the TL;DR above the text, off the copy on Readplace's servers rather than the live page. View original is one tap away for the times you want the source.
 
 That is the whole app. Save fast, glance at the list, read what you saved.
 
@@ -54,6 +54,6 @@ It needs iOS 16 or later, and it needs a Readplace account. The download is free
 
 ## Put one article in it
 
-If you were in the TestFlight beta, the App Store build is the one to keep. Your queue lives on the server, so there is nothing of yours inside the app to lose.
+If you were in the TestFlight beta, the App Store build is the one to keep. Your readlist lives on the server, so there is nothing of yours inside the app to lose.
 
 Install it, then share the next thing you were going to get to later from whatever browser you already have open, and read it back in the app when the evening is quieter than the afternoon was. Both are covered on [the install page](/install?client=iphone), and everything starts at [readplace.com](/).

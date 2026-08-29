@@ -31,14 +31,14 @@ class ReaderNavigationFidelityTest {
 
 	@Test
 	fun `a query that differs only by percent-encoding is a real navigation`() {
-		// getQuery() decodes, so "b=%2Fqueue" and "b=/queue" compare equal through it
+		// getQuery() decodes, so "b=%2Freadlist" and "b=/queue" compare equal through it
 		// and a genuine navigation would be mistaken for an in-page jump.
 		assertEquals(
 			ReaderNavigationDecision.OpenExternally("https://readplace.com/v?a=1&b=/queue#f"),
 			ReaderNavigation.decide(
 				url = "https://readplace.com/v?a=1&b=/queue#f",
 				isLinkActivated = true,
-				currentUrl = "https://readplace.com/v?a=1&b=%2Fqueue",
+				currentUrl = "https://readplace.com/v?a=1&b=%2Freadlist",
 			),
 		)
 	}

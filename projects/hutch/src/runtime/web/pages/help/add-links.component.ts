@@ -49,11 +49,11 @@ export function HelpAddLinksPage(params: {
 	staticBaseUrl: string;
 	cspNonce: CspNonce;
 	platform: NativeClientPlatform | undefined;
-	/** The app-shell "Back to queue" deep link, rendered only when the page is
+	/** The app-shell "Back to readlist" deep link, rendered only when the page is
 	 * hosted in an app web sheet (`?shell=app`). A browser visitor gets no link —
 	 * the `readplace://` scheme would be a dead end there — so the page keeps its
 	 * bare public shape by default. Mirrors the account page, the other chromeless
-	 * surface the same sheet hosts, so both read "Back to queue". */
+	 * surface the same sheet hosts, so both read "Back to readlist". */
 	backLink?: { href: string; label: string };
 }): Component {
 	const platform = params.platform ?? PLATFORM_WITHOUT_MARKER;

@@ -16,7 +16,7 @@ const validateAccessToken: ValidateAccessToken = async (token) =>
 function buildApp(): Express {
 	const mcpServer = initMcpServer({
 		saveLink: async ({ url }) => ({ ok: true, title: "Saved", url }),
-		listQueue: async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }),
+		listReadlist: async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }),
 		getArticle: async () => null,
 		getArticleContent: async () => ({ status: "not_found" }),
 		getArticleSummary: async () => ({ status: "not_found" }),

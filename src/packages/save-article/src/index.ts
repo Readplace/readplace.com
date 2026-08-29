@@ -1,24 +1,24 @@
 export {
-	initDeleteArticleFromQueue,
-	type DeleteArticleFromQueueDependencies,
-} from "./delete-article-from-queue";
+	initDeleteArticleFromReadlist,
+	type DeleteArticleFromReadlistDependencies,
+} from "./delete-article-from-readlist";
 export {
 	initSaveArticleFromUrl,
 	type SaveArticleFromUrl,
 	type SaveArticleFromUrlDependencies,
 } from "./save-article-from-url";
 export {
-	initSaveArticleAtQueueTop,
-	type SaveArticleAtQueueTop,
-	type SaveArticleAtQueueTopDependencies,
-} from "./save-article-at-queue-top";
+	initSaveArticleAtReadlistTop,
+	type SaveArticleAtReadlistTop,
+	type SaveArticleAtReadlistTopDependencies,
+} from "./save-article-at-readlist-top";
 export {
 	initSubmitFreshness,
 	type SubmitFreshnessDependencies,
 } from "./submit-freshness";
 export { rankNewLinksAbove } from "./rank-new-links-above";
 export {
-	bindArticleStoreToQueue,
+	bindArticleStoreToReadlist,
 	initPublishLinkDequeuedUnlessSavedElsewhere,
-	type QueueBoundArticleStoreDependencies,
-} from "./queue-bound-article-store";
+	type ReadlistBoundArticleStoreDependencies,
+} from "./readlist-bound-article-store";

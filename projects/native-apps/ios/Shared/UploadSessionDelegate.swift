@@ -22,7 +22,7 @@ final class UploadSessionDelegate: NSObject, URLSessionTaskDelegate {
 		self.whenDrained = whenDrained
 	}
 
-	/// Delivers the re-attached session's callbacks on the main queue, which is
+	/// Delivers the re-attached session's callbacks on the main readlist, which is
 	/// where the system requires its completion handler to be called.
 	static func reattach(
 		to configuration: URLSessionConfiguration,

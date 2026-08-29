@@ -70,7 +70,7 @@ import { initInMemoryUpdateFetchTimestamp } from "@packages/test-fixtures/provid
 import { initInMemoryPendingHtml } from "@packages/test-fixtures/providers/pending-html";
 import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
 import { initInMemoryPendingUpload } from "@packages/test-fixtures/providers/pending-upload";
-import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/queue/upload-slot-ttl";
+import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";

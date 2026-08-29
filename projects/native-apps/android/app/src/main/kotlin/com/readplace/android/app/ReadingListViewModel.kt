@@ -5,7 +5,7 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
 import com.readplace.android.core.Href
-import com.readplace.android.core.QueuePage
+import com.readplace.android.core.ReadlistPage
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.SirenAction
@@ -77,9 +77,9 @@ class ReadingListViewModel(
 	 * The "add links via Share" help page the reading list's + control opens in a
 	 * webview. A client-owned path resolved against the API base — the client holds
 	 * it itself rather than reading it from the server's add-links-help link — so the
-	 * + control works before (and regardless of) a queue load. It carries the
+	 * + control works before (and regardless of) a readlist load. It carries the
 	 * app-shell marker so the server renders the page chromeless with a "← Back to
-	 * queue" deep link, the same way the account page does inside this sheet.
+	 * readlist" deep link, the same way the account page does inside this sheet.
 	 */
 	val addLinksHelpUrl: String =
 		// Append the same app-shell marker `open(link)` puts on the account href, so
@@ -121,7 +121,7 @@ class ReadingListViewModel(
 		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
 		mutate { it.copy(isLoading = true, errorText = null, messages = emptyList()) }
 		try {
-			apply(api.loadQueue(), replacing = true)
+			apply(api.loadReadlist(), replacing = true)
 		} catch (error: Exception) {
 			handle(error)
 		}
@@ -133,7 +133,7 @@ class ReadingListViewModel(
 		if (isLoadingMore) return
 		isLoadingMore = true
 		try {
-			apply(api.loadQueue(path = next), replacing = false)
+			apply(api.loadReadlist(path = next), replacing = false)
 		} catch (error: Exception) {
 			handle(error)
 		}
@@ -247,7 +247,7 @@ class ReadingListViewModel(
 	 * the server directed no re-list, so again only the confirmed removal is
 	 * applied.
 	 */
-	private fun adopt(page: QueuePage?, droppingId: String?) {
+	private fun adopt(page: ReadlistPage?, droppingId: String?) {
 		if (hasPaginated || page == null) {
 			if (droppingId != null) mutate { it.copy(articles = it.articles.filter { row -> row.id != droppingId }) }
 			return
@@ -267,7 +267,7 @@ class ReadingListViewModel(
 		if (states.value.isLoading) return
 		mutate { it.copy(isLoading = true) }
 		try {
-			adopt(api.loadQueue(), droppingId)
+			adopt(api.loadReadlist(), droppingId)
 		} catch (error: Exception) {
 			handle(error)
 		} finally {
@@ -373,7 +373,7 @@ class ReadingListViewModel(
 	 * load; an append never re-introduces a removed row because its ids are already
 	 * present.
 	 */
-	private fun apply(page: QueuePage, replacing: Boolean, droppingId: String? = null) {
+	private fun apply(page: ReadlistPage, replacing: Boolean, droppingId: String? = null) {
 		val current = states.value
 		val reconciled: ReadingListState
 		if (replacing) {
@@ -418,7 +418,7 @@ class ReadingListViewModel(
 	 * source), so the injected control stays canonical and a server that re-advertises
 	 * add-links-help never renders a duplicate +.
 	 */
-	private fun toolbarOf(page: QueuePage): List<Affordance> {
+	private fun toolbarOf(page: ReadlistPage): List<Affordance> {
 		val serverControls = page.affordances.filter {
 			it.isToolbarControl && !Affordance.isAddLinksHelp(it.token)
 		}

@@ -107,7 +107,7 @@ describe("OAuth routes", () => {
 			expect(response.text).toContain("Firefox Extension");
 			// A built-in first-party client shows no self-registered disclosure.
 			expect(response.text).toContain(
-				"wants full read and write access to your Readplace reading queue",
+				"wants full read and write access to your Readplace reading readlist",
 			);
 			expect(response.text).not.toContain("registered itself");
 			// The consent screen names the account it is bound to and offers a switch.

@@ -1,0 +1,20 @@
+<nav class="readlist-nav" aria-label="Readlists" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-readlist-nav>
+          <ul class="readlist-nav__list">
+            {{#each items}}
+            <li class="readlist-nav__item{{#if isDeletable}} readlist-nav__item--deletable{{/if}}">
+              <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}}{{#if isRenameable}} hx-boost="false" aria-label="Rename {{title}}" data-readlist-rename="{{renameAction}}" data-readlist-rename-field="{{renameField}}" data-readlist-label-max="{{maxLength}}"{{/if}} data-test-readlist="{{name}}"><span class="readlist-nav__label">{{title}}</span>{{#if isRenameable}}{{icon "pencil"}}{{/if}}</a>
+              {{#if isDeletable}}
+              <form class="readlist-nav__delete-fallback" method="POST" action="{{deleteAction}}" hx-boost="false">
+                <button class="readlist-nav__delete" type="submit" title="Delete readlist" data-test-action="readlist-delete-fallback">{{icon "x"}}<span class="sr-only">Delete {{title}}</span></button>
+              </form>
+              <button class="readlist-nav__delete readlist-nav__confirm-trigger" type="button" popovertarget="{{deletePopoverId}}" title="Delete readlist" aria-haspopup="dialog" data-test-action="readlist-delete">{{icon "x"}}<span class="sr-only">Delete {{title}}</span></button>
+              {{/if}}
+            </li>
+            {{/each}}
+          </ul>
+          {{#if canCreate}}
+          <form class="readlist-nav__new-form" method="POST" action="{{newReadlistAction}}">
+            <button class="readlist-nav__new" type="submit" data-test-action="new-readlist">{{icon "plus"}}<span class="sr-only">New readlist</span></button>
+          </form>
+          {{/if}}
+        </nav>
