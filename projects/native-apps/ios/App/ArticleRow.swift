@@ -2,75 +2,91 @@ import SwiftUI
 
 struct ArticleRow: View {
 	let article: Article
+	let edge: ListingPanelEdge
+	@ScaledMetric(relativeTo: .caption) private var dotSize: CGFloat = 8
 
 	var body: some View {
-		HStack(alignment: .top, spacing: 12) {
-			thumbnail
+		let presentation = ArticleRowPresentation(
+			isRead: article.isRead,
+			readTimeLabel: article.readTimeLabel,
+			savedLabel: article.savedAt.map { Self.relative.localizedString(for: $0, relativeTo: Date()) }
+		)
+		VStack(alignment: .leading, spacing: 8) {
+			HStack(spacing: 8) {
+				marker(presentation)
 
-			VStack(alignment: .leading, spacing: 4) {
-				Text(article.title)
-					.font(.headline)
-					.lineLimit(2)
-					.foregroundStyle(Color.brandTextPrimary)
-
-				if let subtitle {
-					Text(subtitle)
+				if let metaText = presentation.metaText {
+					Text(metaText)
 						.font(.caption)
 						.foregroundStyle(Color.brandTextSecondary)
 						.lineLimit(1)
 				}
+			}
 
-				if let excerpt = article.excerpt, !excerpt.isEmpty {
-					Text(excerpt)
-						.font(.subheadline)
-						.foregroundStyle(Color.brandTextSecondary)
+			HStack(alignment: .top, spacing: 0) {
+				VStack(alignment: .leading, spacing: 4) {
+					Text(article.title)
+						.font(.subheadline.weight(.bold))
+						.foregroundStyle(presentation.titleColor)
 						.lineLimit(2)
+
+					if let excerpt = article.excerpt, !excerpt.isEmpty {
+						Text(excerpt)
+							.font(.subheadline)
+							.foregroundStyle(Color.brandTextSecondary)
+							.lineLimit(2)
+					}
+				}
+				.frame(maxWidth: .infinity, alignment: .leading)
+
+				if let imageURL = article.imageURL {
+					thumbnail(imageURL)
 				}
 			}
-
-			if article.isRead {
-				Image(systemName: "checkmark.circle.fill")
-					.foregroundStyle(Color.brandSuccess)
-					.font(.footnote)
-			}
 		}
-		.padding(.vertical, 4)
+		.padding(12)
+		.background(presentation.fill, in: edge.fillShape)
+		.padding(edge.borderInsets)
+		.background(Color.brandBorder, in: edge.borderShape)
+		.listRowInsets(edge.rowInsets)
+		.listRowSeparator(.hidden)
+		.listRowBackground(Color.clear)
 	}
 
 	@ViewBuilder
-	private var thumbnail: some View {
-		if let imageURL = article.imageURL {
-			AsyncImage(url: imageURL) { phase in
-				switch phase {
-				case .success(let image):
-					image.resizable().aspectRatio(contentMode: .fill)
-				default:
-					placeholder
-				}
+	private func marker(_ presentation: ArticleRowPresentation) -> some View {
+		switch presentation.marker {
+		case .unreadDot:
+			Circle()
+				.fill(presentation.markerColor)
+				.frame(width: dotSize, height: dotSize)
+				.accessibilityLabel(presentation.statusLabel)
+		case .readCheck:
+			Image(systemName: "checkmark")
+				.font(.caption.weight(.semibold))
+				.foregroundStyle(presentation.markerColor)
+				.accessibilityLabel(presentation.statusLabel)
+		}
+	}
+
+	private func thumbnail(_ url: URL) -> some View {
+		AsyncImage(url: url) { phase in
+			switch phase {
+			case .success(let image):
+				image
+					.resizable()
+					.aspectRatio(contentMode: .fill)
+					.frame(width: ArticleRowPresentation.thumbnailSize.width, height: ArticleRowPresentation.thumbnailSize.height)
+					.clipShape(RoundedRectangle(cornerRadius: ArticleRowPresentation.thumbnailCornerRadius))
+					.padding(.leading, 12)
+			case .failure:
+				EmptyView()
+			default:
+				Color.clear
+					.frame(width: ArticleRowPresentation.thumbnailSize.width, height: ArticleRowPresentation.thumbnailSize.height)
+					.padding(.leading, 12)
 			}
-			.frame(width: 64, height: 64)
-			.clipShape(RoundedRectangle(cornerRadius: 8))
-		} else {
-			placeholder
-				.frame(width: 64, height: 64)
-				.clipShape(RoundedRectangle(cornerRadius: 8))
 		}
-	}
-
-	private var placeholder: some View {
-		ZStack {
-			Color.brandSurfaceSubtle
-			Image(systemName: "doc.text")
-				.foregroundStyle(Color.brandTextMuted)
-		}
-	}
-
-	private var subtitle: String? {
-		var parts: [String] = []
-		if let site = article.siteName, !site.isEmpty { parts.append(site) }
-		if let readTime = article.readTimeLabel, !readTime.isEmpty { parts.append(readTime) }
-		if let savedAt = article.savedAt { parts.append(Self.relative.localizedString(for: savedAt, relativeTo: Date())) }
-		return parts.isEmpty ? nil : parts.joined(separator: " · ")
 	}
 
 	private static let relative: RelativeDateTimeFormatter = {

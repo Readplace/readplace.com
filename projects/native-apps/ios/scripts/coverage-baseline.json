@@ -29,6 +29,8 @@
     "SaveSharedPage.swift": 100,
     "LoginView.swift": 95,
     "AffordancePresentation.swift": 100,
+    "ArticleRowPresentation.swift": 100,
+    "ListingPanelEdge.swift": 100,
     "LaunchIntroMedia.swift": 93,
     "TokenStore.swift": 98,
     "OAuthService.swift": 97,

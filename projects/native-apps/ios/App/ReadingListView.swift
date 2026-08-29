@@ -206,7 +206,7 @@ struct ReadingListView: View {
 	private var list: some View {
 		List {
 			ForEach(viewModel.articles) { article in
-				ArticleRow(article: article)
+				ArticleRow(article: article, edge: ListingPanelEdge(of: article, in: viewModel.articles))
 					.contentShape(Rectangle())
 					.onTapGesture {
 						viewModel.openReader(for: article)
@@ -221,7 +221,6 @@ struct ReadingListView: View {
 							Button(affordance.label) { activate(affordance, on: article) }
 						}
 					}
-					.listRowBackground(Color.brandSurface)
 			}
 
 			if viewModel.hasMore {
@@ -231,8 +230,8 @@ struct ReadingListView: View {
 					Spacer()
 				}
 				.listRowSeparator(.hidden)
+				.listRowBackground(Color.clear)
 				.onAppear { Task { await viewModel.loadMore() } }
-				.listRowBackground(Color.brandSurface)
 			}
 		}
 		.listStyle(.plain)

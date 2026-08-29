@@ -17,6 +17,10 @@ enum BrandColor {
 	static let textSecondary = dynamic(light: rgb(90, 97, 112), dark: rgb(155, 161, 174))
 	static let textMuted = dynamic(light: rgb(140, 145, 157), dark: rgb(107, 107, 107))
 	static let border = dynamic(light: rgb(226, 229, 234), dark: rgb(46, 46, 46))
+	static let card = dynamic(light: rgb(255, 255, 255), dark: rgb(34, 34, 34))
+	static let secondary = dynamic(light: rgb(246, 242, 238), dark: rgb(53, 45, 39))
+	static let primaryText = dynamic(light: rgb(168, 90, 30), dark: rgb(218, 141, 78))
+	static let successText = dynamic(light: rgb(54, 124, 99), dark: rgb(74, 159, 127))
 
 	private static func dynamic(light: UIColor, dark: UIColor) -> UIColor {
 		UIColor { trait in trait.userInterfaceStyle == .dark ? dark : light }
@@ -40,6 +44,10 @@ extension Color {
 	static let brandTextSecondary = Color(uiColor: BrandColor.textSecondary)
 	static let brandTextMuted = Color(uiColor: BrandColor.textMuted)
 	static let brandBorder = Color(uiColor: BrandColor.border)
+	static let brandCard = Color(uiColor: BrandColor.card)
+	static let brandSecondary = Color(uiColor: BrandColor.secondary)
+	static let brandPrimaryText = Color(uiColor: BrandColor.primaryText)
+	static let brandSuccessText = Color(uiColor: BrandColor.successText)
 }
 
 extension UIColor {
