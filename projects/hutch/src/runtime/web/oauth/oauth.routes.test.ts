@@ -18,6 +18,50 @@ function generatePKCE() {
 	return { verifier, challenge };
 }
 
+async function obtainTokenPair(
+	harness: ReturnType<typeof useApp>,
+	email: string,
+): Promise<{ accessToken: string; refreshToken: string }> {
+	const pkce = generatePKCE();
+	await harness.auth.createUser({ email, password: "password123" });
+
+	const agent = request.agent(harness.server);
+	await agent.post("/login").type("form").send({ email, password: "password123" });
+
+	const authorizeResponse = await agent
+		.post("/oauth/authorize")
+		.type("form")
+		.send({
+			client_id: TEST_CLIENT_ID,
+			redirect_uri: TEST_REDIRECT_URI,
+			response_type: "code",
+			code_challenge: pkce.challenge,
+			code_challenge_method: "S256",
+			state: "token-pair-state",
+			action: "approve",
+		});
+
+	const code = new URL(authorizeResponse.headers.location).searchParams.get("code");
+	assert(code, "Authorization code must be present in redirect");
+
+	const tokenResponse = await request(harness.server)
+		.post("/oauth/token")
+		.type("form")
+		.send({
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: TEST_REDIRECT_URI,
+			client_id: TEST_CLIENT_ID,
+			code_verifier: pkce.verifier,
+		});
+
+	assert(tokenResponse.status === 200, "token exchange must succeed");
+	return {
+		accessToken: tokenResponse.body.access_token,
+		refreshToken: tokenResponse.body.refresh_token,
+	};
+}
+
 const TEST_USER_ID = "test-user-123" as UserId;
 const TEST_CLIENT_ID = "hutch-firefox-extension";
 const TEST_REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
@@ -582,6 +626,58 @@ describe("OAuth routes", () => {
 			expect(typeof tokenResponse.body.refresh_token).toBe("string");
 			expect(tokenResponse.body.token_type).toBe("Bearer");
 		});
+
+		it("rotates the refresh token so two concurrent grants yield one success and one rejection", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { refreshToken } = await obtainTokenPair(harness, "concurrent@example.com");
+
+			const grant = () =>
+				request(harness.server).post("/oauth/token").type("form").send({
+					grant_type: "refresh_token",
+					refresh_token: refreshToken,
+					client_id: TEST_CLIENT_ID,
+				});
+
+			const [a, b] = await Promise.all([grant(), grant()]);
+			const statuses = [a.status, b.status].sort((x, y) => x - y);
+			expect(statuses).toEqual([200, 400]);
+
+			const success = a.status === 200 ? a : b;
+			const failure = a.status === 400 ? a : b;
+			expect(failure.body.error).toBe("invalid_grant");
+			expect(typeof success.body.refresh_token).toBe("string");
+			expect(success.body.refresh_token).not.toBe(refreshToken);
+		});
+
+		it("accepts the rotated refresh token and refuses the spent one", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { refreshToken } = await obtainTokenPair(harness, "rotate@example.com");
+
+			const first = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: refreshToken,
+				client_id: TEST_CLIENT_ID,
+			});
+			expect(first.status).toBe(200);
+			const rotated = first.body.refresh_token;
+			expect(rotated).not.toBe(refreshToken);
+
+			const spent = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: refreshToken,
+				client_id: TEST_CLIENT_ID,
+			});
+			expect(spent.status).toBe(400);
+			expect(spent.body.error).toBe("invalid_grant");
+
+			const rotatedGrant = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: rotated,
+				client_id: TEST_CLIENT_ID,
+			});
+			expect(rotatedGrant.status).toBe(200);
+		});
+
 	});
 
 	describe("POST /oauth/revoke", () => {
