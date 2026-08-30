@@ -1,6 +1,6 @@
 # Development Guidelines
 
-This file documents **why** — rationale, constraints, and policy. The code documents **how**: when a section here starts narrating mechanics the linked source already shows, condense it to the why and let the file links carry the rest.
+This file documents **why** — rationale, constraints, and policy. The code documents **how**: when a section here starts narrating mechanics the code already shows, condense it to the why and describe how to find the code.
 
 ## Setup
 
@@ -16,13 +16,13 @@ Every change must fix a problem that has been observed — a failing run, a meas
 
 ### Imports are self-serve and public, with email as fallback
 
-Importing is a top-of-funnel acquisition path: it is reachable **logged out**, not gated behind auth. Entry points are the **Import Links** nav item (present for guests and authenticated users via `buildGuestNavItems` in [banner-state.ts](./src/packages/web-shell/src/banner-state.ts), so it also appears on the same-origin blog header) and the CTA next to the save bar on `/queue` — do **not** restore the removed "Import Your Data" landing-page card.
+Importing is a top-of-funnel acquisition path: it is reachable **logged out**, not gated behind auth. Entry points are the **Import Links** nav item (present for guests and authenticated users via the guest nav builder in the shared layout-and-nav package every Readplace site renders through — grep for the nav label `"Import Links"` — so it also appears on the same-origin blog header) and the CTA next to the save bar on `/queue` — do **not** restore the removed "Import Your Data" landing-page card.
 
-Why the flow is shaped the way it is ([import.page.ts](./projects/hutch/src/runtime/web/pages/import/import.page.ts) shows the mechanics): auth is deferred to **commit** so the whole upload-and-review works logged-out, and anonymous sessions are reached by **capability** (the unguessable import id), not by owner — that is what lets signup round-trip back to the same review with selections intact. Only the commit route carries the save gates (`requireNotLocked`, `requireWriteAccess`). Committed links stub-save first and enrich asynchronously so cards appear immediately. Files or imports above the caps in [import-session.schema.ts](./src/packages/domain/src/import-session/import-session.schema.ts) fall back to the concierge email path (`readplace+migrate@readplace.com`); keep that fallback documented in [pocket-migration.md](./projects/blog-site/src/runtime/web/pages/blog/posts/pocket-migration.md).
+Why the flow is shaped the way it is (the import page module — the router that mounts the `/:id/commit` route; grep for it — shows the mechanics): auth is deferred to **commit** so the whole upload-and-review works logged-out, and anonymous sessions are reached by **capability** (the unguessable import id), not by owner — that is what lets signup round-trip back to the same review with selections intact. Only the commit route carries the save gates (the middleware that rejects a locked, unverified-past-window account and the one that rejects an account without write access — both in the main app's web middleware directory). Committed links stub-save first and enrich asynchronously so cards appear immediately. Files or imports above the caps in the shared domain package's import-session rules (the module that fixes the per-import URL and upload-byte limits — grep the domain package for `2_000`) fall back to the concierge email path (`readplace+migrate@readplace.com`); keep that fallback documented in the Pocket migration post (served at `/blog/pocket-migration`; grep the blog posts for `readplace+migrate@readplace.com`).
 
 ### Crawler Health Canary Is Load-Bearing
 
-A failure in the [crawler source health canary](./src/packages/crawl-article/scripts/health-sources.js) means production traffic is also blocked for that source. Every entry exists because a real user tried to save that type of URL and the crawler broke on it. When a canary fails, fix the crawler until the canary's URL loads — do not delete the entry to make the workflow green. Removing a source silently accepts that readers will get "Sorry, we couldn't save this link" for any URL matching that edge-sniffer's fingerprint (Cloudflare TLS fingerprinting, Fastly JA3, etc.).
+A failure in the crawler source health canary (the `tier-1-plus-pipeline-health` nx target of the crawler package — `pnpm nx show projects --with-target tier-1-plus-pipeline-health` names it; the source list is the module that target's script imports it from, in the package's scripts directory) means production traffic is also blocked for that source. Every entry exists because a real user tried to save that type of URL and the crawler broke on it. When a canary fails, fix the crawler until the canary's URL loads — do not delete the entry to make the workflow green. Removing a source silently accepts that readers will get "Sorry, we couldn't save this link" for any URL matching that edge-sniffer's fingerprint (Cloudflare TLS fingerprinting, Fastly JA3, etc.).
 
 Workflow for a canary failure:
 1. Reproduce the failing fetch locally against the same URL before touching any code.
@@ -34,13 +34,13 @@ One exception: when the origin refuses our egress outright — every transport l
 
 ### iOS signs in *inside* the app, and opens our own content links Chrome-first
 
-**Signing in never leaves the app.** App Store review rejected build 53 under Guideline 4 for handing the user to the default browser to authenticate, so Login and Sign up run `/oauth/authorize` in an `ASWebAuthenticationSession` ([`InAppAuthSession`](./projects/native-apps/ios/App/WebAuthOpeners.swift)), which captures the `readplace://oauth-callback` redirect in-process. Do not route auth back through an external browser, and do not reintroduce the app-level deep-link handler the session replaced: the callback is returned to its caller, so the PKCE verifier lives in one `await` and never has to be persisted.
+**Signing in never leaves the app.** App Store review rejected build 53 under Guideline 4 for handing the user to the default browser to authenticate, so Login and Sign up run `/oauth/authorize` in an `ASWebAuthenticationSession` (the App-target presenter that constructs one — grep the iOS Swift sources for `ASWebAuthenticationSession(`), which captures the `readplace://oauth-callback` redirect in-process. Do not route auth back through an external browser, and do not reintroduce the app-level deep-link handler the session replaced: the callback is returned to its caller, so the PKCE verifier lives in one `await` and never has to be persisted.
 
-**Content links stay Chrome-first.** When the app opens a **readplace.com** URL that is *not* auth — the changelog banner's "Read more" — it reuses the user's existing **Chrome** web session: most users browse in Chrome but never change the iOS default-browser setting, so their OS default stays **Safari**, where they are not signed in. The app rewrites such a URL to Chrome's `googlechrome(s)://` scheme ([`chromeURLFor`](./projects/native-apps/ios/Shared/ChromeFirstURL.swift), opened by [`openURLChromeFirst`](./projects/native-apps/ios/App/WebAuthOpeners.swift)) and must **not** fall back to the OS default browser when Chrome is installed — the fallback fires only when the system reports Chrome can't be opened (not installed). Do not reintroduce a `canOpenURL` pre-check to decide the browser (a false-negative probe silently routes the user into Safari and regresses session reuse); let the actual open result decide.
+**Content links stay Chrome-first.** When the app opens a **readplace.com** URL that is *not* auth — the changelog banner's "Read more" — it reuses the user's existing **Chrome** web session: most users browse in Chrome but never change the iOS default-browser setting, so their OS default stays **Safari**, where they are not signed in. The app rewrites such a URL to Chrome's `googlechrome(s)://` scheme (the Shared-target rewrite — grep the iOS Swift sources for `googlechrome` — opened by the App-target opener that calls it through the seam wrapping `UIApplication.shared.open`) and must **not** fall back to the OS default browser when Chrome is installed — the fallback fires only when the system reports Chrome can't be opened (not installed). Do not reintroduce a `canOpenURL` pre-check to decide the browser (a false-negative probe silently routes the user into Safari and regresses session reuse); let the actual open result decide.
 
-The rewrite is **scoped to our own host** (`AppConfig.serverHost`), and must stay that way. A link to someone else's site — the bulk of what an article body links to — is handed to the system untouched, because a custom scheme can never be claimed by a **Universal Link**: rewriting it would stop `apps.apple.com`, `youtube.com`, or `x.com` handing off to their native apps, and would override a default browser the user deliberately chose, all to reuse a Readplace session that does not exist on those hosts.
+The rewrite is **scoped to our own host** (the iOS app config's server host — the value the rewrite compares the URL's host against), and must stay that way. A link to someone else's site — the bulk of what an article body links to — is handed to the system untouched, because a custom scheme can never be claimed by a **Universal Link**: rewriting it would stop `apps.apple.com`, `youtube.com`, or `x.com` handing off to their native apps, and would override a default browser the user deliberately chose, all to reuse a Readplace session that does not exist on those hosts.
 
-Reuse also depends on the `hutch_sid` session cookie being **persistent** — it carries `maxAge: SESSION_COOKIE_MAX_AGE_MS` (bounded by the server session TTL) so a Chrome login survives Chrome fully closing; do not downgrade it back to a bare session cookie.
+Reuse also depends on the `hutch_sid` session cookie being **persistent** — it carries a `maxAge` (bounded by the server session TTL; the cookie name and its max age are exported together by the shared package that mints and reads the server session cookie — grep the workspace packages' non-test sources for `hutch_sid`) so a Chrome login survives Chrome fully closing; do not downgrade it back to a bare session cookie.
 
 ## Architecture Guidelines
 
@@ -62,11 +62,11 @@ Never import from another project using relative filesystem paths (e.g., `../../
 
 ```typescript
 // BAD - Invisible sideways dependency
-const mod = path.resolve(__dirname, "../../../../hutch/dist/runtime/test-app");
-const { createTestApp } = await import(mod);
+const mod = path.resolve(__dirname, "../../../../flights/dist/runtime/test-app");
+const { createFlightsTestApp } = await import(mod);
 
 // GOOD - Declared workspace dependency
-const { createTestApp } = await import("hutch-test-app");
+const { createFlightsTestApp } = await import("flights-test-app");
 ```
 
 ### Filter and Query Testing Strategy
@@ -85,34 +85,33 @@ E2E tests have ~11s startup overhead per test (browser, server, navigation). Int
 
 ### Environment Variable Access
 
-Use `requireEnv` and `getEnv` from [`@packages/require-env`](src/packages/require-env/src/index.ts). Never use `process.env` directly.
+Use the two accessors from the workspace package that reads environment variables — one throws when the variable is unset, the other returns undefined when it is unset or empty (`pnpm nx show projects` lists it; its package.json description names both). Never use `process.env` directly. In the examples below, an angle-bracketed name stands for an export of the package just described — read the real name from the package.
 
 ```typescript
 // BAD - Direct process.env access
 const apiKey = process.env.API_KEY;
 
 // GOOD - Required env var (throws if not set)
-const apiKey = requireEnv('API_KEY');
+const apiKey = <required-env accessor>('API_KEY');
 
 // GOOD - Optional env var
-const proxyUrl = getEnv('HTTPS_PROXY');
+const proxyUrl = <optional-env accessor>('HTTPS_PROXY');
 ```
 
-**Never default missing environment variables.** Always use `requireEnv` and let the process fail if a variable is not set. Do not use `getEnv` with a fallback (e.g., `getEnv("KEY") ?? ""`) to work around CI environments missing secrets. Instead, ensure the CI environment provides the variable. Silent defaults complicate debugging and create behaviour that takes longer to diagnose.
+**Never default missing environment variables.** Always use the required accessor and let the process fail if a variable is not set. Do not use the optional accessor with a fallback (e.g., `<optional-env accessor>("KEY") ?? ""`) to work around CI environments missing secrets. Instead, ensure the CI environment provides the variable. Silent defaults complicate debugging and create behaviour that takes longer to diagnose.
 
-**Exception:** Playwright config files (`playwright.config.*.ts`) must use `process.env` directly. Importing `getEnv`/`requireEnv` causes the playwright process to load `@packages/require-env` outside V8 coverage instrumentation, creating uncovered function entries that break the 100% function coverage threshold.
+**Exception:** Playwright config files (`playwright.config.*.ts`) must use `process.env` directly. Importing either accessor causes the playwright process to load the env package outside V8 coverage instrumentation, creating uncovered function entries that break the 100% function coverage threshold.
 
 ### Logging
 
-Use `HutchLogger` from `@packages/hutch-logger` for all logging. Never use raw `console.log`/`console.error` in application code. In composition roots, create the logger with `HutchLogger.from(consoleLogger)`.
+Use the logger interface from the shared logging package — the one that also exports a console-backed implementation and a no-op implementation (`pnpm nx show projects` lists it) — for all logging. Never use raw `console.log`/`console.error` in application code. In composition roots, build the logger from the package's console-backed implementation.
 
 ```typescript
 // BAD - Raw console
 console.log("[recovery] Starting…");
 
-// GOOD - HutchLogger
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-const logger = HutchLogger.from(consoleLogger);
+// GOOD - the shared logger
+const logger = <build shared logger>(<console-backed logger>);
 logger.info("[recovery] Starting…");
 ```
 
@@ -157,12 +156,12 @@ Use domain-focused names, not implementation-pattern names.
 
 ```typescript
 // BAD
-interface ArticleRepository { ... }
-class ArticleService { ... }
+interface BookingRepository { ... }
+class BookingService { ... }
 
 // GOOD
-type SaveArticle = (article: Article) => Promise<void>;
-type FindArticleById = (id: ArticleId) => Promise<Article | undefined>;
+type SaveBooking = (booking: Booking) => Promise<void>;
+type FindBookingById = (id: BookingId) => Promise<Booking | undefined>;
 ```
 
 **Swift:** SwiftUI/UIKit platform vocabulary — `View`, `ViewModel`, `ViewController` (a `UIViewController` subclass is framework-mandated) — is an allowed exception. The rule still applies to discretionary domain types: prefer a domain name or free functions over `…Service`/`…Manager`/`…Factory`/`…Repository`.
@@ -173,12 +172,12 @@ When a function signature has 2 or more consecutive parameters of the same type 
 
 ```typescript
 // BAD - Two consecutive strings are easy to swap
-type Login = (email: string, password: string) => Promise<LoginResult>;
-await auth.login("user@example.com", "password123");
+type CheckIn = (passengerRef: string, flightNumber: string) => Promise<CheckInResult>;
+await bookings.checkIn("PNR123", "QF1");
 
 // GOOD - Named parameters prevent accidental swaps
-type Login = (credentials: { email: string; password: string }) => Promise<LoginResult>;
-await auth.login({ email: "user@example.com", password: "password123" });
+type CheckIn = (passenger: { passengerRef: string; flightNumber: string }) => Promise<CheckInResult>;
+await bookings.checkIn({ passengerRef: "PNR123", flightNumber: "QF1" });
 ```
 
 This does NOT apply when the types differ (e.g., `(string, number)`) or when there is only one parameter.
@@ -189,31 +188,31 @@ When a value has a known finite set of valid options, use TypeScript's type syst
 
 ```typescript
 // BAD - Runtime assert for something the type system can enforce
-const mode = requireEnv("PERSISTENCE");
+const mode = <required-env accessor>("PERSISTENCE");
 assert(mode === "prod" || mode === "development");
 
 // GOOD - Constrained at compile time via generic
-const mode = requireEnv<"prod" | "development">("PERSISTENCE");
+const mode = <required-env accessor with the "prod" | "development" generic>("PERSISTENCE");
 // mode is typed as "prod" | "development" — no assert needed
 ```
 
 ### No Default Noop Logger in Production Code
 
-Never default a logger dependency to `noopLogger` in production code. A missing logger silently swallows errors and makes debugging impossible. Always require the caller to pass a logger explicitly. Use `noopLogger` only in test code where logging output is intentionally suppressed.
+Never default a logger dependency to the no-op logger in production code. A missing logger silently swallows errors and makes debugging impossible. Always require the caller to pass a logger explicitly. Use the no-op logger only in test code where logging output is intentionally suppressed.
 
 ```typescript
 // BAD - Silent failure in production
-function createWidget(deps?: { logger?: HutchLogger }) {
-	const logger = deps?.logger ?? noopLogger;
+function createWidget(deps?: { logger?: <logger interface> }) {
+	const logger = deps?.logger ?? <no-op logger>;
 }
 
 // GOOD - Logger is required
-function createWidget(deps: { logger: HutchLogger }) {
+function createWidget(deps: { logger: <logger interface> }) {
 	const logger = deps.logger;
 }
 
-// GOOD - noopLogger in tests
-const widget = createWidget({ logger: HutchLogger.from(noopLogger) });
+// GOOD - the no-op logger in tests
+const widget = createWidget({ logger: <build shared logger>(<no-op logger>) });
 ```
 
 **Swift:** same rule — require the caller to pass the logger (e.g. `os.Logger`) rather than defaulting one internally; a silenced logger hides failures identically in any language.
@@ -257,18 +256,18 @@ function createWidget(deps: { store: Store }) {
 }
 ```
 
-**Swift:** inject the real store at the composition root; do not silently fall back to a degraded one (`UserDefaults(suiteName:) ?? .standard`, an internally-constructed `URLSession.shared`, or a `TokenStore()` newed up at the use site). An injectable `init(...)` seam is for tests only.
+**Swift:** inject the real store at the composition root; do not silently fall back to a degraded one (`UserDefaults(suiteName:) ?? .standard`, an internally-constructed `URLSession.shared`, or a credential store newed up at the use site). An injectable `init(...)` seam is for tests only.
 
 ### Branded Types for Domain IDs
 
 Use branded types to prevent mixing up identifiers.
 
 ```typescript
-type ArticleId = string & { readonly __brand: 'ArticleId' };
-type UserId = string & { readonly __brand: 'UserId' };
+type BookingId = string & { readonly __brand: 'BookingId' };
+type PassengerId = string & { readonly __brand: 'PassengerId' };
 ```
 
-**Swift:** the analog is a single-field wrapper struct — `struct ArticleId: Hashable { let raw: String }` — instead of a raw `String`. Especially valuable for two same-typed fields that are easy to transpose (e.g. an access token vs a refresh token).
+**Swift:** the analog is a single-field wrapper struct — `struct BookingId: Hashable { let raw: String }` — instead of a raw `String`. Especially valuable for two same-typed fields that are easy to transpose (e.g. an access token vs a refresh token).
 
 ### Avoid TypeScript Type Assertions (`as`)
 
@@ -276,31 +275,31 @@ Do not use `as` to cast types. Type assertions bypass the compiler and create we
 
 ```typescript
 // BAD - Assertion hides type mismatches
-const userId = rawValue as UserId;
-const item = dbResult.Item.url as string;
+const passengerId = rawValue as PassengerId;
+const item = dbResult.Item.seat as string;
 
 // GOOD - Validated factory with Zod + infer
-const UserIdSchema = z.string().brand<'UserId'>();
-type UserId = z.infer<typeof UserIdSchema>;
-const userId = UserIdSchema.parse(rawValue);
+const PassengerIdSchema = z.string().brand<'PassengerId'>();
+type PassengerId = z.infer<typeof PassengerIdSchema>;
+const passengerId = PassengerIdSchema.parse(rawValue);
 
 // GOOD - Zod schema at system boundary (DynamoDB, HTTP, etc.)
-const SavedArticleRow = z.object({
-  id: ArticleIdSchema,
-  url: z.string(),
+const BookingRow = z.object({
+  id: BookingIdSchema,
+  seat: z.string(),
   // ...
 });
-function fromItem(item: Record<string, unknown>): SavedArticle {
-  return SavedArticleRow.parse(item);
+function fromItem(item: Record<string, unknown>): Booking {
+  return BookingRow.parse(item);
 }
 
 // BAD - Faking a partial object with `as`
-function createFakeResponse(): Response {
+function fakeSeatMapResponse(): Response {
   return { status: 200, ok: true } as Response;
 }
 
 // GOOD - Partial<T> makes the subset explicit
-function createFakeResponse(): Partial<Response> {
+function fakeSeatMapResponse(): Partial<Response> {
   return { status: 200, ok: true };
 }
 ```
@@ -310,8 +309,8 @@ function createFakeResponse(): Partial<Response> {
 | Exception | Reason |
 |-----------|--------|
 | `as const` | Not a type assertion — narrows literal types |
-| Isolated Node.js API wrappers (e.g., `promisify(scrypt)` returning `Buffer`, `requireEnv` generic) | The `as` is already contained in a single wrapper function with no better alternative from the type definitions |
-| A test fake bound to an existing signature (e.g. a `fetch` fake that must satisfy `typeof fetch` → `Promise<Response>`, as in [Tests Simulate Explicit HTTP Statuses](#tests-simulate-explicit-http-statuses)) | `Partial<T>` is not assignable where the full type is required, so the cast is forced. Still prefer `Partial<T>` whenever you control the return type, as in the `createFakeResponse` example above |
+| Isolated Node.js API wrappers (e.g., `promisify(scrypt)` returning `Buffer`, the required-env accessor's generic) | The `as` is already contained in a single wrapper function with no better alternative from the type definitions |
+| A test fake bound to an existing signature (e.g. a `fetch` fake that must satisfy `typeof fetch` → `Promise<Response>`, as in [Tests Simulate Explicit HTTP Statuses](#tests-simulate-explicit-http-statuses)) | `Partial<T>` is not assignable where the full type is required, so the cast is forced. Still prefer `Partial<T>` whenever you control the return type, as in the `fakeSeatMapResponse` example above |
 
 **Swift:** the analog of `as` is force-cast `as!`, force-try `try!`, force-unwrap `!`, and `fatalError` — all bypass the compiler. Use `guard let … else { throw }` / `as?` for anything from external input (user-typed URLs, network bodies). Allowed, mirroring `as const` / isolated-wrapper above: force-unwrapping a compile-time-constant literal, and Apple's implicitly-unwrapped delegate parameters (e.g. `WKNavigation!`), which are framework-defined, not your assertions.
 
@@ -321,12 +320,12 @@ A test fake that answers HTTP takes the actual status the test wants to simulate
 
 ```typescript
 // BAD - the boolean hides the simulated status
-function fakeFetch(body: Buffer, ok = true) {
+function fakeTimetableFetch(body: Buffer, ok = true) {
 	return async () => ({ ok, status: ok ? 200 : 403 }) as Response;
 }
 
 // GOOD - the caller states the status; ok derives from it like a real Response
-function fakeFetch(body: Buffer, status = 200) {
+function fakeTimetableFetch(body: Buffer, status = 200) {
 	return async () => ({ ok: status >= 200 && status < 300, status }) as Response;
 }
 ```
@@ -339,7 +338,7 @@ Never add a new command — a `package.json` script, a `scripts/*.js` entry poin
 
 ```jsonc
 // BAD - a new script added unprompted
-"update-visual-baselines": "node scripts/update-visual-baselines.js",
+"refresh-seat-maps": "node scripts/refresh-seat-maps.js",
 ```
 
 ### AWS Accounts
@@ -416,7 +415,7 @@ export function initS3PutObject(deps: { client: S3Client; bucketName: string }) 
 **CI-only retry callbacks** that never fire during a passing local run:
 
 ```typescript
-beforeRetry: /* c8 ignore next */ async (p) => { await p.reload({ waitUntil: 'domcontentloaded' }) },
+retryHook: /* c8 ignore next */ async (page) => { await page.reload() },
 ```
 
 **V8 async function artifacts**: `await` and `return` statements in `async` functions create V8 continuation branches that no test can exercise — they are runtime state machine internals, not logical code paths. Use `/* c8 ignore next */` on the specific line.
@@ -438,19 +437,19 @@ Run `pnpm check` (or `pnpm nx run <project>:check` for a single project) to veri
 pnpm check
 
 # GOOD - single project
-pnpm nx run hutch:check
+pnpm nx run <project>:check
 
 # BAD - bypasses the meta-target, drifts from the hook
 pnpm exec tsc --noEmit
 pnpm exec biome lint src
-pnpm nx run hutch:test-with-coverage
+pnpm nx run <project>:test-with-coverage
 ```
 
 Use individual nx targets only when `pnpm check` has already surfaced a specific failure and you're isolating that one task while debugging.
 
 ### Verify Infrastructure Changes with `pnpm check-infra`
 
-After any infrastructure change — a Pulumi program (`src/infra/**`), a `Pulumi.*.yaml` stack config, a shared infra component, or a deploy input that alters a built artifact (e.g. the OCR `Dockerfile`) — run `pnpm check-infra` and confirm the preview is the diff you intend: no unexpected replace, delete, or drift. Do this before pushing. For a single stack, `pnpm nx run <project>:check-infra`.
+After any infrastructure change — a Pulumi program (anything under an `infra` directory), a `Pulumi.*.yaml` stack config, a shared infra component, or a deploy input that alters a built artifact (e.g. the OCR `Dockerfile`) — run `pnpm check-infra` and confirm the preview is the diff you intend: no unexpected replace, delete, or drift. Do this before pushing. For a single stack, `pnpm nx run <project>:check-infra`.
 
 `pnpm check` does not preview infrastructure, by design: it must stay credential-free so fork-PR CI can run it with no cloud secrets.
 
@@ -475,7 +474,7 @@ A small cleanup or refactor that is unrelated to the change being worked on — 
 
 ### Project Structure
 
-Monorepo at the repository root. Main application lives in `projects/hutch/src/` with two top-level directories:
+Monorepo at the repository root; `pnpm nx show projects` is the authoritative list of projects. The main application (the project that mounts the import commit route `/:id/commit` — grep for it) keeps its source under `src/`, in two directories:
 
 - `src/runtime/` — Application code (Express SSR app and Lambda entry points)
 - `src/infra/` — Infrastructure as Code (Pulumi)
