@@ -4,22 +4,6 @@
   padding: clamp(16px, 4vw, 32px) clamp(12px, 4vw, 24px) clamp(48px, 9vw, 80px);
 }
 
-.readlist__header {
-  margin-bottom: clamp(16px, 4vw, 24px);
-}
-
-.readlist__title {
-  font-family: var(--font-serif);
-  font-size: clamp(1.375rem, 1.1rem + 1.1vw, 1.75rem);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--foreground);
-}
-
-.readlist--readlists .readlist__header {
-  display: none;
-}
-
 /**
  * 1. The panel paints over the tab's base, so the tab reads as a sheet slid
  *    under the card rather than a chip resting on it, and it has to be opaque
@@ -230,7 +214,7 @@
   outline: none;
 }
 
-.readlist--readlists .readlist__content {
+.readlist__content {
   position: relative;
   z-index: 1; /* 1 */
   background: var(--background); /* 1 */
@@ -1078,7 +1062,7 @@
 }
 
 @media (min-width: 768px) {
-  .readlist.readlist--readlists {
+  .readlist {
     max-width: 940px; /* 1 */
   }
 
@@ -1087,17 +1071,17 @@
    *    listing inside still renders at the width the element-scoped visual
    *    checkpoints are pinned to.
    */
-  .readlist--readlists .readlist__body {
+  .readlist__body {
     display: grid;
     grid-template-columns: 130px minmax(0, 1fr); /* 2 */
     column-gap: 0;
   }
 
-  .readlist--readlists > .onboarding {
+  .readlist > .onboarding {
     max-width: none;
   }
 
-  .readlist--readlists .readlist__content {
+  .readlist__content {
     min-width: 0; /* 2 */
     padding: 24px; /* 4 */
   }

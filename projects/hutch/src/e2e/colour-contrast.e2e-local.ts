@@ -262,12 +262,11 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 		const viewUrls = {
 			"to-read": `${BASE_URL}/queue`,
 			done: `${BASE_URL}/queue?tab=done`,
-			tabs: `${BASE_URL}/queue?feature=queues`,
 			"save-error": `${BASE_URL}/queue?error_code=save_failed`,
 		} as const;
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			for (const view of ["to-read", "done", "tabs", "save-error"] as const) {
+			for (const view of ["to-read", "done", "save-error"] as const) {
 				await page.goto(viewUrls[view], { waitUntil: "domcontentloaded" });
 				if (view === "save-error") {
 					await expect(page.locator("[data-test-save-error]")).toBeVisible({

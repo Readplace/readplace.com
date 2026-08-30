@@ -248,7 +248,6 @@ import {
 	buildProtectedResourceMetadata,
 	renderAuthMarkdown,
 } from "./web/agent-auth";
-import { QuerystringFeatureToggle } from "@packages/web-shell";
 import { buildHomepageArmBody } from "./web/pages/home";
 import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
 import { initSaveTipEventRoute } from "./web/shared/save-tip/save-tip.route";
@@ -1062,8 +1061,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		return result;
 	};
 
-	const featureToggle = new QuerystringFeatureToggle();
-
 	const emitSubscriptionEvent = initEmitSubscriptionEvent({
 		logger: deps.subscriptionLogger,
 		now: deps.now,
@@ -1262,7 +1259,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		analytics: deps.analytics,
 		salt: deps.salt,
 		now: deps.now,
-		featureToggle,
 	});
 	/** `dualAuthMiddleware` is applied INSIDE the queue router rather than at this
 	 * mount so that `GET /queue/:id/view` (and its legacy `/read` redirect) can

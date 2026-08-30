@@ -6,7 +6,6 @@ import type { Readlist } from "./readlist.nav";
 import { DEFAULT_READLIST_SLUG, READLIST_LABEL_MAX_LENGTH, type ReadlistSlug } from "@packages/domain/readlist";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import {
-	type LinkParams,
 	buildReadlistUrl,
 	readlistDeletePath,
 	readlistRenamePath,
@@ -52,14 +51,13 @@ function navRename(input: {
 	slug: ReadlistSlug;
 	isActive: boolean;
 	canRename: boolean;
-	linkParams: LinkParams;
 }): ReadlistNavRename {
 	const isRenameable =
 		input.canRename && input.isActive && input.slug !== DEFAULT_READLIST_SLUG;
 	if (!isRenameable) return { isRenameable: false };
 	return {
 		isRenameable: true,
-		renameAction: `${readlistRenamePath(input.slug)}${readlistReturnQuery({}, input.linkParams)}`,
+		renameAction: `${readlistRenamePath(input.slug)}${readlistReturnQuery({})}`,
 		renameField: READLIST_RENAME_FIELD,
 		maxLength: READLIST_LABEL_MAX_LENGTH,
 	};
@@ -69,14 +67,13 @@ function navDelete(input: {
 	slug: ReadlistSlug;
 	isActive: boolean;
 	canDelete: boolean;
-	linkParams: LinkParams;
 }): ReadlistNavDelete {
 	const isDeletable =
 		input.canDelete && input.isActive && input.slug !== DEFAULT_READLIST_SLUG;
 	if (!isDeletable) return { isDeletable: false };
 	return {
 		isDeletable: true,
-		deleteAction: `${readlistDeletePath(input.slug)}${readlistReturnQuery({}, input.linkParams)}`,
+		deleteAction: `${readlistDeletePath(input.slug)}${readlistReturnQuery({})}`,
 		deletePopoverId: readlistDeleteConfirmPopoverId(input.slug),
 	};
 }
@@ -84,7 +81,6 @@ function navDelete(input: {
 export function buildReadlistNav(input: {
 	readlists: readonly Readlist[];
 	activeSlug: ReadlistSlug;
-	linkParams: LinkParams;
 	newReadlistAction: string;
 	canCreate: boolean;
 }): ReadlistNavDisplayModel {
@@ -92,7 +88,7 @@ export function buildReadlistNav(input: {
 		items: input.readlists.map((readlist) => {
 			const isActive = readlist.slug === input.activeSlug;
 			return {
-				href: withInternalTracking(buildReadlistUrl({ readlist: readlist.slug }, input.linkParams), {
+				href: withInternalTracking(buildReadlistUrl({ readlist: readlist.slug }), {
 					source: "queue-nav",
 					content: `queue-${readlist.slug}`,
 				}),
@@ -104,13 +100,11 @@ export function buildReadlistNav(input: {
 					slug: readlist.slug,
 					isActive,
 					canRename: input.canCreate,
-					linkParams: input.linkParams,
 				}),
 				...navDelete({
 					slug: readlist.slug,
 					isActive,
 					canDelete: input.canCreate,
-					linkParams: input.linkParams,
 				}),
 			};
 		}),

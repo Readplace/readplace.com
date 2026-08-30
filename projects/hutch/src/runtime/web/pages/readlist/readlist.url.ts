@@ -66,8 +66,8 @@ export function buildReadlistUrl(state: Partial<ReadlistUrlState>, extraParams: 
 	return qs ? `${READLIST_PATH}?${qs}` : READLIST_PATH;
 }
 
-export function readlistReturnQuery(state: Partial<ReadlistUrlState>, extraParams: LinkParams = []): string {
-	const qs = readlistQueryString(state, extraParams);
+export function readlistReturnQuery(state: Partial<ReadlistUrlState>): string {
+	const qs = readlistQueryString(state);
 	return qs ? `?${qs}` : "";
 }
 
@@ -87,11 +87,8 @@ export function readlistDeletePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/delete`;
 }
 
-export function buildReadlistCountsUrl(
-	state: Partial<ReadlistUrlState>,
-	extraParams: LinkParams = [],
-): string {
-	const qs = readlistQueryString(state, extraParams);
+export function buildReadlistCountsUrl(state: Partial<ReadlistUrlState>): string {
+	const qs = readlistQueryString(state);
 	return qs ? `${READLIST_COUNTS_PATH}?${qs}` : READLIST_COUNTS_PATH;
 }
 

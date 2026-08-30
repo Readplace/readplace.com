@@ -14,17 +14,14 @@ function parse(html: string): Document {
 }
 
 async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues?feature=queues");
+	const response = await agent.post("/queue/queues");
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it, ready to name");
 	return slug;
 }
 
 async function renameReadlist(agent: TestAgent, slug: string, label: string) {
-	return agent
-		.post(`/queue/queues/${slug}/rename?feature=queues`)
-		.type("form")
-		.send({ label });
+	return agent.post(`/queue/queues/${slug}/rename`).type("form").send({ label });
 }
 
 function readlistTab(doc: Document, slug: string): Element {
@@ -43,7 +40,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.body).toEqual({ slug: readlist, label: "Work Reading" });
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get("/queue")).text);
 		const tab = readlistTab(doc, readlist);
 		expect(tab.textContent).toBe("Work Reading");
 		expect(tab.getAttribute("href")).toContain(`queue=${readlist}`);
@@ -57,7 +54,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const response = await renameReadlist(agent, readlist, "   Deep Work   ");
 
 		expect(response.body.label).toBe("Deep Work");
-		expect(readlistTab(parse((await agent.get("/queue?feature=queues")).text), readlist).textContent).toBe(
+		expect(readlistTab(parse((await agent.get("/queue")).text), readlist).textContent).toBe(
 			"Deep Work",
 		);
 	});
@@ -85,7 +82,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.body).toEqual({ slug: second, label: "Work Reading 2" });
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get("/queue")).text);
 		expect(readlistTab(doc, first).textContent).toBe("Work Reading");
 		expect(readlistTab(doc, second).textContent).toBe("Work Reading 2");
 		expect(readlistTab(doc, first).getAttribute("href")).not.toBe(
@@ -103,7 +100,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const response = await renameReadlist(agent, second, "Work Reading");
 
 		expect(response.body.label).toBe("Work Reading 2");
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get("/queue")).text);
 		expect(readlistTab(doc, second).textContent).toBe("Work Reading 2");
 	});
 
@@ -144,7 +141,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		expect(response.status).toBe(200);
 		expect(
 			Array.from(
-				parse((await agent.get("/queue?feature=queues")).text).querySelectorAll(
+				parse((await agent.get("/queue")).text).querySelectorAll(
 					"[data-test-readlist]",
 				),
 				(el) => el.textContent,
@@ -185,7 +182,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const response = await renameReadlist(agent, readlist, "🎉🎉");
 
 		expect(response.status).toBe(200);
-		expect(readlistTab(parse((await agent.get("/queue?feature=queues")).text), readlist).textContent).toBe(
+		expect(readlistTab(parse((await agent.get("/queue")).text), readlist).textContent).toBe(
 			"🎉🎉",
 		);
 	});
@@ -236,35 +233,6 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const readlist = await createReadlist(agent);
 
 		const response = await renameReadlist(agent, readlist, "Work Reading");
-
-		expect(response.status).toBe(404);
-		expect(response.body.error).toBe("unknown-readlist");
-	});
-
-	it("renames without the flag once the reader owns the readlist", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
-
-		const response = await agent
-			.post(`/queue/queues/${readlist}/rename`)
-			.type("form")
-			.send({ label: "Work Reading" });
-
-		expect(response.status).toBe(200);
-		expect(readlistTab(parse((await agent.get("/queue")).text), readlist).textContent).toBe(
-			"Work Reading",
-		);
-	});
-
-	it("does not exist for a reader who owns no readlists", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent
-			.post("/queue/queues/some-readlist/rename")
-			.type("form")
-			.send({ label: "Work Reading" });
 
 		expect(response.status).toBe(404);
 		expect(response.body.error).toBe("unknown-readlist");

@@ -4,8 +4,9 @@ import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import { renderReadlistCounts, toReadlistCountsDisplayModel } from "./readlist-counts.component";
 import { ReadlistPage } from "./readlist.component";
+import { DEFAULT_READLIST } from "./readlist.nav";
 import { toReadlistViewModel } from "./readlist.viewmodel";
-import type { ReadlistUrlState } from "./readlist.url";
+import { READLIST_CREATE_PATH, type ReadlistUrlState } from "./readlist.url";
 
 const PAGE_SIZE = 20;
 
@@ -125,7 +126,13 @@ describe("readlist counts fragment against the initial render", () => {
 			filters,
 			{ now: new Date("2026-01-01T00:00:00.000Z") },
 		);
-		const doc = parseFragment(ReadlistPage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", readlistHoldsArticles: false, saveTip: { state: "due", html: "" } }).content.html);
+		const rail = {
+			readlists: [DEFAULT_READLIST],
+			activeReadlist: DEFAULT_READLIST,
+			newReadlistAction: READLIST_CREATE_PATH,
+			canCreate: true,
+		};
+		const doc = parseFragment(ReadlistPage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", readlistHoldsArticles: false, rail, saveTip: { state: "due", html: "" } }).content.html);
 		const label = doc.querySelector("#readlist-unread-label");
 		assert(label, "the readlist page must render the label the counts fragment refreshes");
 		return label;

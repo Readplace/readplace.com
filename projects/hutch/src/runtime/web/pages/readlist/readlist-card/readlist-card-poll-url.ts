@@ -1,5 +1,5 @@
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
-import type { LinkParams, ReadlistUrlState } from "../readlist.url";
+import type { ReadlistUrlState } from "../readlist.url";
 import { tabQuery } from "../readlist.tabs";
 
 /**
@@ -16,7 +16,6 @@ export function buildCardPollUrl(params: {
 	articleId: string;
 	pollCount: number;
 	filters: Partial<ReadlistUrlState>;
-	extraParams?: LinkParams;
 }): string {
 	const search = new URLSearchParams();
 	search.set("poll", String(params.pollCount));
@@ -31,9 +30,6 @@ export function buildCardPollUrl(params: {
 	}
 	if (params.filters.page && params.filters.page > 1) {
 		search.set("page", String(params.filters.page));
-	}
-	for (const [key, value] of params.extraParams ?? []) {
-		search.append(key, value);
 	}
 	return `/queue/${params.articleId}/card?${search.toString()}`;
 }

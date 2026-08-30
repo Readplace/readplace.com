@@ -5,7 +5,7 @@ import type { SortOrder } from "@packages/provider-contracts/article-store";
 
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { READLIST_TABS, type TabId, tabLabel } from "./readlist.tabs";
-import { type LinkParams, buildReadlistUrl } from "./readlist.url";
+import { buildReadlistUrl } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-filters.template.html"), "utf-8");
 
@@ -35,13 +35,12 @@ export function buildReadlistFilters(input: {
 	activeTab: TabId;
 	order?: SortOrder;
 	readlist?: ReadlistSlug;
-	linkParams?: LinkParams;
 }): ReadlistFiltersDisplayModel {
 	return {
 		tabs: READLIST_TABS.map((tab) => ({
 			linkClass: filterLinkClass(tab.id === input.activeTab),
 			href: withInternalTracking(
-				buildReadlistUrl({ readlist: input.readlist, tab: tab.id, order: input.order }, input.linkParams),
+				buildReadlistUrl({ readlist: input.readlist, tab: tab.id, order: input.order }),
 				{
 					source: "queue-filters",
 					content: tab.trackingContent,

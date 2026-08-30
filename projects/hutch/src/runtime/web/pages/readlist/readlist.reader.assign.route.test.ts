@@ -13,7 +13,7 @@ function parse(html: string): Document {
 }
 
 async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues?feature=queues");
+	const response = await agent.post("/queue/queues");
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -87,7 +87,7 @@ describe("the reader's add-to-readlist control", () => {
 		expect(readlistTags(doc)).toEqual([]);
 	});
 
-	it("offers only the readlists the article is not yet in, without the flag", async () => {
+	it("offers only the readlists the article is not yet in", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const work = await createReadlist(agent);
@@ -318,7 +318,7 @@ describe("the reader's add-to-readlist control", () => {
 		expect(readlistTags(doc)).toEqual([work]);
 	});
 
-	it("marks every copy read from a flagless readlist-scoped status post", async () => {
+	it("marks every copy read from a readlist-scoped status post", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const work = await createReadlist(agent);

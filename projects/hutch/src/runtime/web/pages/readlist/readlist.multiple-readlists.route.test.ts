@@ -28,7 +28,7 @@ function cardStatuses(doc: Document): string[] {
 }
 
 async function createReadlist(agent: TestAgent) {
-	return agent.post("/queue/queues?feature=queues");
+	return agent.post("/queue/queues");
 }
 
 function openedSlug(location: string): string {
@@ -57,7 +57,7 @@ async function save(agent: TestAgent, url: string) {
 }
 
 async function saveFrom(agent: TestAgent, readlist: string, url: string) {
-	return agent.post(`/queue/save?feature=queues&queue=${readlist}`).type("form").send({ url });
+	return agent.post(`/queue/save?queue=${readlist}`).type("form").send({ url });
 }
 
 async function seedInto(harness: TestHarness, readlist: string, url: string) {
@@ -89,41 +89,12 @@ describe("POST /queue/queues", () => {
 
 		expect(response.status).toBe(303);
 		const slug = openedSlug(response.headers.location);
-		expect(response.headers.location).toBe(`/queue?queue=${slug}&feature=queues`);
+		expect(response.headers.location).toBe(`/queue?queue=${slug}`);
 		const doc = parse((await agent.get(response.headers.location)).text);
 		expect(queueLabels(doc)).toEqual(["All", "New Readlist"]);
 		expect(doc.querySelector("[data-test-empty-readlist]")?.textContent).toContain(
 			"Nothing saved yet",
 		);
-	});
-
-	it("creates another readlist without the flag once the reader owns one", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		await createReadlist(agent);
-
-		const response = await agent.post("/queue/queues");
-
-		expect(response.status).toBe(303);
-		const slug = openedSlug(response.headers.location);
-		expect(response.headers.location).toBe(`/queue?queue=${slug}`);
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual([
-			"All",
-			"New Readlist",
-			"New Readlist 2",
-		]);
-	});
-
-	it("does not create a first readlist without the flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.post("/queue/queues");
-
-		expect(response.status).toBe(404);
-		expect(queueLabels(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
-			"All",
-		]);
 	});
 
 	it("numbers each new readlist past the default names already in use", async () => {
@@ -134,7 +105,7 @@ describe("POST /queue/queues", () => {
 		const second = await createReadlistAndOpen(agent);
 
 		expect(second).not.toBe(first);
-		expect(queueLabels(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual([
 			"All",
 			"New Readlist",
 			"New Readlist 2",
@@ -163,21 +134,9 @@ describe("POST /queue/queues", () => {
 		expect(tab.tagName).toBe("A");
 		expect(tab.getAttribute("href")).toContain(`queue=${slug}`);
 		expect(tab.getAttribute("hx-boost")).toBe("false");
-		expect(tab.getAttribute("data-readlist-rename")).toBe(
-			`/queue/queues/${slug}/rename?feature=queues`,
-		);
+		expect(tab.getAttribute("data-readlist-rename")).toBe(`/queue/queues/${slug}/rename`);
 		expect(tab.getAttribute("data-readlist-label-max")).toBe(String(READLIST_LABEL_MAX_LENGTH));
 		expect(doc.querySelector('script[src="/client-dist/readlist-rename.client.js"]')).not.toBeNull();
-	});
-
-	it("keeps offering the rename however the reader arrives at the readlist", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlistAndOpen(agent);
-
-		const doc = parse((await agent.get(`/queue?queue=${slug}&feature=queues`)).text);
-
-		expect(renameable(doc)).toEqual([slug]);
 	});
 
 	it("withholds the rename from a reader who has lost write access", async () => {
@@ -191,7 +150,7 @@ describe("POST /queue/queues", () => {
 			trialEndsAt: new Date(Date.now() - 86_400_000).toISOString(),
 		});
 
-		const doc = parse((await agent.get(`/queue?queue=${slug}&feature=queues`)).text);
+		const doc = parse((await agent.get(`/queue?queue=${slug}`)).text);
 
 		expect(renameable(doc)).toEqual([]);
 		expect(doc.querySelector('[data-test-action="new-readlist"]')).toBeNull();
@@ -205,8 +164,8 @@ describe("POST /queue/queues", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlistAndOpen(agent);
 
-		const onDefault = parse((await agent.get("/queue?feature=queues")).text);
-		const onCreated = parse((await agent.get(`/queue?queue=${slug}&feature=queues`)).text);
+		const onDefault = parse((await agent.get("/queue")).text);
+		const onCreated = parse((await agent.get(`/queue?queue=${slug}`)).text);
 
 		expect(renameable(onDefault)).toEqual([]);
 		expect(renameable(onCreated)).toEqual([slug]);
@@ -228,20 +187,6 @@ describe("POST /queue/queues", () => {
 		expect(flash.textContent).toBe(`You can keep up to ${READLIST_MAX_PER_USER} readlists.`);
 	});
 
-	it("does not exist for a reader who never turned the readlists feature on", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.post("/queue/queues");
-
-		expect(response.status).toBe(404);
-		expect(
-			parse((await agent.get("/queue?feature=queues")).text).querySelectorAll(
-				"[data-test-readlist]",
-			),
-		).toHaveLength(1);
-	});
-
 	it("sends a signed-out visitor to log in rather than creating anything", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
@@ -261,7 +206,7 @@ describe("a URL saved into more than one readlist", () => {
 		await seedInto(harness, readlist, "https://example.com/a");
 
 		const onDefault = parse((await agent.get("/queue")).text);
-		const onWork = parse((await agent.get(`/queue?feature=queues&queue=${readlist}`)).text);
+		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 
 		expect(articleIds(onDefault)).toEqual(articleIds(onWork));
 		expect(articleIds(onWork)).toHaveLength(1);
@@ -277,13 +222,13 @@ describe("a URL saved into more than one readlist", () => {
 		assert(articleId, "the saved article must render a card");
 
 		await agent
-			.post(`/queue/${articleId}/status?feature=queues&queue=${readlist}`)
+			.post(`/queue/${articleId}/status?queue=${readlist}`)
 			.type("form")
 			.send({ status: "read" });
 
 		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([]);
 		expect(articleIds(parse((await agent.get("/queue?tab=done")).text))).toEqual([articleId]);
-		const workDone = parse((await agent.get(`/queue?feature=queues&queue=${readlist}&tab=done`)).text);
+		const workDone = parse((await agent.get(`/queue?queue=${readlist}&tab=done`)).text);
 		expect(articleIds(workDone)).toEqual([articleId]);
 	});
 
@@ -300,9 +245,9 @@ describe("a URL saved into more than one readlist", () => {
 		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });
 
 		expect(cardStatuses(parse((await agent.get("/queue")).text))).toEqual(["unread"]);
-		expect(
-			cardStatuses(parse((await agent.get(`/queue?feature=queues&queue=${readlist}`)).text)),
-		).toEqual(["unread"]);
+		expect(cardStatuses(parse((await agent.get(`/queue?queue=${readlist}`)).text))).toEqual([
+			"unread",
+		]);
 	});
 
 	it("deletes one copy without touching the other", async () => {
@@ -314,10 +259,10 @@ describe("a URL saved into more than one readlist", () => {
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
-		const response = await agent.post(`/queue/${articleId}/delete?feature=queues&queue=${readlist}`);
+		const response = await agent.post(`/queue/${articleId}/delete?queue=${readlist}`);
 
-		expect(response.headers.location).toBe(`/queue?queue=${readlist}&feature=queues`);
-		expect(articleIds(parse((await agent.get(`/queue?feature=queues&queue=${readlist}`)).text))).toEqual([]);
+		expect(response.headers.location).toBe(`/queue?queue=${readlist}`);
+		expect(articleIds(parse((await agent.get(`/queue?queue=${readlist}`)).text))).toEqual([]);
 		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([articleId]);
 	});
 
@@ -340,7 +285,7 @@ describe("a URL saved into more than one readlist", () => {
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
-		await agent.post(`/queue/${articleId}/delete?feature=queues&queue=${readlist}`);
+		await agent.post(`/queue/${articleId}/delete?queue=${readlist}`);
 		expect(dequeued).toEqual([]);
 
 		await agent.post(`/queue/${articleId}/delete`);
@@ -369,7 +314,7 @@ describe("a URL saved into more than one readlist", () => {
 		await agent.post(`/queue/${articleId}/delete`);
 		expect(dequeued).toEqual([]);
 
-		await agent.post(`/queue/${articleId}/delete?feature=queues&queue=${readlist}`);
+		await agent.post(`/queue/${articleId}/delete?queue=${readlist}`);
 		expect(dequeued).toEqual(["https://example.com/a"]);
 	});
 });
@@ -382,13 +327,13 @@ describe("a readlist the reader opened", () => {
 		await save(agent, "https://example.com/default-only");
 		await seedInto(harness, readlist, "https://example.com/work-only");
 
-		const onWork = parse((await agent.get(`/queue?feature=queues&queue=${readlist}`)).text);
+		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 		expect(
 			Array.from(onWork.querySelectorAll("[data-test-article-url]"), (el) => el.textContent),
 		).toEqual(["example.com"]);
 		expect(articleIds(onWork)).toHaveLength(1);
 
-		const counts = await agent.get(`/queue/counts?feature=queues&queue=${readlist}`);
+		const counts = await agent.get(`/queue/counts?queue=${readlist}`);
 		expect(counts.text).toContain("To Read (1)");
 	});
 
@@ -399,9 +344,9 @@ describe("a readlist the reader opened", () => {
 
 		const response = await saveFrom(agent, readlist, "https://example.com/only-here");
 
-		expect(response.headers.location).toBe("/queue?feature=queues#latest-saved");
+		expect(response.headers.location).toBe("/queue#latest-saved");
 		expect(articleIds(parse((await agent.get("/queue")).text))).toHaveLength(1);
-		expect(articleIds(parse((await agent.get(`/queue?feature=queues&queue=${readlist}`)).text))).toEqual([]);
+		expect(articleIds(parse((await agent.get(`/queue?queue=${readlist}`)).text))).toEqual([]);
 	});
 
 	it("hides the save bar and points the empty state at the default readlist", async () => {
@@ -409,8 +354,8 @@ describe("a readlist the reader opened", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent);
 
-		const onWork = parse((await agent.get(`/queue?feature=queues&queue=${readlist}`)).text);
-		const onDefault = parse((await agent.get("/queue?feature=queues")).text);
+		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
+		const onDefault = parse((await agent.get("/queue")).text);
 
 		expect(saveFormClasses(onWork)).toContain("readlist__save-form--hidden");
 		expect(saveFormClasses(onDefault)).toContain("readlist__save-form--visible");
@@ -424,7 +369,7 @@ describe("a readlist the reader opened", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent);
 		await seedInto(harness, readlist, "https://example.com/only-here");
-		const doc = parse((await agent.get(`/queue?feature=queues&queue=${readlist}`)).text);
+		const doc = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 		const readerHref = doc.querySelector("[data-test-article-title]")?.getAttribute("href");
 		assert(readerHref, "the card title must link to the reader");
 		expect(readerHref).toContain(`queue=${readlist}`);
@@ -435,21 +380,8 @@ describe("a readlist the reader opened", () => {
 	});
 });
 
-describe("a reader who never turned the readlists feature on", () => {
-	it("keeps the plain page until they own another readlist", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		await save(agent, "https://example.com/a");
-
-		const doc = parse((await agent.get("/queue")).text);
-
-		const main = doc.querySelector("main.readlist");
-		assert(main, "the readlist page must render a main landmark");
-		expect(main.className).toBe("readlist");
-		expect(main.querySelectorAll("[data-test-readlist]")).toHaveLength(0);
-	});
-
-	it("is offered the rail without the flag once they own another readlist", async () => {
+describe("the readlist every reader is given", () => {
+	it("links each owned readlist from the rail", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent);
@@ -459,7 +391,7 @@ describe("a reader who never turned the readlists feature on", () => {
 
 		expect(queueLabels(doc)).toEqual(["All", "New Readlist"]);
 		const workTab = doc.querySelector(`[data-test-readlist="${readlist}"]`);
-		assert(workTab, "the owned readlist must render its tab without the flag");
+		assert(workTab, "the owned readlist must render its tab");
 		expect(workTab.getAttribute("href")).toBe(
 			`/queue?queue=${readlist}&utm_source=queue-nav&utm_medium=internal&utm_content=queue-${readlist}`,
 		);
@@ -468,16 +400,6 @@ describe("a reader who never turned the readlists feature on", () => {
 		expect(
 			Array.from(onWork.querySelectorAll("[data-test-article-title]"), (el) => el.textContent),
 		).toEqual(["https://example.com/work-only"]);
-	});
-
-	it("hides the save bar on an owned readlist's URL even without the flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlistAndOpen(agent);
-
-		const doc = parse((await agent.get(`/queue?queue=${readlist}`)).text);
-
-		expect(saveFormClasses(doc)).toContain("readlist__save-form--hidden");
 	});
 
 	it("keeps the save bar on a readlist URL that was never minted", async () => {
@@ -490,13 +412,13 @@ describe("a reader who never turned the readlists feature on", () => {
 		expect(saveFormClasses(doc)).toContain("readlist__save-form--visible");
 	});
 
-	it("counts and lists only the default readlist", async () => {
+	it("counts and lists only its own saves", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent);
 		await seedInto(harness, readlist, "https://example.com/work-only");
 
 		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([]);
-		expect((await agent.get("/queue/counts")).text).not.toContain("To Read (1)");
+		expect((await agent.get("/queue/counts")).text).toContain("To Read (0)");
 	});
 });

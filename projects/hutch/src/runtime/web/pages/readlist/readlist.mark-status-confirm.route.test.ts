@@ -21,7 +21,7 @@ function articleIds(doc: Document): string[] {
 }
 
 async function createReadlistAndOpen(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues?feature=queues");
+	const response = await agent.post("/queue/queues");
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -79,7 +79,7 @@ describe("Mark-as-read confirmation", () => {
 		const { agent } = await readerWithTwoReadlists(harness);
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/b" });
 
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get("/queue")).text);
 		const rendered = panels(doc);
 
 		expect(rendered).toHaveLength(2);
@@ -96,7 +96,7 @@ describe("Mark-as-read confirmation", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await readerWithTwoReadlists(harness);
 
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get("/queue")).text);
 		const trigger = doc.querySelector("[data-test-action='mark-read']");
 		const fallback = doc.querySelector("[data-test-action='mark-read-fallback']");
 
@@ -116,7 +116,7 @@ describe("Mark-as-read confirmation", () => {
 		const { agent } = await readerWithTwoReadlists(harness);
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/b" });
 
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get("/queue")).text);
 		const triggersByArticle = new Map(
 			[...doc.querySelectorAll(".readlist-article")].map((card) => [
 				card.getAttribute("data-test-article"),
@@ -139,7 +139,7 @@ describe("Mark-as-read confirmation", () => {
 		const { agent } = await readerWithTwoReadlists(harness);
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/default-only" });
 
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get("/queue")).text);
 		const listed = panels(doc).map((panel) =>
 			[...panel.querySelectorAll(".confirm-popover__items li")].map((li) => li.textContent),
 		);
@@ -157,7 +157,7 @@ describe("Mark-as-read confirmation", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await readerWithTwoReadlists(harness);
 
-		const doc = parse((await agent.get("/queue?feature=queues")).text);
+		const doc = parse((await agent.get("/queue")).text);
 		const [panel] = panels(doc);
 		assert(panel, "the confirmation panel must be rendered");
 		const close = doc.querySelector("[data-test-action='mark-status-dismiss']");
@@ -174,13 +174,13 @@ describe("Mark-as-read confirmation", () => {
 		const { agent, readlist, articleId } = await readerWithTwoReadlists(harness);
 
 		await agent
-			.post(`/queue/${articleId}/status?feature=queues&queue=${readlist}`)
+			.post(`/queue/${articleId}/status?queue=${readlist}`)
 			.type("form")
 			.send({ status: "read" });
 
 		expect(articleIds(parse((await agent.get("/queue?tab=done")).text))).toEqual([articleId]);
 		expect(
-			articleIds(parse((await agent.get(`/queue?feature=queues&queue=${readlist}&tab=done`)).text)),
+			articleIds(parse((await agent.get(`/queue?queue=${readlist}&tab=done`)).text)),
 		).toEqual([articleId]);
 	});
 
@@ -190,7 +190,7 @@ describe("Mark-as-read confirmation", () => {
 
 		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
 
-		expect(panels(parse((await agent.get("/queue?feature=queues&tab=done")).text))).toHaveLength(1);
+		expect(panels(parse((await agent.get("/queue?tab=done")).text))).toHaveLength(1);
 	});
 
 	it("performs the change and silences the panel for good on the second button", async () => {
@@ -198,15 +198,15 @@ describe("Mark-as-read confirmation", () => {
 		const { agent, readlist, articleId } = await readerWithTwoReadlists(harness);
 
 		await agent
-			.post(`/queue/${articleId}/status?feature=queues&queue=${readlist}`)
+			.post(`/queue/${articleId}/status?queue=${readlist}`)
 			.type("form")
 			.send({ status: "read", ack: "never" });
 
-		const done = parse((await agent.get("/queue?feature=queues&tab=done")).text);
+		const done = parse((await agent.get("/queue?tab=done")).text);
 		expect(articleIds(done)).toEqual([articleId]);
 		expect(panels(done)).toHaveLength(0);
 		expect(
-			articleIds(parse((await agent.get(`/queue?feature=queues&queue=${readlist}&tab=done`)).text)),
+			articleIds(parse((await agent.get(`/queue?queue=${readlist}&tab=done`)).text)),
 		).toEqual([articleId]);
 		const form = done.querySelector("[data-test-action='mark-unread']")?.closest("form");
 		assert(form, "the card must be back on its plain mark-unread form");
@@ -260,12 +260,12 @@ describe("Mark-as-read confirmation", () => {
 	it("leaves the confirmation out of the polled card fragment", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, articleId } = await readerWithTwoReadlists(harness);
-		const listing = parse((await agent.get("/queue?feature=queues")).text);
+		const listing = parse((await agent.get("/queue")).text);
 		const pageTarget = listing
 			.querySelector("[data-test-action='mark-read']")
 			?.getAttribute("popovertarget");
 
-		const fragment = parse((await agent.get(`/queue/${articleId}/card?poll=2&feature=queues`)).text);
+		const fragment = parse((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
 
 		expect(
 			fragment.querySelector("[data-test-action='mark-read']")?.getAttribute("popovertarget"),

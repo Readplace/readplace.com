@@ -1,6 +1,6 @@
 import { render, renderToast, withInternalTracking } from "@packages/web-shell";
 import type { StatusFlash } from "./readlist.error";
-import type { LinkParams, ReadlistUrlState } from "./readlist.url";
+import type { ReadlistUrlState } from "./readlist.url";
 import { buildReadlistCountsUrl, readlistReturnQuery } from "./readlist.url";
 
 /** Long enough to read the message and reach for Undo, short enough not to
@@ -48,15 +48,14 @@ export function renderReadlistCountsTrigger(input: { countsUrl: string; oob?: bo
 export function renderReadlistMutationFragment(input: {
 	filters: ReadlistUrlState;
 	statusFlash: StatusFlash;
-	linkParams?: LinkParams;
 }): string {
 	const counts = renderReadlistCountsTrigger({
-		countsUrl: buildReadlistCountsUrl(input.filters, input.linkParams),
+		countsUrl: buildReadlistCountsUrl(input.filters),
 		oob: true,
 	});
 	const toast = renderStatusToast({
 		message: input.statusFlash.message,
-		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${readlistReturnQuery(input.filters, input.linkParams)}`,
+		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${readlistReturnQuery(input.filters)}`,
 		undoStatus: input.statusFlash.undoStatus,
 	});
 	return `<div id="status-toast" hx-swap-oob="outerHTML">${toast}</div>${counts}`;

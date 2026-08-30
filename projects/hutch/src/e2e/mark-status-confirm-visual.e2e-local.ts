@@ -60,7 +60,7 @@ async function openMarkReadConfirm(page: Page, stamp: string): Promise<void> {
 	]);
 	await loginAs(page, email);
 
-	await page.goto(`${BASE_URL}/queue?feature=queues`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	await page.click('[data-test-action="new-readlist"]');
 	await page.waitForSelector("[data-readlist-rename]");
 
@@ -69,7 +69,7 @@ async function openMarkReadConfirm(page: Page, stamp: string): Promise<void> {
 	await page.click("[data-test-assign-readlist]");
 	await page.waitForSelector("[data-test-readlist-tag]");
 
-	await page.goto(`${BASE_URL}/queue?feature=queues`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	await page.click(MARK_READ_TRIGGER);
 }
 

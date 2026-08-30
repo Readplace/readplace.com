@@ -39,8 +39,8 @@ export function readlistUrl(input: { baseURL: string; readlist?: string; tab?: T
 	const params = new URLSearchParams();
 	if (input.readlist !== undefined) params.set("queue", input.readlist);
 	if (input.tab === "done") params.set("tab", "done");
-	params.append("feature", "queues");
-	return `${input.baseURL}/queue?${params.toString()}`;
+	const query = params.toString();
+	return query === "" ? `${input.baseURL}/queue` : `${input.baseURL}/queue?${query}`;
 }
 
 export function readerUrl(input: { baseURL: string; articleId: string }): string {

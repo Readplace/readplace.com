@@ -11,8 +11,7 @@ function renderNav(overrides: Partial<Parameters<typeof buildReadlistNav>[0]> = 
 	const input = {
 		readlists: READLISTS,
 		activeSlug: DEFAULT_READLIST.slug,
-		linkParams: [["feature", "queues"]] as const,
-		newReadlistAction: "/queue/queues?feature=queues",
+		newReadlistAction: "/queue/queues",
 		canCreate: true,
 		...overrides,
 	};
@@ -102,14 +101,6 @@ describe("buildReadlistNav", () => {
 		expect(forWork.params.get("utm_content")).toBe("queue-work");
 	});
 
-	it("should carry the readlists toggle onto every readlist link so the rail survives the click", () => {
-		const doc = renderNav();
-
-		for (const slug of ["default", "work"]) {
-			expect(hrefParts(readlistLink(doc, slug)).params.get("feature")).toBe("queues");
-		}
-	});
-
 	it("should open a readlist at its own default view rather than carrying the read-state tab and sort", () => {
 		const doc = renderNav();
 
@@ -142,7 +133,7 @@ describe("buildReadlistNav", () => {
 			label: control.textContent,
 		}).toEqual({
 			method: "POST",
-			action: "/queue/queues?feature=queues",
+			action: "/queue/queues",
 			type: "submit",
 			label: "New readlist",
 		});
@@ -168,7 +159,7 @@ describe("buildReadlistNav", () => {
 			readlist: hrefParts(tab).params.get("queue"),
 		}).toEqual({
 			tagName: "A",
-			action: "/queue/queues/work/rename?feature=queues",
+			action: "/queue/queues/work/rename",
 			field: "label",
 			max: String(READLIST_LABEL_MAX_LENGTH),
 			current: "page",
@@ -231,7 +222,7 @@ describe("buildReadlistNav", () => {
 	it("should back the delete trigger with a plain post for a reader with no popover", () => {
 		const doc = renderNav({ activeSlug: WORK.slug });
 
-		expect(deleteFallbackActions(doc)).toEqual(["/queue/queues/work/delete?feature=queues"]);
+		expect(deleteFallbackActions(doc)).toEqual(["/queue/queues/work/delete"]);
 	});
 
 	it("should keep the delete trigger outside the tab so a tap cannot open the name editor", () => {

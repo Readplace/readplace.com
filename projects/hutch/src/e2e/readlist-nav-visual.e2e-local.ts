@@ -28,7 +28,6 @@ const READLIST_NAV_LIST = "main.readlist .readlist-nav__list";
 const READLIST_NAV_LINK = '[data-test-readlist="default"]';
 const READLIST_CONTENT = "main.readlist .readlist__content";
 const READLIST_LIST = "[data-test-article-list]";
-const READLIST_TITLE = "main.readlist .readlist__title";
 const READLIST_FILTERS = "main.readlist .readlist__filters";
 const READLIST_LISTING = "main.readlist .readlist__listing";
 const READLIST_SAVE_FORM = "main.readlist .readlist__save-form";
@@ -38,9 +37,6 @@ const OPEN_FILTER_TAB = "main.readlist .readlist__filter-link--active";
 const UNREAD_FILTER_TAB = 'main.readlist [data-test-filter="unread"]';
 const UNREAD_FILTER_LABEL = "main.readlist #readlist-unread-label";
 const READ_FILTER_TAB = 'main.readlist [data-test-filter="read"]';
-
-const DEFAULT_READLIST = "";
-const READLISTS_PANEL = "?feature=queues";
 
 /* A name at the 24-character cap with nothing to break at — the hardest case
  * the rail has to render in full, so it exercises the wrap and the cap at once. */
@@ -151,13 +147,13 @@ async function replaceOpenName(page: Page, name: string): Promise<void> {
 }
 
 async function openNewReadlist(page: Page): Promise<void> {
-	await openReadlist(page, READLISTS_PANEL);
+	await openReadlist(page);
 	await page.click('[data-test-action="new-readlist"]');
 	await page.waitForSelector(RENAMEABLE_TAB);
 }
 
-async function openReadlist(page: Page, search: string): Promise<void> {
-	await page.goto(`${BASE_URL}/queue${search}`, { waitUntil: "domcontentloaded" });
+async function openReadlist(page: Page): Promise<void> {
+	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-readlist");
 }
 
@@ -248,15 +244,6 @@ async function seededReadlistSettled(page: Page): Promise<void> {
 async function wholeReadlistSettled(page: Page): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 	await expect(page.locator(READLIST_NAV_LINK)).toHaveText("All");
-	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
-	await seededReadlistSettled(page);
-}
-
-/* Without the flag there is no rail naming the open readlist — the page renders the
- * heading the panel layout hides — so settling waits on that instead. */
-async function defaultReadlistSettled(page: Page): Promise<void> {
-	await page.waitForSelector("body.page-readlist");
-	await expect(page.locator(READLIST_TITLE)).toHaveText("All");
 	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
 	await seededReadlistSettled(page);
 }
@@ -421,33 +408,6 @@ const ROW_MOBILE_LIGHT: VisualCheckpoint = {
 	pinnedText: [],
 };
 
-const DEFAULT_READLIST_DESKTOP_LIGHT: VisualCheckpoint = {
-	name: "readlist-page-default-desktop-light",
-	settled: defaultReadlistSettled,
-	geometry: wholeReadlistGeometry,
-	target: READLIST_LIST,
-	capture: "page-from-top",
-	pinnedText: [],
-};
-
-const DEFAULT_READLIST_DESKTOP_DARK: VisualCheckpoint = {
-	name: "readlist-page-default-desktop-dark",
-	settled: defaultReadlistSettled,
-	geometry: wholeReadlistGeometry,
-	target: READLIST_LIST,
-	capture: "page-from-top",
-	pinnedText: [],
-};
-
-const DEFAULT_READLIST_MOBILE_LIGHT: VisualCheckpoint = {
-	name: "readlist-page-default-mobile-light",
-	settled: defaultReadlistSettled,
-	geometry: wholeReadlistGeometry,
-	target: READLIST_LIST,
-	capture: "page-from-top",
-	pinnedText: [],
-};
-
 const MADE_RAIL_DESKTOP_LIGHT: VisualCheckpoint = {
 	name: "readlist-nav-rail-made-desktop-light",
 	settled: madeRailSettled,
@@ -484,27 +444,6 @@ const MADE_READLIST_MOBILE_LIGHT: VisualCheckpoint = {
 	pinnedText: [],
 };
 
-/* The strip's own box ends on the listing's border row, because that is what the
- * -1px join means — so an element capture of the strip is the close-up of the
- * seam, the same way the rail's element capture frames its join. */
-const FILTER_TABS_JOIN_LIGHT: VisualCheckpoint = {
-	name: "readlist-filter-tabs-join-light",
-	settled: defaultReadlistSettled,
-	geometry: tabsJoinTheListing,
-	target: READLIST_FILTERS,
-	capture: "element",
-	pinnedText: [],
-};
-
-const FILTER_TABS_JOIN_DARK: VisualCheckpoint = {
-	name: "readlist-filter-tabs-join-dark",
-	settled: defaultReadlistSettled,
-	geometry: tabsJoinTheListing,
-	target: READLIST_FILTERS,
-	capture: "element",
-	pinnedText: [],
-};
-
 test.describe("Readlist nav", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -512,7 +451,7 @@ test.describe("Readlist nav", () => {
 		const email = `readlist-nav-desktop-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		await captureCheckpoint(page, RAIL_DESKTOP_LIGHT);
 	});
@@ -522,7 +461,7 @@ test.describe("Readlist nav", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		await captureCheckpoint(page, RAIL_DESKTOP_DARK);
 	});
@@ -535,7 +474,7 @@ test.describe("Readlist nav (mobile)", () => {
 		const email = `readlist-nav-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		await captureCheckpoint(page, ROW_MOBILE_LIGHT);
 	});
@@ -548,7 +487,7 @@ test.describe("Readlist page", () => {
 		const email = `readlist-page-desktop-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithReadlist(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		await captureCheckpoint(page, WHOLE_READLIST_DESKTOP_LIGHT);
 	});
@@ -558,7 +497,7 @@ test.describe("Readlist page", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await createVerifiedUserWithReadlist(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		await captureCheckpoint(page, WHOLE_READLIST_DESKTOP_DARK);
 	});
@@ -571,7 +510,7 @@ test.describe("Readlist page (mobile)", () => {
 		const email = `readlist-page-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithReadlist(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		await captureCheckpoint(page, WHOLE_READLIST_MOBILE_LIGHT);
 	});
@@ -643,7 +582,7 @@ test.describe("Readlist nav reflow", () => {
 		const email = `readlist-nav-reflow-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, BREAKPOINT, DESKTOP]) {
 			await page.setViewportSize(viewport);
@@ -666,7 +605,7 @@ test.describe("Readlist nav with a long readlist name", () => {
 		const email = `readlist-nav-wrap-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 		const singleLine = await measuredBox(page, READLIST_NAV_LINK);
 
 		await page.click('[data-test-action="new-readlist"]');
@@ -677,7 +616,6 @@ test.describe("Readlist nav with a long readlist name", () => {
 		await page.keyboard.press("Enter");
 
 		await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText(LONGEST_READLIST_NAME);
-		await expect(page.locator(READLIST_TITLE)).toHaveText(LONGEST_READLIST_NAME);
 		const wrapped = await measuredBox(page, ACTIVE_READLIST_TAB);
 		assert.ok(
 			wrapped.height > singleLine.height,
@@ -710,7 +648,7 @@ test.describe("Naming a readlist the reader just made", () => {
 		const email = `readlist-nav-name-esc-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		await page.click('[data-test-action="new-readlist"]');
 		await page.waitForSelector(RENAMEABLE_TAB);
@@ -730,7 +668,7 @@ test.describe("Naming a readlist the reader just made", () => {
 		const email = `readlist-nav-rename-twice-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 		await page.click('[data-test-action="new-readlist"]');
 		await page.waitForSelector(RENAMEABLE_TAB);
 
@@ -787,7 +725,7 @@ test.describe("Naming a readlist the reader just made", () => {
 		const email = `readlist-nav-rename-swap-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 		await page.click('[data-test-action="new-readlist"]');
 		await page.waitForSelector(RENAMEABLE_TAB);
 
@@ -806,7 +744,7 @@ test.describe("Naming a readlist the reader just made", () => {
 		const email = `readlist-nav-rename-default-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, READLISTS_PANEL);
+		await openReadlist(page);
 
 		await expect(page.locator(RENAMEABLE_TAB)).toHaveCount(0);
 
@@ -816,74 +754,16 @@ test.describe("Naming a readlist the reader just made", () => {
 	});
 });
 
-test.describe("Readlist page (default)", () => {
-	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
-
-	test("renders the whole readlist under its status tabs (light)", async ({ page }, testInfo) => {
-		const email = `readlist-page-default-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await createVerifiedUserWithReadlist(page, email);
-		await loginAs(page, email);
-		await openReadlist(page, DEFAULT_READLIST);
-
-		await captureCheckpoint(page, DEFAULT_READLIST_DESKTOP_LIGHT);
-	});
-
-	test("renders the whole readlist under its status tabs (dark)", async ({ page }, testInfo) => {
-		const email = `readlist-page-default-dark-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await page.emulateMedia({ colorScheme: "dark" });
-		await createVerifiedUserWithReadlist(page, email);
-		await loginAs(page, email);
-		await openReadlist(page, DEFAULT_READLIST);
-
-		await captureCheckpoint(page, DEFAULT_READLIST_DESKTOP_DARK);
-	});
-});
-
-test.describe("Readlist page (default, mobile)", () => {
-	test.use({ timezoneId: "UTC", viewport: PHONE_TALL });
-
-	test("renders the whole readlist under its status tabs", async ({ page }, testInfo) => {
-		const email = `readlist-page-default-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await createVerifiedUserWithReadlist(page, email);
-		await loginAs(page, email);
-		await openReadlist(page, DEFAULT_READLIST);
-
-		await captureCheckpoint(page, DEFAULT_READLIST_MOBILE_LIGHT);
-	});
-});
-
 test.describe("Readlist status tabs", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("joins the tabs to the listing they scope (light)", async ({ page }, testInfo) => {
-		const email = `readlist-filter-tabs-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+	test("joins the tabs to the listing they scope", async ({ page }, testInfo) => {
+		const email = `readlist-filter-tabs-join-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithReadlist(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, DEFAULT_READLIST);
-
-		await captureCheckpoint(page, FILTER_TABS_JOIN_LIGHT);
-	});
-
-	test("joins the tabs to the listing they scope (dark)", async ({ page }, testInfo) => {
-		const email = `readlist-filter-tabs-dark-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await page.emulateMedia({ colorScheme: "dark" });
-		await createVerifiedUserWithReadlist(page, email);
-		await loginAs(page, email);
-		await openReadlist(page, DEFAULT_READLIST);
-
-		await captureCheckpoint(page, FILTER_TABS_JOIN_DARK);
-	});
-
-	test("holds the same join inside the readlists panel", async ({ page }, testInfo) => {
-		const email = `readlist-filter-tabs-panel-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await createVerifiedUserWithReadlist(page, email);
-		await loginAs(page, email);
-
-		for (const search of [DEFAULT_READLIST, READLISTS_PANEL]) {
-			await openReadlist(page, search);
-			await seededReadlistSettled(page);
-			await tabsJoinTheListing(page);
-		}
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+		await tabsJoinTheListing(page);
 	});
 
 	test("keeps the unread count on the tab while the counts request is in flight", async ({
@@ -892,7 +772,7 @@ test.describe("Readlist status tabs", () => {
 		const email = `readlist-filter-tabs-count-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithReadlist(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, DEFAULT_READLIST);
+		await openReadlist(page);
 		await seededReadlistSettled(page);
 
 		await page.route("**/queue/counts*", (route) => route.abort());
@@ -914,13 +794,13 @@ test.describe("Readlist status tabs", () => {
 		const email = `readlist-filter-tabs-reserve-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithReadlist(page, email);
 		await loginAs(page, email);
-		await openReadlist(page, DEFAULT_READLIST);
+		await openReadlist(page);
 		await seededReadlistSettled(page);
 		await waitForBrandFonts(page, ["Inter"]);
 		const counted = await measuredBox(page, UNREAD_FILTER_TAB);
 
 		await page.route("**/queue/counts*", (route) => route.abort());
-		await openReadlist(page, DEFAULT_READLIST);
+		await openReadlist(page);
 		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText("To Read");
 		await waitForBrandFonts(page, ["Inter"]);
 		const cold = await measuredBox(page, UNREAD_FILTER_TAB);

@@ -1,12 +1,9 @@
-    <main class="{{mainClass}}">
+    <main class="readlist">
       {{{onboardingHtml}}}
       <div class="readlist__body">
         {{{readlistNavHtml}}}
         <div class="readlist__content">
           {{#if readlistErrorFlash}}<p class="readlist__error-flash" role="alert" data-test-readlist-error>{{readlistErrorFlash}}</p>{{/if}}
-          <div class="readlist__header">
-            <h1 class="readlist__title">{{readlistTitle}}</h1>
-          </div>
           <aside class="readlist-banner {{subscriptionBannerStateClass}}" aria-live="polite" data-test-subscription-banner>
             {{#if subscriptionBannerIsTrialCountdown}}
             <p class="readlist-banner__message" data-test-banner-message><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>

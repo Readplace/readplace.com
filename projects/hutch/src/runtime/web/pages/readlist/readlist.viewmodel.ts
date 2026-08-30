@@ -25,7 +25,7 @@ import {
 	type MarkStatusConfirmViewModel,
 } from "./mark-status-confirm.component";
 import { isCardTerminal } from "./readlist-card/is-card-terminal";
-import type { LinkParams, ReadlistUrlState } from "./readlist.url";
+import type { ReadlistUrlState } from "./readlist.url";
 import { buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
 import type { StatusFlash } from "./readlist.error";
 import type { EffectiveAccess } from "@packages/subscription-access";
@@ -210,7 +210,6 @@ export function toReadlistArticleViewModel(params: {
 	filters: ReadlistUrlState;
 	pollCount?: number;
 	maxPolls: number;
-	linkParams?: LinkParams;
 	confirmReadlistLabels?: readonly string[];
 	/** Absent means the reader has not chosen to skip the delete confirmation —
 	 * including on render paths that never read the signal, so an unknown answer
@@ -224,7 +223,7 @@ export function toReadlistArticleViewModel(params: {
 	const cardPollUrl =
 		reachedTerminal || pollCount > maxPolls
 			? undefined
-			: buildCardPollUrl({ articleId: id, pollCount, filters, extraParams: params.linkParams });
+			: buildCardPollUrl({ articleId: id, pollCount, filters });
 	const isStalePending = !reachedTerminal && pollCount > maxPolls;
 	const deleteConfirmId = params.deleteAcknowledged ? undefined : deleteConfirmPopoverId(id);
 	const deleteAction = toDeleteAction({
@@ -266,7 +265,7 @@ export function toReadlistArticleViewModel(params: {
 			: { deleteConfirm: { articleId: id, popoverId: deleteConfirmId, url: deleteAction.url } }),
 		markStatusConfirm,
 		cardPollUrl,
-		readerHref: `/queue/${id}/view${readlistReturnQuery({ readlist: filters.readlist }, params.linkParams)}`,
+		readerHref: `/queue/${id}/view${readlistReturnQuery({ readlist: filters.readlist })}`,
 		isStalePending,
 	};
 }
@@ -284,14 +283,12 @@ export function toReadlistViewModel(
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		effectiveAccess?: EffectiveAccess;
-		linkParams?: LinkParams;
 		confirmReadlistLabelsByUrl?: ReadonlyMap<string, readonly string[]>;
 		deleteAcknowledged?: boolean;
 	},
 ): ReadlistViewModel {
 	const now = options?.now ?? new Date();
-	const linkParams = options?.linkParams;
-	const returnQuery = readlistReturnQuery(filters, linkParams);
+	const returnQuery = readlistReturnQuery(filters);
 
 	/** When effectiveAccess is omitted the caller is a server-side render path
 	 * that has no authenticated user (Siren API, public reader permalink, etc.)
@@ -314,7 +311,6 @@ export function toReadlistViewModel(
 				crawl: options?.crawlByUrl?.get(a.url),
 				filters,
 				maxPolls: MAX_POLLS,
-				linkParams,
 				confirmReadlistLabels: options?.confirmReadlistLabelsByUrl?.get(a.url),
 				deleteAcknowledged: options?.deleteAcknowledged,
 			}),
@@ -322,14 +318,14 @@ export function toReadlistViewModel(
 		filters,
 		isEmpty: result.articles.length === 0,
 		currentPage: result.page,
-		countsUrl: buildReadlistCountsUrl(filters, linkParams),
+		countsUrl: buildReadlistCountsUrl(filters),
 		paginationUrls: {
 			prev:
 				result.page > 1
-					? buildReadlistUrl({ ...filters, page: result.page - 1 }, linkParams)
+					? buildReadlistUrl({ ...filters, page: result.page - 1 })
 					: undefined,
 			next: result.hasMore
-				? buildReadlistUrl({ ...filters, page: result.page + 1 }, linkParams)
+				? buildReadlistUrl({ ...filters, page: result.page + 1 })
 				: undefined,
 		},
 		errors: options?.errors,

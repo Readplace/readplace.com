@@ -30,7 +30,6 @@ import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.co
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { ReadlistViewModel, SubscriptionBannerState } from "./readlist.viewmodel";
 import {
-	type LinkParams,
 	READLIST_DISMISS_ONBOARDING_PATH,
 	READLIST_SAVE_PATH,
 	buildReadlistUrl,
@@ -42,7 +41,6 @@ import { tabQuery, type TabId } from "./readlist.tabs";
 export interface ReadlistRailViewModel {
 	readlists: readonly Readlist[];
 	activeReadlist: Readlist;
-	linkParams: LinkParams;
 	newReadlistAction: string;
 	canCreate: boolean;
 	errorFlash?: string;
@@ -71,7 +69,6 @@ interface ReadlistDisplayModel {
 	deleteConfirmsHtml: string;
 	markStatusConfirmsHtml: string;
 	readlistDeleteConfirmHtml: string;
-	mainClass: string;
 	readlistNavHtml: string;
 	readlistErrorFlash?: string;
 	readlistTitle: string;
@@ -115,13 +112,13 @@ export function emptyStateTitle(input: { tab: TabId; readlistHoldsArticles: bool
 	return input.readlistHoldsArticles ? EMPTY_STATE_TITLES[input.tab] : NOTHING_SAVED_TITLE;
 }
 
-function readlistDeleteConfirmPanel(rail: ReadlistRailViewModel | undefined): string {
-	if (!rail?.canCreate) return "";
+function readlistDeleteConfirmPanel(rail: ReadlistRailViewModel): string {
+	if (!rail.canCreate) return "";
 	const active = rail.activeReadlist;
 	if (active.slug === DEFAULT_READLIST.slug) return "";
 	return renderReadlistDeleteConfirm({
 		popoverId: readlistDeleteConfirmPopoverId(active.slug),
-		url: `${readlistDeletePath(active.slug)}${readlistReturnQuery({}, rail.linkParams)}`,
+		url: `${readlistDeletePath(active.slug)}${readlistReturnQuery({})}`,
 		label: active.label,
 		destinations: rail.readlists.filter(
 			(readlist) => readlist.slug !== DEFAULT_READLIST.slug && readlist.slug !== active.slug,
@@ -129,9 +126,8 @@ function readlistDeleteConfirmPanel(rail: ReadlistRailViewModel | undefined): st
 	});
 }
 
-function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail?: ReadlistRailViewModel; saveTip: SaveTip }): ReadlistDisplayModel {
+function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail: ReadlistRailViewModel; saveTip: SaveTip }): ReadlistDisplayModel {
 	const activeTab = vm.filters.tab;
-	const linkParams = options.rail?.linkParams ?? [];
 	const saveBarHidden = vm.filters.readlist !== DEFAULT_READLIST.slug;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
@@ -140,7 +136,7 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			? { label: "Newest first", iconName: "arrow-down" }
 			: { label: "Oldest first", iconName: "arrow-up" };
 	const sortUrl = withInternalTracking(
-		buildReadlistUrl({ readlist: vm.filters.readlist, tab: activeTab, order: nextOrder }, linkParams),
+		buildReadlistUrl({ readlist: vm.filters.readlist, tab: activeTab, order: nextOrder }),
 		{
 			source: "queue-sort",
 			content: "sort",
@@ -162,7 +158,7 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			dismissed: options.onboardingDismissed,
 			completedBefore: options.onboardingCompletedBefore,
 			completionUnearned: options.onboardingCompletionUnearned,
-			dismissAction: `${READLIST_DISMISS_ONBOARDING_PATH}${readlistReturnQuery(vm.filters, linkParams)}`,
+			dismissAction: `${READLIST_DISMISS_ONBOARDING_PATH}${readlistReturnQuery(vm.filters)}`,
 		},
 	);
 
@@ -209,22 +205,18 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			)
 			.join("\n"),
 		readlistDeleteConfirmHtml: readlistDeleteConfirmPanel(options.rail),
-		mainClass: options.rail ? "readlist readlist--readlists" : "readlist",
-		readlistNavHtml: options.rail
-			? renderReadlistNav(
-					buildReadlistNav({
-						readlists: options.rail.readlists,
-						activeSlug: options.rail.activeReadlist.slug,
-						linkParams: options.rail.linkParams,
-						newReadlistAction: options.rail.newReadlistAction,
-						canCreate: options.rail.canCreate,
-							}),
-				)
-			: "",
-		readlistErrorFlash: options.rail?.errorFlash,
-		readlistTitle: options.rail?.activeReadlist.label ?? DEFAULT_READLIST.label,
+		readlistNavHtml: renderReadlistNav(
+			buildReadlistNav({
+				readlists: options.rail.readlists,
+				activeSlug: options.rail.activeReadlist.slug,
+				newReadlistAction: options.rail.newReadlistAction,
+				canCreate: options.rail.canCreate,
+			}),
+		),
+		readlistErrorFlash: options.rail.errorFlash,
+		readlistTitle: options.rail.activeReadlist.label,
 		saveAction: withInternalTracking(
-			`${READLIST_SAVE_PATH}${readlistReturnQuery({ ...vm.filters, readlist: DEFAULT_READLIST.slug }, linkParams)}`,
+			`${READLIST_SAVE_PATH}${readlistReturnQuery({ ...vm.filters, readlist: DEFAULT_READLIST.slug })}`,
 			{ source: "queue", content: "save" },
 		),
 		filtersHtml: renderReadlistFilters(
@@ -232,7 +224,6 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 				activeTab,
 				order: vm.filters.order,
 				readlist: vm.filters.readlist,
-				linkParams,
 			}),
 		),
 		countsSpanHtml: renderReadlistCountsTrigger({ countsUrl: vm.countsUrl }),
@@ -264,7 +255,7 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			...(vm.accessIsReadOnly ? ["readlist__save-form--disabled"] : []),
 		].join(" "),
 		saveBarHidden,
-		defaultReadlistUrl: buildReadlistUrl({}, linkParams),
+		defaultReadlistUrl: buildReadlistUrl({}),
 		defaultReadlistLabel: DEFAULT_READLIST.label,
 		saveTipState: options.saveTip.state,
 		saveTipHtml: options.saveTip.html,
@@ -290,13 +281,12 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; rail?: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
+export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
 	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
 	const content = render(READLIST_TEMPLATE, { ...displayModel, saveUrl });
 
-	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT];
-	if (options.rail) scriptParts.push(READLIST_RENAME_SCRIPT);
+	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT, READLIST_RENAME_SCRIPT];
 	if (saveUrl) scriptParts.push(autoSubmitScript(options.cspNonce));
 
 	return {

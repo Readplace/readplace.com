@@ -121,7 +121,6 @@ import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { initReaderPermalink } from "./reader-permalink";
 import { wantsSiren } from "../../content-negotiation";
-import type { QuerystringFeatureToggle } from "@packages/web-shell";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
@@ -136,7 +135,6 @@ import {
 } from "./readlist.url";
 import {
 	type ReadlistContext,
-	READLISTS_FEATURE,
 	initResolveReadlistContext,
 	mainlineReadlistContext,
 	readerReadlists,
@@ -421,7 +419,6 @@ interface ReadlistDependencies {
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
-	featureToggle: QuerystringFeatureToggle;
 }
 
 import type { SavedArticle } from "@packages/domain/article";
@@ -611,22 +608,16 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	const resolveReadlistContext = initResolveReadlistContext({
 		listReadlistDefinitions: deps.listReadlistDefinitions,
-		featureToggle: deps.featureToggle,
 	});
 
 	/** Mutation and redirect handlers read the addressed readlist from the URL alone.
 	 * A shape-valid readlist the reader does not own binds to a partition holding no
 	 * rows, so the write no-ops on its `attribute_exists` condition and the reader
 	 * lands back on a listing the next GET resolves for real. */
-	const requestReadlistContext = (req: Request): ReadlistContext => {
-		const flagged = deps.featureToggle.isEnabled(req, READLISTS_FEATURE);
-		return {
-			...mainlineReadlistContext(req.query),
-			state: parseReadlistUrl(req.query),
-			linkParams: flagged ? [["feature", READLISTS_FEATURE]] : [],
-			railed: flagged,
-		};
-	};
+	const requestReadlistContext = (req: Request): ReadlistContext => ({
+		...mainlineReadlistContext(req.query),
+		state: parseReadlistUrl(req.query),
+	});
 
 	const publishLinkDequeuedUnlessSavedElsewhere = initPublishLinkDequeuedUnlessSavedElsewhere({
 		listUserSavesForUrl: deps.listUserSavesForUrl,
@@ -1144,14 +1135,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		req: Request,
 		context: ReadlistContext,
 		accessIsReadOnly: boolean,
-	): ReadlistRailViewModel | undefined => {
-		if (!context.railed) return undefined;
+	): ReadlistRailViewModel => {
 		const canCreate = !accessIsReadOnly;
 		return {
 			readlists: context.readlists,
 			activeReadlist: context.activeReadlist,
-			linkParams: context.linkParams,
-			newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(context.state, context.linkParams)}`,
+			newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(context.state)}`,
 			canCreate,
 			errorFlash: readlistErrorFlashMapping(req.query),
 		};
@@ -1211,7 +1200,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			summaryByUrl,
 			crawlByUrl,
 			effectiveAccess,
-			linkParams: input.context.linkParams,
 			now: deps.now(),
 			confirmReadlistLabelsByUrl,
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
@@ -1282,7 +1270,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			res
 				.status(200)
 				.type("html")
-				.send(renderReadlistMutationFragment({ filters: urlState, statusFlash, linkParams: context.linkParams }));
+				.send(renderReadlistMutationFragment({ filters: urlState, statusFlash }));
 			return;
 		}
 
@@ -1390,7 +1378,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				extraParams: [
 					...collectUtmParams(req.query),
 					...collectStatusFlashParams(req.query),
-					...context.linkParams,
 				],
 			});
 			if (pageRedirect) {
@@ -1451,7 +1438,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const version = dismissTokenFor(hasInstallableClient(req));
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		const context = requestReadlistContext(req);
-		res.redirect(303, buildReadlistUrl(context.state, context.linkParams));
+		res.redirect(303, buildReadlistUrl(context.state));
 	});
 
 	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
@@ -1921,7 +1908,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				saveErrorCode: validation.error.code,
 				summaryByUrl,
 				crawlByUrl,
-				linkParams: context.linkParams,
 				deleteAcknowledged: deleteArticleAckedAt !== undefined,
 			});
 			sendComponent(req, res, Base(ReadlistPage(vm, { ...onboarding, cspNonce: requireCspNonce(req), readlistHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
@@ -1937,11 +1923,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				provenance: resolveSaveProvenance(req.oauthClientId),
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
-			res.redirect(303, `${buildReadlistUrl(saveContext.state, context.linkParams)}#latest-saved`);
+			res.redirect(303, `${buildReadlistUrl(saveContext.state)}#latest-saved`);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, buildReadlistUrl(saveContext.state, [...context.linkParams, ["error_code", "save_failed"]]));
+			res.redirect(303, buildReadlistUrl(saveContext.state, [["error_code", "save_failed"]]));
 		}
 	});
 
@@ -1949,10 +1935,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const context = await resolveReadlistContext(req, userId);
-		if (!context.railed) {
-			res.status(404).type("html").send("");
-			return;
-		}
 		const slug = generateReadlistSlug();
 		const label = defaultReadlistLabel(context.readlists.map((readlist) => readlist.label));
 
@@ -1968,14 +1950,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			res.redirect(
 				303,
 				buildReadlistUrl(context.state, [
-					...context.linkParams,
 					["queue_error", READLIST_ERROR_LIMIT],
 				]),
 			);
 			return;
 		}
 
-		res.redirect(303, buildReadlistUrl({ readlist: slug }, context.linkParams));
+		res.redirect(303, buildReadlistUrl({ readlist: slug }));
 	});
 
 	router.post(
@@ -2029,15 +2010,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				res.redirect(
 					303,
 					buildReadlistUrl({}, [
-						...context.linkParams,
 						["queue_error", READLIST_ERROR_UNKNOWN_READLIST],
 					]),
 				);
 			};
-			if (!context.railed) {
-				res.status(404).type("html").send("");
-				return;
-			}
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
 			if (!requested.success) {
 				unknownReadlist();
@@ -2070,7 +2046,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				unknownReadlist();
 				return;
 			}
-			res.redirect(303, buildReadlistUrl({}, context.linkParams));
+			res.redirect(303, buildReadlistUrl({}));
 		},
 	);
 
@@ -2361,7 +2337,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		res.redirect(303, buildReadlistUrl(context.state, [...collectUtmParams(req.query), ...flashParams, ...context.linkParams]));
+		res.redirect(303, buildReadlistUrl(context.state, [...collectUtmParams(req.query), ...flashParams]));
 	});
 
 	router.post("/:id/delete", async (req: Request, res: Response) => {
@@ -2378,7 +2354,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			await deleteArticleFromReadlistFor(context.state.readlist)({ articleId: parsedId.data, userId });
 		}
 
-		res.redirect(303, buildReadlistUrl(context.state, context.linkParams));
+		res.redirect(303, buildReadlistUrl(context.state));
 	});
 
 	router.post(

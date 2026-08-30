@@ -16,7 +16,7 @@ function parse(html: string): Document {
 }
 
 async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues?feature=queues");
+	const response = await agent.post("/queue/queues");
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -47,12 +47,12 @@ function queueSlugs(doc: Document): (string | null)[] {
 }
 
 function deleteReadlist(agent: TestAgent, slug: string) {
-	return agent.post(`/queue/queues/${slug}/delete?feature=queues`);
+	return agent.post(`/queue/queues/${slug}/delete`);
 }
 
 function deleteReadlistMovingTo(agent: TestAgent, slug: string, destination: string) {
 	return agent
-		.post(`/queue/queues/${slug}/delete?feature=queues`)
+		.post(`/queue/queues/${slug}/delete`)
 		.type("form")
 		.send({ migrate_to: destination });
 }
@@ -66,10 +66,8 @@ describe("POST /queue/queues/:slug/delete", () => {
 		const response = await deleteReadlist(agent, slug);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?feature=queues");
-		expect(queueSlugs(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
-			"default",
-		]);
+		expect(response.headers.location).toBe("/queue");
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default"]);
 	});
 
 	it("takes the readlist's own rows with it, so nothing is left where no query can reach", async () => {
@@ -171,7 +169,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 
 		const response = await deleteReadlist(agent, "default");
 
-		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_readlist");
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 	});
 
 	it("refuses a readlist the reader does not own", async () => {
@@ -180,7 +178,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 
 		const response = await deleteReadlist(agent, "ffffffffffffffff");
 
-		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_readlist");
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 	});
 
 	it("refuses a slug no readlist could ever carry", async () => {
@@ -189,29 +187,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 
 		const response = await deleteReadlist(agent, "NOT A SLUG");
 
-		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_readlist");
-	});
-
-	it("is unreachable for a reader who owns no readlist and never asked for the feature", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.post("/queue/queues/abcdef0123456789/delete");
-
-		expect(response.status).toBe(404);
-	});
-
-	it("stays reachable without the flag once the reader owns a readlist", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
-
-		const response = await agent.post(`/queue/queues/${slug}/delete`);
-
-		expect(response.headers.location).toBe("/queue");
-		expect(queueSlugs(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
-			"default",
-		]);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 	});
 
 	it("sends a signed-out visitor to the login page", async () => {
@@ -236,7 +212,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 		const response = await deleteReadlistMovingTo(agent, source, destination);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?feature=queues");
+		expect(response.headers.location).toBe("/queue");
 		const landed = await harness.articleStore.findReadlistArticles({
 			userId,
 			readlist: ReadlistSlugSchema.parse(destination),
@@ -244,10 +220,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 		expect(landed.articles.map((article) => article.url)).toEqual([
 			"https://example.com/moved",
 		]);
-		expect(queueSlugs(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
-			"default",
-			destination,
-		]);
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", destination]);
 	});
 
 	it("carries the read state the article had in the readlist it left", async () => {
@@ -331,7 +304,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 
 		const response = await deleteReadlistMovingTo(agent, source, "default");
 
-		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_readlist");
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 		expect(
 			await harness.articleStore.countReadlistArticles({
 				userId,
@@ -347,11 +320,8 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 
 		const response = await deleteReadlistMovingTo(agent, source, source);
 
-		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_readlist");
-		expect(queueSlugs(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
-			"default",
-			source,
-		]);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", source]);
 	});
 
 	it("refuses a destination the reader does not own", async () => {
@@ -361,7 +331,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 
 		const response = await deleteReadlistMovingTo(agent, source, "ffffffffffffffff");
 
-		expect(response.headers.location).toBe("/queue?feature=queues&queue_error=unknown_readlist");
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 	});
 
 	it("deletes as it always did when the reader leaves the articles behind", async () => {
@@ -380,9 +350,6 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 				readlist: ReadlistSlugSchema.parse(destination),
 			}),
 		).toBe(0);
-		expect(queueSlugs(parse((await agent.get("/queue?feature=queues")).text))).toEqual([
-			"default",
-			destination,
-		]);
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", destination]);
 	});
 });

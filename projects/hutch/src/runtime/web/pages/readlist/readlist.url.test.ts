@@ -123,8 +123,8 @@ describe("buildReadlistUrl", () => {
 		expect(buildReadlistUrl(parseReadlistUrl({ queue: DEFAULT_READLIST_SLUG, tab: "done" }))).toBe("/queue?tab=done");
 	});
 
-	it("should drop unmodelled params on the round trip, so a feature flag cannot ride every tab, sort and pagination link — gate the one render site instead, and pass transient pairs through extraParams", () => {
-		expect(buildReadlistUrl(parseReadlistUrl({ tab: "done", feature: "my", utm_source: "x" }))).toBe(
+	it("should drop unmodelled params on the round trip, so a transient pair rides only the link that passes it through extraParams", () => {
+		expect(buildReadlistUrl(parseReadlistUrl({ tab: "done", ref: "my", utm_source: "x" }))).toBe(
 			"/queue?tab=done",
 		);
 	});

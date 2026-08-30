@@ -7,15 +7,15 @@ interface RenameCall {
 	init: RequestInit;
 }
 
-const RENAME_ACTION = "/queue/queues/new-readlist/rename?feature=queues";
-const TAB_HREF = "/queue?queue=new-readlist&feature=queues";
+const RENAME_ACTION = "/queue/queues/new-readlist/rename";
+const TAB_HREF = "/queue?queue=new-readlist";
 
 function tabMarkup(label = "New Readlist"): string {
 	return `<nav class="readlist-nav"><ul class="readlist-nav__list"><li class="readlist-nav__item"><a class="readlist-nav__link" href="/queue" data-test-readlist="default"><span class="readlist-nav__label">All</span></a></li><li class="readlist-nav__item"><a class="readlist-nav__link readlist-nav__link--active" href="${TAB_HREF}" aria-current="page" hx-boost="false" aria-label="Rename ${label}" data-readlist-rename="${RENAME_ACTION}" data-readlist-rename-field="label" data-readlist-label-max="24" data-test-readlist="new-readlist"><span class="readlist-nav__label">${label}</span><svg aria-hidden="true"></svg></a></li></ul></nav>`;
 }
 
 function pageMarkup(label?: string): string {
-	return `${tabMarkup(label)}<h1 class="readlist__title">New Readlist</h1><div id="status-toast"></div><div class="sr-only" id="toast-live-region"></div>`;
+	return `${tabMarkup(label)}<div id="status-toast"></div><div class="sr-only" id="toast-live-region"></div>`;
 }
 
 function init(
@@ -29,7 +29,7 @@ function init(
 ) {
 	const dom = new JSDOM(
 		`<!DOCTYPE html><html><head><title>New Readlist — Readplace</title></head><body>${bodyHtml}</body></html>`,
-		{ url: "https://readplace.test/queue?queue=new-readlist&feature=queues" },
+		{ url: "https://readplace.test/queue?queue=new-readlist" },
 	);
 	const document = dom.window.document;
 	const calls: RenameCall[] = [];
@@ -168,7 +168,7 @@ describe("initReadlistRename", () => {
 	});
 
 	it("does nothing on a page with no readlist to rename", () => {
-		const page = init(`<h1 class="readlist__title">All</h1>`);
+		const page = init(`<nav class="readlist-nav"></nav>`);
 
 		expect(page.calls).toEqual([]);
 	});
@@ -230,7 +230,6 @@ describe("initReadlistRename", () => {
 		await settled();
 
 		expect(page.label().textContent).toBe("Work Reading 2");
-		expect(page.document.querySelector(".readlist__title")?.textContent).toBe("Work Reading 2");
 		expect(page.document.title).toBe("Work Reading 2 — Readplace");
 		expect(page.document.querySelector("#toast-live-region")?.textContent).toBe(
 			"Readlist renamed to Work Reading 2.",
@@ -250,7 +249,7 @@ describe("initReadlistRename", () => {
 		await settled();
 
 		expect(page.label().textContent).toBe("Work Reading 2");
-		expect(page.document.querySelector(".readlist__title")?.textContent).toBe("Work Reading 2");
+		expect(page.document.title).toBe("Work Reading 2 — Readplace");
 	});
 
 	it("keeps an open edit through a swap that leaves its tab standing", () => {
@@ -308,7 +307,6 @@ describe("initReadlistRename", () => {
 		await settled();
 
 		expect(page.label().textContent).toBe("Work Reading");
-		expect(page.document.querySelector(".readlist__title")?.textContent).toBe("Work Reading");
 		expect(page.document.title).toBe("Work Reading — Readplace");
 		expect(page.document.querySelector("#toast-live-region")?.textContent).toBe(
 			"Readlist renamed to Work Reading.",
@@ -376,7 +374,7 @@ describe("initReadlistRename", () => {
 		await settled();
 
 		expect(page.label().textContent).toBe("Deep Work");
-		expect(page.document.querySelector(".readlist__title")?.textContent).toBe("Deep Work");
+		expect(page.document.title).toBe("Deep Work — Readplace");
 		expect(page.label().getAttribute("contenteditable")).toBeNull();
 	});
 
@@ -397,7 +395,6 @@ describe("initReadlistRename", () => {
 
 		expect(page.label().textContent).toBe("Deep Work");
 		expect(page.label().getAttribute("contenteditable")).toBe("true");
-		expect(page.document.querySelector(".readlist__title")?.textContent).toBe("New Readlist");
 		expect(page.document.title).toBe("New Readlist — Readplace");
 	});
 

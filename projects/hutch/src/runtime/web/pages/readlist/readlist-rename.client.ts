@@ -17,7 +17,6 @@ const MAX_ATTR = "data-readlist-label-max";
 const RENAME_SELECTOR = `[${ACTION_ATTR}]`;
 const LABEL_SELECTOR = ".readlist-nav__label";
 const EDITING_CLASS = "readlist-nav__link--editing";
-const TITLE_SELECTOR = ".readlist__title";
 const TOAST_MOUNT_SELECTOR = "#status-toast";
 const LIVE_REGION_SELECTOR = "#toast-live-region";
 const TOAST_DISMISS_MS = 6000;
@@ -149,7 +148,6 @@ export function initReadlistRename(deps: ReadlistRenameDeps): void {
 
 	function succeed(action: string, label: string): void {
 		setText(`[${ACTION_ATTR}="${action}"] ${LABEL_SELECTOR}`, label);
-		setText(TITLE_SELECTOR, label);
 		setText(LIVE_REGION_SELECTOR, `Readlist renamed to ${label}.`);
 		deps.document.title = `${label}${SITE_TITLE_SUFFIX}`;
 		finishEditing();
