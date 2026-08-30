@@ -156,7 +156,7 @@ No custom `*.client.js` is needed when htmx covers the interaction. Reserve `*.c
 
 IMPORTANT: Ask for human intervention whenever a deviation from htmx is needed away from this basic pattern for SPA navigation.
 
-**Sanctioned deviation — card-scoped list mutations.** A mutation whose only visible effect is that one list row changes may swap the row instead of re-shipping the whole `<main>`, when re-rendering `<main>` is the measured cost. The queue's card mark-read/unread do this: the form targets the row (`hx-target="closest .queue-article" hx-swap="outerHTML"`); a `swap=card` marker on the action href — a response-representation hint the server never trusts as state, consistent with the URL-as-state rule below — routes an htmx submit to a small card-removal fragment plus out-of-band toast/counts; and the **server**, never the client, decides when the DOM has drifted (page emptied, page beyond the last, the pagination controls changed, or the change didn't apply) and answers with the full listing via `HX-Retarget: main`. The no-JS, Undo, reader and API callers keep the byte-identical `<main>`/303 path, and delete keeps its full-`<main>` confirm-popover flow. This is already decided — follow it for equivalent list-row mutations instead of re-asking. See `pages/queue/queue.page.ts` (`respondCardStatusSwap`) and `queue-mutation-fragments.ts`.
+**Sanctioned deviation — card-scoped list mutations.** A mutation whose only visible effect is that one list row changes may swap the row instead of re-shipping the whole `<main>`, when re-rendering `<main>` is the measured cost. The readlist's card mark-read/unread do this: the form targets the row (`hx-target="closest .readlist-article" hx-swap="outerHTML"`); a `swap=card` marker on the action href — a response-representation hint the server never trusts as state, consistent with the URL-as-state rule below — routes an htmx submit to a small card-removal fragment plus out-of-band toast/counts; and the **server**, never the client, decides when the DOM has drifted (page emptied, page beyond the last, the pagination controls changed, or the change didn't apply) and answers with the full listing via `HX-Retarget: main`. The no-JS, Undo, reader and API callers keep the byte-identical `<main>`/303 path, and delete keeps its full-`<main>` confirm-popover flow. This is already decided — follow it for equivalent list-row mutations instead of re-asking. See `pages/readlist/readlist.page.ts` (`respondCardStatusSwap`) and `readlist-mutation-fragments.ts`.
 
 ### No Side Effects on GET
 
@@ -394,7 +394,7 @@ them, so a template's indentation reflects DOM structure rather than control
 flow.
 
 ```html
-<div class="queue-article__actions">
+<div class="readlist-article__actions">
   {{#each actions}}
   <form method="{{method}}" action="{{url}}">
     <button type="submit">{{text}}</button>
