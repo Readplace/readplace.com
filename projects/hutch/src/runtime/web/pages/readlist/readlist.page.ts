@@ -1136,10 +1136,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		);
 	};
 
-	/** Renders the full readlist listing from an already-fetched page of rows — the
-	 * tail shared by the top-of-page GET and the card-mutation fallback. Never
-	 * fetches the listing itself, so GET stays single-fetch and the fallback can
-	 * feed it the metadata-only page probe it already holds. */
 	const buildReadlistRail = (
 		req: Request,
 		context: ReadlistContext,
@@ -1168,6 +1164,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		return held > 0;
 	};
 
+	/** Renders the full readlist listing from an already-fetched page of rows — the
+	 * tail shared by the top-of-page GET and the card-mutation fallback. Never
+	 * fetches the listing itself, so GET stays single-fetch and the fallback can
+	 * feed it the metadata-only page probe it already holds. */
 	const renderReadlistListing = async (
 		req: Request,
 		res: Response,
