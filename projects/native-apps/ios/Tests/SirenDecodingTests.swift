@@ -134,6 +134,37 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(article.readHref, "/queue/x/view", "the read link still drives the row's primary tap target")
 	}
 
+	func testRowControlsSkipATitlelessUnrecognisedItemActionButRenderATitledOne() throws {
+		let json = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+			"actions": [
+				{ "name": "update-status", "href": "/queue/x/status", "method": "POST", "fields": [{ "name": "status", "type": "text", "value": "read" }] },
+				{ "name": "pin", "title": "Pin", "href": "/queue/x/pin", "method": "POST" },
+				{ "name": "mint-token", "href": "/queue/x/mint", "method": "POST" }
+			] }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertEqual(
+			article.rowControls.map(\.token), ["update-status", "pin"],
+			"a recognised token renders without a title and a titled unknown renders with the default look; a title-less unknown is a machine capability the row never surfaces as a swipe"
+		)
+	}
+
+	func testRowControlsSkipATitlelessUnrecognisedItemLinkButRenderATitledOne() throws {
+		let json = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+			"links": [
+				{ "rel": ["share"], "href": "/queue/x/share", "title": "Share" },
+				{ "rel": ["provenance"], "href": "/queue/x/provenance" }
+			] }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertEqual(
+			article.rowControls.compactMap(\.link).map { $0.rel.first }, ["share"],
+			"the same machine-capability rule the toolbar applies: a title-less link the client doesn't recognise is not a row control"
+		)
+	}
+
 	func testAffordanceLabelFallsBackToHumanizedTokenWhenServerSendsNoTitle() throws {
 		let action = SirenAction(name: "update-status", href: "/x", method: "POST", title: nil, type: nil, fields: nil)
 		let affordance = try XCTUnwrap(Affordance(action: action))

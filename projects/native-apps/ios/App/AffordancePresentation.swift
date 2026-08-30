@@ -13,12 +13,6 @@ struct AffordancePresentation {
 	/// Whether the control mutates server state with no undo — the View uses this
 	/// to mark a swipe action destructive and to confirm before invoking.
 	let isDestructive: Bool
-	/// Whether invoking the control removes the item it acts on from the list it
-	/// was invoked from, knowable from the wire token alone. `delete` always removes
-	/// the item, and every list is partitioned by status, so `update-status` — a
-	/// toggle in either direction — always moves the item out of the tab it was
-	/// listed under.
-	let removesItem: Bool
 	/// Whether the wire token alone allows presenting this affordance as a
 	/// collection toolbar control. `false` for two kinds excluded structurally (not
 	/// name-gated as a known capability): a structural navigation link
@@ -32,7 +26,7 @@ struct AffordancePresentation {
 	let isToolbarControl: Bool
 	/// Whether the client recognises this wire token as one of its own mapped
 	/// affordances (an explicit case below) rather than the neutral default an
-	/// unknown token falls to. `Affordance.isToolbarControl` surfaces an
+	/// unknown token falls to. `Affordance.isUserControl` surfaces an
 	/// *unrecognised* affordance as a control only when the server also gave it a
 	/// human `title`: a title-less token the client doesn't recognise is a machine
 	/// capability the client invokes bespoke (like `create-session`), advertised on
@@ -54,7 +48,6 @@ struct AffordancePresentation {
 			systemImage = "plus"
 			tint = nil
 			isDestructive = false
-			removesItem = false
 			isToolbarControl = false
 			isRecognizedToken = true
 			showsTitle = false
@@ -65,7 +58,6 @@ struct AffordancePresentation {
 			systemImage = "key"
 			tint = nil
 			isDestructive = false
-			removesItem = false
 			isToolbarControl = false
 			isRecognizedToken = true
 			showsTitle = false
@@ -73,7 +65,6 @@ struct AffordancePresentation {
 			systemImage = "checkmark.circle"
 			tint = .brandSuccess
 			isDestructive = false
-			removesItem = true
 			isToolbarControl = true
 			isRecognizedToken = true
 			showsTitle = false
@@ -81,7 +72,6 @@ struct AffordancePresentation {
 			systemImage = "trash"
 			tint = .red
 			isDestructive = true
-			removesItem = true
 			isToolbarControl = true
 			isRecognizedToken = true
 			showsTitle = false
@@ -89,7 +79,6 @@ struct AffordancePresentation {
 			systemImage = "magnifyingglass"
 			tint = nil
 			isDestructive = false
-			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = true
 			showsTitle = false
@@ -97,7 +86,6 @@ struct AffordancePresentation {
 			systemImage = "person.crop.circle"
 			tint = nil
 			isDestructive = false
-			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = true
 			showsTitle = true
@@ -105,7 +93,6 @@ struct AffordancePresentation {
 			systemImage = "plus"
 			tint = nil
 			isDestructive = false
-			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = true
 			showsTitle = false
@@ -113,7 +100,6 @@ struct AffordancePresentation {
 			systemImage = "ellipsis.circle"
 			tint = nil
 			isDestructive = false
-			removesItem = false
 			isToolbarControl = false
 			isRecognizedToken = true
 			showsTitle = false
@@ -121,7 +107,6 @@ struct AffordancePresentation {
 			systemImage = "ellipsis.circle"
 			tint = nil
 			isDestructive = false
-			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = false
 			showsTitle = false
@@ -190,15 +175,21 @@ extension Affordance {
 	/// presentable in the toolbar (a structural navigation link or a capture-only
 	/// save is excluded), not carry any structural rel, be actually invokable from a
 	/// bare control (a field-requiring action with no server value is excluded), and
-	/// either be a token the client recognises or carry a server `title`. The last
-	/// rule keeps a machine capability the client doesn't recognise and the server
-	/// didn't title (e.g. a future `create-session`-like action minting a session)
-	/// from phantom-rendering as a mystery button on an already-shipped build — the
-	/// server signals "render this" by giving the affordance a human `title`.
+	/// be a user control.
 	var isToolbarControl: Bool {
 		guard !isStructuralLink else { return false }
 		guard presentation.isToolbarControl, isInvokableByBareControl else { return false }
-		return presentation.isRecognizedToken || hasServerTitle
+		return isUserControl
+	}
+
+	/// Whether this affordance is a user control: either a token the client
+	/// recognises or one the server gave a `title`. The rule keeps a machine
+	/// capability the client doesn't recognise and the server didn't title (e.g. a
+	/// future `create-session`-like action minting a session) from phantom-rendering
+	/// as a mystery control on an already-shipped build — the server signals "render
+	/// this" by giving the affordance a human `title`.
+	var isUserControl: Bool {
+		presentation.isRecognizedToken || hasServerTitle
 	}
 
 	/// Whether the server gave this affordance a human `title` — its signal that the
@@ -210,28 +201,18 @@ extension Affordance {
 		case let .link(link): return link.title?.isEmpty == false
 		}
 	}
-
-	/// Whether invoking this affordance removes the item it acts on from the list
-	/// it was invoked from — the row the post-action adoption drops when the
-	/// server's returned collection can't confirm it (a deep-scrolled merge keeps
-	/// rows the fresh head doesn't cover, and a non-collection response carries no
-	/// re-list direction at all).
-	var removesItemFromList: Bool { presentation.removesItem }
 }
 
 extension Article {
 	/// The advertised item affordances a row surfaces as swipe and accessibility
-	/// controls: every action a bare control can actually invoke, plus every semantic
-	/// link that is neither structural plumbing nor the `read` tap target — so a
-	/// future item link (e.g. `share`) renders instead of being discarded. Like the
-	/// toolbar, the row drops a field-requiring action with no server value so a
-	/// future such item action is never rendered as a swipe that errors on tap. The
-	/// selection lives here, beside the symmetric toolbar rule
+	/// controls. Like the toolbar, the row drops a field-requiring action with no
+	/// server value so a future such item action is never rendered as a swipe that
+	/// errors on tap. The selection lives here, beside the symmetric toolbar rule
 	/// (`Affordance.isToolbarControl`) and the shared predicates it reuses
-	/// (`isInvokableByBareControl`, `isSemanticControlLink`), so the row's choice of
-	/// controls is unit-testable without standing up a view.
+	/// (`isInvokableByBareControl`, `isSemanticControlLink`, `isUserControl`), so the
+	/// row's choice of controls is unit-testable without standing up a view.
 	var rowControls: [Affordance] {
-		affordances.filter(\.isInvokableByBareControl)
-			+ links.compactMap(Affordance.init(link:)).filter(\.isSemanticControlLink)
+		affordances.filter { $0.isInvokableByBareControl && $0.isUserControl }
+			+ links.compactMap(Affordance.init(link:)).filter { $0.isSemanticControlLink && $0.isUserControl }
 	}
 }

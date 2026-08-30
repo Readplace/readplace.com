@@ -22,9 +22,22 @@ enum APIError: LocalizedError {
 		case .unauthorized: return "Your session expired. Please sign in again."
 		case .server(let status, let code, let message):
 			return message ?? "Server error \(status)\(code.map { " (\($0))" } ?? "")."
-		case .refused(let messages): return messages.map(\.plainText).joined(separator: "\n")
+		case .refused(let messages):
+			let serverCopy = messages.map(\.plainText).joined(separator: "\n")
+			return serverCopy.isEmpty ? "Couldn't complete that." : serverCopy
 		case .unsupportedMediaType: return "The server replied in a format this app doesn't understand."
 		case .decoding: return "Could not read the server response."
+		}
+	}
+}
+
+extension APIError {
+	static func isRefusalOrAuthFailure(_ error: Error) -> Bool {
+		guard let apiError = error as? APIError else { return false }
+		switch apiError {
+		case .refused, .unauthorized, .noToken: return true
+		case .server(let status, _, _): return status == 403
+		case .unsupportedMediaType, .decoding: return false
 		}
 	}
 }
@@ -137,6 +150,14 @@ final class ReadplaceAPI {
 	/// otherwise it follows a link href the server already handed back (e.g. the
 	/// `next` link).
 	func loadReadlist(path: String? = nil) async throws -> ReadlistPage {
+		try await loadReadlist(path: path, cachePolicy: .useProtocolCachePolicy)
+	}
+
+	func rediscoverReadlist() async throws -> ReadlistPage {
+		try await loadReadlist(path: nil, cachePolicy: .reloadIgnoringLocalCacheData)
+	}
+
+	private func loadReadlist(path: String?, cachePolicy: URLRequest.CachePolicy) async throws -> ReadlistPage {
 		let url: URL
 		if let path {
 			url = try absoluteURL(path)
@@ -146,6 +167,7 @@ final class ReadplaceAPI {
 		}
 		var request = URLRequest(url: url)
 		request.httpMethod = "GET"
+		request.cachePolicy = cachePolicy
 		let (data, http) = try await send(request)
 		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
 		return ReadlistPage(collection: try decodeSiren(SirenCollection.self, data: data, response: http))
@@ -479,15 +501,12 @@ final class ReadplaceAPI {
 	/// generic save failure. The refusal carries no action — nothing to follow.
 	///
 	/// Messages whose media type the client can't render are dropped (be liberal
-	/// in what you accept, conservative in what you render); a refusal left with no
-	/// renderable message is treated as not-a-refusal so it never shows blank.
+	/// in what you accept, conservative in what you render).
 	private func refusalError(from data: Data) -> APIError? {
 		guard let sirenError = try? JSONDecoder().decode(SirenError.self, from: data),
 			let messages = sirenError.properties.messages
 		else { return nil }
-		let renderable = messages.filter(\.isRenderable)
-		guard !renderable.isEmpty else { return nil }
-		return .refused(messages: renderable)
+		return .refused(messages: messages.filter(\.isRenderable))
 	}
 }
 
@@ -499,6 +518,8 @@ private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDe
 		newRequest request: URLRequest,
 		completionHandler: @escaping (URLRequest?) -> Void
 	) {
-		completionHandler(RedirectHeaders.preserving(from: task.originalRequest, onto: request))
+		var followed = RedirectHeaders.preserving(from: task.originalRequest, onto: request)
+		if let original = task.originalRequest { followed.cachePolicy = original.cachePolicy }
+		completionHandler(followed)
 	}
 }

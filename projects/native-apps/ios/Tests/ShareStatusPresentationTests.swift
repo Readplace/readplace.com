@@ -102,6 +102,14 @@ final class ShareStatusPresentationTests: XCTestCase {
 		XCTAssertEqual(status.tone, .error)
 	}
 
+	func testRefusedFallsBackToItsOwnWordsWhenNoServerMessageIsRenderable() {
+		let status = present(.refused([]))
+		XCTAssertEqual(status.message, "Couldn't save this link.")
+		XCTAssertNil(status.subtitle)
+		XCTAssertEqual(status.symbol, "lock.fill")
+		XCTAssertEqual(status.tone, .warning)
+	}
+
 	func testFailedCarriesTheServerMessageAsError() {
 		let status = present(.failed("Something broke"))
 		XCTAssertEqual(status.message, "Something broke")

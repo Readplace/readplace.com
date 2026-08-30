@@ -73,10 +73,17 @@ struct SaveSharedPage {
 		defer { content.cancel() }
 
 		do {
-			let page = try await api.loadReadlist()
+			var page = try await api.loadReadlist()
 			onNotice(page.noticeMessages)
 			guard let action = page.action(named: "save-article") else { return .noSaveAction }
-			let confirmation = try await api.saveArticle(action: action, url: url.absoluteString)
+			let confirmation: ReadplaceAPI.SaveConfirmation
+			do {
+				confirmation = try await api.saveArticle(action: action, url: url.absoluteString)
+			} catch let error where !APIError.isRefusalOrAuthFailure(error) {
+				page = try await api.rediscoverReadlist()
+				guard let rediscovered = page.action(named: "save-article") else { return .noSaveAction }
+				confirmation = try await api.saveArticle(action: rediscovered, url: url.absoluteString)
+			}
 			unseenSave?.record()
 			let admitted = await admit(page: page, url: url, title: fallbackTitle)
 			onSaved(confirmation.messages)

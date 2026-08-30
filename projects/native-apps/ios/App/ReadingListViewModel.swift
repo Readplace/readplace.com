@@ -34,17 +34,18 @@ final class ReadingListViewModel: ObservableObject {
 	private var nextHref: String?
 	private var currentTabHref: String?
 	private var tabGeneration = 0
+	private var readsStarted = 0
+	private var readApplied = 0
+	private var readsInFlight = 0 {
+		didSet { isLoading = readsInFlight > 0 }
+	}
 	/// The server-advertised `create-session` action from the loaded collection,
 	/// followed to mint the reader's browser session. Nil against a server that
 	/// hasn't advertised it, in which case the API falls back to a fixed path.
 	private var sessionAction: SirenAction?
 	private var isLoadingMore = false
 	private var isDrainingUploads = false
-	/// Whether rows beyond the first page are loaded. A post-action adoption
-	/// replaces the list outright only while everything on screen came from one
-	/// page; once the user has scrolled deeper, adoption merges instead, so the
-	/// rows anchoring the scroll position survive (see `adopt`).
-	private var hasPaginated = false
+	private var pagesHeld = 0
 	/// Whether a collection has ever been applied. Gates the foreground refresh so
 	/// it never races the initial `.task` load with a second fetch at launch.
 	private var hasLoadedOnce = false
@@ -98,7 +99,7 @@ final class ReadingListViewModel: ObservableObject {
 		articles = []
 		nextHref = nil
 		hasMore = false
-		hasPaginated = false
+		pagesHeld = 0
 		isLoadingMore = false
 		await fetchFirstPage()
 	}
@@ -107,9 +108,20 @@ final class ReadingListViewModel: ObservableObject {
 		generation == tabGeneration
 	}
 
+	private func beginRead() -> Int {
+		readsStarted += 1
+		readsInFlight += 1
+		return readsStarted
+	}
+
+	private func endRead() {
+		readsInFlight -= 1
+	}
+
 	private func fetchFirstPage() async {
 		let generation = tabGeneration
-		isLoading = true
+		let read = beginRead()
+		defer { endRead() }
 		errorText = nil
 		// A locked account's reads still succeed, so a fresh load reconciles a
 		// stale refusal banner (e.g. after verifying elsewhere): clear it here,
@@ -118,64 +130,44 @@ final class ReadingListViewModel: ObservableObject {
 		do {
 			let page = try await api.loadReadlist(path: currentTabHref)
 			guard tabUnchanged(since: generation) else { return }
-			apply(page, replacing: true)
+			replace(with: page, deeperPages: [], read: read)
 		} catch {
 			guard tabUnchanged(since: generation) else { return }
 			handle(error)
 		}
-		isLoading = false
 	}
 
 	func loadMore() async {
 		guard let next = nextHref, !isLoadingMore else { return }
 		let generation = tabGeneration
+		let listVersion = readApplied
 		isLoadingMore = true
 		do {
 			let page = try await api.loadReadlist(path: next)
-			if tabUnchanged(since: generation) { apply(page, replacing: false) }
+			if tabUnchanged(since: generation), listVersion == readApplied { apply(page, replacing: false) }
 		} catch {
 			if tabUnchanged(since: generation) { handle(error) }
 		}
 		if tabUnchanged(since: generation) { isLoadingMore = false }
 	}
 
-	/// Invokes one of an item's advertised actions via the action's own
-	/// href/method/fields. The client supplies no field knowledge: every declared
-	/// field's server-suggested `value` is posted by the generic invoker, so a bare
-	/// (action, item) invocation is sufficient — `update-status` carries its target
-	/// status as the field `value`, not a client constant. On success the list
-	/// converges to whatever collection the server drove the invoke back to — the
-	/// post-action truth, carrying changes made elsewhere (an item marked unread on
-	/// the website appears right here). A failure surfaces the error and leaves the
-	/// current list in place; there is no optimistic removal to roll back.
-	func invoke(_ action: SirenAction, on article: Article) async {
-		let removesItem = Affordance(action: action)?.removesItemFromList ?? false
+	/// Invokes an advertised action via the action's own href/method/type/fields
+	/// through the generic invoker. The client supplies no field knowledge: every
+	/// declared field's server-suggested `value` is posted, so a bare invocation is
+	/// sufficient — `update-status` carries its target status as the field `value`,
+	/// not a client constant. On success the list converges to whatever collection
+	/// the server drove the invoke back to — the post-action truth, carrying changes
+	/// made elsewhere (an item marked unread on the website appears right here). A
+	/// failure surfaces the error and leaves the current list in place; there is no
+	/// optimistic removal to roll back.
+	func invoke(_ action: SirenAction) async {
 		let generation = tabGeneration
+		let read = beginRead()
+		defer { endRead() }
 		do {
 			let page = try await api.invoke(action: action)
 			guard tabUnchanged(since: generation) else { return }
-			adopt(page, droppingId: removesItem ? article.id : nil)
-		} catch {
-			handle(error)
-		}
-	}
-
-	/// Invokes a collection-level action via its own href/method/type/fields through
-	/// the generic invoker — the bare-invokable toolbar control path. The action
-	/// carries no row and reshapes the whole list (e.g. a purge), so the server's
-	/// post-invoke collection replaces it outright; when the invoke lands on no
-	/// collection, a fresh first-page load converges instead. A failure surfaces
-	/// the error and leaves the current list in place.
-	func invokeCollection(_ action: SirenAction) async {
-		let generation = tabGeneration
-		do {
-			let page = try await api.invoke(action: action)
-			guard tabUnchanged(since: generation) else { return }
-			if let page {
-				apply(page, replacing: true)
-			} else {
-				await fetchFirstPage()
-			}
+			await adopt(page, read: read)
 		} catch {
 			handle(error)
 		}
@@ -185,11 +177,10 @@ final class ReadingListViewModel: ObservableObject {
 	/// webview. The reader's own POST answers where no Siren body is available and
 	/// the client cannot see which direction the toggle went, so it does not infer
 	/// "read" and drop a row — it re-reads the collection and adopts the server's
-	/// truth (a shallow list), which also brings in whatever changed elsewhere (e.g.
-	/// an item marked unread on the website). A deep-scrolled list holds its position
-	/// and reconciles on the next pull-to-refresh (`reloadAndAdopt`).
+	/// truth, which also brings in whatever changed elsewhere (e.g. an item marked
+	/// unread on the website).
 	func readerStatusChanged() async {
-		await reloadAndAdopt(droppingId: nil)
+		await reloadAndAdopt()
 	}
 
 	/// Re-reads the list when the app returns to the foreground, so changes made
@@ -201,12 +192,12 @@ final class ReadingListViewModel: ObservableObject {
 	/// yank) a pull-to-refresh performs; every other deep-scrolled return stays
 	/// zero-network and holds the reader's position.
 	func handleForeground() async {
-		guard hasLoadedOnce else { return }
-		if hasPaginated {
-			guard unseenSave?.exists == true, !isLoading, !isLoadingMore else { return }
+		guard hasLoadedOnce, !isLoading else { return }
+		if pagesHeld > 1 {
+			guard unseenSave?.exists == true, !isLoadingMore else { return }
 			await refresh()
 		} else {
-			await reloadAndAdopt(droppingId: nil)
+			await reloadAndAdopt()
 		}
 	}
 
@@ -218,57 +209,61 @@ final class ReadingListViewModel: ObservableObject {
 	/// foreground converge is zero-network for a paginated list with no pending
 	/// share-sheet save — so without this probe the app would keep showing the
 	/// deleted account's cached list until some later call happened to 401. The
-	/// probe therefore always hits the network (no `!hasPaginated` gate, unlike
-	/// the foreground re-read): against a dead session it 401s, the refresh fails
-	/// on the revoked token, and the failure funnels into the existing
+	/// probe therefore always hits the network (no pagination gate, unlike the
+	/// foreground re-read): against a dead session it 401s, the refresh fails on
+	/// the revoked token, and the failure funnels into the existing
 	/// `onSessionExpired` sign-out — clearing the TokenStore and the cached UI. A
-	/// live session pays one shallow re-read, which doubles as the same
-	/// reconciliation the foreground performs; a deep-scrolled list still holds
-	/// its position (`adopt` discards the page).
+	/// live session pays a re-read, which doubles as the same reconciliation the
+	/// foreground performs.
 	func handleWebSheetDismissal() async {
-		await reloadAndAdopt(droppingId: nil)
+		await reloadAndAdopt()
 	}
 
-	/// Reconciles the visible list with the server's post-action collection.
-	///
-	/// While the user is near the top (only the first page loaded) the collection
-	/// replaces the list outright — pure server truth, dropping the acted-on row and
-	/// surfacing whatever changed elsewhere. Once the user has scrolled deeper,
-	/// replacing would collapse the list to one page and yank the scroll, and
-	/// splicing a fresh head above the viewport would shift it (a plain `List` does
-	/// not hold its offset across an above-viewport insert), so a deep-scrolled list
-	/// stays exactly where it is: the only change applied is the confirmed removal
-	/// of the acted-on row. The rest reconciles on the next pull-to-refresh — the
-	/// user's explicit "re-read now" gesture, which is the one place a jump to the
-	/// top is expected. With no collection to adopt (a non-collection response) the
-	/// server directed no re-list, so again only the confirmed removal is applied.
-	private func adopt(_ page: ReadlistPage?, droppingId removedId: String?) {
-		guard !hasPaginated, let page else {
-			if let removedId { articles.removeAll { $0.id == removedId } }
-			return
-		}
-		apply(page, replacing: true, droppingId: removedId)
+	private func adopt(_ page: ReadlistPage?, read: Int) async {
+		guard let page else { return await reloadAndAdopt() }
+		await adopt(firstPage: page, read: read)
 	}
 
-	/// Re-reads the first page and reconciles it through `adopt`, under an
-	/// in-flight guard so overlapping triggers (rapid app switches, a sheet
-	/// dismissal racing a foreground re-read) can't interleave. `adopt` still
-	/// holds a deep-scrolled viewport, so for the dismissal probe of a paginated
-	/// list the request serves as a bare authenticated probe whose body is
-	/// discarded.
-	private func reloadAndAdopt(droppingId removedId: String?) async {
-		guard !isLoading else { return }
+	private func adopt(firstPage: ReadlistPage, read: Int) async {
 		let generation = tabGeneration
-		isLoading = true
+		var deeperPages: [ReadlistPage] = []
+		var hopFailure: Error?
+		while deeperPages.count + 1 < pagesHeld, let next = (deeperPages.last ?? firstPage).nextHref {
+			do {
+				let page = try await api.loadReadlist(path: next)
+				guard tabUnchanged(since: generation) else { return }
+				deeperPages.append(page)
+			} catch {
+				guard tabUnchanged(since: generation) else { return }
+				hopFailure = error
+				break
+			}
+		}
+		guard replace(with: firstPage, deeperPages: deeperPages, read: read) else { return }
+		if let hopFailure { handle(hopFailure) }
+	}
+
+	@discardableResult
+	private func replace(with firstPage: ReadlistPage, deeperPages: [ReadlistPage], read: Int) -> Bool {
+		guard read > readApplied else { return false }
+		readApplied = read
+		apply(firstPage, replacing: true)
+		for page in deeperPages { apply(page, replacing: false) }
+		return true
+	}
+
+	private func reloadAndAdopt() async {
+		let generation = tabGeneration
+		let read = beginRead()
+		defer { endRead() }
 		do {
 			let page = try await api.loadReadlist(path: currentTabHref)
 			guard tabUnchanged(since: generation) else { return }
-			adopt(page, droppingId: removedId)
+			await adopt(firstPage: page, read: read)
 		} catch {
 			guard tabUnchanged(since: generation) else { return }
 			handle(error)
 		}
-		isLoading = false
 	}
 
 	/// Opens the reader for a tapped row. A row whose server response carries no
@@ -290,8 +285,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// Follows a navigable collection-level link (e.g. the `account` link) by opening
 	/// its resolved href in the same in-app web view the reader uses. A link the
 	/// client can't resolve (missing or foreign-scheme href) is a no-op, so an
-	/// unactionable link advertised by the server never opens a blank sheet. No
-	/// row is associated, so the web sheet drops nothing when it closes.
+	/// unactionable link advertised by the server never opens a blank sheet.
 	///
 	/// The href is the server's own; the app appends its app-shell marker so the
 	/// server knows the page is hosted in the deep-link-intercepting sheet and may
@@ -316,7 +310,7 @@ final class ReadingListViewModel: ObservableObject {
 				errorText = failureText
 				return
 			}
-			await reloadAndAdopt(droppingId: nil)
+			await reloadAndAdopt()
 		} catch {
 			handle(error)
 		}
@@ -342,16 +336,12 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	/// Applies a loaded page to the list. A replacing load (first page, refresh, or
-	/// a post-action collection) becomes the whole list, minus the acted-on row when
-	/// one is given — so a just-removed row never reappears even if an
-	/// eventually-consistent server GET still lists it. A paginated load appends the
-	/// rows the list doesn't already hold. `droppingId` matters only for a replacing
-	/// load; an append never re-introduces a removed row because its ids are already
-	/// present.
-	private func apply(_ page: ReadlistPage, replacing: Bool, droppingId removedId: String? = nil) {
+	/// a post-action collection) becomes the whole list. A paginated load appends
+	/// the rows the list doesn't already hold.
+	private func apply(_ page: ReadlistPage, replacing: Bool) {
 		if replacing {
-			articles = page.articles.filter { $0.id != removedId }
-			hasPaginated = false
+			articles = page.articles
+			pagesHeld = 1
 			// A fresh successful collection reconciles transient banners: a stale
 			// write-refusal (e.g. a since-verified locked account) or error is cleared
 			// here, re-surfacing only if a later write is refused.
@@ -364,7 +354,7 @@ final class ReadingListViewModel: ObservableObject {
 		} else {
 			let existing = Set(articles.map(\.id))
 			articles += page.articles.filter { !existing.contains($0.id) }
-			hasPaginated = true
+			pagesHeld += 1
 		}
 		hasLoadedOnce = true
 		nextHref = page.nextHref
@@ -406,7 +396,7 @@ final class ReadingListViewModel: ObservableObject {
 		switch error {
 		case APIError.unauthorized, APIError.noToken:
 			onSessionExpired()
-		case let APIError.refused(messages):
+		case let APIError.refused(messages) where !messages.isEmpty:
 			self.messages = messages
 		default:
 			errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -415,11 +405,10 @@ final class ReadingListViewModel: ObservableObject {
 }
 
 /// What the in-app web sheet needs to present a server URL: the resolved URL and,
-/// for a reader opened from a row, that row's id (so the row can be dropped if the
-/// reader marks it read). A navigable collection link (e.g. `save`) carries no
-/// row, so `articleId` is nil and nothing is dropped on close. `Identifiable`
-/// drives `.sheet(item:)`; the id falls back to the URL so a row-less sheet is
-/// still uniquely presentable.
+/// for a reader opened from a row, that row's id. A navigable collection link
+/// (e.g. `save`) carries no row, so `articleId` is nil. `Identifiable` drives
+/// `.sheet(item:)`; the id falls back to the URL so a row-less sheet is still
+/// uniquely presentable.
 struct ReaderPresentation: Identifiable {
 	let readerURL: URL
 	let articleId: String?

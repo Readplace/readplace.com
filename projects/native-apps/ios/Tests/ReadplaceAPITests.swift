@@ -39,6 +39,41 @@ final class ReadplaceAPITests: XCTestCase {
 
 	// MARK: - Listing
 
+	func testRediscoverReadlistBypassesTheCacheOnTheEntryPointAndTheRedirectItFollows() async throws {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: []))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let api = makeAPI(store: store)
+
+		_ = try await api.loadReadlist()
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.useProtocolCachePolicy, .useProtocolCachePolicy],
+			"an ordinary discovery read lets the server-declared cache lifetime answer"
+		)
+
+		StubURLProtocol.reset()
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, Fixtures.collection(entitiesJSON: []))
+		}
+		_ = try await api.rediscoverReadlist()
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.url?.path }, ["/", "/queue"],
+			"a re-discovery starts from the entry point and follows the redirect like any first read"
+		)
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData, .reloadIgnoringLocalCacheData],
+			"and both legs bypass the cache, so a moved href is never re-read from the stale copy"
+		)
+	}
+
 	func testLoadReadlistFollowsEntryPointRedirectAndPreservesAuthHeader() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		StubURLProtocol.setHandler { request, _ in
@@ -385,20 +420,88 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 	}
 
-	func testSaveIgnoresAMessageWhoseMediaTypeItCannotRender() async {
+	func testSaveSurfacesARefusalEvenWhenItCannotRenderItsMessage() async {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { _, _ in
 			.json(403, Fixtures.messageRefusal([(type: "warning", mediaType: "text/markdown", body: "**locked**")]))
 		}
 		do {
 			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
-			XCTFail("Expected an error")
+			XCTFail("Expected a refusal")
 		} catch let APIError.refused(messages) {
-			XCTFail("a media type the client can't render must be ignored, not surfaced: \(messages)")
+			XCTAssertEqual(
+				messages, [],
+				"a media type the client can't render is dropped, and the refusal still stands as a refusal rather than degrading to a generic server error"
+			)
 		} catch {
-			// A refusal left with no renderable message falls through to a generic
-			// server error rather than showing a blank banner — the message is ignored.
+			XCTFail("Expected APIError.refused, got \(error)")
 		}
+	}
+
+	func testRefusalsAndAuthFailuresAreTheServersAnswerWhileAnyOtherFailureMayBeAStaleAddress() {
+		for answered: Error in [
+			APIError.refused(messages: []),
+			APIError.unauthorized,
+			APIError.noToken,
+			APIError.server(status: 403, code: nil, message: nil),
+		] {
+			XCTAssertTrue(
+				APIError.isRefusalOrAuthFailure(answered),
+				"\(answered) is the server's answer to the request itself — re-posting it would repeat a mutation the server deliberately rejected"
+			)
+		}
+		for retriable: Error in [
+			APIError.server(status: 404, code: nil, message: nil),
+			APIError.server(status: 500, code: nil, message: nil),
+			APIError.decoding,
+			APIError.unsupportedMediaType("text/html"),
+			URLError(.notConnectedToInternet),
+		] {
+			XCTAssertFalse(APIError.isRefusalOrAuthFailure(retriable), "\(retriable) may be a stale address worth one re-discovery")
+		}
+	}
+
+	func testSaveRefusalDropsAMalformedMessageButKeepsTheValidOne() async {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in
+			.json(403, """
+			{ "class": ["error"], "properties": { "messages": [
+				{ "type": "warning" },
+				{ "type": "warning", "content": { "type": "text/html", "body": "show me" } }
+			] } }
+			""")
+		}
+		do {
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
+			XCTFail("Expected a refusal")
+		} catch let APIError.refused(messages) {
+			XCTAssertEqual(
+				messages.map(\.content.body), ["show me"],
+				"one malformed message is dropped on its own; the refusal and its valid sibling survive"
+			)
+		} catch {
+			XCTFail("Expected APIError.refused, got \(error)")
+		}
+	}
+
+	func testSaveArticleDropsAMalformedConfirmationMessageButStillSaves() async throws {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in
+			.json(201, """
+			{ "class": ["article"], "properties": { "id": "saved-1", "url": "https://example.com/x", "messages": [
+				{ "type": "success" },
+				{ "type": "success", "content": { "type": "text/html", "body": "Article saved" } }
+			] } }
+			""")
+		}
+
+		let confirmation = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
+
+		XCTAssertEqual(confirmation.article.id, "saved-1", "the accepted save still decodes as the article it created")
+		XCTAssertEqual(
+			confirmation.messages.map(\.content.body), ["Article saved"],
+			"one malformed confirmation message is dropped on its own rather than failing the whole save response"
+		)
 	}
 
 	func testSaveKeepsOnlyRenderableMessagesInAMixedRefusal() async {

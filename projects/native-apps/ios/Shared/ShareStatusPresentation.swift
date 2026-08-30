@@ -57,7 +57,8 @@ struct ShareStatusPresentation: Equatable {
 			symbol = "exclamationmark.triangle.fill"
 			tone = .error
 		case .refused(let messages):
-			message = messages.map(\.plainText).joined(separator: "\n")
+			let serverCopy = messages.map(\.plainText).joined(separator: "\n")
+			message = serverCopy.isEmpty ? "Couldn't save this link." : serverCopy
 			subtitle = nil
 			symbol = "lock.fill"
 			tone = messages.contains { $0.kind == .error } ? .error : .warning

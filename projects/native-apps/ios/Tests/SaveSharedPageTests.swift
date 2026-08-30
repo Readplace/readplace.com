@@ -510,7 +510,200 @@ final class SaveSharedPageTests: XCTestCase {
 			UnseenSave(containerURL: container).exists,
 			"a refused save must not make the app reset a deep-scrolled list for a link that never landed"
 		)
+		XCTAssertEqual(
+			urlOnlyPosts().count, 1,
+			"a refusal is the server's answer, not a stale address: the save is not re-discovered and retried"
+		)
 		assertUploadedNothing()
+	}
+
+	func testRefusesWithoutRetryingWhenTheServerRefusesInAMediaTypeItCannotRender() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return request.httpMethod == "POST"
+					? .json(403, Fixtures.messageRefusal([(type: "warning", mediaType: "text/markdown", body: "**locked**")]))
+					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			container: container
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(
+			outcome, .refused([]),
+			"the message is dropped for its media type, but the refusal still stands rather than degrading to a generic failure"
+		)
+		XCTAssertEqual(urlOnlyPosts().count, 1, "a refusal is never re-discovered and retried")
+		XCTAssertEqual(queuedJobs(in: container), [], "a refused save has no article to enrich")
+		XCTAssertFalse(UnseenSave(containerURL: container).exists, "no link landed, so the app owes the list no reset")
+		assertUploadedNothing()
+	}
+
+	private static func saveArticleActionJSON(href: String) -> String {
+		"""
+		{ "name": "save-article", "title": "Save a link", "href": "\(href)", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }
+		"""
+	}
+
+	private nonisolated func discoveryReads() -> [StubURLProtocol.Record] {
+		StubURLProtocol.records.filter { $0.request.httpMethod == "GET" }
+	}
+
+	func testReDiscoversPastTheCacheAndRetriesOnceWhenTheSaveActionHasMoved() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		var queueGETs = 0
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				queueGETs += 1
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")],
+					actionsJSON: Self.saveArticleActionJSON(href: queueGETs == 1 ? "/queue/save-v1" : "/queue/save-v2")
+				))
+			case "/queue/save-v1":
+				return .json(410, "{}")
+			case "/queue/save-v2":
+				return .json(201, Fixtures.article(id: "url-saved"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			container: container
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .saved([]))
+		XCTAssertEqual(
+			StubURLProtocol.records.filter { $0.request.httpMethod == "POST" }.map { $0.request.url?.path },
+			["/queue/save-v1", "/queue/save-v2"],
+			"the save is retried exactly once, against the action the fresh discovery advertised"
+		)
+		let rediscovery = Array(discoveryReads().suffix(2))
+		XCTAssertEqual(
+			rediscovery.map { $0.request.url?.path }, ["/", "/queue"],
+			"the re-discovery starts from the entry point, the one URL the client knows"
+		)
+		XCTAssertEqual(
+			rediscovery.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData, .reloadIgnoringLocalCacheData],
+			"and bypasses the discovery cache, so the moved href is never re-read from the stale copy"
+		)
+		XCTAssertTrue(UnseenSave(containerURL: container).exists, "the retried save landed, so the app owes the list a refresh")
+	}
+
+	func testRetriesTheSaveOnlyOnce() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")],
+					actionsJSON: Self.saveArticleActionJSON(href: "/queue/save-v1")
+				))
+			case "/queue/save-v1":
+				return .json(410, "{}")
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			container: container
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .failed("Server error 410."))
+		XCTAssertEqual(
+			StubURLProtocol.records.filter { $0.request.httpMethod == "POST" }.count, 2,
+			"one re-discovery and one retry: a second failure surfaces instead of looping"
+		)
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 2, "the collection was read twice — the discovery and the one re-discovery")
+		XCTAssertFalse(UnseenSave(containerURL: container).exists, "nothing landed, so the app owes the list no reset")
+	}
+
+	func testDoesNotReDiscoverAfterAForbiddenSave() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return request.httpMethod == "POST"
+					? .json(403, "{}")
+					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			container: container
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .failed("Server error 403."))
+		XCTAssertEqual(urlOnlyPosts().count, 1, "a 403 is the server's answer, not a stale address: no re-discovery, no retry")
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").filter { $0.request.httpMethod == "GET" }.count, 1)
+	}
+
+	func testGivesUpWhenTheReDiscoveredCollectionOffersNoSaveAction() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		var queueGETs = 0
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				queueGETs += 1
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")],
+					actionsJSON: queueGETs == 1 ? Self.saveArticleActionJSON(href: "/queue/save-v1") : ""
+				))
+			case "/queue/save-v1":
+				return .json(404, "{}")
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			container: container
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .noSaveAction, "the fresh discovery is the truth: with no save action advertised there is nothing left to retry")
+		XCTAssertEqual(
+			StubURLProtocol.records.filter { $0.request.httpMethod == "POST" }.map { $0.request.url?.path }, ["/queue/save-v1"],
+			"only the first, stale-href save was attempted"
+		)
 	}
 
 	func testGuardsWhenLoggedOut() async throws {

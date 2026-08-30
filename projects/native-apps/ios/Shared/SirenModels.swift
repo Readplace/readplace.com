@@ -152,6 +152,31 @@ struct ArticleProperties: Decodable {
 	let messages: [ServerMessage]?
 }
 
+extension ArticleProperties {
+	private enum CodingKeys: String, CodingKey {
+		case id, url, title, siteName, excerpt, wordCount, imageUrl, estimatedReadTimeMinutes
+		case readTime, status, savedAt, readAt, isRead, messages
+	}
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		id = try container.decode(String.self, forKey: .id)
+		url = try container.decode(String.self, forKey: .url)
+		title = try container.decodeIfPresent(String.self, forKey: .title)
+		siteName = try container.decodeIfPresent(String.self, forKey: .siteName)
+		excerpt = try container.decodeIfPresent(String.self, forKey: .excerpt)
+		wordCount = try container.decodeIfPresent(Int.self, forKey: .wordCount)
+		imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
+		estimatedReadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedReadTimeMinutes)
+		readTime = try container.decodeIfPresent(ReadTimeProperty.self, forKey: .readTime)
+		status = try container.decodeIfPresent(String.self, forKey: .status)
+		savedAt = try container.decodeIfPresent(String.self, forKey: .savedAt)
+		readAt = try container.decodeIfPresent(String.self, forKey: .readAt)
+		isRead = try container.decodeIfPresent(Bool.self, forKey: .isRead)
+		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
+	}
+}
+
 struct SirenEntity: Decodable {
 	let `class`: [String]?
 	let rel: [String]?
@@ -348,6 +373,17 @@ struct SirenErrorProperties: Decodable {
 	let code: String?
 	let message: String?
 	let messages: [ServerMessage]?
+}
+
+extension SirenErrorProperties {
+	private enum CodingKeys: String, CodingKey { case code, message, messages }
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		code = try container.decodeIfPresent(String.self, forKey: .code)
+		message = try container.decodeIfPresent(String.self, forKey: .message)
+		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
+	}
 }
 
 /// A Siren error response. The client reads only what it renders: an error body

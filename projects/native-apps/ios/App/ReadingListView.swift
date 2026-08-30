@@ -9,15 +9,13 @@ struct ReadingListView: View {
 	@State private var showingAddInstructions = false
 	/// A destructive affordance awaiting confirmation. A destructive control (e.g.
 	/// `delete`) is irreversible, so it routes here for an explicit confirm before
-	/// the invoke fires, rather than acting on the tap. `article` is nil for a
-	/// collection-level control, which acts on no row.
+	/// the invoke fires, rather than acting on the tap.
 	@State private var pendingDestructive: PendingDestructive?
 	@State private var captureAnchor = CaptureAnchor()
 
 	private struct PendingDestructive: Identifiable {
 		let affordance: Affordance
-		let article: Article?
-		var id: String { "\(affordance.id):\(article?.id ?? "collection")" }
+		var id: String { affordance.id }
 	}
 
 	init(session: AppSession, onSignedOut: @escaping () -> Void) {
@@ -177,23 +175,18 @@ struct ReadingListView: View {
 			// confirm gate lives here rather than in `ToolbarRoute.route` so routing
 			// stays name-agnostic.
 			if affordance.presentation.isDestructive {
-				pendingDestructive = PendingDestructive(affordance: affordance, article: nil)
+				pendingDestructive = PendingDestructive(affordance: affordance)
 			} else {
-				Task { await viewModel.invokeCollection(action) }
+				Task { await viewModel.invoke(action) }
 			}
 		}
 	}
 
-	/// Performs a confirmed destructive affordance. A row control invokes on its
-	/// article; a collection control invokes on the collection.
+	/// Performs a confirmed destructive affordance.
 	private func confirmDestructive(_ pending: PendingDestructive) {
 		defer { pendingDestructive = nil }
 		guard let action = pending.affordance.action else { return }
-		if let article = pending.article {
-			Task { await viewModel.invoke(action, on: article) }
-		} else {
-			Task { await viewModel.invokeCollection(action) }
-		}
+		Task { await viewModel.invoke(action) }
 	}
 
 	@ViewBuilder
@@ -233,12 +226,12 @@ struct ReadingListView: View {
 					}
 					.swipeActions(edge: .trailing, allowsFullSwipe: false) {
 						ForEach(article.rowControls) { affordance in
-							itemControl(affordance, on: article)
+							itemControl(affordance)
 						}
 					}
 					.accessibilityActions {
 						ForEach(article.rowControls) { affordance in
-							Button(affordance.label) { activate(affordance, on: article) }
+							Button(affordance.label) { activate(affordance) }
 						}
 					}
 			}
@@ -265,9 +258,9 @@ struct ReadingListView: View {
 	/// confirmation before invoking; both guard the irreversible `delete`. Every
 	/// rendered control resolves to an effect in `activate` — an action invokes, a
 	/// link opens — so none silently no-ops.
-	private func itemControl(_ affordance: Affordance, on article: Article) -> some View {
+	private func itemControl(_ affordance: Affordance) -> some View {
 		Button(role: affordance.presentation.isDestructive ? .destructive : nil) {
-			activate(affordance, on: article)
+			activate(affordance)
 		} label: {
 			Label(affordance.label, systemImage: affordance.presentation.systemImage)
 		}
@@ -281,14 +274,14 @@ struct ReadingListView: View {
 	/// are destructive is a client-side presentation decision, not a name check. Every
 	/// rendered item control resolves to an effect — a link-only affordance is opened,
 	/// not silently dropped.
-	private func activate(_ affordance: Affordance, on article: Article) {
+	private func activate(_ affordance: Affordance) {
 		switch ItemRoute.route(for: affordance) {
 		case let .open(link):
 			viewModel.open(link: link)
 		case .confirmDestructive:
-			pendingDestructive = PendingDestructive(affordance: affordance, article: article)
+			pendingDestructive = PendingDestructive(affordance: affordance)
 		case let .invoke(action):
-			Task { await viewModel.invoke(action, on: article) }
+			Task { await viewModel.invoke(action) }
 		}
 	}
 

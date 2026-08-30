@@ -155,6 +155,19 @@ This is a **published interface**: `pages`, `label`, `rel`, and `href` are the c
 - **`href` is opaque and server-built**, resolved through the client's one href resolver like any other. A client that builds `?page=` itself has reintroduced the coupling this removes.
 - **Which entries to display is client presentation.** The server sends the full list; windowing it (a few around the current page, plus the first and last) is the client's own layout decision, and `rel` is never used as a CSS class.
 
+## Infinite Scroll Is Stitched Pages — Re-read and Adopt After a Mutation
+
+A list that grew by following `next` is the client's own concatenation of several responses; the server never emitted it and cannot update it. After **any** mutation the client learns of — one it invoked, or one another surface reports (an in-app reader's bridge, a share-sheet save) — the stitched list is stale and only the server's post-mutation collection is the truth.
+
+| Rule | Why |
+|---|---|
+| Re-read **and adopt** at every scroll depth: replace the stitched list with the post-mutation first page, or re-follow the collection from its first page through the *fresh* responses' `next` links, one hop per page held, and replace the list with what came back. | A read whose body is then discarded is the same failure as no read: the row the user just acted on stays on screen. Choosing between the two is presentation (viewport reset vs held position); doing neither is a correctness bug. |
+| Scroll depth chooses *how* the client re-reads, never *whether* the collection is applied. | A "has paginated" flag that gates adoption turns a viewport nicety into a hole that opens only past page 1 — where no test looked. |
+| Never patch the stitched list by id instead. | It is the synthesise-after-mutation anti-pattern, and the id the client holds may be wrong: an in-app reader can navigate to another article before the mutation lands. |
+| Page boundaries move after a removal; render exactly what each re-followed response carried. | A row from page N+1 joining page N is the server's paging, not a client reconciliation problem. |
+
+The rule exists because the iOS reader's mark-read fetched the tab's collection and then discarded it whenever the list was past page 1, so the row just read stayed until a pull-to-refresh.
+
 ## Status Tabs Are Server-Owned — `properties.tabs`
 
 The queue is partitioned by status into tabs — today *To Read* and *Read* — and the tab set, each tab's label, and where each tab lives are **server policy**. A rename or a new tab reaches every client without a release only if no client holds that list itself. The same reasoning as `pages` rules out links and actions as the vehicle (a titled affordance phantom-renders as a control on every shipped build; a title-less one has nowhere to carry the label), so tabs ride collection `properties`, where an unknown key is inert on every shipped client:
@@ -217,6 +230,7 @@ A client loops over the current response's `actions` and renders **one control p
 | Action names that describe implementation (`filter-by-status`, `query-v2`) | Domain drift renames the action; clients break |
 | CORS misses for `OPTIONS` on a Siren entry point | Firefox extensions send a preflight for `Accept: application/vnd.siren+json`; without `OPTIONS` it 404s and the fetch aborts with `NetworkError` |
 | Synthesising state after a mutation (`allItems.filter(i => i.id !== deletedId)`) | Server is the source of truth; follow the 303 and read the new collection |
+| Holding a stitched infinite-scroll list against a post-mutation read (a `hasPaginated` guard around adopting the collection) | The stitched list is client-assembled and the server cannot update it; a fetched collection that is then discarded leaves the acted row on screen. Re-read and adopt at every depth — see [Infinite Scroll Is Stitched Pages](#infinite-scroll-is-stitched-pages--re-read-and-adopt-after-a-mutation) |
 | Exporting an `/api` SDK that knows resource URLs | Becomes another versioned surface; expose only the walker and the entry point |
 | Interpolating unescaped user data into a `messages[].content.body` | The client injects it via `innerHTML`; unescaped server output is markup injection (see "Server-Driven Messages Are Trusted HTML") |
 | Naming a concrete server route or method in client code or comments (`POST /queue/save-content`, "303s to `/queue`") | The client reads `href`/`method` from the response; a route baked into a comment rots and reintroduces the URL coupling the contract removes |
@@ -245,6 +259,7 @@ These rules make any client (extension, iOS, MCP, future) behave like a browser 
 | Bind a response's actions through one generic path that posts each declared field's server-provided `value`, encoded per the action's `type` (urlencoded → form body, json → JSON body). Don't cherry-pick named affordances into per-operation code with hardcoded shapes or hardcoded field values. | The invocation values come from the server (the field `value`), so a bare `(id, name)` invocation suffices; per-operation bespoke handling or a client-baked value means each new server capability needs new client code and goes stale on a server change. |
 | When an action discovered from a **cached** representation is invoked and the invocation fails for any reason other than a server refusal (the `messages` channel) or `401`/`403`, bypass the cache, re-discover from the entry point, and retry once. | Freshness lets a client hold an affordance the server has already moved, so this retry is what keeps "changing an `href` is non-breaking" true once caching delays the client's re-read. Refusals and auth failures are excluded because those are the server's answer, not a stale address — re-posting them would repeat a mutation the server deliberately rejected. |
 | A post-mutation collection read is **not** a discovery read: revalidate it, and treat the mutation response's own body as the post-mutation truth. | Extends "follow the `303` and read the new collection": a cached collection is by definition pre-mutation, so honouring freshness there would resurrect the very list the mutation just changed. |
+| An infinite-scroll list re-reads **and adopts** the collection after every mutation it learns of, at every scroll depth — replace it with the post-mutation first page, or re-follow the fresh `next` links to the depth held. Scroll depth chooses which; it never gates adoption. | The stitched list is the client's own concatenation of N responses, not a server representation; keeping it to hold the viewport discards the truth the read just fetched, and patching it by id is the synthesise-after-mutation anti-pattern. |
 
 ## Per-Client Implementations
 

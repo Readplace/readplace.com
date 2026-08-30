@@ -65,7 +65,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		await viewModel.refresh()
-		await viewModel.invokeCollection(purgeAction)
+		await viewModel.invoke(purgeAction)
 
 		XCTAssertEqual(viewModel.messages.first?.type, "warning")
 		XCTAssertEqual(viewModel.messages.first?.content.type, "text/html")
@@ -80,7 +80,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		await viewModel.refresh()
-		await viewModel.invokeCollection(purgeAction)
+		await viewModel.invoke(purgeAction)
 		XCTAssertFalse(viewModel.messages.isEmpty, "precondition: a refused invoke shows the banner")
 
 		await viewModel.refresh()
@@ -332,7 +332,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"])
 
 		let purge = SirenAction(name: "purge-all", href: "/queue/purge", method: "POST", title: "Purge", type: nil, fields: nil)
-		await viewModel.invokeCollection(purge)
+		await viewModel.invoke(purge)
 
 		XCTAssertEqual(StubURLProtocol.records(path: "/queue/purge").first?.request.httpMethod, "POST")
 		XCTAssertTrue(viewModel.articles.isEmpty, "the reload reflects the server's post-invoke state")
@@ -358,7 +358,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 
 		let purge = SirenAction(name: "purge-all", href: "/queue/purge", method: "POST", title: "Purge", type: nil, fields: nil)
-		await viewModel.invokeCollection(purge)
+		await viewModel.invoke(purge)
 
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"], "a failed collection invoke leaves the current list")
 		XCTAssertNotNil(viewModel.errorText)
@@ -390,7 +390,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"])
 
 		let purge = SirenAction(name: "purge-all", href: "/queue/purge", method: "POST", title: "Purge", type: nil, fields: nil)
-		await viewModel.invokeCollection(purge)
+		await viewModel.invoke(purge)
 
 		XCTAssertEqual(readlistGETs, 2, "with no collection to adopt, the invoke falls back to a fresh first-page load")
 		XCTAssertTrue(viewModel.articles.isEmpty, "the fallback reload reflects the server's post-invoke state")
@@ -568,7 +568,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), ["r1"])
 
 		let target = viewModel.articles[0]
-		await viewModel.invoke(try updateStatusAction(of: target), on: target)
+		await viewModel.invoke(try updateStatusAction(of: target))
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["r2"],
@@ -691,7 +691,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		let requestsBefore = StubURLProtocol.records.count
 		let started = Date()
-		let marked = Task { await viewModel.invoke(toggle, on: target) }
+		let marked = Task { await viewModel.invoke(toggle) }
 		await awaitRecordedRequests(requestsBefore + 2)
 		await viewModel.select(tabHref: "/queue?status=read")
 		await marked.value
@@ -817,7 +817,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		await viewModel.select(tabHref: "/queue?status=read")
 
-		await viewModel.invokeCollection(purgeAction)
+		await viewModel.invoke(purgeAction)
 
 		XCTAssertEqual(viewModel.articles.map(\.id), ["any"], "the followed collection is still adopted")
 		XCTAssertEqual(viewModel.tabs.map(\.isCurrent), [false, false], "and its tabs are shown as the server sent them")
@@ -877,7 +877,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
 
 		let target = viewModel.articles[0]
-		await viewModel.invoke(try updateStatusAction(of: target), on: target)
+		await viewModel.invoke(try updateStatusAction(of: target))
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a2", "w1"],
@@ -886,35 +886,29 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testInvokeOnADeepScrolledListDropsTheRowLocallyAndHoldsPosition() async throws {
-		// Acting on a row after paginating must neither collapse the list to page 1
-		// (yanking the reader to the top) nor splice a fresh server head above the
-		// viewport (shifting it). A deep-scrolled list stays exactly where it is: only
-		// the acted row is dropped, and the server's post-action collection — served
-		// here as a sentinel [zzz] the client must NOT adopt — is ignored until the
-		// next pull-to-refresh.
-		let nextLink = """
-			,{ "rel": ["next"], "href": "/queue?page=2" }
-			"""
-		var page1GETs = 0
+	func testInvokeOnADeepScrolledListAdoptsTheServersCollectionToTheDepthHeld() async throws {
+		var acted = false
 		StubURLProtocol.setHandler { request, _ in
 			let url = request.url
-			if url?.path.hasSuffix("/status") == true { return .redirect(to: "/queue") }
-			switch (url?.path, url?.query) {
+			if url?.path.hasSuffix("/status") == true {
+				acted = true
+				return .redirect(to: "/queue")
+			}
+			switch (url?.path, url?.query ?? "") {
 			case ("/", _):
 				return .redirect(to: "/queue")
-			case ("/queue", let query) where query?.contains("page=2") == true:
+			case ("/queue", let query) where query.contains("page=2"):
 				return .json(200, Fixtures.collection(
-					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+					entitiesJSON: acted
+						? [Fixtures.article(id: "a4"), Fixtures.article(id: "w1")]
+						: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")],
+					page: 2
 				))
 			case ("/queue", _):
-				page1GETs += 1
-				return page1GETs == 1
-					? .json(200, Fixtures.collection(
-						entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
-						extraLinks: nextLink
-					))
-					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "zzz")]))
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }"
+				))
 			default:
 				return .json(404, "{}")
 			}
@@ -925,13 +919,359 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
 
 		let target = viewModel.articles[2]
-		await viewModel.invoke(try updateStatusAction(of: target), on: target)
+		await viewModel.invoke(try updateStatusAction(of: target))
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2", "a4", "w1"],
+			"the followed collection is adopted and re-followed to the depth held — so the viewport is not yanked to page 1 and no stale row is held over: the acted row is gone and a website-side change on page 2 (w1) appears"
+		)
+		XCTAssertEqual(
+			StubURLProtocol.records(path: "/queue").filter { ($0.request.url?.query ?? "").contains("page=2") }.count, 2,
+			"the second page is re-read through the fresh next link rather than kept from the stale stitched read"
+		)
+		XCTAssertNil(viewModel.errorText)
+	}
+
+	func testReaderStatusChangedOnADeepScrolledListAdoptsTheServersCollectionThroughFreshNextLinks() async {
+		var marked = false
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "page=2&stale"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+				))
+			case ("/queue", "page=2&fresh"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a4"), Fixtures.article(id: "w1")], page: 2
+				))
+			case ("/queue", _):
+				let next = marked ? "/queue?page=2&fresh" : "/queue?page=2&stale"
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"\(next)\" }"
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+
+		marked = true
+		await viewModel.readerStatusChanged()
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2", "a4", "w1"],
+			"the row read inside the reader (a3) is gone at the depth it sat and a website-side change (w1) appears: the collection is re-read and adopted past page 1 — re-followed to the depth held so the viewport is not yanked to page 1, and never patched by an id the client holds"
+		)
+		XCTAssertEqual(
+			Array(StubURLProtocol.records(path: "/queue").map { $0.request.url?.query ?? "" }.suffix(2)), ["", "page=2&fresh"],
+			"the re-follow walks the fresh response's next link, not the href the stale stitched read held"
+		)
+		XCTAssertNil(viewModel.errorText)
+	}
+
+	func testAnAdoptionWhoseReFollowFailsMidWayKeepsThePagesItFetchedAndSurfacesTheError() async {
+		var marked = false
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query.contains("page=3"):
+				return marked
+					? .json(500, Fixtures.sirenError(code: "boom", message: "nope"))
+					: .json(200, Fixtures.collection(
+						entitiesJSON: [Fixtures.article(id: "a5"), Fixtures.article(id: "a6")], page: 3
+					))
+			case ("/queue", let query) where query.contains("page=2"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: marked
+						? [Fixtures.article(id: "a4")]
+						: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?page=3\" }",
+					page: 2
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }"
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4", "a5", "a6"], "precondition: three pages are loaded")
+
+		marked = true
+		await viewModel.readerStatusChanged()
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a1", "a2", "a4"],
-			"only the acted row is dropped; the list holds position and does not adopt the server's [zzz] collection while deep-scrolled"
+			"the pages the re-follow did fetch are adopted as served; the page whose hop failed is not held over from the stale read"
+		)
+		XCTAssertEqual(viewModel.errorText, "nope", "the failed hop is surfaced like any other failed page load")
+		XCTAssertTrue(viewModel.hasMore, "the page the hop could not fetch is still reachable by scrolling on")
+	}
+
+	/// Deep-scrolled on To Read, a mutation's re-follow hop is held until the user
+	/// selects Read; the hop then answers with `hopAnswer`.
+	private func adoptionReFollowInterruptedByATabChange(hopAnswer: StubURLProtocol.Stub) async throws -> ReadingListViewModel {
+		let tabbed = tabbedReadlistHandler()
+		let isReFollowHop: (URLRequest) -> Bool = { request in
+			(request.url?.query ?? "").contains("page=2")
+				&& StubURLProtocol.records.contains { $0.request.url?.path.hasSuffix("/status") == true }
+		}
+		StubURLProtocol.setHandler(holding({ request, body in
+			let url = request.url
+			let query = url?.query ?? ""
+			if url?.path.hasSuffix("/status") == true { return .redirect(to: "/queue?status=unread") }
+			if url?.path == "/queue", query.contains("page=2") {
+				return isReFollowHop(request) ? hopAnswer : .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u3")], page: 2, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			}
+			if url?.path == "/queue", query.isEmpty || query == "status=unread" {
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u1"), Fixtures.article(id: "u2")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }",
+					total: 3, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			}
+			return tabbed(request, body)
+		}, requestsWhere: isReFollowHop, untilOneWhere: isReadTabRequest))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2", "u3"], "precondition: two pages of To Read are loaded")
+		let toggle = try updateStatusAction(of: viewModel.articles[0])
+
+		let requestsBefore = StubURLProtocol.records.count
+		let started = Date()
+		let marked = Task { await viewModel.invoke(toggle) }
+		await awaitRecordedRequests(requestsBefore + 3)
+		await viewModel.select(tabHref: "/queue?status=read")
+		await marked.value
+
+		assertReleasedByTheOtherResponse(started)
+		XCTAssertEqual(
+			StubURLProtocol.records.count, requestsBefore + 4,
+			"precondition: the mutation, its redirected re-list, the held re-follow hop and the Read tab's request all went out"
+		)
+		return viewModel
+	}
+
+	func testAnAdoptionReFollowInFlightWhenTheTabChangesNeverLandsUnderTheNewTab() async throws {
+		let viewModel = try await adoptionReFollowInterruptedByATabChange(hopAnswer: .json(200, Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "u3")], page: 2, tabsJSON: Fixtures.tabs(current: "unread")
+		)))
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["r1"],
+			"the re-followed To Read pages belong to the tab the user left, so none of them lands under Read"
+		)
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read")
+	}
+
+	func testAnAdoptionReFollowThatFailsAfterTheTabChangedLandsNothingUnderTheNewTab() async throws {
+		let viewModel = try await adoptionReFollowInterruptedByATabChange(
+			hopAnswer: .json(500, Fixtures.sirenError(code: "boom", message: "nope"))
+		)
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["r1"],
+			"a hop that fails after the user moved on lands neither the old tab's first page nor its error under Read"
 		)
 		XCTAssertNil(viewModel.errorText)
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read")
+	}
+
+	func testAReadInFlightWhenTheTabChangesLeavesTheLoadingStateToTheNewTabsLoad() async {
+		let hopGate = DispatchSemaphore(value: 0)
+		let readTabGate = DispatchSemaphore(value: 0)
+		let tabbed = tabbedReadlistHandler()
+		var page2Requests = 0
+		StubURLProtocol.setHandler { request, body in
+			let url = request.url
+			let query = url?.query ?? ""
+			if url?.path == "/queue", query.contains("page=2") {
+				page2Requests += 1
+				let page2 = StubURLProtocol.Stub.json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u3")], page: 2, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+				return page2Requests == 2 ? page2.held(until: hopGate) : page2
+			}
+			if url?.path == "/queue", query.isEmpty || query == "status=unread" {
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "u1"), Fixtures.article(id: "u2")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }",
+					total: 3, tabsJSON: Fixtures.tabs(current: "unread")
+				))
+			}
+			if self.isReadTabRequest(request) { return tabbed(request, body).held(until: readTabGate) }
+			return tabbed(request, body)
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["u1", "u2", "u3"], "precondition: two pages of To Read are loaded")
+
+		let requestsBefore = StubURLProtocol.records.count
+		let reload = Task { await viewModel.readerStatusChanged() }
+		await awaitRecordedRequests(requestsBefore + 2)
+		let selecting = Task { await viewModel.select(tabHref: "/queue?status=read") }
+		await awaitRecordedRequests(requestsBefore + 3)
+		hopGate.signal()
+		await reload.value
+
+		XCTAssertTrue(viewModel.isLoading, "the superseded re-read leaves the loading state to the Read tab's load, which is still in flight")
+		XCTAssertEqual(viewModel.articles.map(\.id), [], "precondition: the Read tab's page has not landed")
+
+		readTabGate.signal()
+		await selecting.value
+
+		XCTAssertFalse(viewModel.isLoading)
+		XCTAssertEqual(viewModel.articles.map(\.id), ["r1"])
+		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read")
+	}
+
+	func testInvokeRefusedInAMediaTypeItCannotRenderSurfacesTheClientsOwnWordsAndLeavesTheRow() async throws {
+		StubURLProtocol.setHandler(markReadHandler { _ in
+			.json(403, Fixtures.messageRefusal([(type: "warning", mediaType: "text/markdown", body: "**locked**")]))
+		})
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		let target = viewModel.articles[0]
+		await viewModel.invoke(try updateStatusAction(of: target))
+
+		XCTAssertEqual(viewModel.messages, [], "a message the client can't render is dropped rather than shown")
+		XCTAssertEqual(
+			viewModel.errorText, "Couldn't complete that.",
+			"but the refusal still reaches the user in the client's own words instead of vanishing"
+		)
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"], "a refused mutation changes nothing")
+	}
+
+	func testAPageLoadInFlightWhenAMutationIsAdoptedIsDroppedRatherThanAppendedToTheFreshList() async throws {
+		let gate = DispatchSemaphore(value: 0)
+		var marked = false
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			if url?.path.hasSuffix("/status") == true {
+				marked = true
+				return .redirect(to: "/queue")
+			}
+			switch (url?.path, url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query.contains("page=3"):
+				return StubURLProtocol.Stub.json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a5"), Fixtures.article(id: "a6")], page: 3
+				)).held(until: gate)
+			case ("/queue", let query) where query.contains("page=2"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: marked
+						? [Fixtures.article(id: "a4"), Fixtures.article(id: "a5")]
+						: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?page=3\" }",
+					page: 2
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: marked
+						? [Fixtures.article(id: "a2"), Fixtures.article(id: "a3")]
+						: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+					extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }"
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+		let toggle = try updateStatusAction(of: viewModel.articles[0])
+
+		let requestsBefore = StubURLProtocol.records.count
+		let more = Task { await viewModel.loadMore() }
+		await awaitRecordedRequests(requestsBefore + 1)
+		await viewModel.invoke(toggle)
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a2", "a3", "a4", "a5"],
+			"precondition: the mutation's collection was adopted and re-followed to the depth held"
+		)
+
+		gate.signal()
+		await more.value
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a2", "a3", "a4", "a5"],
+			"the page requested from the pre-mutation cursor is dropped, not appended onto the fresh list"
+		)
+		XCTAssertTrue(viewModel.hasMore, "the fresh second page's next link stands, not the stale page's end of list")
+	}
+
+	func testAMutationAnsweredWithNoCollectionReReadsPastARefreshInFlightAndTheStaleRefreshIsDropped() async throws {
+		let gate = DispatchSemaphore(value: 0)
+		var queueGETs = 0
+		var deleted = false
+		StubURLProtocol.setHandler { request, _ in
+			let path = request.url?.path ?? ""
+			if path.hasSuffix("/delete") {
+				deleted = true
+				return StubURLProtocol.Stub(
+					status: 200, headers: ["Content-Type": "text/html"], body: Data("<!doctype html>".utf8)
+				)
+			}
+			switch path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				queueGETs += 1
+				let collection = StubURLProtocol.Stub.json(200, Fixtures.collection(
+					entitiesJSON: deleted
+						? [Fixtures.article(id: "a2")]
+						: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+					total: 2
+				))
+				return queueGETs == 2 ? collection.held(until: gate) : collection
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let target = viewModel.articles[0]
+		let deleteAction = try XCTUnwrap(target.affordances.first { $0.token == "delete" }?.action)
+
+		let requestsBefore = StubURLProtocol.records.count
+		let pull = Task { await viewModel.refresh() }
+		await awaitRecordedRequests(requestsBefore + 2)
+		await viewModel.invoke(deleteAction)
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a2"],
+			"precondition: the post-mutation re-read was issued and adopted despite the refresh in flight"
+		)
+
+		gate.signal()
+		await pull.value
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a2"],
+			"the pre-mutation refresh landing late is dropped rather than painting the deleted row back"
+		)
+		XCTAssertFalse(viewModel.isLoading)
 	}
 
 	func testHandleForegroundOnADeepScrolledListHoldsPositionWithoutReloading() async throws {
@@ -976,17 +1316,23 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testInvokeUpdateStatusOnADeepScrolledReadTabDropsTheActedRow() async throws {
+	func testInvokeUpdateStatusOnADeepScrolledReadTabAdoptsTheReadTabToTheDepthHeld() async throws {
 		let readNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=read&page=2\" }"
+		var toggled = false
 		StubURLProtocol.setHandler { request, _ in
 			let url = request.url
-			if url?.path.hasSuffix("/status") == true { return .redirect(to: Self.readTabLanding) }
+			if url?.path.hasSuffix("/status") == true {
+				toggled = true
+				return .redirect(to: Self.readTabLanding)
+			}
 			switch (url?.path, url?.query ?? "") {
 			case ("/", _):
 				return .redirect(to: "/queue")
 			case ("/queue", let query) where query.contains("page=2"):
 				return .json(200, Fixtures.collection(
-					entitiesJSON: [self.readArticle(id: "r3"), self.readArticle(id: "r4")],
+					entitiesJSON: toggled
+						? [self.readArticle(id: "r4"), self.readArticle(id: "w1")]
+						: [self.readArticle(id: "r3"), self.readArticle(id: "r4")],
 					page: 2, tabsJSON: Fixtures.tabs(current: "read")
 				))
 			case ("/queue", let query) where query.contains("status=read") || query.contains(Self.readTabLandingQuery):
@@ -1011,11 +1357,15 @@ final class ReadingListViewModelTests: XCTestCase {
 		let target = viewModel.articles[2]
 		let toggle = try updateStatusAction(of: target)
 		XCTAssertEqual(toggle.fields?.first?.value, "unread", "precondition: a read item's toggle targets unread")
-		await viewModel.invoke(toggle, on: target)
+		await viewModel.invoke(toggle)
 
 		XCTAssertEqual(
-			viewModel.articles.map(\.id), ["r1", "r2", "r4"],
-			"a toggle to unread leaves the Read tab: the acted row is dropped while the deep-scrolled list holds position"
+			viewModel.articles.map(\.id), ["r1", "r2", "r4", "w1"],
+			"a toggle to unread leaves the Read tab: the Read tab is re-followed to the depth held, no longer lists the acted row, and shows a change (w1) only the fresh second page carried"
+		)
+		XCTAssertEqual(
+			StubURLProtocol.records(path: "/queue").filter { ($0.request.url?.query ?? "").contains("page=2") }.count, 2,
+			"the second page is re-read through the fresh next link"
 		)
 		XCTAssertEqual(viewModel.selectedTabHref, "/queue?status=read", "the app stays on the tab it acted from")
 		XCTAssertNil(viewModel.errorText)
@@ -1027,7 +1377,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 
 		let target = viewModel.articles[0]
-		await viewModel.invoke(try updateStatusAction(of: target), on: target)
+		await viewModel.invoke(try updateStatusAction(of: target))
 
 		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue/a1/status").first)
 		XCTAssertEqual(
@@ -1044,7 +1394,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 
 		let target = viewModel.articles[0]
-		await viewModel.invoke(try updateStatusAction(of: target), on: target)
+		await viewModel.invoke(try updateStatusAction(of: target))
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a1", "a2"],
@@ -1077,7 +1427,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		let target = viewModel.articles[0]
 		let deleteAction = try XCTUnwrap(target.affordances.first { $0.token == "delete" }?.action)
-		await viewModel.invoke(deleteAction, on: target)
+		await viewModel.invoke(deleteAction)
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a2"],
@@ -1085,14 +1435,12 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testInvokeDropsTheActedRowWhenTheResponseIsNoCollection() async throws {
-		// A removing action (delete) whose 2xx response is not a Siren collection —
-		// a 204, or a redirect to an HTML page — carries no re-list direction, so
-		// api.invoke returns nil. The acted row must still drop locally, honouring
-		// the removal the server already confirmed with its 2xx.
+	func testInvokeReReadsTheListWhenTheResponseIsNoCollection() async throws {
+		var deleted = false
 		StubURLProtocol.setHandler { request, _ in
 			let path = request.url?.path ?? ""
 			if path.hasSuffix("/delete") {
+				deleted = true
 				return StubURLProtocol.Stub(
 					status: 200, headers: ["Content-Type": "text/html"], body: Data("<!doctype html>".utf8)
 				)
@@ -1102,7 +1450,10 @@ final class ReadingListViewModelTests: XCTestCase {
 				return .redirect(to: "/queue")
 			case "/queue":
 				return .json(200, Fixtures.collection(
-					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], total: 2
+					entitiesJSON: deleted
+						? [Fixtures.article(id: "a2")]
+						: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+					total: 2
 				))
 			default:
 				return .json(404, "{}")
@@ -1113,18 +1464,20 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		let target = viewModel.articles[0]
 		let deleteAction = try XCTUnwrap(target.affordances.first { $0.token == "delete" }?.action)
-		await viewModel.invoke(deleteAction, on: target)
+		await viewModel.invoke(deleteAction)
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a2"],
-			"the confirmed removal is applied locally even when the response carries no collection to adopt"
+			"with no collection in the response to adopt, the list is re-read and the server's post-action truth adopted"
+		)
+		XCTAssertEqual(
+			StubURLProtocol.records(path: "/queue").count, 2,
+			"the re-read is how the removal reaches the list — nothing is dropped by inference from the acted row's id"
 		)
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testInvokeNonRemovingActionLeavesTheListUntouched() async throws {
-		// A response that is no collection carries no re-list direction, so the
-		// list stays as it is for the next load to reconcile.
+	func testInvokeNonRemovingActionWithANonCollectionResponseReReadsTheList() async throws {
 		let viewAction = """
 			{ "name": "view-original", "title": "Open original", "href": "/queue/a1/original", "method": "GET" }
 			"""
@@ -1154,11 +1507,12 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		let target = viewModel.articles[0]
 		let action = try XCTUnwrap(target.affordances.first { $0.token == "view-original" }?.action)
-		await viewModel.invoke(action, on: target)
+		await viewModel.invoke(action)
 
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 2, "a response that is no collection is followed by a re-read")
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a1"],
-			"a non-removing action whose response is no collection leaves the row in place"
+			"the re-read collection still lists the row, so the row is still there — by the server's word, not by the client's inference"
 		)
 		XCTAssertNil(viewModel.errorText)
 	}
@@ -1511,12 +1865,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testWebSheetDismissalOnADeepScrolledListProbesTheServerAndHoldsPosition() async {
-		// Unlike the foreground converge — zero-network once the list has paginated —
-		// the dismissal re-read must actually reach the server: it exists to discover
-		// a session the sheet's own page just killed. A live session's deep-scrolled
-		// list still holds its position: the fetched page (a sentinel [zzz] the
-		// client must not adopt) is discarded, so the probe never yanks the viewport.
+	func testWebSheetDismissalOnADeepScrolledListAdoptsTheServersCollection() async {
 		let nextLink = """
 			,{ "rel": ["next"], "href": "/queue?page=2" }
 			"""
@@ -1550,8 +1899,8 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(page1GETs, 2, "the dismissal probe hits the network even when deep-scrolled")
 		XCTAssertEqual(
-			viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"],
-			"a live session's paginated list holds its position — the probe's body is discarded, not adopted"
+			viewModel.articles.map(\.id), ["zzz"],
+			"the probe's body is adopted, not discarded: the re-read collection advertises no next page, so that one page is the whole list"
 		)
 	}
 

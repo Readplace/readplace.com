@@ -13,7 +13,6 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertEqual(presentation.systemImage, "plus")
 		XCTAssertNil(presentation.tint)
 		XCTAssertFalse(presentation.isDestructive)
-		XCTAssertFalse(presentation.removesItem)
 		XCTAssertTrue(presentation.isToolbarControl)
 	}
 
@@ -24,29 +23,23 @@ final class AffordancePresentationTests: XCTestCase {
 		for token in ["save-content", "create-session"] {
 			let presentation = AffordancePresentation(token: token)
 			XCTAssertFalse(presentation.isToolbarControl, "\(token) must not present as a toolbar control")
-			XCTAssertFalse(presentation.removesItem)
 			XCTAssertFalse(presentation.isDestructive)
 		}
 	}
 
-	func testUpdateStatusMapsToAReadControlThatRemovesTheItemFromItsTab() {
+	func testUpdateStatusMapsToAReadControl() {
 		let presentation = AffordancePresentation(token: "update-status")
 		XCTAssertEqual(presentation.systemImage, "checkmark.circle")
 		XCTAssertEqual(presentation.tint, .brandSuccess)
 		XCTAssertFalse(presentation.isDestructive)
-		XCTAssertTrue(
-			presentation.removesItem,
-			"every list is partitioned by status, so a toggle in either direction leaves the tab it was invoked from"
-		)
 		XCTAssertTrue(presentation.isToolbarControl)
 	}
 
-	func testDeleteMapsToADestructiveTrashControlThatRemovesTheItem() {
+	func testDeleteMapsToADestructiveTrashControl() {
 		let presentation = AffordancePresentation(token: "delete")
 		XCTAssertEqual(presentation.systemImage, "trash")
 		XCTAssertEqual(presentation.tint, .red)
 		XCTAssertTrue(presentation.isDestructive, "delete is irreversible, so the View confirms before invoking")
-		XCTAssertTrue(presentation.removesItem)
 	}
 
 	func testSearchMapsToANeutralMagnifierControl() {
@@ -54,7 +47,6 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertEqual(presentation.systemImage, "magnifyingglass")
 		XCTAssertNil(presentation.tint)
 		XCTAssertFalse(presentation.isDestructive)
-		XCTAssertFalse(presentation.removesItem)
 		XCTAssertTrue(presentation.isToolbarControl)
 	}
 
@@ -66,7 +58,6 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertEqual(presentation.systemImage, "person.crop.circle")
 		XCTAssertNil(presentation.tint)
 		XCTAssertFalse(presentation.isDestructive)
-		XCTAssertFalse(presentation.removesItem)
 		XCTAssertTrue(presentation.isToolbarControl)
 	}
 
@@ -92,14 +83,11 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertEqual(presentation.systemImage, "ellipsis.circle", "an unknown token gets the generic glyph")
 		XCTAssertNil(presentation.tint)
 		XCTAssertFalse(presentation.isDestructive)
-		XCTAssertFalse(presentation.removesItem)
 		XCTAssertTrue(
 			presentation.isToolbarControl,
 			"a newly-advertised affordance still renders in the toolbar rather than vanishing"
 		)
 	}
-
-	// MARK: - Row removal
 
 	private func action(
 		name: String,
@@ -109,30 +97,6 @@ final class AffordancePresentationTests: XCTestCase {
 		SirenAction(name: name, href: href, method: "POST", title: nil, type: nil, fields: fields)
 	}
 
-	func testUpdateStatusRemovesTheRowWhicheverWayItsStatusValueToggles() throws {
-		for value in ["read", "unread"] {
-			let toggle = action(name: "update-status", fields: [SirenField(name: "status", type: "text", value: value)])
-			let affordance = try XCTUnwrap(Affordance(action: toggle))
-			XCTAssertTrue(affordance.removesItemFromList, "a toggle to \(value) leaves the tab it was invoked from")
-		}
-	}
-
-	func testDeleteAlwaysRemovesTheRowRegardlessOfFields() throws {
-		let delete = action(name: "delete", href: "/queue/a1/delete")
-		let affordance = try XCTUnwrap(Affordance(action: delete))
-		XCTAssertTrue(affordance.removesItemFromList, "delete removes the item unconditionally")
-	}
-
-	func testAnUnrelatedActionDoesNotRemoveTheRow() throws {
-		let other = action(name: "view-original", href: "/queue/a1/original")
-		let affordance = try XCTUnwrap(Affordance(action: other))
-		XCTAssertFalse(affordance.removesItemFromList, "an action with no removal semantics leaves the list untouched")
-	}
-
-	func testANavigableLinkNeverRemovesARow() throws {
-		let link = try XCTUnwrap(Affordance(link: SirenLink(rel: ["save"], href: "/save", title: nil)))
-		XCTAssertFalse(link.removesItemFromList, "a navigable link acts on no row, so it removes nothing")
-	}
 
 	// MARK: - Bare-control invokability
 
