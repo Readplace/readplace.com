@@ -8,7 +8,8 @@ export type LoginResult = { ok: true };
 export type RefreshResult =
 	| { ok: true }
 	| { ok: false; reason: "no-refresh-token" }
-	| { ok: false; reason: "refresh-failed" };
+	| { ok: false; reason: "refresh-failed" }
+	| { ok: false; reason: "unavailable" };
 
 export type GuardedResult<T> =
 	| { ok: true; value: T }

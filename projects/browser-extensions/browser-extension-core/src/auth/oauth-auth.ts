@@ -78,7 +78,59 @@ export async function initOAuthAuth(deps: OAuthAuthDeps): Promise<Auth> {
 		return { ok: true };
 	};
 
-	const refreshTokens = async (): Promise<RefreshResult> => {
+	let refreshing: Promise<RefreshResult> | undefined;
+
+	const requestGrant = async (
+		refreshToken: string,
+	): Promise<
+		| { outcome: "granted"; accessToken: string; refreshToken: string }
+		| { outcome: "rejected" }
+		| { outcome: "unavailable" }
+	> => {
+		let response: Awaited<ReturnType<typeof deps.fetchFn>>;
+		try {
+			response = await deps.fetchFn(`${deps.serverUrl}/oauth/token`, {
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({
+					grant_type: "refresh_token",
+					refresh_token: refreshToken,
+					client_id: deps.clientId,
+				}).toString(),
+			});
+		} catch (error) {
+			deps.logger.warn("Token refresh could not reach the server:", error);
+			return { outcome: "unavailable" };
+		}
+
+		if (response.status === 400) return { outcome: "rejected" };
+		if (!response.ok) {
+			deps.logger.warn(`Token refresh unavailable: ${response.status}`);
+			return { outcome: "unavailable" };
+		}
+
+		let body: unknown;
+		try {
+			body = await response.json();
+		} catch (error) {
+			deps.logger.warn("Token refresh returned an unreadable body:", error);
+			return { outcome: "unavailable" };
+		}
+
+		const tokenData = TokenResponse.safeParse(body);
+		if (!tokenData.success) {
+			deps.logger.warn("Token refresh returned an unexpected body");
+			return { outcome: "unavailable" };
+		}
+
+		return {
+			outcome: "granted",
+			accessToken: tokenData.data.access_token,
+			refreshToken: tokenData.data.refresh_token,
+		};
+	};
+
+	const exchangeRefreshToken = async (): Promise<RefreshResult> => {
 		const storedTokens = await deps.tokenStorage.getTokens();
 		if (!storedTokens?.refreshToken) {
 			await deps.tokenStorage.clearTokens();
@@ -86,36 +138,29 @@ export async function initOAuthAuth(deps: OAuthAuthDeps): Promise<Auth> {
 			return { ok: false, reason: "no-refresh-token" };
 		}
 
-		const response = await deps.fetchFn(`${deps.serverUrl}/oauth/token`, {
-			method: "POST",
-			headers: { "Content-Type": "application/x-www-form-urlencoded" },
-			body: new URLSearchParams({
-				grant_type: "refresh_token",
-				refresh_token: storedTokens.refreshToken,
-				client_id: deps.clientId,
-			}).toString(),
-		});
-
-		if (!response.ok) {
-			await deps.tokenStorage.clearTokens();
-			loggedIn = false;
-			return { ok: false, reason: "refresh-failed" };
+		const grant = await requestGrant(storedTokens.refreshToken);
+		if (grant.outcome === "unavailable") {
+			return { ok: false, reason: "unavailable" };
 		}
-
-		const tokenData = TokenResponse.safeParse(await response.json());
-		if (!tokenData.success) {
+		if (grant.outcome === "rejected") {
 			await deps.tokenStorage.clearTokens();
 			loggedIn = false;
 			return { ok: false, reason: "refresh-failed" };
 		}
 
 		await deps.tokenStorage.setTokens({
-			accessToken: tokenData.data.access_token,
-			refreshToken: tokenData.data.refresh_token,
+			accessToken: grant.accessToken,
+			refreshToken: grant.refreshToken,
 		});
-
 		loggedIn = true;
 		return { ok: true };
+	};
+
+	const refreshTokens = async (): Promise<RefreshResult> => {
+		refreshing ??= exchangeRefreshToken().finally(() => {
+			refreshing = undefined;
+		});
+		return refreshing;
 	};
 
 	const getAccessToken = async (): Promise<string | null> => {
@@ -163,10 +208,7 @@ export async function initOAuthAuth(deps: OAuthAuthDeps): Promise<Auth> {
 	};
 
 	const storedTokens = await deps.tokenStorage.getTokens();
-	if (storedTokens) {
-		loggedIn = true;
-		await refreshTokens().catch(() => {});
-	}
+	loggedIn = storedTokens !== null;
 
 	return { login, logout, refreshTokens, getAccessToken, ensureWebSession, whenLoggedIn };
 }

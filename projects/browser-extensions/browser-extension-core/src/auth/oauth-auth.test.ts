@@ -364,73 +364,26 @@ describe("initOAuthAuth", () => {
 			expect(result).toEqual({ ok: true, value: "restored" });
 		});
 
-		it("should refresh tokens on init when stored tokens exist", async () => {
+		it("should restore the session from stored tokens without contacting the token endpoint", async () => {
 			const tokenStorage = createInMemoryTokenStorage();
 			await tokenStorage.setTokens({
-				accessToken: "old-access",
-				refreshToken: "old-refresh",
+				accessToken: "stored-access",
+				refreshToken: "stored-refresh",
 			});
 
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
-				fetchFn: async (_url, init) => {
-					if (init.body?.includes("grant_type=refresh_token")) {
-						return {
-							ok: true as boolean,
-							status: 200,
-							json: async () => ({
-								access_token: "fresh-access",
-								refresh_token: "fresh-refresh",
-							}),
-						};
-					}
-					return { ok: true as boolean, status: 200, json: async () => ({}) };
+				fetchFn: async () => {
+					throw new Error("construction must not spend a token grant");
 				},
 			});
-			await initOAuthAuth(deps);
-
-			expect(tokenStorage.stored).toEqual({
-				accessToken: "fresh-access",
-				refreshToken: "fresh-refresh",
-			});
-		});
-
-		it("should log out when refresh token is rejected on init", async () => {
-			const tokenStorage = createInMemoryTokenStorage();
-			await tokenStorage.setTokens({
-				accessToken: "expired-access",
-				refreshToken: "expired-refresh",
-			});
-
-			const deps = createInMemoryOAuthDeps({
-				tokenStorage,
-				fetchFn: async () => ({ ok: false as boolean, status: 400, json: async () => ({}) }),
-			});
 			const auth = await initOAuthAuth(deps);
 
-			const result = auth.whenLoggedIn(() => "value");
-			expect(result).toEqual({ ok: false, reason: "not-logged-in" });
-			expect(tokenStorage.stored).toBeNull();
-		});
-
-		it("should stay logged in when refresh fails due to network error on init", async () => {
-			const tokenStorage = createInMemoryTokenStorage();
-			await tokenStorage.setTokens({
-				accessToken: "existing-access",
-				refreshToken: "existing-refresh",
-			});
-
-			const deps = createInMemoryOAuthDeps({
-				tokenStorage,
-				fetchFn: async () => { throw new Error("Network error"); },
-			});
-			const auth = await initOAuthAuth(deps);
-
-			const result = auth.whenLoggedIn(() => "still-here");
-			expect(result).toEqual({ ok: true, value: "still-here" });
+			const result = auth.whenLoggedIn(() => "restored");
+			expect(result).toEqual({ ok: true, value: "restored" });
 			expect(tokenStorage.stored).toEqual({
-				accessToken: "existing-access",
-				refreshToken: "existing-refresh",
+				accessToken: "stored-access",
+				refreshToken: "stored-refresh",
 			});
 		});
 	});
@@ -622,7 +575,7 @@ describe("initOAuthAuth", () => {
 			expect(guarded).toEqual({ ok: false, reason: "not-logged-in" });
 		});
 
-		it("should return refresh-failed when response has invalid shape", async () => {
+		it("should keep the session when the token response has an unexpected shape", async () => {
 			const tokenStorage = createInMemoryTokenStorage();
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
@@ -649,8 +602,193 @@ describe("initOAuthAuth", () => {
 
 			const result = await auth.refreshTokens();
 
-			expect(result).toEqual({ ok: false, reason: "refresh-failed" });
-			expect(tokenStorage.stored).toBeNull();
+			expect(result).toEqual({ ok: false, reason: "unavailable" });
+			expect(tokenStorage.stored).toEqual({
+				accessToken: "access-123",
+				refreshToken: "refresh-456",
+			});
+			expect(auth.whenLoggedIn(() => "value")).toEqual({ ok: true, value: "value" });
+		});
+
+		it("shares one token grant between concurrent refresh calls", async () => {
+			const tokenStorage = createInMemoryTokenStorage();
+			let refreshGrants = 0;
+			const deps = createInMemoryOAuthDeps({
+				tokenStorage,
+				fetchFn: async (_url, init) => {
+					if (init.body?.includes("grant_type=refresh_token")) {
+						refreshGrants += 1;
+						return {
+							ok: true as boolean,
+							status: 200,
+							json: async () => ({
+								access_token: "rotated-access",
+								refresh_token: "rotated-refresh",
+							}),
+						};
+					}
+					return {
+						ok: true as boolean,
+						status: 200,
+						json: async () => ({
+							access_token: "access-123",
+							refresh_token: "refresh-456",
+						}),
+					};
+				},
+			});
+			const auth = await initOAuthAuth(deps);
+			await auth.login();
+
+			const [first, second] = await Promise.all([
+				auth.refreshTokens(),
+				auth.refreshTokens(),
+			]);
+
+			expect(first).toEqual({ ok: true });
+			expect(second).toEqual({ ok: true });
+			expect(refreshGrants).toBe(1);
+			expect(tokenStorage.stored).toEqual({
+				accessToken: "rotated-access",
+				refreshToken: "rotated-refresh",
+			});
+		});
+
+		it("starts a new token grant once the previous one has settled", async () => {
+			const tokenStorage = createInMemoryTokenStorage();
+			let refreshGrants = 0;
+			const deps = createInMemoryOAuthDeps({
+				tokenStorage,
+				fetchFn: async (_url, init) => {
+					if (init.body?.includes("grant_type=refresh_token")) {
+						refreshGrants += 1;
+						return {
+							ok: true as boolean,
+							status: 200,
+							json: async () => ({
+								access_token: `access-${refreshGrants}`,
+								refresh_token: `refresh-${refreshGrants}`,
+							}),
+						};
+					}
+					return {
+						ok: true as boolean,
+						status: 200,
+						json: async () => ({
+							access_token: "access-123",
+							refresh_token: "refresh-456",
+						}),
+					};
+				},
+			});
+			const auth = await initOAuthAuth(deps);
+			await auth.login();
+
+			await auth.refreshTokens();
+			await auth.refreshTokens();
+
+			expect(refreshGrants).toBe(2);
+		});
+
+		it.each([429, 500, 502, 503])(
+			"keeps the session when the token endpoint answers %i",
+			async (status) => {
+				const tokenStorage = createInMemoryTokenStorage();
+				const deps = createInMemoryOAuthDeps({
+					tokenStorage,
+					fetchFn: async (_url, init) => {
+						if (init.body?.includes("grant_type=refresh_token")) {
+							return { ok: false as boolean, status, json: async () => ({}) };
+						}
+						return {
+							ok: true as boolean,
+							status: 200,
+							json: async () => ({
+								access_token: "access-123",
+								refresh_token: "refresh-456",
+							}),
+						};
+					},
+				});
+				const auth = await initOAuthAuth(deps);
+				await auth.login();
+
+				const result = await auth.refreshTokens();
+
+				expect(result).toEqual({ ok: false, reason: "unavailable" });
+				expect(tokenStorage.stored).toEqual({
+					accessToken: "access-123",
+					refreshToken: "refresh-456",
+				});
+				expect(auth.whenLoggedIn(() => "value")).toEqual({ ok: true, value: "value" });
+			},
+		);
+
+		it("keeps the session when the token request throws", async () => {
+			const tokenStorage = createInMemoryTokenStorage();
+			const deps = createInMemoryOAuthDeps({
+				tokenStorage,
+				fetchFn: async (_url, init) => {
+					if (init.body?.includes("grant_type=refresh_token")) {
+						throw new Error("network down");
+					}
+					return {
+						ok: true as boolean,
+						status: 200,
+						json: async () => ({
+							access_token: "access-123",
+							refresh_token: "refresh-456",
+						}),
+					};
+				},
+			});
+			const auth = await initOAuthAuth(deps);
+			await auth.login();
+
+			const result = await auth.refreshTokens();
+
+			expect(result).toEqual({ ok: false, reason: "unavailable" });
+			expect(tokenStorage.stored).toEqual({
+				accessToken: "access-123",
+				refreshToken: "refresh-456",
+			});
+			expect(auth.whenLoggedIn(() => "value")).toEqual({ ok: true, value: "value" });
+		});
+
+		it("keeps the session when the token response body is not JSON", async () => {
+			const tokenStorage = createInMemoryTokenStorage();
+			const deps = createInMemoryOAuthDeps({
+				tokenStorage,
+				fetchFn: async (_url, init) => {
+					if (init.body?.includes("grant_type=refresh_token")) {
+						return {
+							ok: true as boolean,
+							status: 200,
+							json: async () => {
+								throw new Error("Unexpected end of JSON input");
+							},
+						};
+					}
+					return {
+						ok: true as boolean,
+						status: 200,
+						json: async () => ({
+							access_token: "access-123",
+							refresh_token: "refresh-456",
+						}),
+					};
+				},
+			});
+			const auth = await initOAuthAuth(deps);
+			await auth.login();
+
+			const result = await auth.refreshTokens();
+
+			expect(result).toEqual({ ok: false, reason: "unavailable" });
+			expect(tokenStorage.stored).toEqual({
+				accessToken: "access-123",
+				refreshToken: "refresh-456",
+			});
 		});
 
 		it("should send the stored refresh token in the request body", async () => {

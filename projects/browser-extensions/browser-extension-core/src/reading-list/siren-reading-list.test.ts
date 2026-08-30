@@ -1150,6 +1150,38 @@ describe("initExtension", () => {
 			expect(onUnauthorizedCallCount).toBe(1);
 		});
 
+		it("keeps the session and fails retryably when the refresh is unavailable on 401", async () => {
+			const SEARCH_ROUTE =
+				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					[SEARCH_ROUTE]: { status: 401 },
+				}),
+			);
+			let onUnauthorizedCallCount = 0;
+			const start = initExtension(createUnderstandings(), {
+				...createDeps(fetchFn, async () => {
+					onUnauthorizedCallCount++;
+				}),
+				refreshTokens: async () => ({ ok: false, reason: "unavailable" }),
+			});
+			const collection = await start();
+
+			const rejection = await collection.actions
+				.search({ url: "https://example.com/article" })
+				.then(() => undefined, (error: unknown) => error);
+
+			expect(rejection).toBeInstanceOf(Error);
+			expect(rejection).not.toBeInstanceOf(UnauthorizedError);
+			expect(rejection instanceof Error && rejection.message).toMatch(/refresh unavailable/i);
+			expect(calls.filter((call) => call === SEARCH_ROUTE)).toHaveLength(1);
+			expect(onUnauthorizedCallCount).toBe(0);
+		});
+
 		it("should return empty items on non-401 server error", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({

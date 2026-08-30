@@ -18,7 +18,6 @@ const ENTRY_POINT_CALL = `GET ${SERVER_URL}/`;
 const COLLECTION_CALL = `GET ${SERVER_URL}/queue`;
 const SAVE_CALL = `POST ${SERVER_URL}/queue`;
 const BULK_SAVE_CALL = `POST ${SERVER_URL}/queue/save-articles`;
-const TOKEN_CALL = `POST ${SERVER_URL}/oauth/token`;
 const SAVED_URL = "https://example.com/perf-sample";
 
 /** What the bulk route advertises on its manifest and content fields. Held here
@@ -127,13 +126,6 @@ function savedArticleBody(): string {
 	return JSON.stringify(savedArticleEntity());
 }
 
-function tokenGrantBody(): string {
-	return JSON.stringify({
-		access_token: "perf-access-token",
-		refresh_token: "perf-refresh-token",
-	});
-}
-
 const READLIST_ETAG = '"readlist-v1"';
 const SAVED_READLIST_ETAG = '"readlist-v2"';
 
@@ -209,11 +201,10 @@ function warmSave(): SaveLatencyScenario {
 function coldBootSave(): SaveLatencyScenario {
 	return {
 		name: "a save on a cold background boot",
-		expectedCalls: [TOKEN_CALL, ENTRY_POINT_CALL, SAVE_CALL],
+		expectedCalls: [ENTRY_POINT_CALL, SAVE_CALL],
 		measure: async () => {
 			const network = initVirtualNetwork({ roundTripMs: SIMULATED_ROUND_TRIP_MS });
 			const { fetchFn, calls } = initRecordingFetch({
-				[TOKEN_CALL]: { status: 200, body: tokenGrantBody() },
 				[ENTRY_POINT_CALL]: entryPointRoute(),
 				[SAVE_CALL]: saveRoute(),
 			});

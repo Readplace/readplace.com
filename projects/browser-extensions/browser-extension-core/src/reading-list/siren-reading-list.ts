@@ -52,6 +52,12 @@ class ItemGoneError extends Error {
 	}
 }
 
+class RefreshUnavailableError extends Error {
+	constructor() {
+		super("token refresh unavailable");
+	}
+}
+
 /** Asserts a mutation response is ok, distinguishing a 404 (the item/action is
  * gone — a typed ItemGoneError the adapter maps to not-found) from any other
  * failure (a generic Error the adapter propagates). */
@@ -331,6 +337,8 @@ function createAuthorizedFetch(deps: {
 		if (refreshed.ok) {
 			const retried = await attempt(url, init);
 			if (retried.status !== 401) return retried;
+		} else if (refreshed.reason === "unavailable") {
+			throw new RefreshUnavailableError();
 		}
 		await deps.onUnauthorized();
 		throw new UnauthorizedError();
