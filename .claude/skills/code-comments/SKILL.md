@@ -40,8 +40,8 @@ Writing a comment and then asking whether to keep it is the wrong order and is n
 // Temporary: remove this branch after the migration to v2 is complete
 
 // GOOD - explains a why the code cannot carry
-// Robots noindex because this page contains personal data
-robots: 'noindex, nofollow',
+// Bookings older than 90 days are purged by the airline, so re-fetch instead of caching
+cacheTtlMs: 0,
 
 // GOOD - constraint enforced by assert, so no comment to rot
 function handle(req: Request) {
@@ -54,16 +54,16 @@ function handle(req: Request) {
 A single-line explanation of one line goes inline:
 
 ```typescript
-options.addArguments("--no-sandbox"); // CI container has no user namespace
+seatHoldRetryMs: 0, // the booking sandbox releases a held seat after a second, so the retry cannot wait
 ```
 
 An explanation spanning multiple lines uses indexed references, so it stays together and each line is traceable:
 
 ```typescript
 /** 1. DynamoDB stores missing attributes as null, not undefined. .nullish() accepts both. */
-const Row = z.object({
-  etag: z.string().nullish(), /* 1 */
-  lastModified: z.string().nullish(), /* 1 */
+const BookingRow = z.object({
+  seatPreference: z.string().nullish(), /* 1 */
+  frequentFlyerId: z.string().nullish(), /* 1 */
 });
 ```
 

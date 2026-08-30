@@ -25,31 +25,31 @@ A clean success log in handler N followed by silence in handler N+1 pinpoints th
 
 For the crawl pipeline, the chains are:
 
-| Entry point | Handler chain |
+| Entry point | Lambda chain (the `<handler>` in the log-group name) |
 |---|---|
 | `/admin/recrawl` | `recrawl-link-initiated-handler` → `recrawl-content-extracted-handler` |
 | `/view` (new article) | `save-anonymous-link-command-handler` → `select-most-complete-content-handler` |
 | Save link command | `save-link-command-handler` → `select-most-complete-content-handler` |
 
-Inspect each project's `infra/index.ts` for the full Lambda/queue topology.
+The `<handler>` names are the Lambda names the Pulumi program assigns — confirm against the program before pasting. Inspect each project's Pulumi program (what `pnpm nx run <project>:check-infra` previews) for the full Lambda/queue topology — its event-bus subscriptions map each event (`SaveLinkCommand`, `SaveAnonymousLinkCommand`, `RecrawlLinkInitiated`, then `TierContentExtracted` or `RecrawlContentExtracted` for the second hop) to the Lambda that consumes it.
 
 ### 2. Audit Every Path Against the Single Writer of Each Terminal State
 
 For each terminal status in the state machine (`ready`, `failed`, `succeeded`, …), grep for who writes it. There should be one canonical writer per state. Then walk every reachable code path through the handler chain — each must end at a writer, or the row stays stuck. Skip-promotion / no-op-update / tie / "canonical unchanged" branches are the most common offenders.
 
-For the crawl pipeline, `crawlStatus='ready'` has one writer: `promoteTierToCanonical`, with `markCrawlReady` as its bare-DDB sibling. See `projects/save-link/src/select-content/promote-tier-to-canonical.ts` and `projects/save-link/src/crawl-article-state/dynamodb-article-crawl.ts`.
+For the crawl pipeline, `crawlStatus='ready'` has one writer: the article store's aggregate save — the DynamoDB update that binds `:crawlStatus` to the aggregate's crawl kind; grep the article store for `:crawlStatus`. The aggregate reaches that kind through the transitions the content-selection handlers persist once the winning tier is settled on the canonical S3 key — the two promotions (which copy the winner there first), the recrawl tie that keeps the canonical unchanged — and through the content-refresh transition; grep the aggregate's transitions for crawl assignments whose kind is `ready`. A content purge also stamps `ready` directly from its tombstone update, outside the aggregate save — it binds `:ready`, not `:crawlStatus`, so the grep above does not surface it.
 
 ### 3. Conditional vs Unconditional State Mutators Are Not Interchangeable
 
-When the codebase has both `markX` (conditional) and `forceMarkX` (unconditional) variants of the same transition, they expose different bug surfaces. A bug that reproduces only on the unconditional path is usually in code that the conditional path silently skips — because the conditional mutator is a no-op when the row is already in its terminal state.
+When the codebase has both a conditional and an unconditional variant of the same transition, they expose different bug surfaces. A bug that reproduces only on the unconditional path is usually in code that the conditional path silently skips — because the conditional mutator is a no-op when the row is already in its terminal state.
 
-Crawl pipeline example: `/view` uses `markCrawlPending` (conditional on `crawlStatus<>'ready'`); `/admin/recrawl` uses `forceMarkCrawlPending` (unconditional). A bug that reproduces on the latter but not the former lives in a code path only the unconditional mutator exposes.
+Crawl pipeline example: `/view` marks the crawl pending conditionally — the crawl-state store's update guarded by `crawlStatus <> :ready`, grep for that condition; `/admin/recrawl` marks it pending unconditionally — the sibling update in the same store with no condition. A bug that reproduces on the latter but not the former lives in a code path only the unconditional mutator exposes.
 
 ### 4. Retry-Chain Wall Clock = Visibility × maxReceiveCount
 
 Lambda timeout, SQS visibility, and `maxReceiveCount` form an interdependent failure-surfacing budget: the DLQ-driven terminal write lands at roughly `visibility × maxReceiveCount` after the first failure. Raising Lambda timeout in isolation pushes that out, often past the SLO/canary budget. Tune all three together, or short-circuit by writing the terminal state inline before throwing for retry.
 
-For the crawl pipeline, queue/Lambda config is in `projects/save-link/src/infra/index.ts`. The Tier 1+ canary's poll budget is in `src/packages/crawl-article/scripts/tier-1-plus-pipeline-health.ts`.
+For the crawl pipeline, queue/Lambda config is in the Pulumi program that subscribes a Lambda to `RecrawlLinkInitiated` — grep the Pulumi programs for the event-bus subscribe call that names that event. The Tier 1+ canary's poll budget is in the script behind the `tier-1-plus-pipeline-health` nx target (`pnpm nx show projects --with-target tier-1-plus-pipeline-health` names its project).
 
 ### 5. Symmetric Paths That Diverge Are a Signal, Not a Coincidence
 
@@ -59,8 +59,8 @@ When two paths share a core but diverge for the same input (one works, the other
 
 | Don't | Why |
 |---|---|
-| Speculate about Lambda timeouts before tailing logs | Symptoms whose duration matches a single timeout (e.g. canary's 180s) usually point to retry-chain math, not Lambda hangs |
+| Speculate about Lambda timeouts before tailing logs | Symptoms whose duration matches a single timeout (a Lambda timeout, the canary's poll budget) usually point to retry-chain math, not Lambda hangs |
 | Bump Lambda timeout in isolation to "give it more room" | Pushes failure-surfacing past the canary/SLO budget without addressing the cause; rule 4 applies |
 | Dismiss "path A works, path B doesn't" as warm-pool or IP coincidence | This pattern almost always points to a real divergence in path B's prefix; rule 5 applies |
 | Patch the first handler in the chain when it logs success | The bug is in the next hop; patching the first hop fights the wrong fight |
-| Race `saveLinkWork` against a wall-clock timer to force `markCrawlFailed` | Aggressive budgets regress the working majority of URLs (e.g. Wikipedia) without fixing the stuck minority; address the missing terminal write directly |
+| Race the shared save-link worker (the function the save, anonymous-save, submit and recrawl handlers all call to fetch and finalize one URL) against a wall-clock timer to force the crawl-failed terminal write | Aggressive budgets regress the working majority of URLs (e.g. Wikipedia) without fixing the stuck minority; address the missing terminal write directly |

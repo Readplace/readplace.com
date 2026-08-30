@@ -6,14 +6,17 @@ description: Run the Readplace iOS app in a Simulator and see its screen. Use wh
 # Running the app in a Simulator
 
 ```bash
-(cd projects/hutch && pnpm dev) &            # the build below talks to http://127.0.0.1:3000
-cd projects/native-apps/ios
-make run-local                               # LOCAL_SERVER build: boots the newest iPhone simulator, installs, launches
+cd "$(git rev-parse --show-toplevel)"        # pnpm dev resolves from the repo root
+pnpm dev &                                   # the build below talks to http://127.0.0.1:3000
+cd "$(dirname "$(git grep -l xcodebuild -- ':/*Makefile')")"   # the iOS app's directory: the one Makefile that drives xcodebuild (`:/` searches from the repo root whatever the cwd)
+make run-local                               # local-server build: boots the newest iPhone simulator, installs, launches
 D=$(xcrun simctl list devices booted | grep -m1 -oE '[0-9A-F-]{36}')   # the device make just booted
 ```
 
-Every Xcode/`swiftc` invocation goes through `./scripts/xc.sh` — it scrubs the devbox/nix
-toolchain, without which the SDK mismatches and the build dies.
+Every Xcode/`swiftc`/`xcrun` invocation goes through the wrapper that Makefile prefixes onto each
+`xcodebuild` and `xcrun` call — it scrubs the devbox/nix toolchain, without which the SDK
+mismatches and the build dies. `make -n run-local` prints that prefix on every `xcodebuild`/`xcrun`
+line.
 
 Optional polish before capturing anything:
 
@@ -30,7 +33,7 @@ because a background process cannot reliably raise the Simulator window while so
 the Mac.
 
 To record: `xcrun simctl io "$D" recordVideo --codec h264 out.mp4`, stopped with
-`pkill -INT -f "simctl io $D recordVideo"`. Killing the wrapper without SIGINT to the child
+`pkill -INT -f "simctl io $D recordVideo"`. Killing the `xcrun` front process without SIGINT to its `simctl` child
 leaves a recorder registered and every later attempt fails `Resource busy`; only
 `killall -9 com.apple.CoreSimulator.CoreSimulatorService` clears that.
 

@@ -5,30 +5,35 @@ description: Run the Readplace Android app in an emulator and see its screen. Us
 
 # Running the app in an emulator
 
+From the Android app's project directory — the one whose Makefile defines the `emulator-boot`
+recipe (`git grep -l '^emulator-boot:' -- ':/*/Makefile'`):
+
 ```bash
-cd projects/native-apps/android
-make emulator-boot                 # headless boot of the readplace-android AVD, waits for boot to finish
-make install-emulator              # builds the staging APK, installs it, launches MainActivity
-make install-emulator-local        # same against a hutch dev server on this Mac (adb reverse to :3000)
-make screenshot                    # writes build/screenshot.png
+make emulator-boot                 # headless boot of the AVD the Makefile's AVD variable names, waits for boot to finish
+make install-emulator              # builds the staging APK, installs it, launches the app
+make install-emulator-local        # same against the web server running on this Mac (adb reverse to :3000)
+make screenshot                    # prints where it wrote the PNG
 ```
 
-For `install-emulator-local`, start the server first from `projects/hutch` with the repo's
-`.envrc` loaded: `node dist/runtime/server.main.js` (after `pnpm nx run hutch:compile`). The
-dev app signs users up without an email round-trip, logs the verification email to stdout,
-and rejects a signup posted faster than 2.5 s after its `loadedAt` field — a scripted signup
-must send a `loadedAt` a few seconds in the past.
+For `install-emulator-local`, start the web server first: `pnpm nx run hutch:compile`, then, from
+the directory of the project that target belongs to (`pnpm nx show project <project> --json`
+prints its `root`) with the repo's `.envrc` loaded, run `node` on the compiled entry point its
+`start` script names (`pnpm run` lists it) — without the script's `NODE_ENV=production` prefix.
+The dev app signs users up without an email round-trip, logs the verification email to stdout,
+and rejects a signup posted faster than 2.5 s after its `loadedAt` field — a scripted signup must
+send a `loadedAt` a few seconds in the past.
 
 The emulator's Chrome shows its first-run screen the first time a Custom Tab opens; tap
 "Use without an account" once and it never returns for that AVD.
 
-Every Gradle/adb/emulator/sdkmanager invocation goes through `./scripts/ax.sh` — it strips the
-devbox/nix build environment, without which AGP's own tool calls resolve a toolchain that cannot
-produce Android artifacts. This matters more than on iOS: the **Gradle daemon snapshots its
-environment at spawn**, so one bare `./gradlew` run from inside devbox poisons every later build
-until you run `make stop`.
+Every Gradle/adb/emulator/sdkmanager invocation goes through the wrapper script every toolchain
+line of the Makefile is prefixed with — `make -n <target>` prints that prefix. It strips the devbox/nix build
+environment, without which AGP's own tool calls resolve a toolchain that cannot produce Android
+artifacts. This matters more than on iOS: the **Gradle daemon snapshots its environment at
+spawn**, so one bare `./gradlew` run from inside devbox poisons every later build until you run
+`make stop`.
 
-Drop `-no-window` (see the `emulator-boot` recipe) if you want a visible window.
+For a visible window run `make emulator-window` instead (it also routes audio to the Mac).
 
 ## Seeing the screen
 

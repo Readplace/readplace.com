@@ -17,10 +17,10 @@ Drafting a post is the highest-effort task in this repo. Run it at maximum effor
 
 ### Finding the Posts Directory
 
-The blog discovery module scans a directory at runtime using `readdirSync` and filters for `.md` files. To find the current posts directory:
+The post loader scans a directory at runtime using `readdirSync` and filters for `.md` files. To find the current posts directory:
 
 1. Grep the codebase for the file that calls `readdirSync` and filters `.md` blog files (e.g. `readdirSync.*\.md`)
-2. In that file, find the variable that resolves the posts directory path (e.g. a `join(__dirname, ...)` call)
+2. In that file, find the expression that resolves the posts directory the loader reads from
 3. The resolved directory is where blog post markdown files must be placed
 
 Do not assume a hardcoded path. Always discover it from the source code.
@@ -31,7 +31,7 @@ Each post is a single markdown file placed in the discovered posts directory.
 
 ### Frontmatter Schema
 
-The schema is a zod object in [blog.posts.ts](../../../projects/blog-site/src/runtime/web/pages/blog/blog.posts.ts) — read it for the exact types. A post that violates it throws while the posts load, so a mistake here fails the whole blog, not one page.
+The schema is a zod object in the post loader — the module that scans the posts directory, found as in [Finding the Posts Directory](#finding-the-posts-directory) — read it for the exact types. A post that violates it throws while the posts load, so a mistake here fails the whole blog, not one page.
 
 | Field | Required | Notes |
 |---|---|---|
@@ -54,7 +54,7 @@ Unknown keys are dropped rather than rejected, so a typo in an *optional* field 
 
 ### Slug-Filename Invariant
 
-The `slug` value in frontmatter **must** match the filename (minus `.md`). For example, a file named `my-post.md` must have `slug: "my-post"`. The discovery module asserts this at load time and will throw if they diverge. Slugs must also be unique across the directory, which a second assert enforces.
+The `slug` value in frontmatter **must** match the filename (minus `.md`). For example, a file named `my-post.md` must have `slug: "my-post"`. The post loader asserts this at load time and will throw if they diverge. Slugs must also be unique across the directory, which a second assert enforces.
 
 ### Post Body Format
 
@@ -73,7 +73,7 @@ One paragraph summarising the post.
 </details>
 ```
 
-The blank lines inside the `div` are required, or markdown will not render the paragraph. The `blog-tldr__toggle` class is load-bearing: `withTldrCaret` in [blog.posts.ts](../../../projects/blog-site/src/runtime/web/pages/blog/blog.posts.ts) matches on it to inject the disclosure caret at render time, so a `<summary>` without that exact class silently loses its chevron.
+The blank lines inside the `div` are required, or markdown will not render the paragraph. The `blog-tldr__toggle` class is load-bearing: the post loader's render step matches on it to inject the disclosure caret at render time (grep for the class in the blog's TypeScript — the one hit outside the stylesheet and the posts), so a `<summary>` without that exact class silently loses its chevron. The `blog-tldr` class names are a content contract rather than code identifiers: every published post carries this block verbatim, so renaming one means editing every post, and this skill names them on purpose.
 
 **Citing an external article.** Link through the reader rather than off the site. Drop the `https://` scheme and append the rest to `/view/`, as a root-relative link:
 
@@ -81,7 +81,7 @@ The blank lines inside the `div` are required, or markdown will not render the p
 [research post about poisoning language models](/view/www.anthropic.com/research/small-samples-poison)
 ```
 
-`viewPathFor` in [view-path.ts](../../../projects/hutch/src/runtime/web/pages/view/view-path.ts) is the source of truth for the transformation: `https://` is dropped, `http://` is kept literally because it is the minority case, slashes stay unencoded, and `?` and `#` inside the article URL become `%3F` and `%23` so Express's query parser does not claim them. Use the relative form. One post uses an absolute `https://readplace.com/view/...` link and it is an outlier, not the convention.
+The `/view/` path builder — the function that turns an article URL into that path, in the module that percent-encodes `?` and `#` (grep for `%3F` in TypeScript outside test files) — is the source of truth for the transformation: `https://` is dropped, `http://` is kept literally because it is the minority case, slashes stay unencoded, and `?` and `#` inside the article URL become `%3F` and `%23` so Express's query parser does not claim them. Use the relative form. One post uses an absolute `https://readplace.com/view/...` link and it is an outlier, not the convention.
 
 **Pull-quotes.** A single blockquoted bold line that compresses the surrounding claim, used by most posts:
 
@@ -93,7 +93,7 @@ See [the pull-quote technique](#the-pull-quote-technique) for when to reach for 
 
 ### Ordering
 
-Posts are sorted by `date` in descending order (newest first) automatically by the discovery module. No manual ordering is needed — just set the correct `date` in frontmatter.
+Posts are sorted by `date` in descending order (newest first) automatically by the post loader. No manual ordering is needed — just set the correct `date` in frontmatter.
 
 ### Highlighting a shipped feature (changelog banner)
 
@@ -152,7 +152,7 @@ The operative test is always **this post against the last 8 published posts**. T
 
 ### The lookback (do this before writing a word)
 
-Posts are ordered by the frontmatter `date:` value, not by filename and not by git history, because `date` is what the discovery module sorts on and what the reader sees. Read the `date:` line out of each post in the directory, sort descending, and take the top 8. Build the command yourself against the directory you resolved in [Finding the Posts Directory](#finding-the-posts-directory).
+Posts are ordered by the frontmatter `date:` value, not by filename and not by git history, because `date` is what the post loader sorts on and what the reader sees. Read the `date:` line out of each post in the directory, sort descending, and take the top 8. Build the command yourself against the directory you resolved in [Finding the Posts Directory](#finding-the-posts-directory).
 
 For each of those 8, record:
 
@@ -285,7 +285,7 @@ The [brand guidelines](../../../BRAND_GUIDELINES.md#voice--copy) own the product
 
 > Readplace writes the summary when the save finishes.
 
-The product already holds itself to this: the TL;DR prompt in [how-ai-tldr-actually-works](../../../projects/blog-site/src/runtime/web/pages/blog/posts/how-ai-tldr-actually-works.md) demands "active voice, short sentences, plain connectors, specific facts, and no jargon" of the model. The blog should not write worse than the summariser it ships.
+The product already holds itself to this: the TL;DR prompt described in the post at `/blog/how-ai-tldr-actually-works` demands "active voice, short sentences, plain connectors, specific facts, and no jargon" of the model. The blog should not write worse than the summariser it ships.
 
 **This is not a ban.** A passive is correct, and should be left alone, when:
 
@@ -540,7 +540,7 @@ If a fix would change how a correct sentence sounds, find a smaller fix. Leave d
 
 ## Figures (`rp-figure`)
 
-A post draws a chart or an interactive widget by writing a fenced `rp-figure` block. The renderer expands it to HTML at load time; the post keeps only the data. Grammar and validation live in [blog-figure.parse.ts](../../../projects/blog-site/src/runtime/web/pages/blog/blog-figure.parse.ts), the markup in [blog-figure.render.ts](../../../projects/blog-site/src/runtime/web/pages/blog/blog-figure.render.ts), the styles in [blog.styles.css](../../../projects/blog-site/src/runtime/web/pages/blog/blog.styles.css).
+A post draws a chart or an interactive widget by writing a fenced `rp-figure` block. The renderer expands it to HTML at load time; the post keeps only the data. Grammar and validation live in the figure parser (the module whose assertion messages start with `rp-figure:` — grep for that), the markup in the figure renderer beside it, the styles in the blog stylesheet (the only stylesheet in the directory that holds the post loader); `ls` that directory to see all three.
 
 Read those three files for the current field lists before writing a figure — the summary below is the *why*, not the schema.
 
@@ -575,24 +575,24 @@ There is no line chart and no series kind. A post with more than two points in a
 
 ### No client JavaScript
 
-blog-site ships no client bundle, and no figure may introduce one. Every interactive kind runs on native radio and checkbox inputs plus `:has()`, which is why keyboard and screen-reader behaviour come for free and why nothing here is subject to a jsdom-only test.
+The blog project ships no client bundle, and no figure may introduce one. Every interactive kind runs on native radio and checkbox inputs plus `:has()`, which is why keyboard and screen-reader behaviour come for free and why nothing here is subject to a jsdom-only test.
 
 The `:has()` rules sit inside `@supports`, so each kind also has to read without them. That fallback is a design constraint, not a leftover: `walk` opens on its first stage, `matrix` shows the before column, `budget` shows its last step, `rule` shows the `else` branch. Each is an honest state on its own.
 
 Two consequences for authors:
 
 - The **first** option of a `choice` and the **last** `step` of a `budget` are what the figure loads with. Order them so the state it opens in is the one the post argues about.
-- The selector lists in the stylesheet enumerate positions, so each kind has a ceiling (`MAX_WHENS`, `MAX_STEPS` in the parser). Raising one means extending the matching selector list.
+- The selector lists in the stylesheet enumerate positions, so each kind has a ceiling (the step and `when` ceilings exported at the top of the parser). Raising one means extending the matching selector list.
 
 ### Colour
 
-One meaning, across all five kinds: **brand amber is the behaviour that ships today** — the selected stage, the new rule, the cell the fix moved. Muted grey is the shape it replaced. `--color-error` is only ever a failure. Amber never marks a wrong count.
+One meaning, across all five kinds: **brand amber is the behaviour that ships today** — the selected stage, the new rule, the cell the fix moved. Muted grey is the shape it replaced. The error colour token is only ever a failure. Amber never marks a wrong count.
 
-Never hardcode a hex. The figure stylesheet is entirely token-driven so both themes come out right; a literal `#c8702a` renders light-mode amber on a dark page.
+Never hardcode a hex. The blog stylesheet is entirely token-driven so both themes come out right; a literal `#c8702a` renders light-mode amber on a dark page.
 
 ### Placing one
 
-Put the figure directly after the paragraph it illustrates, with a blank line either side. Never inside the `<details class="blog-tldr">` block, and never before the first `##` heading. A post may carry more than one figure; input ids are numbered per post, so two figures never collide.
+Put the figure directly after the paragraph it illustrates, with a blank line either side. Never inside the TL;DR disclosure block, and never before the first `##` heading. A post may carry more than one figure; input ids are numbered per post, so two figures never collide.
 
 ---
 
@@ -618,7 +618,7 @@ A post tagged `changelog` announces a shipped change to every reader of the prod
 
 Do not create new tests when adding or removing blog posts. The existing tests validate the blog infrastructure (discovery, rendering, SEO) and are written to work regardless of which posts exist.
 
-If adding or removing a post breaks any test, rewrite the broken test so it no longer couples to a specific post. Tests should derive their expectations dynamically from the loaded posts (e.g. use `getAllPosts()[0]` or `getAllSlugs()`) rather than hardcoding a slug, title, or date.
+If adding or removing a post breaks any test, rewrite the broken test so it no longer couples to a specific post. Tests should derive their expectations dynamically from the loaded posts (e.g. the first post in the loader's sorted list, or one of the slugs it reports) rather than hardcoding a slug, title, or date.
 
 ## Verification
 
@@ -626,9 +626,9 @@ After adding or moving a blog post:
 
 1. Confirm the frontmatter satisfies the [schema](#frontmatter-schema). A violation throws at load, so it fails the whole blog rather than the one page.
 2. Run the project's test suite to confirm the post is discovered and parsed without errors
-3. Check that `getAllPosts()` returns the new post alongside existing ones
+3. Check that the post loader returns the new post alongside existing ones
 4. Confirm the post is accessible at `/blog/{slug}`
 
-A malformed `rp-figure` throws while the posts load, so it surfaces as a failure of the existing "every post loads" test rather than at a Lambda cold start. If you added one, also open the post and operate it — with a real click, not by setting `.checked` from the console, which does not always trigger the `:has()` invalidation a user event does.
+A malformed `rp-figure` throws while the posts load, so it surfaces as a failure of the loader's existing tests, which load every post, rather than at a Lambda cold start. If you added one, also open the post and operate it — with a real click, not by setting `.checked` from the console, which does not always trigger the `:has()` invalidation a user event does.
 
 For a newly drafted post, the checks that matter are not mechanical. Read the last 8 posts, then read the draft. If it could sit in that list without a reader noticing a change in shape, it is not done.

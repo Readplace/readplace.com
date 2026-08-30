@@ -1,6 +1,6 @@
 ---
 name: web
-description: Web adapter conventions for the application domain. Use when working with HTML templates, CSS styles, client-side JavaScript, or SSR patterns. Triggers on changes to .css, .html, .view.html, .client.js files.
+description: Web adapter conventions for the application domain. Use when working with HTML templates, CSS styles, client-side JavaScript, or SSR patterns. Triggers on changes to .css, .html, .template.html, or .client.ts files.
 ---
 
 # Web Adapter Guidelines
@@ -9,7 +9,7 @@ Conventions for building the web adapter layer that connects the application dom
 
 ## Component Pattern
 
-Pages and components follow a composable `Component` type. A page returns a `PageBody`; a `Base` wrapper takes the page body plus per-request state (header, banner, auth) and produces the final `Component`. Routes call `sendComponent(req, res, ...)` to write the response.
+Pages and components follow one composable component type, exported by the shared web shell package beside its SSR renderer (`pnpm nx show projects` lists the package). A page returns a page body; the project's base wrapper takes the page body plus per-request state (header, banner, auth) and produces the final component. Routes hand that component to the shell's response writer to write the response — the function that tries the component's `text/markdown` form when the `Accept` header asks for it and falls through to `text/html` when that form answers 406 (grep the web shell package for `!== 406`; the single hit is it).
 
 ### Don't DRY Trivial Composition
 
@@ -17,13 +17,13 @@ A wrapper that only chains two function calls is not worth extracting. Inline th
 
 ```typescript
 // ❌ BAD — wrapper adds a name but no logic
-export function renderPage(source: HeaderSource, body: PageBody): Component {
-	return Base(body, buildHeader(source));
+export function renderPage(source: HeaderSource, body: Body): Page {
+	return Shell(body, buildHeader(source));
 }
-sendComponent(req, res, renderPage(req, SomePage(vm)));
+writePage(req, res, renderPage(req, BookingPage(vm)));
 
 // ✅ GOOD — composition is visible at the call site
-sendComponent(req, res, Base(SomePage(vm), buildHeader(req)));
+writePage(req, res, Shell(BookingPage(vm), buildHeader(req)));
 ```
 
 Extract a helper only when it owns real logic (branching, validation, transformation) — not when it just renames a chain.
@@ -36,7 +36,7 @@ This applies even when the list has only 1–2 items today. The cost of the abst
 
 ```typescript
 // ❌ BAD — booleans flow into the template, every variant grows another {{#if}}
-return render(TEMPLATE, {
+return renderView(BOOKING_TEMPLATE, {
 	canEdit,
 	canDelete,
 	isOwner,
@@ -44,11 +44,11 @@ return render(TEMPLATE, {
 ```
 ```html
 {{#if isOwner}}
-<li><a href="/foo" data-test-action="open">Open</a></li>
-{{#if canEdit}}<li><a href="/foo/edit" data-test-action="edit">Edit</a></li>{{/if}}
-{{#if canDelete}}<li><form method="POST" action="/foo/delete"><button data-test-action="delete">Delete</button></form></li>{{/if}}
+<li><a href="/foo" data-test-segment-action="open">Open</a></li>
+{{#if canEdit}}<li><a href="/foo/edit" data-test-segment-action="edit">Edit</a></li>{{/if}}
+{{#if canDelete}}<li><form method="POST" action="/foo/delete"><button data-test-segment-action="delete">Delete</button></form></li>{{/if}}
 {{else}}
-<li><a href="/foo" data-test-action="open">Open</a></li>
+<li><a href="/foo" data-test-segment-action="open">Open</a></li>
 {{/if}}
 ```
 
@@ -70,7 +70,7 @@ export function buildActions(input: {
 {{#each actions}}
 <li>
   <form method="{{method}}" action="{{href}}">
-    <button type="submit" data-test-action="{{key}}">{{label}}</button>
+    <button type="submit" data-test-segment-action="{{key}}">{{label}}</button>
   </form>
 </li>
 {{/each}}
@@ -89,7 +89,7 @@ Why prefer this even though `<form>` is heavier markup than `<a>`:
 
 The same rule applies to action lists, card actions, and any other repeated UI element with mixed methods. Reserve raw `<a href>` for the rare standalone link that doesn't fit the iteration (e.g., a single brand link in the header).
 
-The header nav and the footer diverge on purpose, and that divergence is not a candidate for this unification. The header nav mixes a mutation (logout `POST`) with GET navigation, so every item renders as `<form method="{{method}}" action="{{href}}">` wrapping a `<button class="nav__link">`, carrying UTM in hidden inputs. The footer is GET-only navigation, so each item is a raw `<a class="footer__link">` under the standalone-link carve-out above, with UTM baked into the `href` by the `{{track}}` helper.
+The header nav and the footer diverge on purpose, and that divergence is not a candidate for this unification. The header nav mixes a mutation (logout `POST`) with GET navigation, so every item renders as `<form method="{{method}}" action="{{href}}">` wrapping a `<button>` that carries the nav's link class, with UTM in hidden inputs. The footer is GET-only navigation, so each item is a raw `<a>` carrying the footer's link class under the standalone-link carve-out above, with UTM baked into the `href` by the tracking helper — the Handlebars helper that stamps `utm_source`/`utm_medium`/`utm_content` onto a literal href (the `registerHelper` call in the shared renderer that asserts its `source=` and `content=` named args before stamping the UTM params — the other registration is the icon helper; the nav and footer templates sit beside it in the web shell package).
 
 - Do not turn the footer into forms: it adds a POST wrapper no mutation justifies.
 - Do not collapse the nav to plain `<a>`: it drops the logout form and its CSRF posture along with the hidden-input UTM.
@@ -97,19 +97,19 @@ The header nav and the footer diverge on purpose, and that divergence is not a c
 ```html
 <!-- ✅ GOOD — header nav: uniform form + button, UTM in hidden inputs -->
 <form method="{{method}}" action="{{href}}">
-  <input type="hidden" name="utm_source" value="{{trackSource}}">
-  <button type="submit" class="nav__link">{{label}}</button>
+  <input type="hidden" name="utm_source" value="{{source}}">
+  <button type="submit" class="<nav-link-class>">{{label}}</button>
 </form>
 
-<!-- ✅ GOOD — footer: GET-only navigation as a standalone link, UTM via the {{track}} helper -->
-<a class="footer__link" href="{{track '/blog' source='footer' content='blog'}}">Blog</a>
+<!-- ✅ GOOD — footer: GET-only navigation as a standalone link, UTM via the tracking helper -->
+<a class="<footer-link-class>" href="{{<tracking-helper> '/blog' source='footer' content='blog'}}">Blog</a>
 ```
 
 Tests asserting on the list use positive assertions on the rendered keys (per [test-driven-design's "Never Rely on `querySelector(...).toBeNull()`"](../test-driven-design/SKILL.md)):
 
 ```typescript
-const actions = Array.from(doc.querySelectorAll("[data-test-action]")).map(
-	(el) => el.getAttribute("data-test-action"),
+const actions = Array.from(doc.querySelectorAll("[data-test-segment-action]")).map(
+	(el) => el.getAttribute("data-test-segment-action"),
 );
 expect(actions).toEqual(["open"]); // non-owner sees only the open action
 ```
@@ -152,21 +152,23 @@ Build features in two steps:
 </form>
 ```
 
-No custom `*.client.js` is needed when htmx covers the interaction. Reserve `*.client.js` files for behaviour htmx cannot express (e.g., inline validation, animations).
+No custom `*.client.ts` is needed when htmx covers the interaction. Reserve `*.client.ts` files for behaviour htmx cannot express (e.g., inline validation, animations).
 
 IMPORTANT: Ask for human intervention whenever a deviation from htmx is needed away from this basic pattern for SPA navigation.
 
-**Sanctioned deviation — card-scoped list mutations.** A mutation whose only visible effect is that one list row changes may swap the row instead of re-shipping the whole `<main>`, when re-rendering `<main>` is the measured cost. The queue's card mark-read/unread do this: the form targets the row (`hx-target="closest .queue-article" hx-swap="outerHTML"`); a `swap=card` marker on the action href — a response-representation hint the server never trusts as state, consistent with the URL-as-state rule below — routes an htmx submit to a small card-removal fragment plus out-of-band toast/counts; and the **server**, never the client, decides when the DOM has drifted (page emptied, page beyond the last, the pagination controls changed, or the change didn't apply) and answers with the full listing via `HX-Retarget: main`. The no-JS, Undo, reader and API callers keep the byte-identical `<main>`/303 path, and delete keeps its full-`<main>` confirm-popover flow. This is already decided — follow it for equivalent list-row mutations instead of re-asking. See `pages/queue/queue.page.ts` (`respondCardStatusSwap`) and `queue-mutation-fragments.ts`.
+**Sanctioned deviation — card-scoped list mutations.** A mutation whose only visible effect is that one list row changes may swap the row instead of re-shipping the whole `<main>`, when re-rendering `<main>` is the measured cost. The queue's card mark-read/unread do this: the form targets the row (`hx-target` set to `closest` plus the card's block class, `hx-swap="outerHTML"`); a `swap=card` marker on the action href — a response-representation hint the server never trusts as state, consistent with the URL-as-state rule above — routes an htmx submit to a small card-removal fragment plus out-of-band toast/counts; and the **server**, never the client, decides when the DOM has drifted (page emptied, page beyond the last, the pagination controls changed, or the change didn't apply) and answers with the full listing via `HX-Retarget: main`. The no-JS, Undo, reader and API callers keep the byte-identical `<main>`/303 path, and delete keeps its full-`<main>` confirm-popover flow. This is already decided — follow it for equivalent list-row mutations instead of re-asking. See the queue page's card status-swap handler — the one that answers with the `HX-Retarget` header when the DOM has drifted (grep for `HX-Retarget` in the web pages of the project that serves `/queue` — the single hit there is it; the repo-wide second hit is the newsletter inbox's lock-check middleware) — and the mutation-fragments module it imports, which renders the card-removal fragment plus the out-of-band toast and counts.
 
 ### No Side Effects on GET
 
 Never mutate state on a GET — proxies cache them, prefetchers fire them, crawlers hit them. For URLs that need to trigger a mutation (e.g., a share-able permalink), render a page with an auto-submitting `<form method="POST">`:
 
 ```html
-<form method="POST" action="/items" data-auto-submit>
+<form method="POST" action="/items" data-submit-on-load>
   <input type="hidden" name="title" value="...">
 </form>
 ```
+
+Two pages already do this — grep the web pages for `querySelector('[data-auto-submit]')` and reuse that attribute and its inline script rather than inventing another.
 
 Alternatively use the POST - Redirect - GET pattern.
 
@@ -189,9 +191,9 @@ Alternatively use the POST - Redirect - GET pattern.
 | Use semantic classes | Describe visual state (`.flight-segment--outbound`) |
 | Use BEM for scoping | Prevent class collisions (`.flight-segment__label`) |
 | Orphan/widow control lives on the prose container, not on `body` | A global `text-wrap` forces a full-page reflow |
-| Fonts come from `var(--font-serif)` / `var(--font-sans)` | Never inline the `Georgia, "Times New Roman", serif` stack — one source of truth in `base.styles.ts`, like colours |
-| Buttons come from the shared `.btn` system | One button in the product — a per-page base class is how padding, radius, height, and hover direction drift apart |
-| Icons are inline same-origin SVG, drawn with `{{icon "name"}}` | Never an icon font, an icon CDN, an entity/Unicode glyph (`× → ✓ ▾`), or a CSS `content:` glyph. See [Icon Style](../../../BRAND_GUIDELINES.md#icon-style) |
+| Fonts come from `var(--font-serif)` / `var(--font-sans)` | Never inline the `Georgia, "Times New Roman", serif` stack — one source of truth, the shared base-styles module that declares the `--font-serif` token (grep for the quoted `"--font-serif"` key — the token map is a TypeScript object, not a stylesheet), like colours |
+| Buttons come from the shared button system | One button in the product — a per-page base class is how padding, radius, height, and hover direction drift apart |
+| Icons are inline same-origin SVG, drawn by the icon Handlebars helper (the `registerHelper` call in the shared renderer that resolves a name against the shared icon set and returns a SafeString — the other registration is the UTM tracking helper) | Never an icon font, an icon CDN, an entity/Unicode glyph (`× → ✓ ▾`), or a CSS `content:` glyph. See [Icon Style](../../../BRAND_GUIDELINES.md#icon-style) |
 
 A new page's `h1` and section `h2` must set `font-family: var(--font-serif)`, or
 they ship in the body sans by inheritance. In-card sub-labels, eyebrows,
@@ -217,12 +219,12 @@ guidelines](../../../BRAND_GUIDELINES.md#typography-rules) for the exceptions
 
 ### Buttons Come From the Shared System
 
-Every call to action uses the shared `.btn` + `.btn--<variant>` classes that `BUTTON_STYLES`
-in [`base.styles.ts`](../../../src/packages/web-shell/src/base.styles.ts) injects into every
-page's `<head>`. A page stylesheet contributes layout only — `width`, `margin`, grid/flex
-placement, `white-space`.
+Every call to action uses the shared button base class plus one variant modifier, from the
+button stylesheet that the shared base-styles module (the one whose token map holds the quoted `"--font-serif"` key) injects
+into every page's `<head>`. A page stylesheet contributes layout only — `width`, `margin`,
+grid/flex placement, `white-space`.
 
-Do **not** define a per-page button base class (`.lp-btn`, `.hb-btn`, `.<page>__*-btn`) that
+Do **not** define a per-page button base class (`.<page>-btn`, `.<page>__*-btn`) that
 re-declares padding, radius, weight, fill, or hover. If a button needs something the shared
 set cannot express, add a variant to the shared set. See the [button system in the brand
 guidelines](../../../BRAND_GUIDELINES.md#buttons) for the variant taxonomy, the tier table,
@@ -238,7 +240,7 @@ and the single hover rule.
 }
 .checkout__pay-btn:hover { opacity: 0.9; }
 
-/* ✅ GOOD — markup is class="btn btn--primary checkout__pay-btn" */
+/* ✅ GOOD — markup is class="<shared-button-classes> checkout__pay-btn" */
 .checkout__pay-btn { width: 100%; }
 ```
 
@@ -248,12 +250,12 @@ All stacked sections in a page column share a single content measure (see [Layou
 
 ```css
 /* ❌ BAD — prose capped narrower than the full-width tab bar above it */
-.import { max-width: 800px; }
-.import__intro { max-width: 56ch; }
+.booking { max-width: 800px; }
+.booking__intro { max-width: 56ch; }
 
 /* ✅ GOOD — the whole flow shares one measure */
-.import { max-width: var(--reader-max-width); }
-.import__intro { /* no per-section cap */ }
+.booking { max-width: var(--reader-max-width); }
+.booking__intro { /* no per-section cap */ }
 ```
 
 ### Responsive Container Padding
@@ -262,9 +264,9 @@ Container padding starts at the `lg` 24px token and grows to 32–40px at `@medi
 
 ```css
 /* ✅ GOOD — mobile-affordable base, generous on desktop */
-.auth-card { padding: 24px; }
+.booking-card { padding: 24px; }
 @media (min-width: 768px) {
-  .auth-card { padding: 40px; }
+  .booking-card { padding: 40px; }
 }
 ```
 
@@ -284,9 +286,9 @@ Use numbered references for multi-line explanations:
 Point a drifting element at the shared token or the existing house pattern rather than a bespoke per-element value. The recurring "AI-generated" tell is pieces that should read as one system each styled in isolation — a second link colour here, a hand-tuned control height there.
 
 - **Inline body-copy links set `color: var(--primary-text)`.** There is no global bare-`<a>` reset, so an unstyled link renders browser-default blue — a styling gap, not a choice. One link token per page; emphasis inside a link is weight (`<strong>`), never a second hue. `--primary` is the fill token and is only 3.62:1 on white, below the 4.5:1 floor for text.
-- **An input paired with a button shares the button's height.** Set `height: var(--input-height)` on the input and give the button the shared `.btn--field` tier, which carries that height and `padding: 0 var(--button-padding-x)`; the input keeps `padding: var(--input-padding)`. `box-sizing: border-box` is global, so an explicit shared height is the only reliable equaliser — never fake the match with padding or font-size, and never re-declare the height on the button.
+- **An input paired with a button shares the button's height.** Set `height: var(--input-height)` on the input and give the button the shared field-aligned button tier (named in the [brand guidelines' size table](../../../BRAND_GUIDELINES.md#buttons)), which carries that height and `padding: 0 var(--button-padding-x)`; the input keeps `padding: var(--input-padding)`. `box-sizing: border-box` is global, so an explicit shared height is the only reliable equaliser — never fake the match with padding or font-size, and never re-declare the height on the button.
 - **A directional `→` on a guide link is all-or-nothing across a page.** If one forward/guide link carries the trailing arrow, every sibling link to the same destination carries it too — and an arrow-terminated link takes no trailing period.
-- **Section background rhythm.** A long marketing page alternates `--background` and `--muted` section bands so no two adjacent content sections share a fill; each muted band carries a `1px var(--border)` top/bottom rule (the `.lp-band--muted` / `.home-band--muted` pattern). `--card` is a card-only surface, never a full-bleed section background.
+- **Section background rhythm.** A long marketing page alternates `--background` and `--muted` section bands so no two adjacent content sections share a fill; each muted band carries a `1px var(--border)` top/bottom rule (the muted-band modifier the home and landing page stylesheets each define; [Layout Principles](../../../BRAND_GUIDELINES.md#layout-principles) cites the reference pattern). `--card` is a card-only surface, never a full-bleed section background.
 
 ### Copyable Fields Are One Box
 
@@ -381,9 +383,9 @@ const content = document.querySelector('meta[property="og:image"]')?.getAttribut
 ### Template Indentation
 
 Templates indent with **2 spaces per level, never tabs**. Biome does not format
-`.html` (it is excluded in `biome.config.base.json`), so the rule lives in
+`.html` (the shared Biome config excludes it), so the rule lives in
 [`.editorconfig`](../../../.editorconfig) and is enforced in CI by
-`editorconfig-checker`, wired into every project's `lint` script. It reports and
+`editorconfig-checker`, wired into the `lint` script of every project that ships templates. It reports and
 fails; it never rewrites a file.
 
 Two conventions the checker cannot see, so they rely on review:
@@ -394,7 +396,7 @@ them, so a template's indentation reflects DOM structure rather than control
 flow.
 
 ```html
-<div class="queue-article__actions">
+<div class="flight-card__actions">
   {{#each actions}}
   <form method="{{method}}" action="{{url}}">
     <button type="submit">{{text}}</button>
@@ -407,8 +409,10 @@ flow.
 Handlebars replaces the placeholder in place, so the placeholder's own indent
 supplies the root line's indent at render time — only the root's. The body and
 closing tag carry the embedding depth, which makes the file look lopsided in
-isolation while rendering correctly. `account-card.template.html` is the worked
-example: root at 0, body at 8, closer at 6, injected at a placeholder indented 6.
+isolation while rendering correctly. The account page's subscription-card partial
+is the worked example (`ls` the account page directory — it is the one template
+there other than the page template): root at 0, body at 8, closer at 6, injected
+at a placeholder indented 6.
 
 Continuation lines wrap at **parent indent + 2**, not aligned to the attribute
 column — column alignment lands on odd indents, which `indent_size = 2` rejects.
@@ -416,8 +420,8 @@ column — column alignment lands on odd indents, which `indent_size = 2` reject
 ```html
 <!-- ✅ GOOD — continuation at parent + 2 -->
 <input
-  id="import-from-url-input"
-  class="import__from-url-input"
+  id="booking-lookup-input"
+  class="booking__lookup-input"
   type="url">
 ```
 
@@ -427,7 +431,7 @@ Use JSDOM (or `linkedom`'s `parseHTML`) to parse HTML responses in tests and ass
 
 ## Pre-Commit Checklist
 
-When staged changes include `.css`, `.html`, or `.client.js` files:
+When staged changes include `.css`, `.html`, or `.client.ts` files:
 
 - [ ] CSS selectors do NOT use `data-test-*` attributes
 - [ ] CSS class names are semantic and use BEM prefixes

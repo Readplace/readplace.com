@@ -1,6 +1,6 @@
 ---
 name: infrastructure-design
-description: Infrastructure Design
+description: Pulumi/AWS infrastructure conventions for this monorepo. Use when adding or changing a Lambda, SQS queue, DLQ, EventBridge command or event, a StackReference, a Pulumi config value or environment variable, a DynamoDB access pattern or GSI, a CloudWatch dashboard or log filter, or a CI deploy job; when a deploy fails with `Required output 'X' does not exist on stack` or `Environment variable X is required but not set`; or before running `pulumi up` locally.
 ---
 
 # Infrastructure Design
@@ -31,21 +31,21 @@ DynamoDB `Scan` operations read every item in the table before applying filters.
 
 ## Every Lambda Must Be Backed by a Queue with DLQ
 
-Every Lambda must be invoked through an SQS queue redriving to a DLQ. Use the reusable components from `@packages/hutch-infra-components/infra` — discover them with `grep -l "export class Hutch" src/packages/hutch-infra-components/src/infra/`.
+Every Lambda must be invoked through an SQS queue redriving to a DLQ. Use the reusable components from the shared infra-components package — the one workspace package that instantiates `aws.lambda.Function`; `git grep -l "new aws.lambda.Function("` lands on its Lambda component, and the other components sit beside it.
 
 | Use case | Component |
 |---|---|
-| Async worker (Command or Event handler) | `HutchSQSBackedLambda` — pairs a `HutchLambda` with a `HutchSQS` |
-| A dead-letter queue shared by several source queues | `HutchSharedDlq` — owns the queue and its single SNS alarm + email subscription; pass it as `sharedDlq` to each `HutchSQS` |
-| Failure-state transition driven by DLQ exhaustion | `HutchDLQEventHandler` — Lambda fed by a `deadLetterQueueArn` |
+| Async worker (Command or Event handler) | the queue-backed Lambda component — pairs the Lambda component with the queue component and creates the queue→Lambda event source mapping |
+| A dead-letter queue shared by several source queues | the shared-DLQ component — owns the queue and its single SNS alarm + email subscription; pass it as the shared-DLQ input of each queue component |
+| Failure-state transition driven by DLQ exhaustion | the DLQ-fed handler component — a Lambda whose event source is a dead-letter queue ARN |
 
-Whichever component owns the DLQ owns its alarm: a `HutchSQS` that mints its own DLQ gets its alarm from `HutchSQSBackedLambda`, and one that takes a `sharedDlq` gets it from `HutchSharedDlq`. A shared DLQ needs one consumer that routes each dead letter back to the failure handler for the queue it came from — `initDeadLetterRouter` from `@packages/dead-letter-routing`.
+Whichever component owns the DLQ owns its alarm: a queue component that mints its own DLQ gets its alarm from the queue-backed Lambda component, and one that takes a shared DLQ gets it from the shared-DLQ component. A shared DLQ needs one consumer that routes each dead letter back to the failure handler for the queue it came from — the dead-letter router, the workspace package whose single runtime export routes each dead letter to the failure handler registered for its source queue (its unknown-queue error reads `No dead-letter route registered`).
 
 **Why:** Naked Lambdas drop messages on transient failure and leave no observable trail. The reusable components wire the redrive policy + CloudWatch alarm + SNS email subscription as a single unit, so DLQ arrivals always page the operator.
 
 **Why share a DLQ:** an event source mapping costs ~$5/yr per account before it processes anything (an idle SQS poller issues ~360 empty receives an hour), so a fleet of always-idle per-queue DLQ consumers is pure overhead. Sharing keeps the terminalisation and collapses the pollers.
 
-**How to apply:** Never instantiate `aws.lambda.Function` directly outside the `hutch-infra-components` package — `grep` for it before writing new infra code. Always pair a new `HutchLambda` with `HutchSQSBackedLambda`. When the work source is EventBridge, follow with `eventBus.subscribe(EventOrCommand, lambdaWithSQS)`.
+**How to apply:** Never instantiate `aws.lambda.Function` directly outside the shared infra-components package — `grep` for it before writing new infra code. Always pair a new Lambda component with the queue-backed Lambda component. When the work source is EventBridge, follow by subscribing the queue-backed Lambda to the event or command on the event bus component (the one that creates an EventBridge rule per `source`/`detailType` pair and targets the queue).
 
 **Allowed exception:** a synchronous request/response Lambda fronted by API Gateway. API Gateway is the queue analogue and 5xx surfaces the failure to the client. Document any new exception inline with a `Why:` comment in the infra file that creates it.
 
@@ -55,29 +55,29 @@ When a property answers "does X exist here?", carry X itself (`T | undefined`) a
 
 ```typescript
 // BAD - flag + fields nothing ties together; an alarm on the wrong queue still compiles
-public readonly ownsDlq: boolean;
-if (queue.ownsDlq) {
-	dimensions: { QueueName: queue.dlqName },  // dlqName may be the shared DLQ
+public readonly ownsOverflowQueue: boolean;
+if (counter.ownsOverflowQueue) {
+	dimensions: { QueueName: counter.overflowQueueName },  // may be the terminal's shared overflow queue
 }
 
 // GOOD - the branch narrows to the only value it may use
-public readonly ownDlq: DeadLetterQueue | undefined;
-const ownDlq = queue.ownDlq;
-if (ownDlq) {
-	dimensions: { QueueName: ownDlq.name },
+public readonly ownOverflowQueue: OverflowQueue | undefined;
+const ownOverflowQueue = counter.ownOverflowQueue;
+if (ownOverflowQueue) {
+	dimensions: { QueueName: ownOverflowQueue.name },
 }
 ```
 
-**Why:** a boolean standing in for a value discards the value, so the branch reaches for other fields the flag does not govern — coupling the compiler cannot check (connascence of name is all that holds them together). Carrying the value makes the wrong read non-representable: inside the branch, the only DLQ in scope is the one the flag used to merely promise.
+**Why:** a boolean standing in for a value discards the value, so the branch reaches for other fields the flag does not govern — coupling the compiler cannot check (connascence of name is all that holds them together). Carrying the value makes the wrong read non-representable: inside the branch, the only queue in scope is the one the flag used to merely promise.
 
 ## Command → System → Event(s) Pattern
 
-Every non-trivial process must be modelled as **Command → System → Event(s)**, with events flowing over EventBridge. Commands and events are defined as global, shared types in the `@packages/hutch-infra-components` package via `defineEvent` / `defineCommand`. Discover the current catalogue with `grep -E "defineEvent|defineCommand" src/packages/hutch-infra-components/src/`.
+Every non-trivial process must be modelled as **Command → System → Event(s)**, with events flowing over EventBridge. Commands and events are defined as global, shared types in the shared infra-components package, one declaration each carrying its `source` and `detailType`. Discover the current catalogue by grepping that package for `detailType: "` — every declaration lives in the one module that defines them all.
 
 | Concept | Naming | Dispatch |
 |---|---|---|
-| **Command** — preventable request to do work | imperative (`SaveLinkCommand`, `GenerateSummaryCommand`) | `eventBus.subscribe(Command, lambdaWithSQS)` for EventBridge-routed commands, or `initSqsCommandDispatcher(...)` for direct-SQS commands |
-| **Event** — irreversible fact already in the past | past tense (`LinkSavedEvent`, `SummaryGeneratedEvent`, `CrawlArticleFailedEvent`) | `eventBus.subscribe(Event, lambdaWithSQS)` |
+| **Command** — preventable request to do work | imperative (`BookFlightCommand`, `IssueTicketCommand`) | subscribe the queue-backed Lambda on the event bus component for EventBridge-routed commands, or the direct-SQS command dispatcher (the shared package's runtime helper that validates the detail and sends it with the SQS `SendMessageCommand`) for direct-SQS commands |
+| **Event** — irreversible fact already in the past | past tense (`FlightBookedEvent`, `TicketIssuedEvent`, `CheckInFailedEvent`) | subscribe the queue-backed Lambda on the event bus component |
 
 **Allowed transitions** (sender → receiver, across Lambda boundaries):
 
@@ -96,7 +96,7 @@ A single handler may publish **multiple events** in one invocation. One command,
 
 ## Command/Event Changes Require an Architecture Snapshot
 
-Any change that adds, removes, renames, or re-wires a `defineEvent` / `defineCommand` declaration, or alters how a Lambda subscribes to one, must land with a new snapshot under `.architecture/<commit-hash>/`. Read `.architecture/index.md` end-to-end and follow the snapshot-generation prompt at the bottom. The snapshot must:
+Any change that adds, removes, renames, or re-wires a command or event declaration in the shared catalogue, or alters how a Lambda subscribes to one, must land with a new snapshot under `.architecture/<commit-date>-<hash>/`. Read `.architecture/index.md` end-to-end and follow the snapshot-generation prompt at the bottom. The snapshot must:
 
 1. Show the **complete current state** of every flow that touches the changed command(s) or event(s) — not just the diff.
 2. **Visually highlight the new change** so a reader can see what shifted from the previous snapshot. Use a distinct `classDef` (e.g. `classDef new fill:#ffd24c,stroke:#a0660b,stroke-width:3px;`) and apply `:::new` to the changed nodes/edges. Mention the highlight convention in the snapshot's Legend block.
@@ -112,8 +112,8 @@ When runtime code requires an environment variable, every link in the chain from
 
 Two failure modes to guard against:
 
-1. **Production-only `requireEnv`**: runtime code requires the variable only inside `if (persistence === "prod")`. Local dev takes the in-memory path and skips the call entirely, so the app works locally and tests pass. The missing variable only surfaces when the Lambda initialises in the deployed environment, crashing every request with a 500.
-2. **Local env hides missing GitHub secret**: `pnpm check-infra` and `pulumi up` pass on your laptop because the variable is set in your shell, but the CI deploy job has no value for it because the GitHub secret was never created. `requireEnv` aborts Pulumi at the start of the deploy step with `AssertionError: Environment variable X is required but not set`.
+1. **Production-only required-env call**: runtime code requires the variable only on the branch taken when `PERSISTENCE` is `prod`. Local dev takes the in-memory path and skips the call entirely, so the app works locally and tests pass. The missing variable only surfaces when the Lambda initialises in the deployed environment, crashing every request with a 500.
+2. **Local env hides missing GitHub secret**: `pnpm check-infra` and `pulumi up` pass on your laptop because the variable is set in your shell, but the CI deploy job has no value for it because the GitHub secret was never created. The required-env helper aborts Pulumi at the start of the deploy step with `AssertionError: Environment variable X is required but not set`.
 
 Env vars come in two flavors. Each has a different chain from source to runtime. Trace an existing var of the same flavor end-to-end and replicate the pattern.
 
@@ -121,28 +121,28 @@ Env vars come in two flavors. Each has a different chain from source to runtime.
 
 For env vars that name a resource you provision in Pulumi (DynamoDB table, S3 bucket, EventBridge bus, etc.), the chain starts in the Pulumi config YAML files.
 
-**Checklist when adding a `requireEnv` call for a config-derived variable:**
+**Checklist when adding a required-env call for a config-derived variable:**
 - [ ] Config value added to **every** environment YAML file (`Pulumi.prod.yaml`, `Pulumi.staging.yaml`, etc.)
 - [ ] Config read in the infrastructure entry point and passed to the resource class
 - [ ] Resource created in the infrastructure resource class
 - [ ] IAM policy grants the deployed function access to the new resource's ARN
 - [ ] Lambda `environment:` block sets the variable, pointing to `resource.name`
-- [ ] Runtime composition root reads the variable via `requireEnv` and passes it to the provider
+- [ ] Runtime composition root reads the variable via the required-env helper and passes it to the provider
 
 ### Flavor B — External secret (API keys, OAuth client secrets, webhook tokens)
 
 For env vars that carry an external credential with no AWS resource backing it (third-party API key, OAuth client secret, webhook signing secret, etc.), the chain starts in GitHub Actions secrets and flows through the reusable CI deploy workflow.
 
-**Checklist when adding a `requireEnv` call for an external-secret variable:**
+**Checklist when adding a required-env call for an external-secret variable:**
 - [ ] **GitHub Actions secrets** — `gh secret list --env staging --repo <org>/<repo>` and `gh secret list --env prod --repo <org>/<repo>` both show the variable. Secret values must be set via the GitHub UI — they can't be set from `gh` without a PAT with `secrets:write`. If missing, tell the user explicitly before creating the commit.
-- [ ] **CI deploy workflow `env:` block** — `.github/workflows/project-deployment.yaml` (or whichever reusable workflow deploys the project) forwards the secret into **both** `deploy-staging` and `deploy-prod` jobs: `VAR_NAME: ${{ secrets.VAR_NAME }}`. **This is the most commonly missed step** — the GitHub secret can exist and still not reach the job unless the workflow forwards it explicitly.
-- [ ] Lambda `environment:` block in `projects/*/src/infra/index.ts` sets `VAR_NAME: requireEnv("VAR_NAME")` so the variable reaches the deployed runtime.
-- [ ] Runtime composition root reads the variable via `requireEnv` and wires it into the provider.
+- [ ] **CI deploy workflow `env:` block** — the reusable workflow under `.github/workflows/` that runs each project's `deploy-infra` target (grep for `:deploy-infra`) forwards the secret into **both** its staging and prod deploy jobs (the ones with `environment: staging` and `environment: prod`): `VAR_NAME: ${{ secrets.VAR_NAME }}`. **This is the most commonly missed step** — the GitHub secret can exist and still not reach the job unless the workflow forwards it explicitly.
+- [ ] Lambda `environment:` block in the project's Pulumi program (the `main` its `package.json` names) sets `VAR_NAME` by reading it through the required-env helper, so the variable reaches the deployed runtime.
+- [ ] Runtime composition root reads the variable via the required-env helper and wires it into the provider.
 - [ ] Local `.env` (gitignored, auto-sourced by `.envrc`) has the variable so local dev and `pnpm check-infra` work.
 
 ### Don't collide with existing env var names
 
-Before introducing a new env var name, grep for existing use across `.github/workflows/`, `projects/*/src/infra/`, `projects/*/src/runtime/`, and `projects/*/scripts/`. The same name may already be claimed by another project — for example, the Chrome Web Store publishing workflow holds `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` unrelated to any app-side Google login. Namespace collisions fail silently in some layers and at CI-deploy time in others. Namespace new variables to avoid the trap: prefer `GOOGLE_LOGIN_CLIENT_ID` over `GOOGLE_CLIENT_ID` if the existing name is already claimed elsewhere.
+Before introducing a new env var name, `git grep` the whole repo for existing use — CI workflows, every project's infra and runtime code, and project scripts all claim names. The same name may already be claimed by another project — for example, the Chrome Web Store publishing workflow holds `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` unrelated to any app-side Google login. Namespace collisions fail silently in some layers and at CI-deploy time in others. Namespace new variables to avoid the trap: prefer `GOOGLE_LOGIN_CLIENT_ID` over `GOOGLE_CLIENT_ID` if the existing name is already claimed elsewhere.
 
 ## Moving a Domain Between Redirect and Primary Requires Two Deploys
 
@@ -150,13 +150,13 @@ ACM cert validation DNS records conflict when a domain moves between `redirectDo
 
 ## Don't StackReference a Value You Could Put in Config
 
-A consumer that reads a producer stack's output with `StackReference.requireOutput` couples their deploy order, but the CI deploy matrix (`ci.yml`) deploys every project stack **in parallel with no producer→consumer ordering**. The first deploy after a new output is introduced therefore fails with `Required output 'X' does not exist on stack '...'`.
+A consumer that reads a producer stack's output with `StackReference.requireOutput` couples their deploy order, but the CI deploy matrix (in the top-level CI workflow — the one that discovers deployable projects with `pnpm nx show projects --with-target deploy-infra`) deploys every project stack **in parallel with no producer→consumer ordering**. The first deploy after a new output is introduced therefore fails with `Required output 'X' does not exist on stack '...'`.
 
-**Why:** `StackReference` reads the producer's **last-persisted checkpoint**, not its in-flight deploy. When a new output and its consumer land together — often squashed through a merge train that cancels the producer's own deploy — the consumer reads a checkpoint that predates the output and `requireOutput` throws. Already-persisted outputs from the same reference keep resolving, so only the brand-new value fails. This broke `blog-site`/`web-embed` (reading hutch `sessionsTableName`/`sessionsTableArn`) and `hutch` (reading save-link `contentMediaCdnBaseUrl`).
+**Why:** `StackReference` reads the producer's **last-persisted checkpoint**, not its in-flight deploy. When a new output and its consumer land together — often squashed through a merge train that cancels the producer's own deploy — the consumer reads a checkpoint that predates the output and `requireOutput` throws. Already-persisted outputs from the same reference keep resolving, so only the brand-new value fails. This broke two consumer stacks reading a producer's freshly added sessions-table name and ARN outputs, and a third reading another producer's freshly added content-media CDN base URL output.
 
 **How to avoid, in order of preference:**
-1. **If the value is a config constant, read the same config in both stacks instead of cross-referencing it.** A CDN base URL is `https://${config.require("contentMediaCdnDomain")}` — known before either stack deploys — so deriving it in the consumer deletes the edge and deploy order stops mattering. This is how hutch already wires the shared content *bucket* via `contentBucketName` config rather than a StackReference.
-2. **If the value is only known at deploy time and must exist before another project deploys, put the producing resource in the `platform` stack.** `deploy-platform` runs before the project matrix (`ci.yml` `needs: [..., deploy-platform]`) precisely so anything every project depends on is already persisted — that is what the platform stack is for.
+1. **If the value is a config constant, read the same config in both stacks instead of cross-referencing it.** A CDN base URL is `https://${config.require("contentMediaCdnDomain")}` — known before either stack deploys — so deriving it in the consumer deletes the edge and deploy order stops mattering. This is how every stack that uses the shared content *bucket* already wires it, via the `contentBucketName` config key rather than a StackReference.
+2. **If the value is only known at deploy time and must exist before another project deploys, put the producing resource in the `platform` stack.** The platform deploy job runs before the project matrix (the matrix job lists it under `needs:` in the top-level CI workflow) precisely so anything every project depends on is already persisted — that is what the platform stack is for.
 3. **Only keep a project→project `StackReference` for a genuinely deploy-time value owned by one specific project, and then enforce the order explicitly** (a CI `needs:` edge) — never rely on the parallel matrix.
 
 **Red flag in review:** a `requireOutput` whose value is a domain, bucket name, or any string you could write in `Pulumi.<env>.yaml`. If it can live in config, it belongs in config — not in a cross-stack read.
@@ -165,9 +165,9 @@ A consumer that reads a producer stack's output with `StackReference.requireOutp
 
 **The test: more than one project stack needs the resource to already exist.**
 
-Ownership follows dependency, not origin. A resource written first in `hutch` because that is where the feature started still belongs in `platform` once a second project depends on it — "hutch happens to own it" is not an architecture.
+Ownership follows dependency, not origin. A resource written first in whichever project stack the feature started in still belongs in `platform` once a second project depends on it — "that stack happens to own it" is not an architecture.
 
-`deploy-platform` runs before the project matrix, so anything `platform` creates is persisted before any consumer deploys. Inspect `projects/platform/src/infra/index.ts` for what it owns today and `.github/workflows/ci.yml` for the ordering.
+The platform deploy job runs before the project matrix, so anything `platform` creates is persisted before any consumer deploys. Inspect the `platform` project's Pulumi program (the `main` its `package.json` names) for what it owns today and the top-level CI workflow for the ordering (the matrix job lists the platform deploy job under `needs:`).
 
 | Signal | Belongs in `platform` |
 |---|---|
@@ -179,10 +179,10 @@ Ownership follows dependency, not origin. A resource written first in `hutch` be
 
 **Two limits to state accurately rather than assume:**
 
-- `deploy-platform` is conditional on `platform-affected`, and the matrix gate tolerates a *skip* (it only blocks on `failure`). "Platform deploys first" is a guarantee about failure, not about a run where platform is unaffected.
+- The platform deploy job is conditional on project detection reporting `platform` affected, and the matrix gate tolerates a *skip* (it only blocks on `failure`). "Platform deploys first" is a guarantee about failure, not about a run where platform is unaffected.
 - `platform` is infra-only — its `test` script is a no-op and `check` runs lint. **Logic with tests cannot live there.** Put the logic in a coverage-enforced workspace package and let `platform` hold only the wiring. This is why moving a tested module into `platform` is never a one-file change.
 
-**Uplifting an existing resource is not a code move.** Pulumi state has to hand over: `pulumi state delete` from the old stack, `pulumi import` into `platform`, one resource at a time, staging before prod, with both previews reading zero diff before the code merges. Do it out of band and **before** the code lands — never with the `import:` resource option, which hard-fails a fresh environment on the one stack everything else is gated behind. Because `deploy-platform` gates the whole matrix, a botched handover blocks every project's deploy, not just its own.
+**Uplifting an existing resource is not a code move.** Pulumi state has to hand over: `pulumi state delete` from the old stack, `pulumi import` into `platform`, one resource at a time, staging before prod, with both previews reading zero diff before the code merges. Do it out of band and **before** the code lands — never with the `import:` resource option, which hard-fails a fresh environment on the one stack everything else is gated behind. Because the platform deploy job gates the whole matrix, a botched handover blocks every project's deploy, not just its own.
 
 ## Fleet-Wide Observability Cannot Enumerate Its Sources
 
@@ -194,7 +194,7 @@ A dashboard widget that lists the log groups it reads silently stops covering th
 | Subscription filters per log group | 2 | One combined filter per group; a second consumer later has nowhere to go |
 | `logGroups(namePrefix:)` in a dashboard widget | rejected | Works for the start-query API only — the renderer errors on it |
 
-**So funnel instead of enumerate:** every source group forwards into one destination group, and the widget reads that. Coverage then follows from creating a Lambda rather than from remembering to register one — `HutchLambda` attaches the filter itself.
+**So funnel instead of enumerate:** every source group forwards into one destination group, and the widget reads that. Coverage then follows from creating a Lambda rather than from remembering to register one — the Lambda component attaches the filter itself (it is the one place that creates a `LogSubscriptionFilter`; grep for it).
 
 Two failure modes this arrangement introduces, both of which reached production before being caught:
 

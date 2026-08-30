@@ -9,7 +9,7 @@ This monorepo follows [Conventional Commits](https://www.conventionalcommits.org
 
 ## Scope Rules
 
-The scope **must** be the `name` property from the project's `package.json` where the files are being changed. Inspect `projects/*/package.json` to find valid scope names.
+The scope **must** be the nx project name of the project whose files are being changed — `pnpm nx show projects` lists them; where a project has a `package.json`, that is its `name` field.
 
 | Scenario | Format |
 |----------|--------|
@@ -21,8 +21,8 @@ The scope **must** be the `name` property from the project's `package.json` wher
 ## How to Determine the Scope
 
 1. Check which files are being committed using `git status` and `git diff --staged`
-2. Identify which project directory each file belongs to (e.g., `projects/flights/`)
-3. Look up the `name` field in that project's `package.json`
+2. Identify which nx project each file belongs to — the nearest ancestor directory carrying its own nx project definition; `pnpm nx show projects` lists them (e.g., the `flights` project's root)
+3. Use the project's name as nx reports it
 
 ## Important Notes
 

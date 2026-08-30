@@ -1,11 +1,11 @@
 ---
 name: hypermedia-api-design
-description: Hypermedia contract between Readplace's hutch server and every client that consumes it — the chrome and firefox extensions, the iOS app, the MCP server, and future clients. Use when adding, renaming, or removing an API capability a client consumes, when the server emits or parses Siren responses, or when any client's navigation/action flow changes.
+description: Hypermedia contract between the Readplace server and every client that consumes it — the chrome and firefox extensions, the iOS app, the MCP server, and future clients. Use when adding, renaming, or removing an API capability a client consumes, when the server emits or parses Siren responses, or when any client's navigation/action flow changes.
 ---
 
-# Client ↔ Hutch Hypermedia API Design
+# Client ↔ Server Hypermedia API Design
 
-Clients talk to hutch over a Siren (`application/vnd.siren+json`) hypermedia API; the same URLs serve browsers (`text/html`) via content negotiation. This doctrine governs **every** client surface — the chrome and firefox extensions, the iOS app, the MCP server, and any future client — so a server-side view change never forces a client redeploy. The contract is **the message format plus a stable vocabulary of action names** — not a catalogue of URLs, methods, or request shapes.
+Clients talk to the server over a Siren (`application/vnd.siren+json`) hypermedia API; the same URLs serve browsers (`text/html`) via content negotiation. This doctrine governs **every** client surface — the chrome and firefox extensions, the iOS app, the MCP server, and any future client — so a server-side view change never forces a client redeploy. The contract is **the message format plus a stable vocabulary of action names** — not a catalogue of URLs, methods, or request shapes.
 
 ## Core Principle: The Server Owns the Protocol
 
@@ -17,11 +17,11 @@ A client knows exactly one URL: the entry point (`/`). From there, the server te
 The client's job is to interpret the Siren format and follow what the server says — not to construct URLs or hard-code HTTP methods.
 
 ### References
-- Server schemas: [projects/hutch/src/runtime/web/api/siren.ts](../../../projects/hutch/src/runtime/web/api/siren.ts)
-- Collection emission: [projects/hutch/src/runtime/web/api/collection-siren.ts](../../../projects/hutch/src/runtime/web/api/collection-siren.ts)
-- Entity emission: [projects/hutch/src/runtime/web/api/article-siren.ts](../../../projects/hutch/src/runtime/web/api/article-siren.ts)
-- Status tab list: [projects/hutch/src/runtime/web/api/tab-list.ts](../../../projects/hutch/src/runtime/web/api/tab-list.ts)
-- Content negotiation: [projects/hutch/src/runtime/web/content-negotiation.ts](../../../projects/hutch/src/runtime/web/content-negotiation.ts)
+- Server Siren types: the server module that declares the shared entity/action/link/message shapes and exports the media-type constant — grep the server for `application/vnd.siren+json`; the hit that exports it as a constant is this module
+- Collection emission: the server module that assembles the collection entity — the one that stamps it with `class` `collection`/`articles` and fills `properties.pages` and `properties.tabs`; grep the server for `"collection", "articles"` — the non-test hit
+- Entity emission: the server module that builds an article sub-entity with its `update-status` action — the only non-test server hit for `"update-status"`
+- Status tab list: the builder that turns the status set into `tabs` entries, choosing `rel` `current` or `tab` — grep the server for `"current" : "tab"`
+- Content negotiation: the Siren content-negotiation predicate — the one call to Express's `req.accepts(...)` made with the Siren media type; grep the server for `.accepts(`
 - Client implementations: see [Per-Client Implementations](#per-client-implementations)
 
 ## Content Negotiation, Not Parallel APIs
@@ -30,7 +30,7 @@ One URL per capability serves both the browser (HTML) and a programmatic client 
 
 - `GET /` with `Accept: application/vnd.siren+json` → `303 See Other` → `/queue` (the Siren entry point)
 - `GET /` with `Accept: text/html` → home page
-- Branch on `wantsSiren(req)`, then emit from the same domain data
+- Branch on the Siren content-negotiation predicate (see [References](#references)), then emit from the same domain data
 
 Why 303 over the entry point: the server decides where the collection lives; renaming `/queue` to something else is a server-internal change because the client only followed the redirect.
 
@@ -68,7 +68,7 @@ Renaming an action is a breaking change — both sides must ship together. Renam
 | Add a new `link` `rel` | No | Clients only follow `rel`s they understand |
 | Add a new property to `entities[].properties` | No | Extra properties are ignored |
 | Rename an action | **Yes** | Action name is the contract |
-| Rename a field a client must author the value for (`search`'s `url`) | **Yes** | A bespoke handler hardcodes the name to supply the value, and the invoker's `fields?.[field.name]` lookup then misses **silently** — the request goes out without that input rather than erroring |
+| Rename a field a client must author the value for (`search`'s `url`) | **Yes** | A bespoke handler hardcodes the name to supply the value, and the invoker, which looks each declared field up by name in the handler-supplied values, then misses **silently** — the request goes out without that input rather than erroring |
 | Rename a field the server carries a `value` for (`update-status`'s `status`) | No | The generic invoker copies the declared `name`/`value` pair verbatim; no client ever knows the name |
 | Remove a field with no server `value` that no client authors (`search`'s `order`) | No | Nothing can supply it — no `value` for the generic invoker, no bespoke handler — so no conforming client can reach it |
 | Rename a property in `properties` that clients read | **Yes** | Treat known property names as the contract |
@@ -82,10 +82,10 @@ When a breaking change is necessary, add the new capability alongside the old on
 
 HTTP caching (`ETag` + `If-None-Match`) is the authoritative cache layer. Do not build a parallel in-client cache of "what articles exist" as the source of truth. A client may keep a short-lived cache of *bound actions* (items the server returned with their `update-status` action attached) as a performance optimisation, but the canonical state is always whatever the server returns next.
 
-- Cache wrapper: `httpCacheable(understanding)` in the browser extension's `siren-reading-list.ts`
-- Short-lived action cache: `knownItems` in `initSirenReadingList` (cleared on every mutation)
+- Cache wrapper: the HTTP-cache decorator around an understanding, exported by the extension core's Siren walker module (the extension core is the shared package both extensions consume — `pnpm nx show projects` lists it; the walker module is anchored under [Browser extension](#browser-extension-the-walker-pattern))
+- Short-lived action cache: the legacy reading-list adapter's map of known items (cleared on every mutation — the walker module's one `.clear()`)
 
-**Discovery freshness is server-defined.** The responses a client reads only to *discover* affordances — the entry-point `303` and the collection `GET` behind it — carry an explicit cache policy, so a warm client invokes an action it already holds without spending a re-discovery round trip first. The lifetime is granted per client: the collection's `max-age` currently goes to the native iOS client alone, and every other Siren client is held to `private, no-cache` revalidation, because entity mutations post to per-article URIs and would never auto-invalidate a cached collection on already-shipped clients. Only the server knows how long its own action vocabulary stays valid, so the client honours ordinary HTTP caching and never invents a TTL: `SIREN_DISCOVERY_MAX_AGE_SECONDS` in [projects/hutch/src/runtime/web/siren-discovery-cache.ts](../../../projects/hutch/src/runtime/web/siren-discovery-cache.ts) is the only place that lifetime is set. The two mechanisms are not interchangeable: `max-age` is what removes the warm round trip (the client answers from its own store), while `ETag`/`304` still costs a request and only cheapens revalidation when the body is unchanged — rare for a collection, which any save changes.
+**Discovery freshness is server-defined.** The responses a client reads only to *discover* affordances — the entry-point `303` and the collection `GET` behind it — carry an explicit cache policy, so a warm client invokes an action it already holds without spending a re-discovery round trip first. The lifetime is granted per client: the collection's `max-age` currently goes to the native iOS client alone, and every other Siren client is held to `private, no-cache` revalidation, because entity mutations post to per-article URIs and would never auto-invalidate a cached collection on already-shipped clients. Only the server knows how long its own action vocabulary stays valid, so the client honours ordinary HTTP caching and never invents a TTL: the server's discovery-lifetime constant — in the one server module that builds the `private, max-age=` directive; grep for that string — is the only place that lifetime is set. The two mechanisms are not interchangeable: `max-age` is what removes the warm round trip (the client answers from its own store), while `ETag`/`304` still costs a request and only cheapens revalidation when the body is unchanged — rare for a collection, which any save changes.
 
 After a mutation, the server drives the client back to the collection via `303 See Other`. `fetch` follows the redirect automatically; the client parses the new collection and that becomes the new truth. Do not synthesise "the new list after delete" client-side — read it from the response.
 
@@ -119,9 +119,9 @@ The server can refuse or annotate an action with a generic, feature-agnostic mes
 }
 ```
 
-The client owns **no** knowledge of what a message means — it only knows how to render one. The web/extension clients inject `content.body` as HTML (so an `<a href="mailto:…">` renders); iOS strips it to plain text. A locked-account save refusal is the first producer (`accountLockedSirenError`), but the channel is deliberately generic so any future "show the user this, let them keep reading, but block the save" interceptor reuses it rather than adding another bespoke surface.
+The client owns **no** knowledge of what a message means — it only knows how to render one. The web/extension clients inject `content.body` as HTML (so an `<a href="mailto:…">` renders); iOS strips it to plain text. A locked-account save refusal is the first producer (the server's locked-account refusal builder — the one Siren emitter that interpolates a `mailto:` address into its body; grep the server for `mailto:${` — the non-test hit is the module), but the channel is deliberately generic so any future "show the user this, let them keep reading, but block the save" interceptor reuses it rather than adding another bespoke surface.
 
-**The client renders only media types it understands.** `content.type` is the body's media type. Today every client renders exactly one — `text/html` — and **ignores any other media type**: an unrecognised `content.type` is dropped, never displayed, never injected. Be liberal in what you accept (the envelope parses regardless of `content.type`, so a refusal carrying an unknown type still drops the user back into the list rather than failing generically) and conservative in what you render (only the media types the client knows). This makes a new media type a forward-compatible change — older clients skip a body they can't interpret instead of mis-rendering it. The extension filters in `buildMessageView`; iOS filters in `refusalError`.
+**The client renders only media types it understands.** `content.type` is the body's media type. Today every client renders exactly one — `text/html` — and **ignores any other media type**: an unrecognised `content.type` is dropped, never displayed, never injected. Be liberal in what you accept (the envelope parses regardless of `content.type`, so a refusal carrying an unknown type still drops the user back into the list rather than failing generically) and conservative in what you render (only the media types the client knows). This makes a new media type a forward-compatible change — older clients skip a body they can't interpret instead of mis-rendering it. The extension filters in the extension core's message-view builder (the pure module that also picks the live-region `role` — grep the extension core for `"alert"`); iOS filters in its API client's refusal decoder (the step after the `401` check that keeps only renderable messages before treating a body as a refusal, and treats a body left with none as not-a-refusal —).
 
 **Invariant — `content.body` is trusted, server-authored, server-side-escaped HTML.** The server is the *only* author. Because the extension renders it via `innerHTML`, a body that interpolates any untrusted or user-derived value — a saved URL, an article title, an email address — **without escaping it server-side** is markup injection into the popup. This is safe today only because the single producer builds from a static constant. Before a message body ever interpolates dynamic data:
 
@@ -129,7 +129,7 @@ The client owns **no** knowledge of what a message means — it only knows how t
 2. Only `text/html` bodies are ever injected — the client ignores any other `content.type` (see "The client renders only media types it understands" above), so an unknown media type can never be mis-rendered as HTML. A `text/html` body, by contrast, is *always* injected, so the escaping in (1) is mandatory for it.
 3. Never move escaping to the client — the server owns the protocol, and "the client only renders" is what stops every client (extension, iOS, future) re-implementing sanitisation differently.
 
-The client-side render decisions (per-`type` variant class, the `role` politeness, empty/hidden, and which media types are renderable) live in `buildMessageView` (`browser-extension-core`) — pure and unit-tested; the popup glue only paints its output.
+The client-side render decisions (per-`type` variant class, the `role` politeness, empty/hidden, and which media types are renderable) live in the extension core's message-view builder (anchored above) — pure and unit-tested; the popup glue only paints its output.
 
 ## Pagination Is Server-Owned — `properties.pages`
 
@@ -210,7 +210,7 @@ A client loops over the current response's `actions` and renders **one control p
 
 | Avoid | Why |
 |---|---|
-| Hard-coding URLs in a client (e.g. `\`${serverUrl}/queue/${id}/delete\``) | Makes URL changes a coordinated deploy |
+| Hard-coding URLs in a client (e.g. `\`${apiBase}/queue/${id}/delete\``) | Makes URL changes a coordinated deploy |
 | A `/api/v1/...` route tree parallel to the HTML pages | Two things to keep in sync; versioning creep |
 | Returning JSON with a bespoke shape (`{items: [...], nextPage: ...}`) | Forces every client to re-implement Siren badly |
 | Client-owned pagination URLs (`?page=${current+1}`) | Server can't change pagination without breaking clients; follow the `next` link instead |
@@ -221,7 +221,7 @@ A client loops over the current response's `actions` and renders **one control p
 | Interpolating unescaped user data into a `messages[].content.body` | The client injects it via `innerHTML`; unescaped server output is markup injection (see "Server-Driven Messages Are Trusted HTML") |
 | Naming a concrete server route or method in client code or comments (`POST /queue/save-content`, "303s to `/queue`") | The client reads `href`/`method` from the response; a route baked into a comment rots and reintroduces the URL coupling the contract removes |
 | Asserting a specific server response body/URL/shape in a client test | A client test should exercise generic protocol handling — follow whatever action/link the response carries — not pin the server's current URLs or shapes |
-| Gating controls behind per-capability boolean flags (`canSaveURL`/`canMarkRead`/`canDelete` consulted in an `if`) or otherwise conditionally loading controls by hardcoded action name | The boolean hardcodes which affordances exist, so a newly-added server affordance never renders without a client change; iterate the response's `actions`/`links` and render one control each instead |
+| Gating controls behind per-capability boolean flags (`canSave`/`canMarkRead`/`canRemove` consulted in an `if`) or otherwise conditionally loading controls by hardcoded action name | The boolean hardcodes which affordances exist, so a newly-added server affordance never renders without a client change; iterate the response's `actions`/`links` and render one control each instead |
 | Using a server `name`/`rel` string verbatim as a CSS class, or letting the server send style/class | Presentation is 100% client-side; the client maps `name`/`rel` to its own design tokens. A server-string class couples styling to wire vocabulary and breaks on a rename |
 | An inline `name === "delete"` (or any per-name) branch to pick a style/icon | The same smell as the gated booleans — it hardcodes one affordance's presentation; route style AND icon/glyph through the single name/rel→token mapping with a default |
 | Rendering structural navigation rels (`self`/`next`/`prev`/`root`/`item`) as tappable controls | These are the client's own navigation (pagination/identity/item resolution), not user affordances; follow them for navigation and render controls only for actions and semantic links |
@@ -233,7 +233,7 @@ These rules make any client (extension, iOS, MCP, future) behave like a browser 
 
 | Rule | Why |
 |---|---|
-| Render one control (button, swipe, menu item, tap target) **per advertised affordance** by **iterating** the current response's `actions` and `links` — one control each. Never gate a control behind a per-capability boolean (`canSaveURL`/`canMarkRead`/`canDelete`) or any "does the client know action X" `if`. | A boolean hardcodes which affordances exist, so a newly-added server affordance never renders without a client change; the loop renders whatever the server offered, and an absent action simply produces no control (no phantom affordance — the worst HATEOAS failure mode). |
+| Render one control (button, swipe, menu item, tap target) **per advertised affordance** by **iterating** the current response's `actions` and `links` — one control each. Never gate a control behind a per-capability boolean (`canSave`/`canMarkRead`/`canRemove`) or any "does the client know action X" `if`. | A boolean hardcodes which affordances exist, so a newly-added server affordance never renders without a client change; the loop renders whatever the server offered, and an absent action simply produces no control (no phantom affordance — the worst HATEOAS failure mode). |
 | Label a control from the affordance's Siren `title` (the same string doubles as `aria-label`/tooltip). Derive **all presentation** — style AND icon/glyph AND placement — client-side through **one** mapping of action `name` / link `rel` to the client's own design tokens, with a default for an unknown name/rel. Never branch on a single name (`name === "delete"`) to choose presentation. | The server owns the protocol, not the look. A server string used verbatim as a CSS class couples styling to wire vocabulary and breaks on a rename; a per-name presentation branch is the gated-boolean smell in disguise. One mapping keeps presentation a pure client concern and an unknown affordance still renders (default style) instead of vanishing. |
 | Treat structural navigation rels (`self`/`root`/`prev`/`next`/`item`) as the client's **own** navigation (pagination/identity/item resolution) — follow them, never render them as user controls. Render controls for actions and for semantic (non-structural) links the client understands. | A structural rel is how the server steers the client's paging and identity, not a thing the user taps; rendering `next` as a button turns plumbing into a phantom affordance and double-handles paging. |
 | Navigate by the server-supplied link (`rel`), not by a domain property. | Opening a raw `url` property instead of following the `read` link discards the server's chosen destination; if the server re-points the link, the client never follows it. |
@@ -258,17 +258,17 @@ A client surfaces the affordances relevant to **its** UX and may present them di
 
 The browser-extension client separates three concerns:
 
-1. **Understandings** (`init*Understanding` functions) — one handler per action name the client knows how to invoke. Each handler receives the Siren action descriptor and a context, returns a bound callable.
-2. **Composition** — `groupOf(...)` merges multiple understandings; `httpCacheable(...)` wraps them with ETag caching.
-3. **Walker** — `initExtension(handlers, deps)` returns a no-arg function that fetches the entry point, resolves the `self` link, and parses collections into `{items, actions}` where every item has its own action map.
+1. **Understandings** — one handler per action name the client knows how to invoke, each built by an initialiser named for that action. Each handler receives the Siren action descriptor and a context, returns a bound callable.
+2. **Composition** — a grouping combinator merges multiple understandings; an HTTP-cache decorator wraps them with ETag caching.
+3. **Walker** — the extension initialiser takes the composed understandings plus deps and returns a no-arg function that fetches the entry point, resolves the `self` link, and parses collections into `{items, actions}` where every item has its own action map.
 
-For the full flow see the source — it is the spec: [projects/browser-extensions/browser-extension-core/src/reading-list/siren-reading-list.ts](../../../projects/browser-extensions/browser-extension-core/src/reading-list/siren-reading-list.ts). The adapter `initSirenReadingList` exists only to bridge this walker to the legacy `SaveUrl`/`RemoveUrl`/`FindByUrl`/`GetAllItems` interface that the popup consumes. New consumers should call the walker directly.
+For the full flow see the source — it is the spec: the extension core's Siren walker module, the one that declares the structural link rels as a set (grep the extension core for `"root", "prev", "next", "item"`). The legacy reading-list adapter (the walker module's export that owns the known-items map its one `.clear()` empties) exists only to bridge this walker to the per-operation interface (save a URL, find by URL, list items, …) that the popup consumes. New consumers should call the walker directly.
 
-When adding a capability the extension supports: add an `init*Understanding` keyed by the action name, compose it via `groupOf(...)`, wrap with `httpCacheable(...)` for cacheable GETs, and drive the walker directly rather than adding a method to `initSirenReadingList`.
+When adding a capability the extension supports: add an understanding keyed by the action name, compose it with the grouping combinator, wrap it with the HTTP-cache decorator for cacheable GETs, and drive the walker directly rather than adding a method to the legacy adapter.
 
 ### iOS app
 
-iOS honours the discovery freshness headers through a persistent `URLCache` installed on the **share extension's** session only — the share sheet is where a re-discovery round trip is latency the user watches, and the extension is killed between invocations, so the cache has to outlive the process to be worth anything. The main app's sessions stay uncached, which is what keeps its list views revalidating instead of painting a pre-mutation queue back over a save the user just made. Source: [projects/native-apps/ios/Shared/DiscoveryHTTPCache.swift](../../../projects/native-apps/ios/Shared/DiscoveryHTTPCache.swift).
+iOS honours the discovery freshness headers through a persistent `URLCache` installed on the **share extension's** session only — the share sheet is where a re-discovery round trip is latency the user watches, and the extension is killed between invocations, so the cache has to outlive the process to be worth anything. The main app's sessions stay uncached, which is what keeps its list views revalidating instead of painting a pre-mutation queue back over a save the user just made. Source: the shared iOS discovery cache — the one Swift file that touches `URLCache`; grep for it.
 
 ### MCP: the same doctrine over a different transport
 
@@ -288,12 +288,12 @@ Readplace also exposes its domain over MCP (Model Context Protocol) at `/mcp`; t
 
 Divergences a client must respect: MCP fixes the invocation verb (`tools/call`, `resources/read`) instead of declaring a `method` per affordance; capabilities are three flat global registries (tools/resources/prompts), not actions bound to an entity, so a per-item operation is a tool taking the item's id/uri as an argument; and staleness signals are asynchronous server pushes, not a synchronous redirect.
 
-In this repo, hutch is the MCP **server**: the tool set is the single source of truth in `tool-definitions.ts` (`TOOL_DEFINITIONS`), advertised via `tools/list` in `mcp-server.ts`, with no client copy to drift. The WebMCP surface (`webmcp.client.ts`) is a **provider** that registers one local `save_link` tool for an in-browser agent — a provider declares its own shape, so discover-don't-hardcode does not apply to it. Spec: [modelcontextprotocol.io](https://modelcontextprotocol.io).
+In this repo, the Readplace server is also the MCP **server**: the tool set is the single source of truth in the tool catalogue (the one server module that declares each tool's `inputSchema` and annotations — grep the server for `readOnlyHint`; the non-test hit), advertised by the MCP server module's `tools/list` handler (grep the server for `"tools/list"`; the `case` that answers it, not the callers), with no client copy to drift. The WebMCP surface (the browser-side provider script — the one that feature-detects the WebMCP `registerTool`/`provideContext` entry points; grep for `registerTool`) is a **provider** that registers one local `save_link` tool for an in-browser agent — a provider declares its own shape, so discover-don't-hardcode does not apply to it. Spec: [modelcontextprotocol.io](https://modelcontextprotocol.io).
 
 ## Checklist — Adding a New Capability to the API
 
 1. **Name the action as a capability**, not a domain fact. Check the Evolvability table before picking a name.
-2. **Emit the capability on the server** — Siren: an action in `collection-siren.ts` (collection-level) or `article-siren.ts` (entity-level), with its `fields` declared as Siren field types; MCP: a tool in `tool-definitions.ts`, with its `inputSchema`.
-3. **Implement the route handler** behind `wantsSiren(req)`; return `303` for mutations that should land the client back on a collection.
+2. **Emit the capability on the server** — Siren: an action in the collection emitter (collection-level) or the article-entity emitter (entity-level) — both anchored under [References](#references) — with its `fields` declared as Siren field types; MCP: a tool in the tool catalogue (anchored under [MCP](#mcp-the-same-doctrine-over-a-different-transport)), with its `inputSchema`.
+3. **Implement the route handler** behind the Siren content-negotiation predicate; return `303` for mutations that should land the client back on a collection.
 4. **Add a handler for the action name on each client** that should expose the capability — see [Per-Client Implementations](#per-client-implementations).
 5. **Test server and client independently** — server integration tests, plus each client's own tests. The contract surface (action name + fields + method + response class) is what both sides pin down.

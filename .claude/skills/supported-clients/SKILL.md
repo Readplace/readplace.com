@@ -5,7 +5,7 @@ description: How to add, remove, or edit a Readplace client (browser extension, 
 
 # Changing the Supported Clients
 
-The single source of truth is the workspace package `@packages/supported-clients`. Every consumer keys its per-client data off unions derived from that registry, so the compiler — not this document — knows every place that must change. Do not look for a checklist of consumer files here; it would rot. Follow the errors.
+The single source of truth is the client registry — the workspace package whose source lists every supported client as data (`pnpm nx show projects` lists the package; to open the registry, grep for `chromewebstore.google.com` — outside a route test, the registry source is the only file that holds the extension's store listing URL). Every consumer keys its per-client data off unions derived from that registry, so the compiler — not this document — knows every place that must change. Do not look for a checklist of consumer files here; it would rot. Follow the errors.
 
 ## Procedure
 

@@ -55,17 +55,17 @@ Prefer one path that treats every case alike over a conditional that branches to
 
 ```typescript
 // ❌ BAD - Branches on a discriminant to rebuild each arm by hand
-const failure: CoreError =
-	result.reason === "not-logged-in"
-		? { reason: "not-logged-in" }
+const failure: BookingError =
+	result.reason === "flight-full"
+		? { reason: "flight-full" }
 		: { reason: "error", error: result.error };
 
 // ✅ GOOD - Strip the discriminant once; every arm flows through the same path
 const { ok: _ok, ...failure } = result;
-eventBus.emit(event, "failure", failure satisfies CoreError);
+eventBus.emit(event, "failure", failure satisfies BookingError);
 ```
 
-A plain pass-through (`const failure: CoreError = result`) is tempting but wrong when `result` carries extra own-enumerable fields beyond `CoreError` — here the `ok` discriminant. The type checks, but those fields leak through at runtime and break a strict `toEqual` on the emitted value. Rest-destructure the discriminant away so the runtime shape matches the type.
+A plain pass-through (`const failure: BookingError = result`) is tempting but wrong when `result` carries extra own-enumerable fields beyond `BookingError` — here the `ok` discriminant. The type checks, but those fields leak through at runtime and break a strict `toEqual` on the emitted value. Rest-destructure the discriminant away so the runtime shape matches the type.
 
 ### Dependency Injection Over Mocks
 
@@ -76,10 +76,10 @@ Prefer dependency injection over `jest.mock()`. Mocks couple tests to implementa
 jest.mock('./services/email-service');
 
 // ✅ GOOD - Inject dependencies via factory function
-export function createApp(deps: AppDependencies) { ... }
+export function createBookingApp(deps: BookingAppDependencies) { ... }
 ```
 
-For real examples, see `projects/hutch/src/server.ts` which composes all dependencies at startup.
+For real examples, see the composition roots — the entry points that wire dependencies at startup (production and dev assemblies alike), each opening with a `c8 ignore start -- composition root` comment; grep for it.
 
 **Swift:** inject the seam, don't swizzle — pass a stub via `URLSessionConfiguration.protocolClasses` (a `URLProtocol` subclass) and an ephemeral `UserDefaults(suiteName:)`, rather than method swizzling or global replacement.
 
@@ -95,7 +95,7 @@ export function createPaymentPlan(input: Input, deps: Deps) { ... }
 export function initCreatePaymentPlan(deps: Deps): (input: Input) => PaymentPlan { ... }
 ```
 
-For real examples, see `init*` functions in `projects/hutch/src/domain/` and `projects/hutch/src/providers/`.
+For real examples, grep for `export function init` in the main server's domain layer and providers.
 
 ### Do Not Export Internal Functions for Testing
 
@@ -103,35 +103,35 @@ Do not export functions solely so tests can call them directly. Constructor func
 
 ```typescript
 // ❌ BAD - Exporting internal function for test access
-export function createBuildPlan(input: Input) { ... }
-export function initBuildExtension(deps: Deps) {
-	return async function buildExtension(input: Input) {
-		const plan = createBuildPlan(input);
+export function createTicketPlan(input: Input) { ... }
+export function initIssueTicket(deps: Deps) {
+	return async function issueTicket(input: Input) {
+		const plan = createTicketPlan(input);
 		// ...
 	};
 }
 
 // ✅ GOOD - Plan returned from init*, with execution as a method on the plan
-function createPlanData(input: Input) { ... }
-export function initBuildExtension(deps: Deps) {
+function createTicketData(input: Input) { ... }
+export function initIssueTicket(deps: Deps) {
 	return {
-		createBuildPlan(input: Input) {
-			const planData = createPlanData(input);
+		createTicketPlan(input: Input) {
+			const ticketData = createTicketData(input);
 			return {
-				...planData,
-				async buildExtension() { /* uses planData and deps */ },
+				...ticketData,
+				async issueTicket() { /* uses ticketData and deps */ },
 			};
 		},
 	};
 }
 
-// Test accesses plan data through init -> createBuildPlan
-const { createBuildPlan } = initBuildExtension({ ...inMemoryDeps });
-const plan = createBuildPlan({ ... });
-expect(plan.esbuildOptions.target).toBe("firefox91");
+// Test accesses plan data through init -> createTicketPlan
+const { createTicketPlan } = initIssueTicket({ ...inMemoryDeps });
+const plan = createTicketPlan({ ... });
+expect(plan.fareOptions.cabin).toBe("economy");
 
 // Execution is a method on the plan itself
-await plan.buildExtension();
+await plan.issueTicket();
 ```
 
 ### No Design Pattern Names in Identifiers
@@ -140,10 +140,10 @@ Do not name variables, functions, types, or files with design pattern suffixes l
 
 ```typescript
 // ❌ BAD
-interface EncryptedLinkService { ... }
+interface BookingService { ... }
 
 // ✅ GOOD - Domain-focused name
-interface EncryptedLink { ... }
+interface Booking { ... }
 ```
 
 ### Make Invalid States Non-Representable
@@ -167,10 +167,10 @@ Do not weaken an internal contract "for backward compatibility" — an optional 
 ```typescript
 // ❌ BAD - Optional "for backward compatibility" on an internal event whose
 //          every producer lives in this repo — a producer can silently drop it.
-bodyHash: z.string().optional(),
+fareHash: z.string().optional(),
 
 // ✅ GOOD - Required: the compiler forces every in-repo producer to supply it.
-bodyHash: z.string(),
+fareHash: z.string(),
 ```
 
 Backward-compatibility practices — optional/additive fields, tolerant decoding, dual-read, lazy backfill — apply **only** to contracts an externally-published client consumes, because such a client cannot be deployed atomically with the server:
@@ -201,8 +201,8 @@ Do not use conditionals to provide empty defaults when a dependency may be null.
 // ❌ BAD - Silent fallback hides missing config
 const targets = toCustomerEmail ? [toCustomerEmail] : [];
 
-// ✅ GOOD - Fail fast if required
-const resendApiKey = requireEnv("RESEND_API_KEY");
+// ✅ GOOD - Fail fast if required: read it through the env accessor that throws
+//           when the variable is unset (CLAUDE.md, Environment Variable Access)
 ```
 
 ### No Default In-Memory Implementations
@@ -227,12 +227,12 @@ When a function signature has 2 or more consecutive parameters of the same type 
 
 ```typescript
 // ❌ BAD - Two consecutive strings are easy to swap
-type Login = (email: string, password: string) => Promise<LoginResult>;
-await auth.login("user@example.com", "password123");
+type BookFlight = (email: string, passportNumber: string) => Promise<BookingResult>;
+await bookings.book("user@example.com", "PA1234567");
 
 // ✅ GOOD - Named parameters prevent accidental swaps
-type Login = (credentials: { email: string; password: string }) => Promise<LoginResult>;
-await auth.login({ email: "user@example.com", password: "password123" });
+type BookFlight = (passenger: { email: string; passportNumber: string }) => Promise<BookingResult>;
+await bookings.book({ email: "user@example.com", passportNumber: "PA1234567" });
 ```
 
 This does NOT apply when the types differ (e.g., `(string, number)`) or when there is only one parameter.
@@ -253,7 +253,7 @@ Every code path must be exercised by tests. Do not add `|| ''` or `?? defaultVal
 - Use `data-test-*` attributes for test metadata
 - Avoid coupling to labels/view text
 
-For example patterns, see tests in `projects/hutch/src/web/pages/`.
+For example patterns, see the page tests of the web adapter — grep for `data-test-` in the `*.route.test.ts` files under the main server's page directory.
 
 ### Test Behavior, Not Element Existence
 
@@ -276,22 +276,22 @@ Render the element unconditionally and encode visibility as **metadata on the el
 
 ```typescript
 // ❌ BAD - A typo in the selector makes this assertion trivially true
-expect(doc.querySelector("[data-test-onboarding]")).toBeNull();
+expect(doc.querySelector("[data-test-fare-rules]")).toBeNull();
 
 // ❌ BAD (subtler) - A typo makes the assertion fail for the wrong reason
-expect(doc.querySelector("[data-test-onbording]")).not.toBeNull(); // typo
+expect(doc.querySelector("[data-test-fare-rles]")).not.toBeNull(); // typo
 
 // ✅ GOOD - Assert the element exists, then check its state via metadata
-const container = doc.querySelector("[data-test-onboarding]");
-assert(container, "onboarding container must be rendered");
-expect(container.classList.contains("onboarding--hidden")).toBe(true);
+const container = doc.querySelector("[data-test-fare-rules]");
+assert(container, "fare rules container must be rendered");
+expect(container.classList.contains("fare-rules--hidden")).toBe(true);
 ```
 
 This forces the production code to always render the element and toggle a state class (or `data-*` attribute) for visibility. Pair with CSS that makes the state explicit on both sides — don't rely on the element's default `display`:
 
 ```css
-.onboarding--visible { display: block; } /* explicit default for a <section> */
-.onboarding--hidden  { display: none; }
+.fare-rules--visible { display: block; } /* explicit default for a <section> */
+.fare-rules--hidden  { display: none; }
 ```
 
 The same pattern applies to any binary rendering decision (shown/hidden, enabled/disabled, expanded/collapsed): render unconditionally, toggle a class, assert on the class.
@@ -316,9 +316,9 @@ Keep test data inline within each test case rather than extracting to shared fix
 
 ### External API Integration Tests Must Use Retry Logic
 
-When testing external APIs (e.g., Amadeus flight search), use the `Retriable` class from `test-utils` to implement retry logic. Do NOT switch to static/mock providers to mask real API behavior.
+When testing external APIs (e.g., Amadeus flight search), use the workspace retry helper — the package whose sole export wraps an async function in a bounded number of attempts; grep for `maxAttempts must be a positive integer` — to implement retry logic. Do NOT switch to static/mock providers to mask real API behavior.
 
-For usage examples, see `projects/hutch/src/test-utils.ts`.
+For usage examples, grep for the callers that pass it a `shouldRetry` predicate.
 
 ### Never Test Code That Is Only Used in Tests
 
@@ -332,14 +332,14 @@ Tests exist to exercise **generic** code — logic that branches across specific
 
 ```typescript
 // ❌ BAD - This test's only job is to restate `z.string().min(1)`
-const response = await request(harness.server)
-	.post("/oauth/revoke")
-	.send({ token: "" });
+const response = await request(app)
+	.post("/bookings/cancel")
+	.send({ bookingRef: "" });
 expect(response.status).toBe(400);
 
 // ✅ GOOD - `.min(1)` is the spec; the existing handler tests already exercise
-//           the generic logic (valid token → 200, malformed body → 400).
-const revokeBodySchema = z.object({ token: z.string().min(1) });
+//           the generic logic (valid booking ref → 200, malformed body → 400).
+const cancelBookingBodySchema = z.object({ bookingRef: z.string().min(1) });
 ```
 
 Testing-side corollary of [No Unnecessary Runtime Validation](#no-unnecessary-runtime-validation): you don't runtime-check what the compiler enforces, and you don't write a test to pin what a schema already declares.
@@ -360,7 +360,7 @@ For files that wrap a single AWS SDK call (DynamoDB `update`, S3 `get`, EventBri
 
 - Use the `Partial<DynamoDBDocumentClient>` fake-client pattern. Capture the command in a closure and assert on `UpdateExpression`, `ConditionExpression`, and `ExpressionAttributeValues` shape with `toContain` (not `toBe`) so minor formatting changes don't break the test. To find current examples, grep for `Partial<DynamoDBDocumentClient>` in `*.test.ts`.
 - Reach 100% coverage with the fake client. Do NOT add a `.integration.ts` to plug coverage gaps — extract the mapping/parsing logic into a dedicated helper and unit-test the helper directly.
-- When the wrapper is truly trivial (3–5 lines, no branching), mark it `/* c8 ignore start -- thin AWS SDK wrapper, tested via production canaries */` and rely on production canaries for end-to-end verification. To find current canaries, look for `.canary.ts` or `health-*` scripts in each project.
+- When the wrapper is truly trivial (3–5 lines, no branching), mark it `/* c8 ignore start -- thin AWS SDK wrapper, tested via production canaries */` and rely on production canaries for end-to-end verification. To find current canaries, list the GitHub workflows (`ls .github/workflows`) whose name says health or canary, and the health scripts in the crawler package's scripts directory (`ls` it).
 - Reserve `.integration.ts` files for cross-service flows that benefit from real-AWS sanity checking. Mark their phase `e2e: true` in the project's `run-tests.config.js` so they don't gate CI on AWS credentials being present.
 
 ## Code Coverage
