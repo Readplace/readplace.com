@@ -19,6 +19,7 @@ import type { BuildBannerState } from "../../banner-state";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
+import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-view-failed-oob";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
 import { AdminRecrawlPage, formatRecrawlDocumentTitle, recrawlPathFor } from "./recrawl.component";
@@ -247,6 +248,7 @@ function handleSummaryPoll(reader: ReturnType<typeof initArticleReader>) {
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readlistTags: undefined,
+			readerViewFailedOob: NO_READER_VIEW_FAILED_OOB,
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);
@@ -271,6 +273,7 @@ function handleReaderPoll(reader: ReturnType<typeof initArticleReader>) {
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readlistTags: undefined,
+			readerViewFailedOob: NO_READER_VIEW_FAILED_OOB,
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);

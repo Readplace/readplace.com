@@ -8,9 +8,18 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { SAVE_TIP_COOKIE_NAME } from "../../shared/save-tip/save-tip-cookie";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 const READPLACE_IOS = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
+
+function saveTipCookies(headers: {
+	[key: string]: string | string[] | undefined;
+}): string[] {
+	const raw = headers["set-cookie"];
+	const cookies = Array.isArray(raw) ? raw : raw ? [raw] : [];
+	return cookies.filter((cookie) => cookie.startsWith(`${SAVE_TIP_COOKIE_NAME}=`));
+}
 
 function saveIntents(harness: { analytics: { events: Array<{ event: string }> } }): ViewSaveIntentEvent[] {
 	return harness.analytics.events.filter(
@@ -135,6 +144,14 @@ describe("Save routes", () => {
 			const returnUrl = decodeURIComponent(location.split("return=")[1]);
 			expect(returnUrl).toBe("/save?url=https://example.com/article");
 		});
+
+		it("stamps no save-tip cookie: the tip is recorded on the page that shows it, not on reaching /save", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get("/save?url=https://example.com/article");
+
+			expect(saveTipCookies(response.headers)).toEqual([]);
+		});
 	});
 
 	describe("GET /save?url=https://example.com (authenticated)", () => {
@@ -146,6 +163,15 @@ describe("Save routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue?url=https%3A%2F%2Fexample.com%2Farticle");
+		});
+
+		it("stamps no save-tip cookie on the authenticated redirect either", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/save?url=https://example.com/article");
+
+			expect(saveTipCookies(response.headers)).toEqual([]);
 		});
 	});
 

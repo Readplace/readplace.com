@@ -77,10 +77,7 @@ test.describe('Readlist management flow (staging)', () => {
 
 		const viewPageProgress: ViewPageProgress = {
 			visitedAnonymously: false,
-			// Staging has no deterministic crawl-failure endpoint (/e2e/unfetchable
-			// is local-only), so mark the crawl-failure leg complete up front. Its
-			// action skips itself via the missing `unfetchableUrl` config option.
-			visitedCrawlFailure: true,
+			visitedCrawlFailure: false,
 		}
 
 		// All-true stubs: staging skips these flows (no /e2e/sent-emails endpoint,
@@ -162,7 +159,11 @@ test.describe('Readlist management flow (staging)', () => {
 			readlistProgress,
 			preReadlistActionFactories: {
 				anonymousView: createAnonymousViewPageActions(
-					{ baseUrl: baseURL, testUrl: fixtureUrl('anon-view') },
+					{
+						baseUrl: baseURL,
+						testUrl: fixtureUrl('anon-view'),
+						unfetchableUrl: `${baseURL}/e2e/fixtures/unfetchable/${runId}-crawl-fails`,
+					},
 					viewPageProgress,
 				),
 				onboarding: skipFactory(ONBOARDING_ACTION_KEYS),
@@ -177,8 +178,8 @@ test.describe('Readlist management flow (staging)', () => {
 				bannerOnReader: createBannerOnReaderActions(
 					{
 						baseUrl: baseURL,
-						publicViewTestUrl: fixtureUrl('banner-on-public-view'),
-						privateReaderTestUrl: fixtureUrl('banner-on-private-reader'),
+						publicViewTestUrl: `${baseURL}/e2e/fixtures/unfetchable/${runId}-banner-on-public-view`,
+						privateReaderTestUrl: `${baseURL}/e2e/fixtures/unfetchable/${runId}-banner-on-private-reader`,
 					},
 					cleanupProgress,
 					bannerOnReaderProgress,

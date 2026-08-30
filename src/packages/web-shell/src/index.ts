@@ -83,6 +83,7 @@ export type {
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";
 export { renderToast } from "./shared/toast/toast.component";
 export type { ToastAction, ToastViewModel } from "./shared/toast/toast.component";
+export { renderExtensionSuggestionBannerOob } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
 export {
 	CONFIRM_POPOVER_STYLES,
 	renderConfirmPopover,

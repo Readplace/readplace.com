@@ -429,6 +429,86 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue");
 	});
+
+	it("emits no banner OOB on the chromeless iOS reader poll even when the reader view has failed", async () => {
+		const findArticleCrawlStatus = async () => ({
+			status: "failed" as const,
+			reason: "blocked",
+		});
+		const findGeneratedSummary = async () => ({ status: "skipped" as const });
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+			summary: { ...fixture.summary, findGeneratedSummary },
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-failed-poll");
+
+		const response = await agent.get(`/queue/${articleId}/reader?poll=1&platform=ios`);
+
+		expect(response.status).toBe(200);
+		const ids = Array.from(
+			new JSDOM(response.text).window.document.querySelectorAll("[hx-swap-oob]"),
+		).map((el) => el.id);
+		expect(ids).toEqual([
+			"article-body-summary-slot",
+			"article-body-progress",
+			"article-header",
+			"document-title",
+		]);
+	});
+
+	it("carries the ?shell=app marker onto the chromeless reader's poll URL so its poll chain stays on the app surface", async () => {
+		const findArticleCrawlStatus = async () => ({ status: "pending" as const });
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-shell-poll-url");
+
+		const doc = new JSDOM(
+			(await agent.get(`/queue/${articleId}/view?shell=app`)).text,
+		).window.document;
+
+		expect(doc.querySelector(".banner-area")).toBe(null);
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert.ok(slot, "reader slot must be rendered");
+		const hxGet = slot.getAttribute("hx-get");
+		assert.ok(hxGet, "a pending chromeless reader slot must poll");
+		expect(hxGet).toContain("shell=app");
+	});
+
+	it("emits no banner OOB on a ?shell=app owner reader poll even when the reader view has failed", async () => {
+		const findArticleCrawlStatus = async () => ({
+			status: "failed" as const,
+			reason: "blocked",
+		});
+		const findGeneratedSummary = async () => ({ status: "skipped" as const });
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+			summary: { ...fixture.summary, findGeneratedSummary },
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-shell-failed-poll");
+
+		const response = await agent.get(`/queue/${articleId}/reader?poll=1&shell=app`);
+
+		expect(response.status).toBe(200);
+		const ids = Array.from(
+			new JSDOM(response.text).window.document.querySelectorAll("[hx-swap-oob]"),
+		).map((el) => el.id);
+		expect(ids).toEqual([
+			"article-body-summary-slot",
+			"article-body-progress",
+			"article-header",
+			"document-title",
+		]);
+	});
 });
 
 describe("Siren read-href is client-independent (GET /queue)", () => {

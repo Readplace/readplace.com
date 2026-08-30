@@ -10,7 +10,7 @@ export type ViewPageProgress = {
 }
 
 export function createAnonymousViewPageActions(
-	config: { baseUrl: string; testUrl: string; unfetchableUrl?: string },
+	config: { baseUrl: string; testUrl: string; unfetchableUrl: string },
 	progress: ViewPageProgress,
 ): (authProgress: AuthProgress) => Record<ViewPageActionKey, PageAction> {
 	return (authProgress) => ({
@@ -18,34 +18,56 @@ export function createAnonymousViewPageActions(
 			isAvailable: async (page) => {
 				if (authProgress.accountCreated) return false
 				if (progress.visitedCrawlFailure) return false
-				if (!config.unfetchableUrl) return false
 				return isOnPage(page, 'page-home')
 			},
 			execute: async (page) => {
-				// Unique per-run query param so the crawl always hits the fixture
-				// (bypasses any cached-article short-circuit). The `unfetchableUrl`
-				// is a bare path with no query string of its own.
-				const target = `${config.unfetchableUrl}?e2e=${Date.now()}`
 				await page.goto(
-					`${config.baseUrl}/view/${encodeURIComponent(target)}`,
+					`${config.baseUrl}/view/${encodeURIComponent(config.unfetchableUrl)}`,
 					{ waitUntil: 'domcontentloaded' },
 				)
 				await expect(page.locator('body.page-view')).toHaveCount(1)
 
-				// Reader slot must reach crawl-failed terminal state. With the
-				// in-memory test fixture applyParseResult marks failure
-				// synchronously, so the SSR response already carries the failed
-				// status and no HTMX poll wait is required.
+				// Staging reaches this state through the HTMX polls (the live flip under
+				// test), not the SSR body, so these waits carry the crawl budget.
 				await expect(
 					page.locator('[data-test-reader-slot][data-reader-status="failed"]'),
-				).toHaveCount(1)
+				).toHaveCount(1, { timeout: 180_000 })
 
 				// Regression guard: when the crawl fails, the summary slot must
 				// collapse to skipped (hidden) rather than sit on "Generating
 				// summary…" indefinitely. Without this check the bug that stuck
 				// the hex.ooo row at summaryStatus=pending would re-emerge unseen.
 				const summarySlot = page.locator('[data-test-reader-summary]')
-				await expect(summarySlot).toHaveAttribute('data-summary-status', 'skipped')
+				await expect(summarySlot).toHaveAttribute('data-summary-status', 'skipped', {
+					timeout: 180_000,
+				})
+
+				const banner = page.locator(
+					'body > .banner-area [data-test-extension-suggestion-banner]',
+				)
+				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true', {
+					timeout: 180_000,
+				})
+				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/, {
+					timeout: 180_000,
+				})
+
+				const saveAction = page.locator('#view-cta-save')
+				await expect(saveAction).toHaveAttribute('data-save-tip', 'due', {
+					timeout: 180_000,
+				})
+				await saveAction.click()
+
+				const saveTip = page.locator("[data-test-confirm-popover='save-tip']")
+				await expect(saveTip).toBeVisible()
+				const cookie = await page.evaluate(() => document.cookie)
+				expect(cookie).toContain('rp_save_tip=seen')
+
+				await clickAndWaitForPageReload(
+					page,
+					saveTip.locator("[data-test-action='save-tip-proceed']"),
+				)
+				await expect(page.locator('body.page-signup')).toHaveCount(1)
 
 				// Return to the guest homepage. `/` renders whichever A/B arm this
 				// visitor draws, so the assertion is on body.page-home — carried by
@@ -145,20 +167,9 @@ export function createAnonymousViewPageActions(
 				await page.waitForTimeout(1500)
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
 
-				// Click Save as anonymous. The first save of a session stops at the
-				// save-tip panel, which warns that a link-only save may not capture
-				// the article; continuing from there follows the same href.
-				await saveAction.click()
-				const saveTip = page.locator("[data-test-confirm-popover='save-tip']")
-				await expect(saveTip).toBeVisible()
-
-				// /save redirects to /signup?return=/save?url=... (account creation
-				// converts an anonymous saver far better than the sign-in page), so
-				// submit-signup-form picks up directly from page-signup.
-				await clickAndWaitForPageReload(
-					page,
-					saveTip.locator("[data-test-action='save-tip-proceed']"),
-				)
+				await expect(saveAction).toBeVisible()
+				await expect(saveAction).not.toHaveAttribute('data-save-tip', 'due')
+				await clickAndWaitForPageReload(page, saveAction)
 				await expect(page.locator('body.page-signup')).toHaveCount(1)
 
 				progress.visitedAnonymously = true

@@ -1903,6 +1903,153 @@ describe("View routes", () => {
 		});
 	});
 
+	describe("reader-view-failed OOB on poll fragments", () => {
+		function pollHarness(overrides: {
+			crawl?: FindArticleCrawlStatus;
+			summary?: FindGeneratedSummary;
+		}) {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				articleCrawl: overrides.crawl
+					? { ...fixture.articleCrawl, findArticleCrawlStatus: overrides.crawl }
+					: fixture.articleCrawl,
+				summary: overrides.summary
+					? { ...fixture.summary, findGeneratedSummary: overrides.summary }
+					: fixture.summary,
+			});
+			return { fixture, harness };
+		}
+
+		async function seedRow(
+			fixture: ReturnType<typeof createDefaultTestAppFixture>,
+			opts: { content?: string } = {},
+		) {
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "Seeded", siteName: "example.com", excerpt: "", wordCount: 500 },
+				estimatedReadTime: calculateReadTime(500),
+				savedAt: new Date("2026-05-03T13:00:00.000Z"),
+			});
+			if (opts.content !== undefined) {
+				await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: opts.content });
+			}
+		}
+
+		function oobIds(html: string): string[] {
+			return Array.from(
+				new JSDOM(html).window.document.querySelectorAll("[hx-swap-oob]"),
+			).map((el) => el.id);
+		}
+
+		it("appends the banner and gated Save CTA to a settled failed reader poll, carrying the page's utm", async () => {
+			const { fixture, harness } = pollHarness({
+				crawl: async () => ({ status: "failed", reason: "blocked" }),
+				summary: async () => ({ status: "skipped" }),
+			});
+			await seedRow(fixture);
+
+			const response = await request(harness.server).get(
+				`/view/reader?url=${ENCODED}&poll=1&utm_source=medium`,
+			);
+
+			expect(response.status).toBe(200);
+			const ids = oobIds(response.text);
+			expect(ids).toContain("extension-suggestion-banner");
+			expect(ids).toContain("view-cta-save");
+
+			const doc = new JSDOM(response.text).window.document;
+			const banner = doc.querySelector("#extension-suggestion-banner");
+			assert(banner, "banner OOB fragment must be present");
+			expect(banner.getAttribute("data-show-extension-suggestion")).toBe("true");
+
+			const cta = doc.querySelector("#view-cta-save");
+			assert(cta, "Save CTA OOB fragment must be present");
+			expect(cta.getAttribute("data-save-tip")).toBe("due");
+			const href = cta.getAttribute("href");
+			assert(href, "Save CTA must carry an href");
+			const parsed = new URL(href, "http://localhost");
+			expect(parsed.searchParams.get("url")).toBe(ARTICLE_URL);
+			expect(parsed.searchParams.get("utm_source")).toBe("medium");
+			expect(parsed.searchParams.get(SAVE_SURFACE_QUERY)).toBe(SAVE_SURFACES.readerView);
+		});
+
+		it("appends the banner and gated Save CTA to a settled failed summary poll", async () => {
+			const { fixture, harness } = pollHarness({
+				crawl: async () => ({ status: "ready" }),
+				summary: async () => ({ status: "failed", reason: "model timeout" }),
+			});
+			await seedRow(fixture, { content: "<p>body</p>" });
+
+			const response = await request(harness.server).get(
+				`/view/summary?url=${ENCODED}&poll=1&utm_source=medium`,
+			);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const banner = doc.querySelector("#extension-suggestion-banner");
+			assert(banner, "banner OOB fragment must be present");
+			expect(banner.getAttribute("data-show-extension-suggestion")).toBe("true");
+			const cta = doc.querySelector("#view-cta-save");
+			assert(cta, "Save CTA OOB fragment must be present");
+			expect(cta.getAttribute("data-save-tip")).toBe("due");
+		});
+
+		it("marks the swapped-in Save CTA as already seen for a warned session", async () => {
+			const { fixture, harness } = pollHarness({
+				crawl: async () => ({ status: "failed", reason: "blocked" }),
+				summary: async () => ({ status: "skipped" }),
+			});
+			await seedRow(fixture);
+
+			const response = await request(harness.server)
+				.get(`/view/reader?url=${ENCODED}&poll=1`)
+				.set("Cookie", ["rp_save_tip=seen"]);
+
+			const cta = new JSDOM(response.text).window.document.querySelector("#view-cta-save");
+			assert(cta, "Save CTA OOB fragment must be present");
+			expect(cta.getAttribute("data-save-tip")).toBe("seen");
+		});
+
+		it("emits no banner or CTA fragment while the reader view is still loading", async () => {
+			const { fixture, harness } = pollHarness({
+				crawl: async () => ({ status: "pending" }),
+				summary: async () => ({ status: "pending" }),
+			});
+			await seedRow(fixture);
+
+			const response = await request(harness.server).get(
+				`/view/reader?url=${ENCODED}&poll=1`,
+			);
+
+			expect(response.status).toBe(200);
+			expect(oobIds(response.text)).toEqual([
+				"article-body-summary-slot",
+				"article-body-progress",
+				"article-header",
+				"document-title",
+			]);
+		});
+
+		it("carries the page's utm onto the SSR reader-slot poll URL", async () => {
+			const { harness } = pollHarness({
+				crawl: async () => ({ status: "pending" }),
+			});
+
+			const response = await request(harness.server).get(
+				`/view/${CANONICAL_PATH}?utm_source=medium`,
+			);
+
+			const slot = new JSDOM(response.text).window.document.querySelector(
+				"[data-test-reader-slot]",
+			);
+			assert(slot, "reader slot must be rendered");
+			const hxGet = slot.getAttribute("hx-get");
+			assert(hxGet, "a pending reader slot must poll");
+			expect(hxGet.endsWith("&utm_source=medium")).toBe(true);
+		});
+	});
+
 	describe("anonymous crawl-trigger rate limiting", () => {
 		function createMutableClock(startMs: number) {
 			let nowMs = startMs;

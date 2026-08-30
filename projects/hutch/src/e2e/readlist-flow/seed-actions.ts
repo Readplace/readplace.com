@@ -31,8 +31,6 @@ export function createSeedActions(
 			},
 			execute: async (page) => {
 				const form = page.locator('[data-test-form="save-article"]')
-				// The anonymous view action proceeds through /save, which records the
-				// save tip; without that this fill would open it over the bar.
 				await expect(form).toHaveAttribute('data-save-tip', 'seen')
 				const input = form.locator('input[name="url"]')
 				await input.fill(seedUrls[i])

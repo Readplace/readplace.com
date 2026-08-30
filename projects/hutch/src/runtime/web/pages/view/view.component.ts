@@ -49,13 +49,36 @@ const VIEW_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const VIEW_CTA_ACTION_TEMPLATE = readFileSync(
+	join(__dirname, "view-cta-action.template.html"),
+	"utf-8",
+);
+
+export type ViewActionKey = "save" | "paste-another-link";
+
 export interface ViewAction {
+	key: ViewActionKey;
 	name: string;
 	href: string;
 	variant: "primary" | "secondary";
 	/** Present on the action the save-tip panel holds back, so the client script
 	 * can tell it apart from the actions it must leave alone. */
 	saveTipState?: SaveTipState;
+}
+
+function renderViewCtaAction(action: ViewAction, oob: boolean): string {
+	return render(VIEW_CTA_ACTION_TEMPLATE, {
+		key: action.key,
+		name: action.name,
+		href: action.href,
+		variant: action.variant,
+		saveTipState: action.saveTipState,
+		oob,
+	});
+}
+
+export function renderViewCtaActionOob(action: ViewAction): string {
+	return renderViewCtaAction(action, true);
 }
 
 export interface ViewPageInput {
@@ -115,7 +138,9 @@ export function ViewPage(input: ViewPageInput): PageBody {
 	const content = render(VIEW_TEMPLATE, {
 		innerContent,
 		articleUrl: input.articleUrl,
-		actions: input.actions,
+		actions: input.actions.map((action) => ({
+			html: renderViewCtaAction(action, false),
+		})),
 		saveTipHtml: input.saveTip.html,
 		shareBalloon,
 	});

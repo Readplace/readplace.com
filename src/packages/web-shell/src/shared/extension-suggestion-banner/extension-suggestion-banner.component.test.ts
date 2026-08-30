@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { renderExtensionSuggestionBanner } from "./extension-suggestion-banner.component";
+import {
+	renderExtensionSuggestionBanner,
+	renderExtensionSuggestionBannerOob,
+} from "./extension-suggestion-banner.component";
 
 function parse(html: string): Document {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window
@@ -46,6 +49,61 @@ describe("renderExtensionSuggestionBanner", () => {
 		expect(closeBtn.getAttribute("aria-label")).toBe(
 			"Dismiss extension suggestion",
 		);
+	});
+
+	describe("out-of-band swap envelope", () => {
+		it("gives the banner a stable id so an OOB swap can target it", () => {
+			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+
+			const banner = doc.querySelector(".extension-suggestion-banner");
+			assert(banner, "banner must be rendered");
+			expect(banner.id).toBe("extension-suggestion-banner");
+		});
+
+		it("omits hx-swap-oob on the inline (SSR) render", () => {
+			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+
+			const banner = doc.querySelector("#extension-suggestion-banner");
+			assert(banner, "banner must be rendered");
+			expect(banner.hasAttribute("hx-swap-oob")).toBe(false);
+		});
+
+		it("carries an hx-swap-oob=outerHTML envelope on the OOB render", () => {
+			const doc = parse(
+				renderExtensionSuggestionBannerOob({ show: true, extensionInstalled: false }),
+			);
+
+			const banner = doc.querySelector("#extension-suggestion-banner");
+			assert(banner, "banner must be rendered");
+			expect(banner.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		});
+
+		it("mirrors the show flag on the OOB render", () => {
+			const shown = parse(
+				renderExtensionSuggestionBannerOob({ show: true, extensionInstalled: false }),
+			);
+			const hidden = parse(
+				renderExtensionSuggestionBannerOob({ show: false, extensionInstalled: false }),
+			);
+
+			const shownBanner = shown.querySelector("#extension-suggestion-banner");
+			const hiddenBanner = hidden.querySelector("#extension-suggestion-banner");
+			assert(shownBanner && hiddenBanner, "banners must be rendered");
+			expect(shownBanner.getAttribute("data-show-extension-suggestion")).toBe("true");
+			expect(hiddenBanner.getAttribute("data-show-extension-suggestion")).toBe("false");
+		});
+
+		it("mirrors the extensionInstalled flag on the OOB render", () => {
+			const doc = parse(
+				renderExtensionSuggestionBannerOob({ show: true, extensionInstalled: true }),
+			);
+
+			const message = doc.querySelector("[data-test-extension-suggestion-variant]");
+			assert(message, "message variant marker must be present");
+			expect(message.getAttribute("data-test-extension-suggestion-variant")).toBe(
+				"installed",
+			);
+		});
 	});
 
 	describe("when the extension is NOT installed (default)", () => {

@@ -647,5 +647,38 @@ describe("Admin recrawl routes", () => {
 			expect(pollUrl).toContain("/admin/recrawl/reader");
 			expect(pollUrl).toContain(encodeURIComponent(ARTICLE_URL));
 		});
+
+		it("never reveals a reader-view-failed banner or Save CTA on a settled failed admin poll", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: {
+					title: "Stale Title",
+					siteName: "example.com",
+					excerpt: "",
+					wordCount: 0,
+				},
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason: "blocked" });
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.get(
+				`/admin/recrawl/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`,
+			);
+
+			expect(response.status).toBe(200);
+			const ids = Array.from(
+				new JSDOM(response.text).window.document.querySelectorAll("[hx-swap-oob]"),
+			).map((el) => el.id);
+			expect(ids).toEqual([
+				"article-body-summary-slot",
+				"article-body-progress",
+				"article-header",
+				"document-title",
+			]);
+		});
 	});
 });

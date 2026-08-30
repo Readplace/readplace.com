@@ -47,12 +47,6 @@ export function createBannerOnReaderActions(
 				}
 			},
 			execute: async (page) => {
-				// Use the per-run unique URL the callsite supplies. API Gateway on
-				// staging strips arbitrary query strings, so a `?ts=${Date.now()}`
-				// trick collapses every run back to the same path and the cached
-				// row pins `summaryStatus='ready'` → banner never shows. The /e2e
-				// fixture URL pattern avoids this by
-				// embedding the runId in the path itself.
 				await page.goto(
 					`${config.baseUrl}/view/${encodeURIComponent(config.publicViewTestUrl)}`,
 					{ waitUntil: 'domcontentloaded' },
@@ -66,7 +60,11 @@ export function createBannerOnReaderActions(
 				// selector would still match both copies. The outer banner-area
 				// is body's first DOM child.
 				const banner = page.locator('body > .banner-area [data-test-extension-suggestion-banner]')
-				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true')
+				// Staging reaches this state through the HTMX polls (the live flip under
+				// test), not the SSR body, so these waits carry the crawl budget.
+				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true', {
+					timeout: 180_000,
+				})
 				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/)
 
 				// Return to /queue so subsequent actions see the default entry state.
@@ -118,7 +116,9 @@ export function createBannerOnReaderActions(
 				// Same body-direct-child anchor as verify-banner-on-public-view —
 				// the saved article's reader slot replays the chrome wrapper too.
 				const banner = page.locator('body > .banner-area [data-test-extension-suggestion-banner]')
-				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true')
+				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true', {
+					timeout: 180_000,
+				})
 				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/)
 
 				// Verify the banner stays put until the user dismisses it, then

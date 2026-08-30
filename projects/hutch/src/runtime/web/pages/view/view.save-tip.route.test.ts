@@ -2,10 +2,38 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
+import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { SAVE_TIP_COOKIE_NAME } from "../../shared/save-tip/save-tip-cookie";
 import { useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
+
+const CANONICAL_PATH = "example.com/post";
+
+function harnessFor(overrides: {
+	crawl?: FindArticleCrawlStatus;
+	summary?: FindGeneratedSummary;
+}) {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	return useApp({
+		...fixture,
+		articleCrawl: overrides.crawl
+			? { ...fixture.articleCrawl, findArticleCrawlStatus: overrides.crawl }
+			: fixture.articleCrawl,
+		summary: overrides.summary
+			? { ...fixture.summary, findGeneratedSummary: overrides.summary }
+			: fixture.summary,
+	});
+}
+
+function saveCta(html: string): Element {
+	const cta = new JSDOM(html).window.document.querySelector(
+		"[data-test-view-cta-action]",
+	);
+	assert(cta, "the save call to action must be rendered");
+	return cta;
+}
 
 function documentOf(html: string): Document {
 	return new JSDOM(html).window.document;
@@ -43,12 +71,59 @@ async function openPublicView(server: Parameters<typeof request>[0], url: string
 }
 
 describe("Save tip — the public view", () => {
-	it("gates the save call to action a reader reaches from the reader view", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	it("gates the save call to action once the crawl has failed", async () => {
+		const harness = harnessFor({
+			crawl: async () => ({ status: "failed", reason: "blocked" }),
+		});
 
-		const { article } = await openPublicView(harness.server, "https://example.com/public");
+		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
-		expect(saveTipStateOn(article.text, "[data-test-view-cta-action]")).toBe("due");
+		expect(saveCta(article.text).getAttribute("data-save-tip")).toBe("due");
+	});
+
+	it("leaves the call to action ungated while the reader view is still loading", async () => {
+		const harness = harnessFor({
+			crawl: async () => ({ status: "ready" }),
+			summary: async () => ({ status: "pending" }),
+		});
+
+		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+		expect(saveCta(article.text).hasAttribute("data-save-tip")).toBe(false);
+	});
+
+	it("leaves the call to action ungated once the reader view has succeeded", async () => {
+		const harness = harnessFor({
+			crawl: async () => ({ status: "ready" }),
+			summary: async () => ({ status: "ready", summary: "TLDR." }),
+		});
+
+		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+		expect(saveCta(article.text).hasAttribute("data-save-tip")).toBe(false);
+	});
+
+	it("gates the call to action when the summary has failed on a ready crawl", async () => {
+		const harness = harnessFor({
+			crawl: async () => ({ status: "ready" }),
+			summary: async () => ({ status: "failed", reason: "model timeout" }),
+		});
+
+		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+		expect(saveCta(article.text).getAttribute("data-save-tip")).toBe("due");
+	});
+
+	it("marks the gated call to action as already seen for a warned session", async () => {
+		const harness = harnessFor({
+			crawl: async () => ({ status: "failed", reason: "blocked" }),
+		});
+
+		const article = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set("Cookie", ["rp_save_tip=seen"]);
+
+		expect(saveCta(article.text).getAttribute("data-save-tip")).toBe("seen");
 	});
 
 	it("spends the session's one warning on the paste that opened the view", async () => {

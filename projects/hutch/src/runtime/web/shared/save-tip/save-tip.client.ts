@@ -129,6 +129,7 @@ export function initSaveTip(deps: SaveTipDeps): void {
 		if (panel === null) return;
 		event.preventDefault();
 		pendingNavigation = { panel, href: link.href };
+		deps.writeCookie(seenCookie());
 		deps.showPopover(panel);
 		recordBeacon(panel);
 	});

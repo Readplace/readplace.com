@@ -27,7 +27,7 @@ export type ReaderStatus = z.infer<typeof ReaderStatusSchema>;
  * summary), derived from the two underlying state machines. The single
  * source of truth for "is the reader view done?" — the domain effect emission
  * (mark-summary-ready / mark-summary-skipped) and the web reader/queue
- * rendering (isFullyParsed) derive it here so future content-completeness
+ * rendering derive it here so future content-completeness
  * rules extend in one place. The reader-ready notifier acts on the published
  * succeeded event downstream, so it consumes the fact rather than re-deriving.
  */

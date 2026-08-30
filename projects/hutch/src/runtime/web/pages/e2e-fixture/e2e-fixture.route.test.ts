@@ -70,3 +70,27 @@ describe("GET /e2e/article/:id", () => {
 		expect(visibleLength).toBeGreaterThan(MAX_SUMMARY_LENGTH * 3);
 	});
 });
+
+describe("GET /e2e/fixtures/unfetchable/:id", () => {
+	it("answers 500 text/plain so the crawler records a failed reader view", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get(
+			"/e2e/fixtures/unfetchable/run-a-crawl-fails",
+		);
+
+		expect(response.status).toBe(500);
+		expect(response.headers["content-type"]).toMatch(/text\/plain/);
+	});
+
+	it("answers the same for any :id (uniqueness lives in the path, not the body)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get(
+			"/e2e/fixtures/unfetchable/run-b-banner-on-public-view",
+		);
+
+		expect(response.status).toBe(500);
+		expect(response.headers["content-type"]).toMatch(/text\/plain/);
+	});
+});

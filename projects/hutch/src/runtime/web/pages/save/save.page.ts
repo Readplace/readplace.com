@@ -11,7 +11,6 @@ import { buildSaveIntentEvent, deriveSaveSurface, isBotUserAgent, isCountableBro
 import { SAVE_OUTCOMES } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
 import { setPendingSaveId } from "../../pending-save";
-import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { SaveErrorPage } from "./save-error.component";
 
 const SaveUrlSchema = z.url();
@@ -35,9 +34,6 @@ export function initSaveRoutes(deps: {
 
 	router.get("/", async (req, res) => {
 		const url = parseUrl(typeof req.query.url === "string" ? req.query.url : undefined);
-		// Reaching /save means the reader already went through the save tip on the
-		// page they came from, so the queue they land on must not warn them again.
-		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 
 		if (!url) {
 			const redirectUrl = req.userId ? "/queue" : "/";

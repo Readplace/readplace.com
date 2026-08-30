@@ -571,6 +571,72 @@ describe("initArticleReader", () => {
 			expect(result.content).toBeUndefined();
 			expect(result.readerPollUrl).toBe("/test/reader?poll=1");
 		});
+
+		it("flags readerViewFailed when the crawl has failed", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "failed", reason: "blocked" },
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+			});
+
+			expect(result.readerViewFailed).toBe(true);
+		});
+
+		it("flags readerViewFailed when the summary has failed on a ready crawl", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "failed", reason: "model timeout" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+			});
+
+			expect(result.readerViewFailed).toBe(true);
+		});
+
+		it("does not flag readerViewFailed while the crawl and summary are still pending", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+			});
+
+			expect(result.readerViewFailed).toBe(false);
+		});
+
+		it("does not flag readerViewFailed once the reader view has succeeded", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+			});
+
+			expect(result.readerViewFailed).toBe(false);
+		});
 	});
 
 	describe("handleSummaryPoll", () => {
@@ -590,6 +656,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -614,6 +681,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -638,6 +706,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -664,6 +733,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -692,6 +762,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: "/queue/abc/summary-toggle",
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -717,6 +788,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -743,6 +815,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -766,6 +839,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -794,6 +868,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -820,6 +895,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -844,6 +920,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -868,6 +945,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -892,6 +970,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -914,6 +993,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -946,6 +1026,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -982,6 +1063,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1011,6 +1093,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1037,6 +1120,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1067,6 +1151,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1093,6 +1178,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1132,6 +1218,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1166,6 +1253,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1201,6 +1289,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1228,6 +1317,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1259,6 +1349,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1286,6 +1377,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1313,6 +1405,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1346,6 +1439,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const doc = parse(toHtml(component));
@@ -1379,6 +1473,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1403,6 +1498,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1428,6 +1524,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1452,6 +1549,7 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				readlistTags: undefined,
+				readerViewFailedOob: () => "",
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1475,6 +1573,173 @@ describe("initArticleReader", () => {
 
 			expect(result.readerPollUrl).toBeUndefined();
 			expect(result.capturePollUrl).toBe("/test/reader?poll=1&capturing=1");
+		});
+	});
+
+	describe("readerViewFailedOob emission (settled + failed only)", () => {
+		const PROBE = () =>
+			'<div id="reader-view-failed-probe" hx-swap-oob="outerHTML"></div>';
+
+		function oobIds(component: {
+			to: (mediaType: "text/html") => { body: string };
+		}): string[] {
+			return Array.from(
+				parse(toHtml(component)).querySelectorAll("[hx-swap-oob]"),
+			).map((el) => el.id);
+		}
+
+		const READER_POLL_BASELINE = [
+			"article-body-summary-slot",
+			"article-body-progress",
+			"article-header",
+			"document-title",
+		];
+		const SUMMARY_POLL_BASELINE = [
+			"article-body-reader-slot",
+			"article-body-progress",
+			"article-header",
+			"document-title",
+		];
+
+		it("appends the fragment on a reader poll once the crawl has failed and both chains are settled", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "failed", reason: "blocked" },
+				summary: { status: "skipped" },
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: PROBE,
+			});
+
+			expect(oobIds(component)).toEqual([
+				...READER_POLL_BASELINE,
+				"reader-view-failed-probe",
+			]);
+		});
+
+		it("appends the fragment on a summary poll once the summary has failed on a ready crawl", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "failed", reason: "model timeout" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: PROBE,
+			});
+
+			expect(oobIds(component)).toEqual([
+				...SUMMARY_POLL_BASELINE,
+				"reader-view-failed-probe",
+			]);
+		});
+
+		it("omits the fragment while the reader chain is still polling through the content-promotion race, even though the summary failed", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "failed", reason: "model timeout" },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: PROBE,
+			});
+
+			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
+		});
+
+		it("omits the fragment on a summary poll while the reader chain is still polling on a pending crawl", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				summary: { status: "failed", reason: "model timeout" },
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: PROBE,
+			});
+
+			expect(oobIds(component)).toEqual(SUMMARY_POLL_BASELINE);
+		});
+
+		it("omits the fragment while the reader view is still loading (crawl and summary pending)", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: PROBE,
+			});
+
+			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
+		});
+
+		it("omits the fragment once the reader view has succeeded (crawl and summary ready)", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: PROBE,
+			});
+
+			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
 		});
 	});
 });

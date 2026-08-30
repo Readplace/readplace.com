@@ -79,7 +79,7 @@ describe("GET /queue — extension suggestion banner", () => {
 });
 
 describe("GET /queue/:id/view — extension suggestion banner", () => {
-	it("sets data-show='true' when the owned article's crawl is still pending", async () => {
+	it("sets data-show='false' while the owned article's crawl is still pending", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending",
 		});
@@ -94,6 +94,29 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(agent, "https://example.com/pending-read");
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		expect(response.status).toBe(200);
+		expect(bannerAttr(response.text)).toBe("false");
+	});
+
+	it("sets data-show='true' when the owned article's crawl has failed", async () => {
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "failed",
+			reason: "blocked",
+		});
+		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+			status: "skipped",
+		});
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+			summary: { ...fixture.summary, findGeneratedSummary },
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndFindId(agent, "https://example.com/failed-read");
 
 		const response = await agent.get(`/queue/${articleId}/view`);
 
@@ -194,5 +217,62 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(bannerAttr(response.text)).toBe("true");
+	});
+
+	it("reveals the banner OOB on a settled failed owner reader poll", async () => {
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "failed",
+			reason: "blocked",
+		});
+		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+			status: "skipped",
+		});
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+			summary: { ...fixture.summary, findGeneratedSummary },
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndFindId(agent, "https://example.com/failed-poll");
+
+		const response = await agent.get(`/queue/${articleId}/reader?poll=1`);
+
+		expect(response.status).toBe(200);
+		const banner = new JSDOM(response.text).window.document.querySelector(
+			"#extension-suggestion-banner",
+		);
+		assert(banner, "banner OOB fragment must be present on a settled failed poll");
+		expect(banner.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(banner.getAttribute("data-show-extension-suggestion")).toBe("true");
+	});
+
+	it("emits no banner OOB while the owner reader poll is still loading", async () => {
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "pending",
+		});
+		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+			status: "pending",
+		});
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+			summary: { ...fixture.summary, findGeneratedSummary },
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndFindId(agent, "https://example.com/pending-poll");
+
+		const response = await agent.get(`/queue/${articleId}/reader?poll=1`);
+
+		const ids = Array.from(
+			new JSDOM(response.text).window.document.querySelectorAll("[hx-swap-oob]"),
+		).map((el) => el.id);
+		expect(ids).toEqual([
+			"article-body-summary-slot",
+			"article-body-progress",
+			"article-header",
+			"document-title",
+		]);
 	});
 });

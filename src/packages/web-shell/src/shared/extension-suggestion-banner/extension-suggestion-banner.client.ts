@@ -12,6 +12,7 @@ interface ExtensionSuggestionBannerStorage {
 interface ExtensionSuggestionBannerDeps {
 	document: Document;
 	storage: ExtensionSuggestionBannerStorage;
+	addSwapListener: (listener: () => void) => void;
 }
 
 interface ExtensionSuggestionBannerController {
@@ -23,16 +24,14 @@ const BANNER_SELECTOR = ".extension-suggestion-banner";
 const CLOSE_SELECTOR = "[data-extension-suggestion-close]";
 const VISIBLE_CLASS = "extension-suggestion-banner--visible";
 
+function isElement(node: EventTarget | null): node is Element {
+	return typeof Reflect.get(Object(node), "closest") === "function";
+}
+
 export function initExtensionSuggestionBanner(
 	deps: ExtensionSuggestionBannerDeps,
 ): ExtensionSuggestionBannerController {
-	function ensure<T>(value: T | null | undefined, description: string): T {
-		assert(
-			value !== null && value !== undefined,
-			`extension-suggestion-banner: ${description}`,
-		);
-		return value;
-	}
+	let dismissedInPage = false;
 
 	function readDismissed(): boolean {
 		try {
@@ -50,26 +49,34 @@ export function initExtensionSuggestionBanner(
 		}
 	}
 
-	const banner = ensure(
-		deps.document.querySelector<HTMLElement>(BANNER_SELECTOR),
-		`missing element ${BANNER_SELECTOR}`,
-	);
-
-	function attach(): void {
-		if (banner.dataset.showExtensionSuggestion !== "true") return;
-		if (readDismissed()) return;
-
-		banner.classList.add(VISIBLE_CLASS);
-
-		const closeBtn = ensure(
-			banner.querySelector<HTMLElement>(CLOSE_SELECTOR),
-			`missing element ${CLOSE_SELECTOR}`,
-		);
-		closeBtn.addEventListener("click", () => {
-			banner.classList.remove(VISIBLE_CLASS);
-			writeDismissed();
-		});
+	function banner(): HTMLElement {
+		const el = deps.document.querySelector<HTMLElement>(BANNER_SELECTOR);
+		assert(el, `extension-suggestion-banner: missing element ${BANNER_SELECTOR}`);
+		return el;
 	}
 
-	return { attach };
+	function sync(): void {
+		const el = banner();
+		el.classList.toggle(
+			VISIBLE_CLASS,
+			el.dataset.showExtensionSuggestion === "true" &&
+				!(dismissedInPage || readDismissed()),
+		);
+	}
+
+	deps.document.addEventListener("click", (event) => {
+		const target = event.target;
+		if (!isElement(target)) return;
+		if (target.closest(CLOSE_SELECTOR) === null) return;
+		dismissedInPage = true;
+		writeDismissed();
+		sync();
+	});
+
+	return {
+		attach(): void {
+			sync();
+			deps.addSwapListener(sync);
+		},
+	};
 }

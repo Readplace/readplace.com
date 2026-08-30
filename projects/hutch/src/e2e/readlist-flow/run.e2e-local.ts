@@ -15,6 +15,7 @@ import { visualCheckpoints } from './visual-checkpoints'
 import { requireEnv } from "@packages/require-env"
 
 const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
+const runStamp = Date.now()
 
 test.describe('Readlist management flow (local)', () => {
 	test('signup, logout, reset password, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page }) => {
@@ -107,7 +108,11 @@ test.describe('Readlist management flow (local)', () => {
 			readlistProgress,
 			preReadlistActionFactories: {
 				anonymousView: createAnonymousViewPageActions(
-					{ baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?view=1`, unfetchableUrl: `${BASE_URL}/e2e/unfetchable` },
+					{
+						baseUrl: BASE_URL,
+						testUrl: `${BASE_URL}/privacy?view=1`,
+						unfetchableUrl: `${BASE_URL}/e2e/fixtures/unfetchable/${runStamp}-crawl-fails`,
+					},
 					viewPageProgress,
 				),
 				onboarding: createOnboardingActions(onboardingProgress),
@@ -126,12 +131,8 @@ test.describe('Readlist management flow (local)', () => {
 				bannerOnReader: createBannerOnReaderActions(
 					{
 						baseUrl: BASE_URL,
-						// /e2e/unfetchable fails the crawl synchronously and terminally, so
-						// "latest article not fully parsed" (the banner's show condition) is
-						// a stable state, not a race against the in-memory parse pipeline
-						// finishing before the page renders.
-						publicViewTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-public-view=${Date.now()}`,
-						privateReaderTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-private-reader=${Date.now()}`,
+						publicViewTestUrl: `${BASE_URL}/e2e/fixtures/unfetchable/${runStamp}-banner-on-public-view`,
+						privateReaderTestUrl: `${BASE_URL}/e2e/fixtures/unfetchable/${runStamp}-banner-on-private-reader`,
 					},
 					cleanupProgress,
 					bannerOnReaderProgress,

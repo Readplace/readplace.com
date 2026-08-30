@@ -42,18 +42,24 @@ import type { BuildBannerState } from "../../banner-state";
 import { extensionInstallUrlIfMissing, isExtensionInstalled } from "../../onboarding/extension-install";
 import { setLastViewUrl } from "../../last-view";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
-import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
+import { markSaveTipSeen, saveTipState, type SaveTipState } from "../../shared/save-tip/save-tip";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type {
 	ArticleReaderDeps,
 	PollUrlBuilder,
+	ReaderViewFailedOob,
 } from "../../shared/article-reader/article-reader.types";
-import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
+import { extensionSuggestionBannerOob } from "../../shared/article-reader/reader-view-failed-oob";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
 import { parseViewPath, viewPathFor } from "./view-path";
-import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
+import {
+	ViewPage,
+	formatViewDocumentTitle,
+	renderViewCtaActionOob,
+	type ViewAction,
+} from "./view.component";
 
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -86,11 +92,53 @@ async function renderError(deps: ViewDependencies, req: Request, res: Response):
 	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
 }
 
-function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
+function pollUrlBuilderFor(articleUrl: string, utmParams: [string, string][]): PollUrlBuilder {
+	const utmSuffix = utmParams
+		.map(([key, value]) => `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+		.join("");
 	return {
-		summary: (n) => `/view/summary?url=${encodeURIComponent(articleUrl)}&poll=${n}`,
-		reader: (n) => `/view/reader?url=${encodeURIComponent(articleUrl)}&poll=${n}`,
+		summary: (n) => `/view/summary?url=${encodeURIComponent(articleUrl)}&poll=${n}${utmSuffix}`,
+		reader: (n) => `/view/reader?url=${encodeURIComponent(articleUrl)}&poll=${n}${utmSuffix}`,
 	};
+}
+
+function saveAction(input: {
+	articleUrl: string;
+	utmParams: [string, string][];
+	saveTipState: SaveTipState | undefined;
+}): ViewAction {
+	const saveParams = new URLSearchParams([["url", input.articleUrl], ...input.utmParams]);
+	saveParams.set(SAVE_SURFACE_QUERY, SAVE_SURFACES.readerView);
+	return {
+		key: "save",
+		name: "Save to My Readlist",
+		href: `/save?${saveParams.toString()}`,
+		variant: "primary",
+		saveTipState: input.saveTipState,
+	};
+}
+
+const PASTE_ANOTHER_ACTION: ViewAction = {
+	key: "paste-another-link",
+	name: "Paste another link",
+	href: "/?utm_source=view-article&utm_medium=internal&utm_content=paste-another-link",
+	variant: "secondary",
+};
+
+function viewReaderViewFailedOob(input: {
+	req: Request;
+	articleUrl: string;
+	utmParams: [string, string][];
+}): ReaderViewFailedOob {
+	return () =>
+		extensionSuggestionBannerOob(input.req)() +
+		renderViewCtaActionOob(
+			saveAction({
+				articleUrl: input.articleUrl,
+				utmParams: input.utmParams,
+				saveTipState: saveTipState(input.req),
+			}),
+		);
 }
 
 /** A browser prefetch (`Sec-Purpose: prefetch`, its `prefetch;prerender` form,
@@ -235,7 +283,8 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const metadata: ArticleMetadata = snapshot.metadata;
 		const estimatedReadTime: Minutes = snapshot.estimatedReadTime;
 
-		const pollUrlBuilder = pollUrlBuilderFor(articleUrl);
+		const utmParams = collectUtmParams(req.query);
+		const pollUrlBuilder = pollUrlBuilderFor(articleUrl, utmParams);
 		const state = await reader.resolveReaderState({
 			article: { url: articleUrl, metadata, estimatedReadTime },
 			pollUrlBuilder,
@@ -274,30 +323,17 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
 		}
 
-		const utmParams = collectUtmParams(req.query);
-
-		const saveParams = new URLSearchParams([["url", articleUrl], ...utmParams]);
-		saveParams.set(SAVE_SURFACE_QUERY, SAVE_SURFACES.readerView);
-
 		const saveTip = buildSaveTip(req, { kind: "article", mode: "gating" });
 		const actions: ViewAction[] = [
-			{
-				name: "Save to My Readlist",
-				href: `/save?${saveParams.toString()}`,
-				variant: "primary",
-				saveTipState: saveTip.state,
-			},
-			{
-				name: "Paste another link",
-				href: "/?utm_source=view-article&utm_medium=internal&utm_content=paste-another-link",
-				variant: "secondary",
-			},
+			saveAction({
+				articleUrl,
+				utmParams,
+				saveTipState: state.readerViewFailed ? saveTip.state : undefined,
+			}),
+			PASTE_ANOTHER_ACTION,
 		];
 
-		const showExtensionSuggestionBanner = !isFullyParsed({
-			crawlStatus: state.crawl?.status,
-			summaryStatus: state.summary?.status,
-		});
+		const showExtensionSuggestionBanner = state.readerViewFailed;
 
 		sendComponent(
 			req, res,
@@ -344,15 +380,17 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			return;
 		}
 		const pollCount = Number(req.query.poll ?? "0");
+		const utmParams = collectUtmParams(req.query);
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
 			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readlistTags: undefined,
+			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};
@@ -372,15 +410,17 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			return;
 		}
 		const pollCount = Number(req.query.poll ?? "0");
+		const utmParams = collectUtmParams(req.query);
 		const component = await reader.handleReaderPoll({
 			articleUrl,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
 			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readlistTags: undefined,
+			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};

@@ -1,9 +1,10 @@
 export const EXTENSION_SUGGESTION_BANNER_TEMPLATE = `<div
+	id="extension-suggestion-banner"
 	class="extension-suggestion-banner"
 	role="status"
 	aria-live="polite"
 	data-show-extension-suggestion="{{show}}"
-	data-test-extension-suggestion-banner
+	data-test-extension-suggestion-banner{{#if oob}} hx-swap-oob="outerHTML"{{/if}}
 >
 	<div class="extension-suggestion-banner__inner">
 		<button

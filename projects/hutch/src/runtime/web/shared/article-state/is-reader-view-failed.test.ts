@@ -1,5 +1,5 @@
 import type { CrawlStatus, SummaryStatus } from "@packages/article-state-types";
-import { isFullyParsed } from "./is-fully-parsed";
+import { isReaderViewFailed } from "./is-reader-view-failed";
 
 const CRAWL_STATUSES: ReadonlyArray<CrawlStatus | undefined> = [
 	"pending",
@@ -17,14 +17,15 @@ const SUMMARY_STATUSES: ReadonlyArray<SummaryStatus | undefined> = [
 	undefined,
 ];
 
-describe("isFullyParsed", () => {
-	it("returns true when the crawl is ready and the summary is ready or skipped (the reader view succeeded)", () => {
+describe("isReaderViewFailed", () => {
+	it("returns true when the crawl failed or is unsupported, or the summary failed (the reader view failed)", () => {
 		for (const crawlStatus of CRAWL_STATUSES) {
 			for (const summaryStatus of SUMMARY_STATUSES) {
 				const expected =
-					crawlStatus === "ready" &&
-					(summaryStatus === "ready" || summaryStatus === "skipped");
-				expect(isFullyParsed({ crawlStatus, summaryStatus })).toBe(expected);
+					crawlStatus === "failed" ||
+					crawlStatus === "unsupported" ||
+					summaryStatus === "failed";
+				expect(isReaderViewFailed({ crawlStatus, summaryStatus })).toBe(expected);
 			}
 		}
 	});

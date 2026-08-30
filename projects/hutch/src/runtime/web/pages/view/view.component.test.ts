@@ -3,7 +3,12 @@ import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import { calculateReadTime } from "@packages/domain/article";
 import { Base } from "../../base.component";
-import { ViewPage, type ViewPageInput } from "./view.component";
+import {
+	ViewPage,
+	renderViewCtaActionOob,
+	type ViewAction,
+	type ViewPageInput,
+} from "./view.component";
 
 const baseInput: ViewPageInput = {
 	articleUrl: "https://example.com/post",
@@ -21,6 +26,7 @@ const baseInput: ViewPageInput = {
 	summary: { status: "skipped" },
 	actions: [
 		{
+			key: "save",
 			name: "Save to My Readlist",
 			href: "/save?url=https%3A%2F%2Fexample.com%2Fpost",
 			variant: "primary",
@@ -96,7 +102,7 @@ describe("ViewPage", () => {
 		const doc = render({
 			...baseInput,
 			actions: [
-				{ name: "Save to My Readlist", href: "/save?url=x", variant: "primary" },
+				{ key: "save", name: "Save to My Readlist", href: "/save?url=x", variant: "primary" },
 			],
 		});
 
@@ -109,22 +115,17 @@ describe("ViewPage", () => {
 		expect(link.textContent).toBe("Save to My Readlist");
 	});
 
-	it("renders a 'Read in your queue' action when the model points to /queue/:id/view", () => {
+	it("gives each action a stable id derived from its key so an OOB swap can target it", () => {
 		const doc = render({
 			...baseInput,
 			actions: [
-				{
-					name: "Read in your queue",
-					href: "/queue/abc123/view",
-					variant: "primary",
-				},
+				{ key: "save", name: "Save to My Readlist", href: "/save?url=x", variant: "primary" },
 			],
 		});
 
 		const link = doc.querySelector("[data-test-view-cta-action]");
 		assert(link, "cta action link must be rendered");
-		expect(link.getAttribute("href")).toBe("/queue/abc123/view");
-		expect(link.textContent).toBe("Read in your queue");
+		expect(link.id).toBe("view-cta-save");
 	});
 
 	it("renders multiple actions when the model has more than one", () => {
@@ -132,13 +133,15 @@ describe("ViewPage", () => {
 			...baseInput,
 			actions: [
 				{
-					name: "Read in your queue",
-					href: "/queue/abc/view",
+					key: "save",
+					name: "Save to My Readlist",
+					href: "/save?url=x",
 					variant: "primary",
 				},
 				{
-					name: "Save to My Readlist",
-					href: "/save?url=x",
+					key: "paste-another-link",
+					name: "Paste another link",
+					href: "/?utm_source=view-article",
 					variant: "secondary",
 				},
 			],
@@ -146,8 +149,55 @@ describe("ViewPage", () => {
 
 		const links = doc.querySelectorAll("[data-test-view-cta-action]");
 		expect(links.length).toBe(2);
-		expect(links[0]?.getAttribute("href")).toBe("/queue/abc/view");
-		expect(links[1]?.getAttribute("href")).toBe("/save?url=x");
+		expect(links[0]?.getAttribute("href")).toBe("/save?url=x");
+		expect(links[1]?.getAttribute("href")).toBe("/?utm_source=view-article");
+	});
+
+	describe("save-tip gating attribute", () => {
+		const SAVE_ACTION: ViewAction = {
+			key: "save",
+			name: "Save to My Readlist",
+			href: "/save?url=x",
+			variant: "primary",
+		};
+
+		it("carries data-save-tip when the action's saveTipState is set", () => {
+			const doc = render({
+				...baseInput,
+				actions: [{ ...SAVE_ACTION, saveTipState: "due" }],
+			});
+
+			const link = doc.querySelector("[data-test-view-cta-action]");
+			assert(link, "cta action must be rendered");
+			expect(link.getAttribute("data-save-tip")).toBe("due");
+		});
+
+		it("omits data-save-tip when the action carries no saveTipState", () => {
+			const doc = render({ ...baseInput, actions: [SAVE_ACTION] });
+
+			const link = doc.querySelector("[data-test-view-cta-action]");
+			assert(link, "cta action must be rendered");
+			expect(link.hasAttribute("data-save-tip")).toBe(false);
+		});
+
+		it("renders the inline action without an hx-swap-oob envelope", () => {
+			const doc = render({ ...baseInput, actions: [SAVE_ACTION] });
+
+			const link = doc.querySelector("[data-test-view-cta-action]");
+			assert(link, "cta action must be rendered");
+			expect(link.hasAttribute("hx-swap-oob")).toBe(false);
+		});
+
+		it("wraps the OOB action in an hx-swap-oob=outerHTML envelope carrying the id and save-tip state", () => {
+			const dom = new JSDOM(
+				`<!doctype html><html><body>${renderViewCtaActionOob({ ...SAVE_ACTION, saveTipState: "due" })}</body></html>`,
+			);
+			const link = dom.window.document.querySelector("[data-test-view-cta-action]");
+			assert(link, "cta action must be rendered");
+			expect(link.id).toBe("view-cta-save");
+			expect(link.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(link.getAttribute("data-save-tip")).toBe("due");
+		});
 	});
 
 	it("emits OG metadata using the article title and excerpt, with canonical pegged to the source and og:url pegged to the readplace wrapper so shares carry readplace's downloaded thumbnail + reader content", () => {

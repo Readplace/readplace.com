@@ -10,9 +10,7 @@
     <aside class="view__cta" data-test-view-cta>
       <div class="view__cta-content">
         {{#each actions}}
-        <div class="view__cta-item">
-          <a class="btn btn--{{variant}} view__cta-btn" href="{{href}}" data-test-view-cta-action{{#if saveTipState}} data-save-tip="{{saveTipState}}"{{/if}}>{{name}}</a>
-        </div>
+        <div class="view__cta-item">{{{html}}}</div>
         {{/each}}
       </div>
     </aside>

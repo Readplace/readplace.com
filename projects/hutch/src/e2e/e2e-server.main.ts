@@ -366,13 +366,6 @@ server.get('/e2e/stripe-checkout/:id', (req, res) => {
 	res.redirect(303, successUrl)
 })
 
-// Deterministic crawl-failure fixture: any GET returns 500 so tests can exercise
-// the reader-failed / summary-hidden flow against a URL that's guaranteed to
-// fail regardless of network conditions.
-server.get('/e2e/unfetchable', (_req, res) => {
-	res.status(500).type('text/plain').send('e2e: intentional crawl failure')
-})
-
 /** Minimal valid PDF (single empty page, ~300 bytes). The extractor stub above
  * never parses these bytes — it short-circuits to deterministic HTML. The
  * fixture's only job is to make the upstream HTTP response Content-Type and

@@ -32,8 +32,10 @@ import type {
 	HandlePollParams,
 	PollUrlBuilder,
 	ReaderState,
+	ReaderViewFailedOob,
 	ResolveReaderStateParams,
 } from "./article-reader.types";
+import { isReaderViewFailed } from "../article-state/is-reader-view-failed";
 import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 
 /**
@@ -63,6 +65,7 @@ interface PollResponseBodyInput {
 	extensionInstallUrl: string | undefined;
 	progress: ProgressTick | undefined;
 	metadataOob: string;
+	readerViewFailedOob: string;
 	appOrigin: string;
 }
 
@@ -89,9 +92,21 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 	});
 	const progressBarOob = renderProgressBarOob({ progress: input.progress });
 	if (input.primary === "reader") {
-		return readerSlot + summarySlot + progressBarOob + input.metadataOob;
+		return (
+			readerSlot +
+			summarySlot +
+			progressBarOob +
+			input.metadataOob +
+			input.readerViewFailedOob
+		);
 	}
-	return summarySlot + readerSlot + progressBarOob + input.metadataOob;
+	return (
+		summarySlot +
+		readerSlot +
+		progressBarOob +
+		input.metadataOob +
+		input.readerViewFailedOob
+	);
 }
 
 /**
@@ -136,6 +151,30 @@ function computePollUrls(args: {
 			: undefined,
 		capturePollUrl: args.pollUrlBuilder.reader(1, true),
 	};
+}
+
+/**
+ * Emits only when the reader view has failed AND both poll chains are settled.
+ * Gating on settled, not merely failed, avoids replaying the banner/CTA every 3s
+ * through the content-promotion race (crawl ready, content not yet copied,
+ * summary failed) where the reader chain keeps polling.
+ */
+function settledFailureOob(input: {
+	crawl: ArticleCrawl | undefined;
+	summary: GeneratedSummary | undefined;
+	readerPollUrl: string | undefined;
+	summaryPollUrl: string | undefined;
+	render: ReaderViewFailedOob;
+}): string {
+	const settled =
+		input.readerPollUrl === undefined && input.summaryPollUrl === undefined;
+	return settled &&
+		isReaderViewFailed({
+			crawlStatus: input.crawl?.status,
+			summaryStatus: input.summary?.status,
+		})
+		? input.render()
+		: "";
 }
 
 /**
@@ -274,6 +313,10 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			capturePollUrl: pollUrlBuilder.reader(1, true),
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			crawlVersions: resolveCrawlVersions(versions, freshness?.contentFetchedAt),
+			readerViewFailed: isReaderViewFailed({
+				crawlStatus: crawl?.status,
+				summaryStatus: summary?.status,
+			}),
 		};
 	}
 
@@ -333,6 +376,13 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.readlistTags),
+			readerViewFailedOob: settledFailureOob({
+				crawl,
+				summary,
+				readerPollUrl,
+				summaryPollUrl,
+				render: params.readerViewFailedOob,
+			}),
 			appOrigin: deps.appOrigin,
 		}));
 	}
@@ -364,6 +414,13 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.readlistTags),
+			readerViewFailedOob: settledFailureOob({
+				crawl,
+				summary,
+				readerPollUrl,
+				summaryPollUrl,
+				render: params.readerViewFailedOob,
+			}),
 			appOrigin: deps.appOrigin,
 		}));
 	}

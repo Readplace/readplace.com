@@ -342,6 +342,22 @@ describe("initSaveTip", () => {
 		expect(harness.navigations).toEqual(["https://readplace.com/save?url=x"]);
 	});
 
+	it("records the warning as a session cookie the moment it holds a link back", () => {
+		const harness = createHarness();
+
+		harness.click("cta");
+
+		expect(harness.cookies).toEqual(["rp_save_tip=seen; path=/; samesite=lax"]);
+	});
+
+	it("marks the gating cookie Secure when the page was served over https", () => {
+		const harness = createHarness({ secureTransport: true });
+
+		harness.click("cta");
+
+		expect(harness.cookies).toEqual(["rp_save_tip=seen; path=/; samesite=lax; secure"]);
+	});
+
 	it("lets a gated link through once the session has already been warned", () => {
 		const harness = createHarness({ state: "seen" });
 
@@ -349,6 +365,7 @@ describe("initSaveTip", () => {
 
 		expect(event.defaultPrevented).toBe(false);
 		expect(harness.shown).toEqual([]);
+		expect(harness.cookies).toEqual([]);
 	});
 
 	it("leaves links it does not gate alone", () => {

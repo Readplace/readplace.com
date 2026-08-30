@@ -86,7 +86,7 @@ import type {
 } from "@packages/provider-contracts/article-summary";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
-import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
+import type { PollUrlBuilder, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
 import type {
 	PublishLinkDequeued,
 	PublishLinkQueued,
@@ -116,7 +116,10 @@ import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
-import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
+import {
+	NO_READER_VIEW_FAILED_OOB,
+	extensionSuggestionBannerOob,
+} from "../../shared/article-reader/reader-view-failed-oob";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { initReaderPermalink } from "./reader-permalink";
@@ -196,8 +199,11 @@ import {
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
 import {
+	APP_SHELL_QUERY,
+	APP_SHELL_VALUE,
 	PLATFORM_QUERY,
 	hasBackgroundSaveContinuity,
+	isAppShell,
 	isNativeClient,
 	isNativeSurface,
 	nativeClientOf,
@@ -756,12 +762,18 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
 		const surface = nativeSurfaceOf(req);
 		const platform = surface ? `&${PLATFORM_QUERY}=${surface}` : "";
+		const shell = isAppShell(req) ? `&${APP_SHELL_QUERY}=${APP_SHELL_VALUE}` : "";
 		return {
-			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${platform}`,
+			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${platform}${shell}`,
 			reader: (n, capturing) =>
-				`${READLIST_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${platform}`,
+				`${READLIST_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${platform}${shell}`,
 		};
 	}
+
+	const ownerReaderViewFailedOob = (req: Request): ReaderViewFailedOob =>
+		isAppPlatform(req)
+			? NO_READER_VIEW_FAILED_OOB
+			: extensionSuggestionBannerOob(req);
 
 	const readerReturnPath = (req: Request, articleId: string): string => {
 		const surface = nativeSurfaceOf(req);
@@ -950,10 +962,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		const showExtensionSuggestionBanner = !isFullyParsed({
-			crawlStatus: state.crawl?.status,
-			summaryStatus: state.summary?.status,
-		});
+		const showExtensionSuggestionBanner = state.readerViewFailed;
 
 		// Owner-only removal controls: which snapshots this owner authored, so the
 		// bookmark can offer to delete their versions. Only the full-shell owner
@@ -2080,6 +2089,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: article.provenance,
 			readlistTags: readlistFiling.tags,
+			readerViewFailedOob: ownerReaderViewFailedOob(req),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -2114,6 +2124,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: article.provenance,
 			readlistTags: readlistFiling.tags,
+			readerViewFailedOob: ownerReaderViewFailedOob(req),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});

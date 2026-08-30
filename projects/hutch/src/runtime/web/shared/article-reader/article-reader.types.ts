@@ -20,6 +20,8 @@ import type { ProgressTick, SaveProvenance } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { ReaderReadlistTags } from "../article-body/article-header/article-header.component";
 
+export type ReaderViewFailedOob = () => string;
+
 export interface ArticleReaderDeps {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	findGeneratedSummary: FindGeneratedSummary;
@@ -94,6 +96,7 @@ export interface ReaderState {
 	 * crawled).
 	 */
 	crawlVersions: LocalTime[];
+	readerViewFailed: boolean;
 }
 
 export interface ResolveReaderStateParams {
@@ -136,4 +139,5 @@ export interface HandlePollParams {
 	 */
 	provenance: SaveProvenance | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
+	readerViewFailedOob: ReaderViewFailedOob;
 }

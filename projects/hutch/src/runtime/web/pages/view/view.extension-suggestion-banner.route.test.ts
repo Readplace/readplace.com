@@ -49,7 +49,7 @@ function bannerAttr(html: string): string | null {
 const useApp = useTestServer();
 
 describe("GET /view/{url} — extension suggestion banner", () => {
-	it("sets data-show='true' when no crawl/summary exists yet (anonymous first hit)", async () => {
+	it("sets data-show='false' while still loading with no crawl/summary yet (anonymous first hit)", async () => {
 		const parseArticle: ParseArticle = async () => buildParseResult();
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => undefined;
@@ -64,7 +64,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 		expect(response.status).toBe(200);
-		expect(bannerAttr(response.text)).toBe("true");
+		expect(bannerAttr(response.text)).toBe("false");
 	});
 
 	it("sets data-show='false' when both crawl and summary are ready (fully parsed)", async () => {
@@ -101,7 +101,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		expect(bannerAttr(response.text)).toBe("false");
 	});
 
-	it("sets data-show='true' when crawl is ready but summary is still pending", async () => {
+	it("sets data-show='false' while the crawl is ready and the summary is still pending", async () => {
 		const parseArticle: ParseArticle = async () => buildParseResult();
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const applyParseResult = createFakeApplyParseResult({
@@ -126,6 +126,64 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 				publishSaveAnonymousLink:
 					createFakePublishSaveAnonymousLink(applyParseResult),
 			},
+			summary: { ...fixture.summary, findGeneratedSummary },
+		});
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+		expect(bannerAttr(response.text)).toBe("false");
+	});
+
+	it("sets data-show='true' when the crawl has failed", async () => {
+		const parseArticle: ParseArticle = async () => buildParseResult();
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "failed",
+			reason: "blocked",
+		});
+		const harness = useApp({
+			...fixture,
+			parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+		});
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+		expect(bannerAttr(response.text)).toBe("true");
+	});
+
+	it("sets data-show='true' when the crawl is unsupported", async () => {
+		const parseArticle: ParseArticle = async () => buildParseResult();
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "unsupported",
+			reason: "pdf",
+		});
+		const harness = useApp({
+			...fixture,
+			parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+		});
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+		expect(bannerAttr(response.text)).toBe("true");
+	});
+
+	it("sets data-show='true' when the summary has failed on a ready crawl", async () => {
+		const parseArticle: ParseArticle = async () => buildParseResult();
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "ready",
+		});
+		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+			status: "failed",
+			reason: "model timeout",
+		});
+		const harness = useApp({
+			...fixture,
+			parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 

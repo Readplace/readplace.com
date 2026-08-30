@@ -1021,6 +1021,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		app.get("/e2e/fixtures/links-page-error", (_req: Request, res: Response) => {
 			res.status(500).type("text/html").send("<html><body>boom</body></html>");
 		});
+
+		app.get("/e2e/fixtures/unfetchable/:id", (_req: Request, res: Response) => {
+			res.status(500).type("text/plain").send("e2e: intentional crawl failure");
+		});
 	}
 
 	app.use(initInstallRoutes({ buildBannerState, staticBaseUrl }));

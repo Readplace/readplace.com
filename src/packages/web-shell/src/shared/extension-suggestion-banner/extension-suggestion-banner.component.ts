@@ -20,13 +20,37 @@ const CONTENT_CAPTURE_PHRASE = clientGroupsInCategory("contentCapture")
 	.map((group) => CONTENT_CAPTURE_NOUNS[group])
 	.join(" or ");
 
+function renderTemplate(input: {
+	show: boolean;
+	extensionInstalled: boolean;
+	oob: boolean;
+}): string {
+	return render(EXTENSION_SUGGESTION_BANNER_TEMPLATE, {
+		show: input.show ? "true" : "false",
+		extensionInstalled: input.extensionInstalled,
+		clientsPhrase: CONTENT_CAPTURE_PHRASE,
+		oob: input.oob,
+	});
+}
+
 export function renderExtensionSuggestionBanner(input: {
 	show: boolean;
 	extensionInstalled?: boolean;
 }): string {
-	return render(EXTENSION_SUGGESTION_BANNER_TEMPLATE, {
-		show: input.show ? "true" : "false",
+	return renderTemplate({
+		show: input.show,
 		extensionInstalled: input.extensionInstalled ?? false,
-		clientsPhrase: CONTENT_CAPTURE_PHRASE,
+		oob: false,
+	});
+}
+
+export function renderExtensionSuggestionBannerOob(input: {
+	show: boolean;
+	extensionInstalled: boolean;
+}): string {
+	return renderTemplate({
+		show: input.show,
+		extensionInstalled: input.extensionInstalled,
+		oob: true,
 	});
 }
