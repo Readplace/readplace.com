@@ -180,7 +180,7 @@ fun ReadingListScreen(
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = { Text(text = "Readplace") },
+				title = { Text(text = "Reading List") },
 				navigationIcon = {
 					TextButton(onClick = onSignOut) { Text(text = "Sign out") }
 				},
