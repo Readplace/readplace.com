@@ -72,14 +72,14 @@ describe("GET /e2e/article/:id", () => {
 });
 
 describe("GET /e2e/fixtures/unfetchable/:id", () => {
-	it("answers 500 text/plain so the crawler records a failed reader view", async () => {
+	it("answers 404 text/plain, a status the crawl pipeline settles as failed in-process rather than retrying", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(harness.server).get(
 			"/e2e/fixtures/unfetchable/run-a-crawl-fails",
 		);
 
-		expect(response.status).toBe(500);
+		expect(response.status).toBe(404);
 		expect(response.headers["content-type"]).toMatch(/text\/plain/);
 	});
 
@@ -90,7 +90,7 @@ describe("GET /e2e/fixtures/unfetchable/:id", () => {
 			"/e2e/fixtures/unfetchable/run-b-banner-on-public-view",
 		);
 
-		expect(response.status).toBe(500);
+		expect(response.status).toBe(404);
 		expect(response.headers["content-type"]).toMatch(/text\/plain/);
 	});
 });

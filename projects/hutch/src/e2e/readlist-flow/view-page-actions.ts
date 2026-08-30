@@ -29,9 +29,11 @@ export function createAnonymousViewPageActions(
 
 				// Staging reaches this state through the HTMX polls (the live flip under
 				// test), not the SSR body, so these waits carry the crawl budget.
-				await expect(
-					page.locator('[data-test-reader-slot][data-reader-status="failed"]'),
-				).toHaveCount(1, { timeout: 180_000 })
+				await expect(page.locator('[data-test-reader-slot]')).toHaveAttribute(
+					'data-reader-status',
+					/^(failed|not-found)$/,
+					{ timeout: 180_000 },
+				)
 
 				// Regression guard: when the crawl fails, the summary slot must
 				// collapse to skipped (hidden) rather than sit on "Generating

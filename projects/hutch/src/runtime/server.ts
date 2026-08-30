@@ -1023,7 +1023,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		});
 
 		app.get("/e2e/fixtures/unfetchable/:id", (_req: Request, res: Response) => {
-			res.status(500).type("text/plain").send("e2e: intentional crawl failure");
+			res.status(404).type("text/plain").send("e2e: intentional crawl failure");
 		});
 	}
 
