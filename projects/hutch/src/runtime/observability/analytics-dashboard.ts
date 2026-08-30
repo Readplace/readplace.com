@@ -986,7 +986,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 186, width: 8, height: 4,
+			x: index * 8, y: 194, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -998,6 +998,37 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				setPeriodToTimeRange: true,
 			},
 		})),
+	);
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "OAuth token grants — issued vs refused by client",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, event, grant_type, client_id",
+				`| filter stream = "${STREAMS.analytics}" and (event = "${ANALYTICS_EVENTS.oauthTokenIssued}" or event = "${ANALYTICS_EVENTS.oauthTokenRefused}")`,
+				"| stats count(*) as grants by event, grant_type, client_id",
+				"| sort grants desc",
+				"| limit 40",
+			].join(" "),
+			x: 0, y: 186, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Save refusals by code × client",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, code, client, path, status",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.saveRefused}"`,
+				"| stats count(*) as refusals by code, client, path",
+				"| sort refusals desc",
+				"| limit 40",
+			].join(" "),
+			x: 12, y: 186, width: 12, height: 8,
+			view: "table",
+		}),
 	);
 
 	return { widgets };

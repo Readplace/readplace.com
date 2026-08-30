@@ -739,6 +739,52 @@ describe("POST /queue/save-articles", () => {
 		expect(response.body.properties.code).toBe("save-articles-too-many-pages");
 	});
 
+	it("emits save_refused (unauthenticated) when a bulk save arrives without a bearer", async () => {
+		const { testApp } = setup();
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.field("manifest", manifest([{ url: "https://example.com/x" }]));
+
+		expect(response.status).toBe(401);
+		const refused = testApp.analytics.events.filter((e) => e.event === "save_refused");
+		expect(refused).toHaveLength(1);
+		expect(refused[0]).toMatchObject({
+			event: "save_refused",
+			path: "/queue/save-articles",
+			code: "unauthenticated",
+			status: 401,
+			is_authenticated: 0,
+		});
+	});
+
+	it("emits save_refused (too_many_pages) tagged from the handler for an over-cap batch", async () => {
+		const { testApp } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const entries = Array.from(
+			{ length: MAX_PAGES_PER_BULK_SAVE + 1 },
+			(_v, i) => ({ url: `https://example.com/${i}` }),
+		);
+		await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest(entries));
+
+		const refused = testApp.analytics.events.filter((e) => e.event === "save_refused");
+		expect(refused).toHaveLength(1);
+		expect(refused[0]).toMatchObject({
+			event: "save_refused",
+			path: "/queue/save-articles",
+			code: "too_many_pages",
+			status: 422,
+			client: "firefox_extension",
+			is_authenticated: 1,
+		});
+	});
+
 	it("returns 422 (invalid-save-articles) when the body is not multipart/form-data", async () => {
 		const { testApp } = setup();
 		const accessToken = await createAccessToken(testApp);

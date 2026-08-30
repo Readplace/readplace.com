@@ -57,6 +57,7 @@ const userExportBucketName = config.require("userExportBucketName");
 const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
 const gmailConnectionCapWarnThreshold = config.requireNumber("gmailConnectionCapWarnThreshold");
+const oauthRefreshRefusedDailyThreshold = config.requireNumber("oauthRefreshRefusedDailyThreshold");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 
 // The inbox stack owns the inbox tables and the SES receiving pipeline. hutch
@@ -1209,6 +1210,44 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 		defaultValue: "0",
 		unit: "Count",
 	},
+});
+
+new aws.cloudwatch.LogMetricFilter("oauth-refresh-refused-filter", {
+	name: "oauth-refresh-refused",
+	logGroupName: lambda.logGroupName,
+	pattern: `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "refresh_token" }`,
+	metricTransformation: {
+		name: METRICS.oauthRefreshRefused.name,
+		namespace: METRICS.oauthRefreshRefused.namespace,
+		value: "1",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
+const oauthRefreshRefusedTopic = new aws.sns.Topic("oauth-refresh-refused-topic", {
+	name: "oauth-refresh-refused-topic",
+});
+
+new aws.sns.TopicSubscription("oauth-refresh-refused-alert-email", {
+	topic: oauthRefreshRefusedTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("oauth-refresh-refused-alarm", {
+	name: "oauth-refresh-refused-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: METRICS.oauthRefreshRefused.name,
+	namespace: METRICS.oauthRefreshRefused.namespace,
+	period: 86400,
+	statistic: "Sum",
+	threshold: oauthRefreshRefusedDailyThreshold,
+	treatMissingData: "notBreaching",
+	alarmDescription:
+		"Extension refresh-token grants are being refused above the expected per-day baseline",
+	alarmActions: [oauthRefreshRefusedTopic.arn],
 });
 
 // --- Analytics log-group split (never-expire forwarder) ---

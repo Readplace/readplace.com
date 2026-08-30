@@ -114,6 +114,8 @@ import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
+import { initObserveSaveRefusal, tagSaveRefusal } from "../../shared/save-refusal";
+import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
 import {
@@ -1007,6 +1009,16 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		);
 	});
 
+	router.post(
+		SAVE_ROUTE.saveArticles,
+		initObserveSaveRefusal({
+			analytics: deps.analytics,
+			now: deps.now,
+			salt: deps.salt,
+			path: SAVE_INTENT_PATH.saveArticles,
+		}),
+	);
+
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
 
@@ -1543,6 +1555,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	});
 	router.post(SAVE_ROUTE.saveArticles, requireNotLocked, deps.requireWriteAccess, saveArticlesUpload.rawBodyParser, saveArticlesLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
+			tagSaveRefusal(res, SAVE_REFUSAL_CODES.notSiren);
 			res.status(406).send("Not Acceptable");
 			return;
 		}
@@ -1552,6 +1565,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		const parsed = saveArticlesUpload.parseAllParts(req);
 		if (!parsed.ok) {
+			tagSaveRefusal(res, SAVE_REFUSAL_CODES.invalidManifest);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				sirenError({ code: "invalid-save-articles", message: "save-articles requires a multipart/form-data body" }),
 			);
@@ -1563,6 +1577,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			manifestPart ? safeJsonParse(manifestPart.content.toString("utf8")) : undefined,
 		);
 		if (!manifest.success) {
+			tagSaveRefusal(res, SAVE_REFUSAL_CODES.invalidManifest);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				sirenError({ code: "invalid-save-articles", message: "Invalid save-articles manifest" }),
 			);
@@ -1570,6 +1585,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 
 		if (manifest.data.length > MAX_PAGES_PER_BULK_SAVE) {
+			tagSaveRefusal(res, SAVE_REFUSAL_CODES.tooManyPages);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				sirenError({ code: "save-articles-too-many-pages", message: `Too many tabs to save in one request (max ${MAX_PAGES_PER_BULK_SAVE})` }),
 			);

@@ -151,7 +151,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				surface: "extension",
 				outcome: "saved",
 				content_class: "third_party",
-				client: "web",
+				client: "firefox_extension",
 				is_authenticated: 1,
 			});
 		});

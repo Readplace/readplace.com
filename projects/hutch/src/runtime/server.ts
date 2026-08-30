@@ -1447,6 +1447,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		consumeRateLimit: deps.consumeRateLimit,
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
 		tokenRateLimitRule: deps.rateLimitRules.oauthToken,
+		analytics: deps.analytics,
+		now: deps.now,
+		salt: deps.salt,
 	});
 	app.use("/oauth/token", extensionCors);
 	app.use("/oauth/revoke", extensionCors);

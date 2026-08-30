@@ -28,7 +28,27 @@ export const ANALYTICS_EVENTS = {
 	signupAttempted: "signup_attempted",
 	firstArticleAutosaved: "first_article_autosaved",
 	mcpToolCalled: "mcp_tool_called",
+	oauthTokenIssued: "oauth_token_issued",
+	oauthTokenRefused: "oauth_token_refused",
+	saveRefused: "save_refused",
 } as const;
+
+export const OAUTH_TOKEN_GRANT_TYPES = {
+	refreshToken: "refresh_token",
+	authorizationCode: "authorization_code",
+	other: "other",
+} as const;
+
+export type OAuthTokenGrantType =
+	(typeof OAUTH_TOKEN_GRANT_TYPES)[keyof typeof OAUTH_TOKEN_GRANT_TYPES];
+
+export const OAUTH_TOKEN_REFUSAL_REASONS = {
+	rateLimited: "rate_limited",
+	rejected: "rejected",
+} as const;
+
+export type OAuthTokenRefusalReason =
+	(typeof OAUTH_TOKEN_REFUSAL_REASONS)[keyof typeof OAUTH_TOKEN_REFUSAL_REASONS];
 
 export const SIGNUP_OUTCOMES = {
 	created: "created",
@@ -63,6 +83,8 @@ export const SAVE_CLIENTS = {
 	web: "web",
 	iosApp: "ios_app",
 	androidApp: "android_app",
+	chromeExtension: "chrome_extension",
+	firefoxExtension: "firefox_extension",
 	mcp: "mcp",
 } as const;
 
@@ -84,6 +106,21 @@ export const SAVE_OUTCOMES = {
 	promptedToSignUp: "prompted_to_sign_up",
 	error: "error",
 } as const;
+
+export const SAVE_REFUSAL_CODES = {
+	unauthenticated: "unauthenticated",
+	locked: "locked",
+	noWriteAccess: "no_write_access",
+	notSiren: "not_siren",
+	invalidManifest: "invalid_manifest",
+	tooManyPages: "too_many_pages",
+	tooLarge: "too_large",
+	rateLimited: "rate_limited",
+	other: "other",
+} as const;
+
+export type SaveRefusalCode =
+	(typeof SAVE_REFUSAL_CODES)[keyof typeof SAVE_REFUSAL_CODES];
 
 export const CONTENT_CLASSES = {
 	own: "own",

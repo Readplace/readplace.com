@@ -1,6 +1,8 @@
 import type { ErrorRequestHandler } from "express";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
+import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
+import { tagSaveRefusal } from "../../shared/save-refusal";
 
 /**
  * Translates body-parser `entity.too.large` errors on the multipart
@@ -31,6 +33,7 @@ export function initSaveArticlesLimitHandler(deps: {
 				`save-articles request body exceeded ${label}`,
 				err instanceof Error ? err : undefined,
 			);
+			tagSaveRefusal(res, SAVE_REFUSAL_CODES.tooLarge);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				sirenError({
 					code: "save-articles-too-large",

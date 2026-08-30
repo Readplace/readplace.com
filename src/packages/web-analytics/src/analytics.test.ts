@@ -3,8 +3,8 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
-import { SAVE_CLIENTS, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { OAUTH_TOKEN_GRANT_TYPES, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -900,6 +900,109 @@ describe("buildSaveIntentEvent", () => {
 		expect(() => buildIntent({ req: {} })).toThrow(
 			"visitor-id middleware must run before a save surface emits view_save_intent",
 		);
+	});
+});
+
+describe("buildSaveRefusedEvent", () => {
+	const deps = { now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" };
+
+	it("records the path, code, status, client and authenticated flag with a request id", () => {
+		const event = buildSaveRefusedEvent(deps, {
+			req: createReq({ userId: "user-1", requestContext: { requestId: "Req-9=" } }) as Request,
+			path: "/queue/save-articles",
+			status: 402,
+			code: SAVE_REFUSAL_CODES.noWriteAccess,
+			client: SAVE_CLIENTS.chromeExtension,
+		});
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "save_refused",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			path: "/queue/save-articles",
+			code: "no_write_access",
+			status: 402,
+			client: "chrome_extension",
+			is_authenticated: 1,
+			request_id: "Req-9=",
+			visitor_hash: expect.any(String),
+		});
+	});
+
+	it("marks an unauthenticated refusal and omits request_id when absent", () => {
+		const event = buildSaveRefusedEvent(deps, {
+			req: createReq() as Request,
+			path: "/queue/save-articles",
+			status: 401,
+			code: SAVE_REFUSAL_CODES.unauthenticated,
+			client: SAVE_CLIENTS.web,
+		});
+		expect(event).toMatchObject({ is_authenticated: 0, code: "unauthenticated", status: 401 });
+		expect("request_id" in event).toBe(false);
+	});
+});
+
+describe("buildOAuthTokenIssuedEvent", () => {
+	const deps = { now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" };
+
+	it("records the grant type, client id, request id and a salted visitor hash", () => {
+		const event = buildOAuthTokenIssuedEvent(deps, {
+			req: createReq({ requestContext: { requestId: "Req-1=" } }) as Request,
+			grantType: OAUTH_TOKEN_GRANT_TYPES.refreshToken,
+			clientId: "hutch-chrome-extension",
+		});
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "oauth_token_issued",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			grant_type: "refresh_token",
+			client_id: "hutch-chrome-extension",
+			request_id: "Req-1=",
+			visitor_hash: expect.any(String),
+		});
+	});
+
+	it("omits request_id when the gateway request id is absent", () => {
+		const event = buildOAuthTokenIssuedEvent(deps, {
+			req: createReq() as Request,
+			grantType: OAUTH_TOKEN_GRANT_TYPES.authorizationCode,
+			clientId: "ios-app",
+		});
+		expect("request_id" in event).toBe(false);
+	});
+});
+
+describe("buildOAuthTokenRefusedEvent", () => {
+	const deps = { now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" };
+
+	it("classifies a non-429 refusal as rejected and carries the status", () => {
+		const event = buildOAuthTokenRefusedEvent(deps, {
+			req: createReq({ requestContext: { requestId: "Req-2=" } }) as Request,
+			grantType: OAUTH_TOKEN_GRANT_TYPES.refreshToken,
+			clientId: "hutch-firefox-extension",
+			status: 400,
+		});
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "oauth_token_refused",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			grant_type: "refresh_token",
+			client_id: "hutch-firefox-extension",
+			status: 400,
+			reason: "rejected",
+			request_id: "Req-2=",
+			visitor_hash: expect.any(String),
+		});
+	});
+
+	it("classifies a 429 refusal as rate_limited and omits request_id when absent", () => {
+		const event = buildOAuthTokenRefusedEvent(deps, {
+			req: createReq() as Request,
+			grantType: OAUTH_TOKEN_GRANT_TYPES.other,
+			clientId: "missing",
+			status: 429,
+		});
+		expect(event).toMatchObject({ reason: "rate_limited", status: 429, grant_type: "other" });
+		expect("request_id" in event).toBe(false);
 	});
 });
 

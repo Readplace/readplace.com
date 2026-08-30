@@ -55,6 +55,16 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 		title: "Signups (lifetime metric, internal traffic included)",
 		reason: `${METRIC_COUNTER_REASON} No excluded identity has produced a user_created line so far (0 of 24), but that is an accident of who has signed up, not a property of the counter — an internal signup would land in it.`,
 	},
+	{
+		title: "OAuth token grants — issued vs refused by client",
+		reason:
+			"An operational auth view keyed on the OAuth client id, not on a reader identity: the oauth_token_issued/refused events carry neither visitor_id nor user_id, and an internal-account refresh storm must still count toward the sign-out alarm this widget backs.",
+	},
+	{
+		title: "Save refusals by code × client",
+		reason:
+			"An operational view of why a save was refused, keyed on the refusal code and client rather than a reader identity: an internal-account refusal is still a real refusal worth seeing, and the event carries no visitor_id/user_id to filter on.",
+	},
 ];
 
 const RELATED_PAST_READS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [

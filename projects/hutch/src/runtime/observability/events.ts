@@ -60,6 +60,10 @@ export const METRICS = {
 		namespace: "Readplace/Gmail",
 		name: "GmailConnections",
 	},
+	oauthRefreshRefused: {
+		namespace: "Readplace/OAuth",
+		name: "OAuthRefreshRefused",
+	},
 } as const;
 
 export const GMAIL_CONNECTIONS_COUNT_EVENT = "gmail_connections_counted";

@@ -14,6 +14,10 @@ import {
 	SAVE_LINK_SURFACES,
 	SAVE_SURFACE_QUERY,
 	SAVE_SURFACES,
+	OAUTH_TOKEN_REFUSAL_REASONS,
+	type OAuthTokenGrantType,
+	type OAuthTokenRefusalReason,
+	type SaveRefusalCode,
 	type SaveClient,
 	type SaveOutcome,
 	type SaveSurface,
@@ -345,6 +349,41 @@ export interface McpToolCalledEvent {
 	content_class?: ContentClass;
 }
 
+export interface OAuthTokenIssuedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.oauthTokenIssued;
+	timestamp: string;
+	grant_type: OAuthTokenGrantType;
+	client_id: string;
+	request_id?: string;
+	visitor_hash: string | null;
+}
+
+export interface OAuthTokenRefusedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.oauthTokenRefused;
+	timestamp: string;
+	grant_type: OAuthTokenGrantType;
+	client_id: string;
+	status: number;
+	reason: OAuthTokenRefusalReason;
+	request_id?: string;
+	visitor_hash: string | null;
+}
+
+export interface SaveRefusedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.saveRefused;
+	timestamp: string;
+	path: string;
+	code: SaveRefusalCode;
+	status: number;
+	client: SaveClient;
+	is_authenticated: 0 | 1;
+	request_id?: string;
+	visitor_hash: string | null;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| AnalyticsClick
@@ -357,7 +396,10 @@ export type AnalyticsEvent =
 	| ViewSaveIntentEvent
 	| SignupAttemptedEvent
 	| FirstArticleAutosavedEvent
-	| McpToolCalledEvent;
+	| McpToolCalledEvent
+	| OAuthTokenIssuedEvent
+	| OAuthTokenRefusedEvent
+	| SaveRefusedEvent;
 
 function isRenderedPageStatus(statusCode: number): boolean {
 	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
@@ -520,6 +562,68 @@ function extractPageviewUtm(
 		utm_medium: extractQueryString(req, "utm_medium"),
 		utm_campaign: extractQueryString(req, "utm_campaign"),
 		utm_content: extractQueryString(req, "utm_content"),
+	};
+}
+
+export function buildSaveRefusedEvent(
+	deps: { now: () => Date; salt: string },
+	params: {
+		req: Request;
+		path: string;
+		status: number;
+		code: SaveRefusalCode;
+		client: SaveClient;
+	},
+): SaveRefusedEvent {
+	const gatewayRequestId = gatewayRequestIdOf(params.req);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.saveRefused,
+		timestamp: deps.now().toISOString(),
+		path: params.path,
+		code: params.code,
+		status: params.status,
+		client: params.client,
+		is_authenticated: params.req.userId ? 1 : 0,
+		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+	};
+}
+
+export function buildOAuthTokenIssuedEvent(
+	deps: { now: () => Date; salt: string },
+	params: { req: Request; grantType: OAuthTokenGrantType; clientId: string },
+): OAuthTokenIssuedEvent {
+	const gatewayRequestId = gatewayRequestIdOf(params.req);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.oauthTokenIssued,
+		timestamp: deps.now().toISOString(),
+		grant_type: params.grantType,
+		client_id: params.clientId,
+		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+	};
+}
+
+export function buildOAuthTokenRefusedEvent(
+	deps: { now: () => Date; salt: string },
+	params: { req: Request; grantType: OAuthTokenGrantType; clientId: string; status: number },
+): OAuthTokenRefusedEvent {
+	const gatewayRequestId = gatewayRequestIdOf(params.req);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.oauthTokenRefused,
+		timestamp: deps.now().toISOString(),
+		grant_type: params.grantType,
+		client_id: params.clientId,
+		status: params.status,
+		reason:
+			params.status === 429
+				? OAUTH_TOKEN_REFUSAL_REASONS.rateLimited
+				: OAUTH_TOKEN_REFUSAL_REASONS.rejected,
+		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
 	};
 }
 

@@ -9,10 +9,11 @@ const READPLACE_SHARE_EXTENSION = "ShareExtension/94 CFNetwork/3860.700.1 Darwin
 const IPHONE_SAFARI =
 	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 
-function reqWith(input: { headers?: Record<string, string>; query?: Request["query"] }): Request {
+function reqWith(input: { headers?: Record<string, string>; query?: Request["query"]; oauthClientId?: string }): Request {
 	const headers = input.headers ?? {};
 	return {
 		query: input.query ?? {},
+		oauthClientId: input.oauthClientId,
 		get(name: string): string | undefined {
 			return headers[name.toLowerCase()];
 		},
@@ -68,5 +69,23 @@ describe("saveClientOf", () => {
 
 	it("reports the web client for a User-Agent that merely mentions our app rather than being it", () => {
 		assert.equal(saveClientOf(reqWith({ headers: { "user-agent": `Googlebot ${READPLACE_IOS_APP}` } })), "web");
+	});
+
+	it("reports the Chrome extension from its bearer's OAuth client id", () => {
+		assert.equal(
+			saveClientOf(reqWith({ oauthClientId: "hutch-chrome-extension" })),
+			"chrome_extension",
+		);
+	});
+
+	it("reports the Firefox extension from its bearer's OAuth client id", () => {
+		assert.equal(
+			saveClientOf(reqWith({ oauthClientId: "hutch-firefox-extension" })),
+			"firefox_extension",
+		);
+	});
+
+	it("falls back to the web client for a dynamically registered OAuth client id", () => {
+		assert.equal(saveClientOf(reqWith({ oauthClientId: "some-registered-mcp-client" })), "web");
 	});
 });

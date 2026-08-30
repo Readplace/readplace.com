@@ -678,6 +678,88 @@ describe("OAuth routes", () => {
 			expect(rotatedGrant.status).toBe(200);
 		});
 
+		it("logs oauth_token_issued for a successful exchange without leaking the token", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { refreshToken } = await obtainTokenPair(harness, "issued@example.com");
+
+			const issued = harness.analytics.events.filter((e) => e.event === "oauth_token_issued");
+			expect(issued.length).toBeGreaterThanOrEqual(1);
+			expect(issued[0]).toMatchObject({
+				stream: "analytics",
+				event: "oauth_token_issued",
+				grant_type: "authorization_code",
+				client_id: TEST_CLIENT_ID,
+			});
+			expect(JSON.stringify(harness.analytics.events)).not.toContain(refreshToken);
+		});
+
+		it("logs oauth_token_refused with reason rejected for a spent refresh token", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { refreshToken } = await obtainTokenPair(harness, "refused@example.com");
+
+			await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: refreshToken,
+				client_id: TEST_CLIENT_ID,
+			});
+			const spent = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: refreshToken,
+				client_id: TEST_CLIENT_ID,
+			});
+			expect(spent.status).toBe(400);
+
+			const refused = harness.analytics.events.filter((e) => e.event === "oauth_token_refused");
+			expect(refused.length).toBeGreaterThanOrEqual(1);
+			expect(refused[refused.length - 1]).toMatchObject({
+				event: "oauth_token_refused",
+				grant_type: "refresh_token",
+				client_id: TEST_CLIENT_ID,
+				status: 400,
+				reason: "rejected",
+			});
+		});
+
+		it("logs oauth_token_refused with reason rate_limited on a 429", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, oauthToken: { limit: 1, windowSeconds: 3600 } },
+			};
+			const harness = useApp(fixture);
+
+			await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: "whatever",
+				client_id: TEST_CLIENT_ID,
+			});
+			const throttled = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: "whatever",
+				client_id: TEST_CLIENT_ID,
+			});
+			expect(throttled.status).toBe(429);
+
+			const refused = harness.analytics.events.filter((e) => e.event === "oauth_token_refused");
+			expect(refused.some((e) => "reason" in e && e.reason === "rate_limited")).toBe(true);
+		});
+
+		it("classifies an unknown grant type and a missing client id as other/missing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/oauth/token")
+				.type("form")
+				.send({ grant_type: "client_credentials" });
+			expect(response.status).toBeGreaterThanOrEqual(400);
+
+			const refused = harness.analytics.events.filter((e) => e.event === "oauth_token_refused");
+			expect(refused[refused.length - 1]).toMatchObject({
+				event: "oauth_token_refused",
+				grant_type: "other",
+				client_id: "missing",
+			});
+		});
 	});
 
 	describe("POST /oauth/revoke", () => {

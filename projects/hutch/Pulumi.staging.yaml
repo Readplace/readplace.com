@@ -59,6 +59,7 @@ config:
   hutch:rawEmailBucketName: hutch-inbox-raw-email-staging
   hutch:alertEmail: readplace+staging@readplace.com
   hutch:gmailConnectionCapWarnThreshold: 5
+  hutch:oauthRefreshRefusedDailyThreshold: 5
   # Test rig for the outbound-mail-auth component on staging's own zone.
   # readplace-staging.com has no Google Workspace, so the SPF value is inert for
   # real deliverability here — this exists only to exercise the Pulumi record end
