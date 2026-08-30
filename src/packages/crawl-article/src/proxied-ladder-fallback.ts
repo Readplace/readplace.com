@@ -26,9 +26,6 @@ const PROXY_ATTEMPT_FLOOR_MILLISECONDS = 12_000;
  * 200. 500 is excluded — that one is plausibly the origin's own answer, which
  * the caller is entitled to receive. */
 const PROXY_GATEWAY_STATUSES = new Set([502, 503, 504]);
-/* Every crawl queue redrives at maxReceiveCount 1, so nothing above this
- * wrapper will retry a transient gateway failure. One extra attempt is that
- * recovery, and bounds the metered spend of a blocked crawl at two requests. */
 const PROXY_ATTEMPTS = 2;
 
 export function withProxiedLadderFallback(deps: {

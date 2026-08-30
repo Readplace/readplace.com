@@ -3,13 +3,10 @@ import { callerHasGivenUp, type CrawlBudget, type LegDeadline } from "./crawl-bu
 import type { OnRedirect } from "./follow-redirects";
 
 /**
- * Edge vendors spell the same bot-deny verdict three ways: Cloudflare as a 403
- * managed challenge, Cloudflare again as a 429 with no retry-after (observed on
- * linkedin.com from Lambda egress, hours apart, so not a real rate limit), and
- * Cloudflare pay-per-crawl as a 402 (observed on seriouseats.com from Lambda
- * egress, which answers 403 to the same URL from a residential one, so the
- * price is on the egress and not on the document). None of the three is
- * reliably what its status says.
+ * Edge vendors spell the same bot-deny verdict: Cloudflare as a 403 managed
+ * challenge, and Cloudflare again as a 429 with no retry-after (observed on
+ * linkedin.com from Lambda egress, hours apart, so not a real rate limit).
+ * Neither is reliably what its status says.
  */
 const ESCALATE_STATUS_CODES = new Set([402, 403, 429]);
 

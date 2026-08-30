@@ -16,11 +16,6 @@ type H2RequestResult = {
 export type FetchH2 = (url: string, init?: FetchH2Init) => Promise<Response>;
 
 /**
- * HTTP/2 fetch with redirect following. Cloudflare's managed challenge
- * blocks HTTP/1.1 clients (Node.js undici/fetch) via TLS fingerprinting.
- * Node's built-in http2 module bypasses the challenge because real browsers
- * negotiate h2 by default and Cloudflare's heuristics trust the handshake.
- *
  * The optional `lookup` is threaded into every `http2.connect` — the initial
  * request and each redirect hop open a fresh connection — so the SSRF guard
  * rejects any host that resolves to a private/loopback/link-local address.
