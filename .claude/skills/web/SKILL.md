@@ -326,6 +326,12 @@ form.querySelectorAll('[name]').forEach(function(el) {
 });
 ```
 
+### Re-sync Swapped-In Elements on `htmx:afterSettle`
+
+A client that toggles a class or attribute on an element htmx swaps in must re-sync on `htmx:afterSettle`, never on `htmx:afterSwap` or `htmx:oobAfterSwap`. htmx swaps an id-matched element in wearing the outgoing element's attributes, then restores the incoming markup's own attributes — `class` among them — in a settle task that runs between those two events. So anything a client writes on the swap event is reverted a few milliseconds later, with no error to show for it. Only that element's own attributes are affected, which is why a client that writes text or reads state elsewhere sees nothing wrong.
+
+A pipeline whose local test double settles synchronously renders the finished state at SSR and never exercises the swap path at all, so this class of bug survives a green local run and shows up only against a deployed environment.
+
 ### Browser JS Is Bundled and Served Same-Origin
 
 Compile `*.client.ts` to a browser IIFE bundle and reference it via a relative `<script src="/...">`. Do not route the URL through the static asset base URL used for images.
