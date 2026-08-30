@@ -57,7 +57,7 @@ const SHARED_CLIENT_BUNDLES = [
       "  ExtensionSuggestionBanner.initExtensionSuggestionBanner({",
       "    document: window.document,",
       "    storage: window.localStorage,",
-      "    addSwapListener: function (cb) { document.body.addEventListener('htmx:oobAfterSwap', cb); }",
+      "    addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSettle', cb); }",
       "  }).attach();",
       "});",
     ].join("\n"),
