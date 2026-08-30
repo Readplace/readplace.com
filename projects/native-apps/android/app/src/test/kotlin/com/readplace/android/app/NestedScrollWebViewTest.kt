@@ -68,13 +68,66 @@ class NestedScrollWebViewTest {
 		)
 	}
 
-	private fun motion(action: Int, y: Float): MotionEvent =
-		MotionEvent.obtain(0L, 0L, action, 0f, y, 0)
+	@Test
+	fun `a release too slow to fling still hands the parent a fling to settle on`() {
+		val parent = RecordingScrollParent(context)
+		val webView = NestedScrollWebView(context)
+		parent.addView(webView)
+
+		webView.onTouchEvent(motion(MotionEvent.ACTION_DOWN, y = 500f))
+		webView.onTouchEvent(motion(MotionEvent.ACTION_MOVE, y = 600f))
+		webView.onTouchEvent(motion(MotionEvent.ACTION_UP, y = 600f))
+
+		assertEquals(
+			"a finger that stops before lifting still offers the parent a fling to settle on",
+			listOf(0f) to listOf(0f),
+			parent.preFlingVelocities to parent.flingVelocities,
+		)
+	}
+
+	@Test
+	fun `a cancelled gesture still hands the parent a fling to settle on`() {
+		val parent = RecordingScrollParent(context)
+		val webView = NestedScrollWebView(context)
+		parent.addView(webView)
+
+		webView.onTouchEvent(motion(MotionEvent.ACTION_DOWN, y = 500f))
+		webView.onTouchEvent(motion(MotionEvent.ACTION_MOVE, y = 600f))
+		webView.onTouchEvent(motion(MotionEvent.ACTION_CANCEL, y = 600f))
+
+		assertEquals(
+			"a gesture the system takes away settles the parent and releases the touch",
+			listOf(0f) to listOf(true, false),
+			parent.flingVelocities to parent.disallowIntercept,
+		)
+	}
+
+	@Test
+	fun `a fast release passes the finger's velocity to the parent`() {
+		val parent = RecordingScrollParent(context)
+		val webView = NestedScrollWebView(context)
+		parent.addView(webView)
+
+		webView.onTouchEvent(motion(MotionEvent.ACTION_DOWN, y = 500f, at = 0L))
+		webView.onTouchEvent(motion(MotionEvent.ACTION_MOVE, y = 600f, at = 100L))
+		webView.onTouchEvent(motion(MotionEvent.ACTION_UP, y = 610f, at = 110L))
+
+		assertEquals(
+			"100px of finger travel over 100ms reaches the parent as 1000px/s of scroll",
+			listOf(-1000f),
+			parent.flingVelocities,
+		)
+	}
+
+	private fun motion(action: Int, y: Float, at: Long = 0L): MotionEvent =
+		MotionEvent.obtain(0L, at, action, 0f, y, 0)
 
 	private class RecordingScrollParent(context: Context, private val consumesY: Int = 0) :
 		FrameLayout(context), NestedScrollingParent3 {
 		var unconsumedY = 0
 		val disallowIntercept = mutableListOf<Boolean>()
+		val preFlingVelocities = mutableListOf<Float>()
+		val flingVelocities = mutableListOf<Float>()
 
 		override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
 			this.disallowIntercept += disallowIntercept
@@ -86,6 +139,16 @@ class NestedScrollWebViewTest {
 		override fun onNestedScrollAccepted(child: View, target: View, axes: Int, type: Int) = Unit
 
 		override fun onStopNestedScroll(target: View, type: Int) = Unit
+
+		override fun onNestedPreFling(target: View, velocityX: Float, velocityY: Float): Boolean {
+			preFlingVelocities += velocityY
+			return false
+		}
+
+		override fun onNestedFling(target: View, velocityX: Float, velocityY: Float, consumed: Boolean): Boolean {
+			flingVelocities += velocityY
+			return false
+		}
 
 		override fun onNestedPreScroll(target: View, dx: Int, dy: Int, consumed: IntArray, type: Int) {
 			consumed[1] = consumesY

@@ -73,20 +73,20 @@ class NestedScrollWebView(context: Context) : WebView(context), NestedScrollingC
 		tracker.computeCurrentVelocity(VELOCITY_UNITS, maximumFlingVelocity.toFloat())
 		val scrollVelocity = -tracker.yVelocity
 		val handled = super.onTouchEvent(event)
-		if (abs(scrollVelocity) >= minimumFlingVelocity && !dispatchNestedPreFling(0f, scrollVelocity)) {
-			dispatchNestedFling(0f, scrollVelocity, canScrollFurther(scrollVelocity.toInt()))
-		}
-		endTouch()
+		endTouch(flingVelocity = if (abs(scrollVelocity) >= minimumFlingVelocity) scrollVelocity else 0f)
 		return handled
 	}
 
 	private fun onTouchCancel(event: MotionEvent): Boolean {
 		val handled = super.onTouchEvent(event)
-		endTouch()
+		endTouch(flingVelocity = 0f)
 		return handled
 	}
 
-	private fun endTouch() {
+	private fun endTouch(flingVelocity: Float) {
+		if (!dispatchNestedPreFling(0f, flingVelocity)) {
+			dispatchNestedFling(0f, flingVelocity, canScrollFurther(flingVelocity.toInt()))
+		}
 		velocityTracker?.recycle()
 		velocityTracker = null
 		stopNestedScroll(ViewCompat.TYPE_TOUCH)
