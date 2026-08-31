@@ -17,8 +17,9 @@
             </tr>
             <tr>
               <td>
+                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.body}};">{{opening.before}}<span style="white-space:nowrap;">{{opening.address}}</span>{{opening.after}}</p>
                 {{#each paragraphs}}
-                <p style="margin:0 0 {{#if @last}}24px{{else}}16px{{/if}};font-size:16px;line-height:1.6;color:{{../colors.body}};">{{{this}}}</p>
+                <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:{{../colors.body}};">{{{this}}}</p>
                 {{/each}}
                 <table role="presentation" cellpadding="0" cellspacing="0">
                   <tr>

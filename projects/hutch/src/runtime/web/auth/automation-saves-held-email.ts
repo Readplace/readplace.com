@@ -27,9 +27,22 @@ interface AutomationSavesHeldEmailComponent {
 
 const CTA_LABEL = "See the articles waiting";
 
-function openingParagraph(inboxAddress: string | undefined): string {
-	const at = inboxAddress === undefined ? "" : ` at ${inboxAddress}`;
-	return `An email to your Readplace inbox${at} just arrived, but the articles didn't go into your queue - your subscription is read-only, so saving is paused.`;
+const OPENING_AFTER =
+	" just arrived, but the articles didn't go into your queue - your subscription is read-only, so saving is paused.";
+
+function openingFragments(inboxAddress: string | undefined): {
+	before: string;
+	address: string;
+	after: string;
+} {
+	return {
+		before:
+			inboxAddress === undefined
+				? "An email to your Readplace inbox"
+				: "An email to your Readplace inbox at ",
+		address: inboxAddress ?? "",
+		after: OPENING_AFTER,
+	};
 }
 
 const REASSURANCE_PREFIX =
@@ -39,12 +52,9 @@ const REASSURANCE_LINK_TEXT = "your subscription is active again";
 
 function bodyParagraphs(input: {
 	reactivateUrl: string;
-	inboxAddress: string | undefined;
 }): { html: string; text: string }[] {
-	const opening = openingParagraph(input.inboxAddress);
 	const reactivateUrl = input.reactivateUrl;
 	return [
-		{ html: opening, text: opening },
 		{
 			html: `${REASSURANCE_PREFIX}<a href="${reactivateUrl}" style="color:${EMAIL_COLORS.heading};">${REASSURANCE_LINK_TEXT}</a>.`,
 			text: `${REASSURANCE_PREFIX}${REASSURANCE_LINK_TEXT}: ${reactivateUrl}`,
@@ -55,15 +65,14 @@ function bodyParagraphs(input: {
 export function AutomationSavesHeldEmail(
 	params: AutomationSavesHeldEmailParams,
 ): AutomationSavesHeldEmailComponent {
-	const paragraphs = bodyParagraphs({
-		reactivateUrl: params.reactivateUrl,
-		inboxAddress: params.inboxAddress,
-	});
+	const paragraphs = bodyParagraphs({ reactivateUrl: params.reactivateUrl });
+	const opening = openingFragments(params.inboxAddress);
 	return {
 		to(mediaType) {
 			if (mediaType === "text/html") {
 				return render(TEMPLATE, {
 					founderAvatarUrl: params.founderAvatarUrl,
+					opening,
 					paragraphs: paragraphs.map((paragraph) => paragraph.html),
 					ctaUrl: params.inboxUrl,
 					ctaLabel: CTA_LABEL,
@@ -74,6 +83,7 @@ export function AutomationSavesHeldEmail(
 			}
 
 			return [
+				`${opening.before}${opening.address}${opening.after}`,
 				...paragraphs.map((paragraph) => paragraph.text),
 				`${CTA_LABEL}: ${params.inboxUrl}`,
 				`If you'd rather not continue, turn off your inbox addresses and nothing more will be forwarded and you will stop receiving these emails: ${params.manageAddressesUrl}`,

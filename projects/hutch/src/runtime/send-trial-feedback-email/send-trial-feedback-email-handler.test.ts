@@ -142,6 +142,12 @@ describe("automation-saves-held notice", () => {
 				`An email to your Readplace inbox at ${HELD_INBOX_ADDRESS} just arrived,`,
 			),
 		);
+		assert.ok(
+			sent.html.includes(
+				`<span style="white-space:nowrap;">${HELD_INBOX_ADDRESS}</span>`,
+			),
+			"the hyphenated address must be unbreakable and byte-exact in the HTML",
+		);
 		const highlighted = new URL(
 			"https://readplace.com/inbox?highlight=2026-06-04T08%3A00%3A00.000Z%23%3Cnews%40example.com%3E&utm_source=automation-saves-held&utm_medium=email&utm_campaign=lapsed-inbox-save",
 		);

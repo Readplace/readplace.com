@@ -93,8 +93,9 @@
 }
 
 .inbox-emails__row--highlighted {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  box-shadow: inset 4px 0 0 var(--primary);
+  background: var(--warning-bg);
+  outline: 2px solid var(--color-highlight);
+  outline-offset: -2px;
 }
 
 .inbox-emails__link {
@@ -114,7 +115,7 @@
 }
 
 .inbox-emails__row--highlighted .inbox-emails__link:hover {
-  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  background: color-mix(in srgb, var(--color-highlight) 18%, transparent);
 }
 
 .inbox-emails__link:focus-visible {
