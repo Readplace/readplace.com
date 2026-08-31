@@ -154,6 +154,38 @@ redeem the link) → **Install** Readplace → **open it once** (iOS won't regis
 Share Extension until the host app has launched) → in Safari, **Share → Readplace**
 saves the page. Builds expire **90 days** after upload; push a fresh build to renew.
 
+## Giving a build its "What to Test" note
+
+The `beta` lane uploads with `skip_waiting_for_build_processing`, so it cannot
+carry a changelog: pilot only writes one once App Store Connect has created the
+build's beta localizations. The note is therefore set afterwards, by the
+`whats_new` lane — `bundle exec fastlane whats_new build:104`, or the
+**Set iOS TestFlight What to Test** workflow from the Actions tab.
+
+It reads `fastlane/metadata/en-US/release_notes.txt`, the same file the App Store
+listing uses, so a tester and a shopper cannot be told two different stories —
+which also means the note that lands is whatever is on the branch the workflow
+runs from. It uploads no binary and submits nothing: `distribute_only` skips the
+upload and `skip_submission` stops before pilot adds the build to a tester group
+or files a beta review.
+
+Three things about the lane are load-bearing rather than decorative:
+
+- **`app_platform: "ios"` is passed explicitly.** pilot normally reads the
+  platform out of the `.ipa` it just built; with no `.ipa` the option has no
+  default and pilot prompts for it on stdin, which hangs a CI run to its job
+  timeout.
+- **`build_number` is passed alongside `app_version`.** Left out, pilot does not
+  fail — it silently retargets the note onto whatever build was uploaded last.
+- **An empty `release_notes.txt` is a hard error.** pilot writes the changelog
+  only when it is non-empty and reports success either way, so a blank file would
+  leave the previous build's note standing under a green run.
+
+The lane waits for the build to finish processing before writing, and that wait
+is unbounded: a build number that was never uploaded logs "Waiting for the build
+to show up in the build list" every 30s until the job limit. Cancel the run and
+re-dispatch with the right number.
+
 ## Publishing from CI (GitHub Actions)
 
 `.github/workflows/publish-ios-testflight.yml` runs the same `beta` lane on a

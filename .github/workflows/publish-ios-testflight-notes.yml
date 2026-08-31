@@ -1,0 +1,60 @@
+name: Set iOS TestFlight What to Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "TestFlight build number whose What to Test note is set from fastlane/metadata/en-US/release_notes.txt (e.g. 104)"
+        type: string
+        required: true
+
+concurrency:
+  group: ios-testflight-notes
+  cancel-in-progress: false
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: projects/native-apps/ios
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: preflight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::App Store Connect secrets not configured — skipping the What to Test update."
+          fi
+
+      - uses: ruby/setup-ruby@v1
+        if: steps.preflight.outputs.configured == 'true'
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: projects/native-apps/ios
+
+      - name: Write the App Store Connect API key
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p fastlane/secrets
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > fastlane/secrets/AuthKey.p8
+
+      - name: Set the build's What to Test note
+        if: steps.preflight.outputs.configured == 'true'
+        run: bundle exec fastlane whats_new "build:$BUILD"
+        env:
+          BUILD: ${{ inputs.build }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_PATH: ./fastlane/secrets/AuthKey.p8

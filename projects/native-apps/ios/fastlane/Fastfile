@@ -296,6 +296,40 @@ platform :ios do
     )
   end
 
+  desc "Set the TestFlight What to Test note on a build that is ALREADY uploaded. The text comes"
+  desc "from fastlane/metadata/en-US/release_notes.txt, the same file the App Store listing reads,"
+  desc "so TestFlight and the store listing cannot drift apart. Uploads no binary and submits"
+  desc "nothing. Re-runnable. Usage: `bundle exec fastlane whats_new build:104`."
+  lane :whats_new do |options|
+    build = options[:build].to_s
+    version_string = version_string_for(build)
+
+    notes_path = File.join(PROJECT_ROOT, "fastlane", "metadata", "en-US", "release_notes.txt")
+    notes = File.read(notes_path).strip
+    UI.user_error!("#{notes_path} is empty — there is no What to Test text to set") if notes.empty?
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: asc_key_filepath,
+      duration: 1200,
+      in_house: false,
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: APP_ID,
+      distribute_only: true,
+      app_platform: "ios",
+      app_version: version_string,
+      build_number: build,
+      changelog: notes,
+      skip_submission: true,
+    )
+
+    UI.success("Set What to Test on #{version_string} (build #{build}) from #{notes_path}")
+  end
+
   desc "Read-only preflight: verify API-key auth and the one-time portal prerequisites"
   desc "(both bundle ids registered with App Groups, and the App Store Connect app record)."
   lane :preflight do
