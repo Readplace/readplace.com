@@ -9,6 +9,7 @@ import {
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -20,6 +21,7 @@ const RECEIVED_AT = "2026-06-24T09:00:00.000Z";
 const RAM = `${RECEIVED_AT}#<m@x>`;
 const DIGEST_PROVENANCE = { kind: "email", senderEmail: "news@example.com" };
 const RAW_KEY = "inbound/ses-msg-1";
+const NOW = "2026-06-24T10:00:00.000Z";
 
 function makeEmail(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	return {
@@ -75,11 +77,15 @@ function makeHarness(opts?: {
 	triageEmailLinks?: TriageEmailLinks;
 	derivedHtml?: string;
 	maxLinks?: number;
+	subscription?: SubscriptionRecord;
 }) {
 	const linkStore = initInMemoryInboxEmailLink();
+	const subscriptionReads: UserId[] = [];
 	const published: { ordinal: EmailLinkOrdinal; url: string }[] = [];
 	const submitted: { userId: UserId; url: string }[] = [];
 	const alerts: { found: number }[] = [];
+	const heldNotices: { userId: UserId; receivedAtMessageId: string }[] = [];
+	const publishOrder: ("notice" | "preview" | "submit")[] = [];
 	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
 	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
 	const countsWrites: InboxEmailLinkCounts[] = [];
@@ -112,14 +118,25 @@ function makeHarness(opts?: {
 			countsWrites.push(linkCounts);
 		},
 		publishCrawlPreview: async ({ ordinal, url }) => {
+			publishOrder.push("preview");
 			published.push({ ordinal, url });
 		},
 		publishSubmitLink: async (input) => {
+			publishOrder.push("submit");
 			submitted.push(input);
 		},
 		alertTruncated: async ({ found }) => {
 			alerts.push({ found });
 		},
+		publishSaveHeldNotice: async (input) => {
+			publishOrder.push("notice");
+			heldNotices.push(input);
+		},
+		findSubscriptionByUserId: async (userId) => {
+			subscriptionReads.push(UserIdSchema.parse(userId));
+			return opts?.subscription;
+		},
+		now: () => new Date(NOW),
 		triageEmailLinks: opts?.triageEmailLinks ?? everythingIsAnArticle,
 		logger: HutchLogger.from(noopLogger),
 		maxLinks: opts?.maxLinks ?? 200,
@@ -128,7 +145,7 @@ function makeHarness(opts?: {
 	const run = (body: string) =>
 		handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
 
-	return { linkStore, published, submitted, alerts, triageCalls, deriveInputs, countsWrites, writeOrder, run };
+	return { linkStore, published, submitted, alerts, heldNotices, triageCalls, deriveInputs, countsWrites, writeOrder, subscriptionReads, publishOrder, run };
 }
 
 describe("initExtractEmailLinksHandler", () => {
@@ -145,6 +162,106 @@ describe("initExtractEmailLinksHandler", () => {
 			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE },
 			{ userId: USER, url: "https://b.test/y", provenance: DIGEST_PROVENANCE },
 		]);
+	});
+
+	it("holds every save for a read-only reader while still extracting, storing and crawling the links", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+			subscription: {
+				userId: USER,
+				provider: "stripe",
+				status: "trialing",
+				trialEndsAt: "2026-06-24T09:30:00.000Z",
+				createdAt: RECEIVED_AT,
+				updatedAt: RECEIVED_AT,
+			},
+		});
+
+		const result = await harness.run(eventBody());
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(harness.submitted).toEqual([]);
+		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x", "https://b.test/y"]);
+		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 0, truncated: false }]);
+		expect(harness.heldNotices).toEqual([{ userId: USER, receivedAtMessageId: RAM }]);
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((link) => link.status)).toEqual(["pending", "pending"]);
+	});
+
+	it("tells the reader once even when a single email holds many links", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y https://c.test/z",
+			subscription: {
+				userId: USER,
+				provider: "stripe",
+				status: "cancelled",
+				createdAt: RECEIVED_AT,
+				updatedAt: RECEIVED_AT,
+			},
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.heldNotices).toEqual([{ userId: USER, receivedAtMessageId: RAM }]);
+	});
+
+	it("raises the notice before the first held link is crawled, so a later crash cannot swallow it", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+			subscription: {
+				userId: USER,
+				provider: "stripe",
+				status: "cancelled",
+				createdAt: RECEIVED_AT,
+				updatedAt: RECEIVED_AT,
+			},
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.publishOrder).toEqual(["notice", "preview", "preview"]);
+	});
+
+	it("stays silent for a reader who can save", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x" });
+
+		await harness.run(eventBody());
+
+		expect(harness.heldNotices).toEqual([]);
+	});
+
+	it("submits for a reader whose trial is still running", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			subscription: {
+				userId: USER,
+				provider: "stripe",
+				status: "trialing",
+				trialEndsAt: "2026-06-24T11:00:00.000Z",
+				createdAt: RECEIVED_AT,
+				updatedAt: RECEIVED_AT,
+			},
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.submitted).toEqual([
+			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE },
+		]);
+	});
+
+	it("never reads the subscription for a backfill run, which submits nothing by design", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x" });
+
+		await harness.run(eventBody({ origin: "backfill" }));
+
+		expect(harness.subscriptionReads).toEqual([]);
+		expect(harness.submitted).toEqual([]);
+		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x"]);
 	});
 
 	it("keeps a preview for an unsaveable link but never submits it — the save pipeline would reject it", async () => {

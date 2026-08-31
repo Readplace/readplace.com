@@ -17,6 +17,7 @@ export const SubscriptionProviderRow = z.object({
 	cancellationEffectiveAt: dynamoField(z.string()),
 	trialFeedbackEmailSentAt: dynamoField(z.string()),
 	trialReminderEmailSentAt: dynamoField(z.string()),
+	automationSavesHeldEmailSentAt: dynamoField(z.string()),
 	/* `.catch` degrades a malformed map to `undefined` rather than throwing. Every
 	 * read of this row runs through `schema.parse`, and that read feeds the save
 	 * gate and the header banner — a strict parse here would turn one bad attribute
@@ -42,6 +43,9 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 			: {}),
 		...(row.trialReminderEmailSentAt !== undefined
 			? { trialReminderEmailSentAt: row.trialReminderEmailSentAt }
+			: {}),
+		...(row.automationSavesHeldEmailSentAt !== undefined
+			? { automationSavesHeldEmailSentAt: row.automationSavesHeldEmailSentAt }
 			: {}),
 		...(row.nextCharge !== undefined ? { nextCharge: row.nextCharge } : {}),
 		createdAt: row.createdAt,

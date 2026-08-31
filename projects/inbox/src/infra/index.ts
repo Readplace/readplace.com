@@ -408,6 +408,14 @@ new aws.cloudwatch.MetricAlarm("inbox-extract-email-links-truncated-alarm", {
 	alarmActions: [truncationAlertTopic.arn],
 });
 
+const extractEmailLinksSubscriptionProvidersRead = new HutchDynamoDBAccess(
+	"inbox-extract-email-links-subscription-providers-read",
+	{
+		tables: [{ arn: tableArn(tableNames.subscriptionProviders), includeIndexes: false }],
+		actions: ["dynamodb:GetItem"],
+	},
+);
+
 const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 	entryPoint: "./src/runtime/extract-email-links.main.ts",
 	outputDir: ".lib/inbox-extract-email-links",
@@ -426,9 +434,11 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 		// per-email cap truncates and the working path still ships the first 200.
 		INBOX_MAX_LINKS_PER_EMAIL: String(200),
 		EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL: truncationAlertQueue.url,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: tableNames.subscriptionProviders,
 	},
 	policies: [
 		...extractEmailLinksDynamodb.policies,
+		...extractEmailLinksSubscriptionProvidersRead.policies,
 		// Reads the raw .eml to re-derive the body; never writes any bucket.
 		...HutchS3ReadWrite.readPoliciesForBucket(
 			"inbox-extract-email-links-raw-read",

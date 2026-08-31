@@ -21,6 +21,7 @@ export interface SubscriptionRecord {
 	cancellationEffectiveAt?: string;
 	trialFeedbackEmailSentAt?: string;
 	trialReminderEmailSentAt?: string;
+	automationSavesHeldEmailSentAt?: string;
 	/** The renewal the provider last told us about. Absent until an /account render
 	 * asks, and cleared by every mutation that ends the current subscription, so a
 	 * present value always belongs to the `subscriptionId` alongside it. */
@@ -70,6 +71,11 @@ export type MarkTrialReminderEmailSent = (input: {
 	userId: UserId;
 	sentAt: string;
 }) => Promise<void>;
+
+export type MarkAutomationSavesHeldEmailSent = (input: {
+	userId: UserId;
+	sentAt: string;
+}) => Promise<"claimed" | "already-sent">;
 
 /** `subscriptionId` is the one the charge was read from, not a lookup key: the
  * write rejects unless the row still carries it, so a cancel or resubscribe landing

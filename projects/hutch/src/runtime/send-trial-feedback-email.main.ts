@@ -53,6 +53,7 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	findArticlesByUser: articleStore.findArticlesByUser,
 	markTrialFeedbackEmailSent: subscriptionProviders.markTrialFeedbackEmailSent,
 	markTrialReminderEmailSent: subscriptionProviders.markTrialReminderEmailSent,
+	markAutomationSavesHeldEmailSent: subscriptionProviders.markAutomationSavesHeldEmailSent,
 	sendEmail,
 	founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 	appOrigin,

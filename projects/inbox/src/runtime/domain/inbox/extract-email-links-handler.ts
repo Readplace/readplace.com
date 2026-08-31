@@ -7,6 +7,8 @@ import type {
 } from "aws-lambda";
 import { decodeHtmlEntities } from "@packages/crawl-article";
 import { EmailReceivedEvent } from "@packages/hutch-infra-components";
+import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
+import { resolveWriteAccess } from "@packages/subscription-access";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	capEmailLinks,
@@ -73,6 +75,12 @@ export function initExtractEmailLinksHandler(deps: {
 		receivedAtMessageId: string;
 		found: number;
 	}) => Promise<void>;
+	publishSaveHeldNotice: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+	}) => Promise<void>;
+	findSubscriptionByUserId: FindSubscriptionByUserId;
+	now: () => Date;
 	triageEmailLinks: TriageEmailLinks;
 	logger: HutchLogger;
 	maxLinks: number;
@@ -89,6 +97,9 @@ export function initExtractEmailLinksHandler(deps: {
 		publishCrawlPreview,
 		publishSubmitLink,
 		alertTruncated,
+		publishSaveHeldNotice,
+		findSubscriptionByUserId,
+		now,
 		triageEmailLinks,
 		logger,
 		maxLinks,
@@ -183,8 +194,15 @@ export function initExtractEmailLinksHandler(deps: {
 					return existing.status;
 				};
 
+				const canSubmit = origin === "receive" && userId !== UNROUTED_USER_ID;
+				const writeAccess = canSubmit
+					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
+					: undefined;
+
 				let kept = 0;
 				let skipped = 0;
+				let held = 0;
+				let noticePublished = false;
 				const countStored = (status: EmailLinkStatus) => {
 					if (status === "skipped") skipped += 1;
 					else kept += 1;
@@ -237,18 +255,30 @@ export function initExtractEmailLinksHandler(deps: {
 					// retry's pending-gate skip a submit that never happened. A crash
 					// after the submit leaves the row pending and the retry re-publishes
 					// both; the duplicate submit converges in the subscriber.
-					if (
-						origin === "receive" &&
-						userId !== UNROUTED_USER_ID &&
-						validateSaveableUrl(url).status === "SUCCESS"
-					) {
-						await publishSubmitLink({
-							userId,
-							url,
-							provenance: { kind: "email", senderEmail: email.senderEmail },
-						});
+					if (canSubmit && validateSaveableUrl(url).status === "SUCCESS") {
+						if (writeAccess === "full") {
+							await publishSubmitLink({
+								userId,
+								url,
+								provenance: { kind: "email", senderEmail: email.senderEmail },
+							});
+						} else {
+							held += 1;
+							if (!noticePublished) {
+								noticePublished = true;
+								await publishSaveHeldNotice({ userId, receivedAtMessageId });
+							}
+						}
 					}
 					await publishCrawlPreview({ userId, receivedAtMessageId, ordinal, url });
+				}
+
+				if (held > 0) {
+					logger.info("[extract-email-links] saves held for a read-only reader", {
+						userId,
+						receivedAtMessageId,
+						held,
+					});
 				}
 
 				await setEmailLinkCounts({

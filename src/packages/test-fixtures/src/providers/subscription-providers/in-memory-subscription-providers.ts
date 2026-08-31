@@ -9,6 +9,7 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
+	MarkAutomationSavesHeldEmailSent,
 	SetSubscriptionNextCharge,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
@@ -27,6 +28,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
+	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
 	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
 	seedRow: (row: SubscriptionRecord) => void;
@@ -95,7 +97,11 @@ export function initInMemorySubscriptionProviders(opts: {
 	const markActive: MarkSubscriptionActive = async ({ userId }) => {
 		const existing = rows.get(userId);
 		assert(existing, `No subscription row for user ${userId}`);
-		const { cancellationEffectiveAt: _ca, ...rest } = existing;
+		const {
+			cancellationEffectiveAt: _ca,
+			automationSavesHeldEmailSentAt: _ah,
+			...rest
+		} = existing;
 		rows.set(userId, {
 			...rest,
 			status: "active",
@@ -127,6 +133,21 @@ export function initInMemorySubscriptionProviders(opts: {
 			trialReminderEmailSentAt: sentAt,
 			updatedAt: opts.now().toISOString(),
 		});
+	};
+
+	const markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent = async ({
+		userId,
+		sentAt,
+	}) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		if (existing.automationSavesHeldEmailSentAt !== undefined) return "already-sent";
+		rows.set(userId, {
+			...existing,
+			automationSavesHeldEmailSentAt: sentAt,
+			updatedAt: opts.now().toISOString(),
+		});
+		return "claimed";
 	};
 
 	/* Mirrors the condition the real table enforces — the row must still exist, still
@@ -172,6 +193,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		markActive,
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
+		markAutomationSavesHeldEmailSent,
 		setNextCharge,
 		deleteSubscription,
 		seedRow,

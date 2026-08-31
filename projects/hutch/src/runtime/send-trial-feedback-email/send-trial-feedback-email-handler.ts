@@ -14,9 +14,15 @@ import type { FindArticlesByUser } from "@packages/provider-contracts/article-st
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	FindSubscriptionByUserId,
+	MarkAutomationSavesHeldEmailSent,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
 } from "@packages/provider-contracts/subscription-providers";
+import { resolveWriteAccess } from "@packages/subscription-access";
+import {
+	INBOX_ADDRESSES_PATH,
+	buildInboxHighlightUrl,
+} from "@packages/domain/inbox";
 import {
 	TrialFeedbackEmail,
 	TRIAL_FEEDBACK_EMAIL_SUBJECT,
@@ -30,6 +36,10 @@ import {
 	PaymentFailedEmail,
 	PAYMENT_FAILED_EMAIL_SUBJECT,
 } from "../web/auth/payment-failed-email";
+import {
+	AutomationSavesHeldEmail,
+	AUTOMATION_SAVES_HELD_EMAIL_SUBJECT,
+} from "../web/auth/automation-saves-held-email";
 
 const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
@@ -37,6 +47,7 @@ const EMAIL_BCC = "readplace+trial_feedback@readplace.com";
 const REMINDER_EMAIL_BCC = "readplace+trial_reminder@readplace.com";
 const CHARGE_REMINDER_EMAIL_BCC = "readplace+charge_reminder@readplace.com";
 const PAYMENT_FAILED_EMAIL_BCC = "readplace+payment_failed@readplace.com";
+const AUTOMATION_SAVES_HELD_EMAIL_BCC = "readplace+automation_saves_held@readplace.com";
 
 export interface SendTrialFeedbackEmailDeps {
 	findSubscriptionByUserId: FindSubscriptionByUserId;
@@ -44,6 +55,7 @@ export interface SendTrialFeedbackEmailDeps {
 	findArticlesByUser: FindArticlesByUser;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
+	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
 	sendEmail: SendEmail;
 	founderAvatarUrl: string;
 	appOrigin: string;
@@ -72,6 +84,8 @@ export function initSendTrialFeedbackEmailHandler(
 					await processChargeReminder(userId, detail.chargeAt, deps);
 				} else if (detail.kind === "payment_failed") {
 					await processPaymentFailed(userId, deps);
+				} else if (detail.kind === "automation_saves_held") {
+					await processAutomationSavesHeld(userId, detail.receivedAtMessageId, deps);
 				} else {
 					await processCommand(userId, deps);
 				}
@@ -151,6 +165,83 @@ async function processCommand(
 	deps.logger.info("[send-trial-feedback-email] sent", {
 		userId,
 		savedArticlesCount: total,
+		sentAt,
+	});
+}
+
+function trackedUrl(input: { appOrigin: string; path: string }): string {
+	const url = new URL(input.path, input.appOrigin);
+	url.searchParams.set("utm_source", "automation-saves-held");
+	url.searchParams.set("utm_medium", "email");
+	url.searchParams.set("utm_campaign", "lapsed-inbox-save");
+	return url.toString();
+}
+
+async function processAutomationSavesHeld(
+	userId: ReturnType<typeof UserIdSchema.parse>,
+	receivedAtMessageId: string | undefined,
+	deps: SendTrialFeedbackEmailDeps,
+): Promise<void> {
+	const row = await deps.findSubscriptionByUserId(userId);
+	if (resolveWriteAccess(row, deps.now()) === "full") {
+		deps.logger.info(
+			"[send-trial-feedback-email] automation-saves-held: reader can save again — noop",
+			{ userId, status: row?.status },
+		);
+		return;
+	}
+	if (row?.automationSavesHeldEmailSentAt) {
+		deps.logger.info(
+			"[send-trial-feedback-email] automation-saves-held: already sent — noop",
+			{ userId, sentAt: row.automationSavesHeldEmailSentAt },
+		);
+		return;
+	}
+
+	const email = await deps.findEmailByUserId(userId);
+	if (!email) {
+		deps.logger.info(
+			"[send-trial-feedback-email] automation-saves-held: no email on file — noop",
+			{ userId },
+		);
+		return;
+	}
+
+	const sentAt = deps.now().toISOString();
+	const claim = await deps.markAutomationSavesHeldEmailSent({ userId, sentAt });
+	if (claim === "already-sent") {
+		deps.logger.info(
+			"[send-trial-feedback-email] automation-saves-held: another delivery sent it — noop",
+			{ userId },
+		);
+		return;
+	}
+
+	const component = AutomationSavesHeldEmail({
+		founderAvatarUrl: deps.founderAvatarUrl,
+		inboxUrl: trackedUrl({
+			appOrigin: deps.appOrigin,
+			path: buildInboxHighlightUrl({ receivedAtMessageId }),
+		}),
+		reactivateUrl: trackedUrl({ appOrigin: deps.appOrigin, path: "/account" }),
+		manageAddressesUrl: trackedUrl({
+			appOrigin: deps.appOrigin,
+			path: INBOX_ADDRESSES_PATH,
+		}),
+	});
+
+	await deps.sendEmail({
+		from: EMAIL_FROM,
+		to: email,
+		bcc: AUTOMATION_SAVES_HELD_EMAIL_BCC,
+		replyTo: EMAIL_REPLY_TO,
+		subject: AUTOMATION_SAVES_HELD_EMAIL_SUBJECT,
+		html: component.to("text/html"),
+		text: component.to("text/plain"),
+	});
+
+	deps.logger.info("[send-trial-feedback-email] automation-saves-held sent", {
+		userId,
 		sentAt,
 	});
 }

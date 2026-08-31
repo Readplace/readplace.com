@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
+import type { MarkAutomationSavesHeldEmailSent } from "@packages/provider-contracts/subscription-providers";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
@@ -33,6 +34,18 @@ function buildPaymentFailedBody(userId: string): string {
 	return JSON.stringify({ detail: { userId, kind: "payment_failed" } });
 }
 
+const HELD_EMAIL_ID = "2026-06-04T08:00:00.000Z#<news@example.com>";
+
+function buildAutomationSavesHeldBody(userId: string, receivedAtMessageId?: string): string {
+	return JSON.stringify({
+		detail: {
+			userId,
+			kind: "automation_saves_held",
+			...(receivedAtMessageId ? { receivedAtMessageId } : {}),
+		},
+	});
+}
+
 function fakeFindArticlesByUser(total: number): FindArticlesByUser {
 	return async () => ({
 		articles: [],
@@ -48,6 +61,7 @@ interface SubjectOverrides {
 	findArticlesByUser?: FindArticlesByUser;
 	articlesTotal?: number;
 	now?: Date;
+	markAutomationSavesHeldEmailSent?: MarkAutomationSavesHeldEmailSent;
 }
 
 function buildSubject(overrides: SubjectOverrides = {}) {
@@ -65,6 +79,8 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 			fakeFindArticlesByUser(overrides.articlesTotal ?? 0),
 		markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
+		markAutomationSavesHeldEmailSent:
+			overrides.markAutomationSavesHeldEmailSent ?? providers.markAutomationSavesHeldEmailSent,
 		sendEmail: email.sendEmail,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		appOrigin: "https://readplace.com",
@@ -84,6 +100,146 @@ async function seedCancelledTrial(
 	});
 	await providers.markCancelledByUserId({ userId: USER_ID });
 }
+
+describe("automation-saves-held notice", () => {
+	const run = async (subject: ReturnType<typeof buildSubject>, emailId = HELD_EMAIL_ID) =>
+		subject.handler(
+			buildSqsEvent([
+				{ messageId: "msg-held", body: buildAutomationSavesHeldBody(USER_ID, emailId) },
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+	it("sends the notice and claims the marker for a read-only reader", async () => {
+		const subject = buildSubject();
+		await seedCancelledTrial(subject.providers);
+
+		const result = await run(subject);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		const sentEmails = subject.email.getSentEmails();
+		assert.equal(sentEmails.length, 1);
+		const sent = sentEmails[0];
+		assert(sent, "the notice must have been sent");
+		assert(sent.text, "the notice must carry a plain-text alternative");
+		assert.equal(sent.to, "user@example.com");
+		assert.equal(sent.bcc, "readplace+automation_saves_held@readplace.com");
+		assert.equal(sent.subject, "links sent to your Readplace inbox are waiting");
+		const highlighted = new URL(
+			"https://readplace.com/inbox?highlight=2026-06-04T08%3A00%3A00.000Z%23%3Cnews%40example.com%3E&utm_source=automation-saves-held&utm_medium=email&utm_campaign=lapsed-inbox-save",
+		);
+		assert.ok(sent.text.includes(highlighted.toString()));
+		assert.equal(
+			new URL(highlighted).searchParams.get("highlight"),
+			HELD_EMAIL_ID,
+		);
+		assert.ok(sent.text.includes("https://readplace.com/inbox/addresses?utm_source="));
+		assert.ok(sent.text.includes("https://readplace.com/account?utm_source="));
+		assert.equal(
+			(await subject.providers.findByUserId(USER_ID))?.automationSavesHeldEmailSentAt,
+			SENT_AT.toISOString(),
+		);
+	});
+
+	it("sends only once per lapse however many emails are held", async () => {
+		const subject = buildSubject();
+		await seedCancelledTrial(subject.providers);
+
+		await run(subject);
+		await run(subject);
+
+		assert.equal(subject.email.getSentEmails().length, 1);
+	});
+
+	it("sends again after a reactivation cleared the marker and access lapsed anew", async () => {
+		const subject = buildSubject();
+		await seedCancelledTrial(subject.providers);
+		await run(subject);
+
+		await subject.providers.markActive({ userId: USER_ID });
+		await subject.providers.markCancelledByUserId({ userId: USER_ID });
+		await run(subject);
+
+		assert.equal(subject.email.getSentEmails().length, 2);
+	});
+
+	it("links to the plain inbox list when the command names no email", async () => {
+		const subject = buildSubject();
+		await seedCancelledTrial(subject.providers);
+
+		await subject.handler(
+			buildSqsEvent([
+				{ messageId: "msg-held-bare", body: buildAutomationSavesHeldBody(USER_ID) },
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		const sent = subject.email.getSentEmails()[0];
+		assert(sent?.text, "the notice must carry a plain-text alternative");
+		assert.ok(sent.text.includes("https://readplace.com/inbox?utm_source="));
+	});
+
+	it("stays silent for a reader who can still save", async () => {
+		const subject = buildSubject();
+		await subject.providers.upsertActive({
+			userId: USER_ID,
+			subscriptionId: "sub_active",
+			customerId: "cus_active",
+		});
+
+		await run(subject);
+
+		assert.equal(subject.email.getSentEmails().length, 0);
+	});
+
+	it("stays silent for a reader with no subscription row, who has full access", async () => {
+		const subject = buildSubject();
+
+		await run(subject);
+
+		assert.equal(subject.email.getSentEmails().length, 0);
+	});
+
+	it("stays silent when no email is on file, leaving the marker unclaimed", async () => {
+		const subject = buildSubject({ findEmail: async () => null });
+		await seedCancelledTrial(subject.providers);
+
+		await run(subject);
+
+		assert.equal(subject.email.getSentEmails().length, 0);
+		assert.equal(
+			(await subject.providers.findByUserId(USER_ID))?.automationSavesHeldEmailSentAt,
+			undefined,
+		);
+	});
+
+	it("stays silent when an earlier delivery already recorded the notice", async () => {
+		const subject = buildSubject();
+		await seedCancelledTrial(subject.providers);
+		await subject.providers.markAutomationSavesHeldEmailSent({
+			userId: USER_ID,
+			sentAt: "2026-06-03T00:00:00.000Z",
+		});
+
+		await run(subject);
+
+		assert.equal(subject.email.getSentEmails().length, 0);
+	});
+
+	it("sends nothing when a concurrent delivery wins the marker claim", async () => {
+		const subject = buildSubject({
+			markAutomationSavesHeldEmailSent: async () => "already-sent",
+		});
+		await seedCancelledTrial(subject.providers);
+
+		await run(subject);
+
+		assert.equal(subject.email.getSentEmails().length, 0);
+	});
+});
 
 describe("send-trial-feedback-email handler", () => {
 	it("sends the email and marks the row as sent on the happy path", async () => {
@@ -259,6 +415,7 @@ describe("send-trial-feedback-email handler", () => {
 			findArticlesByUser: fakeFindArticlesByUser(2),
 			markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
 			markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
+			markAutomationSavesHeldEmailSent: providers.markAutomationSavesHeldEmailSent,
 			sendEmail: async () => {
 				throw new Error("Resend rejected");
 			},

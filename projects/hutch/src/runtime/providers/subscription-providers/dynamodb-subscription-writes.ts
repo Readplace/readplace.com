@@ -1,9 +1,11 @@
 import {
+	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
 import type {
 	DeleteSubscription,
+	MarkAutomationSavesHeldEmailSent,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
@@ -15,9 +17,9 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import { SubscriptionProviderRow } from "@packages/subscription-access";
 
-/** The write half of the subscription table — the nine mutations, wired
- * independently from the read half. The save gate composes write access from
- * the read half alone, so no save path ever depends on a mutation. */
+/** The write half of the subscription table, wired independently from the read
+ * half. The save gate composes write access from the read half alone, so no
+ * save path ever depends on a mutation. */
 export function initDynamoDbSubscriptionWrites(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -30,6 +32,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
+	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
 	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
 } {
@@ -39,15 +42,15 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		schema: SubscriptionProviderRow,
 	});
 
-	/* The email markers are scoped to one trial window: the reminder and feedback
-	 * senders no-op when they are set, so a re-opened window would go out silent
-	 * unless opening it clears them. */
+	/* The email markers are scoped to one trial window: their senders no-op when
+	 * they are set, so a re-opened window would go out silent unless opening it
+	 * clears them. */
 	const upsertTrialing: UpsertTrialingSubscription = async ({ userId, trialEndsAt }) => {
 		const nowIso = deps.now().toISOString();
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, nextCharge",
+				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, automationSavesHeldEmailSentAt, nextCharge",
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
@@ -66,7 +69,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #provider = :provider, #status = :status, subscriptionId = :subscriptionId, customerId = :customerId, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, nextCharge",
+				"SET #provider = :provider, #status = :status, subscriptionId = :subscriptionId, customerId = :customerId, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, automationSavesHeldEmailSentAt, nextCharge",
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
@@ -113,7 +116,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	const markActive: MarkSubscriptionActive = async ({ userId }) => {
 		await table.update({
 			Key: { userId },
-			UpdateExpression: "SET #status = :status, updatedAt = :now REMOVE cancellationEffectiveAt",
+			UpdateExpression: "SET #status = :status, updatedAt = :now REMOVE cancellationEffectiveAt, automationSavesHeldEmailSentAt",
 			ConditionExpression: "attribute_exists(userId)",
 			ExpressionAttributeNames: { "#status": "status" },
 			ExpressionAttributeValues: {
@@ -145,6 +148,28 @@ export function initDynamoDbSubscriptionWrites(deps: {
 				":now": deps.now().toISOString(),
 			},
 		});
+	};
+
+	const markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent = async ({
+		userId,
+		sentAt,
+	}) => {
+		try {
+			await table.update({
+				Key: { userId },
+				UpdateExpression: "SET automationSavesHeldEmailSentAt = :sentAt, updatedAt = :now",
+				ConditionExpression:
+					"attribute_exists(userId) AND attribute_not_exists(automationSavesHeldEmailSentAt)",
+				ExpressionAttributeValues: {
+					":sentAt": sentAt,
+					":now": deps.now().toISOString(),
+				},
+			});
+			return "claimed";
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return "already-sent";
+			throw error;
+		}
 	};
 
 	const setNextCharge: SetSubscriptionNextCharge = async ({
@@ -186,6 +211,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		markActive,
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
+		markAutomationSavesHeldEmailSent,
 		setNextCharge,
 		deleteSubscription,
 	};

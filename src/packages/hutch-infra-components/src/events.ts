@@ -769,31 +769,22 @@ export type SubscriptionChargeFailedDetail = z.infer<
 >;
 
 /** Subscription-lifecycle email request carrying the email kinds that share
- * one Lambda (`send-trial-feedback-email`). `kind` absent or `'feedback'`: the
- * post-cancellation research email, scheduled by `schedule-trial-feedback-email`
- * when a `SubscriptionCancelledEvent` with `reason='user_initiated_trial'`
- * arrives; the handler re-reads the row to confirm the user is still cancelled
- * (reactivation guard) before sending Fayner's "what was missing?" email.
- * `kind='reminder'`: the pre-expiry trial reminder, a one-shot created at trial
- * signup that fires at `trialEndsAt - 2d`; the handler re-checks the user is
- * still trialing before sending. `kind='charge_reminder'`: the pre-charge
- * notice for a trial-preserving checkout (card on file, Stripe invoices at
- * `chargeAt`), a one-shot created at checkout success firing at `chargeAt - 2d`;
- * the handler re-checks the user is still active before sending. `chargeAt`
- * rides the command because upsertActive removes trialEndsAt from the row.
- * `kind='payment_failed'`: the fix-your-card dunning email, published by the
- * stripe-webhook-receiver on `invoice.payment_failed`; the handler re-checks
- * the user is still active before sending. Absent `kind` means feedback for
- * backward compatibility with in-flight schedules whose Input is `{userId}`
- * only. */
+ * one Lambda (`send-trial-feedback-email`). Every kind's handler re-reads the
+ * subscription row and re-checks the condition that justified the send before
+ * sending, so a state change between scheduling and delivery cancels the email
+ * rather than sending a false one. Absent `kind` means feedback for backward
+ * compatibility with in-flight schedules whose Input is `{userId}` only. */
 export const SendTrialFeedbackEmailCommand = defineEvent({
 	name: "send-trial-feedback-email-command",
 	source: "hutch.subscriptions",
 	detailType: "SendTrialFeedbackEmailCommand",
 	detailSchema: z.object({
 		userId: z.string(),
-		kind: z.enum(["feedback", "reminder", "charge_reminder", "payment_failed"]).optional(),
+		kind: z
+			.enum(["feedback", "reminder", "charge_reminder", "payment_failed", "automation_saves_held"])
+			.optional(),
 		chargeAt: z.string().optional(),
+		receivedAtMessageId: z.string().optional(),
 	}),
 });
 export type SendTrialFeedbackEmailDetail = z.infer<

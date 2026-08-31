@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+} from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbSubscriptionProviders } from "./dynamodb-subscription-providers";
 
@@ -199,6 +202,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.UpdateExpression).toContain("subscriptionId");
 			expect(command.input.UpdateExpression).toContain("customerId");
 			expect(command.input.UpdateExpression).toContain("cancellationEffectiveAt");
+			expect(command.input.UpdateExpression).toContain("automationSavesHeldEmailSentAt");
 			expect(command.input.UpdateExpression).toContain("nextCharge");
 			expect(command.input.ExpressionAttributeNames?.["#status"]).toBe("status");
 			expect(command.input.ExpressionAttributeNames?.["#provider"]).toBe("provider");
@@ -247,6 +251,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.UpdateExpression).toContain("REMOVE");
 			expect(command.input.UpdateExpression).toContain("trialEndsAt");
 			expect(command.input.UpdateExpression).toContain("cancellationEffectiveAt");
+			expect(command.input.UpdateExpression).toContain("automationSavesHeldEmailSentAt");
 			expect(command.input.UpdateExpression).toContain("nextCharge");
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("active");
 			expect(command.input.ExpressionAttributeValues?.[":subscriptionId"]).toBe("sub_abc");
@@ -360,8 +365,90 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.Key).toEqual({ userId: USER_ID });
 			expect(command.input.UpdateExpression).toContain("#status = :status");
 			expect(command.input.UpdateExpression).toContain("REMOVE cancellationEffectiveAt");
+			expect(command.input.UpdateExpression).toContain("automationSavesHeldEmailSentAt");
 			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("active");
+		});
+	});
+
+	describe("markAutomationSavesHeldEmailSent", () => {
+		it("claims the marker with a condition that only the first writer can satisfy", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const claim = await subs.markAutomationSavesHeldEmailSent({
+				userId: USER_ID,
+				sentAt: "2026-06-06T00:00:00.000Z",
+			});
+
+			expect(claim).toBe("claimed");
+			const command = received as {
+				input: {
+					Key?: Record<string, unknown>;
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.Key).toEqual({ userId: USER_ID });
+			expect(command.input.UpdateExpression).toContain(
+				"automationSavesHeldEmailSentAt = :sentAt",
+			);
+			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ConditionExpression).toContain(
+				"attribute_not_exists(automationSavesHeldEmailSentAt)",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":sentAt"]).toBe(
+				"2026-06-06T00:00:00.000Z",
+			);
+		});
+
+		it("reports already-sent when a concurrent writer took the marker first", async () => {
+			const client = createFakeClient(() => {
+				throw new ConditionalCheckFailedException({
+					message: "The conditional request failed",
+					$metadata: {},
+				});
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const claim = await subs.markAutomationSavesHeldEmailSent({
+				userId: USER_ID,
+				sentAt: "2026-06-06T00:00:00.000Z",
+			});
+
+			expect(claim).toBe("already-sent");
+		});
+
+		it("propagates a fault that is not the claim being lost", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("throttled");
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await expect(
+				subs.markAutomationSavesHeldEmailSent({
+					userId: USER_ID,
+					sentAt: "2026-06-06T00:00:00.000Z",
+				}),
+			).rejects.toThrow("throttled");
 		});
 	});
 
