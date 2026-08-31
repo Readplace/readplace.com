@@ -23,6 +23,7 @@ export interface ShareBalloonInput {
 	shareTitle: string;
 	shareHint: string;
 	shareSource: ShareBalloonSource;
+	shareStampUrl?: string;
 }
 
 function withUtm(
@@ -51,6 +52,7 @@ export function renderShareBalloon(input: ShareBalloonInput): string {
 		}),
 		shareTitle: input.shareTitle,
 		shareHint: input.shareHint,
+		shareStampUrl: input.shareStampUrl,
 		shareIconSvg: SHARE_ICON_SVG,
 		copyIconSvg: COPY_ICON_SVG,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,

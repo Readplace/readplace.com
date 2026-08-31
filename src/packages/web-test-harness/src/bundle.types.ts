@@ -106,9 +106,11 @@ import type {
 	InMemoryMarkCrawlReady,
 	InMemoryMarkCrawlStage,
 	InMemoryMarkCrawlUnsupported,
+	ListSharedArticles,
 	ListUserArticleUrls,
 	MarkAccountDeleted,
 	MarkArticleViewed,
+	MarkLinkShared,
 	MarkCrawlPending,
 	MarkEmailVerified,
 	MarkReaderReadyEmailSent,
@@ -327,6 +329,8 @@ export interface ArticleStoreBundle {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
+	markLinkShared: MarkLinkShared;
+	listSharedArticles: ListSharedArticles;
 	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;

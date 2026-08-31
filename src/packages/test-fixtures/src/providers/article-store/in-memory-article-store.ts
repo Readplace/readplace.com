@@ -32,6 +32,7 @@ import type {
 	DeleteReadlistArticle,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	ListSharedArticles,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -48,6 +49,7 @@ import type {
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
+	MarkLinkShared,
 	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkRelatedDismissed,
@@ -92,6 +94,7 @@ interface UserArticle {
 	emailSentAt?: Date;
 	lastSummaryOpenedAt?: Date;
 	lastSummaryClosedAt?: Date;
+	sharedAt?: Date;
 	provenance?: SaveProvenance;
 	relatedDismissedAt?: Date;
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
@@ -110,6 +113,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		status: userArticle.status,
 		savedAt: userArticle.savedAt,
 		readAt: userArticle.readAt,
+		sharedAt: userArticle.sharedAt,
 		provenance: userArticle.provenance,
 		relatedDismissedAt: userArticle.relatedDismissedAt,
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
@@ -137,6 +141,8 @@ export function initInMemoryArticleStore(): {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
+	markLinkShared: MarkLinkShared;
+	listSharedArticles: ListSharedArticles;
 	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
@@ -611,6 +617,32 @@ export function initInMemoryArticleStore(): {
 		else ua.lastSummaryClosedAt = at;
 	};
 
+	const markLinkShared: MarkLinkShared = async ({ userId, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		if (!ua) return;
+		ua.sharedAt = at;
+	};
+
+	const listSharedArticles: ListSharedArticles = async ({ userId }) => {
+		const shared = Array.from(userArticles.values()).filter(
+			(ua) => ua.userId === userId && ua.sharedAt !== undefined,
+		);
+		shared.sort((a, b) => {
+			assert(a.sharedAt, "a shared article must carry sharedAt");
+			assert(b.sharedAt, "a shared article must carry sharedAt");
+			return b.sharedAt.getTime() - a.sharedAt.getTime();
+		});
+		const result: SavedArticle[] = [];
+		for (const ua of shared) {
+			const article = articles.get(ua.url);
+			if (article) {
+				result.push(toSavedArticle(article, ua));
+			}
+		}
+		return result;
+	};
+
 	const markRelatedDismissed: MarkRelatedDismissed = async ({
 		userId,
 		url,
@@ -759,6 +791,8 @@ export function initInMemoryArticleStore(): {
 		updateArticleStatus,
 		markArticleViewed,
 		markSummaryToggled,
+		markLinkShared,
+		listSharedArticles,
 		markRelatedDismissed,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,

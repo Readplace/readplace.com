@@ -45,4 +45,31 @@ describe("renderShareBalloon", () => {
 		assert.equal(copy.searchParams.get("utm_medium"), "copy");
 		assert.equal(copy.searchParams.get("utm_campaign"), "reader-public");
 	});
+
+	it("stamps the share-beacon target on the wrap when a shareStampUrl is given", () => {
+		const html = renderShareBalloon({
+			shareUrl: "https://readplace.com/view/x",
+			shareTitle: "A title",
+			shareHint: "share me",
+			shareSource: "reader-internal",
+			shareStampUrl: "/queue/abc123/share",
+		});
+		const wrap = parse(html).querySelector("[data-test-share-balloon-wrap]");
+
+		assert(wrap, "the balloon wrap must render");
+		assert.equal(wrap.getAttribute("data-share-stamp-url"), "/queue/abc123/share");
+	});
+
+	it("omits the share-beacon target on the wrap when no shareStampUrl is given, as on public /view", () => {
+		const html = renderShareBalloon({
+			shareUrl: "https://readplace.com/view/x",
+			shareTitle: "A title",
+			shareHint: "share me",
+			shareSource: "reader-public",
+		});
+		const wrap = parse(html).querySelector("[data-test-share-balloon-wrap]");
+
+		assert(wrap, "the balloon wrap must render");
+		assert.equal(wrap.getAttribute("data-share-stamp-url"), null);
+	});
 });

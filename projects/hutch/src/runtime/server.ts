@@ -107,6 +107,8 @@ import type {
 	RenameReadlistDefinition,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
+	ListSharedArticles,
+	MarkLinkShared,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
@@ -342,6 +344,8 @@ interface AppDependencies {
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	markSummaryToggled: MarkSummaryToggled;
+	markLinkShared: MarkLinkShared;
+	listSharedArticles: ListSharedArticles;
 	markRelatedDismissed: MarkRelatedDismissed;
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
@@ -1189,6 +1193,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		createReadlistDefinition: deps.createReadlistDefinition,
 		deleteReadlistDefinition: deps.deleteReadlistDefinition,
 		markSummaryToggled: deps.markSummaryToggled,
+		markLinkShared: deps.markLinkShared,
 		markRelatedDismissed: deps.markRelatedDismissed,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
@@ -1349,6 +1354,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,
+		listSharedArticles: deps.listSharedArticles,
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
 		upsertActiveSubscription: deps.subscriptionProviders.upsertActive,
 		upsertTrialingSubscription: deps.subscriptionProviders.upsertTrialing,

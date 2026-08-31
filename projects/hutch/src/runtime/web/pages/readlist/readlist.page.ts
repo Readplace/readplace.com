@@ -50,6 +50,7 @@ import type {
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
 	MarkArticleViewed,
+	MarkLinkShared,
 	MarkReadlistArticleViewed,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
@@ -348,6 +349,7 @@ interface ReadlistDependencies {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	markSummaryToggled: MarkSummaryToggled;
+	markLinkShared: MarkLinkShared;
 	markRelatedDismissed: MarkRelatedDismissed;
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
@@ -2242,6 +2244,23 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			state: parsedState.data,
 			visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 		});
+		res.status(204).end();
+	});
+
+	router.post("/:id/share", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (!article) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
+		await deps.markLinkShared({ userId, url: article.url, at: deps.now() });
 		res.status(204).end();
 	});
 

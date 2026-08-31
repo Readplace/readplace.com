@@ -6,6 +6,7 @@ import type { PageBody } from "@packages/web-shell";
 import { ACCOUNT_STYLES } from "./account.styles";
 import { ACCOUNT_EXPORT_URL } from "./account.url";
 import type { AccountViewModel, CardSectionViewModel } from "./account.view-model";
+import type { SharedLinksViewModel } from "./shared-links.view-model";
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
 const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.template.html"), "utf-8");
@@ -38,6 +39,7 @@ export function renderAccountCard(vm: AccountViewModel): string {
 export function AccountPage(
 	vm: AccountViewModel,
 	cardSection: CardSectionViewModel,
+	sharedLinks: SharedLinksViewModel,
 	page: { email: string; surface?: AccountSurface },
 ): PageBody {
 	const surface = page.surface;
@@ -54,6 +56,7 @@ export function AccountPage(
 			html: render(ACCOUNT_TEMPLATE, {
 				...vm,
 				cardSection,
+				sharedLinks,
 				cardHtml: renderAccountCard(vm),
 				email: page.email,
 				exportHref: EXPORT_HREF,

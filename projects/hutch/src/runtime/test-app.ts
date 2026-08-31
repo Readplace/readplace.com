@@ -175,6 +175,8 @@ function flattenFixtureToAppDependencies(
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
 		deleteReadlistDefinition: fixture.articleStore.deleteReadlistDefinition,
 		markSummaryToggled: fixture.articleStore.markSummaryToggled,
+		markLinkShared: fixture.articleStore.markLinkShared,
+		listSharedArticles: fixture.articleStore.listSharedArticles,
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,

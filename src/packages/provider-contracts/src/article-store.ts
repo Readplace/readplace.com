@@ -185,6 +185,16 @@ export type MarkSummaryToggled = (params: {
 	at: Date;
 }) => Promise<void>;
 
+export type MarkLinkShared = (params: {
+	userId: UserId;
+	url: string;
+	at: Date;
+}) => Promise<void>;
+
+export type ListSharedArticles = (params: {
+	userId: UserId;
+}) => Promise<SavedArticle[]>;
+
 export type MarkRelatedDismissed = (params: {
 	userId: UserId;
 	url: string;

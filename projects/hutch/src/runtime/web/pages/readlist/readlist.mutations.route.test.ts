@@ -725,6 +725,77 @@ describe("Readlist routes", () => {
 		});
 	});
 
+	describe("POST /queue/:id/share", () => {
+		async function saveAndGetArticleId(agent: Awaited<ReturnType<typeof loginAgent>>): Promise<string> {
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+			const doc = new JSDOM((await agent.get("/queue")).text).window.document;
+			const articleId = doc
+				.querySelector("[data-test-article-list] .readlist-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "saved article must have an id");
+			return articleId;
+		}
+
+		it("stamps the share record and answers 204 so the beacon never surfaces an error", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			const articleId = await saveAndGetArticleId(agent);
+
+			const response = await agent.post(`/queue/${articleId}/share`);
+			expect(response.status).toBe(204);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId);
+			const shared = await harness.articleStore.listSharedArticles({ userId });
+			expect(shared.map((a) => a.url)).toEqual(["https://example.com/article"]);
+			assert(shared[0]?.sharedAt, "the shared row must carry a sharedAt");
+		});
+
+		it("keeps a single share record when the same link is shared again", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			const articleId = await saveAndGetArticleId(agent);
+
+			expect((await agent.post(`/queue/${articleId}/share`)).status).toBe(204);
+			expect((await agent.post(`/queue/${articleId}/share`)).status).toBe(204);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId);
+			const shared = await harness.articleStore.listSharedArticles({ userId });
+			expect(shared.map((a) => a.url)).toEqual(["https://example.com/article"]);
+		});
+
+		it("returns 404 and stamps nothing for a well-formed id that resolves to no owned article", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			await saveAndGetArticleId(agent);
+
+			const response = await agent.post("/queue/00000000000000000000000000000000/share");
+			expect(response.status).toBe(404);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId);
+			expect(await harness.articleStore.listSharedArticles({ userId })).toEqual([]);
+		});
+
+		it("returns 404 and stamps nothing for a malformed id", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			await saveAndGetArticleId(agent);
+
+			const response = await agent.post("/queue/not-a-valid-id/share");
+			expect(response.status).toBe(404);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId);
+			expect(await harness.articleStore.listSharedArticles({ userId })).toEqual([]);
+		});
+	});
+
 	describe("announcing that an article left the readlist", () => {
 		function useAppRecordingDequeues(): {
 			harness: ReturnType<ReturnType<typeof useTestServer>>;

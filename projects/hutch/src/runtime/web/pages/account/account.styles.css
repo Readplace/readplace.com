@@ -186,6 +186,60 @@
   line-height: 1.45;
 }
 
+.account-shared {
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--muted);
+  margin-bottom: 16px;
+}
+
+.account-shared__heading {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--foreground);
+}
+
+.account-shared__body {
+  font-size: 0.9375rem;
+  margin: 0;
+  color: var(--foreground);
+  line-height: 1.45;
+}
+
+.account-shared__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.account-shared__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.account-shared__link {
+  color: var(--primary-text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.account-shared__link:hover {
+  text-decoration: underline;
+}
+
+.account-shared__time {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
 /* Rim, not fill: a permanently red-washed delete box shouts at a user who is not
  * deleting anything. The rim marks the boundary without raising the volume. */
 .account-danger {

@@ -48,6 +48,7 @@ const BUNDLES = [
       "  document: window.document,",
       "  storage: window.localStorage,",
       "  navigator: window.navigator,",
+      "  sendBeacon: function (url) { window.navigator.sendBeacon(url); },",
       "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
       "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
       "  addSwapListener: function (cb) {",
