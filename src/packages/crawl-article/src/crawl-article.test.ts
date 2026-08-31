@@ -63,13 +63,14 @@ function buildCrawlFetch(overrides: {
 	fetchH2?: typeof fetchH2;
 	personas?: ReadonlyArray<Persona>;
 	rateLimitRetryDelaysMs?: readonly number[];
+	proxyUrl?: string;
 }): CrawlFetch {
 	return initCrawlFetch({
 		fetch: overrides.fetch,
 		personas: overrides.personas ?? [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
 		isBlocked: () => false,
 		logInfo: () => {},
-		proxyUrl: undefined,
+		proxyUrl: overrides.proxyUrl,
 		fetchCurl: overrides.fetchCurl ?? stubFetchCurl,
 		fetchH2: overrides.fetchH2 ?? stubFetchH2,
 		rateLimitRetryDelaysMs: overrides.rateLimitRetryDelaysMs,
@@ -87,6 +88,7 @@ function initCrawl(overrides: {
 	siteRules?: readonly SiteRules[];
 	fetchTimeouts?: { headersMs: number; bodyMs: number };
 	rateLimitRetryDelaysMs?: readonly number[];
+	proxyUrl?: string;
 }) {
 	const crawlFetch = buildCrawlFetch(overrides);
 	const logError = overrides.logError ?? noopLogError;
@@ -850,6 +852,34 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const article = () =>
 			new Response("<html><body>hi</body></html>", { status: 200, headers: { "content-type": "text/html" } });
 		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
+
+		const result = await crawlArticle({ url: WRAPPER_URL });
+
+		assertFetched(result);
+		expect(result.finalUrl).toBe(DESTINATION_URL);
+	});
+
+	it("keys a proxied save on the destination the tracker redirects to, not on the tracker", async () => {
+		let trackerCalls = 0;
+		let destinationCalls = 0;
+		const html = () =>
+			new Response("<html><body>hi</body></html>", { status: 200, headers: { "content-type": "text/html" } });
+		const originAndUnlocker: typeof fetch = async (input) => {
+			const url = String(input);
+			if (url === WRAPPER_URL) {
+				trackerCalls += 1;
+				return trackerCalls === 1 ? new Response(null, { status: 301, headers: { location: DESTINATION_URL } }) : html();
+			}
+			destinationCalls += 1;
+			return destinationCalls === 1 ? new Response(null, { status: 403 }) : html();
+		};
+		const blocked = async (): Promise<Response> => new Response(null, { status: 403 });
+		const crawlArticle = initCrawl({
+			fetch: originAndUnlocker,
+			fetchH2: blocked,
+			fetchCurl: blocked,
+			proxyUrl: "http://proxy.example:8080",
+		});
 
 		const result = await crawlArticle({ url: WRAPPER_URL });
 

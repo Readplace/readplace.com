@@ -1,4 +1,5 @@
 import { callerHasGivenUp, createCrawlBudget } from "./crawl-budget";
+import type { OnRedirect } from "./follow-redirects";
 import { isBlockClassError, isBlockClassResponse } from "./persona-fallback";
 import type { LadderFetch } from "./transport-ladder";
 
@@ -28,6 +29,8 @@ const PROXY_ATTEMPT_FLOOR_MILLISECONDS = 12_000;
 const PROXY_GATEWAY_STATUSES = new Set([502, 503, 504]);
 const PROXY_ATTEMPTS = 2;
 
+type DirectOutcome = { response: Response } | { thrown: unknown };
+
 export function withProxiedLadderFallback(deps: {
 	directFetch: LadderFetch;
 	proxyFetch: LadderFetch;
@@ -45,20 +48,26 @@ export function withProxiedLadderFallback(deps: {
 		if (reserve < PROXY_ATTEMPT_FLOOR_MILLISECONDS) {
 			return directFetch(url, { headers, onRedirect, budget });
 		}
+		let lastDirectHopTarget: string | undefined;
+		const captureDirectHop: OnRedirect = (hop) => {
+			lastDirectHopTarget = hop.toUrl;
+			onRedirect?.(hop);
+		};
 		const directBudget = createCrawlBudget({
 			signal: budget.deadline.signal,
 			totalMs: budget.remainingMs() - reserve,
 			now,
 		});
-		let directOutcome: { response: Response } | { thrown: unknown };
+		let directOutcome: DirectOutcome;
 		try {
-			const response = await directFetch(url, { headers, onRedirect, budget: directBudget });
+			const response = await directFetch(url, { headers, onRedirect: captureDirectHop, budget: directBudget });
 			if (!isProxyWorthyResponse(response)) return response;
 			directOutcome = { response };
 		} catch (error) {
 			if (!isProxyWorthyError(error)) throw error;
 			directOutcome = { thrown: error };
 		}
+		const proxyTargetUrl = frozenProxyTarget({ entryUrl: url, directOutcome, lastDirectHopTarget });
 		for (let attempt = 0; attempt < PROXY_ATTEMPTS; attempt++) {
 			if (callerHasGivenUp(budget.deadline)) break;
 			if (budget.remainingMs() < PROXY_ATTEMPT_FLOOR_MILLISECONDS) break;
@@ -69,7 +78,7 @@ export function withProxiedLadderFallback(deps: {
 			});
 			let response: Response;
 			try {
-				response = await proxyFetch(url, { headers, onRedirect, budget: proxyBudget });
+				response = await proxyFetch(proxyTargetUrl, { headers, onRedirect, budget: proxyBudget });
 			} catch (error) {
 				if (!isTimeout(error)) break;
 				continue;
@@ -84,7 +93,20 @@ export function withProxiedLadderFallback(deps: {
 	};
 }
 
-function surface(directOutcome: { response: Response } | { thrown: unknown }): Response {
+function frozenProxyTarget(params: {
+	entryUrl: string;
+	directOutcome: DirectOutcome;
+	lastDirectHopTarget: string | undefined;
+}): string {
+	const { entryUrl, directOutcome, lastDirectHopTarget } = params;
+	if ("response" in directOutcome) {
+		const stamped = directOutcome.response.url;
+		if (stamped !== "" && stamped !== entryUrl) return stamped;
+	}
+	return lastDirectHopTarget ?? entryUrl;
+}
+
+function surface(directOutcome: DirectOutcome): Response {
 	if ("response" in directOutcome) return directOutcome.response;
 	throw directOutcome.thrown;
 }

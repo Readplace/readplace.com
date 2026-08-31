@@ -1,19 +1,33 @@
 import { createCrawlBudget } from "./crawl-budget";
+import type { OnRedirect } from "./follow-redirects";
 import { withProxiedLadderFallback } from "./proxied-ladder-fallback";
 import type { LadderFetch } from "./transport-ladder";
 
 const RESERVE_MILLISECONDS = 45_000;
+const ENTRY_URL = "https://example.com/article";
+const DEST_URL = "https://dest.example/article";
 
 /** Advanced by the fakes so budget exhaustion is exact rather than slept for. */
 type Clock = { nowMs: number };
 
-type Attempt = (controller: AbortController, clock: Clock) => Promise<Response>;
+type Attempt = (
+	controller: AbortController,
+	clock: Clock,
+	onRedirect: OnRedirect | undefined,
+	url: string,
+) => Promise<Response>;
 
 type Harness = {
-	fetchIt: (init?: { headers?: Record<string, string>; totalMs?: number }) => Promise<Response>;
+	fetchIt: (init?: {
+		headers?: Record<string, string>;
+		totalMs?: number;
+		onRedirect?: OnRedirect;
+	}) => Promise<Response>;
 	directBudgets: number[];
 	proxyBudgets: number[];
 	proxyHeaders: Array<Record<string, string> | undefined>;
+	directUrls: string[];
+	proxyUrls: string[];
 };
 
 function makeHarness(opts: {
@@ -23,19 +37,23 @@ function makeHarness(opts: {
 	const directBudgets: number[] = [];
 	const proxyBudgets: number[] = [];
 	const proxyHeaders: Harness["proxyHeaders"] = [];
+	const directUrls: string[] = [];
+	const proxyUrls: string[] = [];
 	const controller = new AbortController();
 	const clock: Clock = { nowMs: 1_000_000 };
 	const now = () => clock.nowMs;
-	const directFetch: LadderFetch = (_url, init) => {
+	const directFetch: LadderFetch = (url, init) => {
 		directBudgets.push(init.budget.remainingMs());
-		return opts.direct(controller, clock);
+		directUrls.push(url);
+		return opts.direct(controller, clock, init.onRedirect, url);
 	};
-	const proxyFetch: LadderFetch = (_url, init) => {
+	const proxyFetch: LadderFetch = (url, init) => {
 		const attempt = opts.proxy?.[proxyBudgets.length];
 		proxyBudgets.push(init.budget.remainingMs());
 		proxyHeaders.push(init.headers);
+		proxyUrls.push(url);
 		if (attempt === undefined) throw new Error("test wired no proxy answer for this attempt");
-		return attempt(controller, clock);
+		return attempt(controller, clock, init.onRedirect, url);
 	};
 	const fetchWithProxy = withProxiedLadderFallback({
 		directFetch,
@@ -45,13 +63,16 @@ function makeHarness(opts: {
 	});
 	return {
 		fetchIt: (init) =>
-			fetchWithProxy("https://example.com/article", {
+			fetchWithProxy(ENTRY_URL, {
 				headers: init?.headers ?? {},
+				onRedirect: init?.onRedirect,
 				budget: createCrawlBudget({ signal: controller.signal, totalMs: init?.totalMs ?? 90_000, now }),
 			}),
 		directBudgets,
 		proxyBudgets,
 		proxyHeaders,
+		directUrls,
+		proxyUrls,
 	};
 }
 
@@ -64,6 +85,12 @@ function timeout(): Error {
 /** A gateway answer must carry a body, so draining it is observable. */
 function gateway(status: number): Response {
 	return new Response("gateway failure", { status });
+}
+
+function stamped(status: number, url: string): Response {
+	const response = new Response("stamped-body", { status });
+	Object.defineProperty(response, "url", { value: url, configurable: true });
+	return response;
 }
 
 describe("withProxiedLadderFallback", () => {
@@ -383,5 +410,96 @@ describe("withProxiedLadderFallback", () => {
 		expect(response.status).toBe(502);
 		expect(await response.text()).toBe("origin gateway");
 		expect(harness.proxyBudgets).toHaveLength(0);
+	});
+
+	it("aims the proxied pass at the terminal the direct pass was redirected to, not the entry URL", async () => {
+		const harness = makeHarness({
+			direct: async (_controller, _clock, onRedirect) => {
+				onRedirect?.({ fromUrl: ENTRY_URL, toUrl: DEST_URL });
+				return stamped(403, DEST_URL);
+			},
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(harness.proxyUrls).toEqual([DEST_URL]);
+	});
+
+	it("aims the proxied pass at the last direct hop when the direct pass stalled after redirecting", async () => {
+		const harness = makeHarness({
+			direct: async (_controller, _clock, onRedirect) => {
+				onRedirect?.({ fromUrl: ENTRY_URL, toUrl: DEST_URL });
+				throw timeout();
+			},
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(harness.proxyUrls).toEqual([DEST_URL]);
+	});
+
+	it("aims the proxied pass at the stamped terminal when the direct pass reported no hop", async () => {
+		const harness = makeHarness({
+			direct: async () => stamped(403, DEST_URL),
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(harness.proxyUrls).toEqual([DEST_URL]);
+	});
+
+	it("keeps the proxied pass on the entry URL when the direct block was unstamped and hop-silent", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(harness.proxyUrls).toEqual([ENTRY_URL]);
+	});
+
+	it("keeps the proxied pass on the entry URL when the direct response is stamped with the entry URL itself", async () => {
+		const harness = makeHarness({
+			direct: async () => stamped(403, ENTRY_URL),
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(harness.proxyUrls).toEqual([ENTRY_URL]);
+	});
+
+	it("keeps both proxied attempts on the frozen terminal across a gateway retry, draining the discarded body", async () => {
+		const discarded = gateway(502);
+		const harness = makeHarness({
+			direct: async (_controller, _clock, onRedirect) => {
+				onRedirect?.({ fromUrl: ENTRY_URL, toUrl: DEST_URL });
+				return stamped(403, DEST_URL);
+			},
+			proxy: [
+				async (_controller, clock) => {
+					clock.nowMs += 10_000;
+					return discarded;
+				},
+				async () => new Response("via proxy", { status: 200 }),
+			],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(harness.proxyUrls).toEqual([DEST_URL, DEST_URL]);
+		expect(discarded.bodyUsed).toBe(true);
+	});
+
+	it("still delivers the direct pass's redirect hops to the caller's onRedirect", async () => {
+		const hops: Array<{ fromUrl: string; toUrl: string }> = [];
+		const harness = makeHarness({
+			direct: async (_controller, _clock, onRedirect) => {
+				onRedirect?.({ fromUrl: ENTRY_URL, toUrl: DEST_URL });
+				return new Response("denied", { status: 403 });
+			},
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		await harness.fetchIt({ onRedirect: (hop) => hops.push(hop) });
+		expect(hops).toEqual([{ fromUrl: ENTRY_URL, toUrl: DEST_URL }]);
+		expect(harness.proxyUrls).toEqual([DEST_URL]);
 	});
 });

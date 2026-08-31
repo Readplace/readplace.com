@@ -94,6 +94,44 @@ describe("initCrawlFetch", () => {
 		assert.equal(primaryCalls, 2);
 	});
 
+	it("aims the proxied fallback at the destination the tracker redirects to, so the proxied answer keys on the article", async () => {
+		const TRACKER = "https://nodeweekly.example/link/188518/8babea547d";
+		const DESTINATION = "https://dest.example/article";
+		let trackerCalls = 0;
+		let destinationCalls = 0;
+		const originAndUnlocker: typeof fetch = async (input) => {
+			const url = String(input);
+			if (url === TRACKER) {
+				trackerCalls += 1;
+				return trackerCalls === 1
+					? new Response(null, { status: 302, headers: { location: DESTINATION } })
+					: new Response("<html>article</html>", { status: 200 });
+			}
+			destinationCalls += 1;
+			return destinationCalls === 1
+				? new Response("denied", { status: 403 })
+				: new Response("<html>article</html>", { status: 200 });
+		};
+		const blockedFallback = async (): Promise<Response> => new Response("denied", { status: 403 });
+		const hops: Array<{ fromUrl: string; toUrl: string }> = [];
+		const crawlFetch = initCrawlFetch({
+			fetch: originAndUnlocker,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: () => {},
+			fetchH2: blockedFallback,
+			fetchCurl: blockedFallback,
+			proxyUrl: "http://proxy.example:8080",
+		});
+
+		const response = await crawlFetch(TRACKER, { budgetMs: 30_000, onRedirect: (hop) => hops.push(hop) });
+
+		assert.equal(response.status, 200);
+		assert.equal(response.url, DESTINATION);
+		assert.equal(await response.text(), "<html>article</html>");
+		assert.deepEqual(hops, [{ fromUrl: TRACKER, toUrl: DESTINATION }]);
+	});
+
 	it("builds the proxied pass but leaves it unused when the direct pass answers", async () => {
 		const crawlFetch = initCrawlFetch({
 			fetch: stubFetch,
