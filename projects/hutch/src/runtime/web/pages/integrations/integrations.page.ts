@@ -37,6 +37,8 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 			logError: deps.logError,
 			now: deps.now,
 			requireAuth: deps.requireAuth,
+			requireNotLocked: deps.requireNotLocked,
+			requireWriteAccess: deps.requireWriteAccess,
 		};
 		registerGmailConnectRoutes(router, gmail, context);
 		registerGmailPageRoutes(router, gmail, {

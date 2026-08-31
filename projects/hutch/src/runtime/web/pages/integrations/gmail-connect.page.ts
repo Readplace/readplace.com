@@ -49,6 +49,8 @@ export interface GmailConnectContext {
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	requireAuth: RequestHandler;
+	requireNotLocked: RequestHandler;
+	requireWriteAccess: RequestHandler;
 }
 
 export function registerGmailConnectRoutes(
@@ -57,8 +59,9 @@ export function registerGmailConnectRoutes(
 	context: GmailConnectContext,
 ): void {
 	const redirectUri = `${context.appOrigin}${GMAIL_CALLBACK_PATH}`;
+	const write = [context.requireAuth, context.requireNotLocked, context.requireWriteAccess];
 
-	router.post("/gmail/connect", context.requireAuth, (req: Request, res: Response) => {
+	router.post("/gmail/connect", write, (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const statePayload = JSON.stringify({
 			nonce: randomBytes(16).toString("hex"),
@@ -87,7 +90,7 @@ export function registerGmailConnectRoutes(
 		res.redirect(303, `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
 	});
 
-	router.get("/gmail/callback", context.requireAuth, async (req: Request, res: Response) => {
+	router.get("/gmail/callback", write, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
 		const stateCookie = req.cookies?.[STATE_COOKIE];

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
 import request from "supertest";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
@@ -10,6 +11,7 @@ const useApp = useTestServer();
 
 const CONNECT = "/integrations/gmail/connect";
 const CALLBACK = "/integrations/gmail/callback";
+const ONE_DAY_MS = 86_400_000;
 
 function grantOk(): GmailGrantResult {
 	return {
@@ -75,6 +77,36 @@ describe("POST /integrations/gmail/connect", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
+	});
+
+	it("redirects a read-only reader to /queue?inactive=1 without starting the grant", async () => {
+		const { fixture } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post(CONNECT).set("Accept", "text/html").send();
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+	});
+
+	it("blocks a locked reader with the account-locked screen", async () => {
+		const { fixture } = fixtureWithGmail();
+		fixture.shared.now = () => new Date(Date.now() + 8 * ONE_DAY_MS);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.post(CONNECT).set("Accept", "text/html").send();
+
+		expect(new JSDOM(response.text).window.document.querySelector("h1")?.textContent).toBe(
+			"Your account is locked",
+		);
 	});
 });
 
@@ -161,6 +193,31 @@ describe("GET /integrations/gmail/callback", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
+	});
+
+	it("redirects a reader whose access lapsed mid-grant and exchanges no code", async () => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore, codes } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const started = await agent.post(CONNECT).send();
+		const state = new URL(started.headers.location).searchParams.get("state") ?? "";
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent
+			.get(CALLBACK)
+			.set("Accept", "text/html")
+			.query({ code: "auth-code", state });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(codes).toEqual([]);
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
 	});
 });
 
