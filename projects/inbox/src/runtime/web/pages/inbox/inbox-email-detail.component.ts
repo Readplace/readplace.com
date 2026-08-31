@@ -1,3 +1,4 @@
+import { INBOX_PATH } from "@packages/domain/inbox";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, renderToast } from "@packages/web-shell";
@@ -62,7 +63,7 @@ export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 		seo: {
 			title: "Email — Readplace",
 			description: "A newsletter forwarded to your Readplace inbox.",
-			canonicalUrl: "/inbox",
+			canonicalUrl: INBOX_PATH,
 			// Personal data: never index a user's received mail.
 			robots: "noindex, nofollow",
 		},

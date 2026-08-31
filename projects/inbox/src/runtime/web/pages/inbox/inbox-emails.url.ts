@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { InboxEmailsCursor } from "@packages/domain/inbox";
+import { INBOX_PATH, type InboxEmailsCursor } from "@packages/domain/inbox";
 
-export const INBOX_PATH = "/inbox";
+export { INBOX_PATH };
 
 export const INBOX_EMAILS_PAGE_SIZE = 10;
 

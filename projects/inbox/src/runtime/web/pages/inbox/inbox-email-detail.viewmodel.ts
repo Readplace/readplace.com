@@ -1,3 +1,4 @@
+import { INBOX_PATH } from "@packages/domain/inbox";
 import { type LocalTime, toAbsoluteDateTime } from "@packages/web-shell";
 import type {
 	InboxEmailEntry,
@@ -278,7 +279,7 @@ export function toInboxEmailDetailViewModel(input: {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
 		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
-		backHref: "/inbox",
+		backHref: INBOX_PATH,
 		activeTab: input.activeTab,
 		statusToastMessage,
 		// Counts come from every kept/skipped link, not the page of cards on

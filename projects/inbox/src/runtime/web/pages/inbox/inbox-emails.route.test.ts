@@ -6,6 +6,7 @@ import {
 	InboxAddressSchema,
 	type InboxEmailEntry,
 	MessageIdSchema,
+	buildInboxHighlightUrl,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import {
@@ -24,6 +25,10 @@ function rowStatusVisible(row: Element): boolean | undefined {
 	return row
 		.querySelector("[data-test-inbox-email-status]")
 		?.classList.contains("inbox-emails__badge--visible");
+}
+
+function rowHighlighted(row: Element): string | null {
+	return row.getAttribute("data-test-inbox-email-highlighted");
 }
 
 function rowLinkCount(row: Element): string | undefined {
@@ -443,5 +448,71 @@ describe("Inbox emails list route", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
 		});
+	});
+});
+
+describe("GET /inbox?highlight", () => {
+	it("marks only the named email, so an emailed link points at the right row", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedEmails(fixture, (userId) => [
+			emailEntry(userId, {
+				messageId: "<older@x>",
+				receivedAt: "2026-06-24T07:00:00.000Z",
+				senderEmail: "a@example.com",
+				subject: "Older digest",
+				status: "received",
+			}),
+			emailEntry(userId, {
+				messageId: "<newest@x>",
+				receivedAt: "2026-06-24T09:00:00.000Z",
+				senderEmail: "b@example.com",
+				subject: "Newest digest",
+				status: "received",
+			}),
+		]);
+
+		const response = await agent.get(
+			buildInboxHighlightUrl({
+				receivedAtMessageId: "2026-06-24T09:00:00.000Z#<newest@x>",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const rows = Array.from(
+			new JSDOM(response.text).window.document.querySelectorAll(
+				"[data-test-inbox-emails-row]",
+			),
+		);
+		expect(rows.map(rowHighlighted)).toEqual(["true", "false"]);
+		expect(rows[0].classList.contains("inbox-emails__row--highlighted")).toBe(true);
+		expect(rows[1].classList.contains("inbox-emails__row--plain")).toBe(true);
+	});
+
+	it("marks no row when the highlighted email is not the reader's", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedEmails(fixture, (userId) => [
+			emailEntry(userId, {
+				messageId: "<mine@x>",
+				receivedAt: "2026-06-24T09:00:00.000Z",
+				senderEmail: "b@example.com",
+				subject: "Newest digest",
+				status: "received",
+			}),
+		]);
+
+		const response = await agent.get(
+			buildInboxHighlightUrl({ receivedAtMessageId: "2026-06-24T09:00:00.000Z#<other@x>" }),
+		);
+
+		const rows = Array.from(
+			new JSDOM(response.text).window.document.querySelectorAll(
+				"[data-test-inbox-emails-row]",
+			),
+		);
+		expect(rows.map(rowHighlighted)).toEqual(["false"]);
 	});
 });

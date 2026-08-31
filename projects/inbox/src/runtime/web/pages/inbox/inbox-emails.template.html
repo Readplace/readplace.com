@@ -38,7 +38,10 @@
   {{else}}
   <ul class="inbox-emails__list" data-test-inbox-emails-list>
     {{#each rows}}
-    <li class="inbox-emails__row" data-test-inbox-emails-row>
+    <li
+      class="inbox-emails__row {{#if highlighted}}inbox-emails__row--highlighted{{else}}inbox-emails__row--plain{{/if}}"
+      data-test-inbox-emails-row
+      data-test-inbox-email-highlighted="{{highlighted}}">
       <a class="inbox-emails__link" href="{{href}}">
         <span class="inbox-emails__sender" data-test-inbox-email-sender>{{sender}}</span>
         <time class="inbox-emails__time" data-test-inbox-email-time datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>

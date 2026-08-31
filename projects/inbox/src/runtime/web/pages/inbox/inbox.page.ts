@@ -14,6 +14,8 @@ import {
 	isLiveAddress,
 	normalizeAliasName,
 	userAliasCapReached,
+	INBOX_ADDRESSES_PATH,
+	parseInboxHighlight,
 } from "@packages/domain/inbox";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
@@ -183,7 +185,7 @@ function logLinkClassificationFeedback(input: {
 
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
-	const addressesPath = "/inbox/addresses";
+	const addressesPath = INBOX_ADDRESSES_PATH;
 	const addressesCreateFailedPath = `${addressesPath}?error=create`;
 
 	const findLinkSaveStates = async (input: {
@@ -214,7 +216,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						.filter(isLiveAddress)
 						.map((entry) => ({ name: entry.name, address: entry.address }))
 				: [];
-		const vm = toInboxEmailsViewModel(result, { now: deps.now(), activeAddresses });
+		const vm = toInboxEmailsViewModel(result, {
+			now: deps.now(),
+			activeAddresses,
+			highlight: parseInboxHighlight(req.query),
+		});
 		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
 	});
 

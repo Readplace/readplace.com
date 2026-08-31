@@ -87,6 +87,16 @@
   border-top: 1px solid var(--border);
 }
 
+.inbox-emails__row--plain {
+  background: transparent;
+  box-shadow: none;
+}
+
+.inbox-emails__row--highlighted {
+  background: var(--muted);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
 .inbox-emails__link {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

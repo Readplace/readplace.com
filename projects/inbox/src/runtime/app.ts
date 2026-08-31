@@ -1,3 +1,4 @@
+import { INBOX_PATH } from "@packages/domain/inbox";
 import { resolve } from "node:path";
 import { createCspNonceMiddleware, generateCspNonce } from "@packages/web-shell";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
@@ -120,7 +121,7 @@ export function createInboxApp(
 		requireWriteAccess,
 		now: deps.now,
 	});
-	app.use("/inbox", requireAuth, inboxRouter);
+	app.use(INBOX_PATH, requireAuth, inboxRouter);
 
 	return app;
 }

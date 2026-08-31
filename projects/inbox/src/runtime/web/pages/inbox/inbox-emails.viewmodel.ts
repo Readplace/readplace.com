@@ -1,8 +1,9 @@
 import { type LocalTime, toRelativeOrDate } from "@packages/web-shell";
-import type {
-	InboxEmailEntry,
-	InboxEmailStatus,
-	ListInboxEmailsResult,
+import {
+	INBOX_ADDRESSES_PATH,
+	type InboxEmailEntry,
+	type InboxEmailStatus,
+	type ListInboxEmailsResult,
 } from "@packages/domain/inbox";
 import { buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
@@ -25,9 +26,9 @@ export interface InboxEmailRowViewModel {
 	 * before extraction runs and for rows that never have links, matching the
 	 * detail page's always-present count badge. */
 	linkCountLabel: string;
+	highlighted: boolean;
 }
 
-const INBOX_ADDRESSES_PATH = "/inbox/addresses";
 
 export type InboxEmptyStateKey = "no-address" | "no-mail";
 
@@ -142,7 +143,11 @@ function buildEmptyState(
 
 export function toInboxEmailsViewModel(
 	result: ListInboxEmailsResult,
-	options: { now: Date; activeAddresses: InboxEmptyAddressViewModel[] },
+	options: {
+		now: Date;
+		activeAddresses: InboxEmptyAddressViewModel[];
+		highlight?: string;
+	},
 ): InboxEmailsViewModel {
 	const paginationLinks = buildPaginationLinks(result);
 	return {
@@ -161,6 +166,7 @@ export function toInboxEmailsViewModel(
 			// Only `received` mail ever has links; rejected/unparsed rows never
 			// surface a count even if a stray row existed.
 			linkCountLabel: rowLinkCountLabel(entry),
+			highlighted: entry.receivedAtMessageId === options.highlight,
 		})),
 	};
 }

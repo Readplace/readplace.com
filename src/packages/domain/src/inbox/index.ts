@@ -1,3 +1,10 @@
+export {
+	INBOX_PATH,
+	INBOX_ADDRESSES_PATH,
+	INBOX_HIGHLIGHT_PARAM,
+	buildInboxHighlightUrl,
+	parseInboxHighlight,
+} from "./inbox-routes";
 export type {
 	InboxAddressEntry,
 	InboxAddressStore,

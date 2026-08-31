@@ -1,3 +1,4 @@
+import { INBOX_ADDRESSES_PATH, INBOX_PATH } from "@packages/domain/inbox";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
@@ -41,16 +42,16 @@ export function InboxPage(params: {
 		// target, so aria-describedby can never point at an id that is not there.
 		nameError: alerts.some((alert) => alert.id !== undefined),
 		submittedName: params.submittedName,
-		createAction: "/inbox/create",
-		disableAction: "/inbox/disable",
-		enableAction: "/inbox/enable",
+		createAction: `${INBOX_PATH}/create`,
+		disableAction: `${INBOX_PATH}/disable`,
+		enableAction: `${INBOX_PATH}/enable`,
 	});
 
 	return {
 		seo: {
 			title: "Your inbox emails — Readplace",
 			description: "Your personal inbox emails for forwarding newsletters to Readplace.",
-			canonicalUrl: "/inbox/addresses",
+			canonicalUrl: INBOX_ADDRESSES_PATH,
 			robots: "noindex, nofollow",
 		},
 		styles: `${INBOX_STYLES}\n${INBOX_COPYABLE_ADDRESS_STYLES}`,
