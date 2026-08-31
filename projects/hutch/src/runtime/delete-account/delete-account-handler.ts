@@ -102,21 +102,17 @@ async function processCommand(
 	const email = await deps.findEmailByUserId(userId);
 
 	// Billing first: delete the Stripe customer — which immediately cancels any
-	// live subscription and detaches every card — then drop the local row.
-	// Deleting the customer is the ONLY Stripe write: Stripe cascades the
-	// cancellation and then blocks further operations on the customer, so a
-	// separate immediate-cancel would be redundant and, on an at-least-once
-	// redrive, a non-idempotent re-cancel of an already-cancelled subscription
-	// that throws and poisons the queue into the DLQ. deleteCustomer instead
-	// treats an already-gone customer as success, so a redrive converges.
-	// Founding members have no row; trialing users have a row but no customerId
-	// (a local trial with no Stripe object).
+	// live subscription and detaches every card. Deleting the customer is the
+	// ONLY Stripe write: Stripe cascades the cancellation and then blocks further
+	// operations on the customer, so a separate immediate-cancel would be
+	// redundant and, on an at-least-once redrive, a non-idempotent re-cancel of an
+	// already-cancelled subscription that throws and poisons the queue into the
+	// DLQ. deleteCustomer instead treats an already-gone customer as success, so a
+	// redrive converges. Founding members have no row; trialing users have a row
+	// but no customerId (a local trial with no Stripe object).
 	const subscription = await deps.findSubscriptionByUserId(userId);
-	if (subscription) {
-		if (subscription.customerId) {
-			await deps.deleteBillingCustomer({ customerId: subscription.customerId });
-		}
-		await deps.deleteSubscription({ userId });
+	if (subscription?.customerId) {
+		await deps.deleteBillingCustomer({ customerId: subscription.customerId });
 	}
 
 	// Delete every per-user schedule so a later fire can't dispatch a command at
@@ -186,6 +182,10 @@ async function processCommand(
 	await deps.revokeAllUserOAuthTokens(userId);
 	await deps.destroyUserSessions(userId);
 	await deps.closeUserAccount(userId);
+
+	if (subscription) {
+		await deps.deleteSubscription({ userId });
+	}
 
 	deps.logger.info("[delete-account] completed", { userId });
 }

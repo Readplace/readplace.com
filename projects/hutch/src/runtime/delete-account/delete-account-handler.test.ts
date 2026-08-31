@@ -29,6 +29,7 @@ import {
 } from "@packages/test-fixtures/providers/oauth";
 import { initInMemoryReaderReadyState } from "@packages/test-fixtures/providers/reader-ready-state";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
+import { resolveWriteAccess } from "@packages/subscription-access";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initDeleteAccountHandler } from "./delete-account-handler";
@@ -662,6 +663,40 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
 		assert.deepEqual(s.trialReminderCalls, [account.userId]);
 		assert.deepEqual(s.chargeReminderCalls, [account.userId]);
+	});
+
+	it("a wedge before closeUserAccount keeps the lapsed subscription row, so a still-loginable account is not promoted to founding member", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "lapsed",
+			email: "lapsed@example.com",
+			subscription: "active",
+		});
+		// A read-only (cancelled) account is the one at risk: dropping its row early
+		// makes resolveWriteAccess read "no row" as a permanent founding member.
+		await s.subs.markCancelledByUserId({ userId: account.userId });
+
+		// Wedge in the purge loop — after the billing block, before closeUserAccount
+		// and the local-row delete.
+		s.failPurgeContentOnce();
+		const first = await run(s, [{ messageId: "msg-1", body: bodyFor(account.userId) }]);
+		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
+
+		// The identity row survived the wedge, so the credential can still mint a
+		// session — and the subscription row is still there to keep it read-only,
+		// instead of vanishing into "founding member" full access.
+		assert.equal(await s.auth.findEmailByUserId(account.userId), account.email);
+		const row = await s.subs.findByUserId(account.userId);
+		assert(row, "the lapsed subscription row must survive a wedged scrub");
+		assert.equal(resolveWriteAccess(row, SEED_NOW), "read-only");
+		assert.deepEqual(s.deleteSubscriptionCalls, []);
+
+		// The redrive completes the scrub: identity gone, then the row dropped.
+		const second = await run(s, [{ messageId: "msg-2", body: bodyFor(account.userId) }]);
+		assert.deepEqual(second.batchItemFailures, []);
+		assert.equal(await s.auth.findEmailByUserId(account.userId), null);
+		assert.equal(await s.subs.findByUserId(account.userId), undefined);
+		assert.deepEqual(s.deleteSubscriptionCalls, [account.userId]);
 	});
 
 	it("is idempotent — a second run against the now-empty account does not throw and reports no failures", async () => {
