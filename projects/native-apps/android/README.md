@@ -12,7 +12,12 @@ make emulator-boot        # headless boot of the readplace-android AVD
 make install-emulator     # staging APK → installed → launched
 make screenshot           # build/screenshot.png
 make test                 # unit suite + coverage ratchet + staging config pins
+make emulator-stop        # stop the emulator — it outlives your shell, so this is not optional
 ```
+
+The emulator detaches from the shell that starts it, and its AVD is shared with every other clone
+of this repo on the machine, so nothing else will stop it. Whoever runs `emulator-boot` runs
+`emulator-stop`.
 
 Every toolchain invocation goes through `scripts/ax.sh`. See
 [`.claude/skills/android-emulator/SKILL.md`](../../../.claude/skills/android-emulator/SKILL.md)

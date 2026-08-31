@@ -12,7 +12,7 @@ AVD ?= readplace-android
 APK_STAGING = app/build/outputs/apk/staging/debug/app-staging-debug.apk
 APPLICATION_ID = com.readplace.android
 
-.PHONY: test test-staging apk apk-staging apk-local emulator-create emulator-boot emulator-window emulator-wait install-emulator install-emulator-local screenshot clean stop
+.PHONY: test test-staging apk apk-staging apk-local emulator-create emulator-boot emulator-window emulator-wait emulator-stop install-emulator install-emulator-local screenshot clean stop
 
 ## Full unit suite on the production configuration, the per-file coverage ratchet,
 ## then the staging configuration's own config pins — mirroring `make test` on iOS.
@@ -63,6 +63,11 @@ emulator-window:
 emulator-wait:
 	$(AX) adb wait-for-device
 	$(AX) sh -c 'while [ "$$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" != "1" ]; do sleep 2; done'
+
+## Guarded because `adb emu kill` exits 1 when nothing is running, and a teardown
+## you cannot run unconditionally is a teardown nobody runs.
+emulator-stop:
+	$(AX) sh -c 'adb emu kill 2>/dev/null || true'
 
 install-emulator: apk-staging
 	$(AX) adb install -r $(APK_STAGING)

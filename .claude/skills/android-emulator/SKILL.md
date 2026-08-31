@@ -13,7 +13,15 @@ make emulator-boot                 # headless boot of the AVD the Makefile's AVD
 make install-emulator              # builds the staging APK, installs it, launches the app
 make install-emulator-local        # same against the web server running on this Mac (adb reverse to :3000)
 make screenshot                    # prints where it wrote the PNG
+make emulator-stop                 # stops it — the last step of a session, not an optional one
 ```
+
+`emulator-boot` detaches the emulator, so it outlives the command, the task, and the session that
+started it, and the AVD is shared by every clone of this repo on the machine — a later session in
+another clone attaches to whatever is already booted and never learns it is stale. Nothing else
+reaps it. Whoever boots one stops it: run `make emulator-stop` before you finish, including when the
+task failed or you are handing back early. Left running it burns CPU cores indefinitely, because its
+screen never sleeps and its frames are rasterized on the host CPU.
 
 For `install-emulator-local`, start the web server first: `pnpm nx run hutch:compile`, then, from
 the directory of the project that target belongs to (`pnpm nx show project <project> --json`
