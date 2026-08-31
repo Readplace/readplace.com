@@ -54,8 +54,8 @@ The plan expected the origin leg to ride a kept-alive connection, with the hands
 
 | Probe origin | Fresh connection | Warm connection | Difference |
 | --- | --- | --- | --- |
-| US | 660 to 955 ms | about 200 ms | about 70 to 79% lower |
-| UK | 786 to 905 ms | not measured | not measured |
+| US | 660 to 955 milliseconds | about 200 milliseconds | about 70 to 79% lower |
+| UK | 786 to 905 milliseconds | not measured | not measured |
 
 The cause was density, not configuration. Reuse needs a 2nd request to land on the same edge host while the 1st one's socket is still open, and Readplace's traffic, spread across dozens of edge hosts in each region, rarely lands 2 requests on the same host inside that window. Almost every edge host warmed a socket for 1 request and let it die.
 
