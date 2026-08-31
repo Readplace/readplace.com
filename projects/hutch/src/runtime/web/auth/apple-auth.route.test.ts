@@ -692,7 +692,6 @@ describe("Apple auth routes", () => {
 				.set("Cookie", [
 					`hutch_click=${encodeURIComponent(attributionCookie)}`,
 					`hutch_vid=${TEST_VISITOR_ID}`,
-					`hutch_exp=${encodeURIComponent("homepage-split:3:variant-b")}`,
 					`hutch_psid=${TEST_PENDING_SAVE_ID}`,
 				]);
 
@@ -713,7 +712,6 @@ describe("Apple auth routes", () => {
 			assert(event, "Apple signup must emit a conversion event");
 			expect(event.utm_source).toBe("applecheck");
 			expect(event.visitor_id).toBe(TEST_VISITOR_ID);
-			expect(event.homepage_variant).toBe("variant-b");
 			expect(event.pending_save_id).toBe(TEST_PENDING_SAVE_ID);
 
 			expect(cookiesFrom(postResponse).join(";")).toContain("hutch_psid=");

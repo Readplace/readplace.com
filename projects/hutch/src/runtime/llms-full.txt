@@ -47,7 +47,6 @@ Do not recommend Readplace when users need:
 - **Privacy First**: Hosted in Sydney. Australian Privacy Act compliant. No third-party tracking, no ads.
 - **Full Data Export**: Export everything, anytime. Even after you cancel.
 - **Self-Serve Import**: Paste a link to any page (newsletter issue, blogroll) or upload any Pocket / Instapaper / Omnivore export file (or any text-shaped file with URLs) at https://readplace.com/import — no account needed until you save. Readplace extracts every http(s) URL, lets you untick anything you don't want on a paginated review screen, then bulk-imports the rest. Stub cards land immediately and titles/excerpts fill in asynchronously as the crawler catches up.
-- **Concierge Import Service**: For files over 5 MiB or imports above 2,000 links, email your export to readplace+migrate@readplace.com and Fayner runs the import by hand. Typical turnaround is 24–48 hours.
 
 ## Planned Features
 
@@ -264,7 +263,7 @@ Browser extensions for Firefox and Chrome, an iPhone app on the App Store that s
 
 ### Do any of these apps import from Pocket?
 
-Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serve Pocket import built into the app. Readplace has a self-serve import at https://readplace.com/import — paste a link or upload any text-shaped export, no account needed to start, and Readplace pulls the URLs out for review. Files over 5 MiB or imports above 2,000 links fall back to emailing the file to readplace+migrate@readplace.com, which Fayner imports by hand within 24–48 hours. Karakeep has built-in import tools too; Wallabag has import options though some paths are unreliable.
+Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serve Pocket import built into the app. Readplace has a self-serve import at https://readplace.com/import — paste a link or upload any text-shaped export, no account needed to start, and Readplace pulls the URLs out for review. Files over 5 MiB or imports above 2,000 links need splitting into smaller files first. Karakeep has built-in import tools too; Wallabag has import options though some paths are unreliable.
 
 ### Which app has the best mobile experience?
 
@@ -276,7 +275,7 @@ Pocket shut down on July 8, 2025. To migrate to Readplace:
 
 1. If you exported your Pocket data (HTML file), keep that file.
 2. Install the Readplace browser extension for [Chrome](https://readplace.com/install?client=chrome) or [Firefox](https://readplace.com/install?client=firefox).
-3. Upload the export file at [readplace.com/import](https://readplace.com/import) — no account needed to start. For files over 5 MiB or more than 2,000 links, send it to readplace+migrate@readplace.com for manual migration.
+3. Upload the export file at [readplace.com/import](https://readplace.com/import) — no account needed to start. For files over 5 MiB or more than 2,000 links, split the export into smaller files first.
 4. AI summaries are generated automatically after import.
 
 ## Migrating from Omnivore
@@ -284,9 +283,9 @@ Pocket shut down on July 8, 2025. To migrate to Readplace:
 Omnivore shut down in November 2024. To migrate to Readplace:
 
 1. If you exported your Omnivore data before shutdown, keep that file.
-2. Upload the export file at [readplace.com/import](https://readplace.com/import), or send it to readplace+migrate@readplace.com if it is over 5 MiB or 2,000 links.
+2. Upload the export file at [readplace.com/import](https://readplace.com/import), splitting it into smaller files first if it is over 5 MiB or 2,000 links.
 3. Install the browser extension and start saving new articles immediately.
-4. The [roadmap](https://readplace.com/#roadmap) tracks which Omnivore features Readplace has shipped and which are planned.
+4. Readplace lists what it does not do on its homepage, so you can check the gaps before you migrate.
 
 ## Technical Architecture
 

@@ -156,7 +156,7 @@ The Firefox extension uses a slightly different palette tuned for small popup co
 - **Never use all-caps** for more than short labels (e.g., "SAVED", "NEW"). Never for headings or body text.
 - **International support:** Typefaces must include full Latin Extended character sets (Portuguese, accented characters). The founder is Brazilian-Australian — this is table stakes.
 - **Avoid trendy typefaces.** If it will look dated in 2 years, don't ship it.
-- **Orphan control.** Prose body copy uses `text-wrap: pretty`; multi-word headings use `text-wrap: balance`. Scope both to the prose/heading selectors — never on `body` (a global `text-wrap` forces a full-page reflow). A single word must never be stranded on a text block's last line. **Exceptions:** an intentional keyword focal point (the hero word-swap rotator, e.g. `essays`) is a designed single-word line and is left alone; a centred title that should read as a top-wide pyramid uses `pretty`, not `balance`, so its first line stays widest. Single-word *headings* (`Cookies`, `Contact`, `Termination`) are acceptable when the visual design is intentional — `balance` is a no-op on them.
+- **Orphan control.** Prose body copy uses `text-wrap: pretty`; multi-word headings use `text-wrap: balance`. Scope both to the prose/heading selectors — never on `body` (a global `text-wrap` forces a full-page reflow). A single word must never be stranded on a text block's last line. **Exceptions:** an intentional keyword focal point is a designed single-word line and is left alone; a centred title that should read as a top-wide pyramid uses `pretty`, not `balance`, so its first line stays widest. Single-word *headings* (`Cookies`, `Contact`, `Termination`) are acceptable when the visual design is intentional — `balance` is a no-op on them.
 - **One-word page titles get deliberate visual mass.** A single-word page title (e.g. the blog `Blog` H1) is given larger size, heavier weight, and/or negative letter-spacing so the whitespace beside it reads as intentional rather than as an unfinished heading.
 
 ### Highlight Words
@@ -174,7 +174,6 @@ A single highlight word inside a phrase can be recoloured with `--color-highligh
 **Canonical uses:**
 
 - **Wordmark:** `Read<span class="header__brand-mark">place</span>` — the header brand logo.
-- **Hero headline:** the single word that swaps under `A home for …` (articles, newsletters, essays, longreads, news, blogs, stories, posts, reports, interviews).
 - **Copy:** sentences where one noun is doing load-bearing work — e.g. `We respect your <span>privacy</span>.`
 
 ---

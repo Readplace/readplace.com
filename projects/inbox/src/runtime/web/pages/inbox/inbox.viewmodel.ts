@@ -37,7 +37,7 @@ export interface InboxAddressesViewModel {
 const ALERT_MESSAGES: Record<InboxAlertKey, string> = {
 	"create-failed": "I couldn't create an inbox email just now — try again in a moment.",
 	"name-invalid":
-		"Give the inbox email a name using letters and numbers — for example, netflix.",
+		"Give the inbox email a name using letters, numbers, and hyphens — for example, my-newsletter.",
 	"name-taken": "You already have an active inbox email with that name. Pick a different one.",
 	limit: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before enabling or creating more.`,
 };

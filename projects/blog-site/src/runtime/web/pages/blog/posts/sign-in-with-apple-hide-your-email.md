@@ -36,7 +36,7 @@ A forwarding address is a promise to pass mail on. Apple sits in the middle. It 
 
 Readplace sends you mail in two shapes. One is automatic. The email that tells you a saved article turned readable, [now batched into one digest](/blog/one-email-for-every-ready-article), goes out through a dedicated sending service on its own signed subdomain. That shape already cleared Apple's check and reached masked inboxes.
 
-The other shape is a person writing to you. Reply to Readplace, or write to the concierge import address, and a human answers from a readplace.com address running on Google Workspace. That mail leaves under the bare readplace.com apex. The apex carried no SPF record and no Workspace DKIM key of its own.
+The other shape is a person writing to you. Reply to Readplace, or write to the support address, and a human answers from a readplace.com address running on Google Workspace. That mail leaves under the bare readplace.com apex. The apex carried no SPF record and no Workspace DKIM key of its own.
 
 So a reply sent to someone's privaterelay.appleid.com address reached Apple's relay, failed the SPF and DKIM check, and was dropped. The reader saw nothing. They had written to Readplace and heard back only silence, which is the worst way for a hidden address to behave.
 

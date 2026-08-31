@@ -78,7 +78,7 @@ But the shape of how those products ended is hard to miss once you have seen it 
 
 > **Free hosted services in this category have a shelf life. The money situation changes, and the service goes with it.**
 
-If one of those shutdowns already happened to you and the export is still sitting in a downloads folder, moving that library somewhere durable is a small job, not a project. You can [import it into Readplace](/import?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=import-cta) before you have an account: the import page works logged out, so you upload the file, review what's in it, and create an account only when you commit the import. Files over 4.5 MB or imports above 2,000 links fall back to email. Send those to readplace+migrate@readplace.com.
+If one of those shutdowns already happened to you and the export is still sitting in a downloads folder, moving that library somewhere durable is a small job, not a project. You can [import it into Readplace](/import?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=import-cta) before you have an account: the import page works logged out, so you upload the file, review what's in it, and create an account only when you commit the import. Files over 4.5 MB or imports above 2,000 links need splitting into smaller files first.
 
 ## Self-Hosted Is Genuinely Free (But Not Actually Free)
 

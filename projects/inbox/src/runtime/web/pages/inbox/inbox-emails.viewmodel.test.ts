@@ -65,7 +65,7 @@ describe("toInboxEmailsViewModel", () => {
 	});
 
 	it("surfaces every active address on an empty inbox, not just the first", () => {
-		const second = { name: "netflix", address: "netflix-def456@read.place" };
+		const second = { name: "my-newsletter", address: "my-newsletter-def456@read.place" };
 
 		const { empty } = build([], [ADDRESS, second]);
 

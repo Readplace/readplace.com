@@ -198,7 +198,7 @@ const NAV_INTEGRATIONS = navItem({
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", iconName: "user" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", iconName: "log-out" });
 const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", iconName: "download" });
-const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#what-works", method: "GET", iconName: "sparkles" });
+const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#ways-to-save", method: "GET", iconName: "sparkles" });
 const NAV_LOGIN = navItem({ key: "login", label: "Log in", path: "/login", method: "GET", iconName: "log-in" });
 
 /** Guest nav items rendered as a flat list without group structure. Import sits

@@ -15,7 +15,7 @@ describe("importErrorMessageMapping", () => {
 
 	it("maps import_too_large to the 4.5 MB / contact fallback message", () => {
 		expect(importErrorMessageMapping({ error_code: "import_too_large" })).toBe(
-			"That file is too large. The limit is 4.5 MB — please get in touch at readplace+migrate@readplace.com to increase the limit.",
+			"That file is too large. The limit is 4.5 MB — split the export into smaller files and import them one at a time.",
 		);
 	});
 

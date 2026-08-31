@@ -58,15 +58,6 @@ const CHATGPT_PANEL_LIGHT: VisualCheckpoint = {
 	pinnedText: [],
 };
 
-const CHATGPT_PANEL_DARK: VisualCheckpoint = {
-	name: "install-chatgpt-panel-dark",
-	settled: copyButtonsRevealed,
-	geometry: oneClickInstallLeadsTheManualSetup,
-	target: PANEL,
-	capture: "element",
-	pinnedText: [],
-};
-
 test.describe("ChatGPT install panel", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -74,11 +65,5 @@ test.describe("ChatGPT install panel", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openChatGptPanel(page);
 		await captureCheckpoint(page, CHATGPT_PANEL_LIGHT);
-	});
-
-	test("leads with the official one-click ChatGPT plugin (dark)", async ({ page }) => {
-		await page.emulateMedia({ colorScheme: "dark" });
-		await openChatGptPanel(page);
-		await captureCheckpoint(page, CHATGPT_PANEL_DARK);
 	});
 });

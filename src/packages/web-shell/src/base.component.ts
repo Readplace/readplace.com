@@ -12,6 +12,7 @@ import {
 	TRIAL_COUNTDOWN_STYLES,
 	VERIFY_BANNER_STYLES,
 	UTILITY_STYLES,
+	LIGHT_ONLY_BODY_CLASS,
 } from "./base.styles";
 import { BASE_TEMPLATE } from "./base.template";
 import { FOOTER_TEMPLATE } from "./footer.template";
@@ -169,6 +170,15 @@ function renderMarkdown(body: PageBody): string {
  * injects the dev livereload script. Both are injected rather than read from
  * the environment so the package stays free of process.env coupling and can
  * be reused by sites that resolve these values differently. */
+/** Dark mode belongs to a signed-in reader; every logged-out page renders in the
+ * light palette its design was drawn for, unless the page reads as a document
+ * the viewer's own theme should govern. */
+function bodyClassFor(body: PageBody, isAuthenticated: boolean): string {
+	const pinsLight = !isAuthenticated && body.followsSystemTheme !== true;
+	const classes = [body.bodyClass, pinsLight ? LIGHT_ONLY_BODY_CLASS : undefined];
+	return classes.filter((name): name is string => name !== undefined).join(" ");
+}
+
 export interface BaseConfig {
 	staticBaseUrl: string;
 	liveReload: boolean;
@@ -267,7 +277,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				show: state.showExtensionSuggestionBanner ?? false,
 				extensionInstalled: state.extensionInstalled ?? false,
 			}),
-			bodyClass: body.bodyClass,
+			bodyClass: bodyClassFor(body, state.isAuthenticated),
 			header: config.renderNav({
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,

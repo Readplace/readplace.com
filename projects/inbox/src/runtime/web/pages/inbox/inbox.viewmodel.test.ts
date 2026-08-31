@@ -31,7 +31,7 @@ describe("toInboxAddressesViewModel", () => {
 				address: "gmail-aaa111@read.place",
 				disabledAt: "2026-06-20T00:00:00.000Z",
 			}),
-			entry({ name: "netflix", address: "netflix-bbb222@read.place" }),
+			entry({ name: "my-newsletter", address: "my-newsletter-bbb222@read.place" }),
 			entry({
 				name: "substack",
 				address: "substack-ccc333@read.place",
@@ -42,11 +42,11 @@ describe("toInboxAddressesViewModel", () => {
 		expect(vm.hasAddresses).toBe(true);
 		expect(vm.activeAddresses).toEqual([
 			{
-				name: "netflix",
-				address: "netflix-bbb222@read.place",
-				addressAriaLabel: "Inbox email: netflix",
-				copyAriaLabel: "Copy inbox email: netflix",
-				disableAriaLabel: "Disable inbox email: netflix",
+				name: "my-newsletter",
+				address: "my-newsletter-bbb222@read.place",
+				addressAriaLabel: "Inbox email: my-newsletter",
+				copyAriaLabel: "Copy inbox email: my-newsletter",
+				disableAriaLabel: "Disable inbox email: my-newsletter",
 			},
 		]);
 		expect(vm.disabledAddresses).toEqual([
@@ -71,18 +71,18 @@ describe("toInboxAddressesViewModel", () => {
 
 	it("leaves the disabled partition empty when every address is live", () => {
 		const vm = toInboxAddressesViewModel([
-			entry({ name: "netflix", address: "netflix-bbb222@read.place" }),
+			entry({ name: "my-newsletter", address: "my-newsletter-bbb222@read.place" }),
 			entry({ name: "gmail", address: "gmail-aaa111@read.place" }),
 		]);
 
 		expect(vm.hasAddresses).toBe(true);
 		expect(vm.activeAddresses).toEqual([
 			{
-				name: "netflix",
-				address: "netflix-bbb222@read.place",
-				addressAriaLabel: "Inbox email: netflix",
-				copyAriaLabel: "Copy inbox email: netflix",
-				disableAriaLabel: "Disable inbox email: netflix",
+				name: "my-newsletter",
+				address: "my-newsletter-bbb222@read.place",
+				addressAriaLabel: "Inbox email: my-newsletter",
+				copyAriaLabel: "Copy inbox email: my-newsletter",
+				disableAriaLabel: "Disable inbox email: my-newsletter",
 			},
 			{
 				name: "gmail",

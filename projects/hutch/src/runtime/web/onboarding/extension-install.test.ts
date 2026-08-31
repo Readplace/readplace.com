@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import type { Request } from "express";
 import {
-	detectInstallBrowser,
 	detectPlatform,
 	extensionInstallUrlIfMissing,
 	hasInstallableClient,
@@ -45,20 +44,6 @@ describe("hasInstallableClient", () => {
 
 	it("returns false when the request carries no User-Agent header", () => {
 		assert.equal(hasInstallableClient(requestWithUserAgent()), false);
-	});
-});
-
-describe("detectInstallBrowser", () => {
-	it("falls back to the generic 'other' CTA for Android Chrome (the extension can't install there)", () => {
-		assert.equal(detectInstallBrowser(requestWithUserAgent(ANDROID_CHROME)), "other");
-	});
-
-	it("falls back to the generic 'other' CTA for desktop Safari (the unrecognised bucket)", () => {
-		assert.equal(detectInstallBrowser(requestWithUserAgent(DESKTOP_SAFARI)), "other");
-	});
-
-	it("keeps the browser-specific CTA for desktop Chrome", () => {
-		assert.equal(detectInstallBrowser(requestWithUserAgent(DESKTOP_CHROME)), "chrome");
 	});
 });
 

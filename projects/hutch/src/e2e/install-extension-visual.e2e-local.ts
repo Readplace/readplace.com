@@ -95,12 +95,5 @@ test.describe("Browser extension install panels", () => {
 			await page.waitForSelector(`[data-test-cta="${browser.cta}"]`);
 			await captureCheckpoint(page, checkpoint(browser.client, "light"));
 		});
-
-		test(`teaches the ${browser.client} save flow with its own recording (dark)`, async ({ page }) => {
-			await page.emulateMedia({ colorScheme: "dark" });
-			await openBrowserPanel(page, browser.client);
-			await page.waitForSelector(`[data-test-cta="${browser.cta}"]`);
-			await captureCheckpoint(page, checkpoint(browser.client, "dark"));
-		});
 	}
 });

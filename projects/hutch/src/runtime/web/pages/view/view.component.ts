@@ -180,6 +180,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		},
 		styles: `${VIEW_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: "page-view",
+		followsSystemTheme: true,
 		content: { html: content },
 		scripts: readerScripts({
 			navHide: NAV_HIDE_SCRIPT,

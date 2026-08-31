@@ -1,294 +1,323 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_PDF_BYTES } from "@packages/crawl-article";
-import { CONFIRM_POPOVER_STYLES, MONTHLY_EQUIVALENT_DISPLAY, render } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
+import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import type { ClientGroup } from "@packages/supported-clients";
 
-import { CLIENT_CATEGORIES } from "@packages/supported-clients";
-import type { ClientCategory } from "@packages/supported-clients";
-
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-
-import type { HomepageVariantMarker } from "../../experiments/homepage-split";
-import { buildExtensionInstallUrl } from "../../onboarding/extension-install";
-import type { InstallBrowser } from "../../onboarding/onboarding.types";
-import {
-	SAVE_SURFACES_SHORT_PHRASE,
-	SETUP_SURFACES_PHRASE,
-} from "../../shared/client-surface-phrases";
-import {
-	BROWSER_EXTENSIONS_AND,
-	BROWSER_EXTENSIONS_LISTED,
-	contentCaptureTrustLine,
-} from "../../shared/client-enumerations";
-import { CANONICAL_SLOGAN, SLOGANS } from "../../slogans";
-import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
-import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
-import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
 import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
-import type { ExtensionDemoBrowser } from "../../shared/extension-demo-video";
+import type { SaveTipState } from "../../shared/save-tip/save-tip";
+import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
+import {
+	HOME_CONTENT,
+	HOME_WAY_BY_GROUP,
+	HOME_WAY_LINK_BY_CLIENT,
+	HOME_WAYS_WITHOUT_A_CLIENT,
+	type HomeWayLink,
+	type HomeWayRow,
+} from "./home.content";
 import { buildHomeSeo } from "./home.seo";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
 const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
 
-/** The install CTA label for the visitor's browser. Keyed by InstallBrowser, so
- * a new browser extension is a compile error here until it earns its own label —
- * the coupling the template's {{#switch browserName}} could not express. */
-const INSTALL_CTA_LABEL = {
-	firefox: "Install Firefox Extension",
-	chrome: "Install Chrome Extension",
-	other: "Install Browser Extension",
-} satisfies Record<InstallBrowser, string>;
+/** Discarded — only the pathname and search are read back off the parsed href. */
+const PARSE_ORIGIN = "https://internal.invalid";
 
-interface HomeFeatureCard {
-	name: string;
-	description: string;
-	linkHref?: string;
-	linkLabel?: string;
+const TRACKING_SOURCE = "homepage";
+
+interface HiddenParam {
+	readonly name: string;
+	readonly value: string;
 }
 
-/** The featured "what works today" card for each client CATEGORY. Built as a
- * `Record<ClientCategory, …>` and spread into the featured list in
- * CLIENT_CATEGORIES order, so a new category is a compile error until it earns a
- * homepage card. Each category links to where you set it up — content-capture
- * clients (extensions + iPhone) to /install, url-only clients (MCP) to /mcp — so
- * the homepage surfaces every way to save, not just the browser extension. */
-const CLIENT_CATEGORY_FEATURES = {
-	contentCapture: {
-		name: "Save the Full Page",
-		description: `Save any page with one click or Ctrl/Cmd+D, right-click to save every open tab at once — or save straight from your phone's share sheet. The extension and app capture the full rendered page, picking the most complete version of the content over what a URL-only crawl would see. Available for ${BROWSER_EXTENSIONS_AND}, and on your phone.`,
-		linkHref: "/install",
-		linkLabel: "See the ways to save",
-	},
-	urlOnly: {
-		name: "Connect Your AI Assistant",
-		description:
-			"Readplace runs an MCP server, so ChatGPT, Gemini, Claude, Perplexity, and other AI assistants can save links to your readlist and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
-		linkHref: "/mcp",
-		linkLabel: "How to connect",
-	},
-} satisfies Record<ClientCategory, HomeFeatureCard>;
+interface ActionInput {
+	readonly name: string;
+	readonly label: string;
+	readonly placeholder: string;
+}
 
-interface WayToSave {
-	name: string;
-	body: string;
-	linkLabel: string;
-	linkHref: string;
-	trackContent: string;
+interface RenderedAction {
+	readonly key: string;
+	readonly label: string;
+	readonly action: string;
+	readonly hiddenParams: readonly HiddenParam[];
+	readonly cssClass: string;
+	readonly input?: ActionInput;
+	readonly saveTipState?: SaveTipState;
+	readonly lead?: string;
+	/** What the action would act on, named and linked so a reader who left the
+	 * article minutes ago can tell which one this saves — and reopen it. */
+	readonly target?: RenderedLink;
+	readonly subLabel?: string;
+}
+
+interface RenderedLink {
+	readonly label: string;
+	readonly href: string;
 }
 
 /**
- * Every shipped route a link can take into Readplace, in the order the section
- * renders them. This is a hand-written list rather than a projection of
- * SUPPORTED_CLIENTS because most entries are not clients at all — the paste box,
- * the importer, a newsletter forwarding address and the publisher snippet have no
- * roster row, and the extensions are split per browser because each has its own
- * install destination.
- *
- * Every `linkHref` must be reachable while logged out, so a visitor who clicks
- * lands on the explanation rather than a login wall. That is why the newsletter
- * row points at the blog explainer and not at `/inbox`, which is behind
- * `requireAuth`.
+ * A GET form, not an anchor, so an action that needs a field (open a link in the
+ * reader) and one that does not (save the article just read) share one item
+ * shape. Browsers drop an action URL's query string on GET submit, so the
+ * internal-click UTM params ride as hidden inputs rather than on the href.
  */
-const WAYS_TO_SAVE: readonly WayToSave[] = [
-	{
-		name: "Paste a link on this page",
-		body: "It opens in the reader with a TL;DR in seconds — an article or a PDF, no account and nothing to install. Save it from there and it goes to your readlist; that is the point where I ask for an account.",
-		linkLabel: "Try it now",
-		linkHref: "#paste-a-link",
-		trackContent: "paste",
-	},
-	{
-		name: "Chrome, Edge, or Brave",
-		body: "One click or Ctrl/Cmd+D, or right-click to save every open tab at once. The extension saves the page as it renders in front of you, so sites that turn crawlers away still come across whole.",
-		linkLabel: "Install for Chrome",
-		linkHref: "/install?client=chrome",
-		trackContent: "chrome",
-	},
-	{
-		name: "Firefox",
-		body: "The same one click, the same full-page capture. The Firefox build is a signed download from this site rather than addons.mozilla.org.",
-		linkLabel: "Install for Firefox",
-		linkHref: "/install?client=firefox",
-		trackContent: "firefox",
-	},
-	{
-		name: "Your iPhone",
-		body: "Open a page in any browser, tap Share, choose Readplace. The app is on the App Store, and it opens your saved copy with its TL;DR without leaving the phone.",
-		linkLabel: "Get the iPhone app",
-		linkHref: "/install?client=iphone",
-		trackContent: "iphone",
-	},
-	{
-		name: "Your Android phone",
-		body: "The same Share-sheet save, from any browser on Android. The app is built and its Play Store listing is on the way; until it lands, readplace.com works in your browser and an AI assistant can save links for you.",
-		linkLabel: "See where it's up to",
-		linkHref: "/install?client=android",
-		trackContent: "android",
-	},
-	{
-		name: "ChatGPT, Claude, or Gemini",
-		body: "Readplace runs an MCP server. Paste one URL into your assistant's connector settings, sign in once, and it can save links to your readlist and read the list back inside the conversation.",
-		linkLabel: "Connect your assistant",
-		linkHref: "/mcp",
-		trackContent: "mcp",
-	},
-	{
-		name: "A file, or a page full of links",
-		body: "Upload a Pocket, Instapaper, or bookmark export — anything text-shaped — or paste a newsletter or index URL, and Readplace pulls every link out for you to review. All of that works logged out; the account is asked for when you save the selection.",
-		linkLabel: "Import your links",
-		linkHref: "/import",
-		trackContent: "import",
-	},
-	{
-		name: "Your newsletters",
-		body: "Every account gets its own address at read.place, shaped like netflix-a7b2c9@read.place. Subscribe with it, or forward an issue to it, and Readplace saves the article links out of the email. You can hold up to 25, one per newsletter.",
-		linkLabel: "How that works",
-		linkHref: "/blog/save-newsletter-links-to-your-readlist",
-		trackContent: "inbox",
-	},
-	{
-		name: "A save button on your own site",
-		body: "If you publish, the snippet is a plain link — under 1 KB, no JavaScript, no tracking — that puts your article in a reader's readlist in one click.",
-		linkLabel: "Get the snippet",
-		linkHref: "/embed",
-		trackContent: "embed",
-	},
+function renderAction(input: {
+	key: string;
+	label: string;
+	href: string;
+	content: string;
+	cssClass: string;
+	field?: ActionInput;
+	saveTipState?: SaveTipState;
+	lead?: string;
+	target?: RenderedLink;
+	subLabel?: string;
+}): RenderedAction {
+	const tracked = new URL(
+		withInternalTracking(input.href, { source: TRACKING_SOURCE, content: input.content }),
+		PARSE_ORIGIN,
+	);
+	return {
+		key: input.key,
+		label: input.label,
+		cssClass: input.cssClass,
+		input: input.field,
+		saveTipState: input.saveTipState,
+		lead: input.lead,
+		target: input.target,
+		subLabel: input.subLabel,
+		action: tracked.pathname,
+		hiddenParams: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
+	};
+}
+
+function trackedLink(link: {
+	label: string;
+	href: string;
+	content: string;
+	source: string;
+}): RenderedLink {
+	return {
+		label: link.label,
+		href: withInternalTracking(link.href, { source: link.source, content: link.content }),
+	};
+}
+
+const { hero, ways, assistant, proof, principle, pricing, faq, close } = HOME_CONTENT;
+
+const ADVERTISED_CLIENTS = SUPPORTED_CLIENTS.filter((client) => client.advertised);
+
+const ROW_CLIENTS = ADVERTISED_CLIENTS.filter((client) => client.group !== "aiAssistant");
+
+/** The groups that earn a row, in roster order, each once. */
+const ROW_GROUPS: readonly ClientGroup[] = ROW_CLIENTS.reduce<ClientGroup[]>((groups, client) => {
+	if (!groups.includes(client.group)) groups.push(client.group);
+	return groups;
+}, []);
+
+/**
+ * The save routes that get a row: one per group of advertised clients whose save
+ * carries the page's own content, then the ways in that have no client behind
+ * them. An assistant saves a bare URL and gets its own section instead, and a
+ * client nobody can install yet is not offered here at all.
+ */
+const HOMEPAGE_WAYS: readonly HomeWayRow[] = [
+	...ROW_GROUPS.map((group) => ({
+		...HOME_WAY_BY_GROUP[group],
+		links: [
+			...ROW_CLIENTS.filter((client) => client.group === group).map(
+				(client) => HOME_WAY_LINK_BY_CLIENT[client.name],
+			),
+		].sort((left: HomeWayLink, right: HomeWayLink) => left.order - right.order),
+	})),
+	...HOME_WAYS_WITHOUT_A_CLIENT,
 ];
 
-const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></script>`;
+const ADVERTISED_ASSISTANTS = ADVERTISED_CLIENTS.filter(
+	(client) => client.group === "aiAssistant",
+).map((client) => client.displayName);
 
-const HOME_DEMOS = [
-	{
-		browser: "chrome",
-		label: "Chrome",
-		ariaLabel: "Pinning Readplace to the Chrome toolbar, then saving the page in one click",
-	},
-	{
-		browser: "firefox",
-		label: "Firefox",
-		ariaLabel: "Pinning Readplace to the Firefox toolbar, then saving the page in one click",
-	},
-] as const satisfies readonly { browser: ExtensionDemoBrowser; label: string; ariaLabel: string }[];
-
-function buildHomeDemoVideos(staticBaseUrl: string) {
-	return HOME_DEMOS.map((demo) => ({
-		label: demo.label,
-		ariaLabel: demo.ariaLabel,
-		...buildExtensionDemoVideo(demo.browser, staticBaseUrl),
-	}));
+/** "A, B, or C" — the assistants a reader can connect today, named from the
+ * roster so a new one reaches this sentence without an edit here. */
+function assistantsPhrase(names: readonly string[]): string {
+	if (names.length === 1) return names[0];
+	return `${names.slice(0, -1).join(", ")}, or ${names[names.length - 1]}`;
 }
 
-interface HomePageParams {
-	userCount: number;
+function buildPasteAction(input: { primary: boolean; saveTipState: SaveTipState }): RenderedAction {
+	return renderAction({
+		key: "homepage-link-input",
+		label: hero.pasteCtaLabel,
+		href: "/view",
+		content: "homepage-link-input",
+		cssClass: input.primary ? "btn--on-dark btn--field" : "btn--on-dark-ghost btn--field",
+		field: { name: "url", label: hero.pasteLabel, placeholder: hero.pastePlaceholder },
+		saveTipState: input.saveTipState,
+		lead: input.primary ? undefined : hero.saveLastViewLead,
+	});
+}
+
+interface ArrivalArticle {
+	readonly host: string;
+	readonly display: string;
+}
+
+/** The cookie holds whatever was written to it, so a value that is not a URL
+ * leaves the action unnamed rather than throwing on the homepage render. */
+function describeArrivalArticle(url: string): ArrivalArticle | undefined {
+	const parsed = URL.parse(url);
+	if (parsed === null) return undefined;
+	const host = parsed.host.replace(/^www\./, "");
+	const path = `${parsed.pathname}${parsed.search}`.replace(/\/$/, "");
+	return { host, display: `${host}${path}` };
+}
+
+/**
+ * A reader-view arrival is offered the article they just read before anything
+ * else, with the paste box demoted rather than replaced so they can still open
+ * another link without leaving the hero.
+ *
+ * The action names the article: both readers who ever clicked its unnamed
+ * predecessor had left the page minutes earlier, so the button has to say what
+ * it would save rather than assume they still remember.
+ */
+function buildHeroActions(input: {
+	lastViewUrl: string | undefined;
+	saveTipState: SaveTipState;
+}): readonly RenderedAction[] {
+	if (input.lastViewUrl === undefined) {
+		return [buildPasteAction({ primary: true, saveTipState: input.saveTipState })];
+	}
+	const article = describeArrivalArticle(input.lastViewUrl);
+	const target =
+		article === undefined
+			? undefined
+			: {
+					label: article.display,
+					href: withInternalTracking(`/view?url=${encodeURIComponent(input.lastViewUrl)}`, {
+						source: TRACKING_SOURCE,
+						content: "hero-last-view-article",
+					}),
+				};
+	const saveLastView = renderAction({
+		key: "hero-save-last-view",
+		label:
+			article === undefined
+				? hero.saveLastViewFallbackLabel
+				: hero.saveLastViewLabel.replace("{host}", article.host),
+		href: `/save?url=${encodeURIComponent(input.lastViewUrl)}&${SAVE_SURFACE_QUERY}=${SAVE_SURFACES.homepageHero}`,
+		content: "hero-save-last-view",
+		cssClass: "btn--on-dark",
+		target,
+	});
+	return [saveLastView, buildPasteAction({ primary: false, saveTipState: input.saveTipState })];
+}
+
+export function HomePage(params: {
 	staticBaseUrl: string;
-	browser: InstallBrowser;
-	foundingAllocation: FoundingAllocation;
-	variant: HomepageVariantMarker;
 	saveTip: SaveTip;
-}
+	lastViewUrl: string | undefined;
+}): PageBody {
+	const { staticBaseUrl, saveTip, lastViewUrl } = params;
 
-export function HomePage(params: HomePageParams): PageBody {
-	const { userCount, staticBaseUrl, browser, foundingAllocation, variant, saveTip } = params;
-	const foundingMemberLimit = foundingAllocation.foundingMemberLimit;
-	const foundingProgressHtml = renderFoundingProgress({ userCount, foundingAllocation });
-	const foundingAllocationAvailable = !foundingAllocation.isFoundingAllocationExhausted(userCount);
-	const pricingGridStateClass = foundingAllocationAvailable
-		? "pricing-grid--visible"
-		: "pricing-grid--hidden";
-	const fallbackStateClass = foundingAllocationAvailable
-		? "home-pricing__fallback--hidden"
-		: "home-pricing__fallback--visible";
-	const pricingTitleStateClass = foundingAllocationAvailable
-		? "home-pricing__title--visible"
-		: "home-pricing__title--hidden";
-	const progressStateClass = foundingAllocationAvailable
-		? "home-pricing__progress--visible"
-		: "home-pricing__progress--hidden";
 	return {
-		seo: buildHomeSeo({
-			staticBaseUrl,
-			foundingMemberLimit,
-			foundingAllocationAvailable,
-		}),
+		seo: buildHomeSeo({ staticBaseUrl, faq: faq.items }),
 		styles: `${HOME_PAGE_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
-		scripts: `${HOME_CLIENT_SCRIPT}${SAVE_TIP_SCRIPT}`,
-		bodyClass: `page-home variant-${variant}`,
-		content: { html: render(HOME_TEMPLATE, {
-			staticBaseUrl,
-			demoVideos: buildHomeDemoVideos(staticBaseUrl),
-			canonicalSlogan: CANONICAL_SLOGAN,
-			saveTipState: saveTip.state,
-			saveTipHtml: saveTip.html,
-			slogansJson: JSON.stringify(SLOGANS),
-			installPath: buildExtensionInstallUrl(browser),
-			installLabel: INSTALL_CTA_LABEL[browser],
-			heroTrust: contentCaptureTrustLine(browser),
-			setupSurfaces: SETUP_SURFACES_PHRASE,
-			saveSurfacesShort: SAVE_SURFACES_SHORT_PHRASE,
-			waysToSave: WAYS_TO_SAVE,
-			platformsCell: `Web, iPhone, Android, Mac, AI assistants (MCP), Extensions: ${BROWSER_EXTENSIONS_LISTED}`,
-			maxPdfBytesLabel: MAX_PDF_BYTES.label,
-			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
-			foundingProgressHtml,
-			foundingMemberLimit,
-			foundingAvailable: foundingAllocationAvailable,
-			trialPeriodDays: STRIPE_TRIAL_PERIOD_DAYS,
-			monthlyPriceDisplay: MONTHLY_EQUIVALENT_DISPLAY,
-			pricingTitleStateClass,
-			progressStateClass,
-			pricingGridStateClass,
-			fallbackStateClass,
-			featuredFeatures: [
-				{
-					name: "TL;DR Summaries",
-					description:
-						"Every saved article gets a TL;DR outlining the most important points. Built on the same AI that powers the reading experience.",
+		scripts: SAVE_TIP_SCRIPT,
+		bodyClass: "page-home",
+		content: {
+			html: render(HOME_TEMPLATE, {
+				saveTipHtml: saveTip.html,
+				heroEyebrow: lastViewUrl === undefined ? undefined : hero.arrivalEyebrow,
+				heroTitle: hero.title,
+				heroSubhead: hero.subhead,
+				heroActions: buildHeroActions({ lastViewUrl, saveTipState: saveTip.state }),
+				heroReassurance: hero.reassurance,
+				waysTitle: ways.title,
+				ways: HOMEPAGE_WAYS.map((way) => ({
+					name: way.name,
+					bodyLead: way.bodyLead,
+					bodyIcon: way.bodyIcon,
+					bodyMid: way.bodyMid,
+					bodyLink:
+						way.bodyLink === undefined
+							? undefined
+							: trackedLink({ ...way.bodyLink, content: way.bodyLink.trackContent, source: "home-ways" }),
+					examples: way.examples,
+					bodyTail: way.bodyTail,
+					links: way.links.map((link) => ({
+						label: link.label,
+						href: withInternalTracking(link.href, {
+							source: "home-ways",
+							content: link.trackContent,
+						}),
+					})),
+				})),
+				waysNoteLead: ways.noteLead,
+				waysNoteLink: trackedLink({ ...ways.noteLink, source: "home-ways" }),
+				assistantTitle: assistant.title,
+				assistantBodyLead: assistant.bodyLead,
+				assistantNames: assistantsPhrase(ADVERTISED_ASSISTANTS),
+				assistantBodyTail: assistant.bodyTail,
+				assistantLink: trackedLink({
+					label: assistant.linkLabel,
+					href: assistant.linkHref,
+					content: assistant.trackContent,
+					source: "home-assistant",
+				}),
+				proofTitle: proof.title,
+				proofVideo: {
+					...buildExtensionDemoVideo("chrome", staticBaseUrl),
+					ariaLabel: proof.videoAriaLabel,
 				},
-				{
-					name: "PDF Extraction with Real OCR",
-					description:
-						"Save any PDF link. Real Tesseract OCR turns it into a clean, readable article with a TL;DR — scanned pages included.",
-				},
-				...CLIENT_CATEGORIES.map((category) => CLIENT_CATEGORY_FEATURES[category]),
-			],
-			compactFeatures: [
-				{
-					name: "Links Import",
-					description:
-						"Upload bookmarks, notes, newsletters — any text-shaped export — or paste a newsletter or index URL, and Readplace pulls every link out for you to review before saving. No account needed until you save.",
-				},
-				{
-					name: "Privacy First",
-					description:
-						"Hosted in Sydney. Australian Privacy Act compliant. No third-party tracking, no ads.",
-				},
-			],
-			plannedFeatures: [
-				{
-					name: "What to Read Next",
-					description:
-						"Sort and filter your unread pile by recently saved, reading time, and tags, so the time you have goes to what matters most.",
-				},
-			],
-			trustItems: [
-				{
-					name: "\"Even If You Cancel\" Promise",
-					description:
-						"Export everything, anytime. Your data is yours. Cancel and your saved articles stay available for export as JSON.",
-				},
-				{
-					name: "Source-available on GitHub",
-					description:
-						"The whole codebase is on GitHub. If I ever shut Readplace down, you can fork the repo and self-host the same software the day after.",
-				},
-				{
-					name: "Hosted in Sydney, Australia",
-					description:
-						"Infrastructure sits under the Australian Privacy Act. No third-party tracking, no ads, no third-party analytics inside the app.",
-				},
-			],
-		}) },
+				proofQuote: proof.quote,
+				proofAttribution: proof.quoteAttribution,
+				proofFounderLead: proof.founderLead,
+				proofJsCookieLink: proof.founderJsCookieLink,
+				proofFounderMid: proof.founderMid,
+				proofFounderLink: trackedLink({ ...proof.founderLink, source: "home-proof" }),
+				proofFounderClose: proof.founderClose,
+				principleTitle: principle.title,
+				principleAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
+				principleAvatarAlt: principle.avatarAlt,
+				principleBody: principle.body,
+				pricingTitleBefore: pricing.titleBefore,
+				pricingPriceAmount: pricing.priceAmount,
+				pricingTitleAfter: pricing.titleAfter,
+				pricingBody: pricing.body,
+				pricingCta: renderAction({
+					key: "signup-body",
+					label: pricing.ctaLabel,
+					href: "/signup",
+					content: "signup-body",
+					cssClass: "btn--primary home-pricing__cta-button",
+					subLabel: pricing.ctaSubLabel,
+				}),
+				pricingNote: pricing.ctaNote,
+				pricingAssurances: pricing.assurances,
+				pricingSourceLead: pricing.sourceLead,
+				pricingSourceLink: pricing.sourceLink,
+				pricingSourceClose: pricing.sourceClose,
+				faqTitle: faq.title,
+				faq: faq.items,
+				closeTitle: close.title,
+				closeInstallLink: trackedLink({
+					label: close.installLabel,
+					href: close.installHref,
+					content: "install",
+					source: "home-close",
+				}),
+				closeImportLink: trackedLink({
+					label: close.importLabel,
+					href: close.importHref,
+					content: "import",
+					source: "home-close",
+				}),
+				closeSignoff: close.signoff,
+			}),
+		},
 	};
 }

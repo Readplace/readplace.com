@@ -185,27 +185,6 @@ describe("emitUserCreated", () => {
 		});
 	});
 
-	it("includes homepage_variant so a signup can be attributed to the A/B arm that produced it", () => {
-		const { logger, captured } = createCapturingLogger();
-
-		emitUserCreated(
-			{ logger, now: TEST_NOW },
-			{
-				userId: TEST_USER_ID,
-				email: "arm@example.com",
-				method: "email",
-				tier: "trial",
-				attribution: undefined,
-				homepageVariant: "variant-b",
-				oauthClientId: undefined,
-			},
-		);
-
-		expect(captured[0]).toMatchObject({
-			homepage_variant: "variant-b",
-		});
-	});
-
 	it("includes pending_save_id so a signup-blocked save can be traced to the account it created", () => {
 		const { logger, captured } = createCapturingLogger();
 

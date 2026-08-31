@@ -161,50 +161,13 @@ describe("Save tip — the homepage paste box", () => {
 
 		const response = await request(harness.server).get("/");
 
-		expect(saveTipStateOn(response.text, "[data-test-home-try-form]")).toBe("due");
+		expect(saveTipStateOn(response.text, '[data-test-hero-form="homepage-link-input"]')).toBe("due");
 	});
 
 	it("renders the panel the paste box opens", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(harness.server).get("/");
-
-		const panel = panelOf(response.text);
-		expect(panel.getAttribute("data-test-confirm-subject")).toBe("article");
-		expect(modeOf(panel)).toBe("advisory");
-	});
-});
-
-describe("Save tip — arm B's paste box", () => {
-	/** Arm B has no URL of its own: `/` renders it for a visitor recorded on that
-	 * arm, which is the only way a reader ever reaches it. The marker assert is
-	 * what keeps these tests honest — an epoch bump in the split would otherwise
-	 * silently retarget them at arm A. */
-	async function getArmB(server: Parameters<typeof request>[0]) {
-		const response = await request(server)
-			.get("/")
-			.set("Cookie", ["hutch_exp=homepage-split%3A3%3Avariant-b"]);
-		const marker = documentOf(response.text).querySelector("[data-test-variant-b]");
-		assert(marker, "the experiment cookie must pin the homepage to arm B");
-		return response;
-	}
-
-	it("owes the tip to arm B's paste box as much as to arm A's", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await getArmB(harness.server);
-
-		const input = documentOf(response.text).querySelector("[data-test-hb-input]");
-		assert(input, "arm B must render its paste box");
-		const form = input.closest("form");
-		assert(form, "arm B's paste box must sit inside the form the tip marks");
-		expect(form.getAttribute("data-save-tip")).toBe("due");
-	});
-
-	it("renders the advisory panel arm B's paste box opens", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await getArmB(harness.server);
 
 		const panel = panelOf(response.text);
 		expect(panel.getAttribute("data-test-confirm-subject")).toBe("article");

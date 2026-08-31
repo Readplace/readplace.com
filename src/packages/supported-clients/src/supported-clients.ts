@@ -71,6 +71,7 @@ type ClientDefinition = {
 	readonly description: string;
 	readonly install: InstallSource;
 	readonly auth: AuthIdentity;
+	readonly advertised: boolean;
 };
 
 /**
@@ -95,6 +96,7 @@ export const SUPPORTED_CLIENTS = [
 		description: "Saves the full rendered page from Firefox with one click.",
 		install: { kind: "selfHostedPointer" }, /* 1 */
 		auth: { kind: "builtIn", oauthClientId: "hutch-firefox-extension" }, /* 2 */
+		advertised: true,
 	},
 	{
 		name: "chrome",
@@ -106,6 +108,7 @@ export const SUPPORTED_CLIENTS = [
 			url: "https://chromewebstore.google.com/detail/readplace-%E2%80%94-save-articles/klblengmhlfnmjoagchagfcdbpbocgbf", /* 2 */
 		},
 		auth: { kind: "builtIn", oauthClientId: "hutch-chrome-extension" }, /* 2 */
+		advertised: true,
 	},
 	{
 		name: "iphone",
@@ -114,6 +117,7 @@ export const SUPPORTED_CLIENTS = [
 		description: "Saves from any iPhone browser via the share sheet.",
 		install: { kind: "appStore", appleAppId: "6777107238" }, /* 2 */
 		auth: { kind: "builtIn", oauthClientId: "ios-app" }, /* 2 */
+		advertised: true,
 	},
 	{
 		name: "android",
@@ -122,6 +126,7 @@ export const SUPPORTED_CLIENTS = [
 		description: "Saves from any Android browser via the share sheet.",
 		install: { kind: "selfHostedPointer" },
 		auth: { kind: "builtIn", oauthClientId: "android-app" },
+		advertised: false,
 	},
 	{
 		name: "chatgpt",
@@ -135,6 +140,7 @@ export const SUPPORTED_CLIENTS = [
 			directInstallUrl: "https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a", /* 2 */
 		},
 		auth: { kind: "dynamicRegistration" },
+		advertised: true,
 	},
 	{
 		name: "gemini",
@@ -148,6 +154,7 @@ export const SUPPORTED_CLIENTS = [
 			directInstallUrl: null,
 		},
 		auth: { kind: "dynamicRegistration" },
+		advertised: true,
 	},
 	{
 		name: "claude",
@@ -161,6 +168,7 @@ export const SUPPORTED_CLIENTS = [
 			directInstallUrl: null,
 		},
 		auth: { kind: "dynamicRegistration" },
+		advertised: true,
 	},
 ] as const satisfies readonly ClientDefinition[];
 

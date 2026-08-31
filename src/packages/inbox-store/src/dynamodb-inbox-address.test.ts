@@ -39,7 +39,7 @@ interface CapturedCommand {
 const TABLE = "test-inbox-addresses";
 const USER = UserIdSchema.parse("user-1");
 const DOMAIN = "read.place";
-const NAME = AliasNameSchema.parse("netflix");
+const NAME = AliasNameSchema.parse("my-newsletter");
 const NOW = new Date("2026-06-23T00:00:00.000Z");
 
 function conditionalCheckFailed(): ConditionalCheckFailedException {
@@ -88,7 +88,7 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(puts[0].input.Item?.token).toBe(entry.token);
 			expect(puts[0].input.Item?.createdAt).toBe(NOW.toISOString());
 			expect(puts[0].input.Item?.purpose).toBe("user-alias");
-			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
+			expect(entry.address).toMatch(/^my-newsletter-[0-9a-z]{6}@read\.place$/);
 			expect(entry.name).toBe(NAME);
 			expect(entry.createdAt).toBe(NOW.toISOString());
 			expect(entry.disabledAt).toBeUndefined();
@@ -111,7 +111,7 @@ describe("initDynamoDbInboxAddress", () => {
 			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
 			expect(puts).toBe(2);
-			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
+			expect(entry.address).toMatch(/^my-newsletter-[0-9a-z]{6}@read\.place$/);
 		});
 
 		it("throws after exhausting retries on persistent collisions", async () => {
@@ -236,7 +236,7 @@ describe("initDynamoDbInboxAddress", () => {
 
 			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 
-			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
+			expect(entry.address).toMatch(/^my-newsletter-[0-9a-z]{6}@read\.place$/);
 			expect(commands.some((c) => c.input.Item)).toBe(true);
 		});
 	});
@@ -250,9 +250,9 @@ describe("initDynamoDbInboxAddress", () => {
 					return {
 						Items: [
 							{
-								address: "netflix-a7b2c9@read.place",
+								address: "my-newsletter-a7b2c9@read.place",
 								userId: "user-1",
-								name: "netflix",
+								name: "my-newsletter",
 								token: "a7b2c9",
 								createdAt: "2026-06-20T00:00:00.000Z",
 								disabledAt: null,
@@ -287,8 +287,8 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(captured?.input.KeyConditionExpression).toBe("userId = :uid");
 			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
 			expect(result).toHaveLength(3);
-			expect(result[0].address).toBe("netflix-a7b2c9@read.place");
-			expect(result[0].name).toBe("netflix");
+			expect(result[0].address).toBe("my-newsletter-a7b2c9@read.place");
+			expect(result[0].name).toBe("my-newsletter");
 			expect(result[0].disabledAt).toBeUndefined();
 			expect(result[0].purpose).toBe("user-alias");
 			// A legacy row predating the name column derives its label from the address.

@@ -1,12 +1,9 @@
-import type { ClientNameInCategory, ClientNameInGroup } from "@packages/supported-clients";
+import type { ClientNameInCategory } from "@packages/supported-clients";
 
 /** A device's installable first-party client, or `other`. These are exactly the
  * content-capture clients (browser extensions + the phone apps), keyed off the
  * category so a new content-capture client widens onboarding automatically. */
 export type Platform = ClientNameInCategory<"contentCapture"> | "other";
-
-/** Marketing install-CTA browser buckets — {@link Platform} with the phones folded into `other`. */
-export type InstallBrowser = ClientNameInGroup<"browserExtension"> | "other";
 
 /** Onboarding for a device that has an installable first-party client (a
  * browser extension, or one of the phone apps): the completion-gated step

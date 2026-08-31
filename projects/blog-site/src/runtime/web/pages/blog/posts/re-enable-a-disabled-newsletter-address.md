@@ -18,7 +18,7 @@ Switching a newsletter address off in Readplace used to be a one-way door. There
 
 Every Readplace forwarding address ends in six random characters. That tail is the reason a disabled one used to be gone for good.
 
-A forwarding address is how a newsletter reaches your readlist. You name it after the source, so a subscription to TLDR becomes something like tldr-a7b2c9@read.place, and the issues sent there [turn into saved articles instead of inbox clutter](/blog/save-newsletter-links-to-your-readlist). The six characters on the end are what keep the address yours. Two readers can both name one netflix, and the random tail is the only thing telling their addresses apart.
+A forwarding address is how a newsletter reaches your readlist. You name it after the source, so a subscription to TLDR becomes something like tldr-a7b2c9@read.place, and the issues sent there [turn into saved articles instead of inbox clutter](/blog/save-newsletter-links-to-your-readlist). The six characters on the end are what keep the address yours. Two readers can both pick the name my-newsletter, and the random tail is the only thing telling their addresses apart.
 
 Disabling one is a single click. A list you stopped reading, or a source that got sold and started arriving twice a week. You switch it off and the mail stops.
 
@@ -26,7 +26,7 @@ Disabling one is a single click. A list you stopped reading, or a source that go
 
 Switching it off was where the trouble sat. Disable opened one way and had no handle on the other side.
 
-Say you disabled netflix-a7b2c9@read.place and a month later wanted it back. The obvious move is to make it again. You type netflix, and Readplace hands you netflix-9f3k2p@read.place. A different address. The tail is random by construction, so re-typing the name cannot reproduce the one you had. Every subscription still aimed at the old address keeps sending mail there, and none of it lands. Nothing warns you. The newsletters just go quiet.
+Say you disabled my-newsletter-a7b2c9@read.place and a month later wanted it back. The obvious move is to make it again. You type my-newsletter, and Readplace hands you my-newsletter-9f3k2p@read.place. A different address. The tail is random by construction, so re-typing the name cannot reproduce the one you had. Every subscription still aimed at the old address keeps sending mail there, and none of it lands. Nothing warns you. The newsletters just go quiet.
 
 > **Recreating the name gave you a new address, and the old one's mail fell on the floor.**
 

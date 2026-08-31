@@ -121,6 +121,28 @@ function generateCssVariables(variables: Record<string, string>): string {
 		.join("\n");
 }
 
+/**
+ * The class the shell stamps on a page that must render light whatever the
+ * viewer's system theme is. Dark mode is a signed-in reader's setting: the
+ * logged-out surfaces are designed art — a navy hero, a warm call to action —
+ * and a system-driven flip repaints them into a scheme nobody designed.
+ */
+export const LIGHT_ONLY_BODY_CLASS = "theme-light";
+
+/**
+ * Pins the light palette under {@link LIGHT_ONLY_BODY_CLASS}. Generated from the
+ * same token map the default theme uses, so a token added there cannot be missed
+ * here.
+ */
+const LIGHT_ONLY_STYLES = `
+	@media (prefers-color-scheme: dark) {
+		body.${LIGHT_ONLY_BODY_CLASS} {
+			color-scheme: light;
+${generateCssVariables(LIGHT_THEME_VARIABLES)}
+		}
+	}
+`;
+
 export const BASE_CSS_VARIABLES = `
 	:root {
 		color-scheme: light;
@@ -139,6 +161,7 @@ ${generateCssVariables(DARK_THEME_VARIABLES)}
 			--form-gap: 24px;
 		}
 	}
+${LIGHT_ONLY_STYLES}
 `;
 
 export const BASE_RESET_STYLES = `

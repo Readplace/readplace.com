@@ -6,309 +6,158 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
-import { HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
-import { CANONICAL_SLOGAN, SLOGANS } from "../../slogans";
+import { MAX_PDF_PAGES } from "@packages/crawl-article";
+import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import {
+	HOME_CONTENT,
+	HOME_WAY_BY_GROUP,
+	HOME_WAY_LINK_BY_CLIENT,
+	HOME_WAYS_WITHOUT_A_CLIENT,
+} from "./home.content";
+import { HOMEPAGE_EXPOSURE } from "./home.version";
 
-const TEST_FOUNDING_MEMBER_LIMIT = 3;
 const GOOGLEBOT_UA =
 	"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
 const useApp = useTestServer();
-const useAppDrawingArmB = useTestServer({ drawRandomByte: () => 200 });
 
-function readSetCookie(
-	response: { headers: Record<string, string | string[] | undefined> },
-	name: string,
-): string | undefined {
-	const raw = response.headers["set-cookie"];
-	const header = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
-	const match = header.find((cookie) => cookie.startsWith(`${name}=`));
-	if (!match) return undefined;
-	return decodeURIComponent(match.slice(name.length + 1).split(";")[0]);
+async function loadHomepage(cookie?: string) {
+	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	const pending = request(harness.server).get("/");
+	const response = await (cookie === undefined ? pending : pending.set("Cookie", cookie));
+	return { harness, response, doc: new JSDOM(response.text).window.document };
 }
 
 describe("GET / (authenticated)", () => {
-	it("should redirect a logged-in visitor straight to /queue", async () => {
+	it("should redirect a signed-in reader to their readlist", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth } = harness;
-		const agent = await loginAgent(harness.server, auth);
-
+		const agent = await loginAgent(harness.server, harness.auth);
 		const response = await agent.get("/");
-
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue");
 	});
 });
 
-describe("GET / (homepage A/B arm)", () => {
-	it("renders the drawn arm on the visitor's first paint, with no redirect to swap it afterwards", async () => {
-		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+describe("GET / (retired split arm URLs)", () => {
+	it.each(["/landing-a", "/landing-b"])(
+		"should redirect %s to the one homepage those arms became",
+		async (path) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(path);
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/");
+		},
+	);
+});
 
+describe("GET /", () => {
+	it("should return 200 and HTML content", async () => {
+		const { response } = await loadHomepage();
 		expect(response.status).toBe(200);
-		assert(doc.querySelector("[data-test-variant-b]"), "the drawn arm must render at /");
-		expect(doc.body.classList.contains("variant-b")).toBe(true);
-		expect(readSetCookie(response, "hutch_exp")).toBe("homepage-split:3:variant-b");
+		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
-	it("draws the incumbent arm from the low half of the byte range and records that too", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		expect(doc.body.classList.contains("variant-a")).toBe(true);
-		expect(readSetCookie(response, "hutch_exp")).toBe("homepage-split:3:variant-a");
+	it("should have page-home body class", async () => {
+		const { doc } = await loadHomepage();
+		expect(doc.body.classList.contains("page-home")).toBe(true);
 	});
 
-	it("re-renders the recorded arm instead of drawing again, so a returning visitor keeps their page", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("Cookie", ["hutch_exp=homepage-split%3A3%3Avariant-b"]);
-		const doc = new JSDOM(response.text).window.document;
-
-		assert(doc.querySelector("[data-test-variant-b]"), "the recorded arm must render at /");
-		expect(readSetCookie(response, "hutch_exp")).toBe("homepage-split:3:variant-b");
-	});
-
-	it("re-draws when the recorded arm is from a bumped epoch", async () => {
-		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("Cookie", ["hutch_exp=homepage-split%3A1%3Avariant-a"]);
-		const doc = new JSDOM(response.text).window.document;
-
-		assert(doc.querySelector("[data-test-variant-b]"), "a stale epoch must be re-bucketed");
-		expect(readSetCookie(response, "hutch_exp")).toBe("homepage-split:3:variant-b");
-	});
-
-	it("keeps a crawler on the incumbent arm and never records it, so an arm is not indexed by a coin flip", async () => {
-		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/").set("User-Agent", GOOGLEBOT_UA);
-		const doc = new JSDOM(response.text).window.document;
-
-		expect(doc.body.classList.contains("variant-a")).toBe(true);
-		expect(readSetCookie(response, "hutch_exp")).toBeUndefined();
-	});
-
-	it("indexes / whichever arm rendered, with the canonical on / for both", async () => {
-		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
+	it("should be indexable and canonical to the bare origin", async () => {
+		const { doc } = await loadHomepage();
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe("index, follow");
 		expect(doc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
 			"https://readplace.com/",
 		);
 	});
 
-	it("keeps / out of shared caches, since the arm now varies per visitor", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-
+	it("should keep the response out of shared caches, because the arrival treatment varies per visitor", async () => {
+		const { response } = await loadHomepage();
 		expect(response.headers["cache-control"]).toBe("private, no-cache");
 	});
 
-	it("records the exposure on / itself, so an arm with no URL of its own is still counted", async () => {
-		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	it("should stamp the homepage version on its own pageview so it stays separable from the retired arms", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS);
 
-		const pageviews = harness.analytics.events.filter((event) => event.event === "pageview");
-		expect(pageviews).toHaveLength(1);
-		expect(pageviews[0]).toMatchObject({
-			path: "/",
-			experiment: "homepage-split-e3",
-			experiment_variant: "variant-b",
-		});
+		expect(harness.analytics.events).toContainEqual(
+			expect.objectContaining({
+				event: "pageview",
+				path: "/",
+				experiment: HOMEPAGE_EXPOSURE.campaign,
+				experiment_variant: HOMEPAGE_EXPOSURE.version,
+			}),
+		);
 	});
 
-	it("leaves the exposure off a crawler's pageview, which is not part of the read", async () => {
-		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	it("should leave a crawler out of the measurement, so the version's visitor count stays human", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		await request(harness.server)
 			.get("/")
-			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": GOOGLEBOT_UA });
+			.set(BROWSER_REQUEST_HEADERS)
+			.set("User-Agent", GOOGLEBOT_UA);
 
 		expect(harness.analytics.events).toEqual([]);
 	});
 });
 
-describe.each(HOMEPAGE_SPLIT.variants.map((variant) => variant.path))(
-	"GET %s (the arm's own URL while the split ran client-side)",
-	(path) => {
-		it("sends the visitor to /, which renders whichever arm they are on", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get(path);
+describe("GET / hero", () => {
+	it("should render the static headline, with no rotator attribute for a client to swap", async () => {
+		const { doc } = await loadHomepage();
 
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/");
-		});
-	},
-);
-
-describe("GET /", () => {
-	it("should return 200 and HTML content", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		expect(response.status).toBe(200);
-		expect(response.headers["content-type"]).toMatch(/text\/html/);
+		const tagline = doc.querySelector("[data-test-tagline]");
+		assert(tagline, "tagline must be rendered");
+		expect(tagline.textContent?.trim()).toBe(HOME_CONTENT.hero.title);
+		expect(tagline.hasAttribute("data-slogans")).toBe(false);
 	});
 
-	it("should render the hero headline with the full word list for screen readers", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should render the paste-a-link form as the hero's only action, with the UTM hidden inputs a GET submit needs", async () => {
+		const { doc } = await loadHomepage();
 
-		const srOnly = doc.querySelector(".home-hero__title .sr-only");
-		expect(srOnly?.textContent).toBe("A home for articles, newsletters, essays, longreads, news, blogs, stories, posts, reports, and interviews.");
-	});
+		const forms = Array.from(doc.querySelectorAll("[data-test-hero-form]")).map((form) =>
+			form.getAttribute("data-test-hero-form"),
+		);
+		expect(forms).toEqual(["homepage-link-input"]);
 
-	it("should render the visible headline portion aria-hidden with the initial rotator word", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const visible = doc.querySelector(".home-hero__title .hero-headline__visible");
-		expect(visible?.getAttribute("aria-hidden")).toBe("true");
-		expect(visible?.textContent?.replace(/\s+/g, " ").trim()).toBe("A home for articles");
-
-		const rotator = doc.querySelector(".hero-headline__rotator");
-		expect(rotator?.textContent).toBe("articles");
-	});
-
-	it("should load the home client bundle via a same-origin script src", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const script = doc.querySelector('script[src="/client-dist/home.client.js"]');
-		assert(script, "home.client.js bundle must be loaded on the home page");
-		expect(script.hasAttribute("defer")).toBe(true);
-	});
-
-	it("should render a generic install CTA when browser is unrecognized", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const cta = doc.querySelector('[data-test-cta="install-extension"]');
-		expect(cta?.getAttribute("href")).toBe("/install?utm_source=home-hero&utm_medium=internal&utm_content=install");
-		expect(cta?.textContent).toBe("Install Browser Extension");
-	});
-
-	it("should render Firefox install CTA when User-Agent is Firefox", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0");
-		const doc = new JSDOM(response.text).window.document;
-
-		const cta = doc.querySelector('[data-test-cta="install-extension"]');
-		expect(cta?.textContent).toBe("Install Firefox Extension");
-		expect(cta?.getAttribute("href")).toBe("/install?client=firefox&utm_source=home-hero&utm_medium=internal&utm_content=install");
-
-		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Also on Chrome, iPhone, Android, and your AI assistant.");
-	});
-
-	it("should render Chrome install CTA when User-Agent is Chrome", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36");
-		const doc = new JSDOM(response.text).window.document;
-
-		const cta = doc.querySelector('[data-test-cta="install-extension"]');
-		expect(cta?.textContent).toBe("Install Chrome Extension");
-		expect(cta?.getAttribute("href")).toBe("/install?client=chrome&utm_source=home-hero&utm_medium=internal&utm_content=install");
-
-		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Also on Firefox, iPhone, Android, and your AI assistant.");
-	});
-
-	it("should render Chrome install CTA when User-Agent is Edge", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0");
-		const doc = new JSDOM(response.text).window.document;
-
-		const cta = doc.querySelector('[data-test-cta="install-extension"]');
-		expect(cta?.textContent).toBe("Install Chrome Extension");
-	});
-
-	it("should render a generic install CTA for iPhone (no extension CTA on the marketing pages)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1");
-		const doc = new JSDOM(response.text).window.document;
-
-		const cta = doc.querySelector('[data-test-cta="install-extension"]');
-		expect(cta?.textContent).toBe("Install Browser Extension");
-		expect(cta?.getAttribute("href")).toBe("/install?utm_source=home-hero&utm_medium=internal&utm_content=install");
-	});
-
-	it("should render a generic install CTA for Android Chrome (the extension can't install there)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36");
-		const doc = new JSDOM(response.text).window.document;
-
-		const cta = doc.querySelector('[data-test-cta="install-extension"]');
-		expect(cta?.textContent).toBe("Install Browser Extension");
-		expect(cta?.getAttribute("href")).toBe("/install?utm_source=home-hero&utm_medium=internal&utm_content=install");
-	});
-
-	it("should render generic trust line when browser is unrecognized", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Firefox, Chrome, iPhone, Android, and your AI assistant.");
-	});
-
-	it("should render browser-specific bottom install CTA for Firefox", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0");
-		const doc = new JSDOM(response.text).window.document;
-
-		const bottomCta = doc.querySelector('[data-test-cta="bottom-install"]');
-		expect(bottomCta?.textContent).toBe("Install Firefox Extension");
-		expect(bottomCta?.getAttribute("href")).toBe("/install?client=firefox&utm_source=home-cta&utm_medium=internal&utm_content=install");
-	});
-
-	it("should render the public reader-view paste-link form with UTM hidden inputs", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const form = doc.querySelector("[data-test-home-try-form]");
-		assert(form, "home try form must be rendered");
+		const form = doc.querySelector('[data-test-hero-form="homepage-link-input"]');
+		assert(form, "paste form must be rendered");
 		expect(form.getAttribute("method")?.toLowerCase()).toBe("get");
 		expect(form.getAttribute("action")).toBe("/view");
 
-		const input = form.querySelector("input[name='url'][data-test-home-try-input]");
+		const input = form.querySelector('input[name="url"]');
 		assert(input, "url input must be rendered");
 		expect(input.getAttribute("type")).toBe("url");
 		expect(input.hasAttribute("required")).toBe(true);
 
-		const utmSource = form.querySelector("input[name='utm_source']");
-		expect(utmSource?.getAttribute("value")).toBe("homepage");
-		const utmMedium = form.querySelector("input[name='utm_medium']");
-		expect(utmMedium?.getAttribute("value")).toBe("internal");
-		const utmContent = form.querySelector("input[name='utm_content']");
-		expect(utmContent?.getAttribute("value")).toBe("homepage-link-input");
+		const hidden = Object.fromEntries(
+			Array.from(form.querySelectorAll('input[type="hidden"]')).map((field) => [
+				field.getAttribute("name"),
+				field.getAttribute("value"),
+			]),
+		);
+		expect(hidden).toEqual({
+			utm_source: "homepage",
+			utm_medium: "internal",
+			utm_content: "homepage-link-input",
+		});
 
-		const submit = form.querySelector("[data-test-home-try-submit]");
-		expect(submit?.textContent).toBe("Open in reader view");
+		expect(form.querySelector("button")?.textContent?.trim()).toBe(
+			HOME_CONTENT.hero.pasteCtaLabel,
+		);
 	});
 
-	it("should redirect homepage paste-link submissions to /view/<canonical-url> preserving UTM on the logged pageview", async () => {
+	it("should hand the paste form to the save tip, so the advisory panel speaks for it", async () => {
+		const { doc } = await loadHomepage();
+
+		const form = doc.querySelector('[data-test-hero-form="homepage-link-input"]');
+		expect(form?.getAttribute("data-save-tip")).toBe("due");
+	});
+
+	it("should carry no eyebrow when the visitor did not arrive from the reader", async () => {
+		const { doc } = await loadHomepage();
+		expect(doc.querySelector("[data-test-hero-eyebrow]")).toBeNull();
+	});
+
+	it("should redirect a paste-link submission to the canonical reader URL", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get(
 			"/view?url=https%3A%2F%2Fexample.com%2Farticle&utm_source=homepage&utm_medium=internal&utm_content=homepage-link-input",
@@ -316,414 +165,378 @@ describe("GET /", () => {
 		expect(response.status).toBe(302);
 		expect(response.headers.location).toBe("/view/example.com/article");
 	});
+});
 
-	it("should render the secondary CTA linking to GitHub", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+describe("GET / hero (arriving from the reader view)", () => {
+	const lastViewCookie = `hutch_lastview=${encodeURIComponent("https://example.com/article")}`;
 
-		const cta = doc.querySelector('[data-test-cta="view-github"]');
-		expect(cta?.getAttribute("href")).toBe("https://github.com/Readplace/readplace.com");
-		expect(cta?.textContent).toBe("View on GitHub");
-	});
+	it("should offer the article just read first, keeping the paste box below it", async () => {
+		const { doc } = await loadHomepage(lastViewCookie);
 
-	it("should render the core features section with shipped features only", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const coreSection = doc.querySelector('[data-test-section="core-features"]');
-		const features = coreSection?.querySelectorAll("[data-test-feature]");
-		expect(features?.length).toBe(6);
-	});
-
-	it("links the MCP feature to the /mcp connection guide", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const mcpLink = doc.querySelector('[data-test-feature-link="Connect Your AI Assistant"]');
-		expect(mcpLink?.getAttribute("href")).toBe("/mcp");
-	});
-
-	it("links the content-capture feature to /install and names the phone, not just the browser extension", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const feature = doc.querySelector('[data-test-feature="Save the Full Page"]');
-		assert(feature, "content-capture feature card must be rendered");
-		expect(feature.textContent?.toLowerCase()).toContain("phone");
-
-		const installLink = doc.querySelector('[data-test-feature-link="Save the Full Page"]');
-		expect(installLink?.getAttribute("href")).toBe("/install");
-	});
-
-	it("lists every shipped way to save, each with its own link", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const section = doc.querySelector('[data-test-section="ways-to-save"]');
-		assert(section, "ways-to-save section must be rendered");
-
-		const names = Array.from(section.querySelectorAll("[data-test-way]")).map((el) =>
-			el.getAttribute("data-test-way"),
+		const keys = Array.from(doc.querySelectorAll("[data-test-hero-form]")).map((form) =>
+			form.getAttribute("data-test-hero-form"),
 		);
-		expect(names).toEqual([
-			"Paste a link on this page",
-			"Chrome, Edge, or Brave",
-			"Firefox",
-			"Your iPhone",
-			"Your Android phone",
-			"ChatGPT, Claude, or Gemini",
-			"A file, or a page full of links",
-			"Your newsletters",
-			"A save button on your own site",
-		]);
+		expect(keys).toEqual(["hero-save-last-view", "homepage-link-input"]);
+	});
 
-		const hrefs = Array.from(section.querySelectorAll("[data-test-way-link]")).map((el) =>
-			el.getAttribute("href"),
+	it("should point the save action at the article, tagged as the homepage hero surface", async () => {
+		const { doc } = await loadHomepage(lastViewCookie);
+
+		const form = doc.querySelector('[data-test-hero-form="hero-save-last-view"]');
+		assert(form, "save-last-view form must be rendered");
+		expect(form.getAttribute("action")).toBe("/save");
+
+		const hidden = Object.fromEntries(
+			Array.from(form.querySelectorAll('input[type="hidden"]')).map((field) => [
+				field.getAttribute("name"),
+				field.getAttribute("value"),
+			]),
+		);
+		expect(hidden).toEqual({
+			url: "https://example.com/article",
+			save_surface: "homepage_hero",
+			utm_source: "homepage",
+			utm_medium: "internal",
+			utm_content: "hero-save-last-view",
+		});
+	});
+
+	it("should name the article the save would act on, so a reader who left it minutes ago knows which one", async () => {
+		const { doc } = await loadHomepage(
+			`hutch_lastview=${encodeURIComponent("https://www.nytimes.com/2026/01/07/opinion/near-death-conference-grief-chicago.html")}`,
+		);
+
+		expect(doc.querySelector('[data-test-cta="hero-save-last-view"]')?.textContent?.trim()).toBe(
+			"Save the nytimes.com article",
+		);
+		const target = doc.querySelector('[data-test-hero-target="hero-save-last-view"]');
+		assert(target, "the arrival must name the article the save would act on");
+		expect(target.textContent?.trim()).toBe(
+			"nytimes.com/2026/01/07/opinion/near-death-conference-grief-chicago.html",
+		);
+		expect(target.getAttribute("href")).toBe(
+			"/view?url=https%3A%2F%2Fwww.nytimes.com%2F2026%2F01%2F07%2Fopinion%2Fnear-death-conference-grief-chicago.html&utm_source=homepage&utm_medium=internal&utm_content=hero-last-view-article",
+		);
+	});
+
+	it("should fall back to an unnamed save when the cookie does not hold a URL, rather than failing the render", async () => {
+		const { response, doc } = await loadHomepage("hutch_lastview=not-a-url");
+
+		expect(response.status).toBe(200);
+		expect(doc.querySelector('[data-test-cta="hero-save-last-view"]')?.textContent?.trim()).toBe(
+			HOME_CONTENT.hero.saveLastViewFallbackLabel,
+		);
+		expect(doc.querySelector('[data-test-hero-target="hero-save-last-view"]')).toBeNull();
+	});
+
+	it("should name the arrival in an eyebrow and lead the demoted paste box", async () => {
+		const { doc } = await loadHomepage(lastViewCookie);
+
+		expect(doc.querySelector("[data-test-hero-eyebrow]")?.textContent?.trim()).toBe(
+			HOME_CONTENT.hero.arrivalEyebrow,
+		);
+		expect(doc.querySelector(".home-hero__action-lead")?.textContent?.trim()).toBe(
+			HOME_CONTENT.hero.saveLastViewLead,
+		);
+	});
+});
+
+const ROW_CLIENTS = SUPPORTED_CLIENTS.filter(
+	(client) => client.advertised && client.group !== "aiAssistant",
+);
+
+const EXPECTED_WAYS = [
+	...[...new Set(ROW_CLIENTS.map((client) => client.group))].map((group) => ({
+		name: HOME_WAY_BY_GROUP[group].name,
+		links: ROW_CLIENTS.filter((client) => client.group === group)
+			.map((client) => HOME_WAY_LINK_BY_CLIENT[client.name])
+			.slice()
+			.sort((left, right) => left.order - right.order),
+	})),
+	...HOME_WAYS_WITHOUT_A_CLIENT.map((way) => ({ name: way.name, links: way.links })),
+];
+
+describe("GET / ways to save", () => {
+	it("should list one row per advertised content-capture client, then the ways in with no client behind them", async () => {
+		const { doc } = await loadHomepage();
+
+		const names = Array.from(doc.querySelectorAll("[data-test-way]")).map((item) =>
+			item.getAttribute("data-test-way"),
+		);
+		expect(names).toEqual(EXPECTED_WAYS.map((way) => way.name));
+	});
+
+	it("should not offer a client nobody can install yet", async () => {
+		const { doc } = await loadHomepage();
+
+		const android = SUPPORTED_CLIENTS.find((client) => client.name === "android");
+		expect(android?.advertised).toBe(false);
+
+		const links = Array.from(doc.querySelectorAll("[data-test-way-link]")).map((link) =>
+			link.getAttribute("data-test-way-link"),
+		);
+		expect(links).not.toContain(HOME_WAY_LINK_BY_CLIENT.android.label);
+	});
+
+	it("should keep every sample newsletter address on one line, so a hyphen cannot read as a line break", async () => {
+		const { doc } = await loadHomepage();
+
+		const examples = Array.from(doc.querySelectorAll(".home-ways__example")).map((node) =>
+			node.textContent,
+		);
+		expect(examples).toEqual(["my-tech-newsletter@read.place", "my-other-newsletter@read.place"]);
+	});
+
+	it("should merge the browser extensions into one row offering both installs", async () => {
+		const { doc } = await loadHomepage();
+
+		const row = doc.querySelector(
+			`[data-test-way="${HOME_WAY_BY_GROUP.browserExtension.name}"]`,
+		);
+		assert(row, "the browser-extension row must be rendered");
+
+		const labels = Array.from(row.querySelectorAll("[data-test-way-link]")).map((link) =>
+			link.textContent?.trim().replace(/\s+$/, ""),
+		);
+		expect(labels).toEqual([
+			HOME_WAY_LINK_BY_CLIENT.chrome.label,
+			HOME_WAY_LINK_BY_CLIENT.firefox.label,
+		]);
+	});
+
+	it("should route the iPhone row's App Store mention through the tracked install page, so the click is countable", async () => {
+		const { doc } = await loadHomepage();
+
+		expect(
+			doc
+				.querySelector(`[data-test-way-body-link="${HOME_WAY_BY_GROUP.nativeApp.name}"]`)
+				?.getAttribute("href"),
+		).toBe(
+			"/install?client=iphone&utm_source=home-ways&utm_medium=internal&utm_content=iphone-app-store",
+		);
+	});
+
+	it("should quote the PDF page limit from the crawler's own constant", async () => {
+		const { doc } = await loadHomepage();
+
+		expect(doc.querySelector(".home-ways__note")?.textContent).toContain(
+			`up to ${MAX_PDF_PAGES} pages`,
+		);
+	});
+
+	it("should tag every way-to-save link to its own section, so a click is countable per element", async () => {
+		const { doc } = await loadHomepage();
+
+		const hrefs = Array.from(doc.querySelectorAll("[data-test-way-link]")).map((link) =>
+			link.getAttribute("href"),
 		);
 		expect(hrefs).toEqual([
-			"#paste-a-link",
-			"/install?client=chrome&utm_source=home-ways&utm_medium=internal&utm_content=chrome",
-			"/install?client=firefox&utm_source=home-ways&utm_medium=internal&utm_content=firefox",
-			"/install?client=iphone&utm_source=home-ways&utm_medium=internal&utm_content=iphone",
-			"/install?client=android&utm_source=home-ways&utm_medium=internal&utm_content=android",
-			"/mcp?utm_source=home-ways&utm_medium=internal&utm_content=mcp",
-			"/import?utm_source=home-ways&utm_medium=internal&utm_content=import",
-			"/blog/save-newsletter-links-to-your-readlist?utm_source=home-ways&utm_medium=internal&utm_content=inbox",
-			"/embed?utm_source=home-ways&utm_medium=internal&utm_content=embed",
+			...EXPECTED_WAYS.flatMap((way) =>
+				way.links.map(
+					(link) =>
+						`${link.href}${link.href.includes("?") ? "&" : "?"}utm_source=home-ways&utm_medium=internal&utm_content=${link.trackContent}`,
+				),
+			),
+			"/pdf-ocr?utm_source=home-ways&utm_medium=internal&utm_content=pdf",
 		]);
 	});
 
-	it("anchors the hero and the closing CTA at the ways-to-save list", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		expect(doc.querySelector('[data-test-cta="hero-ways"]')?.getAttribute("href")).toBe(
-			"#ways-to-save",
-		);
-		expect(doc.querySelector('[data-test-cta="bottom-ways"]')?.getAttribute("href")).toBe(
-			"#ways-to-save",
-		);
-		// The first way links back to the paste box, so that fragment must resolve too.
-		expect(doc.querySelector('[data-test-section="try"]')?.getAttribute("id")).toBe(
-			"paste-a-link",
-		);
+	it("should keep the paste anchor the hero owns, so a way-to-save link can reach it", async () => {
+		const { doc } = await loadHomepage();
+		assert(doc.querySelector("#paste-a-link"), "the hero must keep the paste anchor id");
 	});
+});
 
-	it("should render one demo video per browser extension", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+describe("GET / assistant", () => {
+	it("should give the AI assistant route its own section, tagged separately from the ways list", async () => {
+		const { doc } = await loadHomepage();
 
-		const demoSection = doc.querySelector('[data-test-section="demo"]');
-		const videoLabels = demoSection?.querySelectorAll(".home-demo__video-label");
-		const labels = Array.from(videoLabels ?? []).map((el) => el.textContent);
-		expect(labels).toEqual(["Chrome", "Firefox"]);
-	});
+		const section = doc.querySelector('[data-test-section="assistant"]');
+		assert(section, "assistant section must be rendered");
+		expect(section.querySelector("h2")?.textContent?.trim()).toBe(HOME_CONTENT.assistant.title);
 
-	it("should reserve each demo video's box and leave it click-to-play", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const videos = Array.from(
-			doc.querySelectorAll('[data-test-section="demo"] .home-demo__video'),
-		);
-		expect(videos).toHaveLength(2);
-		for (const video of videos) {
-			expect(video.getAttribute("width")).toBe("1280");
-			expect(video.getAttribute("height")).toBe("800");
-			expect(video.getAttribute("preload")).toBe("none");
-			expect(video.hasAttribute("controls")).toBe(true);
-			expect(video.hasAttribute("autoplay")).toBe(false);
-			expect(video.hasAttribute("loop")).toBe(false);
-			expect(video.getAttribute("poster")).toMatch(/save-demo-poster\.webp$/);
-			const sources = Array.from(video.querySelectorAll("source")).map((s) => s.getAttribute("type"));
-			expect(sources).toEqual(["video/mp4"]);
-		}
-	});
-
-	it("should render the backstory section", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const backstory = doc.querySelector('[data-test-section="backstory"]');
-		assert(backstory, "backstory section must be rendered");
-		expect(backstory.getAttribute("aria-label")).toBe("About the creator");
-		expect(backstory.querySelector(".home-backstory__title")?.textContent).toBe(
-			"I believe we can fix the web",
+		expect(doc.querySelector('[data-test-cta="assistant"]')?.getAttribute("href")).toBe(
+			"/mcp?utm_source=home-assistant&utm_medium=internal&utm_content=mcp",
 		);
 	});
+});
 
-	it("should render the highlighted reader testimonial after the hero", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+describe("GET / proof", () => {
+	it("should render one extension demo video that reserves its box and names itself", async () => {
+		const { doc } = await loadHomepage();
 
-		const testimonial = doc.querySelector('[data-test-section="testimonial"]');
-		assert(testimonial, "testimonial section must be rendered");
-		expect(testimonial.getAttribute("aria-label")).toBe("What readers say");
+		const videos = doc.querySelectorAll(".home-proof__video");
+		expect(videos.length).toBe(1);
+		const video = videos[0];
+		expect(video.getAttribute("preload")).toBe("none");
+		expect(video.hasAttribute("controls")).toBe(true);
+		expect(video.hasAttribute("autoplay")).toBe(false);
+		expect(video.hasAttribute("loop")).toBe(false);
 
-		const quote = testimonial.querySelector(".home-testimonial__quote");
-		expect(quote?.textContent).toContain("it just works");
+		// Width, height and poster together hold the box before the video decodes,
+		// which is what keeps the section from shifting under the reader.
+		expect(video.getAttribute("width")).toBe("1280");
+		expect(video.getAttribute("height")).toBe("800");
+		expect(video.getAttribute("poster")).toMatch(/\.(png|jpg|webp)$/);
+		expect(video.getAttribute("aria-label")).toBe(HOME_CONTENT.proof.videoAriaLabel);
 
-		const attribution = testimonial.querySelector(".home-testimonial__attribution");
-		expect(attribution?.textContent).toContain("Matthew Motz");
-		expect(attribution?.textContent).toContain("early user");
-
-		const hero = doc.querySelector('[data-test-section="hero"]');
-		assert(hero, "hero section must be rendered");
-		expect(
-			hero.compareDocumentPosition(testimonial) & hero.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-	});
-
-	it("renders the founding card as the ONLY plan in the DOM when under the limit — a CSS-hidden paid card would leak into the markdown/crawler view", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const plans = Array.from(doc.querySelectorAll("[data-test-plan]")).map((el) =>
-			el.getAttribute("data-test-plan"),
+		const sourceTypes = Array.from(video.querySelectorAll("source")).map((source) =>
+			source.getAttribute("type"),
 		);
-		expect(plans).toEqual(["founding"]);
-
-		const founding = doc.querySelector('[data-test-plan="founding"]');
-		assert(founding, "founding pricing card must be rendered");
-		expect(founding.querySelector(".pricing-card__name")?.textContent).toBe("Founding Member");
-		expect(founding.querySelector(".pricing-card__price")?.textContent).toContain("$0");
-
-		const grid = founding.closest(".pricing-grid");
-		assert(grid, "pricing-grid wrapper must be rendered");
-		expect(grid.classList.contains("pricing-grid--visible")).toBe(true);
-
-		const fallback = doc.querySelector(".home-pricing__fallback");
-		assert(fallback, "fallback wrapper must be rendered");
-		expect(fallback.classList.contains("home-pricing__fallback--hidden")).toBe(true);
+		expect(sourceTypes.length).toBeGreaterThan(0);
+		expect(sourceTypes).toContain("video/mp4");
 	});
 
-	it("should render the founding pricing title when under the limit", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should quote the early user by name", async () => {
+		const { doc } = await loadHomepage();
 
-		const title = doc.querySelector('[data-test-pricing-title] .section-header__title');
-		expect(title?.textContent).toBe(`Free for the first ${TEST_FOUNDING_MEMBER_LIMIT} members.`);
+		expect(doc.querySelector(".home-proof__quote-text")?.textContent).toContain("it just works");
+		expect(doc.querySelector(".home-proof__quote-by")?.textContent).toContain("Matthew Motz");
 	});
 
-	it("should render the founding members progress bar with zero users", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should link the founder's case for deciding what not to read through the reader view", async () => {
+		const { doc } = await loadHomepage();
 
-		const progress = doc.querySelector("[data-test-founding-progress]");
-		const label = progress?.querySelector(".founding-progress__label");
-		expect(label?.textContent).toBe(`0 / ${TEST_FOUNDING_MEMBER_LIMIT} founding members`);
-
-		const fill = progress?.querySelector(".founding-progress__fill");
-		expect(fill?.getAttribute("style")).toBe("width: 0%");
-	});
-
-
-	it("should render the comparison table", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const table = doc.querySelector("[data-test-comparison-table]");
-		const rows = table?.querySelectorAll("tbody tr");
-		expect(rows?.length).toBe(5);
-	});
-
-	it("should render the trust section with three trust items", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const trustSection = doc.querySelector('[data-test-section="trust"]');
-		const cards = trustSection?.querySelectorAll(".trust-card");
-		expect(cards?.length).toBe(3);
-	});
-
-	it("should render the canonical disambiguation section explaining extension capture vs link submission", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const section = doc.querySelector('[data-test-section="canonical"]');
-		assert(section, "canonical disambiguation section must be rendered");
-		expect(section.querySelector(".home-canonical__heading")?.textContent).toContain("Same article");
-		const body = section.textContent ?? "";
-		expect(body).toContain("DeepSeek");
-		expect(body).toContain("extension");
-		expect(body).toContain("canonical");
-	});
-
-	it("should render the decline statements section listing what Readplace will not become", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const section = doc.querySelector('[data-test-section="decline"]');
-		assert(section, "decline statements section must be rendered");
-		const items = section.querySelectorAll("[data-test-decline-list] .home-decline__item");
-		expect(items.length).toBe(4);
-		const itemTexts = Array.from(items).map((el) => el.textContent?.trim());
-		expect(itemTexts).toContain("Nested folder hierarchies");
-	});
-
-	it("should render the cost transparency section naming the paid pipeline providers", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const section = doc.querySelector('[data-test-section="cost-transparency"]');
-		assert(section, "cost transparency section must be rendered");
-		expect(section.querySelector(".home-cost__heading")?.textContent).toContain(
-			"And that's why I need your help",
+		expect(doc.querySelector('[data-test-cta="what-not-to-read"]')?.getAttribute("href")).toBe(
+			"/view?url=https%3A%2F%2Ffagnerbrack.com%2Fwhats-the-point-to-save-articles-youll-never-read-22d07f6609ad&utm_source=home-proof&utm_medium=internal&utm_content=what-not-to-read",
 		);
-		expect(section.querySelector(".home-cost__subtitle")?.textContent).toContain("$4.08");
-		const items = section.querySelectorAll("[data-test-cost-list] .home-cost__item");
-		expect(items.length).toBe(3);
-		const providerNames = Array.from(
-			section.querySelectorAll("[data-test-cost-list] .home-cost__item strong"),
-		).map((el) => el.textContent?.trim());
-		expect(providerNames).toEqual([
-			"Mozilla Readability",
-			"Real Tesseract OCR",
-			"DeepSeek V4",
-		]);
-		const text = section.textContent ?? "";
-		expect(text).toContain("no data resale");
+	});
+});
+
+describe("GET / principle", () => {
+	it("should make the promise in the founder's own name, with his face beside it", async () => {
+		const { doc } = await loadHomepage();
+
+		const heading = doc.querySelector(".home-principle__title");
+		assert(heading, "the promise must be a section heading");
+		expect(heading.textContent?.trim()).toBe(HOME_CONTENT.principle.title);
+
+		const avatar = heading.querySelector("img");
+		assert(avatar, "the promise must carry the founder's avatar");
+		expect(avatar.getAttribute("alt")).toBe(HOME_CONTENT.principle.avatarAlt);
+		expect(avatar.getAttribute("width")).toBe("56");
+		expect(avatar.getAttribute("height")).toBe("56");
 	});
 
-	it("should render the failure-mode paragraph inside the backstory", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should say what Readplace is for, and what it will never grow to chase", async () => {
+		const { doc } = await loadHomepage();
 
-		const para = doc.querySelector("[data-test-failure-mode]");
-		assert(para, "failure-mode paragraph must be rendered");
-		const text = para.textContent ?? "";
-		expect(text).toContain("GitHub");
-		expect(text).toContain("Sydney");
-		expect(text).toContain("self-host");
+		const body = doc.querySelector(".home-principle__body")?.textContent ?? "";
+		expect(body).toBe(HOME_CONTENT.principle.body);
+		expect(body).toContain("social feeds");
+		expect(body).toContain("reading what matters, not saving more");
+		expect(body).not.toContain("recommendation algorithms");
+	});
+});
+
+describe("GET / pricing", () => {
+	it("should offer one priced plan, with no founding-member card to branch on", async () => {
+		const { doc } = await loadHomepage();
+
+		const ctas = Array.from(doc.querySelectorAll('[data-test-section="pricing"] button')).map(
+			(button) => button.querySelector(".home-pricing__cta-label")?.textContent?.trim(),
+		);
+		expect(ctas).toEqual([HOME_CONTENT.pricing.ctaLabel]);
+		expect(doc.querySelector(".home-pricing__cta-sub")?.textContent?.trim()).toBe(
+			HOME_CONTENT.pricing.ctaSubLabel,
+		);
+		expect(doc.querySelector('[data-test-plan="founding"]')).toBeNull();
 	});
 
+	it("should send the signup CTA to /signup carrying the element it was clicked from", async () => {
+		const { doc } = await loadHomepage();
 
-	it("should have page-home body class", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+		const form = doc.querySelector(".home-pricing__cta");
+		assert(form, "pricing CTA form must be rendered");
+		expect(form.getAttribute("action")).toBe("/signup");
 
-		expect(doc.body.classList.contains("page-home")).toBe(true);
+		const hidden = Object.fromEntries(
+			Array.from(form.querySelectorAll('input[type="hidden"]')).map((field) => [
+				field.getAttribute("name"),
+				field.getAttribute("value"),
+			]),
+		);
+		expect(hidden).toEqual({
+			utm_source: "homepage",
+			utm_medium: "internal",
+			utm_content: "signup-body",
+		});
 	});
 
-	it("should set appropriate SEO metadata", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should carry the export and hosting assurances beside the price", async () => {
+		const { doc } = await loadHomepage();
+
+		const assurances = Array.from(doc.querySelectorAll(".home-pricing__assurance")).map((item) =>
+			item.textContent?.trim(),
+		);
+		expect(assurances).toEqual([...HOME_CONTENT.pricing.assurances]);
+	});
+});
+
+describe("GET / questions and close", () => {
+	it("should render every FAQ entry as visible copy, not only as structured data", async () => {
+		const { doc } = await loadHomepage();
+
+		const questions = Array.from(doc.querySelectorAll("[data-test-faq-question]")).map((term) =>
+			term.textContent?.trim(),
+		);
+		expect(questions).toEqual(HOME_CONTENT.faq.items.map((entry) => entry.question));
+	});
+
+	it("should close on the two links readers actually take, and no third signup button", async () => {
+		const { doc } = await loadHomepage();
+
+		expect(doc.querySelector('[data-test-cta="close-install"]')?.getAttribute("href")).toBe(
+			"/install?utm_source=home-close&utm_medium=internal&utm_content=install",
+		);
+		expect(doc.querySelector('[data-test-cta="close-import"]')?.getAttribute("href")).toBe(
+			"/import?utm_source=home-close&utm_medium=internal&utm_content=import",
+		);
+		expect(doc.querySelectorAll('[data-test-section="close"] button').length).toBe(0);
+	});
+
+	it("should sign off with the canonical slogan", async () => {
+		const { doc } = await loadHomepage();
+		expect(doc.querySelector(".home-close__signoff")?.textContent).toContain(
+			"Your #1 AI-Powered Reading List.",
+		);
+	});
+});
+
+describe("GET / metadata", () => {
+	it("should set SEO metadata within the length search engines render", async () => {
+		const { doc } = await loadHomepage();
 
 		expect(doc.title).toContain("Readplace");
 		expect(doc.title).toContain("Your #1 AI-Powered Reading List");
 		expect(doc.title).toContain("Read It Later");
-		// The title has to carry the slogan and the query people actually search
-		// within the ~60 characters Google renders before truncating.
 		expect(doc.title.length).toBeLessThanOrEqual(60);
+
 		const description = doc.querySelector('meta[name="description"]');
-		expect(description?.getAttribute("content")).toContain("Read what you saved");
-		expect(description?.getAttribute("content")).toContain("no signup");
-		expect(description?.getAttribute("content")).toContain("Pocket alternative");
+		expect(description?.getAttribute("content")).toContain("read-it-later app");
+		expect(description?.getAttribute("content")).toContain("no credit card");
 
 		const keywords = doc.querySelector('meta[name="keywords"]');
 		expect(keywords?.getAttribute("content")).toContain("personal reading list");
 		expect(keywords?.getAttribute("content")).toContain("no LLM hallucination");
-		expect(keywords?.getAttribute("content")).toContain("real OCR");
-	});
-
-	it("should render the 'Your #1 AI-Powered Reading List.' tagline as the hero heading", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const tagline = doc.querySelector("[data-test-tagline]");
-		assert(tagline, "tagline must be rendered");
-		expect(tagline.textContent?.trim()).toBe("Your #1 AI-Powered Reading List.");
-	});
-
-	it("renders the canonical slogan so a crawler and a no-JavaScript reader see the one the title claims", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const tagline = doc.querySelector("[data-test-tagline]");
-		assert(tagline, "tagline must be rendered");
-		expect(tagline.textContent?.trim()).toBe(CANONICAL_SLOGAN);
-	});
-
-	it("carries the whole slogan list on the heading, so the rotator holds no second copy to drift", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const tagline = doc.querySelector("[data-test-tagline]");
-		assert(tagline, "tagline must be rendered");
-		const raw = tagline.getAttribute("data-slogans");
-		assert(raw, "the heading must carry the slogan list the rotator reads");
-		// Parsed, not string-compared: the attribute is HTML-escaped in the markup
-		// and only has to survive the browser decoding it back.
-		expect(JSON.parse(raw)).toEqual([...SLOGANS]);
-	});
-
-	it("should render the correctness-over-hallucination emphasis paragraph in the cost transparency section", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const para = doc.querySelector("[data-test-no-hallucination]");
-		assert(para, "correctness-over-hallucination emphasis paragraph must be rendered");
-		const text = para.textContent ?? "";
-		expect(text).toContain("correctness over hallucination");
-		expect(text).toContain("No AI generated slop");
-		expect(text).toContain("Tesseract");
-		expect(text).toContain("What you read is what was on the page");
-	});
-
-	it("should include author and keywords meta tags", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const author = doc.querySelector('meta[name="author"]');
-		expect(author?.getAttribute("content")).toBe("Fayner Brack");
-
-		const keywords = doc.querySelector('meta[name="keywords"]');
 		expect(keywords?.getAttribute("content")).toContain("Pocket alternative");
 	});
 
-	it("should include Open Graph image alt text", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should include author and Open Graph image alt text", async () => {
+		const { doc } = await loadHomepage();
 
-		const ogImageAlt = doc.querySelector('meta[property="og:image:alt"]');
-		expect(ogImageAlt?.getAttribute("content")).toContain("Readplace");
+		expect(doc.querySelector('meta[name="author"]')?.getAttribute("content")).toBe("Fayner Brack");
+		expect(doc.querySelector('meta[property="og:image:alt"]')?.getAttribute("content")).toContain(
+			"Readplace",
+		);
 	});
 
 	it("should not include twitter:site when no handle is configured", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+		const { doc } = await loadHomepage();
 
-		const twitterMetaNames = Array.from(
-			doc.querySelectorAll('meta[name^="twitter:"]'),
-		).map((meta) => meta.getAttribute("name"));
+		const twitterMetaNames = Array.from(doc.querySelectorAll('meta[name^="twitter:"]')).map(
+			(meta) => meta.getAttribute("name"),
+		);
 		expect(twitterMetaNames).toEqual([
 			"twitter:card",
 			"twitter:title",
@@ -733,27 +546,27 @@ describe("GET /", () => {
 		]);
 	});
 
-	it("should include multiple structured data schemas", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should include the four structured data schemas", async () => {
+		const { doc } = await loadHomepage();
 
-		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
-		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
-
-		const types = schemas.map((s: { "@type": string }) => s["@type"]);
-		expect(types).toEqual(["WebApplication", "Organization", "FAQPage", "WebSite"]);
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(script) => JSON.parse(script.textContent ?? "{}"),
+		);
+		expect(schemas.map((schema: { "@type": string }) => schema["@type"])).toEqual([
+			"WebApplication",
+			"Organization",
+			"FAQPage",
+			"WebSite",
+		]);
 	});
 
 	it("should link the Organization to the App Store listing and offer the Smart App Banner", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+		const { doc } = await loadHomepage();
 
 		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
-			(s) => JSON.parse(s.textContent ?? "{}"),
+			(script) => JSON.parse(script.textContent ?? "{}"),
 		);
-		const organization = schemas.find((s: { "@type": string }) => s["@type"] === "Organization");
+		const organization = schemas.find((schema: { "@type": string }) => schema["@type"] === "Organization");
 		expect(organization.sameAs).toContain("https://apps.apple.com/app/readplace/id6777107238");
 
 		expect(doc.querySelector('meta[name="apple-itunes-app"]')?.getAttribute("content")).toBe(
@@ -761,49 +574,39 @@ describe("GET /", () => {
 		);
 	});
 
-	it("should include FAQ structured data with questions and answers", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should build the FAQ structured data from the questions the page renders, so the two cannot drift", async () => {
+		const { doc } = await loadHomepage();
 
-		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
-		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
-		const faq = schemas.find((s: { "@type": string }) => s["@type"] === "FAQPage");
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(script) => JSON.parse(script.textContent ?? "{}"),
+		);
+		const faq = schemas.find((schema: { "@type": string }) => schema["@type"] === "FAQPage");
 
-		expect(faq.mainEntity.length).toBe(6);
-		expect(faq.mainEntity[0].name).toBe("What is Readplace?");
-		expect(faq.mainEntity[4].name).toBe("What does the $4.08/month subscription pay for?");
-		expect(faq.mainEntity[5].name).toBe("Does Readplace hallucinate text when extracting PDFs?");
+		expect(faq.mainEntity.map((entry: { name: string }) => entry.name)).toEqual(
+			HOME_CONTENT.faq.items.map((entry) => entry.question),
+		);
 	});
 
-	it("should advertise the free founding tier in structured data while founding seats remain", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should advertise only the priced plan, now that the homepage no longer offers a free tier", async () => {
+		const { doc } = await loadHomepage();
 
-		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
-		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
-		const app = schemas.find((s: { "@type": string }) => s["@type"] === "WebApplication");
-
-		expect(app.isAccessibleForFree).toBe(true);
-		const offerNames = app.offers.map((offer: { name: string }) => offer.name);
-		expect(offerNames).toEqual(["Founding Member", "Standard"]);
-
-		const faq = schemas.find((s: { "@type": string }) => s["@type"] === "FAQPage");
-		const freeQuestion = faq.mainEntity.find(
-			(q: { name: string }) => q.name === "Is Readplace free?",
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(script) => JSON.parse(script.textContent ?? "{}"),
 		);
-		expect(freeQuestion.acceptedAnswer.text).toContain("founding members get full access free");
+		const app = schemas.find((schema: { "@type": string }) => schema["@type"] === "WebApplication");
+
+		expect(app.isAccessibleForFree).toBe(false);
+		expect(app.offers.name).toBe("Standard");
+		expect(app.offers.price).toBe("49");
 	});
 
 	it("should include the reader review nested in the WebApplication structured data", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+		const { doc } = await loadHomepage();
 
-		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
-		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
-		const app = schemas.find((s: { "@type": string }) => s["@type"] === "WebApplication");
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(script) => JSON.parse(script.textContent ?? "{}"),
+		);
+		const app = schemas.find((schema: { "@type": string }) => schema["@type"] === "WebApplication");
 
 		assert(app.review, "WebApplication schema must include a review");
 		expect(app.review["@type"]).toBe("Review");
@@ -813,26 +616,31 @@ describe("GET /", () => {
 	});
 
 	it("should render section landmarks with aria-labels", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+		const { doc } = await loadHomepage();
 
-		const hero = doc.querySelector('[data-test-section="hero"]');
-		expect(hero?.getAttribute("aria-label")).toBe("Introduction");
-
-		const pricing = doc.querySelector('[data-test-section="pricing"]');
-		expect(pricing?.getAttribute("aria-label")).toBe("Pricing");
+		const labels = Array.from(doc.querySelectorAll("[data-test-section]")).map((section) => [
+			section.getAttribute("data-test-section"),
+			section.getAttribute("aria-label"),
+		]);
+		expect(labels).toEqual([
+			["hero", "What Readplace is"],
+			["ways-to-save", "Every way to save"],
+			["assistant", "Save from an AI assistant"],
+			["proof", "What that looks like"],
+			["principle", "What Readplace is for"],
+			["pricing", "Pricing"],
+			["faq", "Questions"],
+			["close", "Get started"],
+		]);
 	});
 
-	it("should use scope attributes on comparison table headers", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
+	it("should ship no page-specific client bundle, because nothing on the page needs one", async () => {
+		const { doc } = await loadHomepage();
 
-		const colHeaders = doc.querySelectorAll('[data-test-comparison-table] thead th[scope="col"]');
-		expect(colHeaders.length).toBe(6);
-
-		const rowHeaders = doc.querySelectorAll('[data-test-comparison-table] tbody th[scope="row"]');
-		expect(rowHeaders.length).toBe(5);
+		const scripts = Array.from(doc.querySelectorAll("script[src]")).map((script) =>
+			script.getAttribute("src"),
+		);
+		expect(scripts).not.toContain("/client-dist/home.client.js");
+		expect(scripts).toContain("/client-dist/save-tip.client.js");
 	});
 });

@@ -52,7 +52,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	mechanismParagraphs: [
 		"Readplace scans the file for URLs. That is the whole mechanism — it is not a Pocket-specific parser, which is why bookmark exports and newsletter issues work through the same code path.",
 		"Your URLs come across. Tags and read state do not, because Pocket's export file never contained them.",
-		'Each import takes up to 2,000 links from a file up to 4.5 MB. Past 2,000, Readplace imports the first 2,000 and tells you how many it found in total. If the file itself is over 4.5 MB, email it to <a href="mailto:readplace+migrate@readplace.com">readplace+migrate@readplace.com</a> and I import it by hand within 24 to 48 hours.',
+		'Each import takes up to 2,000 links from a file up to 4.5 MB. Past 2,000, Readplace imports the first 2,000 and tells you how many it found in total. If the file itself is over 4.5 MB, split it into smaller files and import them one at a time.',
 	],
 	limitsTitle: "What this does not do",
 	limits: [
@@ -81,7 +81,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		{
 			question: "How many links can I import at once?",
 			answer:
-				"Up to 2,000 per import, from a file up to 4.5 MB. For a larger file, email it to readplace+migrate@readplace.com and I import it by hand within 24 to 48 hours.",
+				"Up to 2,000 per import, from a file up to 4.5 MB. Split a larger file into smaller ones and import them one at a time.",
 		},
 		{
 			question: "What happens to my selections if I sign up halfway?",

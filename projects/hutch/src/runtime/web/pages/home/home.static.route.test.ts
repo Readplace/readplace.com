@@ -9,121 +9,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-const TEST_FOUNDING_MEMBER_LIMIT = 3;
-
 const useApp = useTestServer();
-
-describe("GET / with exhausted founding allocation", () => {
-	it("should hide the founding progress when users exceed the limit", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth } = harness;
-
-		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-			await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
-		}
-
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const progressSlot = doc.querySelector("[data-test-founding-progress-slot]");
-		assert(progressSlot, "founding progress slot must be rendered");
-		expect(progressSlot.classList.contains("home-pricing__progress--hidden")).toBe(true);
-	}, 30000);
-
-	it("renders the standard plan card as the ONLY plan when over the limit — price, trial, benefits + CTA, with no CSS-hidden founding card leaking into the markdown/crawler view", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth } = harness;
-
-		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-			await auth.createUser({ email: `over${i}@test.com`, password: "password123" });
-		}
-
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const plans = Array.from(doc.querySelectorAll("[data-test-plan]")).map((el) =>
-			el.getAttribute("data-test-plan"),
-		);
-		expect(plans).toEqual(["standard"]);
-
-		const grid = doc.querySelector(".pricing-grid");
-		assert(grid, "pricing-grid wrapper must be rendered");
-		expect(grid.classList.contains("pricing-grid--hidden")).toBe(true);
-
-		const fallback = doc.querySelector(".home-pricing__fallback");
-		assert(fallback, "fallback wrapper must be rendered");
-		expect(fallback.classList.contains("home-pricing__fallback--visible")).toBe(true);
-
-		const standardCard = fallback.querySelector('[data-test-plan="standard"]');
-		assert(standardCard, "standard plan card must be rendered in the fallback");
-		expect(standardCard.querySelector(".pricing-card__name")?.textContent).toBe(
-			"Readplace Membership",
-		);
-		expect(standardCard.querySelector(".pricing-card__price")?.textContent).toBe("$4.08/month");
-		expect(standardCard.querySelector(".pricing-card__badge")?.textContent).toBe(
-			"14-day free trial",
-		);
-		expect(standardCard.querySelector(".pricing-card__description")?.textContent).toBe(
-			"Try everything free for 14 days. No credit card required to start.",
-		);
-
-		const benefits = standardCard.querySelector("[data-test-fallback-benefits]");
-		assert(benefits, "fallback benefits list must be rendered");
-		expect(benefits.querySelectorAll(".pricing-card__feature").length).toBe(6);
-		const becomeMemberCta = standardCard.querySelector('[data-test-cta="become-member"]');
-		assert(becomeMemberCta, "become-member CTA must be rendered");
-		expect(becomeMemberCta.getAttribute("href")).toBe(
-			"/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body",
-		);
-	}, 30000);
-
-	it("stops advertising a free tier in structured data once the founding allocation is exhausted", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth } = harness;
-
-		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-			await auth.createUser({ email: `schema${i}@test.com`, password: "password123" });
-		}
-
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
-		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
-
-		const app = schemas.find((s: { "@type": string }) => s["@type"] === "WebApplication");
-		assert(app, "WebApplication schema must be rendered");
-		expect(app.isAccessibleForFree).toBe(false);
-		const offerNames = app.offers.map((offer: { name: string }) => offer.name);
-		expect(offerNames).toEqual(["Standard"]);
-
-		const faq = schemas.find((s: { "@type": string }) => s["@type"] === "FAQPage");
-		assert(faq, "FAQPage schema must be rendered");
-		expect(faq.mainEntity.length).toBe(6);
-		const freeQuestion = faq.mainEntity.find(
-			(q: { name: string }) => q.name === "Is Readplace free?",
-		);
-		assert(freeQuestion, "the 'Is Readplace free?' question must still be present");
-		expect(freeQuestion.acceptedAnswer.text).toContain("14-day free trial");
-		expect(freeQuestion.acceptedAnswer.text).not.toContain("free, forever");
-	}, 30000);
-
-	it("should hide the founding pricing title when over the limit", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth } = harness;
-
-		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-			await auth.createUser({ email: `title${i}@test.com`, password: "password123" });
-		}
-
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const pricingTitle = doc.querySelector("[data-test-pricing-title]");
-		assert(pricingTitle, "pricing title must be rendered");
-		expect(pricingTitle.classList.contains("home-pricing__title--hidden")).toBe(true);
-	}, 30000);
-});
 
 describe("GET /favicon.ico", () => {
 	it("should 301 redirect to the static CDN's favicon.ico", async () => {
@@ -299,11 +185,11 @@ describe("GET / with Accept: text/markdown", () => {
 		expect(response.headers.location).toBe("/queue");
 	});
 
-	it("converts the comparison table into markdown table syntax", async () => {
+	it("carries the questions a reader would otherwise have to open the page for", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/").set("Accept", "text/markdown");
 
-		expect(response.text).toMatch(/\|\s+-+\s+\|/);
+		expect(response.text).toContain("Do I need a credit card to start?");
 	});
 
 	it("emits the Content-Signal policy and Vary: Accept", async () => {

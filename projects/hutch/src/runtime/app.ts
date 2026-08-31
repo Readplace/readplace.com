@@ -1,6 +1,5 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
-import { randomInt } from "node:crypto";
 import type { Express } from "express";
 import type { Logger } from "./domain/logger";
 import { hashPassword } from "@packages/domain/user";
@@ -32,7 +31,6 @@ type AssemblyProvidedKeys =
 	| "httpErrorMessageMapping"
 	| "getChangelogBanner"
 	| "now"
-	| "drawRandomByte"
 	| "botDefenseLogger"
 	| "conversionLogger"
 	| "subscriptionLogger"
@@ -99,7 +97,6 @@ export function assembleReadplaceApp(input: {
 		httpErrorMessageMapping,
 		getChangelogBanner,
 		now: () => new Date(),
-		drawRandomByte: () => randomInt(256),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
 		subscriptionLogger: HutchLogger.fromJSON<SubscriptionLogEvent>(),

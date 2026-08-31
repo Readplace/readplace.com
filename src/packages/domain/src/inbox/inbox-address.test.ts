@@ -28,7 +28,7 @@ describe("generateInboxToken", () => {
 
 describe("AliasNameSchema", () => {
 	it("accepts a lowercase alphanumeric label with single internal hyphens", () => {
-		for (const value of ["netflix", "in", "my-newsletter", "abc123", "a1-b2-c3"]) {
+		for (const value of ["my-newsletter", "in", "my-newsletter", "abc123", "a1-b2-c3"]) {
 			assert.equal(AliasNameSchema.parse(value), value);
 		}
 	});
@@ -52,8 +52,8 @@ describe("AliasNameSchema", () => {
 describe("InboxAddressSchema", () => {
 	it("accepts the new <alias>-<token> shape", () => {
 		assert.equal(
-			InboxAddressSchema.parse("netflix-a7b2c9@read.place"),
-			"netflix-a7b2c9@read.place",
+			InboxAddressSchema.parse("my-newsletter-a7b2c9@read.place"),
+			"my-newsletter-a7b2c9@read.place",
 		);
 		assert.equal(
 			InboxAddressSchema.parse("my-newsletter-a7b2c9@read.place"),
@@ -66,7 +66,7 @@ describe("InboxAddressSchema", () => {
 	});
 
 	it("rejects an address without the trailing six-char token", () => {
-		assert.equal(InboxAddressSchema.safeParse("netflix@read.place").success, false);
+		assert.equal(InboxAddressSchema.safeParse("my-newsletter@read.place").success, false);
 	});
 });
 
@@ -79,7 +79,7 @@ describe("DEFAULT_INBOX_ALIAS", () => {
 
 describe("normalizeAliasName", () => {
 	it("lowercases and keeps an already-clean label", () => {
-		assert.equal(normalizeAliasName("Netflix"), "netflix");
+		assert.equal(normalizeAliasName("My-Newsletter"), "my-newsletter");
 	});
 
 	it("collapses runs of non-alphanumerics to a single hyphen and trims the edges", () => {
@@ -103,11 +103,11 @@ describe("normalizeAliasName", () => {
 
 describe("buildInboxAddress", () => {
 	it("composes the alias name, token, and domain into an address", () => {
-		const name = AliasNameSchema.parse("netflix");
+		const name = AliasNameSchema.parse("my-newsletter");
 		const token = InboxTokenSchema.parse("3f9a2c");
 		assert.equal(
 			buildInboxAddress({ name, token, domain: "read.place" }),
-			"netflix-3f9a2c@read.place",
+			"my-newsletter-3f9a2c@read.place",
 		);
 	});
 
@@ -142,7 +142,7 @@ describe("aliasNameFromAddress", () => {
 	});
 
 	it("round-trips with buildInboxAddress", () => {
-		const name = AliasNameSchema.parse("netflix");
+		const name = AliasNameSchema.parse("my-newsletter");
 		const token = InboxTokenSchema.parse("3f9a2c");
 		assert.equal(aliasNameFromAddress(buildInboxAddress({ name, token, domain: "read.place" })), name);
 	});

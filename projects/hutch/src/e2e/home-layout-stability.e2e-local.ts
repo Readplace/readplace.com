@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
-import { HOMEPAGE_SPLIT } from "../runtime/web/experiments/homepage-split";
 import { test } from "@packages/e2e-harness";
-import { openHomepage } from "./home-control-arm";
 import { type StabilityReport, sampleLayoutStability } from "./layout-stability.browser";
 
-/** Long enough to span at least two swaps of the slowest rotator the homepage
- * runs today (the slogan heading, 4s), so a heading that resizes on swap is
- * caught rather than sampled between two swaps. A rotator added later with a
- * longer period needs this raised to match. */
+/** Long enough for a late-arriving web font, a lazily decoded poster frame, or
+ * an animation the page starts on load to have shifted something, rather than
+ * sampling one frame and calling the page settled. */
 const RESTING_WINDOW_MS = 9_000;
 const SETTLED_AT_BOTTOM_MS = 5_000;
 const SAMPLE_EVERY_MS = 100;
@@ -57,27 +54,25 @@ function expectNothingMoved(report: StabilityReport, watched: string): void {
 test.describe("Homepage settles and then stops moving", () => {
 	test.use({ viewport: VIEWPORT });
 
-	for (const variant of HOMEPAGE_SPLIT.variants) {
-		test(`arm "${variant.slug}" holds still while it sits on screen`, async ({ page }) => {
-			await openHomepage(page, { variant, clientBundle: "live" });
-			await detachVolatileChrome(page);
+	test("holds still while it sits on screen", async ({ page }) => {
+		await page.goto("/");
+		await detachVolatileChrome(page);
 
-			expectNothingMoved(
-				await page.evaluate(sampleLayoutStability, {
-					duration: RESTING_WINDOW_MS,
-					interval: SAMPLE_EVERY_MS,
-				}),
-				"resting at the top",
-			);
+		expectNothingMoved(
+			await page.evaluate(sampleLayoutStability, {
+				duration: RESTING_WINDOW_MS,
+				interval: SAMPLE_EVERY_MS,
+			}),
+			"resting at the top",
+		);
 
-			await scrollToBottom(page);
-			expectNothingMoved(
-				await page.evaluate(sampleLayoutStability, {
-					duration: SETTLED_AT_BOTTOM_MS,
-					interval: SAMPLE_EVERY_MS,
-				}),
-				"resting at the bottom",
-			);
-		});
-	}
+		await scrollToBottom(page);
+		expectNothingMoved(
+			await page.evaluate(sampleLayoutStability, {
+				duration: SETTLED_AT_BOTTOM_MS,
+				interval: SAMPLE_EVERY_MS,
+			}),
+			"resting at the bottom",
+		);
+	});
 });

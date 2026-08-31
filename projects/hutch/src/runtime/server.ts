@@ -249,7 +249,7 @@ import {
 	buildProtectedResourceMetadata,
 	renderAuthMarkdown,
 } from "./web/agent-auth";
-import { buildHomepageArmBody } from "./web/pages/home";
+import { HOMEPAGE_EXPOSURE, HomePage } from "./web/pages/home";
 import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
 import { initSaveTipEventRoute } from "./web/shared/save-tip/save-tip.route";
 import { McpConnectPage } from "./web/pages/mcp";
@@ -267,10 +267,6 @@ import { initIntegrationsRoutes } from "./web/pages/integrations";
 import type { GmailIntegrationDependencies } from "./web/pages/integrations/gmail-connect.page";
 import { LANDING_PAGE_CONTENT, LandingPage } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
-import { resolveHomepageArm } from "./web/experiments/homepage-arm";
-import { writeHomepageAssignment } from "./web/experiments/homepage-assignment";
-import { campaignTag, HOMEPAGE_SPLIT } from "./web/experiments/homepage-split";
-import { detectInstallBrowser } from "./web/onboarding/extension-install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
@@ -411,9 +407,6 @@ interface AppDependencies {
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
 	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
-	/** One unsigned byte (0–255) for the homepage A/B draw. Injected so a route
-	 * test can pin the arm instead of asserting against a coin flip. */
-	drawRandomByte: () => number;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
 	consumePendingSignup: ConsumePendingSignup;
@@ -861,47 +854,26 @@ export function createApp(dependencies: AppDependencies): Express {
 			return;
 		}
 
-		// Bots and markdown clients keep the incumbent arm and stay out of the
-		// measurement: an arm is a human-facing read, and a crawler handed a random
-		// one would index whichever page it happened to draw.
-		const eligible = !isbot(req.get("user-agent")) && !wantsMarkdown(req);
-		const arm = resolveHomepageArm({
-			req,
-			config: HOMEPAGE_SPLIT,
-			eligible,
-			drawRandomByte: deps.drawRandomByte,
-		});
-		if (arm.participating) {
-			// Re-stamped on every render, so an active visitor's arm never lapses
-			// mid-experiment when the cookie's window would otherwise run out.
-			writeHomepageAssignment(res, {
-				config: HOMEPAGE_SPLIT,
-				variant: arm.variant,
-				secure: secureCookies,
-			});
+		// A crawler is not a human-facing read, so it stays out of the measurement
+		// rather than counting as a visitor who saw the page.
+		if (!isbot(req.get("user-agent")) && !wantsMarkdown(req)) {
 			tagPageviewExperiment(res, {
-				experiment: campaignTag(HOMEPAGE_SPLIT),
-				variant: arm.variant.slug,
+				experiment: HOMEPAGE_EXPOSURE.campaign,
+				variant: HOMEPAGE_EXPOSURE.version,
 			});
 		}
-		// The arm rides a cookie, so this response is per-visitor and must not be
-		// held by a shared cache that would hand arm B to an arm-A visitor.
+		// The reader-view arrival treatment rides a cookie, so this response is
+		// per-visitor and must not be held by a shared cache.
 		res.set("Cache-Control", "private, no-cache");
 
-		const browser = detectInstallBrowser(req);
-		const userCount = await countUsers().catch(() => 0);
 		const banner = await buildBannerState(req);
 		sendComponent(
 			req,
 			res,
 			Base(
-				buildHomepageArmBody({
-					userCount,
+				HomePage({
 					staticBaseUrl,
-					browser,
-					foundingAllocation,
 					lastViewUrl: readLastViewUrl(req),
-					variant: arm.variant.marker,
 					saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }),
 				}),
 				banner,
@@ -909,11 +881,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		);
 	});
 
-	// The arms were their own URLs while the split redirected client-side, so they
-	// sit in histories and bookmarks; `/` now renders whichever arm the visitor is
-	// on, which is the page these ever meant.
-	for (const variant of HOMEPAGE_SPLIT.variants) {
-		app.get(variant.path, (_req: Request, res: Response) => {
+	// The arms of the retired homepage split were their own URLs, so they sit in
+	// histories and bookmarks; `/` is the page they ever meant.
+	for (const retiredArmPath of ["/landing-a", "/landing-b"]) {
+		app.get(retiredArmPath, (_req: Request, res: Response) => {
 			res.redirect(303, "/");
 		});
 	}

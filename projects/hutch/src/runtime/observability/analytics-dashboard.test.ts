@@ -3,7 +3,7 @@ import {
 	BLOG_SITE_LOG_GROUP,
 	SAVE_LINK_LOG_GROUPS,
 } from "@packages/hutch-infra-components";
-import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
+import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import {
 	ANALYTICS_EVENTS,
@@ -79,7 +79,7 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 46 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 3 key-event-counters) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 46 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 3 key-event-counters) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
 		expect(body.widgets).toHaveLength(47);
 	});
@@ -107,49 +107,52 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(autosave).toContain("stats count(*) as autosaves by bin(1d)");
 	});
 
-	it("the homepage A/B landings widget compares arms by distinct visitor_id (the id the conversion also carries), filtered to the epoch-tagged campaign, with raw landings alongside", () => {
+	it("the homepage version widget compares versions by distinct visitor_id (the id the conversion also carries), with raw landings alongside", () => {
 		const queries = widgetQueries();
-		const ab = queries.find((q) =>
-			q.includes("stats count_distinct(visitor_id) as visitors, count(*) as landings by arm"),
+		const byVersion = queries.find((q) =>
+			q.includes("stats count_distinct(visitor_id) as visitors, count(*) as landings by version"),
 		);
-		expect(ab).toBeDefined();
-		expect(ab).toContain("coalesce(experiment_variant, utm_content) as arm");
-		expect(ab).toContain(`experiment = "${campaignTag(HOMEPAGE_SPLIT)}"`);
-		expect(ab).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
-		expect(ab).toContain("| sort visitors desc");
-		expect(ab).not.toContain("count_distinct(visitor_hash)");
+		expect(byVersion).toBeDefined();
+		expect(byVersion).toContain("coalesce(experiment_variant, utm_content) as version");
+		expect(byVersion).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
+		expect(byVersion).toContain("| sort visitors desc");
+		expect(byVersion).not.toContain("count_distinct(visitor_hash)");
 	});
 
-	// This epoch spans both exposure mechanisms — the arm's own landing pageview
-	// while the split ran client-side, and `/`'s own pageview now that the arm is
-	// picked server-side — so both legs are matched or the window reads as a cliff.
-	it("the homepage A/B widgets count an exposure from either the arm-tagged pageview or the earlier landing campaign", () => {
-		for (const query of widgetQueries().filter((q) => q.includes("as arm"))) {
-			expect(query).toContain(`experiment = "${campaignTag(HOMEPAGE_SPLIT)}"`);
-			expect(query).toContain(`utm_campaign = "${campaignTag(HOMEPAGE_SPLIT)}"`);
+	// The retired split's arms sit in the same log group until they age out of
+	// retention, so every homepage widget matches both tags — otherwise the
+	// cutover reads as the new page losing all its traffic.
+	it("the homepage widgets count an exposure from the current version tag or the retired split's", () => {
+		const homepageQueries = buildBody()
+			.widgets.filter((widget) => String(widget.properties.title).startsWith("Homepage —"))
+			.map((widget) => String(widget.properties.query));
+		expect(homepageQueries.length).toBe(2);
+		for (const query of homepageQueries) {
+			expect(query).toContain(`experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "homepage-split-e3"]`);
+			expect(query).toContain('utm_campaign = "homepage-split-e3"');
 		}
 	});
 
-	it("the homepage A/B conversion widget joins exposure pageviews and user_created signups on visitor_id, keyed by arm (the tagged arm on the pageview, homepage_variant on the conversion, before the acquisition utm_content a conversion also carries)", () => {
+	// A signup that started at /oauth/authorize must never read as a homepage
+	// conversion, so the conversion leg is the first-touch landing path rather
+	// than a version stamped at signup time.
+	it("the homepage conversion widget counts only signups whose landing path was the homepage", () => {
 		const queries = widgetQueries();
-		const byArm = queries.find((q) =>
-			q.includes("stats count_distinct(visitor_id) as visitors by arm, event"),
-		);
-		expect(byArm).toBeDefined();
-		expect(byArm).toContain("coalesce(experiment_variant, homepage_variant, utm_content) as arm");
-		expect(byArm).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
-		expect(byArm).toContain(`event = "${CONVERSION_EVENTS.userCreated}"`);
-		expect(byArm).toContain("ispresent(homepage_variant)");
+		const visitorsVsSignups = queries.find((q) => q.includes('landing_path = "/"'));
+		expect(visitorsVsSignups).toBeDefined();
+		expect(visitorsVsSignups).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
+		expect(visitorsVsSignups).toContain(`event = "${CONVERSION_EVENTS.userCreated}"`);
+		expect(visitorsVsSignups).toContain("stats count_distinct(visitor_id) as visitors by event");
 	});
 
-	it("the homepage A/B tier widget counts distinct signups per arm and tier", () => {
+	it("the landing-path tier widget counts distinct signups per landing path and tier", () => {
 		const queries = widgetQueries();
 		const byTier = queries.find((q) =>
-			q.includes("stats count_distinct(user_id) as signups by homepage_variant, tier"),
+			q.includes("stats count_distinct(user_id) as signups by landing, tier"),
 		);
 		expect(byTier).toBeDefined();
 		expect(byTier).toContain(`event = "${CONVERSION_EVENTS.userCreated}"`);
-		expect(byTier).toContain("ispresent(homepage_variant)");
+		expect(byTier).toContain('coalesce(landing_path, "(none)") as landing');
 	});
 
 	it("audience pageview widgets read the single merged analytics group (both frontends already forwarded into it)", () => {

@@ -1,5 +1,11 @@
 export { render } from "./render";
-export { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY, SUBSCRIBE_CTA_LABEL } from "./pricing";
+export {
+	ANNUAL_PRICE_AMOUNT,
+	ANNUAL_PRICE_DISPLAY,
+	MONTHLY_EQUIVALENT_AMOUNT,
+	MONTHLY_EQUIVALENT_DISPLAY,
+	SUBSCRIBE_CTA_LABEL,
+} from "./pricing";
 export { withInternalTracking } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
 export type { PageBody, SeoMetadata } from "./page-body.types";
@@ -92,7 +98,7 @@ export type {
 	ConfirmPopover,
 	ConfirmPopoverLead,
 } from "./shared/confirm-popover/confirm-popover.component";
-export { BASE_CSS_VARIABLES } from "./base.styles";
+export { BASE_CSS_VARIABLES, LIGHT_ONLY_BODY_CLASS } from "./base.styles";
 export { etagMatches } from "./etag";
 export {
 	MAX_CAPTURE_POLLS,

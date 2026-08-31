@@ -1,347 +1,131 @@
-  <main>
-    <section id="paste-a-link" class="home-try" data-test-section="try" aria-label="Try the reader view">
-      <div class="home-try__container">
-        <h1 class="home-try__title" data-test-tagline data-slogans="{{slogansJson}}">{{canonicalSlogan}}</h1>
-        <p class="home-try__lede">Read what you saved, leverage the power of AI for your reading list to know what's relevant. Paste an article link and get a clean reader view &mdash; works with PDFs too. No signup. No download. Try it with that one article you've been meaning to read.</p>
-        <form class="home-try__form" method="GET" action="/view" data-save-tip="{{saveTipState}}" data-test-home-try-form>
-          <label class="home-try__label sr-only" for="home-try-url">Article URL</label>
-          <input
-            class="home-try__input"
-            id="home-try-url"
-            type="url"
-            name="url"
-            required
-            placeholder="https://example.com/article"
-            data-test-home-try-input>
-          <input type="hidden" name="utm_source" value="homepage">
-          <input type="hidden" name="utm_medium" value="internal">
-          <input type="hidden" name="utm_content" value="homepage-link-input">
-          <button type="submit" class="btn btn--primary btn--field" data-test-home-try-submit>Open in reader view</button>
-        </form>
-        <p class="home-try__reassurance">Free. No account. Works with articles and PDFs.</p>
-        <a class="home-try__scroll-hint" href="#about">
-          <span class="home-try__scroll-hint-arrow">{{icon "chevron-down"}}</span>
-          <span class="sr-only">Scroll to read why I built Readplace</span>
-        </a>
-      </div>
-    </section>
-
-    <section id="about" class="home-hero" data-test-section="hero" aria-label="Introduction">
-      <div class="home-hero__container">
-        <h2 class="home-hero__title hero-headline"><span class="sr-only">A home for articles, newsletters, essays, longreads, news, blogs, stories, posts, reports, and interviews.</span><span class="hero-headline__visible" aria-hidden="true"><span class="hero-headline__lead">A home for</span> <span class="hero-headline__rotator">articles</span></span></h2>
-        <p class="home-hero__subtitle">Pocket is gone. Omnivore is gone. I built Readplace from a personal system I've maintained for 10 years. Save from wherever you already read &mdash; browser, phone, AI chat, or a link pasted right here &mdash; and read when you're ready.</p>
-        <div class="home-hero__actions">
-          <a href="{{track installPath source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">{{installLabel}}</a>
-          <a href="https://github.com/Readplace/readplace.com" class="btn btn--on-dark-ghost" data-test-cta="view-github">View on GitHub</a>
+<main class="home">
+  <section id="paste-a-link" class="home-hero" data-test-section="hero" aria-label="What Readplace is">
+    <div class="home-hero__container">
+      {{#if heroEyebrow}}<p class="home-hero__eyebrow" data-test-hero-eyebrow>{{heroEyebrow}}</p>{{/if}}
+      <h1 class="home-hero__title" data-test-tagline>{{heroTitle}}</h1>
+      <p class="home-hero__subhead">{{heroSubhead}}</p>
+      <div class="home-hero__actions">
+        {{#each heroActions}}
+        <div class="home-hero__action">
+          {{#if lead}}<p class="home-hero__action-lead">{{lead}}</p>{{/if}}
+          {{#if target}}<a class="home-hero__action-target" href="{{target.href}}" data-test-hero-target="{{key}}">{{target.label}}</a>{{/if}}
+          <form class="home-hero__form" method="GET" action="{{action}}"{{#if saveTipState}} data-save-tip="{{saveTipState}}"{{/if}} data-test-hero-form="{{key}}">
+            {{#each hiddenParams}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            {{#if input}}
+            <label class="sr-only" for="home-field-{{key}}">{{input.label}}</label>
+            <input class="home-hero__input" id="home-field-{{key}}" type="url" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-hero-input="{{key}}">
+            {{/if}}
+            <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+          </form>
         </div>
-        <p class="home-hero__trust">{{heroTrust}}</p>
-        <p class="home-hero__ways"><a href="#ways-to-save" data-test-cta="hero-ways">Every way to save {{icon "arrow-down"}}</a></p>
+        {{/each}}
       </div>
-    </section>
+      <p class="home-hero__reassurance">{{heroReassurance}}</p>
+    </div>
+  </section>
 
-    <section id="ways-to-save" class="home-ways home-band--muted" data-test-section="ways-to-save" aria-label="Every way to save">
-      <div class="home-ways__container">
-        <h2 class="home-ways__heading">Every way to save.</h2>
-        <p class="home-ways__lead">The button above installs a browser extension. That is one door in, not the only one &mdash; everything below is shipped and working today.</p>
-        <ul class="home-ways__list" role="list" data-test-ways-list>
-          {{#each waysToSave}}
-          <li class="home-ways__item" data-test-way="{{name}}">
-            <strong class="home-ways__name">{{name}}</strong>
-            <span class="home-ways__body">{{body}}</span>
-            <a class="home-ways__link" href="{{track linkHref source='home-ways' content=trackContent}}" data-test-way-link="{{name}}">{{linkLabel}} {{icon "arrow-right"}}</a>
-          </li>
-          {{/each}}
-        </ul>
-        <p class="home-ways__note">A PDF link works anywhere an article link does &mdash; <a href="{{track '/pdf-ocr' source='home-ways' content='pdf'}}">Tesseract reads it off the pixels, up to 300 pages</a>.</p>
-      </div>
-    </section>
+  <section id="ways-to-save" class="home-ways" data-test-section="ways-to-save" aria-label="Every way to save">
+    <div class="home-section__container">
+      <h2 class="home-section__title home-ways__title">{{waysTitle}}</h2>
+      <ul class="home-ways__list" role="list" data-test-ways-list>
+        {{#each ways}}
+        <li class="home-ways__item" data-test-way="{{name}}">
+          <strong class="home-ways__name">{{name}}</strong>
+          <span class="home-ways__body">{{bodyLead}}{{#if bodyIcon}} <span class="home-ways__icon">{{icon bodyIcon}}</span>{{/if}}{{#if bodyMid}}{{bodyMid}}{{/if}}{{#if bodyLink}} <a class="home-link" href="{{bodyLink.href}}" data-test-way-body-link="{{name}}">{{bodyLink.label}}</a>{{/if}}{{#if examples}} {{#each examples}}<span class="home-ways__example">{{this}}</span>{{#unless @last}} or {{/unless}}{{/each}}. {{/if}}{{#if bodyTail}}{{bodyTail}}{{/if}}</span>
+          <span class="home-ways__links">
+            {{#each links}}
+            <a class="home-ways__link" href="{{href}}" data-test-way-link="{{label}}">{{label}} {{icon "arrow-right"}}</a>
+            {{/each}}
+          </span>
+        </li>
+        {{/each}}
+      </ul>
+      <p class="home-ways__note">{{waysNoteLead}} <a class="home-link" href="{{waysNoteLink.href}}" data-test-way-link="pdf">{{waysNoteLink.label}} {{icon "arrow-right"}}</a></p>
+    </div>
+  </section>
 
-    <section class="home-testimonial" data-test-section="testimonial" aria-label="What readers say">
-      <figure class="home-testimonial__figure">
-        <blockquote class="home-testimonial__quote">The app works really well. It has really made it easier to save articles, and I haven't experienced any issues at all &mdash; it just works.</blockquote>
-        <figcaption class="home-testimonial__attribution">&mdash; Matthew Motz, early user</figcaption>
+  <section id="assistant" class="home-assistant home-band--muted" data-test-section="assistant" aria-label="Save from an AI assistant">
+    <div class="home-section__container">
+      <h2 class="home-section__title">{{assistantTitle}}</h2>
+      <p class="home-assistant__body">{{assistantBodyLead}} <strong data-test-assistant-names>{{assistantNames}}</strong> {{assistantBodyTail}}</p>
+      <p class="home-assistant__action"><a class="home-link" href="{{assistantLink.href}}" data-test-cta="assistant">{{assistantLink.label}} {{icon "arrow-right"}}</a></p>
+    </div>
+  </section>
+
+  <section class="home-proof" data-test-section="proof" aria-label="What that looks like">
+    <div class="home-section__container">
+      <h2 class="home-section__title">{{proofTitle}}</h2>
+      <video class="home-proof__video" width="{{proofVideo.width}}" height="{{proofVideo.height}}" poster="{{proofVideo.poster}}" muted playsinline controls preload="none" aria-label="{{proofVideo.ariaLabel}}">
+        {{#each proofVideo.sources}}
+        <source src="{{src}}" type="{{type}}">
+        {{/each}}
+      </video>
+      <figure class="home-proof__quote">
+        <blockquote class="home-proof__quote-text">{{proofQuote}}</blockquote>
+        <figcaption class="home-proof__quote-by">&mdash; {{proofAttribution}}</figcaption>
       </figure>
-    </section>
+      <p class="home-proof__founder">{{proofFounderLead}} <a class="home-link" href="{{proofJsCookieLink.href}}" data-test-cta="js-cookie">{{proofJsCookieLink.label}}</a>, {{proofFounderMid}} <a class="home-link" href="{{proofFounderLink.href}}" data-test-cta="what-not-to-read">{{proofFounderLink.label}}</a>.</p>
+      <p class="home-proof__founder">{{proofFounderClose}}</p>
+    </div>
+  </section>
 
-    <section class="home-backstory home-band--muted" data-test-section="backstory" aria-label="About the creator">
-      <div class="home-backstory__container">
-        <header class="home-backstory__header">
-          <img class="home-backstory__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="96" height="96">
-          <h2 class="home-backstory__title">I believe we can fix the web</h2>
-        </header>
-        <div class="home-backstory__content">
-          <p>Hi, I'm <a href="https://www.reddit.com/user/fagnerbrack/">Fayner Brack</a>. You might know me as the creator of <a href="https://www.jsdelivr.com/package/npm/js-cookie">js-cookie</a>, a JavaScript library with over 22 billion downloads per year on jsDelivr (the tiniest most consumed browser library in the entire world).</p>
-          <p>Yes, I've been building for the web for a long time. I also read and share a lot of writing across the web[1].</p>
-          <p>For ten years I ran my own reading on Gmail filters, DynamoDB tables, and a stack of Reddit automations. That pipeline taught me the bottleneck was never saving. It was <strong class="home-backstory__highlight"><a href="{{track '/view?url=https://fagnerbrack.com/whats-the-point-to-save-articles-youll-never-read-22d07f6609ad' source='home-backstory' content='what-not-to-read'}}">deciding what NOT to read</a></strong>.</p>
-          <p>
-            <sup>
-              <b>1:</b> As of June 2026, around 350k Reddit karma over 11,850 submissions, and 15k on HN over 2,700, all within the decade since 2016. On average I read 40% of what I find, and I share 60% to 70% of what I read. That figure has changed over time, with more links coming in and better curation.
-            </sup>
-          </p>
-          <hr>
-          <p>Last year, when Pocket was acquired and then abandoned, and Omnivore shut down overnight, I realised the tool I needed didn't exist as a product anyone could use. So I'm turning my personal system into Readplace &mdash; built in Australia, one feature at a time.</p>
-          <p>This is a solo project. I'm building it in public, and I'd rather be honest about what works today than promise features that don't exist yet.</p>
-          <p data-test-failure-mode>I am the only person working on Readplace, using my 20 years of engineering experience to push AI-assisted coding to its limits while keeping readplace a place where you read the web, not the slop. The code is on <a href="https://github.com/Readplace/readplace.com">GitHub</a>. The infrastructure is in Sydney under Australian privacy law. If Readplace ever shuts down, your data exports to JSON, and the codebase is forkable &mdash; you can self-host the same software the day after. I cannot promise I&rsquo;ll succeed, but I can promise that if I don&rsquo;t, you won&rsquo;t lose your data.</p>
-        </div>
-      </div>
-    </section>
+  <section id="not-becoming" class="home-principle home-band--muted" data-test-section="principle" aria-label="What Readplace is for">
+    <div class="home-section__container">
+      <h2 class="home-section__title home-principle__title"><img class="home-principle__avatar" src="{{principleAvatarUrl}}" alt="{{principleAvatarAlt}}" width="56" height="56">{{principleTitle}}</h2>
+      <p class="home-principle__body">{{principleBody}}</p>
+    </div>
+  </section>
 
-    <section class="home-demo" data-test-section="demo" aria-label="Product demo">
-      <div class="home-demo__container">
-        <h2 class="home-demo__title">Save an article. Read it later.</h2>
-        <div class="home-demo__videos">
-          {{#each demoVideos}}
-          <div class="home-demo__video-wrapper">
-            <p class="home-demo__video-label">{{label}}</p>
-            <video class="home-demo__video" width="{{width}}" height="{{height}}" poster="{{poster}}" muted playsinline controls preload="none" aria-label="{{ariaLabel}}">
-              {{#each sources}}
-              <source src="{{src}}" type="{{type}}">
-              {{/each}}
-            </video>
-          </div>
-          {{/each}}
-        </div>
-      </div>
-    </section>
+  <section id="pricing" class="home-pricing" data-test-section="pricing" aria-label="Pricing">
+    <div class="home-section__container home-pricing__container">
+      <h2 class="home-section__title home-pricing__title">{{pricingTitleBefore}} <span class="home-pricing__amount" data-test-price>{{pricingPriceAmount}}</span> {{pricingTitleAfter}}</h2>
+      <p class="home-pricing__body">{{pricingBody}}</p>
+      {{#with pricingCta}}
+      <form class="home-pricing__cta" method="GET" action="{{action}}">
+        {{#each hiddenParams}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">
+          <span class="home-pricing__cta-label">{{label}}</span>
+          {{#if subLabel}}<span class="home-pricing__cta-sub">{{subLabel}}</span>{{/if}}
+        </button>
+      </form>
+      {{/with}}
+      <p class="home-pricing__note">{{pricingNote}}</p>
+      <ul class="home-pricing__assurances" data-test-assurances>
+        {{#each pricingAssurances}}
+        <li class="home-pricing__assurance">{{this}}</li>
+        {{/each}}
+      </ul>
+      <p class="home-pricing__source">{{pricingSourceLead}} <a class="home-link" href="{{pricingSourceLink.href}}">{{pricingSourceLink.label}}</a> {{pricingSourceClose}}</p>
+    </div>
+  </section>
 
-    <section id="what-works" class="home-features home-band--muted" data-test-section="core-features" aria-label="Current features">
-      <div class="home-features__container">
-        <h2 class="home-features__heading">What works today.</h2>
-        <p class="home-features__lead">These features are shipped and working right now. Set up Readplace {{setupSurfaces}} and try them.</p>
-        <hr>
-        <div class="home-features__featured">
-          {{#each featuredFeatures}}
-          <div class="feature-card feature-card--featured" data-test-feature="{{name}}">
-            <h3 class="feature-card__name">{{name}}</h3>
-            <p class="feature-card__description">{{description}}</p>
-            {{#if linkHref}}<a class="feature-card__link" href="{{linkHref}}" data-test-feature-link="{{name}}">{{linkLabel}} {{icon "arrow-right"}}</a>{{/if}}
-          </div>
-          {{/each}}
+  <section id="faq" class="home-faq home-band--muted" data-test-section="faq" aria-label="Questions">
+    <div class="home-section__container">
+      <h2 class="home-section__title">{{faqTitle}}</h2>
+      <dl class="home-faq__list">
+        {{#each faq}}
+        <div class="home-faq__item">
+          <dt class="home-faq__question" data-test-faq-question>{{question}}</dt>
+          <dd class="home-faq__answer">{{answer}}</dd>
         </div>
-        <div class="home-features__compact">
-          {{#each compactFeatures}}
-          <div class="feature-card feature-card--compact" data-test-feature="{{name}}">
-            <h3 class="feature-card__name">{{name}}</h3>
-            <p class="feature-card__description">{{description}}</p>
-          </div>
-          {{/each}}
-        </div>
-      </div>
-    </section>
+        {{/each}}
+      </dl>
+    </div>
+  </section>
 
-    <section id="how-saving-works" class="home-canonical" data-test-section="canonical" aria-label="How saving works">
-      <div class="home-canonical__container">
-        <h2 class="home-canonical__heading">Same article, different versions?</h2>
-        <p class="home-canonical__body">When you save from the browser extension or a phone app, Readplace captures the rendered page you&rsquo;re looking at. When a link arrives as a URL &mdash; pasted here, sent by your AI assistant, or picked up in an import &mdash; Readplace fetches it server-side. DeepSeek does the canonical disambiguation so both paths converge on the same article &mdash; even when the source URL is wrapped in a tracker (<code>utm_*</code>, <code>gclid</code>).</p>
-        <figure class="home-canonical__diagram" data-test-canonical-diagram aria-label="Both capture paths converge through DeepSeek into one canonical article">
-          <div class="home-canonical__diagram-inputs">
-            <div class="home-canonical__diagram-node">
-              <strong>Extension or phone</strong>
-              <span>rendered page</span>
-            </div>
-            <div class="home-canonical__diagram-node">
-              <strong>Pasted or shared URL</strong>
-              <span>server-side fetch</span>
-            </div>
-          </div>
-          <span class="home-canonical__diagram-arrow" aria-hidden="true">{{icon "arrow-right"}}</span>
-          <div class="home-canonical__diagram-node home-canonical__diagram-node--accent">
-            <strong>DeepSeek</strong>
-            <span>canonical disambiguation</span>
-          </div>
-          <span class="home-canonical__diagram-arrow" aria-hidden="true">{{icon "arrow-right"}}</span>
-          <div class="home-canonical__diagram-node">
-            <strong>One article</strong>
-            <span>trackers stripped</span>
-          </div>
-        </figure>
-        <p class="home-canonical__body">The captured version wins when both exist, as long as it&rsquo;s the most complete version of the content. If you saved from the extension or a phone app while logged in to a site, you captured the full article &mdash; saving again when logged out won&rsquo;t overwrite it with the paywalled version. Most read-later apps replace the captured version with whatever the canonical URL returns; Readplace keeps the most complete one.</p>
-      </div>
-    </section>
-
-    <section id="roadmap" class="home-roadmap home-band--muted" data-test-section="roadmap" aria-label="Planned features">
-      <div class="home-roadmap__container">
-        <h2 class="home-roadmap__heading">What's Next</h2>
-        <div class="home-roadmap__list">
-          {{#each plannedFeatures}}
-          <p class="feature-card feature-card--roadmap" data-test-feature="{{name}}">
-            <strong class="feature-card__name">{{name}}</strong>
-            <span class="feature-card__description">{{description}}</span>
-          </p>
-          {{/each}}
-        </div>
-      </div>
-    </section>
-
-    <section class="home-comparison" data-test-section="comparison" aria-label="Feature comparison">
-      <div class="home-comparison__container">
-        <div class="section-header">
-          <h2 class="section-header__title">Readplace vs the Read-It-Later Alternatives</h2>
-        </div>
-        <table class="comparison-table" data-test-comparison-table>
-          <thead>
-            <tr>
-              <th scope="col"></th>
-              <th scope="col" class="comparison-table__readplace">Readplace</th>
-              <th scope="col">Readwise Reader</th>
-              <th scope="col">Instapaper</th>
-              <th scope="col">Raindrop.io</th>
-              <th scope="col">Karakeep</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Price</th>
-              <td class="comparison-table__readplace" data-label="Readplace">$49/yr</td>
-              <td data-label="Readwise Reader">$119.88/yr</td>
-              <td data-label="Instapaper">Free / $59.99/yr</td>
-              <td data-label="Raindrop.io">Free / $28/yr</td>
-              <td data-label="Karakeep">Free self-host / $40/yr</td>
-            </tr>
-            <tr>
-              <th scope="row">AI Features</th>
-              <td class="comparison-table__readplace" data-label="Readplace">TL;DR summary + page capture</td>
-              <td data-label="Readwise Reader">Ghostreader AI</td>
-              <td data-label="Instapaper">Summaries</td>
-              <td data-label="Raindrop.io">AI assistant (Pro)</td>
-              <td data-label="Karakeep">Tagging + summaries</td>
-            </tr>
-            <tr>
-              <th scope="row">PDF Text Extraction</th>
-              <td class="comparison-table__readplace" data-label="Readplace">300 pages / {{maxPdfBytesLabel}} &mdash; <strong>Tesseract OCR</strong></td>
-              <td data-label="Readwise Reader">No OCR &mdash; needs text layer</td>
-              <td data-label="Instapaper">Premium only &mdash; no OCR</td>
-              <td data-label="Raindrop.io">Pro upload &mdash; no OCR</td>
-              <td data-label="Karakeep">50&nbsp;MB &mdash; no PDF OCR</td>
-            </tr>
-            <tr>
-              <th scope="row">Open Source</th>
-              <td class="comparison-table__readplace" data-label="Readplace">Source-available</td>
-              <td data-label="Readwise Reader"><span class="comparison-table__cross">{{icon "x"}}<span class="sr-only">No</span></span></td>
-              <td data-label="Instapaper"><span class="comparison-table__cross">{{icon "x"}}<span class="sr-only">No</span></span></td>
-              <td data-label="Raindrop.io">Clients only (MIT)</td>
-              <td data-label="Karakeep"><span class="comparison-table__check">{{icon "check"}}<span class="sr-only">Yes</span></span></td>
-            </tr>
-            <tr>
-              <th scope="row">Platforms</th>
-              <td class="comparison-table__readplace" data-label="Readplace">{{platformsCell}}</td>
-              <td data-label="Readwise Reader">Web, iOS, Android, Desktop, Extensions: Chrome, Firefox, Safari</td>
-              <td data-label="Instapaper">Web, iOS, macOS, Android, Kindle/Kobo, Extensions: Chrome, Firefox</td>
-              <td data-label="Raindrop.io">Web, iOS, Android, Desktop, Extensions: Chrome, Firefox, Safari</td>
-              <td data-label="Karakeep">Web, iOS, Android, Extensions: Chrome, Firefox, Safari</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="not-becoming" class="home-decline home-band--muted" data-test-section="decline" aria-label="What Readplace will not become">
-      <div class="home-decline__container">
-        <h2 class="home-decline__heading">What Readplace will NOT become.</h2>
-        <p class="home-decline__lead">Readplace will not add:</p>
-        <ul class="home-decline__list" data-test-decline-list>
-          <li class="home-decline__item"><span class="home-decline__marker">{{icon "x"}}</span>Nested folder hierarchies</li>
-          <li class="home-decline__item"><span class="home-decline__marker">{{icon "x"}}</span>Social feeds or public collections</li>
-          <li class="home-decline__item"><span class="home-decline__marker">{{icon "x"}}</span>Secret browsing-history capture</li>
-          <li class="home-decline__item"><span class="home-decline__marker">{{icon "x"}}</span>Recommendation algorithms to simulate social media</li>
-        </ul>
-        <p class="home-decline__closing">Those features grow daily active users by encouraging saving. Readplace is to encourage reading what matters to you.</p>
-      </div>
-    </section>
-
-    <section id="what-you-pay-for" class="home-cost" data-test-section="cost-transparency" aria-label="What your subscription pays for">
-      <div class="home-cost__container">
-        <h2 class="home-cost__heading">And that's why I need your help!</h2>
-        <p class="home-cost__subtitle">What $4.08 a month pays for.</p>
-        <p class="home-cost__lead">Every saved article runs through this pipeline:</p>
-        <ul class="home-cost__list" data-test-cost-list>
-          <li class="home-cost__item"><strong>Mozilla Readability</strong> &mdash; parses the page.</li>
-          <li class="home-cost__item"><strong>Real Tesseract OCR</strong> &mdash; up to 300 pages / {{maxPdfBytesLabel}}. Pixel-level recognition, not an LLM guessing at an image.</li>
-          <li class="home-cost__item"><strong>DeepSeek V4</strong> &mdash; writes the TL;DR and restores OCR structure. A document-diff blocks any word it tries to add or remove.</li>
-        </ul>
-        <p class="home-cost__body home-cost__body--emphasis" data-test-no-hallucination><strong>No AI generated slop &mdash; correctness over hallucination.</strong> Tesseract reads the page character by character; the LLM only restores structure, gated by a document-diff. <strong>What you read is what was on the page.</strong></p>
-        <p class="home-cost__body">$4.08/month covers infrastructure and crawler maintenance. No ads, no data resale, no VC bridge. This is the whole business.</p>
-        <p class="home-cost__body home-cost__body--muted">Price-check the providers: <a href="https://api-docs.deepseek.com/quick_start/pricing" rel="external">DeepSeek pricing</a>. Tesseract runs in <a href="https://aws.amazon.com/lambda/pricing/" rel="external">AWS Lambda</a> on a per-request basis.</p>
-      </div>
-    </section>
-
-    <section id="pricing" class="home-pricing home-band--muted" data-test-section="pricing" aria-label="Pricing">
-      <div class="home-pricing__container">
-        <div class="section-header home-pricing__title {{pricingTitleStateClass}}" data-test-pricing-title>
-          {{#if foundingAvailable}}<h2 class="section-header__title">Free for the first {{foundingMemberLimit}} members.</h2>{{/if}}
-        </div>
-        <div class="home-pricing__progress {{progressStateClass}}" data-test-founding-progress-slot>{{{foundingProgressHtml}}}</div>
-        <div class="pricing-grid {{pricingGridStateClass}}">
-          {{#if foundingAvailable}}
-          <div class="pricing-card pricing-card--featured" data-test-plan="founding">
-            <span class="pricing-card__badge">First {{foundingMemberLimit}} Users</span>
-            <h3 class="pricing-card__name">Founding Member</h3>
-            <p class="pricing-card__price">$0<span class="pricing-card__price-suffix"> forever</span></p>
-            <p class="pricing-card__description">Be one of the first {{foundingMemberLimit}} users. Get full access free, forever. Help shape the product. $4.08/month for everyone else &mdash; includes TL;DR summaries.</p>
-            <ul class="pricing-card__features">
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Save unlimited articles</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Save from {{saveSurfacesShort}}</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>TL;DR summaries included</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>PDF extraction with Tesseract OCR</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>All features as they ship</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Direct access to the developer</li>
-            </ul>
-            <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=founding-card" class="btn btn--primary pricing-card__cta" data-test-cta="founding">Signup</a>
-          </div>
-          {{/if}}
-        </div>
-        <div class="home-pricing__fallback {{fallbackStateClass}}">
-          {{#unless foundingAvailable}}
-          <div class="section-header home-pricing__fallback-header" data-test-fallback-title>
-            <h2 class="section-header__title">Don&rsquo;t miss out!</h2>
-          </div>
-          <div class="pricing-card pricing-card--featured" data-test-plan="standard">
-            <span class="pricing-card__badge">{{trialPeriodDays}}-day free trial</span>
-            <h3 class="pricing-card__name">Readplace Membership</h3>
-            <p class="pricing-card__price">{{monthlyPriceDisplay}}<span class="pricing-card__price-suffix">/month</span></p>
-            <p class="pricing-card__description">Try everything free for {{trialPeriodDays}} days. No credit card required to start.</p>
-            <ul class="pricing-card__features home-pricing__fallback-features" data-test-fallback-benefits>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Save unlimited articles</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Save from {{saveSurfacesShort}}</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>TL;DR summaries included</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>PDF extraction with Tesseract OCR</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>All features as they ship</li>
-              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Direct access to the developer</li>
-            </ul>
-            <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--primary pricing-card__cta" data-test-cta="become-member">Become a Member</a>
-          </div>
-          {{/unless}}
-        </div>
-      </div>
-    </section>
-
-    <section id="trust" class="home-trust" data-test-section="trust" aria-label="Trust and privacy">
-      <div class="home-trust__container">
-        <div class="section-header">
-          <h2 class="section-header__title">A Pocket alternative that respects your privacy.</h2>
-          <p class="section-header__subtitle">Every read-it-later app that shut down left users scrambling. Readplace is built differently &mdash; starting with your right to leave.</p>
-        </div>
-        <div class="trust-grid">
-          {{#each trustItems}}
-          <div class="trust-card" data-test-trust="{{name}}">
-            <h3 class="trust-card__name">{{name}}</h3>
-            <p class="trust-card__description">{{description}}</p>
-          </div>
-          {{/each}}
-        </div>
-      </div>
-    </section>
-
-    <section class="home-cta home-band--muted" data-test-section="cta" aria-label="Get started">
-      <div class="home-cta__container">
-        <h2 class="home-cta__title">I'm building this in public.</h2>
-        <p class="home-cta__subtitle">Try it whichever way suits you, then tell me what to build next. Readplace gets better with every user who shows up and says what they need.</p>
-        <div class="home-cta__actions">
-          <a href="{{track installPath source='home-cta' content='install'}}" class="btn btn--primary" data-test-cta="bottom-install">{{installLabel}}</a>
-          <a href="https://github.com/Readplace/readplace.com" class="btn btn--secondary" data-test-cta="bottom-github">View on GitHub</a>
-        </div>
-        <p class="home-cta__ways"><a href="#ways-to-save" class="home-cta__link" data-test-cta="bottom-ways">Every way to save</a></p>
-      </div>
-    </section>
-    {{{saveTipHtml}}}
-  </main>
+  <section class="home-close" data-test-section="close" aria-label="Get started">
+    <div class="home-section__container home-close__container">
+      <h2 class="home-section__title">{{closeTitle}}</h2>
+      <p class="home-close__links">
+        <a class="home-link" href="{{closeInstallLink.href}}" data-test-cta="close-install">{{closeInstallLink.label}} {{icon "arrow-right"}}</a>
+        <a class="home-link" href="{{closeImportLink.href}}" data-test-cta="close-import">{{closeImportLink.label}} {{icon "arrow-right"}}</a>
+      </p>
+      <p class="home-close__signoff">{{closeSignoff}}</p>
+    </div>
+  </section>
+  {{{saveTipHtml}}}
+</main>

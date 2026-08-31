@@ -130,8 +130,8 @@ describe("InboxPage", () => {
 			InboxPage({
 				addresses: [
 					entry({
-						name: AliasNameSchema.parse("netflix"),
-						address: InboxAddressSchema.parse("netflix-def456@read.place"),
+						name: AliasNameSchema.parse("my-newsletter"),
+						address: InboxAddressSchema.parse("my-newsletter-def456@read.place"),
 						token: InboxTokenSchema.parse("def456"),
 					}),
 					entry({
@@ -148,18 +148,18 @@ describe("InboxPage", () => {
 
 		assert.equal(
 			doc.querySelector("[data-inbox-copy]")?.getAttribute("aria-label"),
-			"Copy inbox email: netflix",
+			"Copy inbox email: my-newsletter",
 		);
 		assert.equal(
 			doc.querySelector("[data-test-inbox-disable]")?.getAttribute("aria-label"),
-			"Disable inbox email: netflix",
+			"Disable inbox email: my-newsletter",
 		);
 
 		const active = doc.querySelector(".inbox-copyable__value");
 		const disabled = doc.querySelector(".inbox__address-field");
 		assert.ok(active, "the active address field must render");
 		assert.ok(disabled, "the disabled address field must render");
-		assert.equal(active.getAttribute("aria-label"), "Inbox email: netflix");
+		assert.equal(active.getAttribute("aria-label"), "Inbox email: my-newsletter");
 		assert.equal(disabled.getAttribute("aria-label"), "Inbox email: stratechery");
 		assert.notEqual(
 			active.getAttribute("aria-label"),
@@ -206,13 +206,13 @@ describe("InboxPage", () => {
 	it("renders the chosen alias name as a per-row label", () => {
 		const doc = parse(
 			InboxPage({
-				addresses: [entry({ name: AliasNameSchema.parse("netflix") })],
+				addresses: [entry({ name: AliasNameSchema.parse("my-newsletter") })],
 				limitReached: false,
 				submittedName: "",
 			}).content.html,
 		);
 		const label = doc.querySelector("[data-test-inbox-name]");
-		assert.equal(label?.textContent, "netflix");
+		assert.equal(label?.textContent, "my-newsletter");
 	});
 
 	it("offers a required, length-capped name input on the create form", () => {
@@ -290,8 +290,8 @@ describe("InboxPage", () => {
 						disabledAt: "2026-06-22T00:00:00.000Z",
 					}),
 					entry({
-						name: AliasNameSchema.parse("netflix"),
-						address: InboxAddressSchema.parse("netflix-def456@read.place"),
+						name: AliasNameSchema.parse("my-newsletter"),
+						address: InboxAddressSchema.parse("my-newsletter-def456@read.place"),
 						token: InboxTokenSchema.parse("def456"),
 					}),
 				],
@@ -307,7 +307,7 @@ describe("InboxPage", () => {
 		const names = Array.from(doc.querySelectorAll("[data-test-inbox-name]")).map(
 			(el) => el.textContent,
 		);
-		assert.deepEqual(names, ["netflix", "gmail"]);
+		assert.deepEqual(names, ["my-newsletter", "gmail"]);
 	});
 
 	it("collapses every disabled address into a closed details group holding the disabled rows", () => {

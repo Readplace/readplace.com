@@ -158,7 +158,7 @@ describe("Inbox emails list route", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const user = await fixture.auth.findUserByEmail("test@example.com");
 		assert(user, "logged-in user must exist before seeding addresses");
-		for (const name of ["inbox", "netflix"]) {
+		for (const name of ["inbox", "my-newsletter"]) {
 			await fixture.inboxAddress.inboxAddressStore.createAddress({
 				userId: user.userId,
 				domain: "read.place",
@@ -186,7 +186,7 @@ describe("Inbox emails list route", () => {
 		const names = Array.from(
 			list.querySelectorAll("[data-test-inbox-empty-address-name]"),
 		).map((el) => el.textContent);
-		expect(names).toEqual(["inbox", "netflix"]);
+		expect(names).toEqual(["inbox", "my-newsletter"]);
 	});
 
 	it("drops the setup CTA once mail has arrived", async () => {

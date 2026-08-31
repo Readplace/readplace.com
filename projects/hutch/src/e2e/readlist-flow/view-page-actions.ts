@@ -71,9 +71,6 @@ export function createAnonymousViewPageActions(
 				)
 				await expect(page.locator('body.page-signup')).toHaveCount(1)
 
-				// Return to the guest homepage. `/` renders whichever A/B arm this
-				// visitor draws, so the assertion is on body.page-home — carried by
-				// both arms — rather than on either arm's own markup.
 				await page.goto(`${config.baseUrl}/`, { waitUntil: 'commit' })
 				await expect(page.locator('body.page-home')).toHaveCount(1, { timeout: 15000 })
 				progress.visitedCrawlFailure = true

@@ -70,7 +70,7 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 
 > **I would rather be honest about the gaps than pretend they aren't there.**
 
-Features land one at a time, and the [roadmap is public](https://readplace.com/#roadmap) so you can see what is next.
+Features land one at a time, and the table above shows what is next.
 
 ## Your data, on your terms
 
@@ -104,7 +104,7 @@ Readplace costs $49/year. The self-hosted options like Karakeep and Wallabag are
 
 **Can I import my Omnivore data into Readplace?**
 
-Send your Omnivore data file to readplace+migrate@readplace.com and I will do the import for you, so if you exported your data before the shutdown, hold onto that file. You can also start fresh right now with the [browser extension](https://readplace.com/install) and save any article with one click.
+If you exported your data before the shutdown, hold onto that file and [import it yourself](https://readplace.com/import) — the import page works logged out. You can also start fresh right now with the [browser extension](https://readplace.com/install) and save any article with one click.
 
 ## Your reading list should not come with an expiry date
 

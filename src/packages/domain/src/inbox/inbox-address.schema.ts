@@ -21,7 +21,7 @@ export const InboxTokenSchema = z
 export type InboxToken = z.infer<typeof InboxTokenSchema>;
 
 /** The user-chosen label in a forwarding address — the human-readable prefix in
- * `<alias>-<token>@<domain>` (e.g. `netflix` in `netflix-a7b2c9@read.place`).
+ * `<alias>-<token>@<domain>` (e.g. `my-newsletter` in `my-newsletter-a7b2c9@read.place`).
  * Lowercase alphanumerics with single internal hyphens (no leading, trailing, or
  * doubled hyphen), 1–24 chars. Kept email-safe so it reads cleanly as a local
  * part and can never smuggle a second `@` or `.` into the address. */

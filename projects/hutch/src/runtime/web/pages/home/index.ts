@@ -1,2 +1,2 @@
 export { HomePage } from "./home.component";
-export { buildHomepageArmBody } from "./homepage-arm-body";
+export { HOMEPAGE_EXPOSURE } from "./home.version";

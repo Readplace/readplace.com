@@ -35,6 +35,11 @@ export interface PageBody {
 	styles: string;
 	headerVariant?: "default" | "transparent";
 	bodyClass?: string;
+	/** Whether this page follows the viewer's system theme even with nobody
+	 * signed in. Only the public reader sets it: dark mode there is a reading
+	 * setting, while every other logged-out page is designed art that a
+	 * system-driven flip would repaint into a scheme nobody chose. */
+	followsSystemTheme?: boolean;
 	content: { html: string; markdown?: string };
 	markdownFormattedDate?: string;
 	scripts?: string;

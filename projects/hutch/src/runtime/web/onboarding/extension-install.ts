@@ -2,7 +2,7 @@ import type { Request } from "express";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import type { ClientName, ClientNameInCategory } from "@packages/supported-clients";
-import type { InstallBrowser, Platform } from "./onboarding.types";
+import type { Platform } from "./onboarding.types";
 
 const INSTALL_URLS: Record<Platform, string> = {
 	firefox: "/install?client=firefox",
@@ -10,15 +10,6 @@ const INSTALL_URLS: Record<Platform, string> = {
 	iphone: "/install?client=iphone",
 	android: "/install?client=android",
 	other: "/install",
-};
-
-const INSTALL_BROWSER_BY_PLATFORM: Record<Platform, InstallBrowser> = {
-	firefox: "firefox",
-	chrome: "chrome",
-	// A phone has no extension-install CTA on the marketing pages → generic button.
-	iphone: "other",
-	android: "other",
-	other: "other",
 };
 
 /** True when the extension is actively installed (server-only liveness
@@ -61,15 +52,6 @@ const DETECTION_ORDER = SUPPORTED_CLIENTS.flatMap((client) =>
 export function detectPlatform(req: Request): Platform {
 	const ua = req.headers["user-agent"] ?? "";
 	return DETECTION_ORDER.find((name) => ua.includes(UA_SIGNATURES[name].token)) ?? "other";
-}
-
-/** Extension-install CTA browser for a request, projected from the canonical
- * {@link detectPlatform} so `/` and the A/B landing arms never re-sniff the UA.
- * Falls back to the generic `other` CTA on any device with no extension to
- * install (either phone, and the unrecognised `other` bucket) so a marketing
- * page never offers a browser-specific "Install" the device can't honour. */
-export function detectInstallBrowser(req: Request): InstallBrowser {
-	return INSTALL_BROWSER_BY_PLATFORM[detectPlatform(req)];
 }
 
 /** True when this device has a first-party client the user can actually

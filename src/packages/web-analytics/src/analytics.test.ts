@@ -159,11 +159,11 @@ describe("createAnalyticsMiddleware", () => {
 	it("carries the experiment arm the route tagged onto the response, so an arm chosen server-side is still counted as an exposure", () => {
 		const res = createRes(200);
 		const [event] = runMiddleware(createReq({ path: "/" }), res, undefined, () => {
-			tagPageviewExperiment(res, { experiment: "homepage-split-e3", variant: "variant-b" });
+			tagPageviewExperiment(res, { experiment: "homepage", variant: "variant-c" });
 		});
 		expect(event).toMatchObject({
-			experiment: "homepage-split-e3",
-			experiment_variant: "variant-b",
+			experiment: "homepage",
+			experiment_variant: "variant-c",
 		});
 	});
 
@@ -190,14 +190,14 @@ describe("createAnalyticsMiddleware", () => {
 			res,
 			undefined,
 			() => {
-				tagPageviewExperiment(res, { experiment: "homepage-split-e3", variant: "variant-a" });
+				tagPageviewExperiment(res, { experiment: "homepage", variant: "variant-c" });
 			},
 		);
 		expect(event).toMatchObject({
 			utm_source: "twitter",
 			utm_medium: "social",
-			experiment: "homepage-split-e3",
-			experiment_variant: "variant-a",
+			experiment: "homepage",
+			experiment_variant: "variant-c",
 		});
 	});
 

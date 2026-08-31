@@ -1,67 +1,21 @@
-.home-hero__title,
-.section-header__title,
-.home-backstory__title,
-.home-cta__title,
-.pricing-card__name {
-  font-family: var(--font-serif);
+.home {
+  display: block;
 }
 
-.section-header__title,
-.home-backstory__title,
-.home-cta__title,
-.pricing-card__name {
-  color: var(--color-secondary);
-}
-
-@media (prefers-color-scheme: dark) {
-  .section-header__title,
-  .home-backstory__title,
-  .home-cta__title,
-  .pricing-card__name {
-    color: var(--foreground);
-  }
-}
-
-hr {
-  border: none;
-  height: auto;
-  margin: 48px auto;
-  text-align: center;
-}
-
-hr::before {
-  content: "\2022\00a0\00a0\2022\00a0\00a0\2022";
-  color: var(--color-text-muted);
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-/**
- * Shared Section Header
- *
- * 1. Min 1.3 line-height for headings per brand typography rules
- * 2. Constrain subtitle width to maintain readability (~680px)
- */
-.section-header {
-  text-align: center;
-  margin-bottom: 48px;
-}
-
-.section-header__title {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.3; /* 1 */
-  margin-bottom: 12px;
-  color: var(--foreground);
-}
-
-.section-header__subtitle {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-  max-width: 560px; /* 2 */
+.home-section__container,
+.home-hero__container {
+  max-width: var(--reader-max-width);
   margin: 0 auto;
-  text-wrap: pretty;
+}
+
+.home-ways,
+.home-assistant,
+.home-proof,
+.home-principle,
+.home-pricing,
+.home-faq,
+.home-close {
+  padding: 48px 24px;
 }
 
 .home-band--muted {
@@ -70,1392 +24,399 @@ hr::before {
   border-bottom: 1px solid var(--border);
 }
 
-.home-hero {
-  background: linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%);
-  color: var(--color-on-brand);
-  padding: 80px 20px 60px;
-  text-align: center;
+.home-section__title {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  line-height: 1.3;
+  text-wrap: balance;
+  margin: 0 0 8px;
+  color: var(--color-text-primary);
 }
 
-.home-hero__container {
-  max-width: 720px;
-  margin: 0 auto;
+.home-link {
+  color: var(--primary-text);
+  font-weight: 500;
+  text-decoration: underline;
 }
 
-.home-hero__title {
-  --hero-headline-font-size: 2.5rem;
-  --hero-headline-line-height: 1.3;
-  --hero-headline-lines: 2;
-  font-size: var(--hero-headline-font-size);
-  font-weight: 800;
-  line-height: var(--hero-headline-line-height);
-  height: calc(
-    var(--hero-headline-font-size) * var(--hero-headline-line-height) *
-      var(--hero-headline-lines)
-  );
-  margin-bottom: 24px;
-  letter-spacing: -0.02em;
+.home-link svg {
+  vertical-align: -0.125em;
 }
 
 /**
- * Animated word-swap headline.
- *
- * 1. Sizer is an in-flow inline-block providing intrinsic height/baseline for
- *    the rotator. Once JS upgrades, the rotator's width becomes explicit and
- *    overrides the sizer's natural width, so the sizer's overflow is invisible.
- * 2. Measurer is taken out of flow so swapping its text to read offsetWidth
- *    never affects the rotator's own layout.
- * 3. Soft Material "standard" easing — no bounce or overshoot.
- * 4. Outgoing word fades faster (350ms) so the incoming word (500ms) overlaps
- *    it by ~150ms with no blank gap.
+ * 1. Navy in both themes, like the brand mark's tile, so the on-dark button
+ *    variants and the white body copy stay correct without a dark-mode override.
+ * 2. Every stop stays on the navy hue and is lit from the top edge, so the band
+ *    reads as one lit surface rather than a fade toward black.
  */
-.hero-headline__visible {
-  display: block;
+.home-hero {
+  background: radial-gradient(120% 90% at 50% -10%, #3B5079 0%, #2B3A55 48%, #253247 100%); /* 1, 2 */
+  color: #FFFFFF; /* 1 */
+  padding: 64px 24px;
+  text-align: center;
 }
 
-.hero-headline__lead {
-  display: block;
+.home-hero__eyebrow {
+  margin: 0 0 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #F0B663; /* 1 */
 }
 
-.hero-headline__rotator {
-  position: relative;
-  display: inline-block;
-  vertical-align: baseline;
-  color: var(--color-highlight);
+.home-hero__title {
+  font-family: var(--font-serif);
+  font-size: 2.25rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0 0 20px;
+  color: #FFFFFF; /* 1 */
 }
 
-.hero-headline__rotator--enhanced {
-  transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1); /* 3 */
-}
-
-.hero-headline__sizer {
-  visibility: hidden;
-  display: inline-block;
-  white-space: nowrap; /* 1 */
-}
-
-.hero-headline__measurer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  visibility: hidden;
-  white-space: nowrap;
-  pointer-events: none; /* 2 */
-}
-
-.hero-headline__rotator--enhanced .hero-headline__word {
-  position: absolute;
-  top: 0;
-  left: 0;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateY(6px);
-  transition:
-    opacity 500ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 500ms cubic-bezier(0.4, 0, 0.2, 1); /* 3 */
-}
-
-.hero-headline__rotator--enhanced .hero-headline__word--visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.hero-headline__rotator--enhanced .hero-headline__word--leaving {
-  opacity: 0;
-  transform: translateY(-4px);
-  transition-duration: 350ms; /* 4 */
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-headline__rotator--enhanced,
-  .hero-headline__rotator--enhanced .hero-headline__word {
-    transition: none;
-  }
-}
-
-.home-hero__subtitle {
-  font-size: 1.125rem;
-  line-height: 1.6;
-  opacity: 0.9;
-  margin-bottom: 32px;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
+.home-hero__subhead {
+  margin: 0 0 32px;
+  font-size: 1.05rem;
   text-wrap: pretty;
+  color: #DDE4EF; /* 1 */
 }
 
 .home-hero__actions {
   display: flex;
-  gap: 12px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.home-hero__trust {
-  font-size: 0.8125rem;
-  opacity: 0.7;
+.home-hero__action-lead {
+  margin: 0 0 8px;
+  color: #DDE4EF; /* 1 */
 }
 
-/**
- * Its own paragraph rather than a child of .home-hero__trust, so the link keeps
- * full contrast on the navy band instead of inheriting that rule's opacity.
- */
-.home-hero__ways {
-  margin-top: 8px;
-  font-size: 0.8125rem;
-}
-
-.home-hero__ways a {
-  color: var(--color-on-brand);
+/** The article the save would act on, held to one line: a reader who left it
+ * minutes ago recognises the host and path, and a long URL must not push the
+ * button off the fold. */
+.home-hero__action-target {
+  display: block;
+  margin: 0 auto 12px;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.95rem;
+  color: #F0B663;
   text-decoration: underline;
 }
 
-.home-hero__ways svg,
-.home-ways__link svg {
-  vertical-align: -0.125em;
+.home-hero__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
 }
 
-.home-ways {
-  padding: 64px 20px;
+/**
+ * 1. Matches the .btn--field tier the submit button carries, so the row lines
+ *    up; box-sizing is global, so the shared height is the only equaliser.
+ * 2. An opaque field on the navy band in both themes, so the placeholder keeps
+ *    its contrast without a dark-mode override.
+ */
+.home-hero__input {
+  flex: 1 1 18rem;
+  min-width: 0;
+  height: var(--input-height); /* 1 */
+  padding: var(--input-padding);
+  font-size: var(--input-font-size);
+  border: 1px solid #7C8CA8; /* 2 */
+  border-radius: var(--radius-sm);
+  background: #FFFFFF; /* 2 */
+  color: #1A202C; /* 2 */
 }
 
-.home-ways__container {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
+.home-hero__input::placeholder {
+  color: #667085; /* 2 */
 }
 
-.home-ways__heading {
-  font-family: var(--font-serif);
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--color-secondary);
-  margin: 0 0 16px;
-  text-wrap: balance;
+.home-hero__input:focus-visible {
+  outline: 2px solid #F0B663; /* 2 */
+  outline-offset: 2px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .home-ways__heading {
-    color: var(--foreground);
-  }
+.home-hero__reassurance {
+  margin: 24px 0 0;
+  font-size: 0.9rem;
+  color: #C2CDDE; /* 1 */
 }
 
-.home-ways__lead {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--foreground);
-  margin: 0 0 20px;
-  text-wrap: pretty;
+.home-ways__title {
+  margin-bottom: 32px;
 }
 
 .home-ways__list {
-  list-style: none;
+  display: grid;
+  gap: 24px;
+  margin: 0;
   padding: 0;
-  margin: 0 0 20px;
+  list-style: none;
 }
 
 .home-ways__item {
-  padding: 12px 0;
+  display: grid;
+  gap: 4px;
+  padding-bottom: 24px;
   border-bottom: 1px solid var(--border);
 }
 
 .home-ways__item:last-child {
+  padding-bottom: 0;
   border-bottom: none;
 }
 
 .home-ways__name {
-  display: block;
-  font-size: 1rem;
   font-weight: 600;
-  line-height: 1.3;
-  color: var(--foreground);
-  margin-bottom: 2px;
+  color: var(--color-text-primary);
 }
 
 .home-ways__body {
-  display: block;
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
   text-wrap: pretty;
+  color: var(--color-text-secondary);
+}
+
+/** Held on one line so the hyphen inside the sample address cannot become a
+ * line break the reader mistakes for part of the address. */
+.home-ways__example {
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.home-ways__icon {
+  display: inline-flex;
+  vertical-align: -0.15em;
+  color: var(--color-text-primary);
+}
+
+.home-ways__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 4px;
 }
 
 .home-ways__link {
-  display: inline-block;
-  margin-top: 4px;
-  font-size: 0.9375rem;
-  font-weight: 600;
   color: var(--primary-text);
+  font-weight: 500;
   text-decoration: none;
 }
 
-.home-ways__note {
-  font-size: 0.9375rem;
-  line-height: 1.7;
-  color: var(--muted-foreground);
-  margin: 0;
-  text-wrap: pretty;
-}
-
-.home-ways__note a {
-  color: var(--primary-text);
+.home-ways__link:hover {
   text-decoration: underline;
 }
 
-/**
- * Try Section — primary above-the-fold action.
- *
- * 1. Sized to keep the form visible above a 667px mobile viewport once the
- *    site header (~56–64px) is accounted for. Padding stays compact on small
- *    screens so the input + submit land in the first paint without scrolling.
- * 2. The form wins the eye over the heading by sitting on a brand-tinted card
- *    with a glow ring, so the "paste a link" affordance reads as the page's
- *    primary call-to-action ahead of the install button below the fold.
- */
-.home-try {
-  padding: 40px 20px 32px; /* 1 */
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-}
-
-.home-try__container {
-  max-width: 720px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-/* Reserved for the longest slogan rather than sized to the one on screen: the
-rotator swaps text of differing lengths, and a heading that resizes with it
-reflows every section below. The reservation lives here rather than on the class
-the rotator adds, so the server-rendered first paint already holds the box and
-hydration doesn't jump it. */
-.home-try__title {
-  --home-try-title-font-size: 1.875rem;
-  --home-try-title-line-height: 1.25;
-  --home-try-title-lines: 4;
-  font-family: var(--font-serif);
-  font-size: var(--home-try-title-font-size);
-  font-weight: 700;
-  line-height: var(--home-try-title-line-height);
-  letter-spacing: -0.01em;
-  color: var(--color-secondary);
-  margin: 0 0 12px;
-  height: calc(
-    var(--home-try-title-font-size) * var(--home-try-title-line-height) *
-      var(--home-try-title-lines)
-  );
-}
-
-@media (prefers-color-scheme: dark) {
-  .home-try__title {
-    color: var(--foreground);
-  }
-}
-
-.home-try__title--rotating {
-  transition: opacity 300ms ease;
-}
-
-.home-try__title--fading {
-  opacity: 0;
-}
-
-.home-try__lede {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-  margin: 0 auto 24px;
-  max-width: 560px;
-  text-wrap: pretty;
-}
-
-.home-try__form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 14px;
-  border-radius: var(--radius-lg);
-  background: var(--background);
-  box-shadow: 0 0 0 1px var(--primary), 0 8px 24px -12px rgba(43, 58, 85, 0.25); /* 2 */
-}
-
-.home-try__input {
-  width: 100%;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-size: var(--input-font-size);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-  box-sizing: border-box;
-}
-
-.home-try__input:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: 1px;
-}
-
-.home-try__reassurance {
-  margin: 14px 0 0;
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-}
-
-/**
- * Soft secondary affordance — signals that a story sits below without
- * competing with the primary form. Bouncing arrow attracts the eye but
- * collapses for users who prefer reduced motion.
- */
-.home-try__scroll-hint {
-  display: inline-flex;
-  align-items: center;
-  margin-top: 28px;
-  color: var(--muted-foreground);
-  text-decoration: none;
-}
-
-.home-try__scroll-hint:hover,
-.home-try__scroll-hint:focus-visible {
-  color: var(--foreground);
-}
-
-.home-try__scroll-hint-arrow {
-  display: inline-flex;
-  animation: home-try-bounce 2s ease-in-out infinite;
-}
-
-.home-try__scroll-hint-arrow svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-@keyframes home-try-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(4px); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-try__scroll-hint-arrow {
-    animation: none;
-  }
-}
-
-@media (min-width: 360px) {
-  .home-try__title {
-    --home-try-title-lines: 3;
-  }
-}
-
-@media (min-width: 480px) {
-  .home-try__title {
-    --home-try-title-lines: 2;
-  }
-}
-
-@media (min-width: 640px) {
-  .home-try__form {
-    flex-direction: row;
-    align-items: stretch;
-  }
-
-  .home-try__input {
-    flex: 1;
-  }
-}
-
-@media (min-width: 768px) {
-  .home-try {
-    padding: 64px 20px 56px;
-  }
-
-  .home-try__title {
-    --home-try-title-font-size: 2.5rem;
-  }
-}
-
-.home-demo {
-  padding: 80px 20px;
-}
-
-.home-demo__container {
-  max-width: 1200px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.home-demo__title {
-  font-family: var(--font-serif);
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.3;
-  margin-bottom: 32px;
-  color: var(--foreground);
-}
-
-.home-demo__videos {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 24px;
-}
-
-.home-demo__video-wrapper {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-}
-
-.home-demo__video-label {
-  padding: 8px 16px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-}
-
-.home-demo__video {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-@media (min-width: 768px) {
-  .home-demo__videos {
-    grid-template-columns: 1fr 1fr;
-    max-width: 800px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-}
-
-.home-features {
-  padding: 80px 20px;
-}
-
-.home-features__container {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
-}
-
-.home-features__heading {
-  font-family: var(--font-serif);
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--color-secondary);
-  margin-bottom: 12px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .home-features__heading {
-    color: var(--foreground);
-  }
-}
-
-.home-features__lead {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-  margin-bottom: 24px;
-}
-
-/**
- * Featured features get individual full-width blocks separated by
- * bottom borders instead of card containers.
- */
-.home-features__featured {
-  margin-bottom: 40px;
-}
-
-.feature-card--featured {
-  padding: 0 0 24px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.feature-card--featured:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.feature-card--featured .feature-card__name {
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1.3;
-  margin-bottom: 6px;
-  color: var(--foreground);
-}
-
-.feature-card--featured .feature-card__description {
-  font-size: 1rem;
-  color: var(--muted-foreground);
-  line-height: 1.7;
-}
-
-.feature-card__link {
-  display: inline-block;
-  margin-top: 8px;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--primary-text);
-  text-decoration: none;
-}
-
-.feature-card__link svg {
+.home-ways__link svg {
   vertical-align: -0.125em;
 }
 
-/**
- * Compact features use a two-column grid with minimal vertical
- * space — name and description on a single line each.
- * Two columns at 480px+ since the container is 680px wide.
- */
-.home-features__compact {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 24px;
-}
-
-.feature-card--compact {
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.feature-card--compact .feature-card__name {
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1.3;
-  color: var(--foreground);
-  margin-bottom: 2px;
-}
-
-.feature-card--compact .feature-card__description {
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-  line-height: 1.5;
-}
-
-@media (max-width: 540px) {
-  .home-features__compact {
-    grid-template-columns: 1fr;
-  }
-}
-
-/**
- * Canonical Disambiguation Section
- *
- * 1. Same narrow reading column as the features section so the prose sits at
- *    ~680px and stays readable.
- * 2. Inline code uses the same neutral chip pattern the rest of the site
- *    uses inside paragraphs.
- */
-.home-canonical {
-  padding: 64px 20px;
-}
-
-.home-canonical__container {
-  max-width: var(--reader-max-width); /* 1 */
-  margin: 0 auto;
-}
-
-.home-canonical__heading {
-  font-family: var(--font-serif);
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--color-secondary);
-  margin: 0 0 16px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .home-canonical__heading {
-    color: var(--foreground);
-  }
-}
-
-.home-canonical__body {
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--muted-foreground);
-  margin: 0 0 16px;
-}
-
-.home-canonical__body code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.9375em;
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--muted);
-  color: var(--foreground); /* 2 */
-}
-
-/**
- * Canonical disambiguation diagram — two inputs converging through DeepSeek
- * into one canonical article. Grid columns: [inputs] → [pivot] → [result].
- * Below 640px the grid collapses to one column and the arrows rotate down.
- */
-.home-canonical__diagram {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto 1fr;
-  align-items: center;
-  gap: 12px;
-  margin: 24px 0;
-  padding: 20px;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-
-.home-canonical__diagram-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.home-canonical__diagram-node {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 10px 12px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  line-height: 1.4;
-}
-
-.home-canonical__diagram-node strong {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.home-canonical__diagram-node span {
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-}
-
-.home-canonical__diagram-node--accent {
-  background: var(--color-brand-light);
-  border-color: var(--primary);
-}
-
-.home-canonical__diagram-node--accent strong {
-  color: var(--color-brand-dark);
-}
-
-.home-canonical__diagram-arrow {
-  display: inline-flex;
-  color: var(--muted-foreground);
-}
-
-.home-canonical__diagram-arrow svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-@media (max-width: 640px) {
-  .home-canonical__diagram {
-    grid-template-columns: 1fr;
-    justify-items: center;
-  }
-
-  .home-canonical__diagram-arrow {
-    transform: rotate(90deg);
-  }
-}
-
-.home-roadmap {
-  padding: 48px 20px 80px;
-}
-
-.home-roadmap__container {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
-}
-
-.home-roadmap__heading {
-  font-family: var(--font-serif);
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--color-secondary);
-  margin-bottom: 16px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .home-roadmap__heading {
-    color: var(--foreground);
-  }
-}
-
-.home-roadmap__list {
-  margin: 0;
-}
-
-.feature-card--roadmap {
-  padding: 4px 0;
-  margin: 0 0 8px;
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-}
-
-.feature-card--roadmap .feature-card__name {
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-.feature-card--roadmap .feature-card__description {
-  font-size: 0.9375rem;
-}
-
-.home-backstory {
-  padding: 80px 20px;
-}
-
-.home-backstory__container {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
-}
-
-.home-backstory__header {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 24px;
-}
-
-.home-backstory__avatar {
-  flex-shrink: 0;
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid var(--border);
-}
-
-.home-backstory__title {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.3;
-  margin-bottom: 0;
-  color: var(--foreground);
-}
-
-.home-backstory__content p {
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--muted-foreground);
-  margin-bottom: 16px;
+.home-ways__note {
+  margin: 32px 0 0;
   text-wrap: pretty;
+  color: var(--color-text-secondary);
 }
 
-.home-backstory__content a {
-  color: var(--primary-text);
-  text-decoration: underline;
-}
-
-.home-backstory__highlight {
-  color: var(--color-highlight);
-}
-
-.home-backstory__highlight a {
-  color: var(--primary-text);
-}
-
-.home-comparison {
-  padding: 80px 20px;
-}
-
-.home-comparison__container {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-.comparison-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--card);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-
-.comparison-table th,
-.comparison-table td {
-  padding: 12px 16px;
-  text-align: center;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.9375rem;
-}
-
-.comparison-table th {
-  background: var(--muted);
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.comparison-table td:first-child,
-.comparison-table th:first-child {
-  text-align: left;
-  font-weight: 500;
-}
-
-.comparison-table__readplace {
-  background: var(--color-brand-light);
-  font-weight: 600;
-  color: var(--color-brand-dark);
-}
-
-.comparison-table__check {
-  display: inline-flex;
-  color: var(--color-success);
-}
-
-.comparison-table__cross {
-  display: inline-flex;
-  color: var(--color-text-muted);
-}
-
-/**
- * Decline Statements ("What Readplace will not become")
- *
- * Each entry is an exclusion, so the marker is the same "x" icon the comparison
- * table uses for "no" — a neutral dash would read as a feature, not a refusal.
- */
-.home-decline {
-  padding: 64px 20px;
-}
-
-.home-decline__container {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
-}
-
-.home-decline__heading {
-  font-family: var(--font-serif);
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--color-secondary);
+.home-assistant__body,
+.home-assistant__note {
   margin: 0 0 16px;
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
 }
 
-@media (prefers-color-scheme: dark) {
-  .home-decline__heading {
-    color: var(--foreground);
-  }
-}
-
-.home-decline__lead {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--foreground);
-  margin: 0 0 12px;
-}
-
-.home-decline__list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 20px;
-}
-
-.home-decline__item {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 8px 0;
-  font-size: 1rem;
-  line-height: 1.5;
-  color: var(--muted-foreground);
-  border-bottom: 1px solid var(--border);
-}
-
-.home-decline__item:last-child {
-  border-bottom: none;
-}
-
-.home-decline__marker {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--color-text-muted);
-}
-
-.home-decline__closing {
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--muted-foreground);
+.home-assistant__action {
   margin: 0;
 }
 
-/**
- * Cost Transparency Block
- *
- * 1. Card surface so the section reads as a discrete receipt-style block,
- *    distinct from the prose decline section above it and the pricing card
- *    below.
- */
-.home-cost {
-  padding: 64px 20px;
-}
-
-.home-cost__container {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 32px;
-  background: var(--card);
+.home-proof__video {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 0 32px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg); /* 1 */
+  border-radius: var(--radius);
 }
 
-.home-cost__heading {
-  font-family: var(--font-serif);
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--color-secondary);
-  margin: 0 0 16px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .home-cost__heading {
-    color: var(--foreground);
-  }
-}
-
-.home-cost__subtitle {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-  margin: 0 0 16px;
-}
-
-.home-cost__lead {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--foreground);
-  margin: 0 0 12px;
-}
-
-.home-cost__list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 20px;
-}
-
-.home-cost__item {
-  padding: 10px 0;
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-  border-bottom: 1px solid var(--border);
-}
-
-.home-cost__item:last-child {
-  border-bottom: none;
-}
-
-.home-cost__item strong {
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-.home-cost__body {
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--muted-foreground);
-  margin: 0 0 12px;
-}
-
-.home-cost__body--muted {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin-bottom: 0;
-}
-
-.home-cost__body--emphasis {
-  padding: 16px 18px;
-  margin: 8px 0 16px;
-  border-left: 3px solid var(--primary);
-  background: var(--muted);
-  border-radius: var(--radius-sm);
-  color: var(--foreground);
-}
-
-.home-cost__body--emphasis strong {
-  color: var(--foreground);
-  font-weight: 700;
-}
-
-.home-cost__body a {
-  color: var(--primary-text);
-  text-decoration: underline;
-}
-
-@media (max-width: 540px) {
-  .home-cost__container {
-    padding: 24px 20px;
-  }
-}
-
-.home-pricing {
-  padding: 80px 20px;
-}
-
-.home-pricing__container {
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.pricing-grid {
-  grid-template-columns: 1fr;
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.pricing-grid--visible {
-  display: grid;
-}
-
-.pricing-grid--hidden {
-  display: none;
-}
-
-.home-pricing__title--visible {
-  display: block;
-}
-
-.home-pricing__title--hidden {
-  display: none;
-}
-
-.home-pricing__progress--visible {
-  display: block;
-}
-
-.home-pricing__progress--hidden {
-  display: none;
-}
-
-.home-pricing__fallback {
-  max-width: 480px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.home-pricing__fallback--visible {
-  display: block;
-}
-
-.home-pricing__fallback--hidden {
-  display: none;
-}
-
-.home-pricing__fallback-header {
-  margin-bottom: 24px;
-}
-
-.home-pricing__fallback-features {
-  text-align: left;
-  display: inline-block;
-  margin-bottom: 32px;
-}
-
-.pricing-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 32px 24px;
-  background: var(--card);
-  position: relative;
-}
-
-.pricing-card--featured {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary);
-}
-
-.pricing-card__badge {
-  position: absolute;
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  padding: 4px 16px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.pricing-card__name {
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1.3;
-  margin-bottom: 4px;
-}
-
-.pricing-card__price {
-  font-size: 2.5rem;
-  font-weight: 800;
-  line-height: 1.3;
-  margin-bottom: 4px;
-}
-
-.pricing-card__price-suffix {
-  font-size: 1rem;
-  font-weight: 400;
-  color: var(--muted-foreground);
-}
-
-.pricing-card__description {
-  font-size: 0.9375rem;
-  color: var(--muted-foreground);
-  line-height: 1.6;
-  margin-bottom: 24px;
-}
-
-.pricing-card__features {
-  list-style: none;
-  padding: 0;
+.home-proof__quote {
   margin: 0 0 24px;
 }
 
-.pricing-card__feature {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 0.9375rem;
-  color: var(--foreground);
-}
-
-.pricing-card__feature-marker {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--color-success);
-}
-
-.pricing-card__cta {
-  width: 100%;
-}
-
-.home-trust {
-  padding: 80px 20px;
-}
-
-.home-trust__container {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.trust-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-}
-
-@media (max-width: 640px) {
-  .trust-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.trust-card {
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--card);
-}
-
-.trust-card__name {
-  font-size: 1.0625rem;
-  font-weight: 600;
-  line-height: 1.3;
-  margin-bottom: 8px;
-  text-wrap: balance;
-}
-
-.trust-card__description {
-  font-size: 0.9375rem;
-  color: var(--muted-foreground);
-  line-height: 1.6;
-  text-wrap: pretty;
-}
-
-.home-cta {
-  padding: 80px 20px;
-  text-align: center;
-}
-
-.home-cta__container {
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.home-cta__title {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.3;
-  margin-bottom: 16px;
-  text-wrap: pretty;
-}
-
-.home-cta__subtitle {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-  margin-bottom: 32px;
-  text-wrap: pretty;
-}
-
-.home-cta__actions {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.home-cta__ways {
-  margin: 16px 0 0;
-}
-
-.home-cta__link {
-  color: var(--primary-text);
-  text-decoration: underline;
-  font-size: 0.9375rem;
-  font-weight: 500;
-}
-
-/**
- * Highlighted reader testimonial — a single featured pull-quote after the hero
- * as social proof before the install / pricing ask. Colours use flip-aware
- * tokens (--foreground, --muted, --primary, --muted-foreground), so dark mode
- * adapts without a separate override.
- */
-.home-testimonial {
-  padding: 80px 20px;
-  text-align: center;
-}
-
-.home-testimonial__figure {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
-  padding: 24px;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-
-.home-testimonial__quote {
+.home-proof__quote-text {
   margin: 0;
-  font-family: var(--font-serif);
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   line-height: 1.4;
-  color: var(--foreground);
+  text-wrap: pretty;
+  color: var(--color-text-primary);
 }
 
-.home-testimonial__quote::before {
-  content: "\201C";
-  display: block;
-  margin-bottom: 4px;
-  color: var(--primary);
-  font-family: var(--font-serif);
-  font-size: 3rem;
-  line-height: 1;
+.home-proof__quote-by {
+  margin-top: 4px;
+  color: var(--color-text-secondary);
 }
 
-.home-testimonial__attribution {
-  margin-top: 24px;
-  font-size: 0.9375rem;
-  color: var(--muted-foreground);
+.home-proof__founder {
+  margin: 0 0 16px;
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
+}
+
+.home-principle__title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.home-principle__avatar {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.home-principle__body {
+  margin: 0;
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
+}
+
+.home-pricing__container {
+  text-align: center;
+}
+
+.home-pricing__title {
+  margin-bottom: 16px;
+}
+
+/** Deliberately set below the words around it: the sum is the smallest thing in
+ * the sentence that announces it. */
+.home-pricing__amount {
+  font-size: 0.62em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.home-pricing__body {
+  margin: 0 0 32px;
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
+}
+
+.home-pricing__cta {
+  margin: 0;
+}
+
+.home-pricing__cta-button {
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.home-pricing__cta-sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.home-pricing__note {
+  margin: 16px 0 0;
+  font-size: 0.9rem;
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
+}
+
+.home-pricing__assurances {
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.home-pricing__assurance {
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
+}
+
+.home-pricing__source {
+  margin: 16px 0 0;
+  font-size: 0.9rem;
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
+}
+
+.home-faq__list {
+  margin: 0;
+}
+
+.home-faq__item {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.home-faq__item:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.home-faq__question {
+  font-weight: 600;
+  text-wrap: pretty;
+  color: var(--color-text-primary);
+}
+
+.home-faq__answer {
+  margin: 4px 0 0;
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
+}
+
+.home-close__container {
+  text-align: center;
+}
+
+.home-close__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: center;
+  margin: 24px 0 0;
+}
+
+.home-close__signoff {
+  margin: 32px 0 0;
+  font-size: 0.9rem;
+  text-wrap: pretty;
+  color: var(--color-text-secondary);
 }
 
 @media (min-width: 768px) {
+  .home-ways,
+  .home-assistant,
+  .home-proof,
+  .home-principle,
+  .home-pricing,
+  .home-faq,
+  .home-close {
+    padding: 64px 32px;
+  }
+
+  .home-hero {
+    padding: 96px 32px;
+  }
+
   .home-hero__title {
-    --hero-headline-font-size: 3.5rem;
-    --hero-headline-lines: 1;
+    font-size: 2.75rem;
   }
 
-  .hero-headline__lead {
-    display: inline;
-  }
-
-  .home-hero__subtitle {
-    font-size: 1.25rem;
-  }
-
-  .home-testimonial__figure {
-    padding: 40px 32px;
-  }
-}
-
-@media (max-width: 767px) {
-  /**
-   * 1. The wide comparison matrix reflows to one stacked card per feature row so
-   *    the page scrolls down only — an `overflow-x` table would force a sideways
-   *    swipe that breaks the scroll-down flow on a phone. The semantic <table>
-   *    is kept: screen readers, SEO, and the text/markdown negotiation depend
-   *    on it.
-   * 2. Neutralise the table's own card surface here so each row-card floats on
-   *    the section background rather than sitting on a second card.
-   */
-  .comparison-table {
-    background: transparent; /* 2 */
-    box-shadow: none;
-    border-radius: 0;
-    overflow: visible;
-  }
-  .comparison-table,
-  .comparison-table tbody,
-  .comparison-table tr,
-  .comparison-table th,
-  .comparison-table td {
-    display: block; /* 1 */
-    width: 100%;
-  }
-  .comparison-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
-  .comparison-table tr {
-    margin-bottom: 16px;
-    padding: 4px 0 8px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-  }
-  .comparison-table th,
-  .comparison-table td {
-    text-align: left;
-    border-bottom: none;
-    padding: 6px 16px;
-  }
-  .comparison-table tr > th[scope="row"] {
-    background: transparent;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--foreground);
-    padding-top: 12px;
-  }
-  .comparison-table td::before {
-    content: attr(data-label);
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--muted-foreground);
+  .home-section__title {
+    font-size: 2rem;
   }
 }

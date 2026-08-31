@@ -111,13 +111,13 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses?error=limit&name=netflix");
+			const response = await agent.get("/inbox/addresses?error=limit&name=my-newsletter");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(alertKeys(doc)).toEqual(["limit"]);
 			const input = doc.querySelector("[data-test-inbox-name-input]");
-			expect(input?.getAttribute("value")).toBe("netflix");
+			expect(input?.getAttribute("value")).toBe("my-newsletter");
 			expect(input?.getAttribute("aria-invalid")).toBe("false");
 			expect(input?.hasAttribute("aria-describedby")).toBe(false);
 			expect(input?.hasAttribute("autofocus")).toBe(false);
@@ -133,19 +133,19 @@ describe("Inbox address routes", () => {
 			const created = await agent
 				.post("/inbox/create")
 				.type("form")
-				.send({ name: "Netflix" });
+				.send({ name: "My-Newsletter" });
 			expect(created.status).toBe(303);
-			expect(created.headers.location).toBe("/inbox/addresses?created=netflix");
+			expect(created.headers.location).toBe("/inbox/addresses?created=my-newsletter");
 
 			const listed = await agent.get(created.headers.location);
-			expect(addressFieldValue(listed.text)).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
+			expect(addressFieldValue(listed.text)).toMatch(/^my-newsletter-[0-9a-z]{6}@read\.place$/);
 			const doc = new JSDOM(listed.text).window.document;
-			expect(doc.querySelector("[data-test-inbox-name]")?.textContent).toBe("netflix");
+			expect(doc.querySelector("[data-test-inbox-name]")?.textContent).toBe("my-newsletter");
 			const confirmation = doc.querySelector("[data-test-inbox-created]");
 			assert(confirmation, "the create confirmation must render on the redirect target");
 			expect(confirmation.classList.contains("inbox__success--visible")).toBe(true);
 			expect(confirmation.getAttribute("role")).toBe("status");
-			expect(confirmation.textContent).toContain("netflix");
+			expect(confirmation.textContent).toContain("my-newsletter");
 		});
 
 		it("redirects with error=name when the submitted name has no valid characters", async () => {
@@ -194,19 +194,19 @@ describe("Inbox address routes", () => {
 		it("rejects a name the user already holds on a live address with error=name-taken", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 
 			const dup = await agent
 				.post("/inbox/create")
 				.type("form")
-				.send({ name: "Netflix" });
+				.send({ name: "My-Newsletter" });
 
 			expect(dup.status).toBe(303);
-			expect(dup.headers.location).toBe("/inbox/addresses?error=name-taken&name=netflix");
+			expect(dup.headers.location).toBe("/inbox/addresses?error=name-taken&name=my-newsletter");
 			const doc = new JSDOM((await agent.get(dup.headers.location)).text).window.document;
 			expect(alertKeys(doc)).toEqual(["name-taken"]);
 			const input = doc.querySelector("[data-test-inbox-name-input]");
-			expect(input?.getAttribute("value")).toBe("netflix");
+			expect(input?.getAttribute("value")).toBe("my-newsletter");
 			expect(input?.getAttribute("aria-invalid")).toBe("true");
 			expect(input?.getAttribute("aria-describedby")).toBe("inbox-name-error");
 			expect(input?.hasAttribute("autofocus")).toBe(true);
@@ -220,7 +220,7 @@ describe("Inbox address routes", () => {
 		it("allows a second live address under a different name", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 
 			const second = await agent
 				.post("/inbox/create")
@@ -234,13 +234,13 @@ describe("Inbox address routes", () => {
 					(await agent.get("/inbox/addresses")).text,
 				).window.document.querySelectorAll("[data-test-inbox-name]"),
 			).map((el) => el.textContent);
-			expect(names).toEqual(["netflix", "gmail"]);
+			expect(names).toEqual(["my-newsletter", "gmail"]);
 		});
 
 		it("allows reusing the name of a disabled address, since the guard only blocks live ones", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 			const first = addressFieldValue((await agent.get("/inbox/addresses")).text);
 			await agent
 				.post("/inbox/disable")
@@ -250,10 +250,10 @@ describe("Inbox address routes", () => {
 			const recreated = await agent
 				.post("/inbox/create")
 				.type("form")
-				.send({ name: "netflix" });
+				.send({ name: "my-newsletter" });
 
 			expect(recreated.status).toBe(303);
-			expect(recreated.headers.location).toBe("/inbox/addresses?created=netflix");
+			expect(recreated.headers.location).toBe("/inbox/addresses?created=my-newsletter");
 		});
 
 		it("redirects a read-only user to /queue?inactive=1 and mints nothing", async () => {
@@ -353,10 +353,10 @@ describe("Inbox address routes", () => {
 			const response = await agent
 				.post("/inbox/create")
 				.type("form")
-				.send({ name: "netflix" });
+				.send({ name: "my-newsletter" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=create&name=netflix");
+			expect(response.headers.location).toBe("/inbox/addresses?error=create&name=my-newsletter");
 			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(true);
 		});
 
@@ -375,10 +375,10 @@ describe("Inbox address routes", () => {
 			const response = await agent
 				.post("/inbox/create")
 				.type("form")
-				.send({ name: "netflix" });
+				.send({ name: "my-newsletter" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=create&name=netflix");
+			expect(response.headers.location).toBe("/inbox/addresses?error=create&name=my-newsletter");
 			expect(loggedErrors[0]).toBeInstanceOf(Error);
 			expect(loggedErrors[0]?.message).toBe("dynamo down");
 		});
@@ -395,14 +395,14 @@ describe("Inbox address routes", () => {
 			const created = await agent
 				.post("/inbox/create")
 				.type("form")
-				.send({ name: "netflix" });
+				.send({ name: "my-newsletter" });
 			const landing = await agent.get(created.headers.location);
 
 			expect(landing.status).toBe(200);
 			const doc = new JSDOM(landing.text).window.document;
 			expect(alertKeys(doc)).toEqual(["create-failed"]);
 			const input = doc.querySelector("[data-test-inbox-name-input]");
-			expect(input?.getAttribute("value")).toBe("netflix");
+			expect(input?.getAttribute("value")).toBe("my-newsletter");
 			expect(input?.getAttribute("aria-invalid")).toBe("false");
 			expect(input?.hasAttribute("aria-describedby")).toBe(false);
 		});
@@ -425,7 +425,7 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses?created=netflix");
+			const response = await agent.get("/inbox/addresses?created=my-newsletter");
 
 			const confirmation = new JSDOM(response.text).window.document.querySelector(
 				"[data-test-inbox-created]",
@@ -433,7 +433,7 @@ describe("Inbox address routes", () => {
 			assert(confirmation, "the create confirmation element must render");
 			expect(confirmation.classList.contains("inbox__success--visible")).toBe(true);
 			expect(confirmation.getAttribute("role")).toBe("status");
-			expect(confirmation.textContent).toContain("netflix");
+			expect(confirmation.textContent).toContain("my-newsletter");
 		});
 
 		it("keeps the create confirmation hidden and empty on a normal visit", async () => {
@@ -468,7 +468,7 @@ describe("Inbox address routes", () => {
 		it("disables an address the user owns", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 			const address = addressFieldValue(
 				(await agent.get("/inbox/addresses")).text,
 			);
@@ -495,18 +495,18 @@ describe("Inbox address routes", () => {
 		it("moves a disabled address into the collapsed group behind the remaining active ones", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 			await agent.post("/inbox/create").type("form").send({ name: "gmail" });
-			const netflixAddress = addressFieldValue(
+			const newsletterAddress = addressFieldValue(
 				(await agent.get("/inbox/addresses")).text,
 			);
-			assert(netflixAddress, "the created netflix address must render");
-			expect(netflixAddress).toMatch(/^netflix-/);
+			assert(newsletterAddress, "the created my-newsletter address must render");
+			expect(newsletterAddress).toMatch(/^my-newsletter-/);
 
 			await agent
 				.post("/inbox/disable")
 				.type("form")
-				.send({ address: netflixAddress });
+				.send({ address: newsletterAddress });
 
 			const after = new JSDOM(
 				(await agent.get("/inbox/addresses")).text,
@@ -514,17 +514,17 @@ describe("Inbox address routes", () => {
 			const names = Array.from(after.querySelectorAll("[data-test-inbox-name]")).map(
 				(el) => el.textContent,
 			);
-			expect(names).toEqual(["gmail", "netflix"]);
+			expect(names).toEqual(["gmail", "my-newsletter"]);
 			expect(
 				after.querySelector("[data-test-inbox-disabled-group] [data-test-inbox-name]")
 					?.textContent,
-			).toBe("netflix");
+			).toBe("my-newsletter");
 		});
 
 		it("ignores a request whose body is not a valid address", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 
 			const response = await agent
 				.post("/inbox/disable")
@@ -541,7 +541,7 @@ describe("Inbox address routes", () => {
 		it("does not disable an address the user does not own", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 
 			const response = await agent
 				.post("/inbox/disable")
@@ -560,7 +560,7 @@ describe("Inbox address routes", () => {
 		it("re-enables a disabled address and returns it to the active list", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
 			assert(address, "the created address must render");
 			await agent.post("/inbox/disable").type("form").send({ address });
@@ -589,7 +589,7 @@ describe("Inbox address routes", () => {
 		it("renders an enable control on each disabled row pointing at the enable route", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
 			assert(address, "the created address must render");
 			await agent.post("/inbox/disable").type("form").send({ address });
@@ -607,7 +607,7 @@ describe("Inbox address routes", () => {
 		it("leaves an already-live address unchanged and issues no error param", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
 			assert(address, "the created address must render");
 
@@ -627,7 +627,7 @@ describe("Inbox address routes", () => {
 		it("ignores a request whose body is not a valid address", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 
 			const response = await agent
 				.post("/inbox/enable")
@@ -645,7 +645,7 @@ describe("Inbox address routes", () => {
 		it("does not enable an address the user does not own", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 
 			const response = await agent
 				.post("/inbox/enable")
@@ -733,7 +733,7 @@ describe("Inbox address routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "seeded login user must exist");
-			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
 			assert(address, "the created address must render");
 			await agent.post("/inbox/disable").type("form").send({ address });

@@ -27,7 +27,6 @@ export function emitUserCreated(
 		tier: "free" | "trial";
 		attribution: ClickAttribution | undefined;
 		visitorId?: string;
-		homepageVariant?: string;
 		pendingSaveId?: string;
 		oauthClientId: string | undefined;
 	},
@@ -42,7 +41,6 @@ export function emitUserCreated(
 		tier: params.tier,
 		...(params.attribution ?? {}),
 		...(params.visitorId ? { visitor_id: params.visitorId } : {}),
-		...(params.homepageVariant ? { homepage_variant: params.homepageVariant } : {}),
 		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
 		...(params.oauthClientId ? { oauth_client_id: params.oauthClientId } : {}),
 	};

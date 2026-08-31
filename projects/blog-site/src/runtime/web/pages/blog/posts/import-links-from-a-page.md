@@ -36,7 +36,7 @@ The same import screen still takes a file. If you have an HTML or JSON export fr
 
 ## Built for newsletter readers
 
-Readplace pulls up to 2,000 links from one page. It caps the download at 5 MiB and gives up after 10 seconds if the site stalls, so a slow or oversized page fails fast instead of hanging the whole import behind it. Past those limits, email [readplace+migrate@readplace.com](mailto:readplace+migrate@readplace.com) and I'll lift the cap by hand.
+Readplace pulls up to 2,000 links from one page. It caps the download at 5 MiB and gives up after 10 seconds if the site stalls, so a slow or oversized page fails fast instead of hanging the whole import behind it. Past those limits, split the page's links across more than one import.
 
 People who read a lot of newsletters get the most out of this. A weekly roundup of 20 links turns into one paste and a couple of unticks, and the same move works for a link blog or a "further reading" list you already read straight from the source.
 

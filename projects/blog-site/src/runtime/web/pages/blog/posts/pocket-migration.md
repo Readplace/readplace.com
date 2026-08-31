@@ -12,7 +12,7 @@ keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, sign in to Readplace, open your readlist, and use the "Import from a file" picker. Pick the file, untick anything you don't want, then click Import. Files over 4.5 MB or above 2,000 links fall back to emailing readplace+migrate@readplace.com (24 to 48 hour concierge turnaround).
+Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, sign in to Readplace, open your readlist, and use the "Import from a file" picker. Pick the file, untick anything you don't want, then click Import. Files over 4.5 MB or above 2,000 links have to be split into smaller files first.
 
 </div>
 </details>
@@ -63,9 +63,9 @@ The importer pulls in every URL the file holds.
 
 Tags, highlights, and read/unread state do not come across. Pocket's export format only carried URLs and titles, and the in-app importer reads any text-shaped file the same way, so there is nothing more to bring over.
 
-One snag worth knowing about. If your file runs over 4.5 MB, holds more than 2,000 links, or the picker fails for any reason, send it to [readplace+migrate@readplace.com](mailto:readplace+migrate@readplace.com) and I import it by hand within 24 to 48 hours.
+One snag worth knowing about. If your file runs over 4.5 MB or holds more than 2,000 links, split it into smaller files and import them one at a time.
 
-After the import I opened my [reading list](/queue) again and spot-checked a handful of entries to confirm the titles and URLs lined up. If something looks off, a follow-up to readplace+migrate@readplace.com will sort it.
+After the import I opened my [reading list](/queue) again and spot-checked a handful of entries to confirm the titles and URLs lined up.
 
 If you came out of the recovery step with a pile of loose URLs and no export file at all, you can still rebuild by hand. Install the Readplace browser extension for [Chrome](/install?client=chrome) or [Firefox](/install?client=firefox) and save the recovered articles one at a time. It is slower, but it works.
 
@@ -106,7 +106,7 @@ If you downloaded the HTML export file before the shutdown, it still works fine.
 
 **How do I import Pocket articles into another app?**
 
-Most read-it-later apps take the HTML export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open your readlist, upload the file with the "Import from a file" picker, and confirm the link list. For files over 4.5 MB or imports above the 2,000-URL cap, email readplace+migrate@readplace.com and I handle the import for you within 24 to 48 hours.
+Most read-it-later apps take the HTML export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open your readlist, upload the file with the "Import from a file" picker, and confirm the link list. For files over 4.5 MB or imports above the 2,000-URL cap, split the export into smaller files and import them one at a time.
 
 **I lost my Omnivore reading list too. Can Readplace help?**
 
