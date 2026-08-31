@@ -5,8 +5,6 @@ slug: "faster-pages-an-ocean-from-the-server"
 date: "2026-08-29"
 author: "Fayner Brack"
 keywords: "cdn latency, time to first byte, cloudfront origin shield, tls termination at the edge, transpacific latency, read it later app speed, rate limiting behind a cdn, server-side rendering behind a cdn, connection reuse keepalive, readplace"
-tags: ["changelog"]
-banner: "I cut 2 ocean crossings out of opening your readlist"
 ---
 
 <details class="blog-tldr">
