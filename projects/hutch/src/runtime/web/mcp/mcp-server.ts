@@ -12,7 +12,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
-import type { ToolAccess } from "./tool-access";
+import { type ToolAccess, UNVERIFIED_ACCESS } from "./tool-access";
 import {
 	ArticleIdArgs,
 	DELETE_ARTICLE_TOOL,
@@ -39,6 +39,11 @@ const APP_READLIST_URL = "https://readplace.com/queue";
  * status route carries neither the lock gate nor the write-access gate: a
  * lapsed reader can mark read in their readlist, and MCP matches that. */
 const PAYWALLED_TOOLS: ReadonlySet<string> = new Set([SAVE_LINK_TOOL.name]);
+
+const GATE_OUTCOMES = {
+	inactive: MCP_TOOL_OUTCOMES.paywalled,
+	unverified: MCP_TOOL_OUTCOMES.accessCheckFailed,
+} as const satisfies Record<Exclude<ToolAccess["state"], "ok">, McpToolOutcome>;
 
 type SaveLinkResult =
 	| { readonly ok: true; readonly title: string; readonly url: string }
@@ -734,15 +739,15 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			return failure(id, -32602, "Invalid params: expected { name, arguments }");
 		}
 
-		// The subscription store read is the gate's only IO. A transient failure
-		// must neither escape handle() (the transport awaits it bare, so a throw
-		// would hang the request) nor block reads, so a store blip fails open to
-		// full access rather than refusing a paying user or a lapsed reader.
 		let access: ToolAccess;
 		try {
 			access = await deps.resolveToolAccess(context.userId);
-		} catch {
-			access = { state: "ok" };
+		} catch (error) {
+			deps.logError(
+				"MCP subscription access check failed",
+				error instanceof Error ? error : undefined,
+			);
+			access = UNVERIFIED_ACCESS;
 		}
 
 		const rawArgs = parsed.data.arguments ?? {};
@@ -759,8 +764,8 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			});
 		};
 
-		if (access.state === "inactive" && PAYWALLED_TOOLS.has(parsed.data.name)) {
-			record(MCP_TOOL_OUTCOMES.paywalled);
+		if (access.state !== "ok" && PAYWALLED_TOOLS.has(parsed.data.name)) {
+			record(GATE_OUTCOMES[access.state]);
 			return success(id, toolError(access.message));
 		}
 

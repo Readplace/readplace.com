@@ -1061,7 +1061,10 @@ describe("initMcpServer", () => {
 			expect(markAsUnread).toHaveBeenCalledTimes(1);
 		});
 
-		it("fails open to full access when the subscription store read throws, so a blip never blocks a save", async () => {
+		const ACCESS_CHECK_FAILED_MESSAGE =
+			"This link wasn't saved because the subscription check didn't go through. Try again in a moment.";
+
+		it("refuses save_link without running the save when the subscription check throws", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
 				title: "Saved",
@@ -1076,12 +1079,72 @@ describe("initMcpServer", () => {
 				}),
 			);
 			const response = await call(server, 72, "save_link", { url: "https://e.test/a" });
-			expect(saveLink).toHaveBeenCalled();
 			expect(response).toMatchObject({
 				id: 72,
-				result: { content: [{ text: expect.stringContaining("Saved") }] },
+				result: {
+					isError: true,
+					content: [{ type: "text", text: ACCESS_CHECK_FAILED_MESSAGE }],
+				},
 			});
-			expect(response).not.toMatchObject({ result: { isError: true } });
+			expect(saveLink).not.toHaveBeenCalled();
+		});
+
+		it("logs the subscription-check failure so a fail-closed save is observable in prod", async () => {
+			const storeError = new Error("subscription store unavailable");
+			const logError = jest.fn();
+			const server = initMcpServer(
+				fakeDeps({
+					resolveToolAccess: async () => {
+						throw storeError;
+					},
+					logError,
+				}),
+			);
+			await call(server, 73, "save_link", { url: "https://e.test/a" });
+			expect(logError).toHaveBeenCalledWith(
+				"MCP subscription access check failed",
+				storeError,
+			);
+		});
+
+		it("logs the subscription-check failure without a second argument when it rejects with something that is not an Error", async () => {
+			const logError = jest.fn();
+			const server = initMcpServer(
+				fakeDeps({
+					resolveToolAccess: async () => {
+						throw "subscription store unavailable";
+					},
+					logError,
+				}),
+			);
+			await call(server, 75, "save_link", { url: "https://e.test/a" });
+			expect(logError).toHaveBeenCalledWith(
+				"MCP subscription access check failed",
+				undefined,
+			);
+		});
+
+		it("leaves the read tools open when the subscription check throws", async () => {
+			const listReadlist = jest.fn(async () => ({
+				total: 1,
+				page: 1,
+				pageSize: 20,
+				articles: [mcpArticle({ title: "Still readable" })],
+			}));
+			const server = initMcpServer(
+				fakeDeps({
+					listReadlist,
+					resolveToolAccess: async () => {
+						throw new Error("subscription store unavailable");
+					},
+				}),
+			);
+			const response = await call(server, 74, "list_queue", {});
+			expect(response).toMatchObject({
+				id: 74,
+				result: { structuredContent: { total: 1 } },
+			});
+			expect(listReadlist).toHaveBeenCalled();
 		});
 	});
 
@@ -1224,6 +1287,20 @@ describe("initMcpServer", () => {
 			expect(records[0]).toMatchObject({
 				tool: "save_link",
 				outcome: "paywalled",
+				submittedUrl: "https://example.com/a",
+			});
+		});
+
+		it("distinguishes a save refused by a failed subscription check as outcome=access_check_failed", async () => {
+			const { server, records } = recording({
+				resolveToolAccess: async () => {
+					throw new Error("subscription store unavailable");
+				},
+			});
+			await call(server, 1, "save_link", { url: "https://example.com/a" });
+			expect(records[0]).toMatchObject({
+				tool: "save_link",
+				outcome: "access_check_failed",
 				submittedUrl: "https://example.com/a",
 			});
 		});

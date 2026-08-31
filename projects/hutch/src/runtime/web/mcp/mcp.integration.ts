@@ -196,6 +196,37 @@ describe("MCP server over the real app", () => {
 		expect(list.body.result.structuredContent.total).toBe(0);
 	});
 
+	it("refuses save_link but keeps the read tools open when the subscription row is malformed and the check throws", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
+		const user = await harness.auth.findUserByEmail("mcp@example.com");
+		assert(user, "the authenticated user must exist");
+		harness.subscriptionProviders.seedRow({
+			userId: user.userId,
+			provider: "stripe",
+			status: "trialing",
+			createdAt: "2026-06-20T09:30:31.367Z",
+			updatedAt: "2026-07-07T10:31:16.403Z",
+		});
+
+		const save = await callTool(harness, accessToken, {
+			jsonrpc: "2.0",
+			id: 5,
+			method: "tools/call",
+			params: { name: "save_link", arguments: { url: "https://example.com/blocked" } },
+		});
+		expect(save.status).toBe(200);
+		expect(save.body.result.isError).toBe(true);
+		expect(save.body.result.content[0].text).toBe(
+			"This link wasn't saved because the subscription check didn't go through. Try again in a moment.",
+		);
+
+		const list = await callTool(harness, accessToken, tool("list_queue"));
+		expect(list.status).toBe(200);
+		expect(list.body.result.isError).toBeUndefined();
+		expect(list.body.result.structuredContent.total).toBe(0);
+	});
+
 	it("advertises the read tools, the status writes, and the app-only delete", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await obtainAccessToken(harness);

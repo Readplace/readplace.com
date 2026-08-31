@@ -6,9 +6,7 @@ import type { GetEffectiveAccess } from "@packages/subscription-access";
  *
  * The decision is not re-derived here — it reuses `getEffectiveAccess` (the same
  * resolver the web banner reads), so "lapsed" means exactly what it means on the
- * web. The caller (`mcp-server`) owns the envelope: it returns `message` as a
- * tool error when an inactive caller tries to save, and every other tool stays
- * open.
+ * web.
  *
  * Nothing is ever attached to a *successful* result. The ChatGPT app developer
  * guidelines forbid promoting an upgrade from a tool response, and the Anthropic
@@ -26,7 +24,14 @@ const INACTIVE_MESSAGE =
 
 export type ToolAccess =
 	| { readonly state: "ok" }
-	| { readonly state: "inactive"; readonly message: string };
+	| { readonly state: "inactive"; readonly message: string }
+	| { readonly state: "unverified"; readonly message: string };
+
+export const UNVERIFIED_ACCESS = {
+	state: "unverified",
+	message:
+		"This link wasn't saved because the subscription check didn't go through. Try again in a moment.",
+} as const satisfies ToolAccess;
 
 export function initResolveToolAccess(deps: {
 	getEffectiveAccess: GetEffectiveAccess;

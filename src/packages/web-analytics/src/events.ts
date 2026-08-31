@@ -92,6 +92,7 @@ export const MCP_TOOL_OUTCOMES = {
 	ok: "ok",
 	error: "error",
 	paywalled: "paywalled",
+	accessCheckFailed: "access_check_failed",
 	unknownTool: "unknown_tool",
 	invalidParams: "invalid_params",
 } as const;
