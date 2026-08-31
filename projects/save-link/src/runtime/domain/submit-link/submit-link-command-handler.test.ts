@@ -358,7 +358,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 
-	it("terminalises the row in-process and acks the record when the tier-1 crawl throws — the accept phase already succeeded, so a retry could not help", async () => {
+	it("terminalises the row as fetch-failed and acks the record when the tier-1 crawl throws a transport failure — a first receive is not an exhausted retry budget", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			transitionAndPersist,
@@ -366,6 +366,44 @@ describe("initSubmitLinkCommandHandler", () => {
 				status: "failed",
 				reason: "crawl-failed",
 			})) as CrawlAndFinalizeArticle,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
+			url: exampleUrl,
+			input: { reason: { kind: "fetch-failed" }, receiveCount: 1 },
+		});
+	});
+
+	it("preserves the parse-error detail the worker already wrote instead of clobbering it with a retry label", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			transitionAndPersist,
+			crawlAndFinalizeArticle: (async () => ({
+				status: "failed",
+				reason: "Readability returned null",
+			})) as CrawlAndFinalizeArticle,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(transitionAndPersist).toHaveBeenLastCalledWith(markCrawlExhausted, {
+			url: exampleUrl,
+			input: {
+				reason: { kind: "parse-error", detail: "Readability returned null" },
+				receiveCount: 1,
+			},
+		});
+	});
+
+	it("still terminalises with the receive count when the failure came from the worker's own storage write, not from the crawl", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			transitionAndPersist,
+			putTierSource: jest.fn().mockRejectedValue(new Error("S3 PutObject failed")),
 		});
 
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));

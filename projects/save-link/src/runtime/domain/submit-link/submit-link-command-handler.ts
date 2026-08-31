@@ -25,6 +25,7 @@ import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import { initSaveLinkWork, logRecordFailure } from "../save-link/save-link-work";
+import { crawlFailureReasonForError } from "../save-link/crawl-failure-reason-for-error";
 
 export function initSubmitLinkCommandHandler(deps: {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -150,7 +151,7 @@ export function initSubmitLinkCommandHandler(deps: {
 						await deps.transitionAndPersist(markCrawlExhausted, {
 							url: link.url,
 							input: {
-								reason: { kind: "exhausted-retries", receiveCount },
+								reason: crawlFailureReasonForError({ error, receiveCount }),
 								receiveCount,
 							},
 						});

@@ -1,4 +1,4 @@
-import { blockedCauseForStatus } from "@packages/article-state-types";
+import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	markCrawlBlocked,
@@ -44,12 +44,35 @@ export type SaveLinkWorkOptions = {
 
 const CRAWL_FAILED_REASON = "crawl-failed";
 
-class CrawlFailedError extends Error {
+export class ClassifiedCrawlError extends Error {
 	readonly url: string;
+	readonly crawlFailureReason: CrawlFailureReason;
+	constructor(params: { url: string; message: string; crawlFailureReason: CrawlFailureReason }) {
+		super(params.message);
+		this.url = params.url;
+		this.crawlFailureReason = params.crawlFailureReason;
+	}
+}
+
+class CrawlFailedError extends ClassifiedCrawlError {
 	constructor(url: string) {
-		super(`crawl failed for ${url}: ${CRAWL_FAILED_REASON}`);
+		super({
+			url,
+			message: `crawl failed for ${url}: ${CRAWL_FAILED_REASON}`,
+			crawlFailureReason: { kind: "fetch-failed" },
+		});
 		this.name = "CrawlFailedError";
-		this.url = url;
+	}
+}
+
+class CrawlParseFailedError extends ClassifiedCrawlError {
+	constructor(params: { url: string; detail: string }) {
+		super({
+			url: params.url,
+			message: `crawl failed for ${params.url}: ${params.detail}`,
+			crawlFailureReason: { kind: "parse-error", detail: params.detail },
+		});
+		this.name = "CrawlParseFailedError";
 	}
 }
 
@@ -187,7 +210,7 @@ export function initSaveLinkWork(deps: {
 				url,
 				input: { reason: { kind: "parse-error", detail: result.reason } },
 			});
-			throw new Error(`crawl failed for ${url}: ${result.reason}`);
+			throw new CrawlParseFailedError({ url, detail: result.reason });
 		}
 
 		if (result.status === "not-modified") {
