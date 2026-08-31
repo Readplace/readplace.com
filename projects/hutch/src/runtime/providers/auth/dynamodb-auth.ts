@@ -38,6 +38,7 @@ import type {
 	FindUserByEmail,
 	FindUserContactByUserId,
 	GetSessionUserId,
+	MarkAccountDeleted,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
@@ -69,6 +70,7 @@ const UserRow = z.object({
 	referrer_host: dynamoField(z.string()),
 	first_seen_at: dynamoField(z.string()),
 	landing_path: dynamoField(z.string()),
+	deletedAt: dynamoField(z.string()),
 });
 
 /* Gmail uniqueness claims live in the users table under this PK prefix. Zod
@@ -76,6 +78,10 @@ const UserRow = z.object({
  * PK. Claim items carry ownerUserId (never userId), keeping them out of the
  * GSI and out of countUsers' attribute_exists(userId) filter. */
 const CLAIM_PK_PREFIX = "canonical#";
+
+function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | undefined {
+	return row && !row.deletedAt ? row : undefined;
+}
 
 export function initDynamoDbAuth(deps: {
 	client: DynamoDBDocumentClient;
@@ -95,6 +101,7 @@ export function initDynamoDbAuth(deps: {
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
 	closeUserAccount: CloseUserAccount;
+	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -284,9 +291,11 @@ export function initDynamoDbAuth(deps: {
 
 	const findUserByEmail: FindUserByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
-		const row = await users.get(
-			{ email: normalizedEmail },
-			{ projection: ["email", "userId", "emailVerified", "registeredAt"] },
+		const row = liveUserRow(
+			await users.get(
+				{ email: normalizedEmail },
+				{ projection: ["email", "userId", "emailVerified", "registeredAt", "deletedAt"] },
+			),
 		);
 		if (!row) return null;
 		return {
@@ -298,7 +307,7 @@ export function initDynamoDbAuth(deps: {
 
 	const verifyCredentials: VerifyCredentials = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
-		const row = await users.get({ email: normalizedEmail });
+		const row = liveUserRow(await users.get({ email: normalizedEmail }));
 		if (!row) return { ok: false, reason: "invalid-credentials" };
 
 		const valid = await verifyPassword(password, row.passwordHash);
@@ -420,6 +429,17 @@ export function initDynamoDbAuth(deps: {
 		);
 	};
 
+	const markAccountDeleted: MarkAccountDeleted = async ({ userId, at }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET deletedAt = if_not_exists(deletedAt, :at)",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":at": at },
+		});
+	};
+
 	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
 		const { items } = await users.query({
 			IndexName: "userId-index",
@@ -473,6 +493,7 @@ export function initDynamoDbAuth(deps: {
 		destroySession,
 		destroyUserSessions,
 		closeUserAccount,
+		markAccountDeleted,
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,

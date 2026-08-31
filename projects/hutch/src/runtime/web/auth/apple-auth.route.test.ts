@@ -355,6 +355,34 @@ describe("Apple auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Account creation failed");
 		});
 
+		it("refuses an existing account whose deletion is in flight instead of signing back into it", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				apple: appleWith(stubExchange({ email: "deleted-apple@example.com" })),
+			});
+			const { auth } = harness;
+			const created = await auth.createUser({
+				email: "deleted-apple@example.com",
+				password: "password123",
+			});
+			assert(created.ok, "expected the seeded user to be created");
+			await auth.markAccountDeleted({ userId: created.userId, at: "2026-08-31T00:00:00.000Z" });
+			const state = signState(freshState());
+
+			const response = await postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+			});
+
+			expect(response.status).toBe(400);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+				"Account creation failed",
+			);
+			expect(cookiesFrom(response).join(";")).not.toContain("hutch_sid=");
+		});
+
 		it("creates the Apple user with a trialing subscription_providers row when the founding allocation is exhausted", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "brand-new@example.com" })) });

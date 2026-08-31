@@ -107,6 +107,7 @@ import type {
 	InMemoryMarkCrawlStage,
 	InMemoryMarkCrawlUnsupported,
 	ListUserArticleUrls,
+	MarkAccountDeleted,
 	MarkArticleViewed,
 	MarkCrawlPending,
 	MarkEmailVerified,
@@ -207,6 +208,7 @@ export interface AuthBundle {
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;

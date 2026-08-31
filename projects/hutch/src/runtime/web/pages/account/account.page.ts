@@ -3,7 +3,11 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
-import type { DestroyUserSessions, FindEmailByUserId } from "@packages/provider-contracts/auth";
+import type {
+	DestroyUserSessions,
+	FindEmailByUserId,
+	MarkAccountDeleted,
+} from "@packages/provider-contracts/auth";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
 import type {
 	CreateCheckoutSession,
@@ -89,6 +93,7 @@ interface AccountDependencies {
 	markActiveSubscription: MarkSubscriptionActive;
 	findEmailByUserId: FindEmailByUserId;
 	destroyUserSessions: DestroyUserSessions;
+	markAccountDeleted: MarkAccountDeleted;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
@@ -450,10 +455,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	/** Irreversible account deletion. The synchronous work here revokes every
 	 * *existing* credential the instant the user confirms — all sessions and bearer
 	 * tokens die at once — after which the durable, at-least-once scrub of every
-	 * user-owned store runs asynchronously via DeleteAccountCommand. So existing
-	 * access is cut synchronously, but full erasure is eventual: until the worker
-	 * removes the identity row a brief window remains where the raw credentials
-	 * could still mint a fresh session (self-healing once the row is gone). Sessions
+	 * user-owned store runs asynchronously via DeleteAccountCommand. Sessions
 	 * are destroyed before tokens are revoked (mirroring /oauth/revoke) so a failed
 	 * step leaves the account still usable for a safe retry rather than
 	 * half-torn-down. */
@@ -474,6 +476,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			);
 			return;
 		}
+		await deps.markAccountDeleted({ userId, at: deps.now().toISOString() });
 		await deps.destroyUserSessions(userId);
 		await deps.revokeAllUserOAuthTokens(userId);
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });

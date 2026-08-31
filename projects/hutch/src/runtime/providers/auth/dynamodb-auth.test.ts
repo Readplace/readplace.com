@@ -119,6 +119,82 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("findUserByEmail — deletion in flight", () => {
+		it("returns null for a row carrying deletedAt, so a deleted account cannot be signed back into", async () => {
+			const client = createFakeClient({
+				email: "gone@example.com",
+				userId: "abc123",
+				emailVerified: true,
+				registeredAt: "2026-04-20T00:00:00.000Z",
+				deletedAt: "2026-08-31T00:00:00.000Z",
+			});
+			const auth = initDynamoDbAuth({
+				client: client as typeof client & DynamoDBDocumentClient,
+				usersTableName: "users",
+				sessionsTableName: "sessions",
+			});
+
+			const result = await auth.findUserByEmail("gone@example.com");
+
+			expect(result).toBeNull();
+		});
+	});
+
+	describe("verifyCredentials — deletion in flight", () => {
+		it("refuses a correct password once the row carries deletedAt", async () => {
+			const storedRow = {
+				email: "gone@example.com",
+				userId: "abc123",
+				passwordHash: "hashed",
+				emailVerified: true,
+				deletedAt: "2026-08-31T00:00:00.000Z",
+			};
+			const client = {
+				send: (async () => ({ Item: storedRow })) as DynamoDBDocumentClient["send"],
+			};
+			const auth = initAuth(client as typeof client & DynamoDBDocumentClient);
+
+			const result = await auth.verifyCredentials({
+				email: "gone@example.com",
+				password: "password",
+			});
+
+			expect(result).toEqual({ ok: false, reason: "invalid-credentials" });
+		});
+	});
+
+	describe("markAccountDeleted", () => {
+		it("tombstones the row set-once and conditionally, so a deleted account cannot resurrect or lose its marker", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).markAccountDeleted({
+				userId: USER,
+				at: "2026-08-31T00:00:00.000Z",
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toMatchObject({
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET deletedAt = if_not_exists(deletedAt, :at)",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":at": "2026-08-31T00:00:00.000Z" },
+			});
+		});
+
+		it("no-ops when the user row is already gone, so a stale session cannot 500 the delete route", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).markAccountDeleted({
+				userId: USER,
+				at: "2026-08-31T00:00:00.000Z",
+			});
+
+			expect(commands.find((c) => c.name === "UpdateCommand")).toBeUndefined();
+		});
+	});
+
 	describe("userExistsByEmail", () => {
 		it("returns true when a matching row exists", async () => {
 			const client: Partial<DynamoDBDocumentClient> = {

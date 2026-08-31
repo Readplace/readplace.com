@@ -452,6 +452,36 @@ describe("Google auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Account creation failed");
 		});
 
+		it("refuses an existing account whose deletion is in flight instead of signing back into it", async () => {
+			const harness = useApp({
+				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "deleted-google@example.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			const { auth } = harness;
+			const created = await auth.createUser({
+				email: "deleted-google@example.com",
+				password: "password123",
+			});
+			assert(created.ok, "expected the seeded user to be created");
+			await auth.markAccountDeleted({ userId: created.userId, at: "2026-08-31T00:00:00.000Z" });
+			const state = signState(freshState());
+
+			const response = await request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(400);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+				"Account creation failed",
+			);
+			expect(cookiesFrom(response).join(";")).not.toContain("hutch_sid=");
+		});
+
 		it("creates the Google user with a trialing subscription_providers row when the founding allocation is exhausted", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({

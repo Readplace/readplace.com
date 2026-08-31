@@ -24,6 +24,7 @@ import type {
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
 	UpdatePassword,
+	MarkAccountDeleted,
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
@@ -298,6 +299,7 @@ interface AppDependencies {
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -1383,6 +1385,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findEmailByUserId: deps.findEmailByUserId,
 		destroyUserSessions: deps.destroyUserSessions,
 		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
+		markAccountDeleted: deps.markAccountDeleted,
 		publishDeleteAccountCommand: deps.publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,

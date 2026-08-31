@@ -57,6 +57,8 @@ export type DestroyUserSessions = (userId: UserId) => Promise<void>;
 
 export type CloseUserAccount = (userId: UserId) => Promise<void>;
 
+export type MarkAccountDeleted = (input: { userId: UserId; at: string }) => Promise<void>;
+
 export type CountUsers = () => Promise<number>;
 
 export type MarkEmailVerified = (email: string) => Promise<void>;

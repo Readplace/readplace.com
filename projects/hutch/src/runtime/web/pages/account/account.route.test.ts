@@ -2375,6 +2375,33 @@ describe("POST /account/delete", () => {
 		expect(after.headers.location).toBe("/login");
 	});
 
+	it("marks the identity deleted before publishing, so the same password cannot mint a fresh session while the scrub runs", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const email = "delete-then-login@example.com";
+		const { agent } = await loginUser(harness, email);
+
+		const deleteResponse = await agent
+			.post("/account/delete")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+		expect(deleteResponse.status).toBe(303);
+
+		// The async scrub has not run (the fixture's publish is a no-op), so the
+		// identity row still exists — only the deletedAt marker stands between the
+		// raw credential and a fresh session.
+		expect(await harness.auth.findUserByEmail(email)).toBeNull();
+
+		const relogin = await request(harness.server)
+			.post("/login")
+			.type("form")
+			.send({ email, password: "password123" });
+		expect(relogin.status).toBe(422);
+		const doc = new JSDOM(relogin.text).window.document;
+		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			"Invalid email or password",
+		);
+	});
+
 	it("returns an HX-Redirect to the logged-out home for a boosted (HTMX) request", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await loginUser(harness, "delete-hx@example.com");

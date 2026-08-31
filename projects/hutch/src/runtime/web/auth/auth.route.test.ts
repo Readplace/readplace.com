@@ -195,6 +195,29 @@ describe("Auth routes", () => {
 			);
 		});
 
+		it("refuses the correct password of an account whose deletion is still being scrubbed", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const created = await auth.createUser({ email: "gone@example.com", password: "password123" });
+			assert(created.ok, "expected the seeded user to be created");
+			await auth.markAccountDeleted({ userId: created.userId, at: "2026-08-31T00:00:00.000Z" });
+
+			const response = await request(harness.server)
+				.post("/login")
+				.type("form")
+				.send({ email: "gone@example.com", password: "password123" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+				"Invalid email or password",
+			);
+			const setCookie = response.headers["set-cookie"] ?? [];
+			expect((Array.isArray(setCookie) ? setCookie : [setCookie]).join(";")).not.toContain(
+				"hutch_sid=",
+			);
+		});
+
 		it("treats a disposable email as a normal login attempt, not a disposable rejection", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

@@ -23,6 +23,7 @@ import type {
 	FindUserByEmail,
 	FindUserContactByUserId,
 	GetSessionUserId,
+	MarkAccountDeleted,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
@@ -39,12 +40,17 @@ interface StoredUser {
 	appleRefreshToken: string | undefined;
 	emailVerified: boolean;
 	registeredAt: string;
+	deletedAt?: string;
 	attribution?: UserAcquisitionAttribution;
 }
 
 interface StoredSession {
 	userId: UserId;
 	emailVerified: boolean;
+}
+
+function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | undefined {
+	return row && !row.deletedAt ? row : undefined;
 }
 
 export function initInMemoryAuth(opts: {
@@ -64,6 +70,7 @@ export function initInMemoryAuth(opts: {
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
 	closeUserAccount: CloseUserAccount;
+	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -189,7 +196,7 @@ export function initInMemoryAuth(opts: {
 
 	const findUserByEmail: FindUserByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
-		const user = users.get(normalizedEmail);
+		const user = liveUserRow(users.get(normalizedEmail));
 		if (!user) return null;
 		return {
 			userId: user.id,
@@ -200,7 +207,7 @@ export function initInMemoryAuth(opts: {
 
 	const verifyCredentials: VerifyCredentials = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
-		const user = users.get(normalizedEmail);
+		const user = liveUserRow(users.get(normalizedEmail));
 
 		if (!user) {
 			return { ok: false, reason: "invalid-credentials" };
@@ -245,6 +252,15 @@ export function initInMemoryAuth(opts: {
 				users.delete(email);
 				const claimKey = gmailIdentityKey(user.email);
 				if (claimKey !== null) gmailClaims.delete(claimKey);
+				return;
+			}
+		}
+	};
+
+	const markAccountDeleted: MarkAccountDeleted = async ({ userId, at }) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				user.deletedAt ??= at;
 				return;
 			}
 		}
@@ -336,6 +352,7 @@ export function initInMemoryAuth(opts: {
 		destroySession,
 		destroyUserSessions,
 		closeUserAccount,
+		markAccountDeleted,
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,

@@ -170,6 +170,43 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("markAccountDeleted", () => {
+		it("refuses the password and hides the row once deletion is in flight, while keeping the identity reserved", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "gone@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.markAccountDeleted({ userId: created.userId, at: "2026-08-31T00:00:00.000Z" });
+
+			expect(await auth.verifyCredentials({ email: "gone@example.com", password: "password123" })).toEqual({
+				ok: false,
+				reason: "invalid-credentials",
+			});
+			expect(await auth.findUserByEmail("gone@example.com")).toBeNull();
+			// The row stays reserved until the async scrub removes it, so a re-signup
+			// on the same address is refused rather than resurrecting the account.
+			expect(await auth.countUsers()).toBe(1);
+			const resignup = await auth.createUser({ email: "gone@example.com", password: "password456" });
+			expect(resignup).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("keeps the first marker timestamp on a repeat and is a no-op for an unknown userId", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "keep@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.markAccountDeleted({ userId: created.userId, at: "2026-08-31T00:00:00.000Z" });
+			await auth.markAccountDeleted({ userId: created.userId, at: "2027-01-01T00:00:00.000Z" });
+			await auth.markAccountDeleted({ userId: UserIdSchema.parse("nobody"), at: "2026-08-31T00:00:00.000Z" });
+
+			// The unknown-id call left the real account exactly as the first mark set it.
+			expect(await auth.verifyCredentials({ email: "keep@example.com", password: "password123" })).toEqual({
+				ok: false,
+				reason: "invalid-credentials",
+			});
+		});
+	});
+
 	describe("verifyCredentials", () => {
 		it("should verify correct password", async () => {
 			const auth = makeAuth();
