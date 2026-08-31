@@ -50,7 +50,12 @@ Staging went first: 637 requests through the Sydney edge with no server errors, 
 
 ## The probes came back cold
 
-The plan expected the origin leg to ride a kept-alive connection, with the handshakes to Sydney paid once and reused. I sampled the site from the US and the UK the day after the cutover, and the numbers said otherwise. 1 probe found a warm connection and got a roughly 200 millisecond origin leg. The rest paid the full fresh sequence to Sydney through the edge: 660 to 955 milliseconds from the US, 786 to 905 from the UK.
+The plan expected the origin leg to ride a kept-alive connection, with the handshakes to Sydney paid once and reused. I sampled the site from the US and the UK the day after the cutover, and the numbers said otherwise. 1 probe found a warm connection. The rest paid the full fresh sequence to Sydney through the edge.
+
+| Probe origin | Fresh connection | Warm connection | Difference |
+| --- | --- | --- | --- |
+| US | 660 to 955 ms | about 200 ms | about 70 to 79% lower |
+| UK | 786 to 905 ms | not measured | not measured |
 
 The cause was density, not configuration. Reuse needs a 2nd request to land on the same edge host while the 1st one's socket is still open, and Readplace's traffic, spread across dozens of edge hosts in each region, rarely lands 2 requests on the same host inside that window. Almost every edge host warmed a socket for 1 request and let it die.
 
