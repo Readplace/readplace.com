@@ -12,6 +12,8 @@ const ESCALATE_STATUS_CODES = new Set([402, 403, 429]);
 
 const TERMINAL_NETWORK_CODES = new Set(["ENOTFOUND", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH"]);
 
+const UNLOCKER_ERROR_HEADERS = ["x-brd-err-code", "x-brd-error-code"];
+
 type LegName = "primary" | "h2" | "curl";
 
 export type LegFetch = (
@@ -31,6 +33,7 @@ export type LegAttempt = {
 	readonly elapsedMs: number;
 	readonly status?: number;
 	readonly error?: string;
+	readonly unlockerError?: Readonly<Record<string, string>>;
 };
 
 export type LadderFetch = (
@@ -41,6 +44,15 @@ export type LadderFetch = (
 function isTerminalNetworkError(error: unknown): boolean {
 	if (!(error instanceof Error)) return false;
 	return "code" in error && typeof error.code === "string" && TERMINAL_NETWORK_CODES.has(error.code);
+}
+
+function unlockerErrorOf(headers: Headers): Record<string, string> | undefined {
+	const captured: Record<string, string> = {};
+	for (const name of UNLOCKER_ERROR_HEADERS) {
+		const value = headers.get(name);
+		if (value !== null) captured[name] = value;
+	}
+	return Object.keys(captured).length === 0 ? undefined : captured;
 }
 
 export function runTransportLadder(deps: {
@@ -66,12 +78,25 @@ export function runTransportLadder(deps: {
 			const startedAt = now();
 			try {
 				const response = await leg.fetch(url, { headers, deadline: lease.deadline, onRedirect });
+				const unlockerError = unlockerErrorOf(response.headers);
 				if (!ESCALATE_STATUS_CODES.has(response.status)) {
-					logAttempt({ leg: leg.name, outcome: "answered", elapsedMs: now() - startedAt, status: response.status });
+					logAttempt({
+						leg: leg.name,
+						outcome: "answered",
+						elapsedMs: now() - startedAt,
+						status: response.status,
+						unlockerError,
+					});
 					return response;
 				}
 				await response.text();
-				logAttempt({ leg: leg.name, outcome: "escalated", elapsedMs: now() - startedAt, status: response.status });
+				logAttempt({
+					leg: leg.name,
+					outcome: "escalated",
+					elapsedMs: now() - startedAt,
+					status: response.status,
+					unlockerError,
+				});
 				lastResponse = response;
 			} catch (error) {
 				if (error instanceof Error && lastError !== undefined) error.cause = lastError;

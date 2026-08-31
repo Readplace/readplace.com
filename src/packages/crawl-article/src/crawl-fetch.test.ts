@@ -294,6 +294,44 @@ describe("initCrawlFetch", () => {
 		);
 	});
 
+	it("carries the unlocker's error codes into the crawl-legs stream for both burnt proxied attempts", async () => {
+		const lines: string[] = [];
+		let primaryCalls = 0;
+		const blockedThenRefused: typeof fetch = async () => {
+			primaryCalls += 1;
+			if (primaryCalls === 1) return new Response("denied", { status: 403 });
+			return new Response("Navigation failed", {
+				status: 502,
+				headers: { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" },
+			});
+		};
+		const blocked = async (): Promise<Response> => new Response("denied", { status: 403 });
+		const crawlFetch = initCrawlFetch({
+			fetch: blockedThenRefused,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: (message) => lines.push(message),
+			fetchH2: blocked,
+			fetchCurl: blocked,
+			proxyUrl: "http://proxy.example:8080",
+		});
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
+
+		assert.equal(response.status, 403);
+		const attempts = lines.map((line) => JSON.parse(line));
+		assert.deepEqual(
+			attempts.map((a) => [a.via, a.leg, a.status, a.unlockerError]),
+			[
+				[undefined, "primary", 403, undefined],
+				[undefined, "h2", 403, undefined],
+				[undefined, "curl", 403, undefined],
+				["proxy", "primary", 502, { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" }],
+				["proxy", "primary", 502, { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" }],
+			],
+		);
+	});
+
 	it("recovers from a persona-keyed 498 without fanning out to the TLS-client fallbacks", async () => {
 		const userAgents: string[] = [];
 		const personaAware: typeof fetch = async (_input, init) => {

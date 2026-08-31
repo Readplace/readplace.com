@@ -301,4 +301,21 @@ describe("runTransportLadder", () => {
 			["curl", 429],
 		]);
 	});
+
+	it("quotes the unlocker's error codes on the attempt it logged, so a discarded gateway answer stays attributable", async () => {
+		const attempts: LegAttempt[] = [];
+		const refused: LegFetch = async () =>
+			new Response("Navigation failed", {
+				status: 502,
+				headers: { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" },
+			});
+		const ladder = ladderOf([{ name: "primary", maxRunMs: 50, fetch: refused }], attempts);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(502);
+		expect(attempts.map((a) => [a.outcome, a.status, a.unlockerError])).toEqual([
+			["answered", 502, { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" }],
+		]);
+	});
 });
