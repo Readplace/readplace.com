@@ -186,6 +186,58 @@ describe("withProxiedLadderFallback", () => {
 		await expect(harness.fetchIt()).rejects.toThrow("leg produced no response within 200ms");
 	});
 
+	it("retries once past a stalled proxied pass and returns the answer that follows", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async (_controller, clock) => {
+					clock.nowMs += 10_000;
+					throw timeout();
+				},
+				async () => new Response("via proxy", { status: 200 }),
+			],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("via proxy");
+		expect(harness.proxyBudgets).toHaveLength(2);
+	});
+
+	it("surfaces the direct block when both proxied attempts stall", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async (_controller, clock) => {
+					clock.nowMs += 10_000;
+					throw timeout();
+				},
+				async (_controller, clock) => {
+					clock.nowMs += 10_000;
+					throw timeout();
+				},
+			],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(403);
+		expect(await response.text()).toBe("denied");
+		expect(harness.proxyBudgets).toHaveLength(2);
+	});
+
+	it("surfaces the direct block rather than retrying when the outer deadline stalled the pass", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async (controller) => {
+					controller.abort(timeout());
+					throw timeout();
+				},
+			],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(403);
+		expect(harness.proxyBudgets).toHaveLength(1);
+	});
+
 	it("runs direct-only at full budget for a budget too small to seat both passes", async () => {
 		const harness = makeHarness({
 			direct: async () => new Response("denied", { status: 403 }),

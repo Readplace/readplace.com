@@ -27,13 +27,8 @@ const CURL_LEG_MAX_MS = 3000;
  * spread, because a proxied leg that times out discards a page the unlocker
  * actually delivered. */
 const PROXY_PRIMARY_MAX_MILLISECONDS = 55_000;
-/* The direct curl leg's 3s cap was sized for curl-impersonate against an origin
- * and cannot seat an unlocker fetch at all, so the proxied pass carries its own:
- * a fallback that always times out is not a fallback. */
-const PROXY_CURL_MAX_MILLISECONDS = 15_000;
-/* Summing the caps is what lets the ladder's weighted split hand each proxied
- * leg its whole cap instead of a fraction of it. */
-const PROXY_RESERVE_MILLISECONDS = PROXY_PRIMARY_MAX_MILLISECONDS + PROXY_CURL_MAX_MILLISECONDS;
+const PROXY_RETRY_MIN_MILLISECONDS = 15_000;
+const PROXY_RESERVE_MILLISECONDS = PROXY_PRIMARY_MAX_MILLISECONDS + PROXY_RETRY_MIN_MILLISECONDS;
 
 /**
  * The header budget a crawl must be given when its ladder may run a proxied
@@ -67,7 +62,6 @@ export function initCrawlFetch(deps: {
 	fetchH2?: FetchH2;
 	fetchCurl?: CurlFetch;
 	proxyUrl: string | undefined;
-	fetchProxyCurl?: CurlFetch;
 	rateLimitRetryDelaysMs?: readonly number[];
 }): CrawlFetch {
 	const resolve = deps.resolve ?? defaultResolveAll;
@@ -105,8 +99,7 @@ export function initCrawlFetch(deps: {
 				onRedirect: init.onRedirect,
 			});
 		/* AIA chasing fetches the missing issuer cert directly, so it can't ride
-		 * the proxy tunnel — skip it on the proxied primary and let the proxied
-		 * curl leg cover a chain-broken origin instead. */
+		 * the proxy tunnel. */
 		return opts.chaseAia
 			? withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup, assertHostAllowed }))
 			: guardedFetch;
@@ -138,21 +131,13 @@ export function initCrawlFetch(deps: {
 		withPersonaFallback(runTransportLadder({ legs: directLegs, logAttempt, now: Date.now }), deps.personas),
 		{ delaysMs: deps.rateLimitRetryDelaysMs ?? RATE_LIMIT_RETRY_DELAYS_MS },
 	);
-	/* Node's http2 has no proxy path and curl-impersonate through the proxy
-	 * already presents a browser h2 fingerprint, so the proxied pass omits the
-	 * h2 leg. */
+	/* Node's http2 has no proxy path, so the proxied pass omits the h2 leg. */
 	function buildProxyPipeline(): LadderFetch | undefined {
 		const proxyUrl = deps.proxyUrl;
 		if (proxyUrl === undefined) return undefined;
-		const fetchProxyCurl = deps.fetchProxyCurl ?? initGuardedCurlFetch({ resolve, isBlocked, proxyUrl });
-		/* Same TLS-termination reason as the proxied curl leg: the unlocker
-		 * presents its own certificate, so verification is relaxed here and only
-		 * here — the direct dispatcher above keeps the SSRF-guarded connector and
-		 * full verification. */
 		const proxyDispatcher = new ProxyAgent({ uri: proxyUrl, requestTls: { rejectUnauthorized: false } });
 		const proxyLegs: readonly Leg[] = [
 			primaryLeg(buildPrimaryFetch(proxyDispatcher, { chaseAia: false }), PROXY_PRIMARY_MAX_MILLISECONDS),
-			curlLeg(fetchProxyCurl, PROXY_CURL_MAX_MILLISECONDS),
 		];
 		const proxyLogAttempt = (attempt: LegAttempt) =>
 			logInfo(JSON.stringify({ stream: "crawl-legs", via: "proxy", ...attempt }));

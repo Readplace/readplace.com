@@ -101,22 +101,11 @@ export const defaultCurlImpersonateProbe: CurlImpersonateProbe = () => {
  * (argument construction, header title-casing, abort handling, error mapping,
  * response parsing) without spawning a real curl process.
  */
-/**
- * Node's execFile embeds the whole argv in a spawn error's `message`, so a
- * failing proxied curl would otherwise write the credentialed `--proxy
- * http://user:pass@host` straight into CloudWatch. Strip any URL userinfo
- * before the message reaches a logger.
- */
-function redactCredentials(text: string): string {
-	return text.replace(/(\/\/)[^/\s@]*@/g, "$1***@");
-}
-
 export function createCurlFetch(deps: {
 	execCurl: ExecCurl;
 	resolvePinnedAddress: ResolvePinnedAddress;
-	proxyUrl?: string;
 }): CurlFetch {
-	const { execCurl, resolvePinnedAddress, proxyUrl } = deps;
+	const { execCurl, resolvePinnedAddress } = deps;
 
 	async function fetchOnce(
 		url: string,
@@ -126,10 +115,10 @@ export function createCurlFetch(deps: {
 		const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
 		const pinnedAddress = await resolvePinnedAddress({ hostname: parsed.hostname });
 		return new Promise<Response>((resolve, reject) => {
-			const args = buildCurlArgs({ url, headers: init.headers, hostname: parsed.hostname, port, pinnedAddress, proxyUrl });
+			const args = buildCurlArgs({ url, headers: init.headers, hostname: parsed.hostname, port, pinnedAddress });
 			const child = execCurl(args, (error, stdout) => {
 				if (error) {
-					reject(new Error(redactCredentials(`fetchCurl failed for ${url}: ${error.message}`)));
+					reject(new Error(`fetchCurl failed for ${url}: ${error.message}`));
 					return;
 				}
 				const { status, headers, body } = parseCurlOutput(stdout);
@@ -171,15 +160,10 @@ export function createCurlFetch(deps: {
  * verified address. `resolve` and `isBlocked` are injectable so tests drive
  * the verdict.
  */
-export function initGuardedCurlFetch(deps: {
-	resolve: ResolveAll;
-	isBlocked: IsBlockedAddress;
-	proxyUrl?: string;
-}): CurlFetch {
+export function initGuardedCurlFetch(deps: { resolve: ResolveAll; isBlocked: IsBlockedAddress }): CurlFetch {
 	return createCurlFetch({
 		execCurl: defaultExecCurl,
 		resolvePinnedAddress: createPinnedAddressResolver({ resolve: deps.resolve, isBlocked: deps.isBlocked }),
-		proxyUrl: deps.proxyUrl,
 	});
 }
 
@@ -189,7 +173,6 @@ function buildCurlArgs(params: {
 	port: number;
 	pinnedAddress: string;
 	headers?: Record<string, string>;
-	proxyUrl?: string;
 }): string[] {
 	const args = [
 		"--http2",
@@ -218,20 +201,10 @@ function buildCurlArgs(params: {
 	];
 	// IP-literal hosts are validated up front by resolvePinnedAddress and curl
 	// connects to them without a DNS step, so there is nothing to pin; --resolve
-	// only matters when curl would otherwise resolve a name itself. A proxied
-	// request never resolves locally either — curl hands the hostname to the
-	// proxy — so the pin is skipped there too (the SSRF check on the locally
-	// resolved address has already run by this point).
-	if (params.proxyUrl === undefined && isIP(params.hostname) === 0) {
+	// only matters when curl would otherwise resolve a name itself.
+	if (isIP(params.hostname) === 0) {
 		const pinnedForCurl = params.pinnedAddress.includes(":") ? `[${params.pinnedAddress}]` : params.pinnedAddress;
 		args.push("--resolve", `${params.hostname}:${params.port}:${pinnedForCurl}`);
-	}
-	if (params.proxyUrl !== undefined) {
-		/* An unlocker proxy terminates TLS to rewrite the request, so the client
-		 * sees the proxy's certificate rather than the origin's and verification
-		 * cannot succeed. Scoped to the proxied leg: the direct legs keep full
-		 * certificate verification. */
-		args.push("--proxy", params.proxyUrl, "--insecure");
 	}
 	if (params.headers) {
 		for (const [key, value] of Object.entries(params.headers)) {

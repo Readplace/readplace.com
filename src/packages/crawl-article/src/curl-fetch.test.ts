@@ -179,35 +179,13 @@ describe("fetchCurl argument construction", () => {
 		expect(args[args.indexOf("--resolve") + 1]).toBe("example.com:8443:[2606:4700:4700::1111]");
 	});
 
-	it("routes through --proxy, relaxes target-cert verification, and drops the --resolve pin when a proxyUrl is set", async () => {
-		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
-		const fetchCurl = createCurlFetch({
-			execCurl: fake.execCurl,
-			resolvePinnedAddress: async () => "93.184.216.34",
-			proxyUrl: "http://user:pass@proxy.example:8080",
-		});
-		await fetchCurl("https://example.com/page", { signal: live() });
-		const args = fake.calls[0].args;
-		expect(args[args.indexOf("--proxy") + 1]).toBe("http://user:pass@proxy.example:8080");
-		expect(args).toContain("--insecure");
-		expect(args).not.toContain("--resolve");
-	});
-
-	it("keeps target-cert verification on the direct (unproxied) leg", async () => {
-		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
-		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		await fetchCurl("https://example.com/page", { signal: live() });
-		expect(fake.calls[0].args).not.toContain("--insecure");
-	});
-
-	it("still runs the SSRF resolve check before spawning a proxied fetch", async () => {
+	it("runs the SSRF resolve check before spawning curl", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({
 			execCurl: fake.execCurl,
 			resolvePinnedAddress: async () => {
 				throw new Error("blocked address: 10.0.0.1");
 			},
-			proxyUrl: "http://proxy.example:8080",
 		});
 		await expect(fetchCurl("https://internal.example/", { signal: live() })).rejects.toThrow(
 			"blocked address: 10.0.0.1",
@@ -288,25 +266,6 @@ describe("fetchCurl error handling", () => {
 		expect(fake.calls).toHaveLength(0);
 	});
 
-	it("redacts proxy credentials from a curl failure message (execFile embeds the argv)", async () => {
-		// execFile puts the whole command line in the error message, so a failed
-		// proxied curl would otherwise log the credentialed --proxy URL.
-		const fake = makeFakeExec({
-			error: new Error(
-				"Command failed: curl_chrome131 --proxy http://alice:s3cr3t@proxy.example:8080 -- https://example.com/",
-			),
-		});
-		const fetchCurl = createCurlFetch({
-			execCurl: fake.execCurl,
-			resolvePinnedAddress,
-			proxyUrl: "http://alice:s3cr3t@proxy.example:8080",
-		});
-		const error = await fetchCurl("https://example.com/", { signal: live() }).catch((e) => e);
-		expect(error).toBeInstanceOf(Error);
-		expect(error.message).not.toContain("s3cr3t");
-		expect(error.message).not.toContain("alice");
-		expect(error.message).toContain("http://***@proxy.example:8080");
-	});
 });
 
 describe("fetchCurl abort signal handling", () => {

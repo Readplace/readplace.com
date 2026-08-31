@@ -59,11 +59,14 @@ describe("initCrawlFetch", () => {
 		assert.equal(primaryCalls, 2);
 	});
 
-	it("runs the whole direct ladder, then re-runs it proxied, and a proxied answer wins", async () => {
+	it("runs the whole direct ladder, then re-runs the primary leg proxied, and a proxied answer wins", async () => {
 		let directCurlCalls = 0;
 		let directH2Calls = 0;
-		let proxyCurlCalls = 0;
-		const blockedFetch: typeof fetch = async () => new Response("denied", { status: 403 });
+		let primaryCalls = 0;
+		const blockedThenProxied: typeof fetch = async () => {
+			primaryCalls += 1;
+			return primaryCalls === 1 ? new Response("denied", { status: 403 }) : new Response("via proxy");
+		};
 		const blockedH2 = async (): Promise<Response> => {
 			directH2Calls += 1;
 			return new Response("denied", { status: 403 });
@@ -72,19 +75,14 @@ describe("initCrawlFetch", () => {
 			directCurlCalls += 1;
 			return new Response("denied", { status: 403 });
 		};
-		const proxiedCurl = async (): Promise<Response> => {
-			proxyCurlCalls += 1;
-			return new Response("via proxy", { status: 200 });
-		};
 		const crawlFetch = initCrawlFetch({
-			fetch: blockedFetch,
+			fetch: blockedThenProxied,
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
 			fetchH2: blockedH2,
 			fetchCurl: blockedCurl,
 			proxyUrl: "http://proxy.example:8080",
-			fetchProxyCurl: proxiedCurl,
 		});
 
 		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
@@ -93,10 +91,10 @@ describe("initCrawlFetch", () => {
 		assert.equal(await response.text(), "via proxy");
 		assert.equal(directH2Calls, 1);
 		assert.equal(directCurlCalls, 1);
-		assert.equal(proxyCurlCalls, 1);
+		assert.equal(primaryCalls, 2);
 	});
 
-	it("constructs the proxied pass without spawning a curl subprocess when the direct pass answers", async () => {
+	it("builds the proxied pass but leaves it unused when the direct pass answers", async () => {
 		const crawlFetch = initCrawlFetch({
 			fetch: stubFetch,
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
@@ -111,13 +109,12 @@ describe("initCrawlFetch", () => {
 	});
 
 	it("skips the proxied pass for a budget too small to seat both passes", async () => {
-		let proxyCurlCalls = 0;
-		const blockedFetch: typeof fetch = async () => new Response("denied", { status: 403 });
-		const blocked = async (): Promise<Response> => new Response("denied", { status: 403 });
-		const proxiedCurl = async (): Promise<Response> => {
-			proxyCurlCalls += 1;
-			return new Response("via proxy", { status: 200 });
+		let primaryCalls = 0;
+		const blockedFetch: typeof fetch = async () => {
+			primaryCalls += 1;
+			return new Response("denied", { status: 403 });
 		};
+		const blocked = async (): Promise<Response> => new Response("denied", { status: 403 });
 		const crawlFetch = initCrawlFetch({
 			fetch: blockedFetch,
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
@@ -126,15 +123,12 @@ describe("initCrawlFetch", () => {
 			fetchH2: blocked,
 			fetchCurl: blocked,
 			proxyUrl: "http://proxy.example:8080",
-			fetchProxyCurl: proxiedCurl,
 		});
 
-		// A 5s budget (thumbnail/media class) is below 2×PROXY_RESERVE_MS, so the
-		// direct block is returned and no metered proxy pass runs.
 		const response = await crawlFetch("https://example.com", { budgetMs: 5000 });
 
 		assert.equal(response.status, 403);
-		assert.equal(proxyCurlCalls, 0);
+		assert.equal(primaryCalls, 1);
 	});
 
 	it("does not run a proxied pass when no proxyUrl is configured", async () => {

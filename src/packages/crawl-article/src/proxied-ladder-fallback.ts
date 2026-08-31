@@ -13,7 +13,7 @@ import type { LadderFetch } from "./transport-ladder";
  * page is genuinely gone — better information than the datacenter block), with
  * one exception: a gateway status is the proxy failing rather than answering
  * about the document, so it is retried once and otherwise never leaves this
- * wrapper. A proxied transport failure surfaces the direct outcome instead.
+ * wrapper.
  */
 /* The direct pass is never shortened below this: it is the free path and it
  * answers the overwhelming majority of URLs. */
@@ -70,8 +70,9 @@ export function withProxiedLadderFallback(deps: {
 			let response: Response;
 			try {
 				response = await proxyFetch(url, { headers, onRedirect, budget: proxyBudget });
-			} catch {
-				break;
+			} catch (error) {
+				if (!isTimeout(error)) break;
+				continue;
 			}
 			if (!PROXY_GATEWAY_STATUSES.has(response.status)) return response;
 			/* Drain the body of the answer being discarded, for the same reason the
@@ -92,7 +93,11 @@ function isProxyWorthyResponse(response: Response): boolean {
 	return isBlockClassResponse(response) || response.status === 429;
 }
 
+function isTimeout(error: unknown): boolean {
+	return error instanceof Error && error.name === "TimeoutError";
+}
+
 function isProxyWorthyError(error: unknown): boolean {
 	if (isBlockClassError(error)) return true;
-	return error instanceof Error && error.name === "TimeoutError";
+	return isTimeout(error);
 }
