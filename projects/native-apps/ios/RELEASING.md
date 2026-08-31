@@ -209,6 +209,11 @@ spec at `1.0`, TestFlight shows e.g. `1.0.47 (47)`, then `1.0.48 (48)`. The run
 irreversible upload**, then builds and uploads. Runs are serialized (a
 `concurrency` group) so two runs can't claim the same counter.
 
+The upload carries no **What to Test** note — the `beta` lane cannot write one
+(see [Giving a build its "What to Test" note](#giving-a-build-its-what-to-test-note)).
+Dispatch **Set iOS TestFlight What to Test** with the new build number once
+processing finishes, or the build reaches testers with an empty note.
+
 Bump the **minor** (e.g. to `1.1`) by editing `MARKETING_VERSION` in
 `project.yml` in a normal PR. The **patch is the monotonic build counter and
 never resets** (`CFBundleVersion` must always increase), so a later minor bump
@@ -274,11 +279,13 @@ listing and a deliberate human submission. The moving parts:
    1320×2868, the 6.9″ size this fastlane cannot file), `simctl ui … appearance
    light`, `simctl status_bar … override --time 9:41`, run the app against a local
    `dist/e2e/e2e-server.main.js` seeded through `/e2e/seed-crawled-article`, and
-   sign it in by planting `oauth.accessToken`/`oauth.refreshToken` in the App Group
-   plist **while the device is shut down** (a booted `cfprefsd` writes its cached
-   copy back over the file) followed by `simctl keychain … reset`, since the token
-   migration only runs when the Keychain has none. The red callouts are `#FF3B30`
-   at a 16px stroke.
+   sign it in without a UI login in exactly this order: **shut the device down**,
+   write `oauth.accessToken`/`oauth.refreshToken` into the App Group plist, **boot**,
+   `simctl keychain <device> reset`, then launch. Both halves are load-bearing: a
+   booted `cfprefsd` flushes its cached copy back over a plist edited behind it, and
+   the token migration only runs when the Keychain holds none, so a previous run's
+   dead token otherwise wins and the app opens on the sign-in screen. The red
+   callouts are `#FF3B30` at a 16px stroke.
 3. **App Review contact + demo account** ride the same push, from `prod`
    environment secrets (never git — they are PII/credentials):
    `ASC_REVIEW_FIRST_NAME`, `ASC_REVIEW_LAST_NAME`, `ASC_REVIEW_EMAIL`,
