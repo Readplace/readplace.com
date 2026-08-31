@@ -5,6 +5,7 @@ import type {
 } from "@packages/crawl-article";
 import {
 	initAppleNewsSiteRules,
+	initStackOverflowSiteRules,
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchPinnedCrawl,
@@ -61,6 +62,7 @@ export function initParserDepBundle(deps: {
 	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
 		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
+		initStackOverflowSiteRules({ crawlFetch, logError: deps.logError }),
 	];
 	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
 	const crawlArticle = initFetchPinnedCrawl({
@@ -112,6 +114,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
 		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
+		initStackOverflowSiteRules({ crawlFetch, logError: deps.logError }),
 	];
 	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
 	const crawlArticle = initFetchPinnedCrawl({

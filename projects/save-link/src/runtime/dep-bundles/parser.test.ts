@@ -30,6 +30,8 @@ describe("initParserDepBundle", () => {
 		expect(bundle.isSiteRuleUrl("https://medium.com/@author/post")).toBe(false);
 		expect(bundle.isSiteRuleUrl("https://x.com/user/status/1")).toBe(true);
 		expect(bundle.isSiteRuleUrl("https://apple.news/A123")).toBe(true);
+		expect(bundle.isSiteRuleUrl("https://stackoverflow.com/questions/42/why")).toBe(true);
+		expect(bundle.isSiteRuleUrl("https://stackoverflow.com/tags/java")).toBe(false);
 	});
 });
 
@@ -62,5 +64,7 @@ describe("initComprehensiveParserDepBundle", () => {
 		expect(bundle.isSiteRuleUrl("https://medium.com/@author/post")).toBe(false);
 		expect(bundle.isSiteRuleUrl("https://x.com/user/status/1")).toBe(true);
 		expect(bundle.isSiteRuleUrl("https://apple.news/A123")).toBe(true);
+		expect(bundle.isSiteRuleUrl("https://stackoverflow.com/questions/42/why")).toBe(true);
+		expect(bundle.isSiteRuleUrl("https://stackoverflow.com/tags/java")).toBe(false);
 	});
 });

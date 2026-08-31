@@ -17,6 +17,7 @@ import {
 	initFetchThumbnailImage,
 	initXTwitterSiteRules,
 	initAppleNewsSiteRules,
+	initStackOverflowSiteRules,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
@@ -250,6 +251,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		mediaWikiSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError }),
 		initAppleNewsSiteRules({ crawlFetch, logError }),
+		initStackOverflowSiteRules({ crawlFetch, logError }),
 	];
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),

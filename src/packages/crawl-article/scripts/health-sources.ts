@@ -178,6 +178,12 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 			"I tell him that I did not realise that the wedding had happened already.",
 		expectsThumbnail: true,
 	},
+	{
+		label: "The Hill (residential unlocker path)",
+		url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks",
+		expectedContent: "ranked five times more valuable than likes",
+		expectsThumbnail: true,
+	},
 	// PDF sources run last and are ordered cheapest-first: each one fans out
 	// per-page OCR (rasterisation + DeepInfra vision) and burns real tokens, so
 	// the tier-1-plus canary's fail-fast gate skips every remaining PDF once any
