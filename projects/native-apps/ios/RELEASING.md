@@ -265,6 +265,20 @@ listing and a deliberate human submission. The moving parts:
    "screenshots missing" until its retries run out. Flatten before committing,
    e.g.
    `python3 -c "from PIL import Image; im = Image.open('shot.png').convert('RGB'); im.save('shot.png')"`.
+
+   Nothing in CI compares the committed PNGs against the build — `verify_screenshots!`
+   only proves App Store Connect matches git — so a UI change silently leaves the
+   listing showing an app that no longer exists. Recapture whenever the screens in
+   frame change. The capture that produced the current set: create an **iPhone 15
+   Pro Max on the newest iOS runtime** (`simctl create`; a 16/17 Pro Max captures
+   1320×2868, the 6.9″ size this fastlane cannot file), `simctl ui … appearance
+   light`, `simctl status_bar … override --time 9:41`, run the app against a local
+   `dist/e2e/e2e-server.main.js` seeded through `/e2e/seed-crawled-article`, and
+   sign it in by planting `oauth.accessToken`/`oauth.refreshToken` in the App Group
+   plist **while the device is shut down** (a booted `cfprefsd` writes its cached
+   copy back over the file) followed by `simctl keychain … reset`, since the token
+   migration only runs when the Keychain has none. The red callouts are `#FF3B30`
+   at a 16px stroke.
 3. **App Review contact + demo account** ride the same push, from `prod`
    environment secrets (never git — they are PII/credentials):
    `ASC_REVIEW_FIRST_NAME`, `ASC_REVIEW_LAST_NAME`, `ASC_REVIEW_EMAIL`,

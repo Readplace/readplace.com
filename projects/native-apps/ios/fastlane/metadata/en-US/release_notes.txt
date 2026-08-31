@@ -1,1 +1,5 @@
-Faster launch: the intro animation is gone — the app now cuts straight to your reading list.
+Your reading list now has a Read tab — everything you've finished, in one place. Marking an article read moves it from To Read across to Read, and leaves you on the tab you were on.
+
+The list is redesigned to match the Readplace website: rows sit together in one bordered panel, each led by an orange dot while it's unread or a green check once it's read. Readplace's own colors throughout, most visibly in dark mode.
+
+Saving from the share sheet no longer drops the page content. The save is queued on your phone and finished the next time you open Readplace, with retries — and the card closes once the save is done instead of parking on "Saved".
