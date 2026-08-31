@@ -78,6 +78,7 @@ export function initExtractEmailLinksHandler(deps: {
 	publishSaveHeldNotice: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
+		inboxAddress: string;
 	}) => Promise<void>;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	now: () => Date;
@@ -118,7 +119,7 @@ export function initExtractEmailLinksHandler(deps: {
 					continue;
 				}
 				const userId = UserIdSchema.parse(parsed.data.userId);
-				const { receivedAtMessageId, origin } = parsed.data;
+				const { receivedAtMessageId, origin, recipientAddress } = parsed.data;
 
 				const email = await getEmail({ userId, receivedAtMessageId });
 				if (email === undefined || email.status !== "received") {
@@ -266,7 +267,11 @@ export function initExtractEmailLinksHandler(deps: {
 							held += 1;
 							if (!noticePublished) {
 								noticePublished = true;
-								await publishSaveHeldNotice({ userId, receivedAtMessageId });
+								await publishSaveHeldNotice({
+									userId,
+									receivedAtMessageId,
+									inboxAddress: recipientAddress,
+								});
 							}
 						}
 					}

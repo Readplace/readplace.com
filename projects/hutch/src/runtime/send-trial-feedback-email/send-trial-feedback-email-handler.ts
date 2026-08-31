@@ -85,7 +85,14 @@ export function initSendTrialFeedbackEmailHandler(
 				} else if (detail.kind === "payment_failed") {
 					await processPaymentFailed(userId, deps);
 				} else if (detail.kind === "automation_saves_held") {
-					await processAutomationSavesHeld(userId, detail.receivedAtMessageId, deps);
+					await processAutomationSavesHeld(
+						userId,
+						{
+							receivedAtMessageId: detail.receivedAtMessageId,
+							inboxAddress: detail.inboxAddress,
+						},
+						deps,
+					);
 				} else {
 					await processCommand(userId, deps);
 				}
@@ -179,7 +186,7 @@ function trackedUrl(input: { appOrigin: string; path: string }): string {
 
 async function processAutomationSavesHeld(
 	userId: ReturnType<typeof UserIdSchema.parse>,
-	receivedAtMessageId: string | undefined,
+	arrival: { receivedAtMessageId: string | undefined; inboxAddress: string | undefined },
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
 	const row = await deps.findSubscriptionByUserId(userId);
@@ -219,9 +226,10 @@ async function processAutomationSavesHeld(
 
 	const component = AutomationSavesHeldEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
+		inboxAddress: arrival.inboxAddress,
 		inboxUrl: trackedUrl({
 			appOrigin: deps.appOrigin,
-			path: buildInboxHighlightUrl({ receivedAtMessageId }),
+			path: buildInboxHighlightUrl({ receivedAtMessageId: arrival.receivedAtMessageId }),
 		}),
 		reactivateUrl: trackedUrl({ appOrigin: deps.appOrigin, path: "/account" }),
 		manageAddressesUrl: trackedUrl({

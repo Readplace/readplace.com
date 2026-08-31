@@ -84,7 +84,11 @@ function makeHarness(opts?: {
 	const published: { ordinal: EmailLinkOrdinal; url: string }[] = [];
 	const submitted: { userId: UserId; url: string }[] = [];
 	const alerts: { found: number }[] = [];
-	const heldNotices: { userId: UserId; receivedAtMessageId: string }[] = [];
+	const heldNotices: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		inboxAddress: string;
+	}[] = [];
 	const publishOrder: ("notice" | "preview" | "submit")[] = [];
 	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
 	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
@@ -184,7 +188,9 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.submitted).toEqual([]);
 		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x", "https://b.test/y"]);
 		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 0, truncated: false }]);
-		expect(harness.heldNotices).toEqual([{ userId: USER, receivedAtMessageId: RAM }]);
+		expect(harness.heldNotices).toEqual([
+			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
+		]);
 		const { links } = await harness.linkStore.listLinksByEmail({
 			userId: USER,
 			receivedAtMessageId: RAM,
@@ -206,7 +212,9 @@ describe("initExtractEmailLinksHandler", () => {
 
 		await harness.run(eventBody());
 
-		expect(harness.heldNotices).toEqual([{ userId: USER, receivedAtMessageId: RAM }]);
+		expect(harness.heldNotices).toEqual([
+			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
+		]);
 	});
 
 	it("raises the notice before the first held link is crawled, so a later crash cannot swallow it", async () => {

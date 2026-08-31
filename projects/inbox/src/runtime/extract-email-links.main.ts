@@ -82,11 +82,12 @@ export const handler = initExtractEmailLinksHandler({
 			}),
 		);
 	},
-	publishSaveHeldNotice: ({ userId, receivedAtMessageId }) =>
+	publishSaveHeldNotice: ({ userId, receivedAtMessageId, inboxAddress }) =>
 		publishEvent(SendTrialFeedbackEmailCommand, {
 			userId,
 			kind: "automation_saves_held",
 			receivedAtMessageId,
+			inboxAddress,
 		}),
 	findSubscriptionByUserId: findByUserId,
 	now: () => new Date(),

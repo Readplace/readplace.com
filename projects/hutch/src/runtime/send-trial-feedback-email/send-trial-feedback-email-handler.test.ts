@@ -36,12 +36,19 @@ function buildPaymentFailedBody(userId: string): string {
 
 const HELD_EMAIL_ID = "2026-06-04T08:00:00.000Z#<news@example.com>";
 
-function buildAutomationSavesHeldBody(userId: string, receivedAtMessageId?: string): string {
+const HELD_INBOX_ADDRESS = "in-3f9a2c@read.place";
+
+function buildAutomationSavesHeldBody(
+	userId: string,
+	receivedAtMessageId?: string,
+	inboxAddress?: string,
+): string {
 	return JSON.stringify({
 		detail: {
 			userId,
 			kind: "automation_saves_held",
 			...(receivedAtMessageId ? { receivedAtMessageId } : {}),
+			...(inboxAddress ? { inboxAddress } : {}),
 		},
 	});
 }
@@ -105,7 +112,10 @@ describe("automation-saves-held notice", () => {
 	const run = async (subject: ReturnType<typeof buildSubject>, emailId = HELD_EMAIL_ID) =>
 		subject.handler(
 			buildSqsEvent([
-				{ messageId: "msg-held", body: buildAutomationSavesHeldBody(USER_ID, emailId) },
+				{
+					messageId: "msg-held",
+					body: buildAutomationSavesHeldBody(USER_ID, emailId, HELD_INBOX_ADDRESS),
+				},
 			]),
 			buildLambdaContext(),
 			() => {},
@@ -127,6 +137,11 @@ describe("automation-saves-held notice", () => {
 		assert.equal(sent.to, "user@example.com");
 		assert.equal(sent.bcc, "readplace+automation_saves_held@readplace.com");
 		assert.equal(sent.subject, "links sent to your Readplace inbox are waiting");
+		assert.ok(
+			sent.text.startsWith(
+				`An email to your Readplace inbox at ${HELD_INBOX_ADDRESS} just arrived,`,
+			),
+		);
 		const highlighted = new URL(
 			"https://readplace.com/inbox?highlight=2026-06-04T08%3A00%3A00.000Z%23%3Cnews%40example.com%3E&utm_source=automation-saves-held&utm_medium=email&utm_campaign=lapsed-inbox-save",
 		);

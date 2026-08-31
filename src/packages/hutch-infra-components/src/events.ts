@@ -785,6 +785,7 @@ export const SendTrialFeedbackEmailCommand = defineEvent({
 			.optional(),
 		chargeAt: z.string().optional(),
 		receivedAtMessageId: z.string().optional(),
+		inboxAddress: z.string().optional(),
 	}),
 });
 export type SendTrialFeedbackEmailDetail = z.infer<
