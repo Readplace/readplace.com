@@ -7,6 +7,10 @@ import type { ClientGroup } from "@packages/supported-clients";
 
 import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
 import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
+import {
+	PAGE_DEPTH_SCRIPT,
+	renderPageDepthBeacon,
+} from "../../shared/page-depth/page-depth.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import {
@@ -226,11 +230,12 @@ export function HomePage(params: {
 	return {
 		seo: buildHomeSeo({ staticBaseUrl, faq: faq.items }),
 		styles: `${HOME_PAGE_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
-		scripts: SAVE_TIP_SCRIPT,
+		scripts: `${SAVE_TIP_SCRIPT}${PAGE_DEPTH_SCRIPT}`,
 		bodyClass: "page-home",
 		content: {
 			html: render(HOME_TEMPLATE, {
 				saveTipHtml: saveTip.html,
+				pageDepthBeacon: renderPageDepthBeacon(),
 				heroEyebrow: lastViewUrl === undefined ? undefined : hero.arrivalEyebrow,
 				heroTitle: hero.title,
 				heroSubhead: hero.subhead,

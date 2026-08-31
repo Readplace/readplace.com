@@ -7,6 +7,7 @@ import { type ExcludedIdentities, excludeInternalVisitorsClauses } from "./exclu
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
+	PAGE_EXIT_KINDS,
 	LOG_GROUPS,
 	MCP_TOOL_OUTCOMES,
 	METRICS,
@@ -975,10 +976,53 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- How far down the homepage readers get ---
+	// A section that draws no clicks and a section nobody scrolled to look
+	// identical in the click stream. The depth beacon separates them: it reports
+	// the deepest point reached and the page's own height at the moment of
+	// leaving, so `unseen_px` is the part of the page that never came into view.
+	//
+	// Both widgets exclude `navigated_onward` — a reader who clicked through to
+	// another page stopped scrolling because they were done, not because the page
+	// lost them, and averaging the two answers neither question.
+
+	const leftTheSiteFilter = `stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageDepth}" and exit_kind = "${PAGE_EXIT_KINDS.leftSite}"`;
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Page depth — homepage pixels never seen by readers who left (median, p90)",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, unseen_px, seen_percent",
+				`| filter ${leftTheSiteFilter}`,
+				...exclude,
+				"| stats count(*) as readers, median(unseen_px) as unseen_px_median, pct(unseen_px, 90) as unseen_px_p90, median(seen_percent) as seen_percent_median by bin(1d) as day",
+				"| sort day asc",
+			].join(" "),
+			x: 0, y: 198, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+		logWidget({
+			region,
+			title: "Page depth — how far readers who left got, by device",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, device_class, seen_percent, unseen_px",
+				`| filter ${leftTheSiteFilter}`,
+				...exclude,
+				"| stats count(*) as readers, median(seen_percent) as seen_percent_median, median(unseen_px) as unseen_px_median, max(page_height_px) as page_height_px by device_class",
+				"| sort readers desc",
+			].join(" "),
+			x: 12, y: 198, width: 12, height: 8,
+			view: "table",
+		}),
+	);
+
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 194, width: 8, height: 4,
+			x: index * 8, y: 206, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,

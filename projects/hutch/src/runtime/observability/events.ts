@@ -10,6 +10,7 @@ export {
 	SAVE_OUTCOMES,
 	SIGNUP_OUTCOMES,
 	MCP_TOOL_OUTCOMES,
+	PAGE_EXIT_KINDS,
 	type SaveSurface,
 	type SaveClient,
 	type SaveOutcome,

@@ -79,9 +79,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 46 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 3 key-event-counters) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 49 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 3 key-event-counters) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(47);
+		expect(body.widgets).toHaveLength(49);
 	});
 
 	it("carries oauth_client_id on the recent-conversions table so a consent-screen signup names the client that sent it", () => {
@@ -153,6 +153,19 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(byTier).toBeDefined();
 		expect(byTier).toContain(`event = "${CONVERSION_EVENTS.userCreated}"`);
 		expect(byTier).toContain('coalesce(landing_path, "(none)") as landing');
+	});
+
+	// A section nobody clicks and a section nobody scrolls to are the same row in
+	// the click stream; these widgets are the only thing that tells them apart.
+	it("the page-depth widgets read only readers who left the site, so a click-through does not read as abandonment", () => {
+		const depthQueries = widgetQueries().filter((q) => q.includes(`event = "${ANALYTICS_EVENTS.pageDepth}"`));
+		expect(depthQueries.length).toBe(2);
+		for (const query of depthQueries) {
+			expect(query).toContain('exit_kind = "left_site"');
+			expect(query).not.toContain("navigated_onward");
+		}
+		expect(depthQueries.some((q) => q.includes("median(unseen_px)"))).toBe(true);
+		expect(depthQueries.some((q) => q.includes("by device_class"))).toBe(true);
 	});
 
 	it("audience pageview widgets read the single merged analytics group (both frontends already forwarded into it)", () => {

@@ -254,6 +254,7 @@ import {
 import { HOMEPAGE_EXPOSURE, HomePage } from "./web/pages/home";
 import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
 import { initSaveTipEventRoute } from "./web/shared/save-tip/save-tip.route";
+import { initPageDepthRoute } from "./web/shared/page-depth/page-depth.route";
 import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
@@ -1010,6 +1011,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * here on $default even when the close button is clicked on a /blog page. */
 	app.use(initChangelogDismissRoute({ secureCookies }));
 	app.use(initSaveTipEventRoute());
+	app.use(initPageDepthRoute({ analytics: deps.analytics, now: deps.now, salt: deps.salt }));
 
 	/** Every account-creation path (password, trial, checkout, Google) funnels
 	 * its user creation through these two deps, so wrapping them here provisions

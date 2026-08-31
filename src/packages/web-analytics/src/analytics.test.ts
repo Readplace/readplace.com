@@ -3,8 +3,8 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
-import { OAUTH_TOKEN_GRANT_TYPES, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { OAUTH_TOKEN_GRANT_TYPES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1307,5 +1307,94 @@ describe("deriveSaveSurface", () => {
 
 	it("records arbitrary junk as unknown", () => {
 		expect(surfaceFor("reader_view'; DROP")).toBe(SAVE_SURFACES.unknown);
+	});
+});
+
+describe("buildPageDepthEvent", () => {
+	const deps = { now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" };
+
+	function depth(params: {
+		deepestPx: number;
+		pageHeightPx: number;
+		viewportHeightPx?: number;
+	}) {
+		return buildPageDepthEvent(deps, {
+			req: createReq({ headers: { "user-agent": "Mozilla/5.0 (Macintosh) Chrome/131.0 Safari/537.36" } }) as Request,
+			path: "/",
+			deepestPx: params.deepestPx,
+			pageHeightPx: params.pageHeightPx,
+			viewportHeightPx: params.viewportHeightPx ?? 800,
+			exitKind: PAGE_EXIT_KINDS.leftSite,
+		});
+	}
+
+	it("reports the part of the page that never came into view", () => {
+		const event = depth({ deepestPx: 1200, pageHeightPx: 4000 });
+
+		expect(event).toMatchObject({
+			event: "page_depth",
+			path: "/",
+			deepest_px: 1200,
+			page_height_px: 4000,
+			unseen_px: 2800,
+			seen_percent: 30,
+			exit_kind: PAGE_EXIT_KINDS.leftSite,
+			device_class: "desktop",
+		});
+	});
+
+	it("clamps an over-scroll past the end, so rubber-banding cannot read as seeing more than the page holds", () => {
+		const event = depth({ deepestPx: 5000, pageHeightPx: 4000 });
+
+		expect(event.deepest_px).toBe(4000);
+		expect(event.unseen_px).toBe(0);
+		expect(event.seen_percent).toBe(100);
+	});
+
+	it("clamps a negative depth to nothing seen rather than a negative share", () => {
+		const event = depth({ deepestPx: -200, pageHeightPx: 4000 });
+
+		expect(event.deepest_px).toBe(0);
+		expect(event.seen_percent).toBe(0);
+	});
+
+	it("treats a page with no measurable height as one pixel, so the share is never divided by zero", () => {
+		const event = depth({ deepestPx: 0, pageHeightPx: 0 });
+
+		expect(event.page_height_px).toBe(1);
+		expect(event.seen_percent).toBe(0);
+	});
+
+	it("clamps a negative viewport, which no real window reports", () => {
+		const event = depth({ deepestPx: 100, pageHeightPx: 4000, viewportHeightPx: -1 });
+
+		expect(event.viewport_height_px).toBe(0);
+	});
+
+	it("carries the visitor identity and the signed-in flag, so a depth can be joined to the rest of that visit", () => {
+		const event = buildPageDepthEvent(deps, {
+			req: createReq({ userId: "user-1", visitorId: "visitor-1" }) as Request,
+			path: "/",
+			deepestPx: 100,
+			pageHeightPx: 400,
+			viewportHeightPx: 100,
+			exitKind: PAGE_EXIT_KINDS.leftSite,
+		});
+
+		expect(event.visitor_id).toBe("visitor-1");
+		expect(event.is_authenticated).toBe(1);
+	});
+
+	it("records the exit kind it was given", () => {
+		const event = buildPageDepthEvent(deps, {
+			req: createReq({}) as Request,
+			path: "/",
+			deepestPx: 100,
+			pageHeightPx: 400,
+			viewportHeightPx: 100,
+			exitKind: PAGE_EXIT_KINDS.navigatedOnward,
+		});
+
+		expect(event.exit_kind).toBe(PAGE_EXIT_KINDS.navigatedOnward);
 	});
 });

@@ -17,6 +17,7 @@ import {
 	OAUTH_TOKEN_REFUSAL_REASONS,
 	type OAuthTokenGrantType,
 	type OAuthTokenRefusalReason,
+	type PageExitKind,
 	type SaveRefusalCode,
 	type SaveClient,
 	type SaveOutcome,
@@ -384,6 +385,36 @@ export interface SaveRefusedEvent {
 	visitor_hash: string | null;
 }
 
+/**
+ * How much of a page a reader actually reached before leaving it. Recorded so a
+ * section that draws no clicks can be told apart from one nobody ever scrolled
+ * to — the two look identical in the click stream, and the difference decides
+ * whether the section needs rewriting or moving up.
+ *
+ * Every measurement is in CSS pixels, taken at the moment of leaving so a page
+ * whose height settles late (a web font, a poster frame) is measured at its
+ * final height rather than its first-paint one.
+ */
+export interface PageDepthEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.pageDepth;
+	timestamp: string;
+	path: string;
+	/** Bottom of the viewport at its deepest, so a reader who never scrolls is
+	 * credited with the screenful they did see. */
+	deepest_px: number;
+	page_height_px: number;
+	viewport_height_px: number;
+	/** The part of the page that never came into view. */
+	unseen_px: number;
+	seen_percent: number;
+	exit_kind: PageExitKind;
+	device_class: DeviceClass;
+	visitor_hash: string | null;
+	visitor_id: string | null;
+	is_authenticated: 0 | 1;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| AnalyticsClick
@@ -399,7 +430,8 @@ export type AnalyticsEvent =
 	| McpToolCalledEvent
 	| OAuthTokenIssuedEvent
 	| OAuthTokenRefusedEvent
-	| SaveRefusedEvent;
+	| SaveRefusedEvent
+	| PageDepthEvent;
 
 function isRenderedPageStatus(statusCode: number): boolean {
 	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
@@ -587,6 +619,43 @@ export function buildSaveRefusedEvent(
 		is_authenticated: params.req.userId ? 1 : 0,
 		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
 		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+	};
+}
+
+/**
+ * Clamps the browser's numbers before they become a metric: a reader who
+ * over-scrolls past the end (rubber-banding on iOS) must not read as having
+ * seen more than the page holds, and a page shorter than the viewport is fully
+ * seen rather than more-than-fully seen.
+ */
+export function buildPageDepthEvent(
+	deps: { now: () => Date; salt: string },
+	params: {
+		req: Request;
+		path: string;
+		deepestPx: number;
+		pageHeightPx: number;
+		viewportHeightPx: number;
+		exitKind: PageExitKind;
+	},
+): PageDepthEvent {
+	const pageHeight = Math.max(params.pageHeightPx, 1);
+	const deepest = Math.min(Math.max(params.deepestPx, 0), pageHeight);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.pageDepth,
+		timestamp: deps.now().toISOString(),
+		path: params.path,
+		deepest_px: deepest,
+		page_height_px: pageHeight,
+		viewport_height_px: Math.max(params.viewportHeightPx, 0),
+		unseen_px: pageHeight - deepest,
+		seen_percent: Math.round((deepest / pageHeight) * 100),
+		exit_kind: params.exitKind,
+		device_class: classifyDeviceClass(params.req.get("user-agent")),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+		visitor_id: params.req.visitorId ?? null,
+		is_authenticated: params.req.userId ? 1 : 0,
 	};
 }
 

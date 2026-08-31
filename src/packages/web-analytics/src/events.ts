@@ -31,7 +31,20 @@ export const ANALYTICS_EVENTS = {
 	oauthTokenIssued: "oauth_token_issued",
 	oauthTokenRefused: "oauth_token_refused",
 	saveRefused: "save_refused",
+	pageDepth: "page_depth",
 } as const;
+
+/**
+ * How a reader left the page the depth was measured on. `navigated_onward`
+ * means they clicked through to another Readplace page, so the depth they
+ * reached is where they stopped reading, not where they gave up.
+ */
+export const PAGE_EXIT_KINDS = {
+	leftSite: "left_site",
+	navigatedOnward: "navigated_onward",
+} as const;
+
+export type PageExitKind = (typeof PAGE_EXIT_KINDS)[keyof typeof PAGE_EXIT_KINDS];
 
 export const OAUTH_TOKEN_GRANT_TYPES = {
 	refreshToken: "refresh_token",
