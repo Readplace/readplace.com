@@ -36,9 +36,9 @@ The plus sign at the end of the rail creates a readlist and opens it. It arrives
 
 There's a ceiling. An account holds 7 readlists beside All, and pressing for an 8th gets a plain sentence where the button sits: "You can keep up to 7 readlists."
 
-Under the name sits a 16-character id, and the id is the list's address. Renaming "Work" to "References" changes no URL, so a bookmark to a list survives every rename.
+In the address bar a list goes by a 16-character id rather than its name. Renaming "Work" to "References" changes no URL, so a bookmark to a list survives every rename.
 
-The x on a tab asks before it acts, then removes the list and every copy filed into it. The copy in All stays put, so the ordinary case costs nothing but the grouping. If that list held the only copy of a link, the link leaves the account with it.
+The x on a tab asks before it acts, and the question carries a way to keep the copies: a dropdown labelled "Move its articles to" files the list's articles into another of your lists as the delete runs. Leave it on "Nowhere, delete them too" and the copies go with the list. The copy in All stays put either way, so the ordinary case costs nothing but the grouping.
 
 ## Filing happens in the reader
 
