@@ -1,4 +1,4 @@
-import type dns from "node:dns";
+import dns from "node:dns";
 import {
 	createBlockedAddressLookup,
 	createLiteralHostGuard,
@@ -23,6 +23,16 @@ function resolverReturning(addresses: dns.LookupAddress[]): ResolveAll {
 
 function resolverFailing(err: NodeJS.ErrnoException): ResolveAll {
 	return (_hostname, _options, callback) => callback(err, []);
+}
+
+function resolverCapturing(
+	addresses: dns.LookupAddress[],
+	sink: { options?: { all: true; hints?: number } },
+): ResolveAll {
+	return (_hostname, options, callback) => {
+		sink.options = options;
+		callback(null, addresses);
+	};
 }
 
 type LookupOutcome = {
@@ -91,6 +101,24 @@ describe("createBlockedAddressLookup", () => {
 			{ address: "93.184.216.34", family: 4 },
 			{ address: "2606:4700:4700::1111", family: 6 },
 		]);
+	});
+
+	it("forwards the caller's hints to the resolver so getaddrinfo can honour ADDRCONFIG", async () => {
+		const sink: { options?: { all: true; hints?: number } } = {};
+		await runLookup(resolverCapturing([{ address: "93.184.216.34", family: 4 }], sink), "hinted.test", {
+			all: true,
+			hints: dns.ADDRCONFIG,
+		});
+		expect(sink.options?.all).toBe(true);
+		expect(sink.options?.hints).toBe(dns.ADDRCONFIG);
+		expect(Object.keys(sink.options ?? {}).sort()).toEqual(["all", "hints"]);
+	});
+
+	it("forwards undefined hints when the caller passes none", async () => {
+		const sink: { options?: { all: true; hints?: number } } = {};
+		await runLookup(resolverCapturing([{ address: "93.184.216.34", family: 4 }], sink), "unhinted.test");
+		expect(sink.options?.all).toBe(true);
+		expect(sink.options?.hints).toBeUndefined();
 	});
 
 	it("errors when the host resolves to no addresses", async () => {

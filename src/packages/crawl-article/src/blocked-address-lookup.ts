@@ -24,7 +24,7 @@ export type SocketLookup = (
  */
 export type ResolveAll = (
 	hostname: string,
-	options: { all: true },
+	options: { all: true; hints?: number },
 	callback: (err: NodeJS.ErrnoException | null, addresses: readonly dns.LookupAddress[]) => void,
 ) => void;
 
@@ -71,7 +71,7 @@ export function createBlockedAddressLookup(deps: {
 }): SocketLookup {
 	const { isBlocked } = deps;
 	return (hostname, options, callback) => {
-		deps.resolve(hostname, { all: true }, (err, addresses) => {
+		deps.resolve(hostname, { all: true, hints: options.hints }, (err, addresses) => {
 			if (err) {
 				callback(err, "", 0);
 				return;
