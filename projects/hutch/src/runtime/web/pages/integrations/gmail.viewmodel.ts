@@ -5,6 +5,8 @@ import type {
 } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
 import {
+	buildGmailStatusUrl,
+	GMAIL_CONFIRM_MAX_POLLS,
 	GMAIL_DISCONNECT_PATH,
 	GMAIL_SENDER_ADD_PATH,
 	GMAIL_SENDER_MAP_PATH,
@@ -19,8 +21,7 @@ import { GMAIL_CONNECT_PATH, INTEGRATIONS_PATH } from "./gmail-connect.url";
 export interface GmailSenderRowViewModel {
 	email: string;
 	detail: string;
-	mappedAddress: string;
-	mappedVisibility: "visible" | "hidden";
+	mappedAddress: string | undefined;
 	removeAction: string;
 }
 
@@ -46,18 +47,20 @@ export interface GmailPageViewModel {
 	addSenderAction: string;
 	disconnectAction: string;
 	reconnectAction: string;
-	stepVisibility: "visible" | "hidden";
-	sendersVisibility: "visible" | "hidden";
-	reconnectVisibility: "visible" | "hidden";
+	showStep: boolean;
+	showSenders: boolean;
+	showReconnect: boolean;
 	senders: GmailSenderRowViewModel[];
 	unsorted: GmailUnsortedRowViewModel[];
 	hasSenders: boolean;
 	hasUnsorted: boolean;
-	unsortedVisibility: "visible" | "hidden";
 	alerts: GmailBannerViewModel[];
 	notices: GmailBannerViewModel[];
-	alertVisibility: "visible" | "hidden";
-	noticeVisibility: "visible" | "hidden";
+}
+
+export interface GmailPollViewModel {
+	pollUrl: string | undefined;
+	message: string;
 }
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
@@ -77,11 +80,15 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 
 export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	connected: "Gmail is connected.",
-	verifying: "Checking with Gmail. This page updates once the rule is in place.",
+	verifying: "Checking with Gmail. This page updates on its own once forwarding is confirmed.",
+	confirmed: "Forwarding confirmed.",
 	sender_added: "Added. Gmail will start forwarding that sender.",
 	sender_removed: "Removed. Gmail will stop forwarding that sender.",
 	sender_mapped: "Done. That sender now has its own inbox.",
 };
+
+const GMAIL_POLL_WATCHING = "Watching for Gmail to confirm the forwarding address.";
+const GMAIL_POLL_STALLED = "Still waiting. Once you've added the address in Gmail, refresh this page.";
 
 function bannersFor(
 	key: string | undefined,
@@ -98,6 +105,14 @@ function senderDetail(sender: GmailSenderEntry): string {
 	return `Last: ${sender.lastSubject}`;
 }
 
+export function toGmailPollViewModel(input: { pollCount: number }): GmailPollViewModel {
+	const canPoll = input.pollCount < GMAIL_CONFIRM_MAX_POLLS;
+	return {
+		pollUrl: canPoll ? buildGmailStatusUrl(input.pollCount + 1) : undefined,
+		message: canPoll ? GMAIL_POLL_WATCHING : GMAIL_POLL_STALLED,
+	};
+}
+
 export function toGmailPageViewModel(input: {
 	connection: GmailConnection;
 	senders: readonly GmailSenderEntry[];
@@ -105,6 +120,8 @@ export function toGmailPageViewModel(input: {
 	notice?: string;
 }): GmailPageViewModel {
 	const state = gmailConnectionState(input.connection);
+	const awaiting = state === "awaiting-confirmation";
+	const revoked = state === "revoked";
 	const onFilter = input.senders.filter((sender) => sender.addedToFilterAt !== undefined);
 	const unsorted = input.senders.filter(
 		(sender) => sender.addedToFilterAt === undefined && sender.mappedAddress === undefined,
@@ -115,9 +132,9 @@ export function toGmailPageViewModel(input: {
 			? []
 			: [{ key: "filter", message: input.connection.lastFilterError.message }]),
 	];
-	const notices = bannersFor(input.notice, GMAIL_PAGE_NOTICES);
-	const awaiting = state === "awaiting-confirmation";
-	const revoked = state === "revoked";
+	const notices = bannersFor(input.notice, GMAIL_PAGE_NOTICES).filter(
+		(banner) => banner.key !== "verifying" || awaiting,
+	);
 
 	return {
 		state,
@@ -130,14 +147,13 @@ export function toGmailPageViewModel(input: {
 		addSenderAction: GMAIL_SENDER_ADD_PATH,
 		disconnectAction: GMAIL_DISCONNECT_PATH,
 		reconnectAction: GMAIL_CONNECT_PATH,
-		stepVisibility: awaiting ? "visible" : "hidden",
-		sendersVisibility: awaiting || revoked ? "hidden" : "visible",
-		reconnectVisibility: revoked ? "visible" : "hidden",
+		showStep: awaiting,
+		showSenders: !awaiting && !revoked,
+		showReconnect: revoked,
 		senders: onFilter.map((sender) => ({
 			email: sender.senderEmail,
 			detail: senderDetail(sender),
-			mappedAddress: sender.mappedAddress ?? "",
-			mappedVisibility: sender.mappedAddress === undefined ? "hidden" : "visible",
+			mappedAddress: sender.mappedAddress,
 			removeAction: GMAIL_SENDER_REMOVE_PATH,
 		})),
 		unsorted: unsorted.map((sender) => ({
@@ -147,10 +163,7 @@ export function toGmailPageViewModel(input: {
 		})),
 		hasSenders: onFilter.length > 0,
 		hasUnsorted: unsorted.length > 0,
-		unsortedVisibility: unsorted.length > 0 ? "visible" : "hidden",
 		alerts,
 		notices,
-		alertVisibility: alerts.length > 0 ? "visible" : "hidden",
-		noticeVisibility: notices.length > 0 ? "visible" : "hidden",
 	};
 }

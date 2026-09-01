@@ -39,26 +39,26 @@ export const GMAIL_PAGE_STYLES = `
 .gmail__status {
 	display: inline-block;
 	font-size: 0.8125rem;
-	font-weight: 600;
-	padding: 4px 10px;
+	font-weight: 500;
+	padding: 2px 8px;
 	border-radius: var(--radius-sm);
 	border: 1px solid currentColor;
+	white-space: nowrap;
 	margin-bottom: 24px;
 }
 
-.gmail__status--awaiting-confirmation,
-.gmail__status--disconnected {
+.gmail__status--awaiting-confirmation {
 	color: var(--muted-foreground);
 }
 
 .gmail__status--ready-to-filter,
 .gmail__status--filtering {
-	color: var(--primary);
+	color: var(--success-text);
 }
 
 .gmail__status--revoked,
 .gmail__status--filter-failed {
-	color: var(--destructive);
+	color: var(--error-text);
 }
 
 .gmail__notice,
@@ -67,7 +67,8 @@ export const GMAIL_PAGE_STYLES = `
 	border-radius: var(--radius-sm);
 	font-size: 0.9375rem;
 	line-height: 1.6;
-	margin-bottom: 20px;
+	text-wrap: pretty;
+	margin-bottom: 24px;
 }
 
 .gmail__notice {
@@ -77,34 +78,8 @@ export const GMAIL_PAGE_STYLES = `
 }
 
 .gmail__alert {
-	border: 1px solid var(--destructive);
-	color: var(--destructive);
-}
-
-.gmail__notice--hidden,
-.gmail__alert--hidden,
-.gmail__step--hidden,
-.gmail__senders--hidden,
-.gmail__reconnect--hidden,
-.gmail__unsorted--hidden,
-.gmail__item-mapped--hidden {
-	display: none;
-}
-
-.gmail__notice--visible,
-.gmail__alert--visible,
-.gmail__unsorted--visible {
-	display: block;
-}
-
-.gmail__step--visible,
-.gmail__senders--visible,
-.gmail__reconnect--visible {
-	display: block;
-}
-
-.gmail__item-mapped--visible {
-	display: inline;
+	border: 1px solid var(--error-text);
+	color: var(--error-text);
 }
 
 .gmail__step-title,
@@ -112,6 +87,7 @@ export const GMAIL_PAGE_STYLES = `
 	font-family: var(--font-serif);
 	font-size: 1.25rem;
 	font-weight: 700;
+	text-wrap: balance;
 	margin-bottom: 8px;
 	color: var(--foreground);
 }
@@ -131,18 +107,14 @@ export const GMAIL_PAGE_STYLES = `
 	padding: 12px 16px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-sm);
-	background: var(--card);
+	background: var(--muted);
 	margin-bottom: 16px;
-}
-
-.gmail__copy-field:focus-within {
-	outline: 2px solid var(--ring);
-	outline-offset: 2px;
 }
 
 .gmail__copy-value {
 	flex: 1 1 auto;
-	font-family: var(--font-mono);
+	min-width: 0;
+	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 	font-size: 0.9375rem;
 	overflow-wrap: anywhere;
 	color: var(--foreground);
@@ -152,29 +124,68 @@ export const GMAIL_PAGE_STYLES = `
 	flex: none;
 }
 
-.gmail__add {
+.gmail__copy-button[hidden] {
+	display: none;
+}
+
+.gmail__step-actions {
 	display: flex;
-	align-items: flex-end;
 	flex-wrap: wrap;
+	align-items: center;
 	gap: 12px;
-	margin-bottom: 20px;
+}
+
+.gmail__poll {
+	font-size: 0.8125rem;
+	line-height: 1.6;
+	text-wrap: pretty;
+	color: var(--muted-foreground);
+	margin-top: 16px;
+}
+
+.gmail__add {
+	margin-bottom: 24px;
 }
 
 .gmail__add-label {
-	flex: 1 1 100%;
-	font-size: 0.8125rem;
+	display: block;
+	font-size: 0.875rem;
 	font-weight: 600;
-	color: var(--muted-foreground);
+	color: var(--foreground);
+	margin: 0 0 8px;
+}
+
+.gmail__add-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
 }
 
 .gmail__add-input {
-	flex: 1 1 240px;
-	padding: 10px 14px;
+	flex: 1 1 200px;
+	min-width: 0;
+	height: var(--input-height);
+	padding: var(--input-padding);
+	font-size: var(--input-font-size);
+	color: var(--foreground);
+	background: var(--background);
 	border: 1px solid var(--border);
 	border-radius: var(--radius-sm);
-	background: var(--background);
-	color: var(--foreground);
+}
+
+.gmail__add-input:focus {
+	outline: none;
+	border-color: var(--ring);
+	box-shadow: 0 0 0 3px var(--ring-shadow);
+}
+
+.gmail__empty {
 	font-size: 0.9375rem;
+	line-height: 1.6;
+	text-wrap: pretty;
+	color: var(--muted-foreground);
+	margin: 0 0 24px;
 }
 
 .gmail__list {
@@ -219,6 +230,30 @@ export const GMAIL_PAGE_STYLES = `
 }
 
 .gmail__disconnect {
-	margin-top: 24px;
+	margin-top: 32px;
+	padding-top: 24px;
+	border-top: 1px solid var(--border);
+}
+
+.gmail__disconnect-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	cursor: pointer;
+	border: 0;
+	font-family: inherit;
+	padding: var(--button-padding);
+	font-size: 0.9375rem;
+	font-weight: 600;
+	border-radius: var(--radius-sm);
+	background: var(--error-fill);
+	color: var(--error-foreground);
+	transition: background-color 0.15s ease;
+}
+
+.gmail__disconnect-button:hover,
+.gmail__disconnect-button:active {
+	background: var(--error-fill-hover);
 }
 `;

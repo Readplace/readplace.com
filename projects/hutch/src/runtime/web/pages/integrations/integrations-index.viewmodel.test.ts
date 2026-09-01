@@ -133,8 +133,6 @@ describe("toIntegrationsIndexViewModel", () => {
 		const vm = toIntegrationsIndexViewModel({ connection: undefined });
 
 		assert.deepEqual(vm.alerts, []);
-		assert.equal(vm.hasAlert, false);
-		assert.equal(vm.alertVisibility, "hidden");
 	});
 
 	it("explains each connect failure the callback can redirect with", () => {
@@ -150,8 +148,6 @@ describe("toIntegrationsIndexViewModel", () => {
 				vm.alerts.map((a) => a.key),
 				[error],
 			);
-			assert.equal(vm.hasAlert, true);
-			assert.equal(vm.alertVisibility, "visible");
 		}
 	});
 
@@ -159,6 +155,5 @@ describe("toIntegrationsIndexViewModel", () => {
 		const vm = toIntegrationsIndexViewModel({ connection: undefined, error: "made-up" });
 
 		assert.deepEqual(vm.alerts, []);
-		assert.equal(vm.hasAlert, false);
 	});
 });

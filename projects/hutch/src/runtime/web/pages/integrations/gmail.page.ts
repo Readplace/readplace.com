@@ -1,15 +1,16 @@
 import assert from "node:assert";
 import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
-import { sendComponent } from "@packages/web-shell";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { parsePollParam, sendComponent } from "@packages/web-shell";
+import { ForwardableSenderSchema, gmailConnectionState } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { GmailPage } from "./gmail.component";
-import { buildGmailUrl } from "./gmail.url";
-import { toGmailPageViewModel } from "./gmail.viewmodel";
+import { HxRedirectPage } from "../../hx-redirect-page";
+import { GmailPage, renderGmailPoll } from "./gmail.component";
+import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS } from "./gmail.url";
+import { toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-connect.page";
 
@@ -47,6 +48,14 @@ export function registerGmailPageRoutes(
 		return UserIdSchema.parse(req.userId);
 	};
 
+	const redirectFullPage = (req: Request, res: Response, url: string): void => {
+		if (req.get("HX-Request") === "true") {
+			sendComponent(req, res, HxRedirectPage(url));
+			return;
+		}
+		res.redirect(303, url);
+	};
+
 	router.get("/gmail", requireAuth, async (req: Request, res: Response) => {
 		const userId = ownerOf(req);
 		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
@@ -62,6 +71,25 @@ export function registerGmailPageRoutes(
 			notice: flash(req, "notice"),
 		});
 		sendComponent(req, res, Base(GmailPage(vm), await context.buildBannerState(req)));
+	});
+
+	router.get("/gmail/status", requireAuth, async (req: Request, res: Response) => {
+		const userId = ownerOf(req);
+		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
+		if (connection === undefined) {
+			redirectFullPage(req, res, INTEGRATIONS_PATH);
+			return;
+		}
+		if (gmailConnectionState(connection) !== "awaiting-confirmation") {
+			redirectFullPage(req, res, buildGmailUrl({ notice: "confirmed" }));
+			return;
+		}
+		const pollCount = parsePollParam(req.query.poll, GMAIL_CONFIRM_MAX_POLLS);
+		res
+			.status(200)
+			.set("Cache-Control", "private, no-cache")
+			.type("html")
+			.send(renderGmailPoll(toGmailPollViewModel({ pollCount })));
 	});
 
 	router.post("/gmail/verify", write, async (req: Request, res: Response) => {

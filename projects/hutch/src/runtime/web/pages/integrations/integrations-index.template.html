@@ -3,11 +3,9 @@
         <h1 class="integrations__title">Integrations</h1>
         <p class="integrations__lead">Connect a service and its email lands in Readplace.</p>
 
-        <div class="integrations__alert integrations__alert--{{alertVisibility}}" role="alert" data-test-integrations-alert>
-          {{#each alerts}}
-          <span data-test-integrations-alert-key="{{key}}">{{message}}</span>
-          {{/each}}
-        </div>
+        {{#each alerts}}
+        <div class="integrations__alert" role="alert" data-test-integrations-alert data-test-integrations-alert-key="{{key}}">{{message}}</div>
+        {{/each}}
 
         <ul class="integrations__list" data-test-integrations-list>
           {{#each services}}
@@ -19,7 +17,7 @@
             </span>
             <span class="integrations__status {{statusModifier}}" data-test-integration-status="{{statusKey}}">{{statusLabel}}</span>
             {{#each actions}}
-            <form class="integrations__action" method="{{method}}" action="{{href}}">
+            <form class="integrations__action" method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
               <button type="submit" class="btn btn--{{variant}} btn--compact" data-test-integration-action="{{key}}">{{label}}</button>
             </form>
             {{/each}}

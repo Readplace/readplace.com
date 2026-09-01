@@ -31,8 +31,6 @@ export interface IntegrationsAlertViewModel {
 export interface IntegrationsIndexViewModel {
 	services: IntegrationRowViewModel[];
 	alerts: IntegrationsAlertViewModel[];
-	hasAlert: boolean;
-	alertVisibility: "visible" | "hidden";
 }
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
@@ -125,7 +123,5 @@ export function toIntegrationsIndexViewModel(input: {
 			},
 		],
 		alerts,
-		hasAlert: alerts.length > 0,
-		alertVisibility: alerts.length > 0 ? "visible" : "hidden",
 	};
 }

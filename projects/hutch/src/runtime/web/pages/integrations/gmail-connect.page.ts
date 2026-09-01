@@ -2,6 +2,7 @@ import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
+import { sendComponent } from "@packages/web-shell";
 import { baseCookieOptions } from "@packages/web-analytics";
 import type {
 	ForwardableSender,
@@ -14,6 +15,7 @@ import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
+import { HxRedirectPage } from "../../hx-redirect-page";
 import { signState, verifyState } from "../../auth/oauth-state";
 import { buildIntegrationsUrl, GMAIL_CALLBACK_PATH } from "./gmail-connect.url";
 import { buildGmailUrl } from "./gmail.url";
@@ -87,7 +89,12 @@ export function registerGmailConnectRoutes(
 			state: signedState,
 		});
 
-		res.redirect(303, `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+		const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+		if (req.get("HX-Request") === "true") {
+			sendComponent(req, res, HxRedirectPage(authorizeUrl));
+			return;
+		}
+		res.redirect(303, authorizeUrl);
 	});
 
 	router.get("/gmail/callback", write, async (req: Request, res: Response) => {

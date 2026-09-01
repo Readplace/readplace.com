@@ -10,6 +10,8 @@ const INTEGRATIONS_INDEX_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const INTEGRATIONS_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
+
 export function IntegrationsIndexPage(vm: IntegrationsIndexViewModel): PageBody {
 	return {
 		seo: {
@@ -21,5 +23,6 @@ export function IntegrationsIndexPage(vm: IntegrationsIndexViewModel): PageBody 
 		styles: INTEGRATIONS_INDEX_STYLES,
 		bodyClass: "page-integrations",
 		content: { html: render(INTEGRATIONS_INDEX_TEMPLATE, vm) },
+		scripts: INTEGRATIONS_COPY_SCRIPT,
 	};
 }

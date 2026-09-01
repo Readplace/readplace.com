@@ -129,4 +129,34 @@ describe("initClipboardCopy", () => {
 		const malformed = document.querySelector(`[data-copy]:not([${TEXT_ATTR}])`);
 		expect(malformed?.hasAttribute("hidden")).toBe(true);
 	});
+
+	it("wires each button once even when attach runs again after a swap", () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
+
+		ctrl.attach();
+		ctrl.attach();
+		fireEvent.click(copyButton(document));
+
+		expect(writeText).toHaveBeenCalledTimes(1);
+	});
+
+	it("wires a copy button that a swap splices in after the first attach", () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
+		ctrl.attach();
+		const late = document.createElement("button");
+		late.setAttribute("type", "button");
+		late.setAttribute("data-copy", "");
+		late.setAttribute("data-copy-text", "https://readplace.com/late");
+		late.hidden = true;
+		late.textContent = "Copy";
+		document.body.appendChild(late);
+
+		ctrl.attach();
+
+		expect(late.hidden).toBe(false);
+		fireEvent.click(late);
+		expect(writeText).toHaveBeenCalledWith("https://readplace.com/late");
+	});
 });
