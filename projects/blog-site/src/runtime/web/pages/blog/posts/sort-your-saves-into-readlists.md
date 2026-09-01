@@ -1,5 +1,5 @@
 ---
-title: "Sort Your Saves Into Readlists You Name"
+title: "Introducing readlists"
 description: "Work reading and weekend reading used to share one pile of saved links. The saved-links page now opens on a rail of tabs: All still catches every save, and beside it sit readlists you create and name yourself. File an article into a list from the reader, keep it in more than one, and mark it read once for all of them."
 slug: "sort-your-saves-into-readlists"
 date: "2026-08-31"
@@ -47,6 +47,8 @@ Filing is a separate decision from saving, made later with the article open. Und
 One article can carry several tags, and the tag's own control takes it back out of that list.
 
 Not every account needs a second list. With none created, the picker stays hidden and the page reads the way it did last week.
+
+Filing is your decision today. The article and the names you picked are enough for a model to work out where a save belongs, so automatic placement into your readlists is what I'm building next.
 
 ## One read state, however many lists
 
