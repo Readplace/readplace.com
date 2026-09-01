@@ -60,4 +60,4 @@ A smaller repair rides along. The saved URL for that question still carries its 
 
 A Stack Overflow tab is the kind that stays open for a week, because the accepted answer solved the immediate problem and the 4 answers below it looked worth a slower read that hasn't happened yet. That slower read is what a readlist is for, and it only works if the save holds the part you were coming back for.
 
-It does now. The next thread a search drops you into can wait in [your readlist](/) with all of its answers attached, and [the browser extension](https://readplace.com/install) sends it there without closing the tab.
+It does now. When a search strands you halfway down a thread, [the browser extension](https://readplace.com/install) puts the whole of it, question and answers, in [your readlist](/) to finish on your own time.
