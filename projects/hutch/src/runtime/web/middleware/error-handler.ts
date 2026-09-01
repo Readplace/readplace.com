@@ -1,7 +1,7 @@
 import { STATUS_CODES } from "node:http";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 
 export interface ErrorResponse {
 	error: string;
@@ -13,14 +13,14 @@ const CarriedHttpStatus = z.object({
 	statusCode: z.number().int().min(400).max(599),
 });
 
-export const logAndRespondOnError = (logger: HutchLogger) => {
-	return (err: Error, _req: Request, res: Response, _next: NextFunction) => {
-		logger.error(
-			JSON.stringify({
-				level: "ERROR",
-				timestamp: new Date().toISOString(),
+export const logAndRespondOnError = (deps: { logger: HutchLogger; now: () => Date }) => {
+	return (err: Error, req: Request, res: Response, _next: NextFunction) => {
+		deps.logger.error(
+			formatErrorLogLine({
 				message: "Unhandled error",
-				stack: err.stack,
+				url: req.path,
+				error: err,
+				now: deps.now,
 			}),
 		);
 		const carried = CarriedHttpStatus.safeParse(err);
