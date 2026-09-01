@@ -143,18 +143,6 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		expect(update?.input.UpdateExpression).toBe("SET lastSummaryClosedAt = :at");
 	});
 
-	it("markLinkShared stamps sharedAt (last-write-wins) only on a row that still exists", async () => {
-		const { client, commands } = createFakeClient();
-		await initStore(client).markLinkShared({ userId: USER, url: URL, at: new Date("2026-05-30T10:03:00.000Z") });
-
-		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toBe("SET sharedAt = :at");
-		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
-		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
-			"2026-05-30T10:03:00.000Z",
-		);
-	});
-
 	it("markRelatedDismissed records the suggestion that was waved away, so a later render can tell a snooze from a permanent dismissal", async () => {
 		const { client, commands } = createFakeClient();
 		const suggestionId = ReaderArticleHashId.fromHash("0123456789abcdef0123456789abcdef");
@@ -289,58 +277,6 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 			{ userId: "abc123", viewedAt: undefined },
 			{ userId: "def456", viewedAt: undefined },
 		]);
-	});
-});
-
-describe("initDynamoDbSavedArticleStore share records (listSharedArticles)", () => {
-	const METADATA_PROJECTION =
-		"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt, #readerAvailableAt";
-
-	it("queries the savedAt index filtered to shared rows, projects metadata only, and returns newest-shared first", async () => {
-		const sharedEarlier = userArticleItem({ url: "a", sharedAt: "2026-05-30T10:00:00.000Z" });
-		const sharedLater = userArticleItem({ url: "b", sharedAt: "2026-05-30T11:00:00.000Z" });
-		const articleA = articleItem({ url: "a", originalUrl: "https://example.com/a", routeId: ReaderArticleHashId.from("https://example.com/a").value });
-		const articleB = articleItem({ url: "b", originalUrl: "https://example.com/b", routeId: ReaderArticleHashId.from("https://example.com/b").value });
-		const { client, commands } = createFakeClient({
-			QueryCommand: { default: { Items: [sharedEarlier, sharedLater], Count: 2 } },
-			BatchGetCommand: { default: { Responses: { articles: [articleA, articleB] } } },
-		});
-
-		const result = await initStore(client).listSharedArticles({ userId: USER });
-
-		const query = commands.find((c) => c.name === "QueryCommand");
-		expect(query?.input.IndexName).toBe("userId-savedAt-index");
-		expect(query?.input.FilterExpression).toBe("attribute_exists(sharedAt)");
-		expect((query?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(USER);
-
-		const batch = commands.find((c) => c.name === "BatchGetCommand");
-		const requestItems = batch?.input.RequestItems as Record<string, { ProjectionExpression?: string }>;
-		expect(requestItems.articles.ProjectionExpression).toBe(METADATA_PROJECTION);
-
-		expect(result.map((a) => a.url)).toEqual(["https://example.com/b", "https://example.com/a"]);
-		expect(result[0]?.sharedAt).toEqual(new Date("2026-05-30T11:00:00.000Z"));
-	});
-
-	it("returns an empty list when the user has shared nothing", async () => {
-		const { client } = createFakeClient({
-			QueryCommand: { default: { Items: [], Count: 0 } },
-		});
-
-		const result = await initStore(client).listSharedArticles({ userId: USER });
-
-		expect(result).toEqual([]);
-	});
-
-	it("skips a shared row whose article metadata is missing so a half-deleted row cannot crash the list", async () => {
-		const shared = userArticleItem({ url: "a", sharedAt: "2026-05-30T10:00:00.000Z" });
-		const { client } = createFakeClient({
-			QueryCommand: { default: { Items: [shared], Count: 1 } },
-			BatchGetCommand: { default: { Responses: { articles: [] } } },
-		});
-
-		const result = await initStore(client).listSharedArticles({ userId: USER });
-
-		expect(result).toEqual([]);
 	});
 });
 

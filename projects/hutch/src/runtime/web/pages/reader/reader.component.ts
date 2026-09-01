@@ -168,7 +168,6 @@ export function ReaderPage(
 		shareTitle: article.metadata.title,
 		shareHint: "Click here to share this post!",
 		shareSource: "reader-internal",
-		shareStampUrl: `/queue/${articleId}/share`,
 	});
 	const nextRead = renderNextRead({
 		related: options.related

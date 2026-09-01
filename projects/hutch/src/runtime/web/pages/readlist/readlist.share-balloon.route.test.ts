@@ -25,7 +25,7 @@ const ARTICLE_HTML = `
 
 const useApp = useTestServer();
 
-async function saveAndOpenReader(appOrigin: string): Promise<{ doc: Document; articleId: string }> {
+async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
@@ -79,20 +79,12 @@ async function saveAndOpenReader(appOrigin: string): Promise<{ doc: Document; ar
 
 	const response = await request(harness.server).get(`/queue/${articleId}/view`).set("Cookie", sessionCookie);
 	expect(response.status).toBe(200);
-	return { doc: new JSDOM(response.text).window.document, articleId };
+	return new JSDOM(response.text).window.document;
 }
 
 describe("GET /queue/:id/view share balloon", () => {
-	it("carries the owner's share-beacon target on the balloon wrap", async () => {
-		const { doc, articleId } = await saveAndOpenReader(TEST_APP_ORIGIN);
-
-		const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-		assert(wrap, "the balloon wrap must be rendered");
-		expect(wrap.getAttribute("data-share-stamp-url")).toBe(`/queue/${articleId}/share`);
-	});
-
 	it("renders share URLs using the default test fixture's appOrigin", async () => {
-		const { doc } = await saveAndOpenReader(TEST_APP_ORIGIN);
+		const doc = await saveAndOpenReader(TEST_APP_ORIGIN);
 
 		const btn = doc.querySelector("[data-test-share-balloon]");
 		assert(btn, "share button must be rendered");
@@ -108,7 +100,7 @@ describe("GET /queue/:id/view share balloon", () => {
 	});
 
 	it("renders share URLs against the appOrigin configured at the composition root (not a hardcoded host)", async () => {
-		const { doc } = await saveAndOpenReader("https://staging.readplace.com");
+		const doc = await saveAndOpenReader("https://staging.readplace.com");
 
 		const btn = doc.querySelector("[data-test-share-balloon]");
 		assert(btn, "share button must be rendered");

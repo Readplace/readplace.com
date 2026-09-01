@@ -999,7 +999,6 @@ describe("View routes", () => {
 			const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
 			assert(wrap, "share balloon wrapper must be rendered");
 			expect(wrap.hasAttribute("hidden")).toBe(true);
-			expect(wrap.getAttribute("data-share-stamp-url")).toBe(null);
 			const btn = doc.querySelector("[data-test-share-balloon]");
 			assert(btn, "share button must be rendered");
 			expect(btn.getAttribute("aria-label")).toBe("Share this article");

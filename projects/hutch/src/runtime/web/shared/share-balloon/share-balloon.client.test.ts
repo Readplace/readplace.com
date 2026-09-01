@@ -38,7 +38,6 @@ interface FixtureOptions {
 	readerStatus?: ReaderStatus | "absent";
 	article?: FixtureArticle;
 	balloon?: "absent";
-	shareStampUrl?: string;
 }
 
 function buildBody(options: FixtureOptions = {}): string {
@@ -51,12 +50,11 @@ function buildBody(options: FixtureOptions = {}): string {
 		return readerSlot;
 	}
 	const article = options.article ?? FIRST_ARTICLE;
-	const stampAttr = options.shareStampUrl ? ` data-share-stamp-url="${options.shareStampUrl}"` : "";
 	return `
 <span data-share-balloon-status></span>
 <div data-article-body></div>
 ${readerSlot}
-<div data-share-balloon-wrap${stampAttr} hidden>
+<div data-share-balloon-wrap hidden>
 	<div data-share-balloon-buttons>
 		<div data-share-balloon-chat></div>
 		<button type="button" data-share-balloon-copy data-share-url="${article.copyUrl}"></button>
@@ -111,12 +109,10 @@ function setup(
 		navigator?: NavigatorStub;
 		articleHeight?: number;
 		readerStatus?: ReaderStatus | "absent";
-		shareStampUrl?: string;
 		} = {},
 ) {
 	const { window, document } = createDom({
 		readerStatus: options.readerStatus,
-		shareStampUrl: options.shareStampUrl,
 	});
 	setScrollY(window, options.scrollY ?? 0);
 	setArticleHeight(document, options.articleHeight ?? 4000);
@@ -126,14 +122,12 @@ function setup(
 	const navigator: NavigatorStub = options.navigator ?? {
 		share: jest.fn(() => Promise.resolve()),
 	};
-	const sendBeacon = jest.fn();
 	const swapListeners: (() => void)[] = [];
 	const ctrl = initShareBalloon({
 		window,
 		document,
 		storage: window.localStorage,
 		navigator,
-		sendBeacon,
 		setTimeoutFn: setTimeout,
 		clearTimeoutFn: clearTimeout,
 		addSwapListener: (listener) => swapListeners.push(listener),
@@ -146,7 +140,7 @@ function setup(
 	const swap = () => {
 		for (const listener of [...swapListeners]) listener();
 	};
-	return { window, document, ctrl, navigator, sendBeacon, swap };
+	return { window, document, ctrl, navigator, swap };
 }
 
 type Harness = ReturnType<typeof setup>;
@@ -568,70 +562,6 @@ describe("initShareBalloon — share click", () => {
 	});
 });
 
-describe("initShareBalloon — share beacon", () => {
-	const STAMP_URL = "/queue/abc123/share";
-
-	it("beacons the share record before handing off to navigator.share", () => {
-		const share = jest.fn(() => Promise.resolve());
-		const { document, ctrl, sendBeacon } = setup({ navigator: { share }, shareStampUrl: STAMP_URL });
-		ctrl.attach();
-
-		fireEvent.click(element(document, "[data-share-balloon]"));
-
-		expect(sendBeacon).toHaveBeenCalledWith(STAMP_URL);
-		expect(sendBeacon.mock.invocationCallOrder[0]).toBeLessThan(share.mock.invocationCallOrder[0]);
-	});
-
-	it("beacons the share record before writing to the clipboard on copy", () => {
-		const writeText = jest.fn(() => Promise.resolve());
-		const { document, ctrl, sendBeacon } = setup({
-			navigator: { clipboard: { writeText } },
-			shareStampUrl: STAMP_URL,
-		});
-		ctrl.attach();
-
-		fireEvent.click(element(document, "[data-share-balloon-copy]"));
-
-		expect(sendBeacon).toHaveBeenCalledWith(STAMP_URL);
-		expect(sendBeacon.mock.invocationCallOrder[0]).toBeLessThan(writeText.mock.invocationCallOrder[0]);
-	});
-
-	it("still records the share when navigator.share aborts, because the beacon fired first", async () => {
-		const abortError = Object.assign(new Error("abort"), { name: "AbortError" });
-		const share = jest.fn(() => Promise.reject(abortError));
-		const { document, ctrl, sendBeacon } = setup({ navigator: { share }, shareStampUrl: STAMP_URL });
-		ctrl.attach();
-
-		fireEvent.click(element(document, "[data-share-balloon]"));
-		await flushPromises();
-
-		expect(sendBeacon).toHaveBeenCalledWith(STAMP_URL);
-	});
-
-	it("sends no beacon when the wrap carries no stamp url, as on the public /view balloon", () => {
-		const share = jest.fn(() => Promise.resolve());
-		const { document, ctrl, sendBeacon } = setup({ navigator: { share } });
-		ctrl.attach();
-
-		fireEvent.click(element(document, "[data-share-balloon]"));
-
-		expect(sendBeacon).not.toHaveBeenCalled();
-		expect(share).toHaveBeenCalledTimes(1);
-	});
-
-	it("beacons the swapped-in article's stamp url after a boosted navigation", () => {
-		const share = jest.fn(() => Promise.resolve());
-		const harness = setup({ navigator: { share }, shareStampUrl: STAMP_URL });
-		harness.ctrl.attach();
-		const nextStamp = "/queue/def456/share";
-		swapIn(harness, { article: NEXT_ARTICLE, shareStampUrl: nextStamp });
-
-		fireEvent.click(element(harness.document, "[data-share-balloon]"));
-
-		expect(harness.sendBeacon).toHaveBeenCalledWith(nextStamp);
-	});
-});
-
 describe("initShareBalloon — copy click", () => {
 	it("copies the data-share-url to the clipboard and flashes the copied feedback", async () => {
 		const writeText = jest.fn(() => Promise.resolve());
@@ -727,7 +657,6 @@ describe("initShareBalloon — storage failures", () => {
 			document,
 			storage,
 			navigator: { share: jest.fn(() => Promise.resolve()) },
-			sendBeacon: jest.fn(),
 			setTimeoutFn: setTimeout,
 			clearTimeoutFn: clearTimeout,
 			addSwapListener: jest.fn(),
@@ -752,7 +681,6 @@ describe("initShareBalloon — storage failures", () => {
 			document,
 			storage,
 			navigator: { share: jest.fn(() => Promise.resolve()) },
-			sendBeacon: jest.fn(),
 			setTimeoutFn: setTimeout,
 			clearTimeoutFn: clearTimeout,
 			addSwapListener: jest.fn(),
@@ -983,7 +911,6 @@ describe("initShareBalloon — a swap replaces the page it was on", () => {
 			document: harness.document,
 			storage: harness.window.localStorage,
 			navigator: { share },
-			sendBeacon: jest.fn(),
 			setTimeoutFn: setTimeout,
 			clearTimeoutFn: clearTimeout,
 			addSwapListener: jest.fn(),

@@ -45,9 +45,7 @@ import type {
 	FindReadlistArticles,
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
-	ListSharedArticles,
 	MarkArticleViewed,
-	MarkLinkShared,
 	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkRelatedDismissed,
@@ -137,7 +135,6 @@ const UserArticleRow = z.object({
 	 * legacy rows and never-toggled rows simply lack them. */
 	lastSummaryOpenedAt: dynamoField(z.string()),
 	lastSummaryClosedAt: dynamoField(z.string()),
-	sharedAt: dynamoField(z.string()),
 	provenance: dynamoField(SaveProvenanceSchema),
 	relatedDismissedAt: dynamoField(z.string()),
 	relatedDismissedSuggestionId: dynamoField(ReaderArticleHashIdSchema),
@@ -168,7 +165,6 @@ function toSavedArticle(
 		status: userArticle.status,
 		savedAt: new Date(userArticle.savedAt),
 		readAt: toOptionalDate(userArticle.readAt),
-		sharedAt: toOptionalDate(userArticle.sharedAt),
 		provenance: userArticle.provenance,
 		relatedDismissedAt: toOptionalDate(userArticle.relatedDismissedAt),
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
@@ -202,8 +198,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
-	markLinkShared: MarkLinkShared;
-	listSharedArticles: ListSharedArticles;
 	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
@@ -854,53 +848,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await stampUserArticleIfStillSaved({ partition: userId, url, at, updateExpression: `SET ${attribute} = :at` });
 	};
 
-	const markLinkShared: MarkLinkShared = async ({ userId, url, at }) => {
-		await stampUserArticleIfStillSaved({ partition: userId, url, at, updateExpression: "SET sharedAt = :at" });
-	};
-
-	const listSharedArticles: ListSharedArticles = async ({ userId }) => {
-		const sharedRows: z.infer<typeof UserArticleRow>[] = [];
-		await forEachQueryPage(
-			userArticles,
-			{
-				IndexName: "userId-savedAt-index",
-				KeyConditionExpression: "userId = :userId",
-				FilterExpression: "attribute_exists(sharedAt)",
-				ExpressionAttributeValues: { ":userId": userId },
-			},
-			async (rows) => {
-				for (const row of rows) sharedRows.push(row);
-			},
-		);
-		if (sharedRows.length === 0) return [];
-
-		const batchedArticles = await batchGetFromTable({
-			client,
-			tableName,
-			schema: ArticleRow,
-			keys: sharedRows.map((ua) => ({ url: ua.url })),
-			projection: ArticleMetadataFields,
-		});
-		const articlesByUrl = new Map<string, z.infer<typeof ArticleRow>>();
-		for (const article of batchedArticles) {
-			articlesByUrl.set(article.url, article);
-		}
-
-		const result: SavedArticle[] = [];
-		for (const ua of sharedRows) {
-			const article = articlesByUrl.get(ua.url);
-			if (article) {
-				result.push(toSavedArticle(article, { ...ua, userId }));
-			}
-		}
-		result.sort((a, b) => {
-			assert(a.sharedAt, "a shared article must carry sharedAt");
-			assert(b.sharedAt, "a shared article must carry sharedAt");
-			return b.sharedAt.getTime() - a.sharedAt.getTime();
-		});
-		return result;
-	};
-
 	const markRelatedDismissed: MarkRelatedDismissed = async ({
 		userId,
 		url,
@@ -1177,8 +1124,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findArticleCrawlVersions,
 		markArticleViewed,
 		markSummaryToggled,
-		markLinkShared,
-		listSharedArticles,
 		markRelatedDismissed,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,

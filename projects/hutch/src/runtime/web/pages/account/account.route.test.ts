@@ -3,8 +3,6 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
-import { MinutesSchema } from "@packages/domain/article";
-import type { UserId } from "@packages/domain/user";
 import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -97,105 +95,6 @@ describe("GET /account (founding member, no subscription row)", () => {
 		// The nav-hide bundle is injected per page and carries no page gate, so a
 		// page that doesn't opt in must not serve it or its nav would hide on scroll.
 		expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
-	});
-});
-
-describe("GET /account (shared links section)", () => {
-	function metadata(title: string) {
-		return { title, siteName: "example.com", excerpt: "An excerpt", wordCount: 500 };
-	}
-
-	async function seedShare(
-		harness: ReturnType<ReturnType<typeof useTestServer>>,
-		input: { userId: UserId; url: string; title: string; savedAt: Date; sharedAt: Date },
-	): Promise<void> {
-		await harness.articleStore.saveArticle({
-			userId: input.userId,
-			url: input.url,
-			metadata: metadata(input.title),
-			estimatedReadTime: MinutesSchema.parse(3),
-			provenance: { kind: "web" },
-			savedAt: input.savedAt,
-		});
-		await harness.articleStore.markLinkShared({ userId: input.userId, url: input.url, at: input.sharedAt });
-	}
-
-	it("shows an empty-state message for a reader who has shared nothing", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get("/account");
-
-		expect(response.status).toBe(200);
-		const doc = new JSDOM(response.text).window.document;
-		const section = doc.querySelector("[data-test-account-shared]");
-		assert(section, "the shared-links section must always render");
-		expect(section.querySelectorAll("[data-test-shared-item]").length).toBe(0);
-		const message = section.querySelector("[data-test-shared-message]");
-		assert(message, "the empty state must render its message");
-		expect(message.textContent).toContain("Links you share from the reader will appear here.");
-	});
-
-	it("lists shared links newest-shared first, each linking to its /view permalink with the shared instant", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, userId } = await loginUser(harness, "sharer@example.com");
-		await seedShare(harness, {
-			userId,
-			url: "https://example.com/first",
-			title: "First Post",
-			savedAt: new Date("2026-08-01T00:00:00.000Z"),
-			sharedAt: new Date("2026-08-10T09:00:00.000Z"),
-		});
-		await seedShare(harness, {
-			userId,
-			url: "https://example.com/second",
-			title: "Second Post",
-			savedAt: new Date("2026-08-02T00:00:00.000Z"),
-			sharedAt: new Date("2026-08-10T10:00:00.000Z"),
-		});
-
-		const doc = new JSDOM((await agent.get("/account")).text).window.document;
-
-		const items = Array.from(doc.querySelectorAll("[data-test-account-shared] [data-test-shared-item]"));
-		const rows = items.map((item) => {
-			const link = item.querySelector("[data-test-shared-link]");
-			assert(link, "each shared item must render a link");
-			const time = item.querySelector("time");
-			assert(time, "each shared item must render a shared-at time");
-			return {
-				title: link.textContent,
-				href: link.getAttribute("href"),
-				datetime: time.getAttribute("datetime"),
-			};
-		});
-
-		expect(rows.map((r) => r.title)).toEqual(["Second Post", "First Post"]);
-		expect(rows.map((r) => r.href)).toEqual(["/view/example.com/second", "/view/example.com/first"]);
-		expect(rows.map((r) => r.datetime)).toEqual([
-			"2026-08-10T10:00:00.000Z",
-			"2026-08-10T09:00:00.000Z",
-		]);
-	});
-
-	it("keeps the shared-links section on the iOS surface, which strips only commerce", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, userId } = await loginUser(harness, "ios-sharer@example.com");
-		await seedShare(harness, {
-			userId,
-			url: "https://example.com/app-shared",
-			title: "App Shared",
-			savedAt: new Date("2026-08-01T00:00:00.000Z"),
-			sharedAt: new Date("2026-08-10T09:00:00.000Z"),
-		});
-
-		const doc = new JSDOM((await agent.get("/account?platform=ios")).text).window.document;
-
-		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
-		const section = doc.querySelector("[data-test-account-shared]");
-		assert(section, "the shared-links section must survive on the iOS surface");
-		const link = section.querySelector("[data-test-shared-link]");
-		assert(link, "the shared link must render on the iOS surface");
-		expect(link.getAttribute("href")).toBe("/view/example.com/app-shared");
 	});
 });
 

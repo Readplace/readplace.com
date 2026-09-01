@@ -9,7 +9,6 @@ import type {
 	MarkAccountDeleted,
 } from "@packages/provider-contracts/auth";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
-import type { ListSharedArticles } from "@packages/provider-contracts/article-store";
 import type {
 	CreateCheckoutSession,
 	CheckoutSessionId,
@@ -62,7 +61,6 @@ import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import { AccountPage, renderAccountCard } from "./account.component";
-import { buildSharedLinksViewModel } from "./shared-links.view-model";
 import {
 	type CardError,
 	type CardSectionViewModel,
@@ -87,7 +85,6 @@ import {
 
 interface AccountDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
-	listSharedArticles: ListSharedArticles;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
 	setSubscriptionNextCharge: SetSubscriptionNextCharge;
@@ -179,10 +176,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const email = await deps.findEmailByUserId(req.userId);
 		assert(email, "an authenticated account page must resolve an email");
-		const sharedLinks = buildSharedLinksViewModel({
-			articles: await deps.listSharedArticles({ userId: req.userId }),
-			now: deps.now(),
-		});
 		const webVm = toAccountViewModel(
 			input.access,
 			parseAccountQuery(req.query),
@@ -200,7 +193,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					AccountPage(
 						withoutCommerce(webVm, { appShell: true, platform: nativeSurfaceOf(req) }),
 						input.cardSection,
-						sharedLinks,
 						{
 							email,
 							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
@@ -215,7 +207,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			? withoutCommerce(webVm, { appShell: false, platform: nativeSurfaceOf(req) })
 			: webVm;
 		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
-		sendComponent(req, res, Base(AccountPage(vm, input.cardSection, sharedLinks, { email }), bannerState));
+		sendComponent(req, res, Base(AccountPage(vm, input.cardSection, { email }), bannerState));
 	}
 
 	router.get("/", async (req: Request, res: Response) => {

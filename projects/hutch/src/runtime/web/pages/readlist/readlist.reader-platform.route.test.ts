@@ -128,18 +128,6 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(doc.querySelector(".banner-area")).toBe(null);
 	});
 
-	it("carries the owner's share-beacon target on the chromeless reader's balloon wrap", async () => {
-		const harness = buildHarness();
-		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-share");
-
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
-
-		const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-		assert(wrap, "the chromeless reader must render the balloon wrap");
-		expect(wrap.getAttribute("data-share-stamp-url")).toBe(`/queue/${articleId}/share`);
-	});
-
 	it("renders the full web shell when platform=ios is absent", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
