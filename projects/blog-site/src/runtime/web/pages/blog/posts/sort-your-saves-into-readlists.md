@@ -1,6 +1,6 @@
 ---
 title: "Sort Your Saves Into Readlists You Name"
-description: "A 40-minute paper for work and a 5-minute essay for the weekend used to share one pile of saved links. The saved-links page now opens on a rail: All still catches every save, and beside it sit up to 7 readlists named whatever fits in 24 characters. Articles file in from the reader, sit in several lists at once, and a single mark-as-read covers every copy."
+description: "Work reading and weekend reading used to share one pile of saved links. The saved-links page now opens on a rail of tabs: All still catches every save, and beside it sit readlists you create and name yourself. File an article into a list from the reader, keep it in more than one, and mark it read once for all of them."
 slug: "sort-your-saves-into-readlists"
 date: "2026-08-31"
 author: "Fayner Brack"
@@ -13,7 +13,7 @@ banner: "I gave your saves more than one list to live in"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Saved links stop being one long pile. The saved-links page in Readplace now opens on a rail of tabs: All, which still catches every save, and up to 7 readlists of your own, each named whatever fits in 24 characters. An article files into a list from inside the reader, keeps 1 copy per list, and marking it read once marks it read in every list that holds it. The iPhone app still shows the single list for now, and every address and bookmark stays what it was.
+Saved links stop being one long pile. The saved-links page in Readplace now opens on a rail of tabs: All, which still catches every save, and readlists of your own beside it. An article files into a list from inside the reader, can sit in more than one, and marking it read once marks it read in every list that holds it. The iPhone app still shows the single list for now, and every address and bookmark stays what it was.
 
 </div>
 </details>
@@ -24,43 +24,37 @@ The pile now has tabs.
 
 ## All still catches every save
 
-The leftmost tab is called All, and it does the job the old single list did. Every link saved from [the browser extension](https://readplace.com/install), the apps, a newsletter email or a connected chat lands in it, and the save bar lives on it. The empty state of any other list says so in its own words: "Every link you save lands in All."
+The leftmost tab is called All, and it does the job the old single list did. Every link saved from [the browser extension](https://readplace.com/install), the apps, a newsletter email or a connected chat lands in it, and the save bar lives on it.
 
 The label "My Queue" retired with the single list. A queue promises an order to work through, and a pile of articles saved on impulse doesn't have one. All describes what the tab actually holds.
 
-All can't be renamed and can't be deleted. A catch-all that can vanish is a place to lose links, so the controls every other list carries don't exist on this one.
+All can't be renamed and can't be deleted. A catch-all that can vanish is a place to lose links.
 
 ## A list costs 1 click and a name
 
-The plus sign at the end of the rail creates a readlist and opens it. It arrives named "New Readlist", the pencil on its tab renames it in place, and a name can run to 24 characters. Skip the renaming and the next one arrives as "New Readlist 2".
+The plus sign at the end of the rail creates a readlist and opens it. It arrives under a placeholder name, and the pencil on its tab renames it in place. There is a cap on how many lists an account holds, and the page says so when you reach it.
 
-There's a ceiling. An account holds 7 readlists beside All, and pressing for an 8th gets a plain sentence where the button sits: "You can keep up to 7 readlists."
+A list's address doesn't follow its name, so renaming one keeps every bookmark to it working.
 
-In the address bar a list goes by a 16-character id rather than its name. Renaming "Work" to "References" changes no URL, so a bookmark to a list survives every rename.
-
-The x on a tab asks before it acts, and when another list exists the question carries a way to keep the copies: a dropdown labelled "Move its articles to" files the list's articles into the one you pick as the delete runs. Leave it on "Nowhere, delete them too" and the copies go with the list. The copy in All stays put either way, so the ordinary case costs nothing but the grouping.
+Deleting asks first. When you have another list, the question offers to move the articles into it rather than dropping them, and whatever you also have in All stays in All.
 
 ## Filing happens in the reader
 
-Filing an article is a separate decision from saving it, made later, with the article open. Under the article body in [the reader](/blog/read-any-article-clean-reader) sits a picker listing the readlists that article isn't in yet. Pick one and the article files at the top of that list, a tag with the list's name appears on the page, and the copy in All stays where it was.
+Filing is a separate decision from saving, made later with the article open. Under the article body in [the reader](/blog/read-any-article-clean-reader) sits a picker of the lists that article isn't in yet. Pick one and the article files at the top of it, a tag appears on the page, and the copy in All stays where it was.
 
 > **Filing is a second decision, taken after the save, with the whole article in front of you.**
 
-One article can carry several tags. Each list holds 1 copy of it, no matter how often the filing happens, and the tag's own control takes it back out of that list. The copy in All has no such control, because All is where saves live.
+One article can carry several tags, and the tag's own control takes it back out of that list.
 
 Not every account needs a second list. With none created, the picker stays hidden and the page reads the way it did last week.
 
 ## One read state, however many lists
 
-Each list carries its own To Read and Read tabs, with counts, so "To Read (3)" on a list named Interviews counts interviews rather than the whole account.
-
-Mark an article read from any list and every copy flips at once. Read is a fact about the article, not about the tab it was read from, and marking it unread again reverses every copy the same way.
+Each list carries its own To Read and Read tabs with their own counts. Mark an article read from any of them and every copy flips at once. Read is a fact about the article, not about the tab it was read from.
 
 ## The tabs reached the iPhone before the rail
 
-The To Read and Read tabs are now described by the server itself, and the iPhone app draws whatever tabs the server sends as a segmented control. A renamed tab, or a new one, shows up in installed apps without an app update.
-
-The rail hasn't made that trip yet. The app still shows the one list every account starts with, so creating lists and filing into them is on the website for now.
+The To Read and Read tabs are now described by the server itself, and the iPhone app draws them as a segmented control. The rail hasn't made that trip yet, so creating lists and filing into them is on the website for now.
 
 ## Name the first one
 
