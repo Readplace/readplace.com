@@ -367,10 +367,14 @@ async function main() {
   fs.rmSync(OUT_DIR, { recursive: true, force: true });
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.copyFileSync(
-    require.resolve("htmx.org/dist/htmx.min.js"),
-    path.join(OUT_DIR, "htmx.client.js"),
-  );
+  await esbuild.build({
+    entryPoints: [require.resolve("htmx.org/dist/htmx.js")],
+    outfile: path.join(OUT_DIR, "htmx.client.js"),
+    minify: true,
+    sourcemap: true,
+    target: ["es2020"],
+    logLevel: "info",
+  });
 
   if (watch) {
     const contexts = await Promise.all(
