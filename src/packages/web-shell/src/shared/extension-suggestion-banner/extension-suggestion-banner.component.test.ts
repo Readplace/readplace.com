@@ -130,7 +130,7 @@ describe("renderExtensionSuggestionBanner", () => {
 			assert(href, "cta must have an href");
 			const url = new URL(href, "https://readplace.com");
 			expect(url.pathname).toBe("/install");
-			expect(url.searchParams.get("utm_source")).toBe("web-app");
+			expect(url.searchParams.get("utm_source")).toBe("reader-failed");
 			expect(url.searchParams.get("utm_medium")).toBe("banner");
 			expect(url.searchParams.get("utm_campaign")).toBe("extension-suggestion");
 			expect(url.searchParams.get("utm_content")).toBe("cta-button");
@@ -147,7 +147,7 @@ describe("renderExtensionSuggestionBanner", () => {
 			assert(href, "inline link must have an href");
 			const url = new URL(href, "https://readplace.com");
 			expect(url.pathname).toBe("/install");
-			expect(url.searchParams.get("utm_source")).toBe("web-app");
+			expect(url.searchParams.get("utm_source")).toBe("reader-failed");
 			expect(url.searchParams.get("utm_medium")).toBe("banner");
 			expect(url.searchParams.get("utm_campaign")).toBe("extension-suggestion");
 			expect(url.searchParams.get("utm_content")).toBe("inline-text");

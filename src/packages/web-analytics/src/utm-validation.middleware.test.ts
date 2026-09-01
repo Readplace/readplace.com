@@ -43,7 +43,7 @@ describe("utmValidationMiddleware", () => {
 
 	it.each([
 		"fagnerbrack.com",
-		"web-app",
+		"reader-failed",
 		"share-balloon",
 		"beyond-the-demo",
 		"02ship.com",
@@ -64,7 +64,7 @@ describe("utmValidationMiddleware", () => {
 
 	it.each([
 		{ utm_source: "header-nav", utm_medium: "internal", utm_content: "queue", utm_term: "mobile_ios" },
-		{ utm_source: "web-app", utm_medium: "banner", utm_campaign: "extension-suggestion", utm_content: "cta-button" },
+		{ utm_source: "reader-failed", utm_medium: "banner", utm_campaign: "extension-suggestion", utm_content: "cta-button" },
 		{ utm_campaign: "homepage-split", utm_medium: "experiment", utm_content: "variant-a" },
 		{ utm_source: "read", utm_medium: "share", utm_campaign: "read-permalink" },
 		{ utm_source: "auth-page", utm_medium: "internal", utm_content: "google-signup-btn" },
@@ -90,7 +90,7 @@ describe("utmValidationMiddleware", () => {
 	});
 
 	it("rejects an apostrophe appended to a value the scanner crawled off our own /install link", () => {
-		expect(rejects({ utm_source: "web-app'" })).toBe(true);
+		expect(rejects({ utm_source: "reader-failed'" })).toBe(true);
 	});
 
 	it.each([
