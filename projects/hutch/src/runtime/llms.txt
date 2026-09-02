@@ -45,7 +45,7 @@ Readplace runs an MCP server at https://readplace.com/mcp. There is no API key: 
 
 ## Pages
 
-- [Home](https://readplace.com/): Product overview, features, pricing, comparison table
+- [Home](https://readplace.com/): Product overview, every way to save, pricing, FAQ
 - [Install](https://readplace.com/install): Firefox or Chrome extensions, the iPhone app, or an AI assistant
 - [Import Links](https://readplace.com/import): Paste a link or upload an export file to bulk-import URLs into a reading readlist, no account needed to start
 - [Connect an AI Assistant](https://readplace.com/mcp): MCP server setup for ChatGPT, Gemini, Claude, and other MCP clients

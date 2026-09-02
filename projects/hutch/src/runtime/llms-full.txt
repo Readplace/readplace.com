@@ -319,7 +319,7 @@ The service is provided as-is. Users retain ownership of their content and can e
 
 ## Pages
 
-- [Home](https://readplace.com/): Product overview, features, pricing, comparison table
+- [Home](https://readplace.com/): Product overview, every way to save, pricing, FAQ
 - [Install](https://readplace.com/install): Firefox or Chrome extensions, the iPhone app, or an AI assistant
 - [Connect an AI Assistant](https://readplace.com/mcp): MCP server setup for ChatGPT, Gemini, Claude, and other MCP clients
 - [Sign Up](https://readplace.com/signup): Start a 14-day free trial — no card required
