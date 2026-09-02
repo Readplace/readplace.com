@@ -51,6 +51,7 @@ describe("readlist picker", () => {
 						{ slug: ReadlistSlugSchema.parse("work"), label: "Work" },
 						{ slug: ReadlistSlugSchema.parse("later"), label: "Later" },
 					],
+					create: undefined,
 				},
 			},
 		});
@@ -74,6 +75,51 @@ describe("readlist picker", () => {
 		expect(
 			Array.from(doc.querySelectorAll("[data-test-assign-readlist]"), (el) => el.textContent),
 		).toEqual(["Work", "Later"]);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-readlists-row]"), (el) =>
+				el.getAttribute("data-test-readlists-row"),
+			),
+		).toEqual(["work", "later"]);
+	});
+
+	it("appends a create row that posts the typed name to create-and-assign", () => {
+		const { top } = StickyReader({
+			actionBtns: {
+				...ACTION_BTNS,
+				readlistPicker: {
+					assignUrl: "/queue/abc/assign",
+					returnTo: "/queue/abc/view",
+					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
+					create: { createUrl: "/queue/abc/create-and-assign", maxLength: 24 },
+				},
+			},
+		});
+		const doc = parse(top.to("text/html").body);
+
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-readlists-row]"), (el) =>
+				el.getAttribute("data-test-readlists-row"),
+			),
+		).toEqual(["work", "create"]);
+
+		const createForm = doc.querySelector('[data-test-readlists-row="create"] form');
+		assert(createForm, "the create row must carry its form");
+		expect(createForm.getAttribute("action")).toBe("/queue/abc/create-and-assign");
+		expect(createForm.getAttribute("hx-disabled-elt")).toBe("find button");
+		expect(createForm.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
+			"/queue/abc/view",
+		);
+
+		const nameInput = doc.querySelector("[data-test-readlist-create-name]");
+		assert(nameInput, "the create row must carry its name input");
+		expect(nameInput.getAttribute("name")).toBe("label");
+		expect(nameInput.hasAttribute("required")).toBe(true);
+		expect(nameInput.getAttribute("maxlength")).toBe("24");
+		expect(nameInput.getAttribute("aria-label")).toBe("New readlist name");
+
+		const submit = doc.querySelector('[data-test-action="readlist-create-assign"]');
+		assert(submit, "the create row must carry its submit button");
+		expect(submit.getAttribute("type")).toBe("submit");
 	});
 
 	it("keeps the slot in the bar, hidden, when there is nothing to offer", () => {

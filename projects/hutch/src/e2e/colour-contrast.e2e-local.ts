@@ -195,6 +195,10 @@ async function auditReader(page: Page, where: { theme: string; view: string }): 
 	await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', {
 		timeout: SETTLE_MS,
 	});
+	await page.locator("[data-test-readlists-trigger]").click({ timeout: SETTLE_MS });
+	await expect(page.locator("[data-test-readlist-create-name]")).toBeVisible({
+		timeout: SETTLE_MS,
+	});
 	await page.mouse.move(0, 0);
 
 	const measurements = await stableMeasurements(page, READER_ROOT);

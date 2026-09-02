@@ -12,7 +12,7 @@
       <summary class="article-body__readlists-trigger" data-test-readlists-trigger>Add to readlist {{icon "chevron-down"}}</summary>
       <ul class="article-body__readlists-menu">
         {{#each readlistPicker.options}}
-        <li class="article-body__readlists-item">
+        <li class="article-body__readlists-item" data-test-readlists-row="{{slug}}">
           <form class="article-body__readlists-form" method="POST" action="{{../readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
             <input type="hidden" name="queue" value="{{slug}}">
             <input type="hidden" name="returnTo" value="{{../readlistPicker.returnTo}}">
@@ -20,6 +20,15 @@
           </form>
         </li>
         {{/each}}
+        {{#if readlistPicker.create}}
+        <li class="article-body__readlists-create-item" data-test-readlists-row="create">
+          <form class="article-body__readlists-create" method="POST" action="{{readlistPicker.create.createUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
+            <input type="hidden" name="returnTo" value="{{readlistPicker.returnTo}}">
+            <input class="article-body__readlists-create-input" type="text" name="label" required maxlength="{{readlistPicker.create.maxLength}}" placeholder="New readlist" aria-label="New readlist name" autocomplete="off" data-test-readlist-create-name>
+            <button class="article-body__readlists-create-btn" type="submit" data-test-action="readlist-create-assign">{{icon "plus"}}<span class="sr-only">Create readlist and add</span></button>
+          </form>
+        </li>
+        {{/if}}
       </ul>
     </details>
   </div>

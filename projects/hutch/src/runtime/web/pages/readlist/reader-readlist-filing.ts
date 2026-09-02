@@ -1,4 +1,9 @@
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	READLIST_LABEL_MAX_LENGTH,
+	READLIST_MAX_PER_USER,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { ReaderReadlistTags } from "../../shared/article-body/article-header/article-header.component";
 import type { ReaderReadlistPicker } from "../../shared/article-body/reader-actions/reader-actions.component";
@@ -27,6 +32,22 @@ export function buildReaderReadlistFiling(input: {
 		? input.definitions.filter((definition) => !memberSlugs.has(definition.slug))
 		: [];
 	const heldSlugs = new Set(input.saves.map((save) => save.readlist ?? DEFAULT_READLIST_SLUG));
+	const buildPicker = (): ReaderReadlistPicker | undefined => {
+		if (!holdsDefaultCopy) return undefined;
+		const create =
+			input.definitions.length >= READLIST_MAX_PER_USER
+				? undefined
+				: {
+						createUrl: `${READLIST_PATH}/${input.articleId}/create-and-assign`,
+						maxLength: READLIST_LABEL_MAX_LENGTH,
+					};
+		return {
+			assignUrl: `${READLIST_PATH}/${input.articleId}/assign`,
+			returnTo: input.returnTo,
+			options: assignable.map(({ slug, label }) => ({ slug, label })),
+			create,
+		};
+	};
 	return {
 		markStatusConfirmReadlistLabels: input.markStatusConfirmGated
 			? readerReadlists(input.definitions)
@@ -41,13 +62,6 @@ export function buildReaderReadlistFiling(input: {
 						returnTo: input.returnTo,
 						tags: assigned.map(({ slug, label }) => ({ slug, label })),
 					},
-		picker:
-			assignable.length === 0
-				? undefined
-				: {
-						assignUrl: `${READLIST_PATH}/${input.articleId}/assign`,
-						returnTo: input.returnTo,
-						options: assignable.map(({ slug, label }) => ({ slug, label })),
-					},
+		picker: buildPicker(),
 	};
 }

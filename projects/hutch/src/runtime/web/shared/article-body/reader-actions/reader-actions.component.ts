@@ -19,6 +19,7 @@ export interface ReaderReadlistPicker {
 	assignUrl: string;
 	returnTo: string;
 	options: readonly { slug: ReadlistSlug; label: string }[];
+	create: { createUrl: string; maxLength: number } | undefined;
 }
 
 export interface ActionButtons {

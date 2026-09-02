@@ -153,6 +153,7 @@ import {
 	ReadlistSlugSchema,
 	type ReadlistRenameRejection,
 	type ReadlistSlug,
+	decideReadlistCreate,
 	decideReadlistDelete,
 	decideReadlistMigration,
 	decideReadlistRename,
@@ -2446,6 +2447,51 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				});
 			}
 			res.redirect(303, safeReturnPath(req.body.returnTo));
+		},
+	);
+
+	router.post(
+		"/:id/create-and-assign",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request<{ id: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+			if (!parsedId.success) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const article = await deps.findArticleById(parsedId.data, userId);
+			if (article) {
+				const definitions = await deps.listReadlistDefinitions(userId);
+				const decision = decideReadlistCreate({
+					label: typeof req.body?.label === "string" ? req.body.label : "",
+					slug: generateReadlistSlug(),
+					readlists: readerReadlists(definitions),
+				});
+				if (decision.ok) {
+					try {
+						if (decision.create) {
+							await deps.createReadlistDefinition({
+								userId,
+								slug: decision.slug,
+								label: decision.create.label,
+								createdAt: deps.now(),
+							});
+						}
+						await deps.assignSavedArticleToReadlist({
+							userId,
+							readlist: decision.slug,
+							url: article.url,
+							savedAt: await deps.allocateSavedAt({ userId }),
+						});
+					} catch (error) {
+						if (!(error instanceof ReadlistLimitReachedError)) throw error;
+					}
+				}
+			}
+			res.redirect(303, safeReturnPath(req.body?.returnTo));
 		},
 	);
 
