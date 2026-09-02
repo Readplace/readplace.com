@@ -53,6 +53,7 @@ import type {
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	ContentProvider,
+	ReadArticleImage,
 	SaveArticle,
 	SaveArticleGlobally,
 	SaveArticleParams,
@@ -164,6 +165,13 @@ export function initInMemoryArticleStore(): {
 	} | null>;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
+	readArticleImage: ReadArticleImage;
+	writeImage: (params: {
+		url: string;
+		filename: string;
+		body: Buffer;
+		contentType: string;
+	}) => Promise<void>;
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
@@ -178,6 +186,7 @@ export function initInMemoryArticleStore(): {
 	}) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
+	const articleImages = new Map<string, { body: Buffer; contentType: string }>();
 	const userArticles = new Map<string, UserArticle>();
 	const saveCursors = new Map<UserId, number>();
 	const readlistDefinitions = new Map<string, { userId: UserId; slug: ReadlistSlug; label: string; createdAt: Date }>();
@@ -695,6 +704,23 @@ export function initInMemoryArticleStore(): {
 		article.content = params.content;
 	};
 
+	const readArticleImage: ReadArticleImage = async ({ url, filename }) => {
+		const key = ArticleResourceUniqueId.parse(url).toS3ImageKey(filename);
+		const image = articleImages.get(key);
+		if (!image) return undefined;
+		return image.body;
+	};
+
+	const writeImage = async (params: {
+		url: string;
+		filename: string;
+		body: Buffer;
+		contentType: string;
+	}) => {
+		const key = ArticleResourceUniqueId.parse(params.url).toS3ImageKey(params.filename);
+		articleImages.set(key, { body: params.body, contentType: params.contentType });
+	};
+
 	const writeMetadata = async (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
@@ -781,6 +807,8 @@ export function initInMemoryArticleStore(): {
 		getSummaryToggleState,
 		readContent,
 		writeContent,
+		readArticleImage,
+		writeImage,
 		writeMetadata,
 		setContentSourceTier,
 		setContentFetchedAt,

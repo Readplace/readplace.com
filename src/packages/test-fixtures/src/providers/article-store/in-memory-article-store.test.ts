@@ -1020,6 +1020,23 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("writeImage + readArticleImage", () => {
+		const url = "https://example.com/article";
+		const filename = "abcdef0123456789.jpg";
+
+		it("reads back an image written under its article and filename", async () => {
+			const store = initInMemoryArticleStore();
+			await store.writeImage({ url, filename, body: Buffer.from([1, 2, 3]), contentType: "image/jpeg" });
+
+			expect(await store.readArticleImage({ url, filename })).toEqual(Buffer.from([1, 2, 3]));
+		});
+
+		it("returns undefined for an image that was never written", async () => {
+			const store = initInMemoryArticleStore();
+			expect(await store.readArticleImage({ url, filename })).toBeUndefined();
+		});
+	});
+
 	describe("markSummaryToggled + getSummaryToggleState", () => {
 		const URL = "https://example.com/article";
 

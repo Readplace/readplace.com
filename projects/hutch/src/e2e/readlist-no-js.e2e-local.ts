@@ -85,8 +85,20 @@ test.describe("The readlist is whole without client JavaScript", () => {
 			.first()
 			.getAttribute("href");
 		assert(readerHref, "a saved card must link to its own reader");
-		await page.goto(new URL(readerHref, BASE_URL).toString(), { waitUntil: "domcontentloaded" });
+		const readerUrl = new URL(readerHref, BASE_URL);
+		readerUrl.searchParams.set("feature", "epub");
+		await page.goto(readerUrl.toString(), { waitUntil: "domcontentloaded" });
 		await expect(page.locator("[data-test-reader-content]")).toBeVisible({ timeout: SETTLE_MS });
+
+		await expect(page.locator("[data-test-download-epub]")).toBeVisible({ timeout: SETTLE_MS });
+		const epubHref = await page.locator("[data-test-download-epub]").getAttribute("href");
+		assert(epubHref, "a ready reader must offer an EPUB download link");
+		const epubResponse = await page.request.get(new URL(epubHref, BASE_URL).toString());
+		assert.equal(epubResponse.status(), 200, "the EPUB download must serve a file with no script");
+		assert.ok(
+			(epubResponse.headers()["content-type"] ?? "").includes("application/epub+zip"),
+			"the EPUB download must be served as application/epub+zip",
+		);
 
 		await page.locator('[data-test-mark-read-form] button[type="submit"]').click();
 		await page.waitForSelector("body.page-readlist");

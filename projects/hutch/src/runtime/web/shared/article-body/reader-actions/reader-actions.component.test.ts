@@ -132,6 +132,31 @@ describe("readlist picker", () => {
 	});
 });
 
+describe("epub download", () => {
+	it("renders the download link in a visible slot when a href is offered", () => {
+		const { top } = StickyReader({
+			actionBtns: { ...ACTION_BTNS, epubDownload: { href: "/view/example.com/a?format=epub" } },
+		});
+		const doc = parse(top.to("text/html").body);
+
+		const slot = doc.querySelector("[data-test-download-epub-slot]");
+		assert(slot, "the download-epub slot must render");
+		expect(slot.classList.contains("article-body__download-epub-slot--visible")).toBe(true);
+		const link = doc.querySelector("[data-test-download-epub]");
+		assert(link, "the download-epub link must render");
+		expect(link.getAttribute("href")).toBe("/view/example.com/a?format=epub");
+	});
+
+	it("keeps the slot in the bar, hidden, when no href is offered", () => {
+		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+		const doc = parse(top.to("text/html").body);
+
+		const slot = doc.querySelector("[data-test-download-epub-slot]");
+		assert(slot, "the download-epub slot must render");
+		expect(slot.classList.contains("article-body__download-epub-slot--hidden")).toBe(true);
+	});
+});
+
 describe("mark-read confirmation", () => {
 	it("keeps one plain form, holding the action's own test hook, when nothing needs confirming", () => {
 		const { top } = StickyReader({ actionBtns: ACTION_BTNS });

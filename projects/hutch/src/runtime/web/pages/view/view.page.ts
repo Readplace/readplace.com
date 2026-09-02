@@ -13,7 +13,7 @@ import type {
 	FindArticleFreshness,
 	SaveArticleGlobally,
 } from "@packages/provider-contracts/article-store";
-import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type {
 	FindArticleCrawlStatus,
 	MarkCrawlPending,
@@ -54,6 +54,8 @@ import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
 import { parseViewPath, viewPathFor } from "./view-path";
+import { epubFilename, initBuildArticleEpub } from "../../shared/epub/article-epub";
+import { epubDownloadHref, revealsEpubDownload } from "../../shared/epub/epub-link";
 import {
 	ViewPage,
 	formatViewDocumentTitle,
@@ -70,6 +72,8 @@ interface ViewDependencies {
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
+	readArticleImage: ReadArticleImage;
+	logError: (message: string, error?: Error) => void;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -194,7 +198,11 @@ function handleViewRoot(deps: ViewDependencies) {
 	};
 }
 
-function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
+function handleViewArticle(
+	deps: ViewDependencies,
+	reader: ReturnType<typeof initArticleReader>,
+	buildArticleEpub: ReturnType<typeof initBuildArticleEpub>,
+) {
 	return async (
 		req: Request<{ splat: string[] }>,
 		res: Response,
@@ -229,6 +237,27 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// markdown surface 404s too). Metadata/OG never render because we return here.
 		if (existing?.purgedAt) {
 			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+			return;
+		}
+		if (req.query.format === "epub") {
+			const content = await deps.readArticleContent(articleUrl);
+			if (content === undefined) {
+				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+				return;
+			}
+			assert(existing, "a ready article must have a saved row");
+			const title = existing.metadata.title;
+			const epubBytes = await buildArticleEpub({ articleUrl, title, contentHtml: content });
+			res
+				.status(200)
+				.set({
+					"Content-Type": "application/epub+zip",
+					"Content-Disposition": `attachment; filename="${epubFilename({ title, articleUrl })}"`,
+					"Cache-Control": "private, no-cache",
+					"X-Robots-Tag": "noindex",
+					"Content-Signal": "search=no, ai-input=no, ai-train=no",
+				})
+				.send(Buffer.from(epubBytes));
 			return;
 		}
 		const hostname = articleHostFrom(articleUrl);
@@ -335,6 +364,14 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			}),
 			PASTE_ANOTHER_ACTION,
 		];
+		if (state.content !== undefined && revealsEpubDownload(req.query.feature)) {
+			actions.push({
+				key: "download-epub",
+				name: "Download EPUB",
+				href: epubDownloadHref({ articleUrl, utmSource: "view-article" }),
+				variant: "secondary",
+			});
+		}
 
 		const showExtensionSuggestionBanner = state.readerViewFailed;
 
@@ -442,13 +479,18 @@ function redirectMixedCaseMount(req: Request, res: Response, next: NextFunction)
 export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
 	const reader = initArticleReader(buildArticleReaderDeps(deps));
+	const buildArticleEpub = initBuildArticleEpub({
+		readArticleImage: deps.readArticleImage,
+		logError: deps.logError,
+		now: deps.now,
+	});
 
 	router.use(redirectMixedCaseMount);
 
 	router.get("/", handleViewRoot(deps));
 	router.get("/summary", handleViewSummary(deps, reader));
 	router.get("/reader", handleViewReader(deps, reader));
-	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader));
+	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader, buildArticleEpub));
 
 	return router;
 }

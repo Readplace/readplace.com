@@ -378,6 +378,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 				articleStoreMemory.readContent(ArticleResourceUniqueId.parse(url)),
 			readContent: articleStoreMemory.readContent,
 			writeContent: articleStoreMemory.writeContent,
+			readArticleImage: articleStoreMemory.readArticleImage,
+			writeImage: articleStoreMemory.writeImage,
 			writeMetadata: articleStoreMemory.writeMetadata,
 			setContentSourceTier: articleStoreMemory.setContentSourceTier,
 			setContentFetchedAt: articleStoreMemory.setContentFetchedAt,

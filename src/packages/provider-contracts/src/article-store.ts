@@ -229,6 +229,11 @@ export type ContentProvider = (articleResourceUniqueId: ArticleResourceUniqueId)
 
 export type ReadArticleContent = (url: string) => Promise<string | undefined>;
 
+export type ReadArticleImage = (params: {
+	url: string;
+	filename: string;
+}) => Promise<Uint8Array | undefined>;
+
 /** Delete every per-user article row for a user (account deletion). Only the
  * per-user gateway rows are removed; the URL-keyed global article cache is
  * shared across users and left untouched. */

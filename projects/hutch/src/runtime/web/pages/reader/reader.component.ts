@@ -105,6 +105,7 @@ export function ReaderPage(
 		exitMarkReadConfirm?: boolean;
 		markStatusConfirmReadlistLabels?: readonly string[];
 		readerNotice?: ReaderFailedVariant;
+		epubDownloadHref?: string;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -138,6 +139,8 @@ export function ReaderPage(
 			backLink: options.backLink,
 			markReadActions,
 			readlistPicker: options.readlistFiling.picker,
+			epubDownload:
+				options.epubDownloadHref === undefined ? undefined : { href: options.epubDownloadHref },
 		},
 	});
 	const innerContent = renderArticleBody({

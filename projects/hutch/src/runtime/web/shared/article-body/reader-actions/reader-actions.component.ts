@@ -26,6 +26,7 @@ export interface ActionButtons {
 	backLink?: { topHref: string; bottomHref?: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
 	readlistPicker: ReaderReadlistPicker | undefined;
+	epubDownload?: { href: string };
 }
 
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
@@ -62,6 +63,7 @@ function topBar(actionBtns: ActionButtons): string {
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
 		readlistPicker: actionBtns.readlistPicker,
+		epubDownload: actionBtns.epubDownload,
 		markRead: markReadFields(actionBtns.markReadActions?.find((action) => action.position === "top")),
 	});
 }

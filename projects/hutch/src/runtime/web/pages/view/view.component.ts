@@ -55,7 +55,7 @@ const VIEW_CTA_ACTION_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-export type ViewActionKey = "save" | "paste-another-link";
+export type ViewActionKey = "save" | "paste-another-link" | "download-epub";
 
 export interface ViewAction {
 	key: ViewActionKey;

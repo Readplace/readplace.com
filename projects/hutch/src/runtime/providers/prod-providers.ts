@@ -22,7 +22,7 @@ import { initDynamoDbGeneratedSummary, initDynamoDbRelatedArticles } from "@pack
 import { initDynamoDbArticleCrawl } from "@packages/article-store";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { initS3ReadContent } from "@packages/article-store";
+import { initS3ReadContent, initS3ReadArticleImage } from "@packages/article-store";
 import { initStripeSubscriptions } from "./stripe-subscriptions/stripe-subscriptions";
 import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-payment-methods";
 import { initAwsTrialScheduler } from "./trial-scheduler/aws-trial-scheduler";
@@ -137,6 +137,10 @@ export function initProdProviders(input: { appOrigin: string }) {
 			articleStore.readContent, // Legacy fallback for articles saved before S3 migration
 		],
 		logError,
+	});
+	const readArticleImage = initS3ReadArticleImage({
+		send: (cmd) => s3Client.send(cmd),
+		bucketName: contentBucketName,
 	});
 	const oauthClients = initDynamoDbOAuthClients({ client, tableName: oauthTable, now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
@@ -341,6 +345,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		...articleStore,
 		...queueDefinitions,
 		readArticleContent,
+		readArticleImage,
 		importSessionStore,
 		extractLinksFromPageUrl,
 		provisionInboxAddress: async (userId: UserId) => {

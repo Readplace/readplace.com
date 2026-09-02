@@ -177,6 +177,7 @@ function flattenFixtureToAppDependencies(
 		markSummaryToggled: fixture.articleStore.markSummaryToggled,
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,
+		readArticleImage: fixture.articleStore.readArticleImage,
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(fixture.articleCrawl.findArticleCrawlStatus),
 		markCrawlPending: fixture.articleCrawl.markCrawlPending,

@@ -154,6 +154,7 @@ import type {
 	ReadPendingUploadPrefix,
 	RateLimitRules,
 	ReadArticleContent,
+	ReadArticleImage,
 	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
@@ -355,6 +356,13 @@ export interface ArticleStoreBundle {
 	readArticleContent: ReadArticleContent;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
+	readArticleImage: ReadArticleImage;
+	writeImage: (params: {
+		url: string;
+		filename: string;
+		body: Buffer;
+		contentType: string;
+	}) => Promise<void>;
 	writeMetadata: (params: {
 		url: string;
 		metadata: ArticleMetadata;

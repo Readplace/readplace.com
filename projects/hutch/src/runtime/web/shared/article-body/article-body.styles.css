@@ -41,6 +41,14 @@
   display: none;
 }
 
+.article-body__download-epub-slot--visible {
+  display: inline-flex;
+}
+
+.article-body__download-epub-slot--hidden {
+  display: none;
+}
+
 .article-body__readlists-slot--visible {
   display: inline-flex;
   margin-left: auto;

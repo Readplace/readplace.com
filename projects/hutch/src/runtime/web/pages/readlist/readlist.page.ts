@@ -87,6 +87,10 @@ import type {
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
+import {
+	epubDownloadHref as buildEpubDownloadHref,
+	revealsEpubDownload,
+} from "../../shared/epub/epub-link";
 import type {
 	PublishLinkDequeued,
 	PublishLinkQueued,
@@ -1027,6 +1031,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				crawlBookmarkRemoval,
 				exitMarkReadConfirm: true,
 				readerNotice: state.notice,
+				epubDownloadHref:
+					state.content === undefined || !revealsEpubDownload(req.query.feature)
+						? undefined
+						: buildEpubDownloadHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,

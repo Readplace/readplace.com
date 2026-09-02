@@ -41,3 +41,6 @@ export { initReadArticleContent } from "./read-article-content";
 export type { ContentProvider, ReadArticleContent } from "./read-article-content";
 export { initS3ReadContent } from "./s3-read-content";
 export type { S3GetObject } from "./s3-read-content";
+export { initS3ReadArticleImage } from "./s3-read-image";
+export type { S3GetImageObject } from "./s3-read-image";
+export type { ReadArticleImage } from "@packages/provider-contracts/article-store";

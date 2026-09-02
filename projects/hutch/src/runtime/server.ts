@@ -114,7 +114,7 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -402,6 +402,7 @@ interface AppDependencies {
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
+	readArticleImage: ReadArticleImage;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
@@ -1291,6 +1292,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
+		readArticleImage: deps.readArticleImage,
+		logError: deps.logError,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
