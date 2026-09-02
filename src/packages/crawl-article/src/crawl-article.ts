@@ -1,4 +1,9 @@
 import { createHash } from "node:crypto";
+import {
+	classifyFailedResponse,
+	classifyFetchError,
+	type FetchFailureClassification,
+} from "./classify-fetch-failure";
 import type {
 	ComprehensiveCrawlProgress,
 	CrawlArticle,
@@ -195,7 +200,7 @@ function initConditionalGet(deps: {
 }) => Promise<
 	| { status: "ok"; response: Response; buffer: Buffer }
 	| { status: "not-modified" }
-	| { status: "failed"; finalUrl?: string }
+	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification }
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
 > {
@@ -242,7 +247,11 @@ function initConditionalGet(deps: {
 				if (isBlockClassResponse(response) || response.status === 429) {
 					return { status: "blocked", httpStatus: response.status, finalUrl };
 				}
-				return { status: "failed", finalUrl };
+				return {
+					status: "failed",
+					finalUrl,
+					failure: classifyFailedResponse({ httpStatus: response.status }),
+				};
 			}
 			budgetTimer = setTimeout(() => {
 				controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
@@ -255,7 +264,11 @@ function initConditionalGet(deps: {
 			clearTimeout(budgetTimer);
 			const suffix = redirectSuffix({ requestedUrl: params.url, responseUrl: lastRedirectHop });
 			logError(`[CrawlArticle] Network error for ${params.url}${suffix}`, error instanceof Error ? error : undefined);
-			return { status: "failed", finalUrl: lastRedirectHop };
+			return {
+				status: "failed",
+				finalUrl: lastRedirectHop,
+				failure: classifyFetchError(error),
+			};
 		}
 	};
 }

@@ -138,6 +138,26 @@ describe("initCrawlAndFinalizeArticle", () => {
 		});
 	});
 
+	it("threads the crawler's failure classification through so save-link-work can persist a precise reason", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "failed",
+				finalUrl: "https://dest.example/article",
+				failure: { kind: "origin-unreachable", httpStatus: 503 },
+			}),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({
+			status: "failed",
+			reason: "crawl-failed",
+			finalUrl: "https://dest.example/article",
+			failure: { kind: "origin-unreachable", httpStatus: 503 },
+		});
+	});
+
 	it("carries the redirect destination through an edge block, the case a click-tracker most often lands on", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle: async () => ({ status: "blocked", httpStatus: 403, finalUrl: "https://dest.example/article" }),

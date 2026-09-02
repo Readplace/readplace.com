@@ -490,7 +490,11 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed", finalUrl: "https://example.com" });
+		expect(result).toEqual({
+			status: "failed",
+			finalUrl: "https://example.com",
+			failure: { kind: "fetch-failed", httpStatus: 500 },
+		});
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 500 for https://example.com");
 	});
 
@@ -509,7 +513,11 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed", finalUrl: "https://example.com" });
+		expect(result).toEqual({
+			status: "failed",
+			finalUrl: "https://example.com",
+			failure: { kind: "origin-unreachable", httpStatus: 503 },
+		});
 		expect(logError).toHaveBeenCalledWith(
 			"[CrawlArticle] HTTP 503 for https://example.com (server=cloudflare, cf-mitigated=challenge, cf-ray=9560a1b2c3d4e5f6-SYD)",
 		);
@@ -753,7 +761,10 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({
+			status: "failed",
+			failure: { kind: "origin-unreachable", code: "ECONNREFUSED" },
+		});
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Network error for https://example.com", networkError);
 	});
 
@@ -964,7 +975,11 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: WRAPPER_URL });
 
-		expect(result).toEqual({ status: "failed", finalUrl: DESTINATION_URL });
+		expect(result).toEqual({
+			status: "failed",
+			finalUrl: DESTINATION_URL,
+			failure: { kind: "fetch-failed" },
+		});
 		expect(logError).toHaveBeenCalledTimes(1);
 		const [loggedMessage, loggedError] = logError.mock.calls[0];
 		expect(loggedMessage).toBe(`[CrawlArticle] Network error for ${WRAPPER_URL} → ${DESTINATION_URL}`);
@@ -1217,7 +1232,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 		const startedAt = Date.now();
 		const result = await crawlArticle({ url: "https://example.com/huge.pdf" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "failed", failure: { kind: "fetch-failed" } });
 		expect(curlCalls).toEqual(["https://example.com/huge.pdf"]);
 		expect(Date.now() - startedAt).toBeLessThan(1000);
 		expect(logError).toHaveBeenCalledTimes(1);
@@ -1247,7 +1262,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "failed", failure: { kind: "fetch-failed" } });
 		expect(logError).toHaveBeenCalledTimes(1);
 		const loggedError = logError.mock.calls[0][1];
 		assert(loggedError instanceof Error, "Expected the body timeout to be logged as an Error");

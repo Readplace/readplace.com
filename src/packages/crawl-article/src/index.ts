@@ -1,4 +1,5 @@
 export { cachedImport } from "./cached-import";
+export type { FetchFailureClassification } from "./classify-fetch-failure";
 export {
 	initCrawlArticle,
 	parsePdfFromBuffer,
