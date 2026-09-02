@@ -242,6 +242,8 @@ Vertical padding (`12px`) matches `--input-padding`; horizontal follows the 4px 
 - **Never `opacity` on a button that has a fill.** It fades the label along with the background, so the button reads as disabled. `opacity: 0.5` is reserved for the actual disabled state.
 - **Never `filter: brightness()`** — it lightens, which is the opposite direction.
 - **Never `--color-brand-dark` as a hover fill** — it inverts lightness between themes (see [Primary Colours](#primary-colours)).
+- A bordered control keeps its border through hover and active — only the fill moves (the vendor sign-in buttons on `/login` included).
+- Every focusable control paints the amber `--ring` on `:focus-visible`; the base rule covers `button` and `a`, so an `input` or `summary` declares its own.
 
 ### Border Radius
 

@@ -126,7 +126,13 @@
 }
 
 .lp-action__input::placeholder {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
+}
+
+.lp-action__input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-color: var(--primary);
 }
 
 /**

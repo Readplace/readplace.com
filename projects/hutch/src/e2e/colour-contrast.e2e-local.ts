@@ -4,6 +4,7 @@ import { expect, test } from "@packages/e2e-harness";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { markReadWithConfirmation } from "./page-interactions";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
+import { LENSES, NON_TEXT_MINIMUM, contrastRatio, textMinimum } from "./wcag-contrast";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
@@ -15,58 +16,8 @@ const READER_ROOT = "main.reader";
 const AUTH_ROOT = "main.auth-page";
 const SETTLE_MS = 45000;
 
-const NORMAL_TEXT_MINIMUM = 4.5;
-const LARGE_TEXT_MINIMUM = 3;
-const NON_TEXT_MINIMUM = 3;
-const LARGE_TEXT_PX = 24;
-const BOLD_LARGE_TEXT_PX = 18.66;
-const BOLD_WEIGHT = 700;
-
-const SRGB_LINEAR_CUTOFF = 0.04045;
-const SRGB_LINEAR_DIVISOR = 12.92;
-const SRGB_OFFSET = 0.055;
-const SRGB_SCALE = 1.055;
-const SRGB_EXPONENT = 2.4;
-const CONTRAST_FLARE = 0.05;
-const RED_LUMINANCE = 0.2126;
-const GREEN_LUMINANCE = 0.7152;
-const BLUE_LUMINANCE = 0.0722;
-
-interface Rgb {
-	red: number;
-	green: number;
-	blue: number;
-}
-
-function channelLuminance(value: number): number {
-	const channel = value / 255;
-	return channel <= SRGB_LINEAR_CUTOFF
-		? channel / SRGB_LINEAR_DIVISOR
-		: ((channel + SRGB_OFFSET) / SRGB_SCALE) ** SRGB_EXPONENT;
-}
-
-function relativeLuminance(colour: Rgb): number {
-	return (
-		RED_LUMINANCE * channelLuminance(colour.red) +
-		GREEN_LUMINANCE * channelLuminance(colour.green) +
-		BLUE_LUMINANCE * channelLuminance(colour.blue)
-	);
-}
-
-function contrastRatio(pair: { ink: Rgb; surface: Rgb }): number {
-	const inkLuminance = relativeLuminance(pair.ink);
-	const surfaceLuminance = relativeLuminance(pair.surface);
-	const lighter = Math.max(inkLuminance, surfaceLuminance);
-	const darker = Math.min(inkLuminance, surfaceLuminance);
-	return (lighter + CONTRAST_FLARE) / (darker + CONTRAST_FLARE);
-}
-
 function minimumRatio(measured: RenderedInk): number {
-	if (measured.role !== "text") return NON_TEXT_MINIMUM;
-	const boldSizeCredit =
-		measured.fontWeight >= BOLD_WEIGHT ? LARGE_TEXT_PX - BOLD_LARGE_TEXT_PX : 0;
-	const isLargeText = measured.fontSizePx + boldSizeCredit >= LARGE_TEXT_PX;
-	return isLargeText ? LARGE_TEXT_MINIMUM : NORMAL_TEXT_MINIMUM;
+	return measured.role === "text" ? textMinimum(measured) : NON_TEXT_MINIMUM;
 }
 
 function shortfall(measured: RenderedInk, where: { theme: string; view: string }): string {
@@ -139,22 +90,6 @@ async function stableMeasurements(page: Page, root: string): Promise<RenderedInk
 		.toBe(true);
 	return measurements;
 }
-
-/** CSS `filter: grayscale(1)` is `feColorMatrix type="saturate" values="0"`
- * evaluated in sRGB, so it weights the gamma-encoded channels — not the
- * linearised ones WCAG's relative luminance uses. The two disagree by up to
- * 0.7:1, in both directions, so clearing a minimum in colour does not clear it
- * once the panel drops hue. */
-function greyscale(colour: Rgb): Rgb {
-	const ink =
-		RED_LUMINANCE * colour.red + GREEN_LUMINANCE * colour.green + BLUE_LUMINANCE * colour.blue;
-	return { red: ink, green: ink, blue: ink };
-}
-
-const LENSES = {
-	colour: (colour: Rgb): Rgb => colour,
-	greyscale,
-} as const;
 
 function assertContrast(
 	measurements: readonly RenderedInk[],
