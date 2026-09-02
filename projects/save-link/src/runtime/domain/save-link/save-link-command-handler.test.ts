@@ -272,15 +272,37 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
-	it("does NOT dispatch a terminal transition on a transient crawl-failed (those stay on the SQS retry / DLQ path)", async () => {
+	it("persists the crawl failure inline via markCrawlFailed before the record dead-letters, so the reader sees a terminal row on the next poll instead of after the DLQ delay", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
+		const result = await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+			url: "https://example.com/article",
+			input: { reason: { kind: "fetch-failed" } },
+		});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
+	it("persists the classified origin-unreachable reason inline when the crawl carries one", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "failed",
+			reason: "crawl-failed",
+			failure: { kind: "origin-unreachable", httpStatus: 522 },
+		});
+
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
+
 		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
-		expect(transitionAndPersist).not.toHaveBeenCalled();
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+			url: "https://example.com/article",
+			input: { reason: { kind: "origin-unreachable", httpStatus: 522 } },
+		});
 	});
 
 	it("emits SimpleCrawlUnsupportedEvent carrying the userId when the crawl reports unsupported (the policy Lambda dispatches ComprehensiveCrawlCommand)", async () => {

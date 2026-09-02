@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { initSaveLinkWork } from "./save-link-work";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -129,6 +129,35 @@ describe("initSaveLinkWork", () => {
 			otherTierStatus: "not_attempted",
 			pickedTier: "none",
 		});
+	});
+
+	it("persists the classified origin-unreachable reason via markCrawlFailed before the CrawlFailedError that dead-letters the record", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "failed",
+			reason: "crawl-failed",
+			failure: { kind: "origin-unreachable", httpStatus: 522 },
+		});
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist });
+
+		await expect(saveLinkWork("https://example.com/article")).rejects.toMatchObject({
+			name: "CrawlFailedError",
+			crawlFailureReason: { kind: "origin-unreachable", httpStatus: 522 },
+		});
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+			url: "https://example.com/article",
+			input: { reason: { kind: "origin-unreachable", httpStatus: 522 } },
+		});
+	});
+
+	it("surfaces the inline write's error when the network-failure terminal-state write fails, so the record dead-letters and the DLQ handler still terminalises it", async () => {
+		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("conditional check failed"));
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist });
+
+		await expect(saveLinkWork("https://example.com/article")).rejects.toThrow("conditional check failed");
 	});
 
 	it("reports a parse-class failure to both telemetry sinks even when the terminal-state write fails, and still surfaces the persistence error", async () => {
