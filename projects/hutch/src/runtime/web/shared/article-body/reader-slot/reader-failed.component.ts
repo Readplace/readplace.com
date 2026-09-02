@@ -37,6 +37,7 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	failed: `We couldn't pull the article text. The site may be blocking automated fetches. Save it with ${FULL_PAGE_CAPTURE_PHRASE} instead.`,
 	blocked: `The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — ${FULL_PAGE_CAPTURE_PHRASE} do this in one tap.`,
 	slow: "Reader view is taking longer than usual.",
+	"origin-down": "The site itself was unreachable when we tried — its server was down, not blocking us. It may come back later.",
 	"not-found": "The site says this page no longer exists at this address, so there is no article text to pull in.",
 	"not-an-article": "This link isn't an article, so there's no reader view.",
 };
@@ -48,6 +49,7 @@ const CTA_LABELS: Record<ReaderFailedVariant, (hostname: string) => string> = {
 	failed: readItOnSource,
 	blocked: readItOnSource,
 	slow: readItOnSource,
+	"origin-down": (hostname) => `Try it on ${hostname}`,
 	"not-found": readItOnSource,
 	"not-an-article": () => "View the link",
 };

@@ -11,6 +11,7 @@ export const ReaderFailedVariantSchema = z.enum([
 	"unsupported",
 	"slow",
 	"blocked",
+	"origin-down",
 	"not-found",
 	"not-an-article",
 ]);

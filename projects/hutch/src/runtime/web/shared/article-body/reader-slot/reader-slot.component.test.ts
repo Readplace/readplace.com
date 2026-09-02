@@ -241,6 +241,48 @@ describe("renderReaderSlot", () => {
 		},
 	);
 
+	it.each([
+		JSON.stringify({ kind: "origin-unreachable", httpStatus: 522 }),
+		JSON.stringify({ kind: "origin-unreachable", httpStatus: 503 }),
+		JSON.stringify({ kind: "origin-unreachable", code: "ETIMEDOUT" }),
+	])(
+		"routes an origin-unreachable crawl (%s) to the origin-down variant, which offers no capture",
+		(reason) => {
+			const doc = parse(
+				renderReaderSlot({
+					crawl: { status: "failed", reason },
+					url: URL,
+					appOrigin: APP_ORIGIN,
+				}),
+			);
+
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("origin-down");
+			const actions = Array.from(
+				slot.querySelectorAll("[data-test-reader-action]"),
+			).map((el) => el.getAttribute("data-test-reader-action"));
+			expect(actions).toEqual(["open"]);
+		},
+	);
+
+	it("leaves a fetch-failed 5xx on the generic failed variant — only the minted origin-unreachable kind may claim the origin was down", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "fetch-failed", httpStatus: 503 }),
+				},
+				url: URL,
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("failed");
+	});
+
 	it("tells a reader of a deleted page that it is gone, not that the site is blocking us", () => {
 		const doc = parse(
 			renderReaderSlot({

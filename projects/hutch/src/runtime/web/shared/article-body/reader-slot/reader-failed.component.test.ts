@@ -15,6 +15,7 @@ const ALL_VARIANTS = [
 	"unsupported",
 	"slow",
 	"blocked",
+	"origin-down",
 	"not-found",
 	"not-an-article",
 ] as const satisfies readonly ReaderFailedVariant[];
@@ -62,6 +63,7 @@ describe("renderReaderFailed", () => {
 			["failed", /blocking automated fetches/],
 			["slow", /taking longer than usual/],
 			["blocked", /Open it in your browser/],
+			["origin-down", /its server was down, not blocking us/],
 			["not-found", /no longer exists at this address/],
 			["not-an-article", /This link isn't an article, so there's no reader view\./],
 		];
@@ -119,7 +121,7 @@ describe("renderReaderFailed", () => {
 		}
 
 		assert.deepEqual(actionsFor("blocked"), ["open", "capture"]);
-		for (const variant of ["failed", "unsupported", "slow", "not-found", "not-an-article"] as const) {
+		for (const variant of ["failed", "unsupported", "slow", "origin-down", "not-found", "not-an-article"] as const) {
 			assert.deepEqual(actionsFor(variant), ["open"], `actions for variant=${variant}`);
 		}
 	});
@@ -137,6 +139,25 @@ describe("renderReaderFailed", () => {
 		assert(slot, "slot must render so the absence check is meaningful");
 		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
 		assert.doesNotMatch(doc.body.textContent ?? "", /capture the full page in one tap/);
+	});
+
+	it("withholds the extension pitch on the origin-down variant — the reader's own browser would hit the same dead origin", () => {
+		const doc = parse(
+			renderReaderFailed({
+				url: "https://example.com/post",
+				variant: "origin-down",
+				extensionInstallUrl: "/install?client=chrome",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "slot must render so the absence check is meaningful");
+		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
+		assert.doesNotMatch(doc.body.textContent ?? "", /blocking automated fetches/);
+	});
+
+	it("labels the origin-down CTA 'Try it on <host>', not 'Read it on', because the page just failed to load", () => {
+		assert.equal(ctaLabelFor("origin-down"), "Try it on example.com");
 	});
 
 	it("never blames a bot wall on the not-found variant — the 404 copy must not send the reader after a fix that cannot work", () => {

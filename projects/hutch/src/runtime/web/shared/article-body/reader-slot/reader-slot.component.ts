@@ -61,6 +61,7 @@ function failedVariant(reason: string): ReaderFailedVariant {
 	 * `failed` copy blames a bot wall and sends the user to install a client,
 	 * advice that cannot resurrect a deleted page. */
 	if (parsed?.kind === "not-found") return "not-found";
+	if (parsed?.kind === "origin-unreachable") return "origin-down";
 	if (parsed?.kind !== "blocked") return "failed";
 	if (parsed.cause === "edge-block" || parsed.cause === "rate-limited") return "blocked";
 	return "failed";
