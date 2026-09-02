@@ -1,5 +1,5 @@
 import { MAX_PDF_PAGES } from "@packages/crawl-article";
-import { ANNUAL_PRICE_AMOUNT, MONTHLY_EQUIVALENT_AMOUNT } from "@packages/web-shell";
+import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import type { ClientGroup, ClientName } from "@packages/supported-clients";
 import type { IconName } from "@packages/ui-icons";
 
@@ -207,9 +207,9 @@ export const HOME_CONTENT = {
 	},
 	pricing: {
 		titleBefore: "Only",
-		priceAmount: MONTHLY_EQUIVALENT_AMOUNT,
+		priceAmount: MONTHLY_EQUIVALENT_DISPLAY,
 		titleAfter: "a month to pay running costs, and that's it!",
-		body: `${ANNUAL_PRICE_AMOUNT} a year, billed once. No data resale, no investor whose timeline outlives yours. ${TRIAL_DAYS} days free first, and I don't ask for a card to start them. If you never subscribe, nothing is charged: the account drops to read-only, not dark — you keep reading every article you saved, and you can still export.`,
+		body: `${ANNUAL_PRICE_DISPLAY} a year, billed once. No data resale, no investor whose timeline outlives yours. ${TRIAL_DAYS} days free first, and I don't ask for a card to start them. If you never subscribe, nothing is charged: the account drops to read-only, not dark — you keep reading every article you saved, and you can still export.`,
 		ctaLabel: "Become a Member",
 		ctaSubLabel: "Support open source",
 		ctaNote: `Google, Apple, or an email address — about twenty seconds. No card at any point in the ${TRIAL_DAYS} days.`,
@@ -235,7 +235,7 @@ export const HOME_CONTENT = {
 			},
 			{
 				question: "Do I need a credit card to start?",
-				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that it is ${MONTHLY_EQUIVALENT_AMOUNT} a month (${ANNUAL_PRICE_AMOUNT} a year). If you don't subscribe, nothing is charged and the account goes read-only.`,
+				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that it is ${MONTHLY_EQUIVALENT_DISPLAY} a month (${ANNUAL_PRICE_DISPLAY} a year). If you don't subscribe, nothing is charged and the account goes read-only.`,
 			},
 			{
 				question: "What happens to my articles if I stop paying?",
