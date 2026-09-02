@@ -1,3 +1,5 @@
+import { LIGHT_ONLY_BODY_CLASS } from "../../base.styles";
+
 export const CONFIRM_POPOVER_STYLES = `
 /**
  * Confirmation panel — native popover.
@@ -60,7 +62,7 @@ export const CONFIRM_POPOVER_STYLES = `
 }
 
 @media (prefers-color-scheme: dark) {
-	.confirm-popover::backdrop {
+	body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover::backdrop {
 		background: rgb(13 13 13 / 0.72); /* 3 */
 	}
 }

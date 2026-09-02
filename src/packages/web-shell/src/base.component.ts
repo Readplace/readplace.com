@@ -173,8 +173,11 @@ function renderMarkdown(body: PageBody): string {
 /** Dark mode belongs to a signed-in reader; every logged-out page renders in the
  * light palette its design was drawn for, unless the page reads as a document
  * the viewer's own theme should govern. */
-function bodyClassFor(body: PageBody, isAuthenticated: boolean): string {
-	const pinsLight = !isAuthenticated && body.followsSystemTheme !== true;
+function pinsLightPalette(body: PageBody, isAuthenticated: boolean): boolean {
+	return !isAuthenticated && body.followsSystemTheme !== true;
+}
+
+function bodyClassFor(body: PageBody, pinsLight: boolean): string {
 	const classes = [body.bodyClass, pinsLight ? LIGHT_ONLY_BODY_CLASS : undefined];
 	return classes.filter((name): name is string => name !== undefined).join(" ");
 }
@@ -236,6 +239,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			? externalCanonicalUrl(seo.canonicalUrl)
 			: normalizeCanonicalUrl(seo.canonicalUrl);
 		const ogUrl = seo.ogUrl ? normalizeCanonicalUrl(seo.ogUrl) : canonicalUrl;
+		const pinsLight = pinsLightPalette(body, state.isAuthenticated);
 
 		return render(BASE_TEMPLATE, {
 			staticBaseUrl: config.staticBaseUrl,
@@ -277,7 +281,8 @@ export function initBase(config: BaseConfig): RenderBase {
 				show: state.showExtensionSuggestionBanner ?? false,
 				extensionInstalled: state.extensionInstalled ?? false,
 			}),
-			bodyClass: bodyClassFor(body, state.isAuthenticated),
+			bodyClass: bodyClassFor(body, pinsLight),
+			pinsLight,
 			header: config.renderNav({
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,

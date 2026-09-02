@@ -136,6 +136,10 @@ export const LIGHT_ONLY_BODY_CLASS = "theme-light";
  */
 const LIGHT_ONLY_STYLES = `
 	@media (prefers-color-scheme: dark) {
+		:root:has(> body.${LIGHT_ONLY_BODY_CLASS}) {
+			color-scheme: light;
+		}
+
 		body.${LIGHT_ONLY_BODY_CLASS} {
 			color-scheme: light;
 ${generateCssVariables(LIGHT_THEME_VARIABLES)}
