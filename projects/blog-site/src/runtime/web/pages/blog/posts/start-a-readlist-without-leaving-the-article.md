@@ -68,4 +68,4 @@ A readlist is worth starting at the moment an article makes the pattern visible,
 
 The menu now agrees.
 
-Save the next article that reads like the start of a pile, open it at [readplace.com](/), and look at the last row of Add to readlist. The name you type there is the whole setup.
+When the next article reads like the start of a pile, open it at [readplace.com](/) and find the last row of Add to readlist. The name you type there is the whole setup.
