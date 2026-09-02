@@ -221,8 +221,7 @@
   color: var(--color-text-secondary);
 }
 
-.home-assistant__body,
-.home-assistant__note {
+.home-assistant__body {
   margin: 0 0 16px;
   text-wrap: pretty;
   color: var(--color-text-secondary);
