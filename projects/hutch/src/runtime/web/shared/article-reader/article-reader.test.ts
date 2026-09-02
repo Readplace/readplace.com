@@ -1742,4 +1742,147 @@ describe("initArticleReader", () => {
 			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
 		});
 	});
+	describe("a link whose host can never hold an article", () => {
+		const GATED_URL = "https://mail.google.com/mail/u/0/";
+		const FAILURE_PROBE = () => '<p id="failure-probe"></p>';
+
+		function gatedSnapshot(): ArticleSnapshot {
+			return {
+				url: GATED_URL,
+				metadata: {
+					title: "Inbox (42) — someone@example.com",
+					siteName: "mail.google.com",
+					excerpt: "Re: your invoice",
+					wordCount: 400,
+				},
+				estimatedReadTime: 2 as Minutes,
+			};
+		}
+
+		it("resolves to a state carrying nothing the crawl produced, with both poll chains disarmed", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "Your inbox has 42 unread messages." },
+				content: "<p>Re: your invoice</p>",
+				contentFetchedAt: "2026-04-25T11:00:00.000Z",
+				crawlVersions: [{ crawledAtMinute: "2026-04-25T11:00", authorUserId: undefined }],
+			});
+			const reader = initArticleReader(deps);
+
+			const state = await reader.resolveReaderState({
+				article: gatedSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+			});
+
+			expect(state).toEqual({
+				content: undefined,
+				crawl: undefined,
+				summary: undefined,
+				readerPollUrl: undefined,
+				summaryPollUrl: undefined,
+				capturePollUrl: undefined,
+				progress: undefined,
+				crawlVersions: [],
+				readerViewFailed: false,
+				notice: "not-an-article",
+			});
+		});
+
+		it("answers a reader poll with the terminal notice, a collapsed summary and no further tick", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "Your inbox has 42 unread messages." },
+				content: "<p>Re: your invoice</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const doc = parse(
+				toHtml(
+					await reader.handleReaderPoll({
+						articleUrl: GATED_URL,
+						pollCount: 1,
+						pollUrlBuilder: makePollUrlBuilder(),
+						capturing: false,
+						extensionInstallUrl: "/install?client=chrome",
+						summaryToggleUrl: undefined,
+						provenance: undefined,
+						readlistTags: undefined,
+						readerViewFailedOob: FAILURE_PROBE,
+					}),
+				),
+			);
+
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			assert.equal(slot.getAttribute("data-reader-status"), "not-an-article");
+			assert.equal(slot.getAttribute("hx-get"), null);
+
+			const summarySlot = doc.querySelector("[data-test-reader-summary]");
+			assert(summarySlot, "summary slot must be rendered");
+			assert.equal(summarySlot.getAttribute("hx-get"), null);
+			assert.equal(summarySlot.textContent, "");
+
+			assert.equal(doc.querySelector("#failure-probe"), null);
+		});
+
+		it("answers a summary poll with the same terminal pair", async () => {
+			const { deps } = initFakeDeps({ crawl: { status: "ready" }, content: "<p>body</p>" });
+			const reader = initArticleReader(deps);
+
+			const doc = parse(
+				toHtml(
+					await reader.handleSummaryPoll({
+						articleUrl: GATED_URL,
+						pollCount: 1,
+						pollUrlBuilder: makePollUrlBuilder(),
+						capturing: false,
+						extensionInstallUrl: undefined,
+						summaryToggleUrl: undefined,
+						provenance: undefined,
+						readlistTags: undefined,
+						readerViewFailedOob: FAILURE_PROBE,
+					}),
+				),
+			);
+
+			const summarySlot = doc.querySelector("[data-test-reader-summary]");
+			assert(summarySlot, "summary slot must be rendered");
+			assert.equal(summarySlot.getAttribute("hx-get"), null);
+			assert.equal(
+				doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status"),
+				"not-an-article",
+			);
+		});
+
+		it("swaps the document title back to the hostname stub, never the stored one", async () => {
+			const { deps } = initFakeDeps({ crawl: { status: "ready" }, content: "<p>body</p>" });
+			const reader = initArticleReader(deps);
+
+			const doc = parse(
+				toHtml(
+					await reader.handleReaderPoll({
+						articleUrl: GATED_URL,
+						pollCount: 1,
+						pollUrlBuilder: makePollUrlBuilder(),
+						capturing: false,
+						extensionInstallUrl: undefined,
+						summaryToggleUrl: undefined,
+						provenance: undefined,
+						readlistTags: undefined,
+						readerViewFailedOob: FAILURE_PROBE,
+					}),
+				),
+			);
+
+			assert.equal(
+				doc.querySelector("#document-title")?.textContent,
+				"mail.google.com — TestReader",
+			);
+			assert.equal(
+				doc.querySelector("#article-header .article-body__title")?.textContent?.trim(),
+				"mail.google.com",
+			);
+		});
+	});
 });

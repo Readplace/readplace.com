@@ -619,4 +619,46 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 		assert(banner, "the banner element is always emitted");
 		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
 	});
+	describe("a saved link whose host can never hold an article", () => {
+		const GATED_URL = "https://mail.google.com/mail/u/0/";
+
+		it("shows the app the same notice and offers it no on-device capture to run", async () => {
+			const harness = buildHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetArticleId(agent, GATED_URL);
+
+			const response = await agent.get(`/queue/${articleId}/view?platform=ios`);
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("mail.google.com");
+			expect(response.text).toContain("readplaceReader");
+			expect(response.text).not.toContain("captureBlocked");
+		});
+
+		it("answers the owner's reader and summary polls with the terminal notice", async () => {
+			const harness = buildHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetArticleId(agent, GATED_URL);
+
+			for (const path of [
+				`/queue/${articleId}/reader?poll=1`,
+				`/queue/${articleId}/summary?poll=1`,
+			]) {
+				const response = await agent.get(path);
+				expect(response.status).toBe(200);
+				const doc = new JSDOM(response.text).window.document;
+				const slot = doc.querySelector("[data-test-reader-slot]");
+				assert(slot, `reader slot must be rendered for ${path}`);
+				expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+				expect(slot.hasAttribute("hx-get")).toBe(false);
+				const summarySlot = doc.querySelector("[data-test-reader-summary]");
+				assert(summarySlot, `summary slot must be rendered for ${path}`);
+				expect(summarySlot.hasAttribute("hx-get")).toBe(false);
+			}
+		});
+	});
 });

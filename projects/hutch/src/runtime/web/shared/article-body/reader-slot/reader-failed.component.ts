@@ -38,6 +38,18 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	blocked: `The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — ${FULL_PAGE_CAPTURE_PHRASE} do this in one tap.`,
 	slow: "Reader view is taking longer than usual.",
 	"not-found": "The site says this page no longer exists at this address, so there is no article text to pull in.",
+	"not-an-article": "This link isn't an article, so there's no reader view.",
+};
+
+const readItOnSource = (hostname: string) => `Read it on ${hostname}`;
+
+const CTA_LABELS: Record<ReaderFailedVariant, (hostname: string) => string> = {
+	unsupported: readItOnSource,
+	failed: readItOnSource,
+	blocked: readItOnSource,
+	slow: readItOnSource,
+	"not-found": readItOnSource,
+	"not-an-article": () => "View the link",
 };
 
 /* Every other variant can still be rescued by capturing the page from a client,
@@ -54,7 +66,7 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 	return render(TEMPLATE, {
 		url: input.url,
 		variant: input.variant,
-		hostname: new URL(input.url).hostname,
+		ctaLabel: CTA_LABELS[input.variant](new URL(input.url).hostname),
 		explanation: EXPLANATIONS[input.variant],
 		showCapture: input.variant === "blocked",
 		capturePollUrl: input.capturePollUrl,

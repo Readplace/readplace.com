@@ -447,6 +447,25 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("hx-get")).toBeNull();
 	});
 
+	it("renders the notice in place of stored content, so a ready crawl on a gated host still shows it", () => {
+		const doc = parse(
+			renderReaderSlot({
+				notice: "not-an-article",
+				crawl: { status: "ready" },
+				content: "<p>Inbox (42) — someone@example.com</p>",
+				url: "https://mail.google.com/mail/u/0/",
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+		expect(slot.getAttribute("hx-get")).toBeNull();
+		expect(slot.textContent).toContain("This link isn't an article");
+	});
+
 	it("dispatches every CrawlStatus variant — adding a new variant must break this test (and the renderer's exhaustive switch)", () => {
 		const variants: Array<{
 			input: Parameters<typeof renderReaderSlot>[0];

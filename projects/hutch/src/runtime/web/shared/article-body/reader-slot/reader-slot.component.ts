@@ -14,6 +14,7 @@ export interface ReaderSlotInput {
 	appOrigin: string;
 	capturePollUrl?: string;
 	capturing?: boolean;
+	notice?: ReaderFailedVariant;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The
 	 * stable `id="article-body-reader-slot"` on every variant gives HTMX a
@@ -105,6 +106,9 @@ function pollOrSlow(input: ReaderSlotInput, oob: boolean): string {
 
 export function renderReaderSlot(input: ReaderSlotInput): string {
 	const oob = input.oob === true;
+	if (input.notice !== undefined) {
+		return renderReaderFailed({ url: input.url, variant: input.notice, oob });
+	}
 	if (input.crawl === undefined) {
 		if (input.content) return renderReaderReady({ content: input.content, oob, appOrigin: input.appOrigin });
 		return pollOrSlow(input, oob);

@@ -1,5 +1,9 @@
 import assert from "node:assert";
-import { ReaderArticleHashIdSchema, displayableReadTime } from "@packages/domain/article";
+import {
+	ReaderArticleHashIdSchema,
+	displayableReadTime,
+	isNonArticleHost,
+} from "@packages/domain/article";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { AuthenticatedUserId } from "@packages/domain/user";
@@ -195,6 +199,7 @@ export function initMcpArticleOperations(
 		getArticleContent: async ({ userId, id }) => {
 			const article = await resolveOwned(userId, id);
 			if (!article) return { status: "not_found" };
+			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
 			const content = await deps.readArticleContent(article.url);
 			return content === undefined
 				? { status: "pending" }
@@ -204,6 +209,7 @@ export function initMcpArticleOperations(
 		getArticleSummary: async ({ userId, id }) => {
 			const article = await resolveOwned(userId, id);
 			if (!article) return { status: "not_found" };
+			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
 			const summary = await deps.findGeneratedSummary(article.url);
 			return toSummaryResult(summary);
 		},

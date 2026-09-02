@@ -1,5 +1,6 @@
 import {
 	displayableReadTime,
+	isNonArticleHost,
 	type DisplayableReadTime,
 	type SavedArticle,
 	type SaveableUrlErrorCode,
@@ -219,7 +220,7 @@ export function toReadlistArticleViewModel(params: {
 	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
 	const pollCount = params.pollCount ?? 1;
 	const id = article.id.value;
-	const reachedTerminal = isCardTerminal(crawl, summary);
+	const reachedTerminal = isNonArticleHost(article.url) || isCardTerminal(crawl, summary);
 	const cardPollUrl =
 		reachedTerminal || pollCount > maxPolls
 			? undefined

@@ -279,6 +279,17 @@ describe("initMcpArticleOperations", () => {
 				await ops.getArticleContent({ userId, id: article.id.value }),
 			).toEqual({ status: "ready", content: "<article>hi</article>" });
 		});
+
+		it("withholds the stored capture for a link whose host can never hold an article", async () => {
+			const article = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
+			const ops = buildOps({
+				findArticleById: async () => article,
+				readArticleContent: async () => "<article>Inbox (42)</article>",
+			});
+			expect(
+				await ops.getArticleContent({ userId, id: article.id.value }),
+			).toEqual({ status: "not_an_article" });
+		});
 	});
 
 	describe("getArticleSummary", () => {
@@ -298,6 +309,17 @@ describe("initMcpArticleOperations", () => {
 			expect(
 				await ops.getArticleSummary({ userId, id: article.id.value }),
 			).toEqual({ status: "ready", summary: "TL;DR" });
+		});
+
+		it("withholds a stored summary for a link whose host can never hold an article", async () => {
+			const article = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
+			const ops = buildOps({
+				findArticleById: async () => article,
+				findGeneratedSummary: async () => ({ status: "ready", summary: "42 unread" }),
+			});
+			expect(
+				await ops.getArticleSummary({ userId, id: article.id.value }),
+			).toEqual({ status: "not_an_article" });
 		});
 	});
 

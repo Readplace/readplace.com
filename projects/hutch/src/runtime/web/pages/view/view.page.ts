@@ -6,7 +6,7 @@ import type {
 	Minutes,
 } from "@packages/domain/article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { calculateReadTime } from "@packages/domain/article";
+import { calculateReadTime, isNonArticleHost } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -234,6 +234,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const hostname = articleHostFrom(articleUrl);
 		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
 		const stubReadTime = calculateReadTime(0);
+		const gated = isNonArticleHost(articleUrl);
 		// A prefetch gets the rendered page (stub metadata below) but triggers
 		// none of the paid crawl work: a speculative fetch is not a reader asking
 		// to spend budget. Bots are deliberately NOT excluded — a third-party
@@ -241,7 +242,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// it came for. The per-IP budget below caps the first-visit cascade; a
 		// repeat visit only publishes a stale check, which the stale-check
 		// handler TTL-bounds per article.
-		if (!isPrefetch(req)) {
+		if (!isPrefetch(req) && !gated) {
 			if (!existing) {
 				// First visit is the request that triggers the whole crawl cascade
 				// (stub save → crawl → summary → possibly OCR), each leg with real
@@ -279,7 +280,9 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const articleSnapshot = await deps.findArticleByUrl(articleUrl);
 		const pendingSnapshot: { metadata: ArticleMetadata; estimatedReadTime: Minutes } =
 			existing ?? { metadata: stubMetadata, estimatedReadTime: stubReadTime };
-		const snapshot = articleSnapshot ?? pendingSnapshot;
+		const snapshot = gated
+			? { metadata: stubMetadata, estimatedReadTime: stubReadTime }
+			: (articleSnapshot ?? pendingSnapshot);
 		const metadata: ArticleMetadata = snapshot.metadata;
 		const estimatedReadTime: Minutes = snapshot.estimatedReadTime;
 
@@ -354,6 +357,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					saveTip,
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
 					crawlVersions: state.crawlVersions,
+					readerNotice: state.notice,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),

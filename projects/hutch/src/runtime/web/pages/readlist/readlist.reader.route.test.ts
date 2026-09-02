@@ -1797,4 +1797,86 @@ describe("Readlist routes", () => {
 			expect(new JSDOM(response.text).window.document.querySelector("body.page-not-found")).not.toBeNull();
 		});
 	});
+	describe("a saved link whose host can never hold an article", () => {
+		const GATED_URL = "https://mail.google.com/mail/u/0/";
+		const SEEDED_INBOX_TITLE = "Inbox (42) - someone@example.com";
+		const STORED_SUMMARY = "Your inbox has 42 unread messages.";
+
+		async function ownerReaderDoc(): Promise<Document> {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				summary: {
+					...fixture.summary,
+					findGeneratedSummary: async () => ({ status: "ready", summary: STORED_SUMMARY }),
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: GATED_URL });
+
+			await fixture.articleStore.writeContent({
+				url: GATED_URL,
+				content: "<p>Re: your invoice is attached</p>",
+			});
+			await fixture.articleCrawl.markCrawlReady({ url: GATED_URL });
+			await fixture.articleStore.setCrawlVersions({
+				url: GATED_URL,
+				versions: [{ crawledAtMinute: "2026-05-03T13:00", authorUserId: undefined }],
+			});
+
+			const listing = new JSDOM((await agent.get("/queue")).text).window.document;
+			const articleId = listing
+				.querySelector("[data-test-article-list] .readlist-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the gated save must still appear in the readlist listing");
+
+			const response = await agent.get(`/queue/${articleId}/view`);
+			expect(response.status).toBe(200);
+			expect(response.text).not.toContain(SEEDED_INBOX_TITLE);
+			expect(response.text).not.toContain(STORED_SUMMARY);
+			return new JSDOM(response.text).window.document;
+		}
+
+		it("shows the owner the same friendly notice, titled from the hostname stub", async () => {
+			const doc = await ownerReaderDoc();
+
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+			expect(slot.hasAttribute("hx-get")).toBe(false);
+			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("mail.google.com");
+			expect(doc.querySelector("title")?.textContent).toBe(
+				"mail.google.com — Readplace Reader",
+			);
+			expect(
+				doc.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
+			).toBe(GATED_URL);
+		});
+
+		it("keeps the link shareable while offering no Next read and no crawl bookmark", async () => {
+			const doc = await ownerReaderDoc();
+
+			assert(
+				doc.querySelector("[data-test-share-balloon-wrap]"),
+				"sharing the link itself stays legitimate",
+			);
+			const related = doc.querySelector("[data-test-reader-related]");
+			assert(related, "the related slot is always emitted");
+			expect(related.getAttribute("data-related-status")).toBe("skipped");
+			expect(related.hasAttribute("hx-get")).toBe(false);
+			expect(doc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
+		});
+
+		it("stops the queue card polling for an enrichment that will never arrive", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: GATED_URL });
+
+			const listing = new JSDOM((await agent.get("/queue")).text).window.document;
+			const card = listing.querySelector("[data-test-article-list] .readlist-article");
+			assert(card, "the gated save must still appear in the readlist listing");
+			expect(card.hasAttribute("hx-get")).toBe(false);
+		});
+	});
 });

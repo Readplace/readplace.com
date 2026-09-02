@@ -21,7 +21,7 @@ import {
 	decodeImportSkippedCookie,
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
-import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, calculateReadTime, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
@@ -742,6 +742,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		},
 	};
 
+	const mediaFor = (params: { mediaType: string; url: string }): SaveContentMedia | undefined =>
+		isNonArticleHost(params.url)
+			? undefined
+			: saveContentMedia[normalizeMediaType(params.mediaType)];
+
 	const reader = initArticleReader({
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		findGeneratedSummary: deps.findGeneratedSummary,
@@ -893,6 +898,23 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				? relatedPollUrlFor(ownedArticle.id.value, 1)
 				: undefined;
 
+		if (state.notice !== undefined) {
+			const hostname = new URL(ownedArticle.url).hostname;
+			return {
+				kind: "ready",
+				article: {
+					...ownedArticle,
+					content: undefined,
+					metadata: { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 },
+					estimatedReadTime: calculateReadTime(0),
+				},
+				state,
+				related: { status: "skipped" },
+				relatedPollUrl: undefined,
+				readlistFiling,
+			};
+		}
+
 		return {
 			kind: "ready",
 			article: ownedArticle,
@@ -936,6 +958,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				renderActions: deps.chromelessReader,
 				readlistFiling,
 				markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
+				readerNotice: state.notice,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -946,7 +969,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						scripts:
 							readerBody.scripts +
 							readerMarkReadBridgeScript(cspNonce) +
-							readerCaptureBridgeScript(cspNonce),
+							(state.notice === undefined ? readerCaptureBridgeScript(cspNonce) : ""),
 					},
 					{
 						changelogBanner: selectChangelogBanner(
@@ -970,7 +993,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		// bookmark can offer to delete their versions. Only the full-shell owner
 		// reader below gets it — never the public /view or the iOS chromeless
 		// branch above.
-		const authoredVersions = await deps.findArticleCrawlVersions(ownedArticle.url);
+		const authoredVersions =
+			state.notice === undefined ? await deps.findArticleCrawlVersions(ownedArticle.url) : [];
 		const authoredMinuteIds = authoredVersions
 			.filter((version) => version.authorUserId === ownedArticle.userId)
 			.map((version) => version.crawledAtMinute);
@@ -1001,6 +1025,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				crawlVersions: state.crawlVersions,
 				crawlBookmarkRemoval,
 				exitMarkReadConfirm: true,
+				readerNotice: state.notice,
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,
@@ -1649,7 +1674,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					/** Stage the captured bytes when the media type is supported; an
 					 * unsupported type stages nothing and the page is saved URL-only,
 					 * so the crawl enriches it the ordinary way. */
-					const media = saveContentMedia[normalizeMediaType(job.mediaType)];
+					const media = mediaFor({ mediaType: job.mediaType, url: job.url });
 					if (media) await media.stageInlineBytes({ url: job.url, bytes: job.bytes, title: job.title, userId });
 				}
 				const { createdUserArticle } = await saveArticleFromUrl({
@@ -1797,6 +1822,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					refuse(validation.error.message);
 					return undefined;
 				}
+				if (isNonArticleHost(validation.url)) {
+					refuse(
+						"This link isn't an article, so the page capture wasn't kept",
+						"capture-not-allowed",
+					);
+					return undefined;
+				}
 				const normalized = normalizeMediaType(mediaType);
 				const media = saveContentMedia[normalized];
 				if (!media) {
@@ -1831,7 +1863,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						refuse(validation.error.message);
 						return;
 					}
-					const media = saveContentMedia[normalizeMediaType(mediaType)];
+					const media = mediaFor({ mediaType, url: validation.url });
 					if (media) {
 						await media.stageInlineBytes({ url: validation.url, bytes: contentBytes, title, userId });
 					}

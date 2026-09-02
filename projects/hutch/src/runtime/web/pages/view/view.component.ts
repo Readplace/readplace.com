@@ -5,6 +5,7 @@ import type {
 	ArticleMetadata,
 	Minutes,
 } from "@packages/domain/article";
+import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -100,6 +101,7 @@ export interface ViewPageInput {
 	saveTip: SaveTip;
 	extensionInstallUrl?: string;
 	crawlVersions?: LocalTime[];
+	readerNotice?: ReaderFailedVariant;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -123,6 +125,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 		crawlVersions: input.crawlVersions,
+		readerNotice: input.readerNotice,
 	});
 
 	const viewPath = viewPathFor(input.articleUrl);
@@ -176,7 +179,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			ogImage,
 			ogImageAlt,
 			twitterImage,
-			structuredData: [structuredData],
+			structuredData: input.readerNotice === undefined ? [structuredData] : [],
 		},
 		styles: `${VIEW_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: "page-view",

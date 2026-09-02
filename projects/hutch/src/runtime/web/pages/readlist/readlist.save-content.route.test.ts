@@ -852,3 +852,110 @@ describe("POST /queue/save-content upload-slot flow", () => {
 		expect(response.body.properties.code).toBe("invalid-save-content");
 	});
 });
+
+describe("POST /queue/save-content for a host that can never hold an article", () => {
+	const GATED_URL = "https://mail.google.com/mail/u/0/";
+
+	function setupGated(): {
+		testApp: TestAppHarness;
+		publishedSavePdf: Parameters<PublishSaveLinkRawPdfCommand>[0][];
+		publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][];
+	} {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const publishedSavePdf: Parameters<PublishSaveLinkRawPdfCommand>[0][] = [];
+		const publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+		const testApp = useApp({
+			...fixture,
+			events: {
+				...fixture.events,
+				publishSaveLinkRawPdfCommand: async (params) => { publishedSavePdf.push(params); },
+				publishSaveLinkRawHtmlCommand: async (params) => { publishedSaveHtml.push(params); },
+			},
+		});
+		return { testApp, publishedSavePdf, publishedSaveHtml };
+	}
+
+	it("saves the bookmark URL-only and stages none of the inline capture", async () => {
+		const { testApp, publishedSaveHtml } = setupGated();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", GATED_URL)
+			.field("mediaType", "text/html")
+			.attach("content", VALID_HTML, "content");
+
+		expect(response.status).toBe(201);
+		expect(publishedSaveHtml).toEqual([]);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles.map((article) => article.url)).toEqual([GATED_URL]);
+	});
+
+	it("refuses an upload slot, telling the client to fall back to a plain save", async () => {
+		const { testApp } = setupGated();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", GATED_URL)
+			.field("mediaType", "text/html")
+			.field("size", "1000");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("capture-not-allowed");
+		expect(response.body.properties.message).toBe(
+			"This link isn't an article, so the page capture wasn't kept",
+		);
+		expect(response.body.actions).toEqual([expect.objectContaining({ name: "save-article" })]);
+	});
+
+	it("refuses the completion of an upload the client claims to have made", async () => {
+		const { testApp, publishedSaveHtml } = setupGated();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", GATED_URL)
+			.field("mediaType", "text/html")
+			.field("uploaded", "true");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("capture-not-allowed");
+		expect(publishedSaveHtml).toEqual([]);
+	});
+
+	it("stages nothing for a gated page inside a bulk save, saving it URL-only alongside the rest", async () => {
+		const { testApp, publishedSaveHtml } = setupGated();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field(
+				"manifest",
+				JSON.stringify([
+					{ url: GATED_URL, title: "Inbox", mediaType: "text/html" },
+					{ url: "https://example.com/real-post", title: "Real post", mediaType: "text/html" },
+				]),
+			)
+			.attach("content-0", VALID_HTML, "content-0")
+			.attach("content-1", VALID_HTML, "content-1");
+
+		expect(response.status).toBe(200);
+		expect(publishedSaveHtml.map((published) => published.url)).toEqual([
+			"https://example.com/real-post",
+		]);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles.map((article) => article.url).sort()).toEqual([
+			"https://example.com/real-post",
+			GATED_URL,
+		]);
+	});
+});

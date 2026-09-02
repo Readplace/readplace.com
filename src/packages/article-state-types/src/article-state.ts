@@ -12,6 +12,7 @@ export const ReaderFailedVariantSchema = z.enum([
 	"slow",
 	"blocked",
 	"not-found",
+	"not-an-article",
 ]);
 export type ReaderFailedVariant = z.infer<typeof ReaderFailedVariantSchema>;
 

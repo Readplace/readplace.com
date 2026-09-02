@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { nextReadDismissalOf } from "@packages/domain/article";
+import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -103,6 +104,7 @@ export function ReaderPage(
 		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 		exitMarkReadConfirm?: boolean;
 		markStatusConfirmReadlistLabels?: readonly string[];
+		readerNotice?: ReaderFailedVariant;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -162,6 +164,7 @@ export function ReaderPage(
 		crawlVersions: options.crawlVersions,
 		crawlBookmarkRemoval: options.crawlBookmarkRemoval,
 		extensionInstallUrl: options.extensionInstallUrl,
+		readerNotice: options.readerNotice,
 	});
 	const shareBalloon = renderShareBalloon({
 		shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,
