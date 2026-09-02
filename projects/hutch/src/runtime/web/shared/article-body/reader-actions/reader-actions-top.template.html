@@ -10,7 +10,7 @@
   <div class="article-body__readlists-slot article-body__readlists-slot--visible" data-test-readlists-slot>
     <details class="article-body__readlists">
       <summary class="article-body__readlists-trigger" data-test-readlists-trigger>Add to readlist {{icon "chevron-down"}}</summary>
-      <ul class="article-body__readlists-menu">
+      <ul class="article-body__readlists-menu" data-test-readlists-menu>
         {{#each readlistPicker.options}}
         <li class="article-body__readlists-item" data-test-readlists-row="{{slug}}">
           <form class="article-body__readlists-form" method="POST" action="{{../readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
