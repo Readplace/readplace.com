@@ -16,6 +16,12 @@ function reasonAsString(reason: CrawlFailureReason): string {
 			return reason.httpStatus !== undefined
 				? `fetch-failed: HTTP ${reason.httpStatus}`
 				: "fetch-failed";
+		case "origin-unreachable":
+			if (reason.httpStatus !== undefined)
+				return `origin-unreachable: HTTP ${reason.httpStatus}`;
+			if (reason.code !== undefined)
+				return `origin-unreachable: ${reason.code}`;
+			return "origin-unreachable";
 		case "exhausted-retries":
 			return "exhausted-retries";
 		case "blocked":
@@ -25,7 +31,6 @@ function reasonAsString(reason: CrawlFailureReason): string {
 	}
 }
 
-/* `writes` scoped to crawl + summary so a concurrent inline metadata/freshness writer is not clobbered. */
 export function markCrawlExhausted(
 	article: Article,
 	input: MarkCrawlExhaustedInput,
@@ -34,29 +39,31 @@ export function markCrawlExhausted(
 	effects: readonly Effect[];
 	writes: readonly AggregateField[];
 } {
-	/* A dead-lettered crawl retry can be stale: by the time it exhausts, another
-	 * path (e.g. a tier-0 extension save) may have already driven the row to
-	 * crawl=ready. Demoting that healthy row back to failed — and clobbering its
-	 * summary to crawl-failed — is a lost update that strands the reader on "We
-	 * couldn't generate a summary". Single writer per terminal state:
-	 * markCrawlExhausted only asserts crawl=failed over a not-yet-ready row. */
 	if (article.crawl.kind === "ready") {
 		return { article, effects: [], writes: [] };
 	}
 
-	const next: Article = {
-		...article,
-		crawl: { kind: "failed", reason: input.reason },
-		summary: { kind: "failed", reason: { kind: "crawl-failed" } },
-	};
+	const writes: AggregateField[] = [];
+	let crawl = article.crawl;
+	if (article.crawl.kind === "pending") {
+		crawl = { kind: "failed", reason: input.reason };
+		writes.push("crawl");
+	}
+	let summary = article.summary;
+	if (article.summary.kind === "pending") {
+		summary = { kind: "failed", reason: { kind: "crawl-failed" } };
+		writes.push("summary");
+	}
+
+	const reasonForEffect =
+		article.crawl.kind === "failed" ? article.crawl.reason : input.reason;
 	const effects: readonly Effect[] = [
 		{
 			kind: "publish-crawl-article-failed",
 			url: article.url,
-			reason: reasonAsString(input.reason),
+			reason: reasonAsString(reasonForEffect),
 			receiveCount: input.receiveCount,
 		},
 	];
-	const writes: readonly AggregateField[] = ["crawl", "summary"];
-	return { article: next, effects, writes };
+	return { article: { ...article, crawl, summary }, effects, writes };
 }

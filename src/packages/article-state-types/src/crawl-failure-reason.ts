@@ -7,6 +7,11 @@ export const CrawlFailureReasonSchema = z.discriminatedUnion("kind", [
 		httpStatus: z.number().optional(),
 	}),
 	z.object({
+		kind: z.literal("origin-unreachable"),
+		httpStatus: z.number().optional(),
+		code: z.string().optional(),
+	}),
+	z.object({
 		kind: z.literal("exhausted-retries"),
 		receiveCount: z.number(),
 	}),

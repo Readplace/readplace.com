@@ -25,6 +25,18 @@ describe("messageForCrawlFailure", () => {
 		).toContain("HTTP 503");
 	});
 
+	it("maps origin-unreachable without httpStatus to a site-was-down explanation", () => {
+		expect(
+			messageForCrawlFailure({ kind: "origin-unreachable" }),
+		).toContain("unreachable");
+	});
+
+	it("maps origin-unreachable with httpStatus to a site-was-down explanation carrying the status", () => {
+		expect(
+			messageForCrawlFailure({ kind: "origin-unreachable", httpStatus: 522 }),
+		).toContain("HTTP 522");
+	});
+
 	it("maps exhausted-retries to a retry-exhausted explanation", () => {
 		expect(
 			messageForCrawlFailure({ kind: "exhausted-retries", receiveCount: 4 }),

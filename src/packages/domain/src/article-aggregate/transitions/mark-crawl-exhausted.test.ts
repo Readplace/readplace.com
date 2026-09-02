@@ -162,6 +162,147 @@ describe("markCrawlExhausted", () => {
 		assert.equal(failed.reason, "not-found: HTTP 404");
 	});
 
+	it("stringifies origin-unreachable with httpStatus, with code, and bare", () => {
+		const { effects: withStatus } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "origin-unreachable", httpStatus: 522 },
+			receiveCount: 1,
+		});
+		const withStatusEffect = withStatus[0];
+		assert.ok(
+			withStatusEffect &&
+				withStatusEffect.kind === "publish-crawl-article-failed",
+		);
+		assert.equal(withStatusEffect.reason, "origin-unreachable: HTTP 522");
+
+		const { effects: withCode } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "origin-unreachable", code: "ENOTFOUND" },
+			receiveCount: 1,
+		});
+		const withCodeEffect = withCode[0];
+		assert.ok(
+			withCodeEffect && withCodeEffect.kind === "publish-crawl-article-failed",
+		);
+		assert.equal(withCodeEffect.reason, "origin-unreachable: ENOTFOUND");
+
+		const { effects: bare } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "origin-unreachable" },
+			receiveCount: 1,
+		});
+		const bareEffect = bare[0];
+		assert.ok(bareEffect && bareEffect.kind === "publish-crawl-article-failed");
+		assert.equal(bareEffect.reason, "origin-unreachable");
+	});
+
+	it("keeps the reason a prior inline markCrawlFailed persisted instead of clobbering it with the retry label", () => {
+		const alreadyFailed = buildArticle({
+			crawl: {
+				kind: "failed",
+				reason: { kind: "origin-unreachable", httpStatus: 522 },
+			},
+		});
+
+		const { article } = markCrawlExhausted(alreadyFailed, {
+			reason: { kind: "exhausted-retries", receiveCount: 2 },
+			receiveCount: 2,
+		});
+
+		assert.deepEqual(article.crawl, {
+			kind: "failed",
+			reason: { kind: "origin-unreachable", httpStatus: 522 },
+		});
+	});
+
+	it("writes only the summary axis when the crawl axis already carries its failure reason", () => {
+		const alreadyFailed = buildArticle({
+			crawl: {
+				kind: "failed",
+				reason: { kind: "origin-unreachable", httpStatus: 522 },
+			},
+		});
+
+		const { writes, article } = markCrawlExhausted(alreadyFailed, {
+			reason: { kind: "exhausted-retries", receiveCount: 2 },
+			receiveCount: 2,
+		});
+
+		assert.deepEqual(writes, ["summary"]);
+		assert.deepEqual(article.summary, {
+			kind: "failed",
+			reason: { kind: "crawl-failed" },
+		});
+	});
+
+	it("emits publish-crawl-article-failed with the kept reason's string, not the retry label", () => {
+		const alreadyFailed = buildArticle({
+			crawl: {
+				kind: "failed",
+				reason: { kind: "origin-unreachable", httpStatus: 522 },
+			},
+		});
+
+		const { effects } = markCrawlExhausted(alreadyFailed, {
+			reason: { kind: "exhausted-retries", receiveCount: 2 },
+			receiveCount: 2,
+		});
+
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-crawl-article-failed");
+		assert.equal(failed.reason, "origin-unreachable: HTTP 522");
+	});
+
+	it("declares no writes when both axes are already terminal, so a redelivered DLQ record is a pure re-announcement", () => {
+		const bothTerminal = buildArticle({
+			crawl: { kind: "failed", reason: { kind: "fetch-failed" } },
+			summary: { kind: "failed", reason: { kind: "crawl-failed" } },
+		});
+
+		const { writes, effects } = markCrawlExhausted(bothTerminal, {
+			reason: { kind: "exhausted-retries", receiveCount: 3 },
+			receiveCount: 3,
+		});
+
+		assert.deepEqual(writes, []);
+		assert.equal(effects.length, 1);
+	});
+
+	it("does not resurrect a summary another path already terminalised (skipped stays skipped)", () => {
+		const skippedSummary = buildArticle({
+			summary: { kind: "skipped", reason: "crawl-failed" },
+		});
+
+		const { writes, article } = markCrawlExhausted(skippedSummary, {
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
+			receiveCount: 1,
+		});
+
+		assert.deepEqual(writes, ["crawl"]);
+		assert.deepEqual(article.summary, { kind: "skipped", reason: "crawl-failed" });
+	});
+
+	it("leaves an unsupported crawl verdict in place and only terminalises the pending summary", () => {
+		const unsupported = buildArticle({
+			crawl: {
+				kind: "unsupported",
+				reason: { kind: "non-html-content", contentType: "image/png" },
+			},
+		});
+
+		const { writes, article } = markCrawlExhausted(unsupported, {
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
+			receiveCount: 1,
+		});
+
+		assert.deepEqual(writes, ["summary"]);
+		assert.deepEqual(article.crawl, {
+			kind: "unsupported",
+			reason: { kind: "non-html-content", contentType: "image/png" },
+		});
+		assert.deepEqual(article.summary, {
+			kind: "failed",
+			reason: { kind: "crawl-failed" },
+		});
+	});
+
 	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {
 		assert.equal(markCrawlExhausted.name, "markCrawlExhausted");
 	});
