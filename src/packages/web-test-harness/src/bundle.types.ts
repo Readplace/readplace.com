@@ -120,6 +120,7 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
+	OnUnpaidFirstInvoice,
 	RevokeAllUserOAuthTokens,
 	FindOAuthClient,
 	RegisterOAuthClient,
@@ -297,6 +298,7 @@ export interface SubscriptionBillingBundle {
 		customerId: string;
 		priceId: string;
 		userId: UserId;
+		onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
 		subscriptionId: string;
 	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];

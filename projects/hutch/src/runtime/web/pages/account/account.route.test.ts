@@ -1113,6 +1113,7 @@ describe("POST /account/subscribe", () => {
 		expect(created[0].priceId).toBe("price_test_default");
 		// userId rides into Stripe metadata so the subscription is traceable to this account.
 		expect(created[0].userId).toBe(userId);
+		expect(created[0].onUnpaidFirstInvoice).toBe("refuse");
 
 		// Row is now active with the NEW subscriptionId, replacing sub_was_paid.
 		const row = await subscriptionProviders.findByUserId(userId);
@@ -1137,7 +1138,13 @@ describe("POST /account/subscribe", () => {
 		// Replace the stripe subscriptions wrapper with one that throws —
 		// simulates a declined/expired saved card.
 		fixture.subscriptionBilling.createSubscriptionOnExistingCustomer = async () => {
-			throw new Error("card_declined");
+			throw new Error(
+				"Stripe createSubscriptionOnExistingCustomer failed (402): Your card was declined.",
+			);
+		};
+		const errorLines: string[] = [];
+		fixture.shared.logError = (message: string) => {
+			errorLines.push(message);
 		};
 		const harness = useApp(fixture);
 		const { subscriptionProviders } = harness;
@@ -1168,6 +1175,13 @@ describe("POST /account/subscribe", () => {
 		expect(started).toHaveLength(1);
 		expect(started[0].variant).toBe(CHECKOUT_VARIANTS.cardDeclineFallback);
 		expect(started[0].user_id).toBe(userId);
+
+		const declineLines = errorLines.filter((line) => line.includes("[subscribe/cancelled]"));
+		expect(declineLines).toHaveLength(1);
+		expect(declineLines[0]).toContain(userId);
+		expect(declineLines[0]).toContain(
+			"Stripe createSubscriptionOnExistingCustomer failed (402): Your card was declined.",
+		);
 	});
 
 	it("cancelled user — saved-card charge SUCCEEDS but the active-row upsert throws → 303 /account?error=payment_method, and NOT a card_decline_fallback checkout (the card was already charged, so it is not a decline)", async () => {

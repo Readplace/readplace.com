@@ -4,6 +4,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	DeleteCustomer,
 	FindSubscriptionNextCharge,
+	OnUnpaidFirstInvoice,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
 } from "@packages/provider-contracts/subscription-billing";
@@ -27,6 +28,11 @@ const StripeErrorResponse = z.object({
 const StripeSubscriptionResponse = z.object({
 	id: z.string(),
 });
+
+const PAYMENT_BEHAVIOR = {
+	refuse: "error_if_incomplete",
+	"leave-pending": "allow_incomplete",
+} as const satisfies Record<OnUnpaidFirstInvoice, string>;
 
 /** When cancel_at_period_end is set, Stripe populates the top-level cancel_at
  * with the exact instant the subscription will cancel (the current period end).
@@ -126,12 +132,15 @@ export function initStripeSubscriptions(deps: {
 		customerId,
 		priceId,
 		userId,
+		onUnpaidFirstInvoice,
 	}) => {
 		const body = new URLSearchParams();
 		body.set("customer", customerId);
 		body.set("items[0][price]", priceId);
 		// Traces the subscription back to its account when the customer paid under a different email.
 		body.set("metadata[userId]", userId);
+		body.set("payment_behavior", PAYMENT_BEHAVIOR[onUnpaidFirstInvoice]);
+		body.set("off_session", "true");
 
 		const response = await deps.fetch(`${STRIPE_API}/subscriptions`, {
 			method: "POST",

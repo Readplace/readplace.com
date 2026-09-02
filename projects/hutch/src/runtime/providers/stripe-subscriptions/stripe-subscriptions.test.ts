@@ -112,6 +112,7 @@ describe("initStripeSubscriptions", () => {
 				customerId: "cus_existing",
 				priceId: "price_abc",
 				userId: USER_ID,
+				onUnpaidFirstInvoice: "refuse",
 			});
 
 			assert.equal(result.subscriptionId, "sub_freshly_created");
@@ -126,7 +127,49 @@ describe("initStripeSubscriptions", () => {
 			assert.ok(body.includes("metadata%5BuserId%5D=usr_test_abc123"));
 		});
 
-		it("throws with the Stripe error message when the API returns a non-2xx", async () => {
+		it("asks Stripe to refuse a subscription whose first invoice cannot be charged, and to charge the saved card off-session", async () => {
+			let receivedBody: string | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (_input, init) => {
+				receivedBody = String(init?.body ?? "");
+				return jsonResponse(200, { id: "sub_charged" });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.createSubscriptionOnExistingCustomer({
+				customerId: "cus_existing",
+				priceId: "price_abc",
+				userId: USER_ID,
+				onUnpaidFirstInvoice: "refuse",
+			});
+
+			const params = new URLSearchParams(receivedBody);
+			assert.equal(params.get("payment_behavior"), "error_if_incomplete");
+			assert.equal(params.get("off_session"), "true");
+		});
+
+		it("lets Stripe keep an uncharged subscription when the caller asked to leave the first invoice pending", async () => {
+			let receivedBody: string | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (_input, init) => {
+				receivedBody = String(init?.body ?? "");
+				return jsonResponse(200, { id: "sub_incomplete" });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.createSubscriptionOnExistingCustomer({
+				customerId: "cus_existing",
+				priceId: "price_abc",
+				userId: USER_ID,
+				onUnpaidFirstInvoice: "leave-pending",
+			});
+
+			const params = new URLSearchParams(receivedBody);
+			assert.equal(params.get("payment_behavior"), "allow_incomplete");
+			assert.equal(params.get("off_session"), "true");
+		});
+
+		it("throws when error_if_incomplete makes Stripe answer 402 instead of creating an uncharged subscription", async () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(402, { error: { code: "card_declined", message: "Your card was declined." } });
 
@@ -138,6 +181,7 @@ describe("initStripeSubscriptions", () => {
 						customerId: "cus_declined",
 						priceId: "price_abc",
 						userId: USER_ID,
+						onUnpaidFirstInvoice: "refuse",
 					}),
 				/Stripe createSubscriptionOnExistingCustomer failed \(402\): Your card was declined\./,
 			);
@@ -155,6 +199,7 @@ describe("initStripeSubscriptions", () => {
 						customerId: "cus_x",
 						priceId: "price_y",
 						userId: USER_ID,
+						onUnpaidFirstInvoice: "refuse",
 					}),
 				/Stripe createSubscriptionOnExistingCustomer failed \(500\): Stripe error/,
 			);
@@ -172,6 +217,7 @@ describe("initStripeSubscriptions", () => {
 						customerId: "cus_y",
 						priceId: "price_z",
 						userId: USER_ID,
+						onUnpaidFirstInvoice: "refuse",
 					}),
 				/Stripe createSubscriptionOnExistingCustomer failed \(400\): Stripe error/,
 			);

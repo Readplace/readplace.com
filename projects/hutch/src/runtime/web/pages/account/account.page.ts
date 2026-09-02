@@ -659,11 +659,13 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					customerId: row.customerId,
 					priceId: deps.stripePriceId,
 					userId,
+					onUnpaidFirstInvoice: "refuse",
 				}));
 			} catch (err) {
-				deps.logger.warn(
-					"[subscribe/cancelled] saved-card charge failed — falling back to checkout",
-					{ userId, error: err instanceof Error ? err.message : String(err) },
+				deps.logger.error(
+					`[subscribe/cancelled] saved-card charge failed for ${userId} — falling back to checkout: ${
+						err instanceof Error ? err.message : String(err)
+					}`,
 				);
 				const checkout = await startCheckout(req, {
 					trialEndsAt: undefined,

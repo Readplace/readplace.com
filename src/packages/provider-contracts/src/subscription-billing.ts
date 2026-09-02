@@ -20,10 +20,13 @@ export type CancelSubscriptionImmediately = (input: {
 	subscriptionId: string;
 }) => Promise<void>;
 
+export type OnUnpaidFirstInvoice = "refuse" | "leave-pending";
+
 export type CreateSubscriptionOnExistingCustomer = (input: {
 	customerId: string;
 	priceId: string;
 	userId: UserId;
+	onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
 }) => Promise<{ subscriptionId: string }>;
 
 export type ScheduleCancellationAtPeriodEnd = (input: {

@@ -51,6 +51,7 @@ export function initSubscriptionStartRequestHandler(
 				customerId: row.customerId,
 				priceId: deps.stripePriceId,
 				userId,
+				onUnpaidFirstInvoice: "leave-pending",
 			});
 			await deps.publishSubscriptionChargeSucceeded({
 				userId,
