@@ -17,6 +17,7 @@ export {
 } from "./readlist-create";
 export {
 	decideReadlistDelete,
+	readlistAfterDelete,
 	type ReadlistDeleteDecision,
 	type ReadlistDeleteRejection,
 } from "./readlist-delete";

@@ -112,18 +112,20 @@ export function emptyStateTitle(input: { tab: TabId; readlistHoldsArticles: bool
 	return input.readlistHoldsArticles ? EMPTY_STATE_TITLES[input.tab] : NOTHING_SAVED_TITLE;
 }
 
-function readlistDeleteConfirmPanel(rail: ReadlistRailViewModel): string {
+function readlistDeleteConfirmPanels(rail: ReadlistRailViewModel): string {
 	if (!rail.canCreate) return "";
-	const active = rail.activeReadlist;
-	if (active.slug === DEFAULT_READLIST.slug) return "";
-	return renderReadlistDeleteConfirm({
-		popoverId: readlistDeleteConfirmPopoverId(active.slug),
-		url: `${readlistDeletePath(active.slug)}${readlistReturnQuery({})}`,
-		label: active.label,
-		destinations: rail.readlists.filter(
-			(readlist) => readlist.slug !== DEFAULT_READLIST.slug && readlist.slug !== active.slug,
-		),
-	});
+	const owned = rail.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST.slug);
+	const returnQuery = readlistReturnQuery({ readlist: rail.activeReadlist.slug });
+	return owned
+		.map((readlist) =>
+			renderReadlistDeleteConfirm({
+				popoverId: readlistDeleteConfirmPopoverId(readlist.slug),
+				url: `${readlistDeletePath(readlist.slug)}${returnQuery}`,
+				label: readlist.label,
+				destinations: owned.filter((other) => other.slug !== readlist.slug),
+			}),
+		)
+		.join("\n");
 }
 
 function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail: ReadlistRailViewModel; saveTip: SaveTip }): ReadlistDisplayModel {
@@ -204,7 +206,7 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 						],
 			)
 			.join("\n"),
-		readlistDeleteConfirmHtml: readlistDeleteConfirmPanel(options.rail),
+		readlistDeleteConfirmHtml: readlistDeleteConfirmPanels(options.rail),
 		readlistNavHtml: renderReadlistNav(
 			buildReadlistNav({
 				readlists: options.rail.readlists,

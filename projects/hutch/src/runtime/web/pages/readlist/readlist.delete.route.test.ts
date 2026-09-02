@@ -57,8 +57,12 @@ function deleteReadlistMovingTo(agent: TestAgent, slug: string, destination: str
 		.send({ migrate_to: destination });
 }
 
+function deleteReadlistViewing(agent: TestAgent, input: { slug: string; viewed: string }) {
+	return agent.post(`/queue/queues/${input.slug}/delete?queue=${input.viewed}`);
+}
+
 describe("POST /queue/queues/:slug/delete", () => {
-	it("drops the readlist and lands the reader back on the default one", async () => {
+	it("drops the readlist and lands the reader back on the default one they were viewing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent);
@@ -68,6 +72,29 @@ describe("POST /queue/queues/:slug/delete", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue");
 		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default"]);
+	});
+
+	it("keeps the reader on the readlist they were viewing when another one goes", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const viewed = await createReadlist(agent);
+		const deleted = await createReadlist(agent);
+
+		const response = await deleteReadlistViewing(agent, { slug: deleted, viewed });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`/queue?queue=${viewed}`);
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", viewed]);
+	});
+
+	it("sends the reader to the default readlist when the one they were viewing is the one deleted", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+
+		const response = await deleteReadlistViewing(agent, { slug, viewed: slug });
+
+		expect(response.headers.location).toBe("/queue");
 	});
 
 	it("takes the readlist's own rows with it, so nothing is left where no query can reach", async () => {
@@ -221,6 +248,20 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 			"https://example.com/moved",
 		]);
 		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", destination]);
+	});
+
+	it("keeps the reader on the destination it moved the articles to when that is the readlist being viewed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const source = await createReadlist(agent);
+		const destination = await createReadlist(agent);
+		await seedInto(harness, source, "https://example.com/moved");
+
+		const response = await deleteReadlistViewing(agent, { slug: source, viewed: destination })
+			.type("form")
+			.send({ migrate_to: destination });
+
+		expect(response.headers.location).toBe(`/queue?queue=${destination}`);
 	});
 
 	it("carries the read state the article had in the readlist it left", async () => {

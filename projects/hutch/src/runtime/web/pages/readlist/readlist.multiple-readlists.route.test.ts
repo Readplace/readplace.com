@@ -80,6 +80,42 @@ function saveFormClasses(doc: Document): string[] {
 	return form.className.split(" ");
 }
 
+function deleteTriggerTargets(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll('[data-test-action="readlist-delete"]'), (el) =>
+		el.getAttribute("popovertarget"),
+	);
+}
+
+function deleteConfirmPanels(doc: Document): Element[] {
+	return Array.from(doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]'));
+}
+
+function migrateTargetsOf(panel: Element): (string | null)[] {
+	return Array.from(panel.querySelectorAll("[data-test-migrate-target]"), (el) =>
+		el.getAttribute("data-test-migrate-target"),
+	);
+}
+
+function deleteFallbackActions(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll(".readlist-nav__delete-fallback"), (form) => {
+		const action = form.getAttribute("action");
+		assert(action, "every delete fallback must post somewhere");
+		return action;
+	});
+}
+
+function deleteConfirmActions(doc: Document): string[] {
+	return deleteConfirmPanels(doc).map((panel) => {
+		const action = panel.querySelector("form")?.getAttribute("action");
+		assert(action, "every delete confirmation must post somewhere");
+		return action;
+	});
+}
+
+function viewedReadlistOf(action: string): string | null {
+	return new URL(action, TEST_APP_ORIGIN).searchParams.get("queue");
+}
+
 describe("POST /queue/queues", () => {
 	it("creates the readlist on the spot and lands the reader on it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -420,5 +456,51 @@ describe("the readlist every reader is given", () => {
 
 		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([]);
 		expect((await agent.get("/queue/counts")).text).toContain("To Read (0)");
+	});
+});
+
+describe("the readlists the reader made, seen from the rail", () => {
+	it("offers each owned readlist for deleting from the rail, with a confirmation of its own", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const first = await createReadlistAndOpen(agent);
+		const second = await createReadlistAndOpen(agent);
+
+		const doc = parse((await agent.get("/queue")).text);
+
+		const panels = deleteConfirmPanels(doc);
+		expect(deleteTriggerTargets(doc)).toEqual([
+			`readlist-remove-confirm-${first}`,
+			`readlist-remove-confirm-${second}`,
+		]);
+		expect(panels.map((panel) => panel.getAttribute("id"))).toEqual(deleteTriggerTargets(doc));
+		expect(panels.map(migrateTargetsOf)).toEqual([[second], [first]]);
+		expect(deleteFallbackActions(doc)).toEqual([
+			`/queue/queues/${first}/delete`,
+			`/queue/queues/${second}/delete`,
+		]);
+	});
+
+	it("carries the readlist being viewed on every delete", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const viewed = await createReadlistAndOpen(agent);
+		await createReadlistAndOpen(agent);
+
+		const doc = parse((await agent.get(`/queue?queue=${viewed}`)).text);
+
+		expect(deleteFallbackActions(doc).map(viewedReadlistOf)).toEqual([viewed, viewed]);
+		expect(deleteConfirmActions(doc).map(viewedReadlistOf)).toEqual([viewed, viewed]);
+	});
+
+	it("never offers a readlist the reader is not on for renaming, even though it offers it for deleting", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const readlist = await createReadlistAndOpen(agent);
+
+		const doc = parse((await agent.get("/queue")).text);
+
+		expect(renameable(doc)).toEqual([]);
+		expect(deleteTriggerTargets(doc)).toEqual([`readlist-remove-confirm-${readlist}`]);
 	});
 });

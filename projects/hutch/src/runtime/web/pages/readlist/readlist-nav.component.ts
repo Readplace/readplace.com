@@ -33,6 +33,7 @@ export interface ReadlistNavItem extends ReadlistNavRename, ReadlistNavDelete {
 	href: string;
 	title: string;
 	name: string;
+	itemClass: string;
 	linkClass: string;
 	isActive: boolean;
 }
@@ -45,6 +46,14 @@ export interface ReadlistNavDisplayModel {
 
 export function readlistNavLinkClass(isActive: boolean): string {
 	return `readlist-nav__link${isActive ? " readlist-nav__link--active" : ""}`;
+}
+
+function readlistNavItemClass(input: { isActive: boolean; isDeletable: boolean }): string {
+	const modifiers = [
+		input.isDeletable ? " readlist-nav__item--deletable" : "",
+		input.isActive ? " readlist-nav__item--active" : "",
+	];
+	return `readlist-nav__item${modifiers.join("")}`;
 }
 
 function navRename(input: {
@@ -65,15 +74,14 @@ function navRename(input: {
 
 function navDelete(input: {
 	slug: ReadlistSlug;
-	isActive: boolean;
+	viewedSlug: ReadlistSlug;
 	canDelete: boolean;
 }): ReadlistNavDelete {
-	const isDeletable =
-		input.canDelete && input.isActive && input.slug !== DEFAULT_READLIST_SLUG;
+	const isDeletable = input.canDelete && input.slug !== DEFAULT_READLIST_SLUG;
 	if (!isDeletable) return { isDeletable: false };
 	return {
 		isDeletable: true,
-		deleteAction: `${readlistDeletePath(input.slug)}${readlistReturnQuery({})}`,
+		deleteAction: `${readlistDeletePath(input.slug)}${readlistReturnQuery({ readlist: input.viewedSlug })}`,
 		deletePopoverId: readlistDeleteConfirmPopoverId(input.slug),
 	};
 }
@@ -87,6 +95,11 @@ export function buildReadlistNav(input: {
 	return {
 		items: input.readlists.map((readlist) => {
 			const isActive = readlist.slug === input.activeSlug;
+			const remove = navDelete({
+				slug: readlist.slug,
+				viewedSlug: input.activeSlug,
+				canDelete: input.canCreate,
+			});
 			return {
 				href: withInternalTracking(buildReadlistUrl({ readlist: readlist.slug }), {
 					source: "queue-nav",
@@ -94,6 +107,7 @@ export function buildReadlistNav(input: {
 				}),
 				title: readlist.label,
 				name: readlist.slug,
+				itemClass: readlistNavItemClass({ isActive, isDeletable: remove.isDeletable }),
 				linkClass: readlistNavLinkClass(isActive),
 				isActive,
 				...navRename({
@@ -101,11 +115,7 @@ export function buildReadlistNav(input: {
 					isActive,
 					canRename: input.canCreate,
 				}),
-				...navDelete({
-					slug: readlist.slug,
-					isActive,
-					canDelete: input.canCreate,
-				}),
+				...remove,
 			};
 		}),
 		newReadlistAction: input.newReadlistAction,

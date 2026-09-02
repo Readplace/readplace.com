@@ -163,6 +163,7 @@ import {
 	decideReadlistRename,
 	defaultReadlistLabel,
 	generateReadlistSlug,
+	readlistAfterDelete,
 } from "@packages/domain/readlist";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import {
@@ -2112,7 +2113,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				unknownReadlist();
 				return;
 			}
-			res.redirect(303, buildReadlistUrl({}));
+			res.redirect(
+				303,
+				buildReadlistUrl({
+					readlist: readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug }),
+				}),
+			);
 		},
 	);
 
