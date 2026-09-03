@@ -92,11 +92,11 @@ A run reporting `action_required` with no jobs is waiting for a human to let it 
 
 On `main` the workflow goes on to deploy, so a deploy is the expected consequence of the approval rather than a surprise.
 
-`gh run` has no `approve` subcommand; the REST API carries it:
+`gh run` has no `approve` subcommand; the REST API carries it, but only for two of the three ways a run is held:
 
 | Held on | Release with |
 |---|---|
-| A run whose jobs never started | `gh api -X POST repos/{owner}/{repo}/actions/runs/<id>/approve` |
+| A fork pull request, or a run the Actions bot queued | `gh api -X POST repos/{owner}/{repo}/actions/runs/<id>/approve` |
 | A job at an environment gate (`pending_deployments` returns a non-empty array) | `POST` the same run's `pending_deployments`, supplying its required `environment_ids`, `state`, and `comment` |
 
-A run that already concluded `action_required` restarts with `gh run rerun <id>` — approval applies to one still waiting.
+The third way has no CLI release at all, so do not spend calls hunting for one: a **push** run held by an org policy — non-fork, no jobs, `pending_deployments` empty — refuses `approve` (`403 not from a fork pull request or queued by the Actions bot`), `gh run rerun` (`cannot be retried through the API`), and both check-suite rerequests (REST `404`, GraphQL `can only be accessed by a GitHub App`). Ask the human to approve it in the web UI, or land a further push; a `workflow_dispatch` re-trigger is not a substitute when the job being waited on is gated on `github.event_name == 'push'`.
