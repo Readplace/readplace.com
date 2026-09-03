@@ -74,6 +74,20 @@ test.describe("Add-to-readlist picker light dismiss", () => {
 			.toBe(false);
 	});
 
+	test("Escape closes it and puts focus back on the trigger", async ({ page }, testInfo) => {
+		await openOwnerReaderWithPicker(page, `escape-${testInfo.workerIndex}-${Date.now()}`);
+
+		await page.click(TRIGGER);
+		await page.locator(CREATE_INPUT).click();
+		expect(await pickerIsOpen(page)).toBe(true);
+
+		await page.keyboard.press("Escape");
+		await expect
+			.poll(() => pickerIsOpen(page))
+			.toBe(false);
+		await expect(page.locator(TRIGGER)).toBeFocused();
+	});
+
 	test("the trigger still toggles it shut on its own", async ({ page }, testInfo) => {
 		await openOwnerReaderWithPicker(page, `toggle-${testInfo.workerIndex}-${Date.now()}`);
 

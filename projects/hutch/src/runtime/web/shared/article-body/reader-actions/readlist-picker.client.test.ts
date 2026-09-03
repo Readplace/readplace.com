@@ -29,6 +29,18 @@ function attachedDom(bodyHtml: string = TOOLBAR): JSDOM {
 	return dom;
 }
 
+function pressKey(dom: JSDOM, key: string): void {
+	dom.window.document.dispatchEvent(
+		new dom.window.KeyboardEvent("keydown", { key, bubbles: true }),
+	);
+}
+
+function focusOn(dom: JSDOM, selector: string): void {
+	const target = dom.window.document.querySelector(selector);
+	assert(target instanceof dom.window.HTMLElement, `"${selector}" must be focusable`);
+	target.focus();
+}
+
 function clickOn(dom: JSDOM, selector: string): void {
 	const target = dom.window.document.querySelector(selector);
 	assert(target, `"${selector}" must be in the fixture to be clicked`);
@@ -93,5 +105,58 @@ describe("readlist picker light dismiss", () => {
 
 		expect(first.hasAttribute("open")).toBe(false);
 		expect(second.hasAttribute("open")).toBe(true);
+	});
+});
+
+describe("readlist picker escape", () => {
+	it("closes on Escape and hands focus back to the trigger the reader opened", () => {
+		const dom = attachedDom();
+		focusOn(dom, ".article-body__readlists-create-input");
+
+		pressKey(dom, "Escape");
+
+		expect(isOpen(dom)).toBe(false);
+		expect(dom.window.document.activeElement?.className).toBe("article-body__readlists-trigger");
+	});
+
+	it("closes on Escape pressed from outside without stealing focus into the toolbar", () => {
+		const dom = attachedDom();
+		focusOn(dom, ".article-body__mark-read");
+
+		pressKey(dom, "Escape");
+
+		expect(isOpen(dom)).toBe(false);
+		expect(dom.window.document.activeElement?.className).toBe("article-body__mark-read");
+	});
+
+	it("leaves every other key to the page", () => {
+		const dom = attachedDom();
+
+		pressKey(dom, "Enter");
+
+		expect(isOpen(dom)).toBe(true);
+	});
+
+	it("does not move focus for a picker that was already closed", () => {
+		const dom = attachedDom(picker("closed"));
+		focusOn(dom, ".article-body__readlists-create-input");
+
+		pressKey(dom, "Escape");
+
+		expect(isOpen(dom)).toBe(false);
+		expect(dom.window.document.activeElement?.className).toBe(
+			"article-body__readlists-create-input",
+		);
+	});
+
+	it("still closes a picker whose trigger is missing rather than throwing", () => {
+		const dom = attachedDom(
+			`<details class="article-body__readlists" open><ul class="article-body__readlists-menu"><li><input class="article-body__readlists-create-input"></li></ul></details>`,
+		);
+		focusOn(dom, ".article-body__readlists-create-input");
+
+		pressKey(dom, "Escape");
+
+		expect(isOpen(dom)).toBe(false);
 	});
 });
