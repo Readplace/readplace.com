@@ -4,6 +4,8 @@ import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { IconName } from "@packages/ui-icons";
 import { type Component, HtmlPage, render } from "@packages/web-shell";
 
+export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker.client.js" defer></script>`;
+
 const TOP_TEMPLATE = readFileSync(join(__dirname, "reader-actions-top.template.html"), "utf-8");
 const BOTTOM_TEMPLATE = readFileSync(join(__dirname, "reader-actions-bottom.template.html"), "utf-8");
 

@@ -253,6 +253,19 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/article-body/reader-actions/readlist-picker.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "readlist-picker.client.js"),
+    globalName: "ReadlistPicker",
+    footer: [
+      "ReadlistPicker.initReadlistPicker({",
+      "  document: window.document",
+      "}).attach();",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/save/save-error.client.ts",
     ),
     outfile: path.join(OUT_DIR, "save-error.client.js"),

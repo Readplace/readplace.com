@@ -1,0 +1,97 @@
+import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
+import { initReadlistPicker } from "./readlist-picker.client";
+
+function picker(state: "open" | "closed"): string {
+	return `<details class="article-body__readlists"${state === "open" ? " open" : ""}>
+	<summary class="article-body__readlists-trigger">Add</summary>
+	<ul class="article-body__readlists-menu">
+		<li><form class="article-body__readlists-form"><button type="submit">Work</button></form></li>
+		<li><form class="article-body__readlists-create"><input class="article-body__readlists-create-input" name="label"></form></li>
+	</ul>
+</details>`;
+}
+
+const PICKER = picker("open");
+
+const TOOLBAR = `<div class="article-body__actions article-body__actions--top">
+	<a class="article-body__back" href="/queue">Back</a>
+	${PICKER}
+	<button class="article-body__mark-read" type="submit">Read</button>
+</div>
+<article class="reader__body"><p id="body-copy">The article itself.</p></article>`;
+
+function attachedDom(bodyHtml: string = TOOLBAR): JSDOM {
+	const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}</body></html>`, {
+		url: "https://readplace.com/queue/abc/view",
+	});
+	initReadlistPicker({ document: dom.window.document }).attach();
+	return dom;
+}
+
+function clickOn(dom: JSDOM, selector: string): void {
+	const target = dom.window.document.querySelector(selector);
+	assert(target, `"${selector}" must be in the fixture to be clicked`);
+	target.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+}
+
+function isOpen(dom: JSDOM): boolean {
+	const picker = dom.window.document.querySelector(".article-body__readlists");
+	assert(picker, "the picker must be in the fixture");
+	return picker.hasAttribute("open");
+}
+
+describe("readlist picker light dismiss", () => {
+	it("closes when the click lands on the article behind it", () => {
+		const dom = attachedDom();
+
+		clickOn(dom, "#body-copy");
+
+		expect(isOpen(dom)).toBe(false);
+	});
+
+	it("closes when the click lands on another control in the same toolbar", () => {
+		const dom = attachedDom();
+
+		clickOn(dom, ".article-body__mark-read");
+
+		expect(isOpen(dom)).toBe(false);
+	});
+
+	it("stays open while the reader is typing a new readlist name inside it", () => {
+		const dom = attachedDom();
+
+		clickOn(dom, ".article-body__readlists-create-input");
+
+		expect(isOpen(dom)).toBe(true);
+	});
+
+	it("stays open when the click lands on one of its own assign buttons", () => {
+		const dom = attachedDom();
+
+		clickOn(dom, ".article-body__readlists-form button");
+
+		expect(isOpen(dom)).toBe(true);
+	});
+
+	it("does not undo the trigger's own click as the browser opens it", () => {
+		const dom = attachedDom(picker("closed"));
+
+		clickOn(dom, ".article-body__readlists-trigger");
+
+		expect(isOpen(dom)).toBe(true);
+	});
+
+	it("closes a picker the reader left open when a second one is opened", () => {
+		const dom = attachedDom(`${picker("open")}<div id="second">${picker("closed")}</div>`);
+		const [first, second] = Array.from(
+			dom.window.document.querySelectorAll(".article-body__readlists"),
+		);
+		assert(first && second, "the fixture must carry two pickers");
+
+		clickOn(dom, "#second .article-body__readlists-trigger");
+
+		expect(first.hasAttribute("open")).toBe(false);
+		expect(second.hasAttribute("open")).toBe(true);
+	});
+});

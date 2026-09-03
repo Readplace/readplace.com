@@ -12,9 +12,10 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
-import type {
-	MarkReadAction,
-	RenderReaderActions,
+import {
+	type MarkReadAction,
+	READLIST_PICKER_SCRIPT,
+	type RenderReaderActions,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
 import {
@@ -228,6 +229,7 @@ export function ReaderPage(
 				PROGRESS_BAR_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
+				(options.readlistFiling.picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
 				(exitMarkReadConfirm ? READER_EXIT_CONFIRM_SCRIPT : ""),
 		}),
 	};
