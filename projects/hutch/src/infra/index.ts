@@ -28,6 +28,7 @@ import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-
 import { assertExcludedUserIds, assertExcludedVisitorIds } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
+import { parseStripePriceId } from "../runtime/domain/stripe/stripe-price-id";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
@@ -379,9 +380,18 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		APPLE_LOGIN_PRIVATE_KEY_BASE64: requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"),
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
-		STRIPE_PRICE_ID_MONTHLY: requireEnv("STRIPE_PRICE_ID_MONTHLY"),
-		STRIPE_PRICE_ID_YEARLY: requireEnv("STRIPE_PRICE_ID_YEARLY"),
-		STRIPE_PRICE_ID_TRIENNIAL: requireEnv("STRIPE_PRICE_ID_TRIENNIAL"),
+		STRIPE_PRICE_ID_MONTHLY: parseStripePriceId({
+			name: "STRIPE_PRICE_ID_MONTHLY",
+			value: requireEnv("STRIPE_PRICE_ID_MONTHLY"),
+		}),
+		STRIPE_PRICE_ID_YEARLY: parseStripePriceId({
+			name: "STRIPE_PRICE_ID_YEARLY",
+			value: requireEnv("STRIPE_PRICE_ID_YEARLY"),
+		}),
+		STRIPE_PRICE_ID_TRIENNIAL: parseStripePriceId({
+			name: "STRIPE_PRICE_ID_TRIENNIAL",
+			value: requireEnv("STRIPE_PRICE_ID_TRIENNIAL"),
+		}),
 		STRIPE_PUBLISHABLE_KEY: requireEnv("STRIPE_PUBLISHABLE_KEY"),
 		STATIC_BASE_URL: staticAssets.baseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1024,9 +1034,18 @@ const subscriptionEventsLambda = new HutchLambda(LAMBDA_NAMES.subscriptionEvents
 	environment: {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
-		STRIPE_PRICE_ID_MONTHLY: requireEnv("STRIPE_PRICE_ID_MONTHLY"),
-		STRIPE_PRICE_ID_YEARLY: requireEnv("STRIPE_PRICE_ID_YEARLY"),
-		STRIPE_PRICE_ID_TRIENNIAL: requireEnv("STRIPE_PRICE_ID_TRIENNIAL"),
+		STRIPE_PRICE_ID_MONTHLY: parseStripePriceId({
+			name: "STRIPE_PRICE_ID_MONTHLY",
+			value: requireEnv("STRIPE_PRICE_ID_MONTHLY"),
+		}),
+		STRIPE_PRICE_ID_YEARLY: parseStripePriceId({
+			name: "STRIPE_PRICE_ID_YEARLY",
+			value: requireEnv("STRIPE_PRICE_ID_YEARLY"),
+		}),
+		STRIPE_PRICE_ID_TRIENNIAL: parseStripePriceId({
+			name: "STRIPE_PRICE_ID_TRIENNIAL",
+			value: requireEnv("STRIPE_PRICE_ID_TRIENNIAL"),
+		}),
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		EVENT_BUS_ARN: eventBus.eventBusArn,
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
