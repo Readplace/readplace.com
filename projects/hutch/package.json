@@ -37,6 +37,7 @@
     "compile": "rm -rf dist && tsc && node scripts/build-client-bundles.js && node scripts/copy-static-assets.js",
     "check-unused-css": "node scripts/check-unused-css.js",
     "generate-brand-assets": "node scripts/generate-brand-assets.mjs",
+    "media": "node scripts/media/cli.mjs",
     "sync-disposable-domains": "node scripts/sync-disposable-domains.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"editorconfig-checker\" \"pnpm check-unused-css\"",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",

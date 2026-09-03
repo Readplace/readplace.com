@@ -1,0 +1,64 @@
+{
+  "origin": "https://readplace.com",
+  "volatile": [
+    "[data-test-onboarding]",
+    "[data-test-subscription-banner]",
+    "[data-test-verify-banner]",
+    "[data-test-changelog]",
+    "[data-test-trial-countdown]",
+    "[data-test-extension-suggestion-banner]",
+    ".offline-banner"
+  ],
+  "stills": {
+    "readlist-1440": { "page": "readlist", "viewport": [1440, 900] },
+    "readlist-1280": { "page": "readlist", "viewport": [1280, 800] },
+    "reader-1440": { "page": "reader", "viewport": [1440, 900] },
+    "reader-1280": { "page": "reader", "viewport": [1280, 800] },
+    "import-1280": { "page": "import", "viewport": [1280, 800] }
+  },
+  "linksPage": "https://news.ycombinator.com/",
+  "outputs": [
+    {
+      "file": "projects/hutch/static-assets/screenshots/queue.webp",
+      "still": "readlist-1440",
+      "callout": { "around": "#latest-saved", "pad": [26, 22], "arrowFrom": "e", "stroke": 7 }
+    },
+    {
+      "file": "projects/hutch/static-assets/screenshots/reader-tldr.webp",
+      "still": "reader-1440",
+      "callout": { "around": ".article-body__summary-heading", "pad": [22, 16], "arrowFrom": "e", "stroke": 7, "tight": true }
+    },
+    {
+      "file": "projects/hutch/static-assets/screenshots/og-install-1200x630.png",
+      "still": "readlist-1440",
+      "cropBelow": "header.header",
+      "size": [1200, 630]
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/02-queue.png",
+      "still": "readlist-1280",
+      "callout": { "around": "#latest-saved", "pad": [26, 22], "arrowFrom": "e", "stroke": 9 }
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/03-reader-tldr.png",
+      "still": "reader-1280",
+      "callout": { "around": ".article-body__summary-heading", "pad": [22, 16], "arrowFrom": "e", "stroke": 9, "tight": true }
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/04-import-links.png",
+      "still": "import-1280",
+      "callout": { "around": "[data-test-action=\"import-commit\"]", "pad": [30, 18], "arrowFrom": "se", "stroke": 9 }
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/01-save-from-extension.png",
+      "source": "projects/hutch/test-results/media/chrome-save-demo/saved-still.png",
+      "size": [1280, 800],
+      "callout": { "around": [797, 84, 352, 200], "pad": [24, 14], "arrowFrom": "w", "stroke": 9 }
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/promo-marquee-1400x560.png",
+      "still": "readlist-1440",
+      "card": { "rect": [727, 90, 608, 380], "radius": 12 }
+    }
+  ]
+}
