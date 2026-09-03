@@ -32,6 +32,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	ResolvePriceId,
 	FindSubscriptionNextCharge,
 	ReverseScheduledCancellation,
 	SubscriptionNextCharge,
@@ -116,7 +117,7 @@ interface AccountDependencies {
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	storePendingSignup: StorePendingSignup;
-	stripePriceIds: Record<BillingPlan, string>;
+	resolvePriceId: ResolvePriceId;
 	buildCheckoutSuccessUrl: (sessionIdPlaceholder: string) => string;
 	appOrigin: string;
 	logger: HutchLogger;
@@ -587,7 +588,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 		const checkout = await deps.createCheckoutSession({
 			customerEmail: email,
-			priceId: deps.stripePriceIds[params.plan],
+			priceId: await deps.resolvePriceId(params.plan),
 			successUrl: deps.buildCheckoutSuccessUrl("{CHECKOUT_SESSION_ID}"),
 			cancelUrl: `${deps.appOrigin}${buildAccountUrl()}`,
 			trialEndsAt: params.trialEndsAt,
@@ -679,7 +680,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			try {
 				({ subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 					customerId: row.customerId,
-					priceId: deps.stripePriceIds[plan],
+					priceId: await deps.resolvePriceId(plan),
 					userId,
 					onUnpaidFirstInvoice: "refuse",
 				}));

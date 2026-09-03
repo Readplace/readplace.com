@@ -491,11 +491,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		trialScheduler,
 		subscriptionBilling,
 		paymentMethods,
-		stripePriceIds: {
-			monthly: "price_test_monthly",
-			yearly: "price_test_yearly",
-			triennial: "price_test_triennial",
-		},
+		resolvePriceId: async (plan) => `price_test_${plan}`,
 		stripePublishableKey: "pk_test_default",
 		botDefense: { logger: botDefenseLogger, events: botDefenseEvents },
 		conversions: { logger: conversionLogger, events: conversionEvents },

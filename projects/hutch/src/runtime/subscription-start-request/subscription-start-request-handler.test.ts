@@ -57,7 +57,7 @@ function buildSubject(opts?: { stripeFails?: boolean }): Subject {
 		createSubscriptionOnExistingCustomer: stripe.createSubscriptionOnExistingCustomer,
 		publishSubscriptionChargeSucceeded,
 		publishSubscriptionChargeFailed,
-		stripePriceIds: STRIPE_PRICE_IDS,
+		resolvePriceId: async (plan) => STRIPE_PRICE_IDS[plan],
 		logger: HutchLogger.from(noopLogger),
 	});
 	return { handler, providers, stripe, succeededEvents, failedEvents };

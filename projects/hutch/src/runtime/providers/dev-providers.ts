@@ -1,5 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
@@ -416,11 +417,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		findSubscriptionNextCharge: devStripeSubscriptions.findSubscriptionNextCharge,
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods: devPaymentMethods,
-		stripePriceIds: {
-			monthly: "price_dev_monthly",
-			yearly: "price_dev_yearly",
-			triennial: "price_dev_triennial",
-		},
+		resolvePriceId: async (plan: BillingPlan) => `price_dev_${plan}`,
 		stripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY"),
 
 		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),

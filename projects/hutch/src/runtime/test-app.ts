@@ -282,7 +282,7 @@ function flattenFixtureToAppDependencies(
 			removeCard: fixture.paymentMethods.removeCard,
 			setPrimaryCard: fixture.paymentMethods.setPrimaryCard,
 		},
-		stripePriceIds: fixture.stripePriceIds,
+		resolvePriceId: fixture.resolvePriceId,
 		stripePublishableKey: fixture.stripePublishableKey,
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,

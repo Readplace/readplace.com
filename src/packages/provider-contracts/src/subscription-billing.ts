@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { BillingPlan } from "./subscription-providers";
 import type { UserId } from "@packages/domain/user";
 
 export const SubscriptionNextChargeSchema = z.object({
@@ -38,3 +39,9 @@ export type ReverseScheduledCancellation = (input: {
 }) => Promise<{ trialEndsAt?: string }>;
 
 export type DeleteCustomer = (input: { customerId: string }) => Promise<void>;
+
+/** Resolves the provider's price id for a plan. The id is discovered from the
+ * provider by the plan's stable lookup key rather than configured per
+ * environment, so each environment's own credentials find their own prices and
+ * there is no id to copy between them. */
+export type ResolvePriceId = (plan: BillingPlan) => Promise<string>;

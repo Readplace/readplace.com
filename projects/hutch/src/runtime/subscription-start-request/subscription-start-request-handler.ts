@@ -10,10 +10,12 @@ import { SubscriptionStartRequestCommand } from "@packages/hutch-infra-component
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	DEFAULT_BILLING_PLAN,
-	type BillingPlan,
 	type FindSubscriptionByUserId,
 } from "@packages/provider-contracts/subscription-providers";
-import type { CreateSubscriptionOnExistingCustomer } from "@packages/provider-contracts/subscription-billing";
+import type {
+	CreateSubscriptionOnExistingCustomer,
+	ResolvePriceId,
+} from "@packages/provider-contracts/subscription-billing";
 import type {
 	PublishSubscriptionChargeFailed,
 	PublishSubscriptionChargeSucceeded,
@@ -24,7 +26,7 @@ interface HandlerDeps {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	publishSubscriptionChargeSucceeded: PublishSubscriptionChargeSucceeded;
 	publishSubscriptionChargeFailed: PublishSubscriptionChargeFailed;
-	stripePriceIds: Record<BillingPlan, string>;
+	resolvePriceId: ResolvePriceId;
 	logger: HutchLogger;
 }
 
@@ -54,7 +56,7 @@ export function initSubscriptionStartRequestHandler(
 		try {
 			const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 				customerId: row.customerId,
-				priceId: deps.stripePriceIds[plan],
+				priceId: await deps.resolvePriceId(plan),
 				userId,
 				onUnpaidFirstInvoice: "leave-pending",
 			});

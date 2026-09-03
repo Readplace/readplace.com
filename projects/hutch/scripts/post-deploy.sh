@@ -40,6 +40,26 @@ verify() {
   return 1
 }
 
+start_phase "checking every plan's Stripe price exists in the $STACK account"
+# The price ids are discovered by lookup key at runtime, so the mistake this
+# catches is a plan whose price is missing or archived in THIS account — the
+# staging run gates prod, which cannot deploy until staging passes.
+LOOKUP_KEYS=$(node -p "Object.values(require('./dist/runtime/domain/stripe/stripe-price-lookup-keys').STRIPE_PRICE_LOOKUP_KEYS).join('\\n')")
+for lookup_key in $LOOKUP_KEYS; do
+  matches=$(curl --fail --silent --show-error --max-time 30 --get "https://api.stripe.com/v1/prices" \
+    --user "${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is not set}:" \
+    --data-urlencode "active=true" \
+    --data-urlencode "lookup_keys[]=$lookup_key" \
+    | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).data.length")
+  if [ "$matches" != "1" ]; then
+    echo "No active Stripe price with lookup key '$lookup_key' in the $STACK account (found $matches)."
+    echo "Create the price with that lookup key in this account, or reactivate it, then redeploy."
+    exit 1
+  fi
+  echo "  $lookup_key -> 1 active price"
+done
+finish_phase
+
 start_phase "checking /, /embed and /embed/icon.svg respond"
 verify ""
 verify "/embed"

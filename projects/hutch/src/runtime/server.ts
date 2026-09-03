@@ -37,7 +37,6 @@ import type {
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
 import type {
-	BillingPlan,
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	SetSubscriptionNextCharge,
@@ -60,6 +59,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	ResolvePriceId,
 	FindSubscriptionNextCharge,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/subscription-billing";
@@ -443,7 +443,7 @@ interface AppDependencies {
 		removeCard: RemoveCard;
 		setPrimaryCard: SetPrimaryCard;
 	};
-	stripePriceIds: Record<BillingPlan, string>;
+	resolvePriceId: ResolvePriceId;
 	stripePublishableKey: string | undefined;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
@@ -1389,7 +1389,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,
 		storePendingSignup: deps.storePendingSignup,
-		stripePriceIds: deps.stripePriceIds,
+		resolvePriceId: deps.resolvePriceId,
 		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
 			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
 		appOrigin,

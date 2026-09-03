@@ -16,7 +16,6 @@ import { initSkipReservedDomain } from "./email/skip-reserved-domain";
 import { initDynamoDbEmailVerification } from "./email-verification/dynamodb-email-verification";
 import { initDynamoDbPasswordReset } from "./password-reset/dynamodb-password-reset";
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
-import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { initDynamoDbRateLimit } from "./rate-limit/dynamodb-rate-limit";
 import { initDynamoDbGeneratedSummary, initDynamoDbRelatedArticles } from "@packages/article-store";
@@ -25,6 +24,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { initS3ReadContent, initS3ReadArticleImage } from "@packages/article-store";
 import { initStripeSubscriptions } from "./stripe-subscriptions/stripe-subscriptions";
+import { initStripePrices } from "./stripe-prices/stripe-prices";
 import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-payment-methods";
 import { initAwsTrialScheduler } from "./trial-scheduler/aws-trial-scheduler";
 import { initReadArticleContent } from "@packages/article-store";
@@ -107,11 +107,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const appOriginForRedirect = input.appOrigin;
 	const resendApiKey = requireEnv("RESEND_API_KEY");
 	const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
-	const stripePriceIds = {
-		monthly: requireEnv("STRIPE_PRICE_ID_MONTHLY"),
-		yearly: requireEnv("STRIPE_PRICE_ID_YEARLY"),
-		triennial: requireEnv("STRIPE_PRICE_ID_TRIENNIAL"),
-	} satisfies Record<BillingPlan, string>;
 	const stripePublishableKey = requireEnv("STRIPE_PUBLISHABLE_KEY");
 	const eventBusName = requireEnv("EVENT_BUS_NAME");
 	const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
@@ -235,6 +230,10 @@ export function initProdProviders(input: { appOrigin: string }) {
 		fetch: globalThis.fetch,
 	});
 	const stripeSubscriptions = initStripeSubscriptions({
+		apiKey: stripeApiKey,
+		fetch: globalThis.fetch,
+	});
+	const stripePrices = initStripePrices({
 		apiKey: stripeApiKey,
 		fetch: globalThis.fetch,
 	});
@@ -366,7 +365,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		findSubscriptionNextCharge: stripeSubscriptions.findSubscriptionNextCharge,
 		reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods,
-		stripePriceIds,
+		resolvePriceId: stripePrices.resolvePriceId,
 		stripePublishableKey,
 
 		...initSkipReservedDomain({

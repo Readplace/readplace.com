@@ -157,12 +157,12 @@ import type {
 	ReadArticleImage,
 	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
-	BillingPlan,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
 	RecordNextReadStepOutstanding,
 	RefreshArticleIfStale,
+	ResolvePriceId,
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
 	SaveAppleRefreshToken,
@@ -606,7 +606,7 @@ export interface TestAppFixture {
 	trialScheduler: TrialSchedulerBundle;
 	subscriptionBilling: SubscriptionBillingBundle;
 	paymentMethods: PaymentMethodsBundle;
-	stripePriceIds: Record<BillingPlan, string>;
+	resolvePriceId: ResolvePriceId;
 	/** Public Stripe publishable key embedded in the card-add Elements form.
 	 * `undefined` models local dev without a key — the page then renders the
 	 * list/remove/promote actions but not the add form. */
