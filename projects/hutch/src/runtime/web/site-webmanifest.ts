@@ -1,4 +1,12 @@
 import { APPLE_APP_ID, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
+import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
+
+const RELATED_APPLICATION_BY_NATIVE_APP = {
+	iphone: { platform: "itunes", url: IPHONE_APP_STORE_URL, id: APPLE_APP_ID },
+} satisfies Record<
+	AdvertisedClientNameInGroup<"nativeApp">,
+	{ platform: string; url: string; id: string }
+>;
 
 type ManifestIcon = {
 	src: string;
@@ -36,9 +44,7 @@ export function buildSiteWebmanifest(staticBaseUrl: string): string {
 			background_color: "#2B3A55",
 			theme_color: "#2B3A55",
 			icons,
-			related_applications: [
-				{ platform: "itunes", url: IPHONE_APP_STORE_URL, id: APPLE_APP_ID },
-			],
+			related_applications: Object.values(RELATED_APPLICATION_BY_NATIVE_APP),
 			/** One manifest is served to every platform, and the Android app has no
 			 * Play Store listing to name here yet, so preferring the native app would
 			 * suppress the installable web app on Android and desktop Chrome, where
