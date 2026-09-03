@@ -99,6 +99,7 @@ const ArticleRow = z.object({
 	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
 	purgedAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
+	contentFetchedAt: dynamoField(z.string()),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
@@ -165,6 +166,7 @@ function toSavedArticle(
 		status: userArticle.status,
 		savedAt: new Date(userArticle.savedAt),
 		readAt: toOptionalDate(userArticle.readAt),
+		contentFetchedAt: toOptionalDate(article.contentFetchedAt),
 		provenance: userArticle.provenance,
 		relatedDismissedAt: toOptionalDate(userArticle.relatedDismissedAt),
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,

@@ -32,6 +32,7 @@ export interface SavedArticle {
 	status: ArticleStatus;
 	savedAt: Date;
 	readAt?: Date;
+	contentFetchedAt?: Date;
 	/** Where this save came from. Absent on rows saved before provenance was
 	 * captured; a re-save stamps one. */
 	provenance?: SaveProvenance;

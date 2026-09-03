@@ -28,6 +28,7 @@ import {
 import { isCardTerminal } from "./readlist-card/is-card-terminal";
 import type { ReadlistUrlState } from "./readlist.url";
 import { buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
+import { computeArticleContentVersion } from "../../shared/article-content-version";
 import type { StatusFlash } from "./readlist.error";
 import type { EffectiveAccess } from "@packages/subscription-access";
 
@@ -202,6 +203,15 @@ function toDeleteAction(params: {
 	};
 }
 
+function versionedReaderHref(input: {
+	articleId: string;
+	returnQuery: string;
+	contentVersion: string;
+}): string {
+	const separator = input.returnQuery === "" ? "?" : "&";
+	return `/queue/${input.articleId}/view${input.returnQuery}${separator}v=${input.contentVersion}`;
+}
+
 export function toReadlistArticleViewModel(params: {
 	article: SavedArticle;
 	now: Date;
@@ -266,7 +276,11 @@ export function toReadlistArticleViewModel(params: {
 			: { deleteConfirm: { articleId: id, popoverId: deleteConfirmId, url: deleteAction.url } }),
 		markStatusConfirm,
 		cardPollUrl,
-		readerHref: `/queue/${id}/view${readlistReturnQuery({ readlist: filters.readlist })}`,
+		readerHref: versionedReaderHref({
+			articleId: id,
+			returnQuery: readlistReturnQuery({ readlist: filters.readlist }),
+			contentVersion: computeArticleContentVersion({ article, crawl, summary }),
+		}),
 		isStalePending,
 	};
 }

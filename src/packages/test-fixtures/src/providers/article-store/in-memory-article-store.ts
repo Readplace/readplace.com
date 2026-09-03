@@ -111,6 +111,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		status: userArticle.status,
 		savedAt: userArticle.savedAt,
 		readAt: userArticle.readAt,
+		contentFetchedAt: article.contentFetchedAt === undefined ? undefined : new Date(article.contentFetchedAt),
 		provenance: userArticle.provenance,
 		relatedDismissedAt: userArticle.relatedDismissedAt,
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,

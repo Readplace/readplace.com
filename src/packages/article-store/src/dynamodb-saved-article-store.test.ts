@@ -906,6 +906,30 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 		expect(article?.status).toBe("unread");
 	});
 
+	it("findArticleById carries contentFetchedAt from the global row, so the reader can version its content", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				default: { Items: [articleItem({ contentFetchedAt: "2026-05-10T12:00:00.000Z" })], Count: 1 },
+			},
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.contentFetchedAt).toEqual(new Date("2026-05-10T12:00:00.000Z"));
+	});
+
+	it("findArticleById leaves contentFetchedAt undefined on a legacy row that never recorded one", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.contentFetchedAt).toBeUndefined();
+	});
+
 	it("findArticleById surfaces the stored dismissal pin, so a dismissal keeps its snooze-or-permanent meaning after a round trip", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
@@ -1027,7 +1051,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		const requestItems = batch?.input.RequestItems as Record<string, { ProjectionExpression?: string }>;
 		expect(requestItems.articles.ProjectionExpression).toBe(
-			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt, #readerAvailableAt",
+			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt, #readerAvailableAt, #contentFetchedAt",
 		);
 	});
 

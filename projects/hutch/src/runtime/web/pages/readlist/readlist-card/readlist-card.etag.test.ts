@@ -88,6 +88,20 @@ describe("computeReadlistCardEtag", () => {
 		expect(without).not.toBe(withImage);
 	});
 
+	it("changes when contentFetchedAt advances even though every metadata field is identical", () => {
+		const earlier = computeReadlistCardEtag({
+			article: makeArticle({ contentFetchedAt: new Date("2026-01-01T00:00:00Z") }),
+			crawl: { status: "ready" },
+			summary: { status: "ready", summary: "TL;DR" },
+		});
+		const later = computeReadlistCardEtag({
+			article: makeArticle({ contentFetchedAt: new Date("2026-02-01T00:00:00Z") }),
+			crawl: { status: "ready" },
+			summary: { status: "ready", summary: "TL;DR" },
+		});
+		expect(earlier).not.toBe(later);
+	});
+
 	it("changes when the user-visible status flips between read and unread", () => {
 		const unread = computeReadlistCardEtag({
 			article: makeArticle({ status: "unread" }),

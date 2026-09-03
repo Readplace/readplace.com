@@ -195,6 +195,8 @@ import {
 	toReadlistCardDisplayModel,
 } from "./readlist-card/readlist-card.component";
 import { computeReadlistCardEtag } from "./readlist-card/readlist-card.etag";
+import { computeArticleContentVersion } from "../../shared/article-content-version";
+import { readerCachePolicy } from "./reader-cache-policy";
 import { etagMatches } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
@@ -852,6 +854,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				related: RelatedArticles;
 				relatedPollUrl: string | undefined;
 				readlistFiling: ReaderReadlistFiling;
+				contentVersion: string;
 			};
 
 	/** Ownership/access (owner → reader; non-owner or anonymous → permalink
@@ -906,6 +909,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			ownedArticle.relatedDismissedAt === undefined
 				? relatedPollUrlFor(ownedArticle.id.value, 1)
 				: undefined;
+		const contentVersion = computeArticleContentVersion({
+			article: ownedArticle,
+			crawl: state.crawl,
+			summary: state.summary,
+		});
 
 		if (state.notice !== undefined) {
 			const hostname = new URL(ownedArticle.url).hostname;
@@ -921,6 +929,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				related: { status: "skipped" },
 				relatedPollUrl: undefined,
 				readlistFiling,
+				contentVersion,
 			};
 		}
 
@@ -931,6 +940,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			related,
 			relatedPollUrl,
 			readlistFiling,
+			contentVersion,
 		};
 	};
 
@@ -946,10 +956,22 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		const { article: ownedArticle, state, related, relatedPollUrl, readlistFiling } = resolved;
+		const { article: ownedArticle, state, related, relatedPollUrl, readlistFiling, contentVersion } =
+			resolved;
+
+		const cspNonce = requireCspNonce(req);
+		const readerSettled =
+			state.readerPollUrl === undefined &&
+			state.summaryPollUrl === undefined &&
+			related.status !== "pending";
+		const readerCacheControl = readerCachePolicy({
+			requestedVersion: req.query.v,
+			currentVersion: contentVersion,
+			settled: readerSettled,
+		});
+		res.vary("Cookie");
 
 		if (isAppPlatform(req)) {
-			const cspNonce = requireCspNonce(req);
 			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
 				appOrigin: deps.appOrigin,
 				summary: state.summary,
@@ -972,25 +994,28 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
 				req, res,
-				ChromelessPage(
-					{
-						...readerBody,
-						scripts:
-							readerBody.scripts +
-							readerMarkReadBridgeScript(cspNonce) +
-							(state.notice === undefined ? readerCaptureBridgeScript(cspNonce) : ""),
-					},
-					{
-						changelogBanner: selectChangelogBanner(
-							await deps.getChangelogBanner(),
-							req.dismissedChangelogVersion,
-						),
-						// The dismiss form posts this back so the 303 lands on the same
-						// article, still carrying `platform=ios` — so the reader returns to
-						// the chromeless shell rather than the full web one.
-						currentPath: req.originalUrl,
-						cspNonce,
-					},
+				FreshForComponent(
+					ChromelessPage(
+						{
+							...readerBody,
+							scripts:
+								readerBody.scripts +
+								readerMarkReadBridgeScript(cspNonce) +
+								(state.notice === undefined ? readerCaptureBridgeScript(cspNonce) : ""),
+						},
+						{
+							changelogBanner: selectChangelogBanner(
+								await deps.getChangelogBanner(),
+								req.dismissedChangelogVersion,
+							),
+							// The dismiss form posts this back so the 303 lands on the same
+							// article, still carrying `platform=ios` — so the reader returns to
+							// the chromeless shell rather than the full web one.
+							currentPath: req.originalUrl,
+							cspNonce,
+						},
+					),
+					{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: readerCacheControl },
 				),
 			);
 			return;
@@ -1015,36 +1040,39 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		sendComponent(
 			req, res,
-			Base(ReaderPage({ ...ownedArticle, content: state.content }, {
-				appOrigin: deps.appOrigin,
-				summary: state.summary,
-				summaryPollUrl: state.summaryPollUrl,
-				crawl: state.crawl,
-				readerPollUrl: state.readerPollUrl,
-				capturePollUrl: state.capturePollUrl,
-				progress: state.progress,
-				related,
-				relatedPollUrl,
-				currentPath: req.originalUrl,
-				now: deps.now(),
-				extensionInstallUrl: extensionInstallUrlIfMissing(req),
-				backLink: VIEW_BACK_LINK,
-				renderActions: deps.stickyReader,
-				readlistFiling,
-				markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
-				crawlVersions: state.crawlVersions,
-				crawlBookmarkRemoval,
-				exitMarkReadConfirm: true,
-				readerNotice: state.notice,
-				epubDownloadHref:
-					state.content === undefined || !revealsEpubDownload(req.query.feature)
-						? undefined
-						: buildEpubDownloadHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
-			}), {
-				...(await deps.buildBannerState(req)),
-				showExtensionSuggestionBanner,
-				extensionInstalled: isExtensionInstalled(req),
-			}),
+			FreshForComponent(
+				Base(ReaderPage({ ...ownedArticle, content: state.content }, {
+					appOrigin: deps.appOrigin,
+					summary: state.summary,
+					summaryPollUrl: state.summaryPollUrl,
+					crawl: state.crawl,
+					readerPollUrl: state.readerPollUrl,
+					capturePollUrl: state.capturePollUrl,
+					progress: state.progress,
+					related,
+					relatedPollUrl,
+					currentPath: req.originalUrl,
+					now: deps.now(),
+					extensionInstallUrl: extensionInstallUrlIfMissing(req),
+					backLink: VIEW_BACK_LINK,
+					renderActions: deps.stickyReader,
+					readlistFiling,
+					markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
+					crawlVersions: state.crawlVersions,
+					crawlBookmarkRemoval,
+					exitMarkReadConfirm: true,
+					readerNotice: state.notice,
+					epubDownloadHref:
+						state.content === undefined || !revealsEpubDownload(req.query.feature)
+							? undefined
+							: buildEpubDownloadHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
+				}), {
+					...(await deps.buildBannerState(req)),
+					showExtensionSuggestionBanner,
+					extensionInstalled: isExtensionInstalled(req),
+				}),
+				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: readerCacheControl },
+			),
 		);
 	});
 
