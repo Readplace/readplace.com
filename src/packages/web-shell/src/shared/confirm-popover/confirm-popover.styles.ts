@@ -50,6 +50,10 @@ export const CONFIRM_POPOVER_STYLES = `
 	}
 }
 
+.confirm-popover--wide {
+	width: min(880px, calc(100% - 32px));
+}
+
 /* Focus opens on the panel itself (autofocus + tabindex="-1"); the global
  * ring in BASE_RESET_STYLES covers only \`button\` and \`a\`. */
 .confirm-popover:focus-visible {

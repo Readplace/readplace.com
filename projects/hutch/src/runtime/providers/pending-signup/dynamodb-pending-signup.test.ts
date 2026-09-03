@@ -126,6 +126,35 @@ describe("initDynamoDbPendingSignup", () => {
 			});
 		});
 
+		it("persists the plan the reader picked, so returning from Stripe records the plan the subscription was created on", async () => {
+			const { client, inputs } = createClient(() => ({}));
+			const { storePendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			await storePendingSignup({
+				checkoutSessionId: SESSION_ID,
+				signup: {
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					plan: "monthly",
+				},
+				createdAt: 300,
+			});
+
+			expect(inputs[0]?.Item).toEqual({
+				checkoutSessionId: SESSION_ID,
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				createdAt: 300,
+				userId: USER_ID,
+				plan: "monthly",
+			});
+		});
+
 		it("omits returnUrl when absent", async () => {
 			const { client, inputs } = createClient(() => ({}));
 			const { storePendingSignup } = initDynamoDbPendingSignup({
@@ -267,6 +296,57 @@ describe("initDynamoDbPendingSignup", () => {
 				email: "e@b.com",
 				userId: USER_ID,
 				variant: "trial_checkout",
+			});
+		});
+
+		it("reconstructs the plan of a row that carries one", async () => {
+			const { client } = createClient(() => ({
+				Attributes: {
+					checkoutSessionId: SESSION_ID,
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					plan: "triennial",
+				},
+			}));
+			const { consumePendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			const result = await consumePendingSignup(SESSION_ID);
+
+			expect(result).toEqual({
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
+				plan: "triennial",
+			});
+		});
+
+		it("drops a plan this build no longer sells instead of throwing, for the same reason an unrecognised variant is dropped", async () => {
+			const { client } = createClient(() => ({
+				Attributes: {
+					checkoutSessionId: SESSION_ID,
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					plan: "a_plan_from_the_future",
+				},
+			}));
+			const { consumePendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			const result = await consumePendingSignup(SESSION_ID);
+
+			expect(result).toEqual({
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
 			});
 		});
 

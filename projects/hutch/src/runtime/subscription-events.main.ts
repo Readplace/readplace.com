@@ -122,7 +122,11 @@ export const handler = initHandleByDetailType({
 				createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
 				publishSubscriptionChargeSucceeded,
 				publishSubscriptionChargeFailed,
-				stripePriceId: requireEnv("STRIPE_PRICE_ID"),
+				stripePriceIds: {
+					monthly: requireEnv("STRIPE_PRICE_ID_MONTHLY"),
+					yearly: requireEnv("STRIPE_PRICE_ID_YEARLY"),
+					triennial: requireEnv("STRIPE_PRICE_ID_TRIENNIAL"),
+				},
 				logger,
 			}),
 		],

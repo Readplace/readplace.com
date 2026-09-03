@@ -1937,6 +1937,9 @@ importers:
 
   src/packages/web-shell:
     dependencies:
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../supported-clients

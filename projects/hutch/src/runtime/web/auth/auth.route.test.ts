@@ -15,6 +15,7 @@ import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 import { SIGNUP_MIN_SUBMIT_MS } from "./validate-signup";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
+import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { LAST_AUTH_PROVIDER_COOKIE_NAME } from "../last-auth-provider";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 
@@ -2127,7 +2128,7 @@ describe("Auth routes", () => {
 
 			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
 			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe(
-				"14-day free trial, then $4.08/month. No credit card required.",
+				`14-day free trial, then ${CHEAPEST_MONTHLY_DISPLAY}/month. No credit card required.`,
 			);
 		}, 30000);
 

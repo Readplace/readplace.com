@@ -741,6 +741,7 @@ export const SubscriptionChargeSucceededEvent = defineEvent({
 		userId: z.string(),
 		subscriptionId: z.string(),
 		customerId: z.string(),
+		plan: z.enum(["monthly", "yearly", "triennial"]).optional(),
 	}),
 });
 export type SubscriptionChargeSucceededDetail = z.infer<

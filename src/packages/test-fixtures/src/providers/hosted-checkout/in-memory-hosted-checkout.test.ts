@@ -10,6 +10,7 @@ describe("initInMemoryHostedCheckout", () => {
 
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "test@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "https://app.test/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "https://app.test/signup",
 		});
@@ -25,6 +26,7 @@ describe("initInMemoryHostedCheckout", () => {
 
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "test@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "http://localhost:9999/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:9999/signup",
 		});
@@ -37,6 +39,7 @@ describe("initInMemoryHostedCheckout", () => {
 		const stripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date("2026-01-01T00:00:00Z") });
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "buyer@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
 		});
@@ -64,6 +67,7 @@ describe("initInMemoryHostedCheckout", () => {
 		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "buyer@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
 		});
@@ -81,6 +85,7 @@ describe("initInMemoryHostedCheckout", () => {
 		const stripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => fixedDate });
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "buyer@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
 		});
@@ -96,6 +101,7 @@ describe("initInMemoryHostedCheckout", () => {
 		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "buyer@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
 		});
@@ -134,6 +140,23 @@ describe("initInMemoryHostedCheckout", () => {
 		expect(() => stripe.getCheckoutUrl(CheckoutSessionIdSchema.parse("cs_test_missing"))).toThrow(
 			/No checkout URL/,
 		);
+	});
+
+	it("reports the price each session was opened against, so a test can tell which plan was chosen", async () => {
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
+		await stripe.createCheckoutSession({
+			customerEmail: "buyer@example.com",
+			priceId: "price_test_triennial",
+			successUrl: "https://app.test/ok",
+			cancelUrl: "https://app.test/cancel",
+		});
+
+		expect(
+			stripe.createdCheckoutSessions().map(({ priceId, customerEmail }) => ({
+				priceId,
+				customerEmail,
+			})),
+		).toEqual([{ priceId: "price_test_triennial", customerEmail: "buyer@example.com" }]);
 	});
 
 });

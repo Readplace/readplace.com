@@ -1,6 +1,6 @@
-import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PASTE_A_LINK, READER_SHOT, FOUNDER_LINE, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
+import { PASTE_A_LINK, READER_SHOT, FOUNDER_LINE, PLAN_CHOICES, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const PDF_OCR_CONTENT: LandingPageContent = {
@@ -93,7 +93,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "What does it cost to keep using it?",
-			answer: `Making an account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card asked for. After that it is ${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}.`,
+			answer: `Making an account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card asked for. After that you pick how often you pay: ${PLAN_CHOICES}. Every one of them is the same whole product.`,
 		},
 		{
 			question: "What happens to PDFs I already saved if I stop paying?",
@@ -105,7 +105,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		title: "What it costs after the first one",
 		paragraphs: [
 			`Reading a link you paste here costs nothing. Keeping a library of them is a subscription: ${TRIAL_TERMS}`,
-			`${MONTHLY_EQUIVALENT_DISPLAY} a month is what pays for the extraction — rasterising every page and running Tesseract over it is the expensive part of this product, and it is charged to me per document whether or not you subscribe.`,
+			`${CHEAPEST_MONTHLY_DISPLAY}/month is what pays for the extraction — rasterising every page and running Tesseract over it is the expensive part of this product, and it is charged to me per document whether or not you subscribe.`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

@@ -157,6 +157,7 @@ import type {
 	ReadArticleImage,
 	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
+	BillingPlan,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
@@ -227,6 +228,11 @@ export interface HostedCheckoutBundle {
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	markPaid: (id: CheckoutSessionId, opts?: { paymentStatus?: CheckoutPaymentStatus }) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
+	createdCheckoutSessions: () => Array<{
+		id: CheckoutSessionId;
+		priceId: string;
+		customerEmail: string;
+	}>;
 }
 
 export interface PendingSignupBundle {
@@ -600,7 +606,7 @@ export interface TestAppFixture {
 	trialScheduler: TrialSchedulerBundle;
 	subscriptionBilling: SubscriptionBillingBundle;
 	paymentMethods: PaymentMethodsBundle;
-	stripePriceId: string;
+	stripePriceIds: Record<BillingPlan, string>;
 	/** Public Stripe publishable key embedded in the card-add Elements form.
 	 * `undefined` models local dev without a key — the page then renders the
 	 * list/remove/promote actions but not the add form. */

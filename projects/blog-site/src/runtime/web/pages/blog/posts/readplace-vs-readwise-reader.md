@@ -11,7 +11,7 @@ keywords: "readplace vs readwise, read it later app, readwise alternative, read 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, and a newsletter inbox. Readplace ($49/year) is simpler, with AI TL;DR summaries, Australian hosting, source-available code, and a focused reading experience. Pick Readwise if you need highlighting that syncs into a note-taking tool. Pick Readplace if you want AI summaries and privacy at a lower price.
+Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, and a newsletter inbox. Readplace ($3/month) is simpler, with AI TL;DR summaries, Australian hosting, source-available code, and a focused reading experience. Pick Readwise if you need highlighting that syncs into a note-taking tool. Pick Readplace if you want AI summaries and privacy at a lower price.
 
 </div>
 </details>
@@ -28,7 +28,7 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 
 | | Readplace | Readwise Reader |
 |---|---|---|
-| **Price** | $49/yr | $119.88/yr ($9.99/mo billed annually) |
+| **Price** | $3/month | $119.88/yr ($9.99/mo billed annually) |
 | **AI summaries** | Global TL;DR (included) | Ghostreader (inline AI, Q&A, more advanced) |
 | **Highlights** | Coming soon | Full highlighting with sync to Obsidian, Notion, Logseq |
 | **RSS reader** | No | Yes, built in |
@@ -40,13 +40,13 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 
 ## Price
 
-Readplace costs $49/year. Readwise Reader costs $119.88/year, which puts Readplace at roughly two-fifths of the annual price.
+Readplace costs $3/month. Readwise Reader costs $119.88/year, which puts Readplace at less than a third of the annual price.
 
 Both include their AI features in that base price, with no add-ons and no usage caps to watch.
 
 Readwise's price is fair for the breadth you get, because it does more.
 
-The question this axis answers is narrow: are you paying for features you'll actually open? If you want a simpler tool, paying about two and a half times as much for a feature set you'd leave untouched is hard to justify.
+The question this axis answers is narrow: are you paying for features you'll actually open? If you want a simpler tool, paying more than 3 times as much for a feature set you'd leave untouched is hard to justify.
 
 ## AI Features
 

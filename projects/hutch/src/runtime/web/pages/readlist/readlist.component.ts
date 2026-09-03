@@ -25,6 +25,11 @@ import {
 	readlistDeleteConfirmPopoverId,
 	renderReadlistDeleteConfirm,
 } from "./readlist-delete-confirm.component";
+import {
+	SUBSCRIBE_PLANS_POPOVER_ID,
+	SUBSCRIBE_PLANS_STYLES,
+	renderSubscribePlansPopover,
+} from "../../shared/subscribe-plans/subscribe-plans.component";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
@@ -89,6 +94,8 @@ interface ReadlistDisplayModel {
 	subscriptionBannerIsCancellationScheduled: boolean;
 	subscriptionBannerIsInactive: boolean;
 	subscribeCtaLabel: string;
+	subscribePlansPopoverId: string;
+	subscribePlansHtml: string;
 	trialDaysLeft?: number;
 	trialDaysLeftWord?: string;
 	cancellationEffectiveAt?: LocalTime;
@@ -165,6 +172,8 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 	);
 
 	const banner: SubscriptionBannerState = vm.subscriptionBanner;
+	const bannerIsTrialCountdown = banner.state === "trial-countdown";
+	const bannerIsInactive = banner.state === "inactive";
 	return {
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
@@ -244,12 +253,17 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			: undefined,
 		currentPage: vm.currentPage,
 		subscriptionBannerStateClass: `readlist-banner--${banner.state}`,
-		subscriptionBannerIsTrialCountdown: banner.state === "trial-countdown",
+		subscriptionBannerIsTrialCountdown: bannerIsTrialCountdown,
 		subscriptionBannerIsCancellationScheduled: banner.state === "cancellation-scheduled",
-		subscriptionBannerIsInactive: banner.state === "inactive",
+		subscriptionBannerIsInactive: bannerIsInactive,
 		subscribeCtaLabel: SUBSCRIBE_CTA_LABEL,
-		trialDaysLeft: banner.state === "trial-countdown" ? banner.daysLeft : undefined,
-		trialDaysLeftWord: banner.state === "trial-countdown" ? banner.daysLeftWord : undefined,
+		subscribePlansPopoverId: SUBSCRIBE_PLANS_POPOVER_ID,
+		subscribePlansHtml:
+			bannerIsTrialCountdown || bannerIsInactive
+				? renderSubscribePlansPopover({ source: "queue-banner" })
+				: "",
+		trialDaysLeft: bannerIsTrialCountdown ? banner.daysLeft : undefined,
+		trialDaysLeftWord: bannerIsTrialCountdown ? banner.daysLeftWord : undefined,
 		cancellationEffectiveAt: banner.state === "cancellation-scheduled" ? banner.cancellationEffectiveAt : undefined,
 		accessIsReadOnly: vm.accessIsReadOnly,
 		saveFormClass: [
@@ -299,7 +313,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonc
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${READLIST_STYLES}\n${ONBOARDING_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
+		styles: `${READLIST_STYLES}\n${ONBOARDING_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${SUBSCRIBE_PLANS_STYLES}`,
 		bodyClass: "page-readlist",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),

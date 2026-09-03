@@ -1,6 +1,10 @@
 import { APPLE_ITUNES_APP_META, CHROME_STORE_URL, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
 import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
-import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS } from "@packages/web-shell";
+import {
+	BILLING_PLANS,
+	type BillingPlan,
+} from "@packages/provider-contracts/subscription-providers";
 import type { SeoMetadata } from "@packages/web-shell";
 
 import {
@@ -42,6 +46,33 @@ function faqStructuredData(faq: readonly HomeFaqEntry[]): object {
 		})),
 	};
 }
+
+const BILLING_TERMS = {
+	monthly: { unitCode: "MON", unitValue: 1 },
+	yearly: { unitCode: "ANN", unitValue: 1 },
+	triennial: { unitCode: "ANN", unitValue: 3 },
+} satisfies Record<BillingPlan, { unitCode: string; unitValue: number }>;
+
+const PLAN_OFFERS = BILLING_PLANS.map((key) => ({
+	plan: PRICING_PLANS[key],
+	...BILLING_TERMS[key],
+})).map(({ plan, unitCode, unitValue }) => ({
+	"@type": "Offer",
+	name: plan.name,
+	price: plan.totalAmount,
+	priceCurrency: "USD",
+	priceSpecification: {
+		"@type": "UnitPriceSpecification",
+		price: plan.totalAmount,
+		priceCurrency: "USD",
+		referenceQuantity: {
+			"@type": "QuantitativeValue",
+			value: unitValue,
+			unitCode,
+		},
+	},
+	description: `Full access including TL;DR summaries. ${plan.billedNote}, with a 14-day free trial and no credit card to start.`,
+}));
 
 export function buildHomeSeo(input: {
 	staticBaseUrl: string;
@@ -87,24 +118,7 @@ export function buildHomeSeo(input: {
 				datePublished: "2026-03-01",
 				inLanguage: "en",
 				isAccessibleForFree: false,
-				offers: {
-					"@type": "Offer",
-					name: "Standard",
-					price: "49",
-					priceCurrency: "USD",
-					priceSpecification: {
-						"@type": "UnitPriceSpecification",
-						price: "49",
-						priceCurrency: "USD",
-						referenceQuantity: {
-							"@type": "QuantitativeValue",
-							value: 1,
-							unitCode: "ANN",
-						},
-					},
-					description:
-						"Full access including TL;DR summaries. $49 per year, with a 14-day free trial and no credit card to start.",
-				},
+				offers: PLAN_OFFERS,
 				author: {
 					"@type": "Person",
 					"@id": "https://readplace.com/#founder",
@@ -190,7 +204,7 @@ export function buildHomeSeo(input: {
 				name: "Readplace — Read-It-Later App",
 				alternateName: "Readplace App",
 				url: "https://readplace.com",
-				description: `Your #1 AI-Powered Reading List. Read what you saved, with an AI TL;DR summary on every article to help you choose. ${MONTHLY_EQUIVALENT_DISPLAY} a month after a 14-day free trial.`,
+				description: `Your #1 AI-Powered Reading List. Read what you saved, with an AI TL;DR summary on every article to help you choose. ${CHEAPEST_MONTHLY_DISPLAY} a month after a 14-day free trial.`,
 				slogan: "Your #1 AI-Powered Reading List.",
 			},
 		],

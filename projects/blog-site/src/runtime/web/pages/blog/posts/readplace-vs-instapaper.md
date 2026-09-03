@@ -12,7 +12,7 @@ keywords: "instapaper alternative, read it later, readplace vs instapaper, pocke
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, $49/year and no free tier, an iPhone app that also runs on Mac but nothing on Android, and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development.
+Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, $3/month and no free tier, an iPhone app that also runs on Mac but nothing on Android, and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development.
 
 </div>
 </details>
@@ -71,7 +71,7 @@ On reading surface it is the narrower of the two. Readplace runs on the web, in 
 
 On data it makes a deliberate choice. Readplace is hosted in Australia, so your reading history stays on Australian infrastructure under Australian privacy law, which matters if you care where your data lives.
 
-On pricing it is blunt. Readplace costs $49/year with no free tier. It is a paid product from the start.
+On pricing it is blunt. Readplace costs $3/month with no free tier. It is a paid product from the start.
 
 On development pace it moves fast, and here is where my bias is loudest, since I ship those features. New ones land most weeks, so you can watch the product change in close to real time. That pace is real, and so is the instability that comes with any young product.
 
@@ -86,7 +86,7 @@ The table below is the same five axes broken into the concrete features behind t
 | **Mobile apps** | iOS and Android | iPhone and Mac (App Store), no Android |
 | **Browser extension** | Yes | Yes (Firefox, Chrome) |
 | **Free tier** | Yes | No |
-| **Paid price** | $59.99/yr | $49/yr |
+| **Paid price** | $59.99/yr | $3/month |
 | **E-reader integration** | Kobo (built-in) | No |
 | **Pocket import** | Yes | Yes |
 | **Data hosting** | United States | Australia |

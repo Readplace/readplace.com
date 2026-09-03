@@ -497,6 +497,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			userId: pending.userId,
 			subscriptionId,
 			customerId,
+			plan: pending.plan,
 		});
 		// paid_now separates a real charge from a $0 trial capture: Stripe reports
 		// no_payment_required for a trial-preserving checkout, which still counts as

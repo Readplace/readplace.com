@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { z } from "zod";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -19,6 +20,14 @@ function createFakeClient(
 const TABLE = "test-subscription-providers";
 const NOW = () => new Date("2026-05-22T10:00:00.000Z");
 const USER_ID = UserIdSchema.parse("u-1");
+
+const CapturedUpdateCommand = z.object({
+	input: z.object({
+		UpdateExpression: z.string(),
+		ExpressionAttributeNames: z.record(z.string(), z.string()),
+		ExpressionAttributeValues: z.record(z.string(), z.unknown()),
+	}),
+});
 
 describe("initDynamoDbSubscriptionProviders", () => {
 	describe("findByUserId", () => {
@@ -204,8 +213,10 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.UpdateExpression).toContain("cancellationEffectiveAt");
 			expect(command.input.UpdateExpression).toContain("automationSavesHeldEmailSentAt");
 			expect(command.input.UpdateExpression).toContain("nextCharge");
+			expect(command.input.UpdateExpression).toContain("#plan");
 			expect(command.input.ExpressionAttributeNames?.["#status"]).toBe("status");
 			expect(command.input.ExpressionAttributeNames?.["#provider"]).toBe("provider");
+			expect(command.input.ExpressionAttributeNames?.["#plan"]).toBe("plan");
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("trialing");
 			expect(command.input.ExpressionAttributeValues?.[":provider"]).toBe("stripe");
 			expect(command.input.ExpressionAttributeValues?.[":trialEndsAt"]).toBe(
@@ -256,6 +267,55 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("active");
 			expect(command.input.ExpressionAttributeValues?.[":subscriptionId"]).toBe("sub_abc");
 			expect(command.input.ExpressionAttributeValues?.[":customerId"]).toBe("cus_abc");
+		});
+
+		it("writes the plan the subscription was created on", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub_abc",
+				customerId: "cus_abc",
+				plan: "triennial",
+			});
+
+			const command = CapturedUpdateCommand.parse(received);
+			expect(command.input.UpdateExpression).toContain("#plan = :plan");
+			expect(command.input.ExpressionAttributeNames["#plan"]).toBe("plan");
+			expect(command.input.ExpressionAttributeValues[":plan"]).toBe("triennial");
+		});
+
+		it("clears the plan attribute when the subscription names none, so a grandfathered subscription cannot inherit a plan the row happened to hold", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub_abc",
+				customerId: "cus_abc",
+			});
+
+			const command = CapturedUpdateCommand.parse(received);
+			const [, removeClause] = command.input.UpdateExpression.split("REMOVE");
+			expect(removeClause).toContain("#plan");
+			expect(command.input.ExpressionAttributeValues[":plan"]).toBeUndefined();
 		});
 	});
 

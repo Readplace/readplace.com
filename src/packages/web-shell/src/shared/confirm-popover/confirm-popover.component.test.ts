@@ -35,6 +35,20 @@ describe("renderConfirmPopover", () => {
 		expect(panel.getAttribute("role")).toBe("dialog");
 	});
 
+	it("keeps the single-column width when the caller does not ask for a wide panel", () => {
+		const panel = renderPanel().querySelector(".confirm-popover");
+
+		assert(panel, "panel must be rendered");
+		expect(panel.classList.contains("confirm-popover--wide")).toBe(false);
+	});
+
+	it("widens the panel when the caller lays its controls out side by side", () => {
+		const panel = renderPanel({ wide: true }).querySelector(".confirm-popover");
+
+		assert(panel, "panel must be rendered");
+		expect(panel.classList.contains("confirm-popover--wide")).toBe(true);
+	});
+
 	it("labels the panel by its own title so a screen reader announces the decision", () => {
 		const doc = renderPanel();
 

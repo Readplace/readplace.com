@@ -7,7 +7,8 @@
           <aside class="readlist-banner {{subscriptionBannerStateClass}}" aria-live="polite" data-test-subscription-banner>
             {{#if subscriptionBannerIsTrialCountdown}}
             <p class="readlist-banner__message" data-test-banner-message><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
-            <a class="btn btn--primary btn--compact readlist-banner__cta" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
+            <button class="btn btn--primary btn--compact readlist-banner__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
+            <a class="btn btn--primary btn--compact readlist-banner__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
             {{/if}}
             {{#if subscriptionBannerIsCancellationScheduled}}
             <p class="readlist-banner__message" data-test-banner-message><strong>Subscription ending <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time>.</strong> You still have full access until then.</p>
@@ -15,7 +16,8 @@
             {{/if}}
             {{#if subscriptionBannerIsInactive}}
             <p class="readlist-banner__message" data-test-banner-message><strong>Subscription not active.</strong> Your saved articles are still here.</p>
-            <a class="btn btn--primary btn--compact readlist-banner__cta" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
+            <button class="btn btn--primary btn--compact readlist-banner__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
+            <a class="btn btn--primary btn--compact readlist-banner__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
             {{/if}}
           </aside>
           <div id="status-toast">{{{statusToastHtml}}}</div>
@@ -73,5 +75,6 @@
       {{{readlistDeleteConfirmHtml}}}
       {{{deleteConfirmsHtml}}}
       {{{markStatusConfirmsHtml}}}
+      {{{subscribePlansHtml}}}
       {{{saveTipHtml}}}
     </main>

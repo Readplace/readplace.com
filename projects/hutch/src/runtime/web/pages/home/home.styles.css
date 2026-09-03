@@ -288,38 +288,96 @@
   text-align: center;
 }
 
+.home-pricing__grid-container {
+  max-width: var(--reader-max-width);
+  margin-inline: auto;
+  text-align: center;
+}
+
 .home-pricing__title {
-  margin-bottom: 16px;
+  margin-bottom: 32px;
 }
 
-/** Deliberately set below the words around it: the sum is the smallest thing in
- * the sentence that announces it. */
 .home-pricing__amount {
-  font-size: 0.62em;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  color: var(--primary-text);
 }
 
-.home-pricing__body {
-  margin: 0 0 32px;
+.home-pricing__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  list-style: none;
+}
+
+.home-pricing__plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.home-pricing__plan--featured {
+  border-width: 2px;
+  border-color: var(--ring);
+  box-shadow: var(--shadow-md);
+}
+
+.home-pricing__plan-badge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.home-pricing__plan-name {
+  font-size: 1rem;
+  font-weight: 600;
+  text-wrap: balance;
+  color: var(--color-text-primary);
+}
+
+.home-pricing__plan-price {
+  color: var(--color-text-primary);
+}
+
+.home-pricing__plan-amount {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.home-pricing__plan-per {
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+}
+
+.home-pricing__plan-billing {
+  font-size: 0.9rem;
   text-wrap: pretty;
   color: var(--color-text-secondary);
 }
 
-.home-pricing__cta {
-  margin: 0;
+.home-pricing__plan-form {
+  margin-top: auto;
+  padding-top: 8px;
 }
 
-.home-pricing__cta-button {
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.2;
-}
-
-.home-pricing__cta-sub {
-  font-size: 0.72rem;
-  font-weight: 500;
-  opacity: 0.85;
+.home-pricing__plan-button {
+  width: 100%;
 }
 
 .home-pricing__note {
@@ -417,5 +475,13 @@
 
   .home-section__title {
     font-size: 2rem;
+  }
+
+  .home-pricing__grid-container {
+    max-width: 960px;
+  }
+
+  .home-pricing__grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }

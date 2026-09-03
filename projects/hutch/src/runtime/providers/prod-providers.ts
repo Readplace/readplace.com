@@ -16,6 +16,7 @@ import { initSkipReservedDomain } from "./email/skip-reserved-domain";
 import { initDynamoDbEmailVerification } from "./email-verification/dynamodb-email-verification";
 import { initDynamoDbPasswordReset } from "./password-reset/dynamodb-password-reset";
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { initDynamoDbRateLimit } from "./rate-limit/dynamodb-rate-limit";
 import { initDynamoDbGeneratedSummary, initDynamoDbRelatedArticles } from "@packages/article-store";
@@ -106,7 +107,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const appOriginForRedirect = input.appOrigin;
 	const resendApiKey = requireEnv("RESEND_API_KEY");
 	const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
-	const stripePriceId = requireEnv("STRIPE_PRICE_ID");
+	const stripePriceIds = {
+		monthly: requireEnv("STRIPE_PRICE_ID_MONTHLY"),
+		yearly: requireEnv("STRIPE_PRICE_ID_YEARLY"),
+		triennial: requireEnv("STRIPE_PRICE_ID_TRIENNIAL"),
+	} satisfies Record<BillingPlan, string>;
 	const stripePublishableKey = requireEnv("STRIPE_PUBLISHABLE_KEY");
 	const eventBusName = requireEnv("EVENT_BUS_NAME");
 	const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
@@ -227,7 +232,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 
 	const stripe = initStripeCheckout({
 		apiKey: stripeApiKey,
-		priceId: stripePriceId,
 		fetch: globalThis.fetch,
 	});
 	const stripeSubscriptions = initStripeSubscriptions({
@@ -362,7 +366,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		findSubscriptionNextCharge: stripeSubscriptions.findSubscriptionNextCharge,
 		reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods,
-		stripePriceId,
+		stripePriceIds,
 		stripePublishableKey,
 
 		...initSkipReservedDomain({

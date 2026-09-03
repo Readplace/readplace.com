@@ -50,7 +50,7 @@ There is no offline reading. Every screen needs a connection, so a saved article
 
 There is no search and no tags in the app, because there is no search or tags in Readplace yet, on any surface.
 
-It needs iOS 16 or later, and it needs a Readplace account. The download is free, the account starts as 14 days with no card, and Readplace is $49 a year after that.
+It needs iOS 16 or later, and it needs a Readplace account. The download is free, the account starts as 14 days with no card, and Readplace is $3 a month after that.
 
 ## Put one article in it
 

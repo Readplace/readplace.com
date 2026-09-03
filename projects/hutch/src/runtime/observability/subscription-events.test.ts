@@ -94,6 +94,7 @@ describe("initEmitSubscriptionEvent", () => {
 			userId: USER_ID,
 			variant: CHECKOUT_VARIANTS.trialCheckout,
 			checkoutSessionId: "cs_test_1",
+			plan: "triennial",
 		});
 
 		expect(captured).toEqual([{
@@ -103,6 +104,7 @@ describe("initEmitSubscriptionEvent", () => {
 			user_id: USER_ID,
 			variant: "trial_checkout",
 			checkout_session_id: "cs_test_1",
+			plan: "triennial",
 		}]);
 	});
 
@@ -178,7 +180,11 @@ describe("initEmitSubscriptionEvent", () => {
 		const { logger, captured } = createCapturingLogger();
 		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
 
-		emit.resubscribeCompleted({ userId: USER_ID, subscriptionId: "sub_resub" });
+		emit.resubscribeCompleted({
+			userId: USER_ID,
+			subscriptionId: "sub_resub",
+			plan: "monthly",
+		});
 
 		expect(captured).toEqual([{
 			stream: "subscriptions",
@@ -187,6 +193,7 @@ describe("initEmitSubscriptionEvent", () => {
 			user_id: USER_ID,
 			subscription_id: "sub_resub",
 			paid_now: true,
+			plan: "monthly",
 		}]);
 	});
 

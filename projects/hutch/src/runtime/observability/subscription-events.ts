@@ -1,4 +1,5 @@
 import type { UserId } from "@packages/domain/user";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { STREAMS, SUBSCRIPTION_EVENTS } from "./events";
 import type { CheckoutReturnFailureReason, CheckoutVariant } from "./events";
@@ -30,6 +31,7 @@ export type SubscriptionLogEvent =
 			user_id: UserId;
 			variant: CheckoutVariant;
 			checkout_session_id: string;
+			plan: BillingPlan;
 		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.checkoutCompleted;
@@ -50,6 +52,7 @@ export type SubscriptionLogEvent =
 			user_id: UserId;
 			subscription_id: string;
 			paid_now: boolean;
+			plan: BillingPlan;
 		});
 
 // Emitters build the strict union above so user_id is omissible only on
@@ -65,6 +68,7 @@ export interface SubscriptionLogEventView {
 	variant?: CheckoutVariant;
 	checkout_session_id?: string;
 	paid_now?: boolean;
+	plan?: BillingPlan;
 }
 
 export interface EmitSubscriptionEvent {
@@ -75,6 +79,7 @@ export interface EmitSubscriptionEvent {
 		userId: UserId;
 		variant: CheckoutVariant;
 		checkoutSessionId: string;
+		plan: BillingPlan;
 	}) => void;
 	checkoutCompleted: (params: {
 		userId: UserId;
@@ -91,7 +96,11 @@ export interface EmitSubscriptionEvent {
 	/** A cancelled subscriber resubscribed with a saved card: Stripe charges
 	 * immediately, so this never passes through Stripe Checkout and has no
 	 * checkout_started to pair with. Always revenue. */
-	resubscribeCompleted: (params: { userId: UserId; subscriptionId: string }) => void;
+	resubscribeCompleted: (params: {
+		userId: UserId;
+		subscriptionId: string;
+		plan: BillingPlan;
+	}) => void;
 }
 
 export function initEmitSubscriptionEvent(deps: {
@@ -127,7 +136,7 @@ export function initEmitSubscriptionEvent(deps: {
 				...(subscriptionId ? { subscription_id: subscriptionId } : {}),
 			});
 		},
-		checkoutStarted: ({ userId, variant, checkoutSessionId }) => {
+		checkoutStarted: ({ userId, variant, checkoutSessionId, plan }) => {
 			deps.logger.info({
 				stream: STREAMS.subscriptions,
 				event: SUBSCRIPTION_EVENTS.checkoutStarted,
@@ -135,6 +144,7 @@ export function initEmitSubscriptionEvent(deps: {
 				user_id: userId,
 				variant,
 				checkout_session_id: checkoutSessionId,
+				plan,
 			});
 		},
 		checkoutCompleted: ({ userId, subscriptionId, checkoutSessionId, paidNow, variant }) => {
@@ -149,7 +159,7 @@ export function initEmitSubscriptionEvent(deps: {
 				...(variant ? { variant } : {}),
 			});
 		},
-		resubscribeCompleted: ({ userId, subscriptionId }) => {
+		resubscribeCompleted: ({ userId, subscriptionId, plan }) => {
 			deps.logger.info({
 				stream: STREAMS.subscriptions,
 				event: SUBSCRIPTION_EVENTS.resubscribeCompleted,
@@ -157,6 +167,7 @@ export function initEmitSubscriptionEvent(deps: {
 				user_id: userId,
 				subscription_id: subscriptionId,
 				paid_now: true,
+				plan,
 			});
 		},
 		checkoutReturnFailed: ({ reason, userId, checkoutSessionId }) => {

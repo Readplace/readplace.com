@@ -9,6 +9,11 @@ import {
 import { MAX_PDF_PAGES } from "@packages/crawl-article";
 import { ADVERTISED_CLIENTS, UNADVERTISED_CLIENTS } from "@packages/supported-clients";
 import {
+	CHEAPEST_MONTHLY_DISPLAY,
+	PRICING_PANELS,
+	PRICING_PLANS,
+} from "@packages/web-shell";
+import {
 	HOME_BROWSER_EXTENSION_ROW,
 	HOME_CONTENT,
 	HOME_NATIVE_APP_ROW_BY_CLIENT,
@@ -436,38 +441,80 @@ describe("GET / principle", () => {
 	});
 });
 
+const EXPECTED_PLAN_ORDER = ["monthly", "yearly", "triennial"] as const;
+
 describe("GET / pricing", () => {
-	it("should offer one priced plan, with no founding-member card to branch on", async () => {
+	it("should headline the cheapest monthly figure the plans below can reach", async () => {
 		const { doc } = await loadHomepage();
 
-		const ctas = Array.from(doc.querySelectorAll('[data-test-section="pricing"] button')).map(
-			(button) => button.querySelector(".home-pricing__cta-label")?.textContent?.trim(),
-		);
-		expect(ctas).toEqual([HOME_CONTENT.pricing.ctaLabel]);
-		expect(doc.querySelector(".home-pricing__cta-sub")?.textContent?.trim()).toBe(
-			HOME_CONTENT.pricing.ctaSubLabel,
-		);
-		expect(doc.querySelector('[data-test-plan="founding"]')).toBeNull();
+		const headlinePrice = doc.querySelector("[data-test-price]");
+		assert(headlinePrice, "the pricing headline must name a price");
+		expect(headlinePrice.textContent?.trim()).toBe(CHEAPEST_MONTHLY_DISPLAY);
 	});
 
-	it("should send the signup CTA to /signup carrying the element it was clicked from", async () => {
+	it("should offer the three billing plans, with only the middle one badged and featured", async () => {
 		const { doc } = await loadHomepage();
 
-		const form = doc.querySelector(".home-pricing__cta");
-		assert(form, "pricing CTA form must be rendered");
-		expect(form.getAttribute("action")).toBe("/signup");
+		const grid = doc.querySelector("[data-test-plans]");
+		assert(grid, "the pricing panels must be rendered");
 
-		const hidden = Object.fromEntries(
-			Array.from(form.querySelectorAll('input[type="hidden"]')).map((field) => [
-				field.getAttribute("name"),
-				field.getAttribute("value"),
-			]),
+		const panels = Array.from(grid.querySelectorAll("[data-test-plan]")).map((panel) => ({
+			tier: panel.getAttribute("data-test-plan"),
+			featured: panel.classList.contains("home-pricing__plan--featured"),
+			badge: panel.querySelector("[data-test-plan-badge]")?.textContent?.trim() ?? "",
+		}));
+		expect(panels).toEqual([
+			{ tier: "monthly", featured: false, badge: "" },
+			{ tier: "yearly", featured: true, badge: PRICING_PANELS.find((panel) => panel.featured)?.badge },
+			{ tier: "triennial", featured: false, badge: "" },
+		]);
+	});
+
+	it("should price every panel from the shared plan table, so a panel cannot drift from what is charged", async () => {
+		const { doc } = await loadHomepage();
+
+		const priced = Array.from(doc.querySelectorAll("[data-test-plan]")).map((panel) => ({
+			tier: panel.getAttribute("data-test-plan"),
+			name: panel.querySelector(".home-pricing__plan-name")?.textContent?.trim(),
+			price: panel.querySelector("[data-test-plan-price]")?.textContent?.trim(),
+			billing: panel.querySelector("[data-test-plan-billing]")?.textContent?.trim(),
+		}));
+		expect(priced).toEqual(
+			EXPECTED_PLAN_ORDER.map((key) => ({
+				tier: key,
+				name: PRICING_PLANS[key].name,
+				price: PRICING_PLANS[key].monthlyDisplay,
+				billing: PRICING_PLANS[key].billedNote,
+			})),
 		);
-		expect(hidden).toEqual({
-			utm_source: "homepage",
-			utm_medium: "internal",
-			utm_content: "signup-body",
-		});
+	});
+
+	it("should send every panel to /signup carrying the plan that sold the click", async () => {
+		const { doc } = await loadHomepage();
+
+		const forms = Array.from(doc.querySelectorAll("[data-test-plan] form")).map((form) => ({
+			label: form.querySelector("button")?.textContent?.trim(),
+			method: form.getAttribute("method")?.toLowerCase(),
+			action: form.getAttribute("action"),
+			hidden: Object.fromEntries(
+				Array.from(form.querySelectorAll('input[type="hidden"]')).map((field) => [
+					field.getAttribute("name"),
+					field.getAttribute("value"),
+				]),
+			),
+		}));
+		expect(forms).toEqual(
+			EXPECTED_PLAN_ORDER.map((key) => ({
+				label: HOME_CONTENT.pricing.panelCtaLabel,
+				method: "get",
+				action: "/signup",
+				hidden: {
+					utm_source: "homepage",
+					utm_medium: "internal",
+					utm_content: `plan-${key}`,
+				},
+			})),
+		);
 	});
 
 	it("should carry the export and hosting assurances beside the price", async () => {
@@ -509,6 +556,15 @@ describe("GET / questions and close", () => {
 		);
 	});
 });
+
+interface StructuredOffer {
+	readonly name: string;
+	readonly price: string;
+	readonly priceCurrency: string;
+	readonly priceSpecification: {
+		readonly referenceQuantity: { readonly unitCode: string; readonly value: number };
+	};
+}
 
 describe("GET / metadata", () => {
 	it("should set SEO metadata within the length search engines render", async () => {
@@ -594,7 +650,7 @@ describe("GET / metadata", () => {
 		);
 	});
 
-	it("should advertise only the priced plan, now that the homepage no longer offers a free tier", async () => {
+	it("should advertise the three billing terms, now that the homepage no longer offers a free tier", async () => {
 		const { doc } = await loadHomepage();
 
 		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
@@ -603,8 +659,37 @@ describe("GET / metadata", () => {
 		const app = schemas.find((schema: { "@type": string }) => schema["@type"] === "WebApplication");
 
 		expect(app.isAccessibleForFree).toBe(false);
-		expect(app.offers.name).toBe("Standard");
-		expect(app.offers.price).toBe("49");
+		expect(
+			app.offers.map((offer: StructuredOffer) => ({
+				name: offer.name,
+				price: offer.price,
+				priceCurrency: offer.priceCurrency,
+				unitCode: offer.priceSpecification.referenceQuantity.unitCode,
+				unitValue: offer.priceSpecification.referenceQuantity.value,
+			})),
+		).toEqual([
+			{
+				name: PRICING_PLANS.monthly.name,
+				price: "10",
+				priceCurrency: "USD",
+				unitCode: "MON",
+				unitValue: 1,
+			},
+			{
+				name: PRICING_PLANS.yearly.name,
+				price: "60",
+				priceCurrency: "USD",
+				unitCode: "ANN",
+				unitValue: 1,
+			},
+			{
+				name: PRICING_PLANS.triennial.name,
+				price: "108",
+				priceCurrency: "USD",
+				unitCode: "ANN",
+				unitValue: 3,
+			},
+		]);
 	});
 
 	it("should include the reader review nested in the WebApplication structured data", async () => {

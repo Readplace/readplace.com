@@ -12,7 +12,11 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initSubscriptionStartRequestHandler } from "./subscription-start-request-handler";
 
 const USER_ID = UserIdSchema.parse("1".repeat(32));
-const STRIPE_PRICE_ID = "price_test";
+const STRIPE_PRICE_IDS = {
+	monthly: "price_test_monthly",
+	yearly: "price_test_yearly",
+	triennial: "price_test_triennial",
+};
 
 function buildEventBridgeBody(userId: string): string {
 	return JSON.stringify({ detail: { userId } });
@@ -22,7 +26,12 @@ interface Subject {
 	handler: ReturnType<typeof initSubscriptionStartRequestHandler>;
 	providers: ReturnType<typeof initInMemorySubscriptionProviders>;
 	stripe: ReturnType<typeof initInMemorySubscriptionBilling>;
-	succeededEvents: Array<{ userId: string; subscriptionId: string; customerId: string }>;
+	succeededEvents: Array<{
+		userId: string;
+		subscriptionId: string;
+		customerId: string;
+		plan: string;
+	}>;
 	failedEvents: Array<{ userId: string; reason: string }>;
 }
 
@@ -48,7 +57,7 @@ function buildSubject(opts?: { stripeFails?: boolean }): Subject {
 		createSubscriptionOnExistingCustomer: stripe.createSubscriptionOnExistingCustomer,
 		publishSubscriptionChargeSucceeded,
 		publishSubscriptionChargeFailed,
-		stripePriceId: STRIPE_PRICE_ID,
+		stripePriceIds: STRIPE_PRICE_IDS,
 		logger: HutchLogger.from(noopLogger),
 	});
 	return { handler, providers, stripe, succeededEvents, failedEvents };
@@ -159,7 +168,7 @@ describe("subscription-start-request handler", () => {
 		assert.deepEqual(subject.stripe.createdSubscriptions(), []);
 	});
 
-	it("publishes SubscriptionChargeSucceeded after Stripe succeeds when trialing row has customerId", async () => {
+	it("charges the default plan when the trial row names none, because a trial that converts on its own was never given a plan to pick", async () => {
 		const subject = buildSubject();
 		// Defensive case — production paths never write `customerId` onto a
 		// trialing row, but the handler must still convert it cleanly if it
@@ -185,17 +194,44 @@ describe("subscription-start-request handler", () => {
 		assert.equal(subject.succeededEvents.length, 1);
 		assert.equal(subject.succeededEvents[0].userId, USER_ID);
 		assert.equal(subject.succeededEvents[0].customerId, "cus_with_card");
+		assert.equal(subject.succeededEvents[0].plan, "yearly");
 		assert.match(subject.succeededEvents[0].subscriptionId, /^sub_inmem_/);
 		assert.equal(subject.failedEvents.length, 0);
 		assert.deepEqual(subject.stripe.createdSubscriptions(), [
 			{
 				customerId: "cus_with_card",
-				priceId: STRIPE_PRICE_ID,
+				priceId: STRIPE_PRICE_IDS.yearly,
 				userId: USER_ID,
 				onUnpaidFirstInvoice: "leave-pending",
 				subscriptionId: subject.succeededEvents[0].subscriptionId,
 			},
 		]);
+	});
+
+	it("charges the plan the row carries when the subscriber already picked one", async () => {
+		const subject = buildSubject();
+		subject.providers.seedRow({
+			userId: USER_ID,
+			provider: "stripe",
+			status: "trialing",
+			customerId: "cus_with_card",
+			plan: "monthly",
+			trialEndsAt: "2026-06-20T00:00:00.000Z",
+			createdAt: "2026-06-01T00:00:00.000Z",
+			updatedAt: "2026-06-01T00:00:00.000Z",
+		});
+
+		await subject.handler(
+			buildSqsEvent([{ messageId: "msg-charge", body: buildEventBridgeBody(USER_ID) }]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert.deepEqual(
+			subject.stripe.createdSubscriptions().map(({ priceId }) => priceId),
+			[STRIPE_PRICE_IDS.monthly],
+		);
+		assert.equal(subject.succeededEvents[0].plan, "monthly");
 	});
 
 	it("publishes SubscriptionChargeFailed(stripe_error) when Stripe throws", async () => {

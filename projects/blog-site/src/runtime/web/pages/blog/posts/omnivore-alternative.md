@@ -12,7 +12,7 @@ keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Omnivore shut down two weeks after ElevenLabs acquired it. The cause was venture capital that needed an exit. Readplace is self-funded at $49/year, so subscriptions pay for servers and no investors are waiting on a sale. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code. It runs in Sydney under Australian privacy law.
+Omnivore shut down two weeks after ElevenLabs acquired it. The cause was venture capital that needed an exit. Readplace is self-funded at $3/month, so subscriptions pay for servers and no investors are waiting on a sale. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code. It runs in Sydney under Australian privacy law.
 
 </div>
 </details>
@@ -84,7 +84,7 @@ Features land one at a time, and the table above shows what is next.
 
 ## Pricing
 
-It is $49/year, and the TL;DR summaries are part of that.
+It is $3/month, and the TL;DR summaries are part of that.
 
 Readwise Reader is a strong pick for power users at $119.88/year. Readplace is the simpler and cheaper option, and it stays pointed at saving and reading articles rather than growing into a full research platform.
 
@@ -100,7 +100,7 @@ The team went to ElevenLabs to work on text-to-speech rather than reading tools,
 
 **Is there a free Omnivore alternative?**
 
-Readplace costs $49/year. The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year.
+Readplace costs $3/month. The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year.
 
 **Can I import my Omnivore data into Readplace?**
 

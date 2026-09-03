@@ -384,6 +384,7 @@ async function processChargeReminder(
 		founderAvatarUrl: deps.founderAvatarUrl,
 		chargeAt,
 		ctaUrl: `${deps.appOrigin}/account?utm_source=charge-reminder&utm_medium=email&utm_campaign=trial-precharge`,
+		plan: row.plan,
 	});
 
 	await deps.sendEmail({

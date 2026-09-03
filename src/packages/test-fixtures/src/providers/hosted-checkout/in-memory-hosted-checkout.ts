@@ -10,6 +10,7 @@ import type {
 
 interface StoredSession {
 	customerEmail: string;
+	priceId: string;
 	paid: boolean;
 	paymentStatus: CheckoutPaymentStatus;
 	status: CheckoutSessionStatus;
@@ -27,15 +28,25 @@ export function initInMemoryHostedCheckout(opts: {
 	markPaid: (id: CheckoutSessionId, opts?: { paymentStatus?: CheckoutPaymentStatus }) => void;
 	markExpired: (id: CheckoutSessionId) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
+	createdCheckoutSessions: () => Array<{
+		id: CheckoutSessionId;
+		priceId: string;
+		customerEmail: string;
+	}>;
 } {
 	const sessions = new Map<CheckoutSessionId, StoredSession>();
 	const urls = new Map<CheckoutSessionId, string>();
 
-	const createCheckoutSession: CreateCheckoutSession = async ({ customerEmail, successUrl }) => {
+	const createCheckoutSession: CreateCheckoutSession = async ({
+		customerEmail,
+		priceId,
+		successUrl,
+	}) => {
 		const id = CheckoutSessionIdSchema.parse(`cs_test_${randomBytes(12).toString("hex")}`);
 		const sessionSuffix = randomBytes(8).toString("hex");
 		sessions.set(id, {
 			customerEmail,
+			priceId,
 			paid: false,
 			paymentStatus: "unpaid",
 			status: "open",
@@ -83,5 +94,19 @@ export function initInMemoryHostedCheckout(opts: {
 		return url;
 	};
 
-	return { createCheckoutSession, retrieveCheckoutSession, markPaid, markExpired, getCheckoutUrl };
+	const createdCheckoutSessions = () =>
+		Array.from(sessions, ([id, session]) => ({
+			id,
+			priceId: session.priceId,
+			customerEmail: session.customerEmail,
+		}));
+
+	return {
+		createCheckoutSession,
+		retrieveCheckoutSession,
+		markPaid,
+		markExpired,
+		getCheckoutUrl,
+		createdCheckoutSessions,
+	};
 }

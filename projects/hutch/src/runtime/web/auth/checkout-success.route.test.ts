@@ -48,6 +48,7 @@ describe("GET /auth/checkout/success", () => {
 
 		const checkout = await hostedCheckout.createCheckoutSession({
 			customerEmail: "unpaid@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
 		});
@@ -80,6 +81,7 @@ describe("GET /auth/checkout/success", () => {
 
 		const checkout = await hostedCheckout.createCheckoutSession({
 			customerEmail: "trial-peeker@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
 		});
@@ -236,6 +238,7 @@ describe("GET /auth/checkout/success", () => {
 		assert(created.ok, "user must be created before driving Stripe success");
 		const checkout = await hostedCheckout.createCheckoutSession({
 			customerEmail: "trial-capture@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
 		});
@@ -284,6 +287,51 @@ describe("GET /auth/checkout/success", () => {
 		expect(subRow.subscriptionId).toMatch(/^sub_test_[0-9a-f]+$/);
 		expect(subRow.customerId).toMatch(/^cus_test_[0-9a-f]+$/);
 		expect(subRow.trialEndsAt).toBeUndefined();
+	});
+
+	it("writes the plan the reader picked onto the subscription row on first paid visit", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, subscriptionProviders, pendingSignup } = harness;
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "plan-monthly@example.com",
+			password: "password123",
+			plan: "monthly",
+		});
+
+		expect(successResponse.status).toBe(303);
+		expect(successResponse.headers.location).toBe("/queue");
+		const lookup = await auth.findUserByEmail("plan-monthly@example.com");
+		assert(lookup, "user must exist after paid checkout");
+		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+		assert(subRow, "subscription row must exist after paid checkout");
+		expect(subRow.plan).toBe("monthly");
+	});
+
+	it("leaves the row's plan unset for a checkout opened before the plan picker existed — a grandfathered checkout must not be stamped with a plan it was never charged on", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, subscriptionProviders, pendingSignup } = harness;
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "plan-grandfathered@example.com",
+			password: "password123",
+		});
+
+		expect(successResponse.status).toBe(303);
+		expect(successResponse.headers.location).toBe("/queue");
+		const lookup = await auth.findUserByEmail("plan-grandfathered@example.com");
+		assert(lookup, "user must exist after paid checkout");
+		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+		assert(subRow, "subscription row must exist after paid checkout");
+		expect(subRow.plan).toBeUndefined();
 	});
 
 	it("calls deleteTrialEndSchedule on first paid visit so any prior trial scheduler is cleared", async () => {

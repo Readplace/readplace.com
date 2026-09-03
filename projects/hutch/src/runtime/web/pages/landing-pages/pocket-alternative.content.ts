@@ -1,4 +1,4 @@
-import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { READLIST_SHOT, EARLY_USER_QUOTE, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -102,7 +102,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		title: "What it costs once the links are across",
 		paragraphs: [
 			`Uploading and reviewing costs nothing and needs no account. Saving the selection does, and that account is a subscription: ${TRIAL_TERMS}`,
-			`${MONTHLY_EQUIVALENT_DISPLAY} a month is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of.`,
+			`${CHEAPEST_MONTHLY_DISPLAY}/month is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of.`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

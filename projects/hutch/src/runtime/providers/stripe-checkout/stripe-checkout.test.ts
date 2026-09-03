@@ -25,12 +25,12 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
 			const result = await stripe.createCheckoutSession({
 				customerEmail: "buyer@example.com",
+				priceId: "price_test_yearly",
 				successUrl: "https://readplace.com/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 				cancelUrl: "https://readplace.com/signup",
 			});
@@ -45,10 +45,33 @@ describe("initStripeCheckout", () => {
 			assert.equal(headers?.["Content-Type"], "application/x-www-form-urlencoded");
 			const body = String(receivedInit?.body ?? "");
 			assert.ok(body.includes("mode=subscription"));
-			assert.ok(body.includes("line_items%5B0%5D%5Bprice%5D=price_pro"));
+			assert.ok(body.includes("line_items%5B0%5D%5Bprice%5D=price_test_yearly"));
 			assert.ok(body.includes("customer_email=buyer%40example.com"));
 			assert.ok(body.includes("allow_promotion_codes=true"));
 			assert.ok(!body.includes("subscription_data"), "no trial_end without trialEndsAt");
+		});
+
+		it("bills whichever price the caller names, so one Stripe client serves every plan", async () => {
+			let receivedInit: RequestInit | undefined;
+			const fakeFetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+				receivedInit = init;
+				return {
+					ok: true,
+					status: 200,
+					json: async () => ({ id: "cs_test_plan", url: "https://checkout.stripe.com/plan" }),
+				} as Response;
+			}) as typeof globalThis.fetch;
+
+			const stripe = initStripeCheckout({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			await stripe.createCheckoutSession({
+				customerEmail: "buyer@example.com",
+				priceId: "price_test_triennial",
+				successUrl: "https://readplace.com/auth/checkout/success",
+				cancelUrl: "https://readplace.com/signup",
+			});
+
+			const body = String(receivedInit?.body ?? "");
+			assert.ok(body.includes("line_items%5B0%5D%5Bprice%5D=price_test_triennial"));
 		});
 
 		it("sends subscription_data[trial_end] as epoch seconds when trialEndsAt is provided, so Stripe attaches the card now and charges at trial end", async () => {
@@ -63,13 +86,13 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
 			const trialEndsAt = "2026-07-20T00:00:00.000Z";
 			await stripe.createCheckoutSession({
 				customerEmail: "trialist@example.com",
+				priceId: "price_test_yearly",
 				successUrl: "https://readplace.com/ok",
 				cancelUrl: "https://readplace.com/cancel",
 				trialEndsAt,
@@ -89,7 +112,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_missing",
 				fetch: fakeFetch,
 			});
 
@@ -97,6 +119,7 @@ describe("initStripeCheckout", () => {
 				() =>
 					stripe.createCheckoutSession({
 						customerEmail: "buyer@example.com",
+						priceId: "price_test_yearly",
 						successUrl: "https://readplace.com/ok",
 						cancelUrl: "https://readplace.com/cancel",
 					}),
@@ -110,7 +133,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -118,6 +140,7 @@ describe("initStripeCheckout", () => {
 				() =>
 					stripe.createCheckoutSession({
 						customerEmail: "buyer@example.com",
+						priceId: "price_test_yearly",
 						successUrl: "https://readplace.com/ok",
 						cancelUrl: "https://readplace.com/cancel",
 					}),
@@ -131,7 +154,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -139,6 +161,7 @@ describe("initStripeCheckout", () => {
 				() =>
 					stripe.createCheckoutSession({
 						customerEmail: "buyer@example.com",
+						priceId: "price_test_yearly",
 						successUrl: "https://readplace.com/ok",
 						cancelUrl: "https://readplace.com/cancel",
 					}),
@@ -167,7 +190,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -206,7 +228,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -231,7 +252,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -260,7 +280,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -290,7 +309,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -306,7 +324,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -323,7 +340,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -340,7 +356,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -356,7 +371,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 
@@ -372,7 +386,6 @@ describe("initStripeCheckout", () => {
 
 			const stripe = initStripeCheckout({
 				apiKey: "sk_test_abc",
-				priceId: "price_pro",
 				fetch: fakeFetch,
 			});
 

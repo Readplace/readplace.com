@@ -1,4 +1,5 @@
 import type { UserId } from "@packages/domain/user";
+import type { BillingPlan } from "./subscription-providers";
 
 export type CancelSubscriptionReason =
 	| "trial_expired_no_card"
@@ -122,6 +123,7 @@ export type PublishSubscriptionChargeSucceeded = (params: {
 	userId: UserId;
 	subscriptionId: string;
 	customerId: string;
+	plan: BillingPlan;
 }) => Promise<void>;
 
 export type PublishSubscriptionReactivated = (params: {

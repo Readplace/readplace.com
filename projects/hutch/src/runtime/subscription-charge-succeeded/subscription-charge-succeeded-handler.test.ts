@@ -13,6 +13,7 @@ function buildBody(detail: {
 	userId: string;
 	subscriptionId: string;
 	customerId: string;
+	plan?: "monthly" | "yearly" | "triennial";
 }): string {
 	return JSON.stringify({ detail });
 }
@@ -71,6 +72,55 @@ describe("subscription-charge-succeeded handler", () => {
 			user_id: USER_ID,
 			subscription_id: "sub_brand_new",
 		}]);
+	});
+
+	it("records the plan the charge was made on, so the row cannot read as grandfathered after a plan-priced conversion", async () => {
+		const { providers, handler } = setup();
+		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-06-20T00:00:00.000Z" });
+
+		await handler(
+			buildSqsEvent([
+				{
+					messageId: "msg-charge-plan",
+					body: buildBody({
+						userId: USER_ID,
+						subscriptionId: "sub_plan",
+						customerId: "cus_plan",
+						plan: "yearly",
+					}),
+				},
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		const row = await providers.findByUserId(USER_ID);
+		assert(row, "row must exist");
+		assert.equal(row.plan, "yearly");
+	});
+
+	it("leaves the row plan-less for an event enqueued before the plan picker shipped, because that charge was made on the pre-3-tier price", async () => {
+		const { providers, handler } = setup();
+		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-06-20T00:00:00.000Z" });
+
+		await handler(
+			buildSqsEvent([
+				{
+					messageId: "msg-charge-legacy",
+					body: buildBody({
+						userId: USER_ID,
+						subscriptionId: "sub_legacy",
+						customerId: "cus_legacy",
+					}),
+				},
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		const row = await providers.findByUserId(USER_ID);
+		assert(row, "row must exist");
+		assert.equal(row.plan, undefined);
 	});
 
 	it("reports a batch item failure for malformed JSON and emits no subscription event", async () => {

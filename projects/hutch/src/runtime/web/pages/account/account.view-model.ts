@@ -16,6 +16,7 @@ import {
 	PLATFORM_QUERY,
 } from "../../onboarding/native-client";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
+import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_NEW_URL,
@@ -68,6 +69,7 @@ export interface AccountAction {
 	method: "POST";
 	href: string;
 	isPending: boolean;
+	popoverTarget?: string;
 }
 
 export interface DangerConfirmationViewModel {
@@ -170,6 +172,7 @@ const SUBSCRIBE_ACTION = action({
 	variant: "primary",
 	method: "POST",
 	href: ACCOUNT_SUBSCRIBE_URL,
+	popoverTarget: SUBSCRIBE_PLANS_POPOVER_ID,
 });
 
 const CANCEL_FORM_ACTION = action({

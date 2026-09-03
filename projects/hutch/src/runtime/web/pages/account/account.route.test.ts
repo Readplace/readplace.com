@@ -9,6 +9,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { CHECKOUT_VARIANTS } from "../../../observability/events";
+import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { ACCOUNT_CANCEL_MAX_POLLS } from "./account.view-model";
 
 function card(id: string, isPrimary: boolean, last4: string): SavedCard {
@@ -64,6 +65,20 @@ function actionKeys(root: Document | Element): string[] {
 	return Array.from(root.querySelectorAll("[data-test-account-action]")).map(
 		(el) => el.getAttribute("data-test-account-action") ?? "",
 	);
+}
+
+function confirmPopoverKeys(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll("[data-test-confirm-popover]")).map(
+		(panel) => panel.getAttribute("data-test-confirm-popover") ?? "",
+	);
+}
+
+function subscribePlanKeys(doc: Document): string[] {
+	return Array.from(
+		doc.querySelectorAll(
+			`[data-test-confirm-popover="subscribe-plans"] [data-test-plan]`,
+		),
+	).map((panel) => panel.getAttribute("data-test-plan") ?? "");
 }
 
 describe("GET /account (unauthenticated)", () => {
@@ -687,6 +702,69 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 	});
 });
 
+describe("GET /account (plan-chooser popover wiring)", () => {
+	function expectPlanChooser(doc: Document) {
+		const trigger = findCard(doc).querySelector('[data-test-action="subscribe-plans-open"]');
+		assert(trigger, "the card must render the plan-chooser trigger");
+		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
+		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
+		const fallback = findAction(doc, "subscribe");
+		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
+		expect(confirmPopoverKeys(doc)).toEqual(["subscribe-plans"]);
+		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
+	}
+
+	it("offers a trialing user the three-plan chooser: the trigger opens the popover and the subscribe form stays as the no-JS fallback", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-plans@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		expectPlanChooser(new JSDOM(response.text).window.document);
+	});
+
+	it("offers a cancelled user the same three-plan chooser on the re-subscribe path", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "cancelled-plans@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_plans_cancelled",
+			customerId: "cus_plans_cancelled",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		expectPlanChooser(new JSDOM(response.text).window.document);
+	});
+
+	it("renders no plan popover for an active subscriber — the page's popover key list carries exactly what the card's actions declare", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "active-plans@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_plans_active",
+			customerId: "cus_plans_active",
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(confirmPopoverKeys(doc)).toEqual([]);
+	});
+});
+
 function cancelButton(doc: Document): HTMLButtonElement {
 	const button = findAction(doc, "cancel-form").querySelector("button");
 	assert(button, "the cancel form must contain a submit button");
@@ -1110,7 +1188,7 @@ describe("POST /account/subscribe", () => {
 		const created = subscriptionBilling.createdSubscriptions();
 		expect(created).toHaveLength(1);
 		expect(created[0].customerId).toBe("cus_was_paid");
-		expect(created[0].priceId).toBe("price_test_default");
+		expect(created[0].priceId).toBe("price_test_yearly");
 		// userId rides into Stripe metadata so the subscription is traceable to this account.
 		expect(created[0].userId).toBe(userId);
 		expect(created[0].onUnpaidFirstInvoice).toBe("refuse");
@@ -1379,6 +1457,121 @@ describe("POST /account/subscribe", () => {
 		// No NEW subscription created — the user still has the existing one
 		// with cancel-at-period-end set; Reactivate is the only un-cancel path.
 		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(0);
+	});
+});
+
+describe("POST /account/subscribe (which plan gets charged)", () => {
+	it("opens checkout against the plan the reader picked", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "picks-monthly@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe").type("form").send({ plan: "monthly" });
+
+		expect(response.status).toBe(303);
+		expect(hostedCheckout.createdCheckoutSessions().map((s) => s.priceId)).toEqual([
+			"price_test_monthly",
+		]);
+		const started = harness.subscriptionEvents.events.filter(
+			(e) => e.event === "checkout_started",
+		);
+		expect(started.map((e) => e.plan)).toEqual(["monthly"]);
+	});
+
+	it("remembers the chosen plan on the pending signup, so returning from Stripe records the plan the subscription was created on", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, pendingSignup, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "remembers-plan@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		await agent.post("/account/subscribe").type("form").send({ plan: "triennial" });
+
+		const [session] = hostedCheckout.createdCheckoutSessions();
+		const pending = await pendingSignup.consumePendingSignup(session.id);
+		assert(pending, "pending signup must be stored for the checkout session");
+		expect(pending.plan).toBe("triennial");
+	});
+
+	it("charges the featured plan when the form carries none, so the no-JS fallback and an older client still land on the plan the page pushes", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "no-plan-field@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		await agent.post("/account/subscribe");
+
+		expect(hostedCheckout.createdCheckoutSessions().map((s) => s.priceId)).toEqual([
+			"price_test_yearly",
+		]);
+	});
+
+	it("refuses a plan it does not sell rather than silently charging the default", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "unknown-plan@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent
+			.post("/account/subscribe")
+			.type("form")
+			.send({ plan: "fortnightly" });
+
+		expect(response.status).toBe(400);
+		expect(hostedCheckout.createdCheckoutSessions()).toEqual([]);
+	});
+
+	it("charges a resubscriber the plan they pick now, in preference to the one their cancelled subscription carried", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-picks@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+			plan: "monthly",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		await agent.post("/account/subscribe").type("form").send({ plan: "triennial" });
+
+		expect(subscriptionBilling.createdSubscriptions().map((s) => s.priceId)).toEqual([
+			"price_test_triennial",
+		]);
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.plan).toBe("triennial");
+	});
+
+	it("falls back to the plan a resubscriber's cancelled subscription carried when they pick none", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-remembers@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+			plan: "monthly",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		await agent.post("/account/subscribe");
+
+		expect(subscriptionBilling.createdSubscriptions().map((s) => s.priceId)).toEqual([
+			"price_test_monthly",
+		]);
 	});
 });
 

@@ -22,6 +22,7 @@ describe("toRecord", () => {
 			trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
 			trialReminderEmailSentAt: "2026-06-03T00:00:00.000Z",
 			automationSavesHeldEmailSentAt: "2026-06-06T00:00:00.000Z",
+			plan: "triennial",
 			nextCharge,
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
@@ -38,10 +39,29 @@ describe("toRecord", () => {
 			trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
 			trialReminderEmailSentAt: "2026-06-03T00:00:00.000Z",
 			automationSavesHeldEmailSentAt: "2026-06-06T00:00:00.000Z",
+			plan: "triennial",
 			nextCharge,
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
+	});
+
+	it("degrades a stored plan this build no longer sells to undefined, so a retired plan name cannot lock the account out of its own save gate", () => {
+		const row = SubscriptionProviderRow.parse({
+			userId: USER_ID,
+			provider: "stripe",
+			status: "active",
+			subscriptionId: "sub_1",
+			customerId: "cus_1",
+			plan: "fortnightly",
+			createdAt: "2026-05-20T10:00:00.000Z",
+			updatedAt: "2026-05-22T10:00:00.000Z",
+		});
+
+		const record = toRecord(row);
+
+		assert.equal(record.plan, undefined);
+		assert.equal("plan" in record, false);
 	});
 
 	it("degrades a corrupt stored nextCharge to undefined rather than throwing out of the save gate", () => {

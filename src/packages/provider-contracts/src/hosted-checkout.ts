@@ -11,6 +11,7 @@ export interface CheckoutSession {
 
 export type CreateCheckoutSession = (params: {
 	customerEmail: string;
+	priceId: string;
 	successUrl: string;
 	cancelUrl: string;
 	trialEndsAt?: string;

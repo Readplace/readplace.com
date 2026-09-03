@@ -5,6 +5,14 @@ import type { SubscriptionNextCharge } from "./subscription-billing";
 export const SubscriptionProviderSchema = z.enum(["stripe"]);
 export type SubscriptionProvider = z.infer<typeof SubscriptionProviderSchema>;
 
+export const BILLING_PLANS = ["monthly", "yearly", "triennial"] as const;
+
+export const BillingPlanSchema = z.enum(BILLING_PLANS);
+
+export type BillingPlan = z.infer<typeof BillingPlanSchema>;
+
+export const DEFAULT_BILLING_PLAN: BillingPlan = "yearly";
+
 export type SubscriptionStatus =
 	| "trialing"
 	| "active"
@@ -22,6 +30,7 @@ export interface SubscriptionRecord {
 	trialFeedbackEmailSentAt?: string;
 	trialReminderEmailSentAt?: string;
 	automationSavesHeldEmailSentAt?: string;
+	plan?: BillingPlan;
 	/** The renewal the provider last told us about. Absent until an /account render
 	 * asks, and cleared by every mutation that ends the current subscription, so a
 	 * present value always belongs to the `subscriptionId` alongside it. */
@@ -47,6 +56,7 @@ export type UpsertActiveSubscription = (input: {
 	userId: UserId;
 	subscriptionId: string;
 	customerId: string;
+	plan?: BillingPlan;
 }) => Promise<void>;
 
 export type MarkSubscriptionPendingCancellation = (input: {

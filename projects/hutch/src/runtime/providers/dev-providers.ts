@@ -416,7 +416,11 @@ export function initDevProviders(input: { appOrigin: string }) {
 		findSubscriptionNextCharge: devStripeSubscriptions.findSubscriptionNextCharge,
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods: devPaymentMethods,
-		stripePriceId: "price_dev_default",
+		stripePriceIds: {
+			monthly: "price_dev_monthly",
+			yearly: "price_dev_yearly",
+			triennial: "price_dev_triennial",
+		},
 		stripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY"),
 
 		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),

@@ -1,11 +1,11 @@
 export { render } from "./render";
 export {
-	ANNUAL_PRICE_AMOUNT,
-	ANNUAL_PRICE_DISPLAY,
-	MONTHLY_EQUIVALENT_AMOUNT,
-	MONTHLY_EQUIVALENT_DISPLAY,
+	CHEAPEST_MONTHLY_DISPLAY,
+	PRICING_PANELS,
+	PRICING_PLANS,
 	SUBSCRIBE_CTA_LABEL,
 } from "./pricing";
+export type { PricingPanel, PricingPlan } from "./pricing";
 export { withInternalTracking } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
 export type { PageBody, SeoMetadata } from "./page-body.types";

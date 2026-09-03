@@ -24,9 +24,10 @@ describe("PaymentFailedEmail", () => {
 			expect(text).not.toMatch(/\bwe\b/i);
 		});
 
-		it("names the price and the WORKING fix — a new card must be made primary, because only the primary card is charged", () => {
+		it("names the WORKING fix without naming an amount, because the reader's plan is not knowable here and every grandfathered subscriber pays a different one — a new card must be made primary, because only the primary card is charged", () => {
 			const text = PaymentFailedEmail(baseParams).to("text/plain");
-			expect(text).toContain("$49 Readplace payment didn't go through");
+			expect(text).toContain("Your Readplace payment didn't go through");
+			expect(text).not.toMatch(/\$\d/);
 			expect(text).toContain("Add a new card on your account page");
 			expect(text).toContain("“Make primary”");
 			expect(text).toContain("only the primary card is charged");

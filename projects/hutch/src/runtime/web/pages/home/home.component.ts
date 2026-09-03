@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
+import {
+	CONFIRM_POPOVER_STYLES,
+	PRICING_PANELS,
+	render,
+	withInternalTracking,
+} from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { ADVERTISED_CLIENTS } from "@packages/supported-clients";
 
@@ -55,7 +60,6 @@ interface RenderedAction {
 	/** What the action would act on, named and linked so a reader who left the
 	 * article minutes ago can tell which one this saves — and reopen it. */
 	readonly target?: RenderedLink;
-	readonly subLabel?: string;
 }
 
 interface RenderedLink {
@@ -79,7 +83,6 @@ function renderAction(input: {
 	saveTipState?: SaveTipState;
 	lead?: string;
 	target?: RenderedLink;
-	subLabel?: string;
 }): RenderedAction {
 	const tracked = new URL(
 		withInternalTracking(input.href, { source: TRACKING_SOURCE, content: input.content }),
@@ -93,7 +96,6 @@ function renderAction(input: {
 		saveTipState: input.saveTipState,
 		lead: input.lead,
 		target: input.target,
-		subLabel: input.subLabel,
 		action: tracked.pathname,
 		hiddenParams: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
 	};
@@ -147,6 +149,29 @@ const HOMEPAGE_WAYS: readonly HomeWayRow[] = [
 	...HOME_WAYS_WITHOUT_A_CLIENT,
 ];
 
+const HOMEPAGE_PRICING_PANELS = PRICING_PANELS.map((panel) => {
+	const emphasis = panel.featured
+		? {
+				panelClass: "home-pricing__plan home-pricing__plan--featured",
+				buttonVariant: "btn--primary",
+			}
+		: { panelClass: "home-pricing__plan", buttonVariant: "btn--secondary" };
+	return {
+		tierId: panel.key,
+		name: panel.name,
+		monthlyDisplay: panel.monthlyDisplay,
+		billedNote: panel.billedNote,
+		badge: panel.badge,
+		panelClass: emphasis.panelClass,
+		cta: renderAction({
+			key: `plan-${panel.key}`,
+			label: pricing.panelCtaLabel,
+			href: "/signup",
+			content: `plan-${panel.key}`,
+			cssClass: `${emphasis.buttonVariant} home-pricing__plan-button`,
+		}),
+	};
+});
 function buildPasteAction(input: { primary: boolean; saveTipState: SaveTipState }): RenderedAction {
 	return renderAction({
 		key: "homepage-link-input",
@@ -288,15 +313,7 @@ export function HomePage(params: {
 				pricingTitleBefore: pricing.titleBefore,
 				pricingPriceAmount: pricing.priceAmount,
 				pricingTitleAfter: pricing.titleAfter,
-				pricingBody: pricing.body,
-				pricingCta: renderAction({
-					key: "signup-body",
-					label: pricing.ctaLabel,
-					href: "/signup",
-					content: "signup-body",
-					cssClass: "btn--primary home-pricing__cta-button",
-					subLabel: pricing.ctaSubLabel,
-				}),
+				pricingPanels: HOMEPAGE_PRICING_PANELS,
 				pricingNote: pricing.ctaNote,
 				pricingAssurances: pricing.assurances,
 				pricingSourceLead: pricing.sourceLead,

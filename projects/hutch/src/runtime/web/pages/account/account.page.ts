@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
+import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import type {
@@ -13,13 +14,16 @@ import type {
 	CreateCheckoutSession,
 	CheckoutSessionId,
 } from "@packages/provider-contracts/hosted-checkout";
-import type {
-	FindSubscriptionByUserId,
-	MarkSubscriptionActive,
-	SetSubscriptionNextCharge,
-	SubscriptionRecord,
-	UpsertActiveSubscription,
-	UpsertTrialingSubscription,
+import {
+	BillingPlanSchema,
+	DEFAULT_BILLING_PLAN,
+	type BillingPlan,
+	type FindSubscriptionByUserId,
+	type MarkSubscriptionActive,
+	type SetSubscriptionNextCharge,
+	type SubscriptionRecord,
+	type UpsertActiveSubscription,
+	type UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	PublishCancelSubscriptionCommand,
@@ -111,7 +115,7 @@ interface AccountDependencies {
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	storePendingSignup: StorePendingSignup;
-	stripePriceId: string;
+	stripePriceIds: Record<BillingPlan, string>;
 	buildCheckoutSuccessUrl: (sessionIdPlaceholder: string) => string;
 	appOrigin: string;
 	logger: HutchLogger;
@@ -569,7 +573,11 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	async function startCheckout(
 		req: Request,
-		params: { trialEndsAt: string | undefined; variant: CheckoutVariant },
+		params: {
+			trialEndsAt: string | undefined;
+			variant: CheckoutVariant;
+			plan: BillingPlan;
+		},
 	): Promise<{ id: CheckoutSessionId; url: string }> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -578,6 +586,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 		const checkout = await deps.createCheckoutSession({
 			customerEmail: email,
+			priceId: deps.stripePriceIds[params.plan],
 			successUrl: deps.buildCheckoutSuccessUrl("{CHECKOUT_SESSION_ID}"),
 			cancelUrl: `${deps.appOrigin}${buildAccountUrl()}`,
 			trialEndsAt: params.trialEndsAt,
@@ -592,6 +601,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				returnUrl: "/queue",
 				trialEndsAt: params.trialEndsAt,
 				variant: params.variant,
+				plan: params.plan,
 			},
 			createdAt: deps.now().getTime(),
 		});
@@ -600,6 +610,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			userId,
 			variant: params.variant,
 			checkoutSessionId: checkout.id,
+			plan: params.plan,
 		});
 
 		return checkout;
@@ -622,9 +633,16 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	const subscribeBranches: Record<
 		SubscribeBranchKey,
-		(req: Request, res: Response, row: SubscriptionRecord | undefined) => Promise<void>
+		(
+			req: Request,
+			res: Response,
+			input: {
+				row: SubscriptionRecord | undefined;
+				chosenPlan: BillingPlan | undefined;
+			},
+		) => Promise<void>
 	> = {
-		trialing: async (req, res, row) => {
+		trialing: async (req, res, { row, chosenPlan }) => {
 			assert(row, "trialing branch requires a row");
 			assert(row.trialEndsAt, "trialing row must have trialEndsAt");
 			const trialRemainingMs = Date.parse(row.trialEndsAt) - deps.now().getTime();
@@ -634,13 +652,15 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 						? row.trialEndsAt
 						: undefined,
 				variant: CHECKOUT_VARIANTS.trialCheckout,
+				plan: chosenPlan ?? DEFAULT_BILLING_PLAN,
 			});
 			redirectFullPage(req, res, checkout.url);
 		},
-		cancelled: async (req, res, row) => {
+		cancelled: async (req, res, { row, chosenPlan }) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
 			assert(row, "cancelled branch requires a row");
+			const plan = chosenPlan ?? row.plan ?? DEFAULT_BILLING_PLAN;
 			if (!row.customerId) {
 				deps.logger.warn(
 					"[subscribe] cancelled row without customerId — falling back to checkout",
@@ -649,6 +669,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				const checkout = await startCheckout(req, {
 					trialEndsAt: undefined,
 					variant: CHECKOUT_VARIANTS.cancelledResubscribe,
+					plan,
 				});
 				redirectFullPage(req, res, checkout.url);
 				return;
@@ -657,7 +678,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			try {
 				({ subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 					customerId: row.customerId,
-					priceId: deps.stripePriceId,
+					priceId: deps.stripePriceIds[plan],
 					userId,
 					onUnpaidFirstInvoice: "refuse",
 				}));
@@ -670,6 +691,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				const checkout = await startCheckout(req, {
 					trialEndsAt: undefined,
 					variant: CHECKOUT_VARIANTS.cardDeclineFallback,
+					plan,
 				});
 				redirectFullPage(req, res, checkout.url);
 				return;
@@ -678,8 +700,9 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				userId,
 				subscriptionId,
 				customerId: row.customerId,
+				plan,
 			});
-			deps.emitSubscriptionEvent.resubscribeCompleted({ userId, subscriptionId });
+			deps.emitSubscriptionEvent.resubscribeCompleted({ userId, subscriptionId, plan });
 			res.redirect(303, buildAccountUrl());
 		},
 		noop: async (_req, res) => {
@@ -692,10 +715,20 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	router.post("/subscribe", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const chosenPlan = z
+			.object({ plan: BillingPlanSchema.optional() })
+			.safeParse(req.body ?? {});
+		if (!chosenPlan.success) {
+			res.status(400).send("Unknown subscription plan");
+			return;
+		}
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const branch = pickSubscribeBranch(row?.status);
 		try {
-			await subscribeBranches[branch](req, res, row);
+			await subscribeBranches[branch](req, res, {
+				row,
+				chosenPlan: chosenPlan.data.plan,
+			});
 		} catch (err) {
 			/** Single route-level catch keeps every branch resilient: Stripe
 			 * (checkout create, subscriptions.create), DynamoDB (pending-signup

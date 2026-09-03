@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MONTHLY_EQUIVALENT_DISPLAY, render, VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, render, VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
@@ -143,7 +143,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		foundingMemberLimit: data.foundingAllocation.foundingMemberLimit,
 		foundingAvailable: !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount),
 		trialPeriodDays: STRIPE_TRIAL_PERIOD_DAYS,
-		monthlyPriceDisplay: MONTHLY_EQUIVALENT_DISPLAY,
+		monthlyPriceDisplay: CHEAPEST_MONTHLY_DISPLAY,
 	});
 
 	return {

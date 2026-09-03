@@ -16,7 +16,10 @@
         <p class="{{nextCharge.stateClass}}" data-test-next-charge data-next-charge-state="{{nextCharge.state}}">{{nextCharge.leadIn}}{{#if nextCharge.date}}<time class="account-card__next-charge-date" datetime="{{nextCharge.date.iso}}" data-local-time="{{nextCharge.date.mode}}">{{nextCharge.date.label}}</time>{{/if}}{{nextCharge.tail}}</p>
         <div class="account-card__actions">
           {{#each actions}}
-          <form method="{{method}}" action="{{href}}" class="account-card__action-form"
+          {{#each popoverTriggers}}
+          <button type="button" class="{{buttonClass}}" popovertarget="{{popoverTarget}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{label}}</button>
+          {{/each}}
+          <form method="{{method}}" action="{{href}}" class="{{formClass}}"
                 hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
                 hx-disabled-elt="find button"
                 data-test-account-action="{{key}}">

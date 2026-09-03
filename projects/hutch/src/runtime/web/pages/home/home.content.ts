@@ -1,5 +1,5 @@
 import { MAX_PDF_PAGES } from "@packages/crawl-article";
-import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS } from "@packages/web-shell";
 import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 import type { IconName } from "@packages/ui-icons";
 
@@ -213,12 +213,10 @@ export const HOME_CONTENT = {
 		body: "It will not grow social feeds, public collections, or silent browsing-history capture. Those apps grow daily active users by encouraging saving. Readplace is for reading what matters, not saving more.",
 	},
 	pricing: {
-		titleBefore: "Only",
-		priceAmount: MONTHLY_EQUIVALENT_DISPLAY,
+		titleBefore: "From",
+		priceAmount: CHEAPEST_MONTHLY_DISPLAY,
 		titleAfter: "a month to pay running costs, and that's it!",
-		body: `${ANNUAL_PRICE_DISPLAY} a year, billed once. No data resale, no investor whose timeline outlives yours. ${TRIAL_DAYS} days free first, and I don't ask for a card to start them. If you never subscribe, nothing is charged: the account drops to read-only, not dark — you keep reading every article you saved, and you can still export.`,
-		ctaLabel: "Become a Member",
-		ctaSubLabel: "Support open source",
+		panelCtaLabel: "Become a Member",
 		ctaNote: `Google, Apple, or an email address — about twenty seconds. No card at any point in the ${TRIAL_DAYS} days.`,
 		assurances: [
 			"Export everything, anytime — even after you cancel.",
@@ -241,7 +239,7 @@ export const HOME_CONTENT = {
 			},
 			{
 				question: "Do I need a credit card to start?",
-				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that it is ${MONTHLY_EQUIVALENT_DISPLAY} a month (${ANNUAL_PRICE_DISPLAY} a year). If you don't subscribe, nothing is charged and the account goes read-only.`,
+				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that you choose how often you're billed, and every plan is the same full product: ${PRICING_PLANS.monthly.name} is ${PRICING_PLANS.monthly.monthlyDisplay} a month (${PRICING_PLANS.monthly.billedNote}), ${PRICING_PLANS.yearly.name} is ${PRICING_PLANS.yearly.monthlyDisplay} a month (${PRICING_PLANS.yearly.billedNote}), and ${PRICING_PLANS.triennial.name} is ${PRICING_PLANS.triennial.monthlyDisplay} a month (${PRICING_PLANS.triennial.billedNote}). If you don't subscribe, nothing is charged and the account goes read-only.`,
 			},
 			{
 				question: "What happens to my articles if I stop paying?",

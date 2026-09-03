@@ -6,11 +6,13 @@ import type {
 	CheckoutSessionId,
 	CheckoutVariant,
 } from "@packages/provider-contracts/hosted-checkout";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { AuthBundle, PendingSignupBundle } from "../../../test-app";
 
 interface HostedCheckoutLike {
 	createCheckoutSession: (input: {
 		customerEmail: string;
+		priceId: string;
 		successUrl: string;
 		cancelUrl: string;
 	}) => Promise<{ id: CheckoutSessionId; url: string }>;
@@ -36,6 +38,7 @@ export async function completeCheckoutSignup(params: {
 	returnUrl?: string;
 	trialEndsAt?: string;
 	variant?: CheckoutVariant;
+	plan?: BillingPlan;
 	agent?: SuperTest<Test>;
 }): Promise<{
 	successResponse: import("supertest").Response;
@@ -49,6 +52,7 @@ export async function completeCheckoutSignup(params: {
 
 	const checkout = await params.hostedCheckout.createCheckoutSession({
 		customerEmail: params.email,
+		priceId: `price_test_${params.plan ?? "yearly"}`,
 		successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 		cancelUrl: "http://localhost:3000/signup",
 	});
@@ -61,6 +65,7 @@ export async function completeCheckoutSignup(params: {
 			...(params.returnUrl ? { returnUrl: params.returnUrl } : {}),
 			...(params.trialEndsAt ? { trialEndsAt: params.trialEndsAt } : {}),
 			...(params.variant ? { variant: params.variant } : {}),
+			...(params.plan ? { plan: params.plan } : {}),
 		},
 		createdAt: 1735000000,
 	});

@@ -1,6 +1,6 @@
-import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { FOUNDER_LINE, READ_ONLY_CLOSE } from "./landing-pages.copy";
+import { FOUNDER_LINE, PLAN_CHOICES, READ_ONLY_CLOSE } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
@@ -14,7 +14,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	titleLead: "Stop paying and it goes read-only, not ",
 	titleHighlight: "dark",
 	titleTail: ".",
-	lede: `Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep reading everything you saved. It costs ${MONTHLY_EQUIVALENT_DISPLAY} a month, and that price is the whole business — no ad path, no data resale, no investor whose timeline outlives yours.`,
+	lede: `Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep reading everything you saved. It costs ${CHEAPEST_MONTHLY_DISPLAY}/month, and that subscription is the whole business — no ad path, no data resale, no investor whose timeline outlives yours.`,
 	ogImageAlt:
 		"Readplace — a read-it-later app whose cancelled accounts go read-only instead of dark.",
 	primaryAction: {
@@ -92,13 +92,13 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "What does it cost after the trial?",
-			answer: `${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}. There is one price and one plan.`,
+			answer: `${PLAN_CHOICES}. There is one product behind all three — every plan is the whole of it, and there is no tier above them to upgrade to.`,
 		},
 	],
 	offer: {
-		title: `${MONTHLY_EQUIVALENT_DISPLAY} a month, and that's the whole business.`,
+		title: `${CHEAPEST_MONTHLY_DISPLAY}/month, and that's the whole business.`,
 		paragraphs: [
-			`${ANNUAL_PRICE_DISPLAY} a year, billed once. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it.`,
+			`Pick how often you pay — ${PLAN_CHOICES} — and every one of them buys the same whole product. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it.`,
 			`${STRIPE_TRIAL_PERIOD_DAYS} days free first, and I don't ask for a card to start them.`,
 			READ_ONLY_CLOSE,
 		],
