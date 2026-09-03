@@ -26,7 +26,6 @@ export {
 	type BulkSaveOutcome,
 	MAX_UPLOAD_REQUEST_BYTES,
 	MAX_UPLOAD_CONTENT_BYTES,
-	MAX_UPLOAD_HTML_BYTES,
 	MAX_BULK_PAGE_CONTENT_BYTES,
 	MinutesSchema,
 	ArticleStatusSchema,

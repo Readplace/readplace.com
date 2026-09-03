@@ -8,8 +8,8 @@ import type {
 	PublishSaveLinkRawHtmlCommand,
 } from "@packages/test-fixtures/providers/events";
 import type { UserId } from "@packages/domain/user";
-import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, MinutesSchema } from "@packages/domain/article";
-import { MAX_PDF_BYTES } from "@packages/crawl-article";
+import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES, MinutesSchema } from "@packages/domain/article";
+import { MAX_HTML_BYTES, MAX_PDF_BYTES } from "@packages/crawl-article";
 import { useTestServer, type TestAppHarness, type TestAppResult } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -805,7 +805,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 		await testApp.pendingUpload.stageUploaded({
 			url,
 			mediaType: "text/html",
-			bytes: Buffer.alloc(MAX_UPLOAD_HTML_BYTES + 1, 0x61),
+			bytes: Buffer.alloc(MAX_HTML_BYTES.bytes + 1, 0x61),
 		});
 
 		const response = await request(testApp.server)

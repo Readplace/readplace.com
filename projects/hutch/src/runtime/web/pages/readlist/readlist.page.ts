@@ -11,7 +11,7 @@ import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
+import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
@@ -66,7 +66,7 @@ import type {
 	StatPendingUpload,
 	ReadPendingUploadPrefix,
 } from "@packages/provider-contracts/pending-upload";
-import { isPDF, MAX_PDF_BYTES } from "@packages/crawl-article";
+import { isPDF, MAX_HTML_BYTES, MAX_PDF_BYTES } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
 import { UPLOAD_COMPLETION_MAX_AGE_SECONDS } from "./upload-slot-ttl";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
@@ -740,7 +740,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			},
 		},
 		"text/html": {
-			uploadCeilingBytes: MAX_UPLOAD_HTML_BYTES,
+			uploadCeilingBytes: MAX_HTML_BYTES.bytes,
 			stageInlineBytes: async ({ url, bytes, title, userId }) => {
 				await deps.putPendingHtml({ url, html: bytes.toString("utf8") });
 				await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
