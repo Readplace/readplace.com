@@ -61,7 +61,10 @@ The shots are real production captures, not mockups:
 
 ## Firefox
 
-There is **no AMO listing**: the Firefox extension is signed with
-`--channel=unlisted` and self-hosted from S3 (see
-`submit-ff-extension-for-signing.yml`), so no store screenshots exist for it.
-The same shots serve Firefox users on `/install?client=firefox`.
+The Firefox extension is a listed add-on on AMO
+(https://addons.mozilla.org/firefox/addon/readplace/), published by
+`.github/workflows/publish-firefox-extension.yml`. Its text metadata lives in
+`projects/browser-extensions/firefox-extension/amo-metadata.json` and is sent
+on every publish, so edit it there, not in the Developer Hub. Icon, screenshots
+and the privacy-policy text are managed by hand in the Developer Hub; the same
+shots above serve Firefox, uploaded in the same order.

@@ -1,4 +1,4 @@
-name: Submit FF Extension for Signing
+name: Publish Firefox Extension
 
 on:
   workflow_call:
@@ -16,7 +16,7 @@ on:
         required: true
 
 jobs:
-  submit-firefox-extension-prod:
+  publish-firefox-extension-prod:
     runs-on: ubuntu-latest
     environment: prod
     env:
@@ -81,7 +81,7 @@ jobs:
             pnpm-lock.yaml \
             pnpm-workspace.yaml
 
-      - name: Submit extension to AMO for signing
+      - name: Submit extension to AMO (listed)
         run: node projects/browser-extensions/firefox-extension/scripts/submit-to-amo.js
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}

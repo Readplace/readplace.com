@@ -390,7 +390,7 @@ jobs:
     with:
       project: ${{ matrix.project }}
 
-  # Submit Firefox extension to AMO for signing (runs after pipeline deploys infra)
+  # Publish Firefox extension to AMO (runs after pipeline deploys infra)
   # always() disarms the implicit success() guard so a skipped deploy-platform
   # doesn't cascade into skipping this publish; pipeline.result == 'success'
   # keeps it gated on the actual deploy chain.
@@ -402,7 +402,7 @@ jobs:
     needs: [detect-projects, pipeline]
     permissions:
       contents: write
-    uses: ./.github/workflows/submit-ff-extension-for-signing.yml
+    uses: ./.github/workflows/publish-firefox-extension.yml
     secrets: inherit
 
   # Publish Chrome extension to Chrome Web Store
