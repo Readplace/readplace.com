@@ -267,6 +267,10 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// and any future genuine block of them, still surface.
 	/^https:\/\/fagnerbrack\.com\/x$/i,
 	/^https:\/\/fagnerbrack\.com\/business-success$/i,
+	// Medium `/null` junk path (cf. fagnerbrack.com/null, issue #1066): the host
+	// blog.cloudboost.io no longer resolves, and `/null` was never a real page, so
+	// a recrawl can never land. Anchored exact so a genuine post still surfaces.
+	/^https:\/\/blog\.cloudboost\.io\/null$/i,
 	// (k) Origin unreachable behind its CDN: Cloudflare answers 530 for every
 	// request, from datacenter and residential egress alike, so no crawl can
 	// land. Stored as `exhausted-retries` because a 530 is neither a block nor a

@@ -846,6 +846,16 @@ describe("EXCLUDE_PATTERNS — never-existed /view-minted paths (issue #1066)", 
 			excluded: false,
 			label: "a longer slug starting with the excluded one — must NOT be hidden",
 		},
+		{
+			url: "https://blog.cloudboost.io/null",
+			excluded: true,
+			label: "Medium `/null` junk path on an unreachable host",
+		},
+		{
+			url: "https://blog.cloudboost.io/some-real-post-slug",
+			excluded: false,
+			label: "a genuine post on the same host — must NOT be hidden",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
