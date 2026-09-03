@@ -23,7 +23,7 @@ import {
 import { EXPORT_DOWNLOAD_TTL_DAYS } from "../web/pages/export/export-ttl";
 import { buildUserDataExportEmailHtml } from "../web/pages/export/user-data-export-email";
 
-const EMAIL_FROM = "Readplace Export <readplace@readplace.com>";
+const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 const PAGE_SIZE = 500;
 
 export interface ExportUserDataDependencies {

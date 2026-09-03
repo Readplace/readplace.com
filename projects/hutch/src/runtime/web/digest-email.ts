@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS } from "./email-colors";
+import { EMAIL_REPLY_INVITATION } from "./email-copy";
 import { render } from "@packages/web-shell";
 
 const DIGEST_EMAIL_TEMPLATE = readFileSync(
@@ -19,23 +20,23 @@ export interface DigestEmailItem {
 
 /** `utm_medium` is `email`, not the in-site `internal`: the internal-click
  * analytics matches on `internal`, and an email click is not an in-site click. */
-function queueCtaUrl(queueUrl: string, position: "top" | "bottom"): string {
+function queueCtaUrl(queueUrl: string): string {
 	const url = new URL(queueUrl);
 	url.searchParams.set("utm_source", "reader-ready-email");
 	url.searchParams.set("utm_medium", "email");
-	url.searchParams.set("utm_content", position);
+	url.searchParams.set("utm_content", "bottom");
 	return url.toString();
 }
 
 export function buildDigestEmailHtml(params: {
 	items: DigestEmailItem[];
-	/** Absolute URL of the user's unread queue — the two CTAs' destination. */
+	/** Absolute URL of the user's unread queue — the CTA's destination. */
 	queueUrl: string;
 }): string {
 	return render(DIGEST_EMAIL_TEMPLATE, {
 		items: params.items,
-		queueTopUrl: queueCtaUrl(params.queueUrl, "top"),
-		queueBottomUrl: queueCtaUrl(params.queueUrl, "bottom"),
+		queueBottomUrl: queueCtaUrl(params.queueUrl),
+		replyLine: EMAIL_REPLY_INVITATION,
 		colors: EMAIL_COLORS,
 	});
 }

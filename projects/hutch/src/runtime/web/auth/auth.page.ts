@@ -88,7 +88,7 @@ const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 const CheckoutSuccessQuerySchema = z.looseObject({ session_id: z.string().min(1) });
 const SignupQuerySchema = z.looseObject({ email: z.string().email() });
 
-const EMAIL_FROM = "Fayner Brack <readplace@readplace.com>";
+const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 
 import type { BotDefenseEvent } from "@packages/provider-contracts/auth";
 export type { BotDefenseEvent };

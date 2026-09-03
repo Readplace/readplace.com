@@ -2,6 +2,7 @@ import type { SendEmail } from "@packages/provider-contracts/email";
 import { buildWelcomeEmailHtml } from "./welcome-email";
 
 const WELCOME_EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
+const WELCOME_EMAIL_REPLY_TO = "fayner@readplace.com";
 
 interface SendWelcomeEmailDeps {
 	sendEmail: SendEmail;
@@ -20,6 +21,7 @@ export function initSendWelcomeEmail(deps: SendWelcomeEmailDeps): SendWelcomeEma
 			from: WELCOME_EMAIL_FROM,
 			to: email,
 			bcc: "readplace+welcome@readplace.com",
+			replyTo: WELCOME_EMAIL_REPLY_TO,
 			subject: "Welcome to Readplace",
 			html: buildWelcomeEmailHtml({ installUrl, avatarUrl }),
 		}).catch((err) => {

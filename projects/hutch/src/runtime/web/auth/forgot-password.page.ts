@@ -26,7 +26,7 @@ import { flattenZodErrors } from "./flatten-zod-errors";
 
 const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 
-const EMAIL_FROM = "Readplace Password Reset <readplace@readplace.com>";
+const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 
 interface ForgotPasswordDependencies {
 	sendEmail: SendEmail;

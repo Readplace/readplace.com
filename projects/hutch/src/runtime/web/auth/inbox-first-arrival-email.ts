@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS } from "../email-colors";
+import { EMAIL_REPLY_INVITATION } from "../email-copy";
 import { render } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(
@@ -14,8 +15,6 @@ export const INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT =
 const SIGNOFF = "— Fayner";
 
 const CTA_LABEL = "See it in your inbox";
-
-const REPLY_LINE = "If you have any questions, please reply to this email";
 
 const OPENING_BEFORE = "The first email to your Readplace inbox at ";
 const OPENING_AFTER = " just came through.";
@@ -50,7 +49,7 @@ export function InboxFirstArrivalEmail(
 					paragraphs: [PARAGRAPH],
 					ctaUrl: params.inboxUrl,
 					ctaLabel: CTA_LABEL,
-					replyLine: REPLY_LINE,
+					replyLine: EMAIL_REPLY_INVITATION,
 					signoff: SIGNOFF,
 					colors: EMAIL_COLORS,
 				});
@@ -60,7 +59,7 @@ export function InboxFirstArrivalEmail(
 				`${opening.before}${opening.address}${opening.after}`,
 				PARAGRAPH,
 				`${CTA_LABEL}: ${params.inboxUrl}`,
-				REPLY_LINE,
+				EMAIL_REPLY_INVITATION,
 				SIGNOFF,
 			].join("\n\n");
 		},

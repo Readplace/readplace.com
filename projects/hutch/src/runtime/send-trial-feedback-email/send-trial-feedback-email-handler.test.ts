@@ -137,6 +137,11 @@ describe("automation-saves-held notice", () => {
 		assert.equal(sent.to, "user@example.com");
 		assert.equal(sent.bcc, "readplace+automation_saves_held@readplace.com");
 		assert.equal(sent.subject, "links sent to your Readplace inbox are waiting");
+		assert.equal(sent.replyTo, "fayner@readplace.com");
+		assert.ok(
+			sent.text.includes("If you have any questions, please reply to this email"),
+			"the reply invitation must render — it is only honest because replyTo is asserted above",
+		);
 		assert.ok(
 			sent.text.startsWith(
 				`An email to your Readplace inbox at ${HELD_INBOX_ADDRESS} just arrived,`,
@@ -144,9 +149,9 @@ describe("automation-saves-held notice", () => {
 		);
 		assert.ok(
 			sent.html.includes(
-				`<span style="white-space:nowrap;">${HELD_INBOX_ADDRESS}</span>`,
+				`<span style="white-space:nowrap;font-weight:700;">${HELD_INBOX_ADDRESS}</span>`,
 			),
-			"the hyphenated address must be unbreakable and byte-exact in the HTML",
+			"the hyphenated address must be bold, unbreakable and byte-exact in the HTML",
 		);
 		const highlighted = new URL(
 			"https://readplace.com/inbox?highlight=2026-06-04T08%3A00%3A00.000Z%23%3Cnews%40example.com%3E&utm_source=automation-saves-held&utm_medium=email&utm_campaign=lapsed-inbox-save",

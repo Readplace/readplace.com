@@ -32,7 +32,8 @@ import { buildDigestPreview } from "../web/digest-preview";
 import { buildDigestEmailHtml, type DigestEmailItem } from "../web/digest-email";
 import { buildOwnerReaderPath } from "../web/pages/readlist/owner-reader-link";
 
-const EMAIL_FROM = "Fayner from Readplace <readplace@readplace.com>";
+const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
+const EMAIL_REPLY_TO = "fayner@readplace.com";
 const DIGEST_BCC = "readplace+reader_ready@readplace.com";
 const SUBJECT = "Reader views are ready for articles you saved.";
 /** The article body must have been unavailable for longer than a minute to
@@ -175,6 +176,7 @@ async function processUserDigest(params: {
 			from: EMAIL_FROM,
 			to: contact.email,
 			bcc: DIGEST_BCC,
+			replyTo: EMAIL_REPLY_TO,
 			subject: SUBJECT,
 			html: buildDigestEmailHtml({
 				items: included.map((i) => i.email),
