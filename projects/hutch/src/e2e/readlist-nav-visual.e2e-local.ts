@@ -39,7 +39,7 @@ const READLIST_DELETE_TRIGGER = 'main.readlist [data-test-action="readlist-delet
 const READLIST_EMPTY = "main.readlist [data-test-empty-readlist]";
 const OPEN_FILTER_TAB = "main.readlist .readlist__filter-link--active";
 const UNREAD_FILTER_TAB = 'main.readlist [data-test-filter="unread"]';
-const UNREAD_FILTER_LABEL = "main.readlist #readlist-unread-label";
+const UNREAD_FILTER_LABEL = 'main.readlist [data-test-filter="unread"] span[id]';
 const READ_FILTER_TAB = 'main.readlist [data-test-filter="read"]';
 
 /* A name at the 24-character cap with nothing to break at — the hardest case
@@ -178,6 +178,26 @@ async function openReadlist(page: Page): Promise<void> {
 async function openSecondReadlist(page: Page): Promise<void> {
 	await page.click('[data-test-action="new-readlist"]');
 	await expect(page.locator(READLIST_TAB)).toHaveCount(3);
+}
+
+async function holdCounts(page: Page): Promise<() => () => void> {
+	let held: Promise<void> | undefined;
+	await page.route("**/queue/counts*", async (route) => {
+		if (held) await held;
+		await route.continue();
+	});
+	return () => {
+		const resolvers: Array<() => void> = [];
+		held = new Promise<void>((resolve) => {
+			resolvers.push(resolve);
+		});
+		const release = resolvers[0];
+		assert.ok(release, "a promise executor runs synchronously, so its resolver must be captured");
+		return () => {
+			held = undefined;
+			release();
+		};
+	};
 }
 
 type RenameRing = ReturnType<typeof measureRenameRing>;
@@ -323,10 +343,6 @@ async function railBesideTheListing(page: Page): Promise<void> {
 	);
 }
 
-/* The count lands out of band: the page ships the tab reading "To Read" and a
- * GET /queue/counts swaps in "To Read (2)" a round-trip later, widening it. A
- * capture or a measurement taken before that swap records a layout the page
- * holds for one frame. */
 async function seededReadlistSettled(page: Page): Promise<void> {
 	await expect(page.locator("[data-test-article]")).toHaveCount(SEEDED_ARTICLES.length);
 	await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
@@ -1149,6 +1165,32 @@ test.describe("Readlist status tabs", () => {
 		);
 	});
 
+	test("never carries the previous queue's count into the queue the reader switched to", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-filter-tabs-switch-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithReadlist(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+		const holdNextCounts = await holdCounts(page);
+
+		const releaseMade = holdNextCounts();
+		await page.click('[data-test-action="new-readlist"]');
+		await page.waitForSelector(RENAMEABLE_TAB);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText("To Read (0)");
+		releaseMade();
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText("To Read (0)");
+
+		const releaseDefault = holdNextCounts();
+		await page.click(READLIST_NAV_LINK);
+		await expect(page.locator(READLIST_NAV_LINK)).toHaveClass(/readlist-nav__link--active/);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(
+			`To Read (${SEEDED_ARTICLES.length})`,
+		);
+		releaseDefault();
+	});
+
 	test("reserves the unread tab's widest count from first paint", async ({ page }, testInfo) => {
 		const email = `readlist-filter-tabs-reserve-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithReadlist(page, email);
@@ -1160,12 +1202,13 @@ test.describe("Readlist status tabs", () => {
 
 		await page.route("**/queue/counts*", (route) => route.abort());
 		await openReadlist(page);
-		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText("To Read");
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(
+			`To Read (${SEEDED_ARTICLES.length})`,
+		);
 		await waitForBrandFonts(page, ["Inter"]);
 		const cold = await measuredBox(page, UNREAD_FILTER_TAB);
 
-		const bare = await page.locator(UNREAD_FILTER_TAB).innerText();
-		const widestLabel = formatTabCountLabel({ label: bare, count: Number.MAX_SAFE_INTEGER });
+		const widestLabel = formatTabCountLabel({ label: "To Read", count: Number.MAX_SAFE_INTEGER });
 		await page.locator(UNREAD_FILTER_LABEL).evaluate((label, text) => {
 			label.textContent = text;
 		}, widestLabel);

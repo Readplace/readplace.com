@@ -239,6 +239,7 @@ import {
 import { wantsSiren } from "./web/content-negotiation";
 import { setSirenDiscoveryRedirectCaching } from "./web/siren-discovery-cache";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
+import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
 import { buildSiteWebmanifest } from "./web/site-webmanifest";
 import { SLOGANS } from "./web/slogans";
@@ -582,6 +583,12 @@ export function createApp(dependencies: AppDependencies): Express {
 			isStaticAssetPath: isStaticAssetRequestPath,
 			canonicalizeLandingPath: canonicalizeViewLandingPath,
 			ownHost,
+		}),
+	);
+	app.use(
+		createListingGenerationMiddleware({
+			nextGeneration: randomUUID,
+			secure: secureCookies,
 		}),
 	);
 

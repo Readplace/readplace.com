@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { render } from "@packages/web-shell";
 
 import { formatUnreadLabel } from "./readlist-filters.component";
-import { UNREAD_LABEL_ID } from "./readlist.tabs";
+import { unreadLabelId } from "./readlist.tabs";
 import type { ReadlistUrlState } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-counts.template.html"), "utf-8");
@@ -26,7 +26,7 @@ export function toReadlistCountsDisplayModel(input: {
 }): ReadlistCountsDisplayModel {
 	const totalPages = Math.max(1, Math.ceil(input.tabTotal / input.pageSize));
 	return {
-		unreadLabelId: UNREAD_LABEL_ID,
+		unreadLabelId: unreadLabelId(input.filters.readlist),
 		filterUnreadLabel: formatUnreadLabel(input.unreadCount),
 		showPageCount: totalPages > 1,
 		currentPage: input.filters.page,

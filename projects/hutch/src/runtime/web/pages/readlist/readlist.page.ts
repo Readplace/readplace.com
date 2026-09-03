@@ -121,7 +121,7 @@ import { requireNotLocked } from "../../middleware/require-not-locked.middleware
 import { initObserveSaveRefusal, tagSaveRefusal } from "../../shared/save-refusal";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
-import { CacheableComponent } from "../../conditional-get";
+import { CacheableComponent, FreshForComponent } from "../../conditional-get";
 import {
 	NO_READER_VIEW_FAILED_OOB,
 	extensionSuggestionBannerOob,
@@ -173,6 +173,7 @@ import {
 import type { ReadlistRailViewModel } from "./readlist.component";
 import { readlistReturnQuery } from "./readlist.url";
 import { collectUtmParams } from "../../shared/utm";
+import { deriveKnownUnreadCount } from "./known-unread-count";
 import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
@@ -1265,11 +1266,24 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const onboarding = signals.onboarding;
+		const knownUnreadCount = deriveKnownUnreadCount({
+			tab: input.context.state.tab,
+			hasMore: input.result.hasMore,
+			page: input.result.page,
+			pageSize: input.result.pageSize,
+			rowsOnPage: input.result.articles.length,
+			readlistHoldsArticles,
+		});
+		const cspNonce = requireCspNonce(req);
+		res.vary("Cookie");
 		sendComponent(
 			req, res,
-			Base(
-				ReadlistPage(vm, { ...onboarding, cspNonce: requireCspNonce(req), readlistHoldsArticles, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
-				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+			FreshForComponent(
+				Base(
+					ReadlistPage(vm, { ...onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
+					await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+				),
+				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: "private, max-age=5" },
 			),
 		);
 	};

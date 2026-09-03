@@ -110,11 +110,11 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const unreadTab = doc.querySelector('[data-test-filter="unread"]');
-			expect(unreadTab?.textContent).toBe("To Read");
+			expect(unreadTab?.textContent).toBe("To Read (2)");
 
 			const counts = await agent.get("/queue/counts");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.getElementById("readlist-unread-label")?.textContent).toBe("To Read (2)");
+			expect(countsDoc.getElementById("readlist-unread-label--default")?.textContent).toBe("To Read (2)");
 		});
 
 		it("should show unread count when viewing read tab", async () => {
@@ -138,7 +138,7 @@ describe("Readlist routes", () => {
 
 			const counts = await agent.get("/queue/counts?tab=done");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.getElementById("readlist-unread-label")?.textContent).toBe("To Read (2)");
+			expect(countsDoc.getElementById("readlist-unread-label--default")?.textContent).toBe("To Read (2)");
 		});
 
 		it("should not show count on the Read tab", async () => {
@@ -160,11 +160,26 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const unreadTab = doc.querySelector('[data-test-filter="unread"]');
-			expect(unreadTab?.textContent).toBe("To Read");
+			expect(unreadTab?.textContent).toBe("To Read (0)");
 
 			const counts = await agent.get("/queue/counts");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.getElementById("readlist-unread-label")?.textContent).toBe("To Read (0)");
+			expect(countsDoc.getElementById("readlist-unread-label--default")?.textContent).toBe("To Read (0)");
+		});
+
+		it("should leave the unread tab uncounted at first byte when the queue spills past one page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			for (let i = 0; i < 21; i++) {
+				await agent.post("/queue/save").type("form").send({ url: `https://example.com/page-${i}` });
+			}
+
+			const response = await agent.get("/queue");
+			const doc = new JSDOM(response.text).window.document;
+			const unreadTab = doc.querySelector('[data-test-filter="unread"]');
+			expect(unreadTab?.textContent).toBe("To Read");
 		});
 	});
 

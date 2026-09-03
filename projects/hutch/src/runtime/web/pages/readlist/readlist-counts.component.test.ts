@@ -1,4 +1,4 @@
-import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import assert from "node:assert/strict";
 import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
@@ -32,14 +32,14 @@ function swappedTargets(doc: Document): string[] {
 }
 
 function unreadLabel(doc: Document): Element {
-	const label = doc.querySelector("#readlist-unread-label");
+	const label = doc.querySelector("#readlist-unread-label--default");
 	assert(label, "the counts fragment must carry the unread tab's label");
 	return label;
 }
 
 describe("toReadlistCountsDisplayModel", () => {
 	it("should name the label the readlist page reserved for the count", () => {
-		expect(displayModelFor({}).unreadLabelId).toBe("readlist-unread-label");
+		expect(displayModelFor({}).unreadLabelId).toBe("readlist-unread-label--default");
 	});
 
 	it("should label the badge with the exact unread count below the cap", () => {
@@ -114,7 +114,7 @@ describe("renderReadlistCounts", () => {
 	it("should swap only the unread label when the page it targets is not rendered", () => {
 		const doc = parseFragment(renderReadlistCounts(displayModelFor({ unreadCount: 5, tabTotal: 5 })));
 
-		expect(swappedTargets(doc)).toEqual(["readlist-unread-label"]);
+		expect(swappedTargets(doc)).toEqual(["readlist-unread-label--default"]);
 		expect(unreadLabel(doc).textContent).toBe("To Read (5)");
 	});
 });
@@ -133,7 +133,7 @@ describe("readlist counts fragment against the initial render", () => {
 			canCreate: true,
 		};
 		const doc = parseFragment(ReadlistPage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", readlistHoldsArticles: false, rail, saveTip: { state: "due", html: "" } }).content.html);
-		const label = doc.querySelector("#readlist-unread-label");
+		const label = doc.querySelector('[data-test-filter="unread"] span[id]');
 		assert(label, "the readlist page must render the label the counts fragment refreshes");
 		return label;
 	}
@@ -144,7 +144,7 @@ describe("readlist counts fragment against the initial render", () => {
 				toReadlistCountsDisplayModel({ filters, unreadCount, tabTotal: 0, pageSize: PAGE_SIZE }),
 			),
 		);
-		const label = doc.querySelector("#readlist-unread-label");
+		const label = doc.querySelector('span[hx-swap-oob="innerHTML"]');
 		assert(label, "the counts fragment must render the unread tab's label");
 		return label;
 	}
@@ -154,12 +154,22 @@ describe("readlist counts fragment against the initial render", () => {
 		{ readlist: DEFAULT_READLIST_SLUG, tab: "done", page: 1 },
 		{ readlist: DEFAULT_READLIST_SLUG, tab: "queue", order: "asc", page: 2 },
 		{ readlist: DEFAULT_READLIST_SLUG, tab: "done", order: "asc", page: 3 },
-	])("should refresh the label the render preserves, for %o", (filters) => {
-		expect(initialUnreadLabel(filters).hasAttribute("hx-preserve")).toBe(true);
+		{ readlist: ReadlistSlugSchema.parse("work"), tab: "done", page: 1 },
+	])("should refresh the exact label the render preserves, for %o", (filters) => {
+		const initial = initialUnreadLabel(filters);
+		expect(initial.hasAttribute("hx-preserve")).toBe(true);
 
 		const swapped = swappedUnreadLabel(filters, 3);
 		expect(swapped.getAttribute("hx-swap-oob")).toBe("innerHTML");
 		expect(swapped.hasAttribute("hx-preserve")).toBe(false);
+		expect(swapped.id).toBe(initial.id);
+	});
+
+	it("should scope the label id to the queue on both the render and the fragment", () => {
+		const work: ReadlistUrlState = { readlist: ReadlistSlugSchema.parse("work"), tab: "queue", page: 1 };
+
+		expect(initialUnreadLabel(work).id).toBe("readlist-unread-label--work");
+		expect(swappedUnreadLabel(work, 3).id).toBe("readlist-unread-label--work");
 	});
 
 	it("should replace the countless initial label with the counted one", () => {

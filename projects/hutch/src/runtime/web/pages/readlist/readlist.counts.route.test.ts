@@ -23,7 +23,7 @@ function swappedTargets(doc: Document): string[] {
 }
 
 function unreadLabel(doc: Document): Element {
-	const label = doc.getElementById("readlist-unread-label");
+	const label = doc.getElementById("readlist-unread-label--default");
 	assert(label, "the counts fragment must carry the unread tab's label");
 	return label;
 }
@@ -73,7 +73,7 @@ describe("GET /queue/counts", () => {
 			const label = unreadLabel(parseFragment(response.text));
 			expect(label.textContent).toBe("To Read (2)");
 			expect(label.getAttribute("hx-swap-oob")).toBe("innerHTML");
-			expect(label.getAttribute("id")).toBe("readlist-unread-label");
+			expect(label.getAttribute("id")).toBe("readlist-unread-label--default");
 		});
 
 		it("should count zero for an empty readlist", async () => {
@@ -106,7 +106,7 @@ describe("GET /queue/counts", () => {
 			const response = await agent.get("/queue/counts");
 
 			const doc = parseFragment(response.text);
-			expect(swappedTargets(doc)).toEqual(["readlist-unread-label"]);
+			expect(swappedTargets(doc)).toEqual(["readlist-unread-label--default"]);
 			expect(unreadLabel(doc).textContent).toBe("To Read (1)");
 		});
 
@@ -143,7 +143,7 @@ describe("GET /queue/counts", () => {
 			const response = await agent.get("/queue/counts?tab=done");
 
 			const doc = parseFragment(response.text);
-			expect(swappedTargets(doc)).toEqual(["readlist-unread-label"]);
+			expect(swappedTargets(doc)).toEqual(["readlist-unread-label--default"]);
 			expect(unreadLabel(doc).textContent).toBe(`To Read (${READLIST_PAGE_SIZE + 1})`);
 		});
 	});
@@ -207,7 +207,7 @@ describe("GET /queue/counts", () => {
 			const page = new JSDOM((await agent.get("/queue")).text).window.document;
 			const fragment = parseFragment((await agent.get("/queue/counts")).text);
 
-			for (const id of ["readlist-unread-label", "readlist-pagination-info"]) {
+			for (const id of ["readlist-unread-label--default", "readlist-pagination-info"]) {
 				const target = page.getElementById(id);
 				const replacement = fragment.getElementById(id);
 				assert(target, `the readlist page must render #${id} for the counts swap to land on`);
@@ -225,12 +225,12 @@ describe("GET /queue/counts", () => {
 			const page = new JSDOM((await agent.get("/queue?tab=done")).text).window.document;
 			const fragment = parseFragment((await agent.get("/queue/counts?tab=done")).text);
 
-			const rendered = page.getElementById("readlist-unread-label");
+			const rendered = page.getElementById("readlist-unread-label--default");
 			assert(rendered, "the readlist page must render the label the counts swap lands in");
 			expect(rendered.hasAttribute("hx-preserve")).toBe(true);
 			expect(rendered.textContent).toBe("To Read");
 
-			const refreshed = fragment.getElementById("readlist-unread-label");
+			const refreshed = fragment.getElementById("readlist-unread-label--default");
 			assert(refreshed, "the counts fragment must carry the label it refreshes");
 			expect(refreshed.getAttribute("hx-swap-oob")).toBe("innerHTML");
 			expect(refreshed.hasAttribute("hx-preserve")).toBe(false);
@@ -248,6 +248,29 @@ describe("GET /queue/counts", () => {
 			expect(trigger.getAttribute("hx-trigger")).toBe("load");
 			expect(trigger.getAttribute("hx-swap")).toBe("none");
 			expect(trigger.getAttribute("hx-get")).toBe("/queue/counts?tab=done&order=asc");
+		});
+
+		it("should land each queue's counts fragment on the ids that queue's own page renders", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const created = await agent.post("/queue/queues");
+			expect(created.status).toBe(303);
+			const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
+			assert(slug, "creating a queue must land the reader on it");
+
+			const defaultFragment = parseFragment((await agent.get("/queue/counts")).text);
+			expect(swappedTargets(defaultFragment)).toEqual(["readlist-unread-label--default"]);
+
+			const createdPage = new JSDOM((await agent.get(`/queue?queue=${slug}`)).text).window.document;
+			const createdFragment = parseFragment((await agent.get(`/queue/counts?queue=${slug}`)).text);
+			expect(swappedTargets(createdFragment)).toEqual([`readlist-unread-label--${slug}`]);
+			for (const id of swappedTargets(createdFragment)) {
+				assert(
+					createdPage.getElementById(id),
+					`the ${slug} page must render #${id} for its counts swap to land on`,
+				);
+			}
 		});
 	});
 });

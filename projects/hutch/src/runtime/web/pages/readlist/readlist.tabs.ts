@@ -1,11 +1,14 @@
 import type { ArticleStatus } from "@packages/domain/article";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { SortField, SortOrder } from "@packages/provider-contracts/article-store";
 
 export const TAB_IDS = ["queue", "done"] as const;
 
 export type TabId = (typeof TAB_IDS)[number];
 
-export const UNREAD_LABEL_ID = "readlist-unread-label";
+export function unreadLabelId(readlist: ReadlistSlug): string {
+	return `readlist-unread-label--${readlist}`;
+}
 
 interface TabQuery {
 	status: ArticleStatus;
@@ -17,7 +20,7 @@ interface TabDefinition {
 	label: string;
 	testFilter: string;
 	trackingContent: string;
-	labelId?: string;
+	labelId?: (readlist: ReadlistSlug) => string;
 	query: TabQuery;
 }
 
@@ -30,7 +33,7 @@ const TAB_DEFINITIONS: Record<TabId, TabDefinition> = {
 		label: "To Read",
 		testFilter: "unread",
 		trackingContent: "filter-unread",
-		labelId: UNREAD_LABEL_ID,
+		labelId: unreadLabelId,
 		query: { status: "unread", sort: "savedAt", defaultOrder: "desc" },
 	},
 	done: {
