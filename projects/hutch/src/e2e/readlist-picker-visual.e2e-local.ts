@@ -17,6 +17,8 @@ const PASSWORD = "password123";
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const ARTICLE_TITLE = "Yes you can measure engineering | Jade Rubick";
 const DESKTOP = { width: 1280, height: 900 };
+const PHONE = { width: 320, height: 720 };
+const COLUMN = ".reader";
 const DEEP_WORK = "Deep Work";
 const WEEKEND = "Weekend";
 
@@ -112,7 +114,9 @@ async function openReadlistPicker(page: Page, stamp: string): Promise<void> {
 
 async function pickerOpen(page: Page): Promise<void> {
 	await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
-	await page.mouse.move(0, DESKTOP.height - 1);
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "the picker checkpoints must run with an explicit viewport");
+	await page.mouse.move(0, viewport.height - 1);
 	await expect(page.locator(TOOLBAR)).toHaveCSS("transform", "none");
 	await expect(page.locator(MENU)).toBeVisible();
 	await expect(page.locator(OPTION_BUTTONS)).toHaveText([DEEP_WORK, WEEKEND]);
@@ -173,19 +177,58 @@ async function bothReadlistsSitAboveTheRowThatNamesANewOne(page: Page): Promise<
 	);
 }
 
-function checkpoint(name: string): VisualCheckpoint {
+async function theMenuStaysInsideTheColumn(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "the phone checkpoint must run with an explicit viewport");
+
+	const menu = await measuredBox(page, MENU);
+	const column = await measuredBox(page, COLUMN);
+	assert.ok(
+		menu.x >= column.x - 0.5,
+		`the menu must not open past the column's left edge, measured ${menu.x} against ${column.x}`,
+	);
+	assert.ok(
+		menu.x + menu.width <= column.x + column.width + 0.5,
+		"the menu must not open past the column's right edge",
+	);
+
+	const field = await measuredBox(page, CREATE_INPUT);
+	assert.ok(
+		field.x >= column.x - 0.5 && field.x + field.width <= column.x + column.width + 0.5,
+		`the name field must sit inside the column, measured ${field.x}..${field.x + field.width}`,
+	);
+
+	const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+	assert.equal(
+		scrollWidth,
+		viewport.width,
+		`an open picker must not widen the page, measured ${scrollWidth}`,
+	);
+}
+
+function checkpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
 	return {
 		name,
 		settled: pickerOpen,
-		geometry: bothReadlistsSitAboveTheRowThatNamesANewOne,
+		geometry,
 		target: MENU,
 		capture: "element",
 		pinnedText: [],
 	};
 }
 
-const READLIST_PICKER_OPEN_LIGHT = checkpoint("readlist-picker-open-light");
-const READLIST_PICKER_OPEN_DARK = checkpoint("readlist-picker-open-dark");
+const READLIST_PICKER_OPEN_LIGHT = checkpoint(
+	"readlist-picker-open-light",
+	bothReadlistsSitAboveTheRowThatNamesANewOne,
+);
+const READLIST_PICKER_OPEN_DARK = checkpoint(
+	"readlist-picker-open-dark",
+	bothReadlistsSitAboveTheRowThatNamesANewOne,
+);
+const READLIST_PICKER_OPEN_PHONE = checkpoint(
+	"readlist-picker-open-phone",
+	theMenuStaysInsideTheColumn,
+);
 
 test.describe("Add-to-readlist picker", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
@@ -204,5 +247,17 @@ test.describe("Add-to-readlist picker", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openReadlistPicker(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, READLIST_PICKER_OPEN_DARK);
+	});
+});
+
+test.describe("Add-to-readlist picker on the narrowest phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("opens against the column's edge instead of running off the left of the screen", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openReadlistPicker(page, `phone-${testInfo.workerIndex}-${Date.now()}`);
+		await captureCheckpoint(page, READLIST_PICKER_OPEN_PHONE);
 	});
 });

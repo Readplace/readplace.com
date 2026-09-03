@@ -237,6 +237,25 @@
   background: var(--color-surface);
 }
 
+@media (max-width: 599px) {
+  .article-body__actions--top {
+    position: relative;
+  }
+
+  .article-body__readlists {
+    position: static;
+  }
+
+  .article-body__readlists-menu {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .article-body__readlists-create {
+    min-width: 0;
+  }
+}
+
 .article-body__mark-read-form {
   margin: 0;
 }
