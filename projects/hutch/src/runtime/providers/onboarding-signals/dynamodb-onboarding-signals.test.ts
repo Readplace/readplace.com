@@ -1,4 +1,7 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+} from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { initOnboardingSignals } from "./dynamodb-onboarding-signals";
 
@@ -8,7 +11,7 @@ interface CapturedCommand {
 }
 
 /** Records commands and replays a single fetched row (or none) for GetCommand. */
-function createFakeClient(opts: { row?: Record<string, unknown> }): {
+function createFakeClient(opts: { row?: Record<string, unknown>; updateError?: Error }): {
 	client: DynamoDBDocumentClient;
 	commands: CapturedCommand[];
 } {
@@ -19,6 +22,9 @@ function createFakeClient(opts: { row?: Record<string, unknown> }): {
 			commands.push({ name, input: command.input });
 			if (name === "GetCommand") {
 				return { Item: opts.row };
+			}
+			if (name === "UpdateCommand" && opts.updateError) {
+				throw opts.updateError;
 			}
 			return {};
 		}) as DynamoDBDocumentClient["send"],
@@ -269,6 +275,57 @@ describe("initOnboardingSignals", () => {
 			expect(signals.nextReadMinimumReachedAt).toEqual(
 				new Date("2026-06-20T08:15:00.000Z"),
 			);
+		});
+	});
+
+	describe("markFirstInboxEmailNoticeSent", () => {
+		it("claims the marker with a guarded set-once Update keyed by userId", async () => {
+			const { client, commands } = createFakeClient({});
+
+			const claim = await initSignal(client).markFirstInboxEmailNoticeSent({
+				userId: USER,
+				sentAt: "2026-09-03T10:00:00.000Z",
+			});
+
+			expect(claim).toBe("claimed");
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toContain(
+				"SET firstInboxEmailNoticeSentAt = :sentAt",
+			);
+			expect(update?.input.ConditionExpression).toContain(
+				"attribute_not_exists(firstInboxEmailNoticeSentAt)",
+			);
+			expect(
+				(update?.input.ExpressionAttributeValues as Record<string, unknown>)[":sentAt"],
+			).toBe("2026-09-03T10:00:00.000Z");
+		});
+
+		it("reports already-sent when a concurrent delivery took the marker first", async () => {
+			const { client } = createFakeClient({
+				updateError: new ConditionalCheckFailedException({
+					message: "The conditional request failed",
+					$metadata: {},
+				}),
+			});
+
+			const claim = await initSignal(client).markFirstInboxEmailNoticeSent({
+				userId: USER,
+				sentAt: "2026-09-03T10:00:00.000Z",
+			});
+
+			expect(claim).toBe("already-sent");
+		});
+
+		it("propagates a fault that is not the claim being lost", async () => {
+			const { client } = createFakeClient({ updateError: new Error("throttled") });
+
+			await expect(
+				initSignal(client).markFirstInboxEmailNoticeSent({
+					userId: USER,
+					sentAt: "2026-09-03T10:00:00.000Z",
+				}),
+			).rejects.toThrow("throttled");
 		});
 	});
 

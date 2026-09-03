@@ -1,4 +1,5 @@
 import {
+	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -8,6 +9,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
+	MarkFirstInboxEmailNoticeSent,
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
@@ -35,6 +37,7 @@ const OnboardingRow = z.object({
 	nextReadStepOutstandingAt: dynamoField(z.string()),
 	markReadAcrossQueuesAckedAt: dynamoField(z.string()),
 	deleteArticleAckedAt: dynamoField(z.string()),
+	firstInboxEmailNoticeSentAt: dynamoField(z.string()),
 });
 
 /** The two attributes each app writes. Keyed by platform so a new native app is
@@ -62,6 +65,7 @@ export function initOnboardingSignals(deps: {
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
+	markFirstInboxEmailNoticeSent: MarkFirstInboxEmailNoticeSent;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
@@ -134,6 +138,24 @@ export function initOnboardingSignals(deps: {
 		});
 	};
 
+	const markFirstInboxEmailNoticeSent: MarkFirstInboxEmailNoticeSent = async ({
+		userId,
+		sentAt,
+	}) => {
+		try {
+			await onboarding.update({
+				Key: { userId },
+				UpdateExpression: "SET firstInboxEmailNoticeSentAt = :sentAt",
+				ConditionExpression: "attribute_not_exists(firstInboxEmailNoticeSentAt)",
+				ExpressionAttributeValues: { ":sentAt": sentAt },
+			});
+			return "claimed";
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return "already-sent";
+			throw error;
+		}
+	};
+
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {
 		const row = await onboarding.get({ userId });
 		const reachedAt = row?.nextReadMinimumReachedAt;
@@ -166,6 +188,7 @@ export function initOnboardingSignals(deps: {
 		recordNextReadStepOutstanding,
 		recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged,
+		markFirstInboxEmailNoticeSent,
 		getOnboardingSignals,
 		deleteOnboarding,
 	};

@@ -71,6 +71,8 @@ export {
 	type SubscriptionChargeFailedDetail,
 	SendTrialFeedbackEmailCommand,
 	type SendTrialFeedbackEmailDetail,
+	SendFirstInboxEmailNoticeCommand,
+	type SendFirstInboxEmailNoticeDetail,
 	ReaderViewLoadingSucceeded,
 	type ReaderViewLoadingSucceededDetail,
 	SendUserDigestCommand,

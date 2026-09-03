@@ -13,6 +13,7 @@ import {
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
 	SendTrialFeedbackEmailCommand,
+	SendFirstInboxEmailNoticeCommand,
 	ReaderViewLoadingSucceeded,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
@@ -1128,6 +1129,51 @@ const sendTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
 );
 
 eventBus.subscribe(SendTrialFeedbackEmailCommand, sendTrialFeedbackEmailWithSQS);
+
+// --- Send First Inbox Email Notice ---
+
+const sendFirstInboxEmailNoticeDynamodb = new HutchDynamoDBAccess(
+	"send-first-inbox-email-notice-dynamodb",
+	{
+		tables: [
+			{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
+			{ arn: storage.usersTable.arn, includeIndexes: true },
+			{ arn: storage.onboardingTable.arn, includeIndexes: false },
+		],
+		actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+	},
+);
+
+const sendFirstInboxEmailNoticeQueue = new HutchSQS("send-first-inbox-email-notice", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const sendFirstInboxEmailNoticeLambda = new HutchLambda("send-first-inbox-email-notice", {
+	entryPoint: "./src/runtime/send-first-inbox-email-notice.main.ts",
+	outputDir: ".lib/send-first-inbox-email-notice",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		DYNAMODB_USERS_TABLE: storage.usersTable.name,
+		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
+		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
+		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+		STATIC_BASE_URL: staticAssets.baseUrl,
+		APP_ORIGIN: appOrigin,
+	},
+	policies: [...sendFirstInboxEmailNoticeDynamodb.policies],
+});
+
+const sendFirstInboxEmailNoticeWithSQS = new HutchSQSBackedLambda("send-first-inbox-email-notice", {
+	lambda: sendFirstInboxEmailNoticeLambda,
+	queue: sendFirstInboxEmailNoticeQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SendFirstInboxEmailNoticeCommand, sendFirstInboxEmailNoticeWithSQS);
 
 // --- Gmail forwarding filter worker ---
 

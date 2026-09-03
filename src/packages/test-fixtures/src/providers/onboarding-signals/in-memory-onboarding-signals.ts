@@ -2,6 +2,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
+	MarkFirstInboxEmailNoticeSent,
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
 	RecordMarkReadAcrossQueuesAcknowledged,
@@ -18,6 +19,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
+	markFirstInboxEmailNoticeSent: MarkFirstInboxEmailNoticeSent;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
@@ -33,6 +35,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	const nextReadStepOutstanding = new Map<UserId, Date>();
 	const markReadAcrossQueuesAcked = new Map<UserId, Date>();
 	const deleteArticleAcked = new Map<UserId, Date>();
+	const firstInboxEmailNoticeSent = new Map<UserId, string>();
 
 	const recordNativeAppAnyActivity: RecordNativeAppAnyActivity = async ({ userId, platform }) => {
 		activated[platform].add(userId);
@@ -69,6 +72,15 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		deleteArticleAcked.set(userId, deps.now());
 	};
 
+	const markFirstInboxEmailNoticeSent: MarkFirstInboxEmailNoticeSent = async ({
+		userId,
+		sentAt,
+	}) => {
+		if (firstInboxEmailNoticeSent.has(userId)) return "already-sent";
+		firstInboxEmailNoticeSent.set(userId, sentAt);
+		return "claimed";
+	};
+
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => ({
 		nativeApp: {
 			ios: { installed: activated.ios.has(userId), savedArticle: saved.ios.has(userId) },
@@ -92,6 +104,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		nextReadStepOutstanding.delete(userId);
 		markReadAcrossQueuesAcked.delete(userId);
 		deleteArticleAcked.delete(userId);
+		firstInboxEmailNoticeSent.delete(userId);
 	};
 
 	return {
@@ -101,6 +114,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		recordNextReadStepOutstanding,
 		recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged,
+		markFirstInboxEmailNoticeSent,
 		getOnboardingSignals,
 		deleteOnboarding,
 	};

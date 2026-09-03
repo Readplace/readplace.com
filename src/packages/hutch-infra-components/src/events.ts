@@ -792,6 +792,20 @@ export type SendTrialFeedbackEmailDetail = z.infer<
 	typeof SendTrialFeedbackEmailCommand.detailSchema
 >;
 
+export const SendFirstInboxEmailNoticeCommand = defineEvent({
+	name: "send-first-inbox-email-notice-command",
+	source: "hutch.inbox",
+	detailType: "SendFirstInboxEmailNoticeCommand",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		inboxAddress: z.string(),
+	}),
+});
+export type SendFirstInboxEmailNoticeDetail = z.infer<
+	typeof SendFirstInboxEmailNoticeCommand.detailSchema
+>;
+
 /** Global, per-URL fact: an article's clean reader view reached the successful
  * terminal state (crawl ready AND summary ready/skipped). Published by the
  * save-link effect dispatcher when `markSummaryReady` / `markSummarySkipped`

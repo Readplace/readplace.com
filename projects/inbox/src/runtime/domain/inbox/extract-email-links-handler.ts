@@ -80,6 +80,11 @@ export function initExtractEmailLinksHandler(deps: {
 		receivedAtMessageId: string;
 		inboxAddress: string;
 	}) => Promise<void>;
+	publishFirstInboxEmailNotice: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		inboxAddress: string;
+	}) => Promise<void>;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	now: () => Date;
 	triageEmailLinks: TriageEmailLinks;
@@ -99,6 +104,7 @@ export function initExtractEmailLinksHandler(deps: {
 		publishSubmitLink,
 		alertTruncated,
 		publishSaveHeldNotice,
+		publishFirstInboxEmailNotice,
 		findSubscriptionByUserId,
 		now,
 		triageEmailLinks,
@@ -204,6 +210,7 @@ export function initExtractEmailLinksHandler(deps: {
 				let skipped = 0;
 				let held = 0;
 				let noticePublished = false;
+				let firstInboxNoticePublished = false;
 				const countStored = (status: EmailLinkStatus) => {
 					if (status === "skipped") skipped += 1;
 					else kept += 1;
@@ -263,6 +270,14 @@ export function initExtractEmailLinksHandler(deps: {
 								url,
 								provenance: { kind: "email", senderEmail: email.senderEmail },
 							});
+							if (!firstInboxNoticePublished) {
+								firstInboxNoticePublished = true;
+								await publishFirstInboxEmailNotice({
+									userId,
+									receivedAtMessageId,
+									inboxAddress: recipientAddress,
+								});
+							}
 						} else {
 							held += 1;
 							if (!noticePublished) {

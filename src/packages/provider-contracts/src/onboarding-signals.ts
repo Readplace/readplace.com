@@ -74,5 +74,10 @@ export type GetOnboardingSignals = (params: {
 	deleteArticleAckedAt: Date | undefined;
 }>;
 
+export type MarkFirstInboxEmailNoticeSent = (input: {
+	userId: UserId;
+	sentAt: string;
+}) => Promise<"claimed" | "already-sent">;
+
 /** Delete the single onboarding row for a user (account deletion). */
 export type DeleteOnboarding = (params: { userId: UserId }) => Promise<void>;

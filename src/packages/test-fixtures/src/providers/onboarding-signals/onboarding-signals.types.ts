@@ -1,5 +1,6 @@
 export type {
 	GetOnboardingSignals,
+	MarkFirstInboxEmailNoticeSent,
 	NativeAppPlatform,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,

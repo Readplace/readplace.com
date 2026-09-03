@@ -151,6 +151,33 @@ describe("initInMemoryOnboardingSignals", () => {
 		expect(signals.nextReadStepOutstandingAt).toBeUndefined();
 	});
 
+	it("claims the first-inbox-email marker once, then reports already-sent", async () => {
+		const store = storeAt(FIRST);
+
+		const first = await store.markFirstInboxEmailNoticeSent({
+			userId: USER,
+			sentAt: FIRST.toISOString(),
+		});
+		const second = await store.markFirstInboxEmailNoticeSent({
+			userId: USER,
+			sentAt: LATER.toISOString(),
+		});
+
+		expect(first).toBe("claimed");
+		expect(second).toBe("already-sent");
+	});
+
+	it("lets the marker be claimed again after deleteOnboarding clears it", async () => {
+		const store = storeAt(FIRST);
+		await store.markFirstInboxEmailNoticeSent({ userId: USER, sentAt: FIRST.toISOString() });
+
+		await store.deleteOnboarding({ userId: USER });
+
+		expect(
+			await store.markFirstInboxEmailNoticeSent({ userId: USER, sentAt: LATER.toISOString() }),
+		).toBe("claimed");
+	});
+
 	it("tracks signals per user independently", async () => {
 		const store = storeAt(FIRST);
 
