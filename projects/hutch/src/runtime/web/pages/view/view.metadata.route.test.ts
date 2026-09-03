@@ -411,7 +411,7 @@ describe("View routes", () => {
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("failed");
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Readlist");
+			expect(action.querySelector(".view__cta-label")?.textContent).toBe("Save to My Readlist");
 		});
 	});
 

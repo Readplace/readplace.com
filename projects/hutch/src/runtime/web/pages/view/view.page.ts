@@ -120,6 +120,7 @@ function saveAction(input: {
 	return {
 		key: "save",
 		name: "Save to My Readlist",
+		shortName: "Save",
 		href: `/save?${saveParams.toString()}`,
 		variant: "primary",
 		saveTipState: input.saveTipState,
@@ -129,6 +130,7 @@ function saveAction(input: {
 const PASTE_ANOTHER_ACTION: ViewAction = {
 	key: "paste-another-link",
 	name: "Paste another link",
+	shortName: "Paste",
 	href: "/?utm_source=view-article&utm_medium=internal&utm_content=paste-another-link",
 	variant: "secondary",
 };
@@ -372,6 +374,7 @@ function handleViewArticle(
 			actions.push({
 				key: "download-epub",
 				name: "Download EPUB",
+				shortName: "EPUB",
 				href: epubDownloadHref({ articleUrl, utmSource: "view-article" }),
 				variant: "secondary",
 			});

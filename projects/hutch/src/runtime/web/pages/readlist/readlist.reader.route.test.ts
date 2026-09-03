@@ -496,7 +496,9 @@ describe("Readlist routes", () => {
 			const topButton = doc.querySelector("[data-test-mark-read-btn]");
 			assert(topButton, "the sticky mark-read button must be rendered");
 			expect(doc.querySelector("[data-test-mark-read-bottom-btn]")).toBe(null);
-			expect(topButton.textContent).toBe("Mark as unread");
+			expect(topButton.querySelector(".article-body__action-label")?.textContent).toBe(
+				"Mark as unread",
+			);
 
 			const topForm = doc.querySelector("[data-test-mark-read-form]");
 			expect(

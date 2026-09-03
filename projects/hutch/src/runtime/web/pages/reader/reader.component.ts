@@ -111,6 +111,8 @@ export function ReaderPage(
 	const articleId = article.id.value;
 	const isRead = article.status === "read";
 	const markReadLabel = isRead ? "Mark as unread" : "Mark as read";
+	const markReadShortLabel = isRead ? "Unread" : "Read";
+	const markReadIcon = isRead ? "inbox" : "check";
 	const markReadStatus: ArticleStatus = isRead ? "unread" : "read";
 	const markStatusConfirm =
 		options.markStatusConfirmReadlistLabels === undefined
@@ -127,6 +129,8 @@ export function ReaderPage(
 			position: "top",
 			postUrl: markReadPostUrl({ articleId, utmContent: "mark-read-top" }),
 			label: markReadLabel,
+			shortLabel: markReadShortLabel,
+			iconName: markReadIcon,
 			testAction: `mark-${markReadStatus}`,
 			fields: [{ name: "status", value: markReadStatus }],
 			...(markStatusConfirm === undefined

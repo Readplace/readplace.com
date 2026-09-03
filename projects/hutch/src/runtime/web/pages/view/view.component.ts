@@ -60,6 +60,7 @@ export type ViewActionKey = "save" | "paste-another-link" | "download-epub";
 export interface ViewAction {
 	key: ViewActionKey;
 	name: string;
+	shortName: string;
 	href: string;
 	variant: "primary" | "secondary";
 	/** Present on the action the save-tip panel holds back, so the client script
@@ -71,6 +72,7 @@ function renderViewCtaAction(action: ViewAction, oob: boolean): string {
 	return render(VIEW_CTA_ACTION_TEMPLATE, {
 		key: action.key,
 		name: action.name,
+		shortName: action.shortName,
 		href: action.href,
 		variant: action.variant,
 		saveTipState: action.saveTipState,

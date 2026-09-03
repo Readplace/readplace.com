@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReadlistSlug } from "@packages/domain/readlist";
+import type { IconName } from "@packages/ui-icons";
 import { type Component, HtmlPage, render } from "@packages/web-shell";
 
 const TOP_TEMPLATE = readFileSync(join(__dirname, "reader-actions-top.template.html"), "utf-8");
@@ -10,6 +11,8 @@ export interface MarkReadAction {
 	position: "top" | "bottom";
 	postUrl: string;
 	label: string;
+	shortLabel: string;
+	iconName: IconName;
 	testAction: string;
 	fields: ReadonlyArray<{ name: string; value: string }>;
 	confirmPopoverId?: string;
@@ -43,6 +46,8 @@ function markReadFields(action: MarkReadAction | undefined) {
 	return {
 		postUrl: action.postUrl,
 		label: action.label,
+		shortLabel: action.shortLabel,
+		iconName: action.iconName,
 		fields: action.fields,
 		testAction:
 			confirmPopoverId === undefined ? action.testAction : `${action.testAction}-fallback`,
@@ -53,7 +58,15 @@ function markReadFields(action: MarkReadAction | undefined) {
 		confirmTriggers:
 			confirmPopoverId === undefined
 				? []
-				: [{ popoverId: confirmPopoverId, label: action.label, testAction: action.testAction }],
+				: [
+						{
+							popoverId: confirmPopoverId,
+							label: action.label,
+							shortLabel: action.shortLabel,
+							iconName: action.iconName,
+							testAction: action.testAction,
+						},
+					],
 	};
 }
 

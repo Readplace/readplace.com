@@ -1,7 +1,7 @@
 <div class="article-body__actions article-body__actions--top">
   {{#if backLink}}
   <div class="article-body__back-slot article-body__back-slot--visible" data-test-back-slot>
-    <a class="article-body__back" href="{{backLink.href}}" data-test-back-link>{{icon "arrow-left"}} {{backLink.label}}</a>
+    <a class="article-body__back" href="{{backLink.href}}" data-test-back-link>{{icon "arrow-left"}}<span class="article-body__action-label">{{backLink.label}}</span></a>
   </div>
   {{else}}
   <div class="article-body__back-slot article-body__back-slot--hidden" data-test-back-slot></div>
@@ -9,7 +9,7 @@
   {{#if readlistPicker}}
   <div class="article-body__readlists-slot article-body__readlists-slot--visible" data-test-readlists-slot>
     <details class="article-body__readlists">
-      <summary class="article-body__readlists-trigger" data-test-readlists-trigger>Add to readlist {{icon "chevron-down"}}</summary>
+      <summary class="article-body__readlists-trigger" data-test-readlists-trigger><span class="article-body__action-icon">{{icon "plus"}}</span><span class="article-body__action-label">Add to readlist</span><span class="article-body__action-label-short" aria-hidden="true">Add</span>{{icon "chevron-down"}}</summary>
       <ul class="article-body__readlists-menu" data-test-readlists-menu>
         {{#each readlistPicker.options}}
         <li class="article-body__readlists-item" data-test-readlists-row="{{slug}}">
@@ -38,13 +38,13 @@
   {{#if markRead}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--visible" data-test-mark-read-slot>
     {{#each markRead.confirmTriggers}}
-    <button class="btn btn--secondary btn--compact article-body__mark-read article-body__confirm-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" aria-label="{{label}}" data-test-action="{{testAction}}"><span class="article-body__mark-read-label">{{label}}</span></button>
+    <button class="btn btn--secondary btn--compact article-body__mark-read article-body__confirm-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" aria-label="{{label}}" data-test-action="{{testAction}}"><span class="article-body__action-icon article-body__mark-read-icon">{{icon iconName}}</span><span class="article-body__mark-read-label article-body__action-label">{{label}}</span><span class="article-body__mark-read-label article-body__action-label-short" aria-hidden="true">{{shortLabel}}</span></button>
     {{/each}}
     <form class="{{markRead.formClass}}" method="POST" action="{{markRead.postUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt=".article-body__mark-read" data-test-mark-read-form>
       {{#each markRead.fields}}
       <input type="hidden" name="{{name}}" value="{{value}}">
       {{/each}}
-      <button class="btn btn--secondary btn--compact article-body__mark-read" type="submit" aria-label="{{markRead.label}}" data-test-mark-read-btn data-test-action="{{markRead.testAction}}"><span class="article-body__mark-read-label">{{markRead.label}}</span><span class="article-body__mark-read-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
+      <button class="btn btn--secondary btn--compact article-body__mark-read" type="submit" aria-label="{{markRead.label}}" data-test-mark-read-btn data-test-action="{{markRead.testAction}}"><span class="article-body__action-icon article-body__mark-read-icon">{{icon markRead.iconName}}</span><span class="article-body__mark-read-label article-body__action-label">{{markRead.label}}</span><span class="article-body__mark-read-label article-body__action-label-short" aria-hidden="true">{{markRead.shortLabel}}</span><span class="article-body__mark-read-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
     </form>
   </div>
   {{else}}
@@ -52,7 +52,7 @@
   {{/if}}
   {{#if epubDownload}}
   <div class="article-body__download-epub-slot article-body__download-epub-slot--visible" data-test-download-epub-slot>
-    <a class="btn btn--secondary btn--compact article-body__download-epub" href="{{epubDownload.href}}" data-test-download-epub>Download EPUB</a>
+    <a class="btn btn--secondary btn--compact article-body__download-epub" href="{{epubDownload.href}}" data-test-download-epub><span class="article-body__action-icon">{{icon "download"}}</span><span class="article-body__action-label">Download EPUB</span><span class="article-body__action-label-short" aria-hidden="true">EPUB</span></a>
   </div>
   {{else}}
   <div class="article-body__download-epub-slot article-body__download-epub-slot--hidden" data-test-download-epub-slot></div>

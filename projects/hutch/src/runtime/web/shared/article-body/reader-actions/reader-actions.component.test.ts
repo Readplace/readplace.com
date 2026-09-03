@@ -22,6 +22,8 @@ const ACTION_BTNS: ActionButtons = {
 			position: "top",
 			postUrl: "/queue/abc/status?utm_content=mark-read-top",
 			label: "Mark as read",
+			shortLabel: "Read",
+			iconName: "check",
 			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
 		},
@@ -29,6 +31,8 @@ const ACTION_BTNS: ActionButtons = {
 			position: "bottom",
 			postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
 			label: "Mark as read",
+			shortLabel: "Read",
+			iconName: "check",
 			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
 		},
@@ -157,6 +161,73 @@ describe("epub download", () => {
 	});
 });
 
+describe("narrow-viewport labels", () => {
+	const NARROW_ACTION_BTNS: ActionButtons = {
+		...ACTION_BTNS,
+		readlistPicker: {
+			assignUrl: "/queue/abc/assign",
+			returnTo: "/queue/abc/view",
+			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
+			create: undefined,
+		},
+		epubDownload: { href: "/view/example.com/a?format=epub" },
+	};
+
+	function topBarOf(actionBtns: ActionButtons): Document {
+		return parse(StickyReader({ actionBtns }).top.to("text/html").body);
+	}
+
+	it("keeps every control's full label in the document so the accessible name survives the swap", () => {
+		const doc = topBarOf(NARROW_ACTION_BTNS);
+
+		const labelled = [
+			"[data-test-back-link]",
+			"[data-test-readlists-trigger]",
+			"[data-test-mark-read-btn]",
+			"[data-test-download-epub]",
+		];
+		expect(
+			labelled.map(
+				(selector) =>
+					doc.querySelector(`${selector} .article-body__action-label`)?.textContent ?? null,
+			),
+		).toEqual(["Back to readlist", "Add to readlist", "Mark as read", "Download EPUB"]);
+	});
+
+	it("offers a short, aria-hidden twin for every control the arrow cannot stand in for", () => {
+		const doc = topBarOf(NARROW_ACTION_BTNS);
+
+		const shorts = Array.from(doc.querySelectorAll(".article-body__action-label-short"));
+		expect(shorts.map((el) => el.textContent)).toEqual(["Add", "Read", "EPUB"]);
+		expect(shorts.map((el) => el.getAttribute("aria-hidden"))).toEqual(["true", "true", "true"]);
+		expect(
+			doc.querySelectorAll("[data-test-back-link] .article-body__action-label-short"),
+		).toHaveLength(0);
+	});
+
+	it("flips the mark-read icon and short label with the direction the button marks in", () => {
+		const doc = topBarOf({
+			...NARROW_ACTION_BTNS,
+			markReadActions: [
+				{
+					position: "top",
+					postUrl: "/queue/abc/status?utm_content=mark-read-top",
+					label: "Mark as unread",
+					shortLabel: "Unread",
+					iconName: "inbox",
+					testAction: "mark-unread",
+					fields: [{ name: "status", value: "unread" }],
+				},
+			],
+		});
+
+		const button = doc.querySelector("[data-test-mark-read-btn]");
+		assert(button, "the mark-read button must render");
+		expect(button.querySelector(".article-body__action-label-short")?.textContent).toBe("Unread");
+		expect(button.querySelector(".article-body__mark-read-icon svg")).not.toBeNull();
+	});
+});
+
 describe("mark-read confirmation", () => {
 	it("keeps one plain form, holding the action's own test hook, when nothing needs confirming", () => {
 		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
@@ -179,6 +250,8 @@ describe("mark-read confirmation", () => {
 						position: "top",
 						postUrl: "/queue/abc/status?utm_content=mark-read-top",
 						label: "Mark as read",
+						shortLabel: "Read",
+						iconName: "check",
 						testAction: "mark-read",
 						fields: [{ name: "status", value: "read" }],
 						confirmPopoverId: "readlist-mark-status-confirm-abc",

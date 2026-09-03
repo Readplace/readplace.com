@@ -33,6 +33,61 @@
   text-decoration: underline;
 }
 
+/**
+ * 1. 600px is where the four full labels stop fitting the reader column on one
+ *    line — not the 768px the container padding uses. Below it every control
+ *    trades its label for an icon and a short form.
+ * 2. The full label is clipped rather than removed, so the accessible name and
+ *    the markdown representation read the same at every width.
+ */
+.article-body__action-icon,
+.article-body__action-label-short {
+  display: none; /* 1 */
+}
+
+@media (max-width: 599px) {
+  .article-body__action-icon {
+    display: inline-flex;
+  }
+
+  .article-body__action-label-short {
+    display: inline;
+  }
+
+  .article-body__action-label {
+    position: absolute; /* 2 */
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .article-body__back {
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 374px) {
+  .article-body__action-label-short {
+    display: none;
+  }
+}
+
+@supports selector(:has(*)) {
+  @media (max-width: 374px) {
+    .article-body__actions--top:not(:has(.article-body__download-epub-slot--visible))
+      .article-body__action-label-short {
+      display: inline;
+    }
+  }
+}
+
 .article-body__mark-read-slot--visible {
   display: inline-flex;
 }
@@ -207,6 +262,11 @@
   }
 }
 
+.article-body__mark-read,
+.article-body__download-epub {
+  gap: 4px;
+}
+
 .article-body__mark-read {
   position: relative;
 }
@@ -224,7 +284,8 @@
   gap: 0.35em;
 }
 
-.htmx-request .article-body__mark-read-label {
+.htmx-request .article-body__mark-read-label,
+.htmx-request .article-body__mark-read-icon {
   visibility: hidden;
 }
 
