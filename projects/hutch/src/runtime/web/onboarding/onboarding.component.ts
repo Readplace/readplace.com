@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
-import { BROWSER_EXTENSIONS_OR } from "../shared/client-enumerations";
+import { BROWSER_EXTENSIONS_OR, NATIVE_APP_DEVICES_OR } from "../shared/client-enumerations";
 import { ONBOARDING_STEPS } from "./onboarding.steps";
 import type { InstallableClientOnboarding, OnboardingAction, OnboardingContext, OnboardingStep } from "./onboarding.types";
 
@@ -61,7 +61,7 @@ function renderNoClientCard(options: { dismissed?: boolean; dismissAction?: stri
 		dismissAction: options.dismissAction ?? DISMISS_ONBOARDING_PATH,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		installOptionsUrl: "/install",
-		noClientLede: `Readplace doesn't have an app for this device yet. If you use ${BROWSER_EXTENSIONS_OR} on a computer, or an iPhone, you can install Readplace there.`,
+		noClientLede: `Readplace doesn't have an app for this device yet. If you use ${BROWSER_EXTENSIONS_OR} on a computer, or ${NATIVE_APP_DEVICES_OR}, you can install Readplace there.`,
 	});
 }
 

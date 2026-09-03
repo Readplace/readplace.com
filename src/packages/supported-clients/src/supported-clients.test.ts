@@ -3,7 +3,6 @@ import {
 	appStoreUrl,
 	CLIENT_CATEGORIES,
 	clientCategoryOfGroup,
-	clientGroupsInCategory,
 	clientNameForBuiltInOAuthClientId,
 	isBuiltInOAuthClientId,
 	isClientName,
@@ -106,14 +105,13 @@ describe("client categories", () => {
 		);
 	});
 
-	it("names each content-capture and url-only group once, in registry order", () => {
-		assert.deepEqual(clientGroupsInCategory("contentCapture"), ["browserExtension", "nativeApp"]);
-		assert.deepEqual(clientGroupsInCategory("urlOnly"), ["aiAssistant"]);
-	});
-
-	it("covers every category with at least one group", () => {
+	it("covers every category with at least one client", () => {
 		for (const category of CLIENT_CATEGORIES) {
-			assert.notEqual(clientGroupsInCategory(category).length, 0, `category ${category} has no groups`);
+			assert.equal(
+				SUPPORTED_CLIENTS.some((client) => clientCategoryOfGroup(client.group) === category),
+				true,
+				`category ${category} has no clients`,
+			);
 		}
 	});
 });

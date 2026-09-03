@@ -105,7 +105,7 @@ describe("renderReaderFailed", () => {
 			assert.equal(installCta.getAttribute("href"), "/install?client=chrome");
 			assert.match(
 				doc.body.textContent ?? "",
-				/Tip: the browser extension and phone apps capture the full page in one tap/,
+				/Tip: the browser extension and the iPhone app capture the full page in one tap/,
 			);
 		}
 	});

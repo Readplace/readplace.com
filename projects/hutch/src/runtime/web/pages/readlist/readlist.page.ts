@@ -200,11 +200,13 @@ import { renderNextRead } from "../../shared/next-read/next-read.component";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
-	detectPlatform,
 	extensionInstallUrlIfMissing,
+	canOfferExtensionInstall,
 	hasInstallableClient,
 	isExtensionInstalled,
 	isExtensionSavedArticle,
+	advertisedPlatformOf,
+	type PitchablePlatform,
 } from "../../onboarding/extension-install";
 import {
 	APP_SHELL_QUERY,
@@ -993,7 +995,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		const showExtensionSuggestionBanner = state.readerViewFailed;
+		const showExtensionSuggestionBanner =
+			state.readerViewFailed && canOfferExtensionInstall(req);
 
 		// Owner-only removal controls: which snapshots this owner authored, so the
 		// bookmark can offer to delete their versions. Only the full-shell owner
@@ -1109,8 +1112,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * falls through to this `installed && …` arm, where the no-client token no longer
 	 * matches and the new client isn't installed, so onboarding re-appears. */
 	const resolveOnboardingSignals = async (req: Request, userId: UserId) => {
-		const platform = detectPlatform(req);
-		const hasClient = hasInstallableClient(req);
+		const advertisedPlatform = advertisedPlatformOf(req);
+		const platform: PitchablePlatform = advertisedPlatform ?? "other";
+		const hasClient = advertisedPlatform !== undefined;
 		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
 		const dismissTokenMatches = dismissCookie === dismissTokenFor(hasClient);
 		const onboardingCompletedBefore =

@@ -1,13 +1,30 @@
 import { APPLE_ITUNES_APP_META, CHROME_STORE_URL, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
+import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import type { SeoMetadata } from "@packages/web-shell";
 
 import {
+	AI_ASSISTANT_SAVE_KEYWORDS,
+	AI_ASSISTANTS_LISTED,
 	BROWSER_EXTENSION_KEYWORDS,
 	BROWSER_EXTENSIONS_AND,
 	BROWSER_EXTENSIONS_OR,
 } from "../../shared/client-enumerations";
 import type { HomeFaqEntry } from "./home.content";
+
+/** The homepage's per-phone-app SEO material, one entry per ADVERTISED phone
+ * app, so the keywords and descriptions cannot keep naming an app nobody can
+ * install. */
+const NATIVE_APP_SEO = {
+	iphone: {
+		feature: "Saving from the iPhone share sheet with the App Store app",
+		keywords: "iPhone share sheet, share sheet saving",
+		deviceMention: "your iPhone",
+	},
+} satisfies Record<
+	AdvertisedClientNameInGroup<"nativeApp">,
+	{ feature: string; keywords: string; deviceMention: string }
+>;
 
 /**
  * The FAQ structured data is generated from the questions the page actually
@@ -45,7 +62,9 @@ export function buildHomeSeo(input: {
 		twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 		author: "Fayner Brack",
 		appleItunesApp: APPLE_ITUNES_APP_META,
-		keywords: `read it later, read-it-later app, online reader, online reading app, personal reading list, web reader, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, save from ChatGPT, MCP server, iPhone share sheet, share sheet saving, import bookmarks, import Pocket export, newsletter to read later`,
+		keywords: `read it later, read-it-later app, online reader, online reading app, personal reading list, web reader, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, ${AI_ASSISTANT_SAVE_KEYWORDS}, MCP server, ${Object.values(NATIVE_APP_SEO)
+			.map((app) => app.keywords)
+			.join(", ")}, import bookmarks, import Pocket export, newsletter to read later`,
 		structuredData: [
 			{
 				"@context": "https://schema.org",
@@ -55,8 +74,11 @@ export function buildHomeSeo(input: {
 				name: "Readplace",
 				alternateName: ["Readplace Read-It-Later App", "Readplace App"],
 				url: "https://readplace.com",
-				description:
-					"Your #1 AI-Powered Reading List. A privacy-first read-it-later app and Pocket alternative. Save from your browser, your iPhone, an AI assistant over MCP, a pasted link, or a bulk import — then read what you saved, with an AI TL;DR summary on every article to help you choose. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
+				description: `Your #1 AI-Powered Reading List. A privacy-first read-it-later app and Pocket alternative. Save from your browser, ${Object.values(
+					NATIVE_APP_SEO,
+				)
+					.map((app) => app.deviceMention)
+					.join(", ")}, an AI assistant over MCP, a pasted link, or a bulk import — then read what you saved, with an AI TL;DR summary on every article to help you choose. Real Tesseract OCR for scanned PDFs — no LLM hallucination.`,
 				applicationCategory: "ProductivityApplication",
 				applicationSubCategory: "Read-It-Later",
 				operatingSystem: "Web",
@@ -91,8 +113,8 @@ export function buildHomeSeo(input: {
 				},
 				featureList: [
 					`One-click saving from the ${BROWSER_EXTENSIONS_AND} browser extensions, which capture the rendered page`,
-					"Saving from the iPhone share sheet with the App Store app",
-					"Saving from ChatGPT, Claude, Gemini and other MCP clients over a hosted MCP server",
+					...Object.values(NATIVE_APP_SEO).map((app) => app.feature),
+					`Saving from ${AI_ASSISTANTS_LISTED} and other MCP clients over a hosted MCP server`,
 					"Paste any article or PDF link on readplace.com to read it in the reader view with no account",
 					"Bulk import of bookmark, Pocket and newsletter export files, or every link on a page URL, before you create an account",
 					"A per-newsletter forwarding address on every account, so newsletters land in Readplace with their article links pulled out",

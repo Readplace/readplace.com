@@ -7,10 +7,11 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { MAX_PDF_PAGES } from "@packages/crawl-article";
-import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import { ADVERTISED_CLIENTS, UNADVERTISED_CLIENTS } from "@packages/supported-clients";
 import {
+	HOME_BROWSER_EXTENSION_ROW,
 	HOME_CONTENT,
-	HOME_WAY_BY_GROUP,
+	HOME_NATIVE_APP_ROW_BY_CLIENT,
 	HOME_WAY_LINK_BY_CLIENT,
 	HOME_WAYS_WITHOUT_A_CLIENT,
 } from "./home.content";
@@ -241,18 +242,25 @@ describe("GET / hero (arriving from the reader view)", () => {
 	});
 });
 
-const ROW_CLIENTS = SUPPORTED_CLIENTS.filter(
-	(client) => client.advertised && client.group !== "aiAssistant",
-);
-
 const EXPECTED_WAYS = [
-	...[...new Set(ROW_CLIENTS.map((client) => client.group))].map((group) => ({
-		name: HOME_WAY_BY_GROUP[group].name,
-		links: ROW_CLIENTS.filter((client) => client.group === group)
-			.map((client) => HOME_WAY_LINK_BY_CLIENT[client.name])
+	{
+		name: HOME_BROWSER_EXTENSION_ROW.name,
+		links: ADVERTISED_CLIENTS.flatMap((client) =>
+			client.group === "browserExtension" ? [HOME_WAY_LINK_BY_CLIENT[client.name]] : [],
+		)
 			.slice()
 			.sort((left, right) => left.order - right.order),
-	})),
+	},
+	...ADVERTISED_CLIENTS.flatMap((client) =>
+		client.group === "nativeApp"
+			? [
+					{
+						name: HOME_NATIVE_APP_ROW_BY_CLIENT[client.name].name,
+						links: [HOME_WAY_LINK_BY_CLIENT[client.name]],
+					},
+				]
+			: [],
+	),
 	...HOME_WAYS_WITHOUT_A_CLIENT.map((way) => ({ name: way.name, links: way.links })),
 ];
 
@@ -269,13 +277,12 @@ describe("GET / ways to save", () => {
 	it("should not offer a client nobody can install yet", async () => {
 		const { doc } = await loadHomepage();
 
-		const android = SUPPORTED_CLIENTS.find((client) => client.name === "android");
-		expect(android?.advertised).toBe(false);
-
-		const links = Array.from(doc.querySelectorAll("[data-test-way-link]")).map((link) =>
-			link.getAttribute("data-test-way-link"),
-		);
-		expect(links).not.toContain(HOME_WAY_LINK_BY_CLIENT.android.label);
+		const waysText = Array.from(doc.querySelectorAll("[data-test-way]"))
+			.map((row) => row.textContent)
+			.join(" ");
+		for (const client of UNADVERTISED_CLIENTS) {
+			expect(waysText).not.toContain(client.displayName);
+		}
 	});
 
 	it("should keep every sample newsletter address on one line, so a hyphen cannot read as a line break", async () => {
@@ -291,7 +298,7 @@ describe("GET / ways to save", () => {
 		const { doc } = await loadHomepage();
 
 		const row = doc.querySelector(
-			`[data-test-way="${HOME_WAY_BY_GROUP.browserExtension.name}"]`,
+			`[data-test-way="${HOME_BROWSER_EXTENSION_ROW.name}"]`,
 		);
 		assert(row, "the browser-extension row must be rendered");
 
@@ -309,7 +316,7 @@ describe("GET / ways to save", () => {
 
 		expect(
 			doc
-				.querySelector(`[data-test-way-body-link="${HOME_WAY_BY_GROUP.nativeApp.name}"]`)
+				.querySelector(`[data-test-way-body-link="${HOME_NATIVE_APP_ROW_BY_CLIENT.iphone.name}"]`)
 				?.getAttribute("href"),
 		).toBe(
 			"/install?client=iphone&utm_source=home-ways&utm_medium=internal&utm_content=iphone-app-store",

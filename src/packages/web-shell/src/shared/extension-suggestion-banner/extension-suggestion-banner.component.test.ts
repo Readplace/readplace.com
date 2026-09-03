@@ -153,7 +153,7 @@ describe("renderExtensionSuggestionBanner", () => {
 			expect(url.searchParams.get("utm_content")).toBe("inline-text");
 		});
 
-		it("names both content-capture surfaces — the browser extension and the phone apps — not just the extension", () => {
+		it("names every advertised content-capture surface — the browser extension and the iPhone app — and no other", () => {
 			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
 
 			const message = doc.querySelector(
@@ -163,8 +163,9 @@ describe("renderExtensionSuggestionBanner", () => {
 			const text = message.textContent?.toLowerCase() ?? "";
 			// The whole joined phrase, not each noun on its own: a substring check for
 			// "phone app" passes on the singular too, which is how this banner drifted
-			// out of step with the group gaining a second client.
-			expect(text).toContain("the browser extension or phone apps");
+			// out of step with the roster. The literal pin means a roster change lands
+			// here for a deliberate re-read of the sentence around it.
+			expect(text).toContain("the browser extension or the iphone app");
 		});
 
 		it("uses distinct utm_content values on the inline link and the CTA so clicks are attributable", () => {

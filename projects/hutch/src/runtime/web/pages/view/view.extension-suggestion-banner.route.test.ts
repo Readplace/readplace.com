@@ -7,7 +7,7 @@ import type {
 } from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { useTestServer } from "../../../test-app";
+import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -46,6 +46,11 @@ function bannerAttr(html: string): string | null {
 	return banner.getAttribute("data-show-extension-suggestion");
 }
 
+/** Android's app is not advertised, so an Android visitor has no client the
+ * banner could send them to install. */
+const ANDROID_CHROME_UA =
+	"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
+
 const useApp = useTestServer();
 
 describe("GET /view/{url} — extension suggestion banner", () => {
@@ -61,7 +66,9 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 
-		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set(BROWSER_REQUEST_HEADERS);
 
 		expect(response.status).toBe(200);
 		expect(bannerAttr(response.text)).toBe("false");
@@ -96,7 +103,9 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 
-		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set(BROWSER_REQUEST_HEADERS);
 
 		expect(bannerAttr(response.text)).toBe("false");
 	});
@@ -129,7 +138,9 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 
-		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set(BROWSER_REQUEST_HEADERS);
 
 		expect(bannerAttr(response.text)).toBe("false");
 	});
@@ -147,9 +158,31 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
 		});
 
-		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set(BROWSER_REQUEST_HEADERS);
 
 		expect(bannerAttr(response.text)).toBe("true");
+	});
+
+	it("keeps the banner hidden on a failed crawl for a platform with no advertised client to offer", async () => {
+		const parseArticle: ParseArticle = async () => buildParseResult();
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "failed",
+			reason: "blocked",
+		});
+		const harness = useApp({
+			...fixture,
+			parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+		});
+
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": ANDROID_CHROME_UA });
+
+		expect(bannerAttr(response.text)).toBe("false");
 	});
 
 	it("sets data-show='true' when the crawl is unsupported", async () => {
@@ -165,7 +198,9 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
 		});
 
-		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set(BROWSER_REQUEST_HEADERS);
 
 		expect(bannerAttr(response.text)).toBe("true");
 	});
@@ -187,7 +222,9 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 
-		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set(BROWSER_REQUEST_HEADERS);
 
 		expect(bannerAttr(response.text)).toBe("true");
 	});

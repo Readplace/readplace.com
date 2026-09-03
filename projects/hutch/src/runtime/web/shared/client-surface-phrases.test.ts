@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import { ADVERTISED_CLIENTS } from "@packages/supported-clients";
 import {
 	FULL_PAGE_CAPTURE_PHRASE,
 	SAVE_SURFACES_PHRASE,
@@ -28,22 +28,22 @@ describe("client surface phrases", () => {
 	});
 
 	it("pins the reader-failed full-page-capture phrase", () => {
-		assert.equal(FULL_PAGE_CAPTURE_PHRASE, "the browser extension and phone apps");
+		assert.equal(FULL_PAGE_CAPTURE_PHRASE, "the browser extension and the iPhone app");
 	});
 
-	it("never names a single client of a group that has several clients", () => {
-		const groups = new Set(SUPPORTED_CLIENTS.map((client) => client.group));
+	it("never names a strict subset of a group's advertised clients", () => {
+		const groups = new Set(ADVERTISED_CLIENTS.map((client) => client.group));
 		for (const group of groups) {
-			const members = SUPPORTED_CLIENTS.filter((client) => client.group === group);
-			if (members.length < 2) continue;
-			for (const member of members) {
-				for (const phrase of ALL_PHRASES) {
-					assert.equal(
-						phrase.toLowerCase().includes(member.displayName.toLowerCase()),
-						false,
-						`"${phrase}" names ${member.displayName}; reword the ${group} phrase to cover all its clients`,
-					);
-				}
+			const members = ADVERTISED_CLIENTS.filter((client) => client.group === group);
+			for (const phrase of ALL_PHRASES) {
+				const named = members.filter((member) =>
+					phrase.toLowerCase().includes(member.displayName.toLowerCase()),
+				);
+				assert.equal(
+					named.length === 0 || named.length === members.length,
+					true,
+					`"${phrase}" names ${named.map((member) => member.displayName).join(", ")} but not the rest of the ${group} group`,
+				);
 			}
 		}
 	});

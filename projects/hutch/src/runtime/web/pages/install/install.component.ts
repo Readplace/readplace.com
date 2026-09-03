@@ -4,6 +4,7 @@ import assert from "node:assert";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import {
+	UNADVERTISED_CLIENTS,
 	APPLE_ITUNES_APP_META,
 	CLIENT_CATEGORIES,
 	clientCategoryOfGroup,
@@ -11,9 +12,15 @@ import {
 	isClientName,
 	SUPPORTED_CLIENTS,
 } from "@packages/supported-clients";
-import type { ClientCategory, ClientName, SupportedClient } from "@packages/supported-clients";
+import type {
+	AdvertisedClientNameInGroup,
+	ClientCategory,
+	ClientName,
+	SupportedClient,
+} from "@packages/supported-clients";
 
 import { switchHelpers } from "../../handlebars-switch";
+import { BROWSER_EXTENSIONS_OR } from "../../shared/client-enumerations";
 import { SAVE_INTENT_PROMPT } from "../mcp";
 import { CLIENT_ICON_SVG } from "../../shared/client-icons";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
@@ -26,6 +33,41 @@ import { INSTALL_PAGE_STYLES } from "./install.styles";
 import { firefoxS3Config } from "browser-extension-core/s3-config";
 
 const INSTALL_TEMPLATE = readFileSync(join(__dirname, "install.template.html"), "utf-8");
+
+/** The install page's per-phone-app SEO material — the sentence fragments and
+ * the store-listing structured data — one entry per ADVERTISED phone app, so
+ * the page cannot keep describing an app whose store listing does not exist. */
+const NATIVE_APP_SEO = {
+	iphone: {
+		pitch: "get the iPhone app on the App Store",
+		shareSheet: "the iPhone share sheet",
+		structuredData: {
+			"@context": "https://schema.org",
+			"@type": "MobileApplication",
+			name: "Readplace for iPhone",
+			description:
+				"Save any page to your Readplace reading list from the iPhone share sheet, then read it in the app with its TL;DR.",
+			applicationCategory: "ProductivityApplication",
+			operatingSystem: "iOS, macOS",
+			url: "https://readplace.com/install?client=iphone",
+			installUrl: IPHONE_APP_STORE_URL,
+			downloadUrl: IPHONE_APP_STORE_URL,
+			offers: {
+				"@type": "Offer",
+				price: "0",
+				priceCurrency: "USD",
+			},
+			publisher: {
+				"@type": "Organization",
+				name: "Readplace",
+				url: "https://readplace.com",
+			},
+		},
+	},
+} satisfies Record<
+	AdvertisedClientNameInGroup<"nativeApp">,
+	{ pitch: string; shareSheet: string; structuredData: object }
+>;
 const FIREFOX_LATEST_POINTER_URL = firefoxS3Config.getLatestPointerUrl("prod");
 
 const INSTALL_COPY_SCRIPT = `<script src="/client-dist/install.client.js" defer></script>`;
@@ -62,12 +104,18 @@ const CLIENT_ALIASES: Record<string, ClientName | undefined> = {
 	ai: "claude",
 };
 
-export const ANDROID_TAB_REVEAL_QUERY = { name: "feature", value: "android" } as const;
+export const HIDDEN_TAB_REVEAL_QUERY = { name: "feature", value: "android" } as const;
 
-const TAB_HIDDEN_UNTIL_REVEALED: ClientName = "android";
+/** The tabs a visitor cannot see without the reveal query: derived from the
+ * unadvertised roster, so flipping a client's advertised flag is what shows its
+ * tab — no second list to update. The reveal keeps a preview path for checking
+ * an unshipped client's page before the flag flips. */
+const HIDDEN_TAB_NAMES: ReadonlySet<string> = new Set(
+	UNADVERTISED_CLIENTS.map((client) => client.name),
+);
 
-export function revealsAndroidTab(featureQuery: unknown): boolean {
-	return featureQuery === ANDROID_TAB_REVEAL_QUERY.value;
+export function revealsHiddenTabs(featureQuery: unknown): boolean {
+	return featureQuery === HIDDEN_TAB_REVEAL_QUERY.value;
 }
 
 export function parseClient(value: unknown): InstallClient {
@@ -118,14 +166,14 @@ interface InstallTabGroup {
 	tabs: InstallTab[];
 }
 
-function buildTabGroups(active: ClientName, androidTabRevealed: boolean): InstallTabGroup[] {
+function buildTabGroups(active: ClientName, hiddenTabsRevealed: boolean): InstallTabGroup[] {
 	const groups: InstallTabGroup[] = CLIENT_CATEGORIES.map((category) => {
 		const { slug, label } = CATEGORY_TAB_GROUPS[category];
 		return { key: slug, label, labelId: `install-group-${slug}`, tabs: [] };
 	});
-	const revealQuery = androidTabRevealed ? `&${ANDROID_TAB_REVEAL_QUERY.name}=${ANDROID_TAB_REVEAL_QUERY.value}` : "";
+	const revealQuery = hiddenTabsRevealed ? `&${HIDDEN_TAB_REVEAL_QUERY.name}=${HIDDEN_TAB_REVEAL_QUERY.value}` : "";
 	for (const client of SUPPORTED_CLIENTS) {
-		if (client.name === TAB_HIDDEN_UNTIL_REVEALED && !androidTabRevealed) continue;
+		if (HIDDEN_TAB_NAMES.has(client.name) && !hiddenTabsRevealed) continue;
 		const { slug } = CATEGORY_TAB_GROUPS[clientCategoryOfGroup(client.group)];
 		const target = groups.find((candidate) => candidate.key === slug);
 		assert(target, `no install tab group for category slug ${slug}`);
@@ -373,14 +421,13 @@ export function InstallPage(params: {
 	firefox: string | null;
 	client: InstallClient;
 	staticBaseUrl: string;
-	androidTabRevealed: boolean;
+	hiddenTabsRevealed: boolean;
 }): PageBody {
 	const panel = buildPanel(params.client, params.firefox, params.staticBaseUrl);
 	return {
 		seo: {
 			title: "Install Readplace — Browser, Phone & AI Assistants",
-			description:
-				"Your #1 AI-Powered Reading List. Install the Readplace browser extension for Firefox or Chrome, get the iPhone app on the App Store, see where the Android app is up to, or connect your AI assistant to save and read your reading list.",
+			description: `Your #1 AI-Powered Reading List. Install the Readplace browser extension for ${BROWSER_EXTENSIONS_OR}, ${Object.values(NATIVE_APP_SEO).map((app) => app.pitch).join(", ")}, or connect your AI assistant to save and read your reading list.`,
 			canonicalUrl: "https://readplace.com/install",
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,
@@ -390,8 +437,7 @@ export function InstallPage(params: {
 					"@context": "https://schema.org",
 					"@type": "SoftwareApplication",
 					name: "Readplace",
-					description:
-						"Save any article to your Readplace reading list — from the Firefox or Chrome browser extension, the iPhone share sheet, or a connected AI assistant.",
+					description: `Save any article to your Readplace reading list — from the ${BROWSER_EXTENSIONS_OR} browser extension, ${Object.values(NATIVE_APP_SEO).map((app) => app.shareSheet).join(", ")}, or a connected AI assistant.`,
 					applicationCategory: "ProductivityApplication",
 					operatingSystem: "Windows, macOS, Linux, ChromeOS, iOS",
 					url: "https://readplace.com/install",
@@ -407,28 +453,7 @@ export function InstallPage(params: {
 						url: "https://readplace.com",
 					},
 				},
-				{
-					"@context": "https://schema.org",
-					"@type": "MobileApplication",
-					name: "Readplace for iPhone",
-					description:
-						"Save any page to your Readplace reading list from the iPhone share sheet, then read it in the app with its TL;DR.",
-					applicationCategory: "ProductivityApplication",
-					operatingSystem: "iOS, macOS",
-					url: "https://readplace.com/install?client=iphone",
-					installUrl: IPHONE_APP_STORE_URL,
-					downloadUrl: IPHONE_APP_STORE_URL,
-					offers: {
-						"@type": "Offer",
-						price: "0",
-						priceCurrency: "USD",
-					},
-					publisher: {
-						"@type": "Organization",
-						name: "Readplace",
-						url: "https://readplace.com",
-					},
-				},
+				...Object.values(NATIVE_APP_SEO).map((app) => app.structuredData),
 				{
 					"@context": "https://schema.org",
 					"@type": "BreadcrumbList",
@@ -455,7 +480,7 @@ export function InstallPage(params: {
 			html: render(
 				INSTALL_TEMPLATE,
 				{
-					groups: buildTabGroups(params.client, params.androidTabRevealed),
+					groups: buildTabGroups(params.client, params.hiddenTabsRevealed),
 					panel,
 					browserOutro: BROWSER_SETUP_OUTRO,
 					mcpServerUrl: MCP_SERVER_URL,

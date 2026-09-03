@@ -1949,9 +1949,9 @@ describe("View routes", () => {
 			});
 			await seedRow(fixture);
 
-			const response = await request(harness.server).get(
-				`/view/reader?url=${ENCODED}&poll=1&utm_source=medium`,
-			);
+			const response = await request(harness.server)
+				.get(`/view/reader?url=${ENCODED}&poll=1&utm_source=medium`)
+				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(200);
 			const ids = oobIds(response.text);
@@ -1981,9 +1981,9 @@ describe("View routes", () => {
 			});
 			await seedRow(fixture, { content: "<p>body</p>" });
 
-			const response = await request(harness.server).get(
-				`/view/summary?url=${ENCODED}&poll=1&utm_source=medium`,
-			);
+			const response = await request(harness.server)
+				.get(`/view/summary?url=${ENCODED}&poll=1&utm_source=medium`)
+				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;

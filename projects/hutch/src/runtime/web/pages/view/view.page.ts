@@ -39,7 +39,11 @@ import { CacheableComponent } from "../../conditional-get";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 
-import { extensionInstallUrlIfMissing, isExtensionInstalled } from "../../onboarding/extension-install";
+import {
+	extensionInstallUrlIfMissing,
+	canOfferExtensionInstall,
+	isExtensionInstalled,
+} from "../../onboarding/extension-install";
 import { setLastViewUrl } from "../../last-view";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen, saveTipState, type SaveTipState } from "../../shared/save-tip/save-tip";
@@ -373,7 +377,8 @@ function handleViewArticle(
 			});
 		}
 
-		const showExtensionSuggestionBanner = state.readerViewFailed;
+		const showExtensionSuggestionBanner =
+			state.readerViewFailed && canOfferExtensionInstall(req);
 
 		sendComponent(
 			req, res,

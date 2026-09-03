@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import type { Request } from "express";
+import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import {
+	advertisedPlatformOf,
+	canOfferExtensionInstall,
 	detectPlatform,
 	extensionInstallUrlIfMissing,
 	hasInstallableClient,
@@ -30,8 +33,8 @@ const IPHONE_CHROME =
 	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.0.0 Mobile/15E148 Safari/604.1";
 
 describe("hasInstallableClient", () => {
-	it("returns true for Android, which has an app of its own even though no browser there can install the extension", () => {
-		assert.equal(hasInstallableClient(requestWithUserAgent(ANDROID_CHROME)), true);
+	it("returns false for Android while its app is not advertised — there is nothing to send the visitor to install", () => {
+		assert.equal(hasInstallableClient(requestWithUserAgent(ANDROID_CHROME)), false);
 	});
 
 	it("returns false for desktop Safari (the unrecognised 'other' bucket)", () => {
@@ -44,6 +47,36 @@ describe("hasInstallableClient", () => {
 
 	it("returns false when the request carries no User-Agent header", () => {
 		assert.equal(hasInstallableClient(requestWithUserAgent()), false);
+	});
+});
+
+describe("canOfferExtensionInstall", () => {
+	it("offers the pitch on a platform with an advertised client to install", () => {
+		assert.equal(canOfferExtensionInstall(requestWithUserAgent(DESKTOP_CHROME)), true);
+	});
+
+	it("offers the pitch to a visitor who already holds the extension, whatever their platform", () => {
+		const req = requestWithUserAgent(DESKTOP_SAFARI);
+		req.cookies = { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE };
+		assert.equal(canOfferExtensionInstall(req), true);
+	});
+
+	it("withholds the pitch when there is neither an extension nor an advertised client", () => {
+		assert.equal(canOfferExtensionInstall(requestWithUserAgent(ANDROID_CHROME)), false);
+	});
+});
+
+describe("advertisedPlatformOf", () => {
+	it("answers the platform for a visitor whose client is advertised", () => {
+		assert.equal(advertisedPlatformOf(requestWithUserAgent(DESKTOP_CHROME)), "chrome");
+	});
+
+	it("answers undefined for Android, whose app is not advertised", () => {
+		assert.equal(advertisedPlatformOf(requestWithUserAgent(ANDROID_CHROME)), undefined);
+	});
+
+	it("answers undefined for the unrecognised other bucket", () => {
+		assert.equal(advertisedPlatformOf(requestWithUserAgent(DESKTOP_SAFARI)), undefined);
 	});
 });
 

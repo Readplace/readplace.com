@@ -1,4 +1,5 @@
 export {
+	ADVERTISED_CLIENTS,
 	APPLE_APP_ID,
 	APPLE_ITUNES_APP_META,
 	appStoreUrl,
@@ -7,12 +8,17 @@ export {
 	clientCategoryOfGroup,
 	clientNameForBuiltInOAuthClientId,
 	IPHONE_APP_STORE_URL,
-	clientGroupsInCategory,
 	isBuiltInOAuthClientId,
 	isClientName,
 	SUPPORTED_CLIENTS,
+	UNADVERTISED_CLIENTS,
 } from "./supported-clients";
 export type {
+	AdvertisedClient,
+	AdvertisedClientInGroup,
+	AdvertisedClientName,
+	AdvertisedClientNameInCategory,
+	AdvertisedClientNameInGroup,
 	AuthIdentity,
 	BuiltInClientName,
 	BuiltInOAuthClientId,
@@ -25,4 +31,5 @@ export type {
 	ClientNameInGroup,
 	InstallSource,
 	SupportedClient,
+	UnadvertisedClientName,
 } from "./supported-clients";

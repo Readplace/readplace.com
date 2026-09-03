@@ -1,4 +1,4 @@
-import type { ClientNameInCategory } from "@packages/supported-clients";
+import type { AdvertisedClientNameInCategory, ClientNameInCategory } from "@packages/supported-clients";
 
 /** A device's installable first-party client, or `other`. These are exactly the
  * content-capture clients (browser extensions + the phone apps), keyed off the
@@ -18,7 +18,10 @@ export interface InstallableClientOnboarding {
 	 * second field the count could disagree with. Account-scoped, unlike the
 	 * device-scoped `installed` / `savedArticle` above. */
 	savedCount: number;
-	platform: Platform;
+	/** Narrower than {@link Platform}: a checklist only ever renders for a
+	 * device whose client is advertised, so the copy maps it indexes never need
+	 * an entry for one that is not. */
+	platform: AdvertisedClientNameInCategory<"contentCapture"> | "other";
 }
 
 /** Onboarding for a device with no installable first-party client (desktop
