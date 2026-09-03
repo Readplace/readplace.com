@@ -178,7 +178,7 @@ jobs:
     # Expose detection results so downstream jobs can conditionally run
     outputs:
       platform-affected: ${{ steps.detect.outputs.platform-affected }}
-      non-platform-projects: ${{ steps.detect.outputs.non-platform-projects }}
+      non-platform-projects-hex: ${{ steps.detect.outputs.non-platform-projects-hex }}
       has-non-platform: ${{ steps.detect.outputs.has-non-platform }}
       ff-affected: ${{ steps.detect.outputs.ff-affected }}
       chrome-affected: ${{ steps.detect.outputs.chrome-affected }}
@@ -309,7 +309,7 @@ jobs:
 
           # Set outputs for downstream jobs to use in their `if:` conditions
           echo "platform-affected=$(echo "$PROJECTS" | jq -e 'index("platform")' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "non-platform-projects=$NON_PLATFORM" >> "$GITHUB_OUTPUT"
+          echo "non-platform-projects-hex=$(printf '%s' "$NON_PLATFORM" | od -An -v -tx1 | tr -d ' \n')" >> "$GITHUB_OUTPUT"
           echo "has-non-platform=$(echo "$NON_PLATFORM" | jq -e 'length > 0' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "ff-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("firefox-extension")' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "chrome-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("chrome-extension")' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
@@ -368,6 +368,27 @@ jobs:
     with:
       project: platform
 
+  # detect-projects exports every repository secret (so check-infra can evaluate
+  # each Pulumi program), which registers them all as masks in that job. When the
+  # affected list is broad enough that a project name shares a substring with a
+  # secret value, GitHub refuses to set the raw JSON output ("may contain secret")
+  # and the deploy matrix collapses to fromJSON('') — failing the run.
+  # detect-projects emits the list hex-encoded (hex holds neither a plaintext nor
+  # a base64 secret, so it is never masked); this secret-free job decodes it back
+  # to JSON for the matrix.
+  resolve-deploy-matrix:
+    if: needs.detect-projects.outputs.has-non-platform == 'true'
+    needs: [detect-projects]
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.decode.outputs.projects }}
+    steps:
+      - id: decode
+        run: |
+          DECODED=$(printf '%s' '${{ needs.detect-projects.outputs.non-platform-projects-hex }}' \
+            | python3 -c 'import sys; sys.stdout.write(bytes.fromhex(sys.stdin.read().strip()).decode())')
+          echo "projects=$DECODED" >> "$GITHUB_OUTPUT"
+
   # Deploy all non-platform projects in parallel using a dynamic matrix
   # Each project goes through staging → post-deploy verification → prod
   # via the reusable project-deployment.yaml workflow
@@ -379,12 +400,13 @@ jobs:
       && needs.perf-tests.result == 'success'
       && needs.detect-projects.result == 'success'
       && needs.deploy-platform.result != 'failure'
+      && needs.resolve-deploy-matrix.result == 'success'
       && needs.detect-projects.outputs.has-non-platform == 'true'
-    needs: [web-tests, perf-tests, detect-projects, deploy-platform]
+    needs: [web-tests, perf-tests, detect-projects, deploy-platform, resolve-deploy-matrix]
     strategy:
       fail-fast: false
       matrix:
-        project: ${{ fromJSON(needs.detect-projects.outputs.non-platform-projects) }}
+        project: ${{ fromJSON(needs.resolve-deploy-matrix.outputs.projects) }}
     uses: ./.github/workflows/project-deployment.yaml
     secrets: inherit
     with:
