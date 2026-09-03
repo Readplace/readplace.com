@@ -568,6 +568,33 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 	});
 });
 
+describe("GET /account?error=subscribe_failed", () => {
+	it("offers the subscribe action again and says nothing was charged, so a failed checkout is not a dead end", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "retryable-subscribe-error@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account?error=subscribe_failed");
+		const doc = new JSDOM(response.text).window.document;
+
+		const card = doc.querySelector("[data-test-account-card]");
+		assert(card, "account card must render");
+		expect(card.getAttribute("data-test-account-state")).toBe("error-subscribe-failed");
+		const body = doc.querySelector("[data-test-account-error-body]");
+		assert(body, "the retryable error body must render");
+		expect(body.textContent).toContain("nothing was charged");
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-account-action]")).map((el) =>
+				el.getAttribute("data-test-account-action"),
+			),
+		).toContain("subscribe");
+	});
+});
+
 describe("GET /account?error=payment_method", () => {
 	it("renders the payment-method error card with a support email link", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -1333,7 +1360,7 @@ describe("POST /account/subscribe", () => {
 		expect(hxRedirect).toContain("checkout.stripe.test");
 	});
 
-	it("trialing user — Stripe Checkout throws → 303 to /account?error=payment_method (no 500)", async () => {
+	it("trialing user — Stripe Checkout throws → 303 to the retryable error, never the card-on-file one, because a trialing reader has never given a card", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.hostedCheckout.createCheckoutSession = async () => {
 			throw new Error("Stripe createCheckoutSession failed (400): something bad");
@@ -1349,12 +1376,36 @@ describe("POST /account/subscribe", () => {
 		const response = await agent.post("/account/subscribe");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?error=payment_method");
+		expect(response.headers.location).toBe("/account?error=subscribe_failed");
 
 		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
 	});
 
-	it("cancelled user without customerId — Stripe Checkout fallback throws → 303 to /account?error=payment_method (no 500)", async () => {
+	it("keeps the card-on-file error for a lapsed subscriber whose saved card is the plausible cause", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.subscriptionBilling.createSubscriptionOnExistingCustomer = async () => {
+			throw new Error("card_declined");
+		};
+		fixture.hostedCheckout.createCheckoutSession = async () => {
+			throw new Error("Stripe createCheckoutSession failed (400): something bad");
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "lapsed-card-error@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+	});
+
+	it("cancelled user without customerId — checkout fallback throws → the retryable error, since a row with no saved customer has no card to blame", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.hostedCheckout.createCheckoutSession = async () => {
 			throw new Error("Stripe createCheckoutSession failed (400): something bad");
@@ -1373,7 +1424,7 @@ describe("POST /account/subscribe", () => {
 		const response = await agent.post("/account/subscribe");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?error=payment_method");
+		expect(response.headers.location).toBe("/account?error=subscribe_failed");
 	});
 
 	it("Phase 3: cancelled user WITHOUT customerId (defensive) falls back to checkout", async () => {

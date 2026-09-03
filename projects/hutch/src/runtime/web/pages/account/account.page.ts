@@ -84,6 +84,7 @@ import {
 	ACCOUNT_ERROR_CARD_SETUP_FAILED_URL,
 	ACCOUNT_ERROR_CARD_SETUP_UNVERIFIED_URL,
 	ACCOUNT_ERROR_PAYMENT_METHOD_URL,
+	ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL,
 	buildAccountUrl,
 } from "./account.url";
 
@@ -733,12 +734,20 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			/** Single route-level catch keeps every branch resilient: Stripe
 			 * (checkout create, subscriptions.create), DynamoDB (pending-signup
 			 * write, upsertActive) or any other downstream failure redirects to
-			 * the payment-method error page instead of crashing the Lambda. */
+			 * an error page instead of crashing the Lambda. Only a subscriber
+			 * with a saved customer can have a card that went bad; for everyone
+			 * else — a trialing reader has never given one — the failure is ours
+			 * and the page must offer the retry rather than send them to support. */
 			deps.logger.error(`[subscribe/${branch}] failed`, {
 				userId: req.userId,
 				error: err instanceof Error ? err.message : String(err),
 			});
-			res.redirect(303, ACCOUNT_ERROR_PAYMENT_METHOD_URL);
+			res.redirect(
+				303,
+				row?.customerId
+					? ACCOUNT_ERROR_PAYMENT_METHOD_URL
+					: ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL,
+			);
 		}
 	});
 

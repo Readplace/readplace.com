@@ -53,7 +53,8 @@ export type AccountCardState =
 	| "trial"
 	| "cancellation-scheduled"
 	| "inactive"
-	| "error-payment-method";
+	| "error-payment-method"
+	| "error-subscribe-failed";
 
 export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form" | "delete-account";
 
@@ -99,6 +100,7 @@ export interface AccountViewModel {
 	pollState: AccountPollState;
 	pollUrl?: string;
 	stateIsErrorPaymentMethod: boolean;
+	stateIsErrorSubscribeFailed: boolean;
 	actions: AccountAction[];
 	/** The irreversible "delete account" control. Kept out of the state-dependent
 	 * `actions` array so the danger zone renders in every subscription state. */
@@ -128,6 +130,7 @@ export interface AccountUrlState {
 	cancelling: boolean;
 	pollCount: number;
 	errorPaymentMethod: boolean;
+	errorSubscribeFailed: boolean;
 	deleteConfirmationError: boolean;
 	cardError: CardError | undefined;
 }
@@ -146,6 +149,7 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 		cancelling: query?.cancelling === "1",
 		pollCount: parsePollParam(query?.poll, ACCOUNT_CANCEL_MAX_POLLS),
 		errorPaymentMethod: query?.error === "payment_method",
+		errorSubscribeFailed: query?.error === "subscribe_failed",
 		deleteConfirmationError: query?.error === "delete_confirmation",
 		cardError: parseCardError(query?.error),
 	};
@@ -390,6 +394,7 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): AccountCard
 		cancellingNotice: "",
 		pollState: "idle",
 		stateIsErrorPaymentMethod: false,
+		stateIsErrorSubscribeFailed: false,
 		actions,
 		dangerAction: DELETE_ACCOUNT_ACTION,
 		showCardSection: true,
@@ -443,6 +448,14 @@ function stateViewModel(
 			...baseFor("error-payment-method", []),
 			statusLine: "We couldn't restart your subscription.",
 			stateIsErrorPaymentMethod: true,
+		};
+	}
+
+	if (queryState.errorSubscribeFailed) {
+		return {
+			...baseFor("error-subscribe-failed", [SUBSCRIBE_ACTION]),
+			statusLine: "We couldn't start your subscription. Nothing was charged.",
+			stateIsErrorSubscribeFailed: true,
 		};
 	}
 

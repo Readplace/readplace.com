@@ -65,7 +65,8 @@
 }
 
 .account-card--inactive,
-.account-card--error-payment-method {
+.account-card--error-payment-method,
+.account-card--error-subscribe-failed {
   background: var(--error-bg);
   border-color: var(--color-error);
 }

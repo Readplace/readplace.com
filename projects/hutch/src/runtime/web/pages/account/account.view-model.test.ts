@@ -36,7 +36,8 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
+			{ cancelling: false, pollCount: 0, errorPaymentMethod: false,
+		errorSubscribeFailed: false, deleteConfirmationError: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusLine, "Your free trial ends on ");
@@ -59,7 +60,8 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
+			{ cancelling: false, pollCount: 0, errorPaymentMethod: false,
+		errorSubscribeFailed: false, deleteConfirmationError: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusDateTail, " — 1 day left.");
@@ -72,6 +74,7 @@ describe("toAccountViewModel — next charge", () => {
 		cancelling: false,
 		pollCount: 0,
 		errorPaymentMethod: false,
+		errorSubscribeFailed: false,
 		deleteConfirmationError: false,
 		cardError: undefined,
 	} as const;
@@ -147,7 +150,8 @@ describe("toAccountViewModel — next charge", () => {
 
 describe("toAccountViewModel — actions", () => {
 	const now = new Date();
-	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
+	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false,
+		errorSubscribeFailed: false, deleteConfirmationError: false, cardError: undefined };
 
 	it("founding members get no actions", () => {
 		const vm = toAccountViewModel(
@@ -368,7 +372,8 @@ describe("toAccountViewModel — actions", () => {
 
 describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 	const now = new Date();
-	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
+	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false,
+		errorSubscribeFailed: false, deleteConfirmationError: false, cardError: undefined };
 
 	it("hides the payment-methods section", () => {
 		const web = toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now);
@@ -502,6 +507,7 @@ describe("parseAccountQuery", () => {
 			cancelling: false,
 			pollCount: 0,
 			errorPaymentMethod: false,
+		errorSubscribeFailed: false,
 			deleteConfirmationError: false,
 			cardError: undefined,
 		});

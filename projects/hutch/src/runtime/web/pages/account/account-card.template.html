@@ -7,6 +7,13 @@
           and we'll get you back up and running.
         </p>
         {{else}}
+        {{#if stateIsErrorSubscribeFailed}}
+        <h2 class="account-card__heading" data-test-account-error-heading>We couldn't start your subscription</h2>
+        <p class="account-card__body" data-test-account-error-body>
+          Something went wrong on the way to the checkout and nothing was charged. Try again, and if it keeps happening email
+          <a class="account-card__support-link" href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a>.
+        </p>
+        {{/if}}
         {{#if showCancellingNotice}}
         <p class="account-card__notice" data-test-cancelling-notice>{{cancellingNotice}}</p>
         <noscript><p class="account-card__notice">Refresh the page to see the update.</p></noscript>
