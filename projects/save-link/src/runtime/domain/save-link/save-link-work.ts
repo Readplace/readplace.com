@@ -4,6 +4,7 @@ import {
 	markCrawlBlocked,
 	markCrawlFailed,
 	markCrawlNotFound,
+	markCrawlUnsupported,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
@@ -16,6 +17,7 @@ import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
+import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
 
 /**
  * `"tier-1-written"` — the worker fetched, parsed, and wrote a tier-1 source.
@@ -141,6 +143,15 @@ export function initSaveLinkWork(deps: {
 		const result = await crawlAndFinalizeArticle({ url });
 
 		if (result.status === "unsupported") {
+			const terminalReason = terminalUnsupportedReason(result.unsupportedReason);
+			if (terminalReason !== undefined) {
+				// Terminalise in-process rather than defer: the comprehensive Lambda
+				// would re-fetch the same oversized body and OOM again.
+				await emitTier1FailureOutcome({ url });
+				await transitionAndPersist(markCrawlUnsupported, { url, input: { reason: terminalReason } });
+				logger.info(`${logPrefix} tier-1 unsupported terminal`, { url, reason: result.reason });
+				return "tier-1-terminal";
+			}
 			/* The simple crawl bailed because the origin returned a non-html body.
 			 * Defer to the comprehensive Lambda — it extracts and decides whether
 			 * the content is a PDF (handle) or something else (mark unsupported).

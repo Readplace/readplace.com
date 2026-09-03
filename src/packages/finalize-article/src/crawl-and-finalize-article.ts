@@ -1,5 +1,6 @@
 import {
 	type CrawlArticle,
+	type CrawlUnsupportedReason,
 	type FetchFailureClassification,
 	resolveDocumentUrl,
 } from "@packages/crawl-article";
@@ -27,7 +28,7 @@ export type CrawlAndFinalizeResult =
 		}
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
-	| { status: "unsupported"; reason: string };
+	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason };
 
 export type CrawlAndFinalizeArticle = (params: {
 	url: string;
@@ -70,7 +71,11 @@ export function initCrawlAndFinalizeArticle(deps: {
 
 		if (crawlResult.status === "not-modified") return { status: "not-modified" };
 		if (crawlResult.status === "unsupported") {
-			return { status: "unsupported", reason: crawlResult.reason };
+			return {
+				status: "unsupported",
+				reason: crawlResult.reason,
+				unsupportedReason: crawlResult.unsupportedReason,
+			};
 		}
 		if (crawlResult.status === "not-found") {
 			return { status: "not-found", httpStatus: crawlResult.httpStatus, finalUrl: crawlResult.finalUrl };

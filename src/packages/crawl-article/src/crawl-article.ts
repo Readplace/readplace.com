@@ -12,6 +12,7 @@ import type {
 import { type CrawlFetch, PROXIED_CRAWL_HEADERS_MILLISECONDS } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
+import { MAX_HTML_BYTES } from "./html-body-limit";
 import { initLogFetchFailure } from "./log-fetch-failure";
 import { classifyMediaType, type SupportedMediaType } from "./media-type";
 import { parseImageFromBuffer } from "./parse-image";
@@ -181,6 +182,13 @@ export const CRAWL_PERSONAS = [
 	},
 ] as const;
 
+const HTML_PARSE_BYTE_CAP = {
+	html: MAX_HTML_BYTES.bytes,
+	"plain-text": MAX_HTML_BYTES.bytes,
+	pdf: Number.POSITIVE_INFINITY,
+	image: Number.POSITIVE_INFINITY,
+} satisfies Record<SupportedMediaType, number>;
+
 /**
  * One conditional GET against the origin, with the body materialised into a
  * Buffer so the orchestrator can dispatch on content-type without a second
@@ -247,11 +255,7 @@ function initConditionalGet(deps: {
 				if (isBlockClassResponse(response) || response.status === 429) {
 					return { status: "blocked", httpStatus: response.status, finalUrl };
 				}
-				return {
-					status: "failed",
-					finalUrl,
-					failure: classifyFailedResponse({ httpStatus: response.status }),
-				};
+				return { status: "failed", finalUrl, failure: classifyFailedResponse({ httpStatus: response.status }) };
 			}
 			budgetTimer = setTimeout(() => {
 				controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
@@ -475,6 +479,17 @@ export function initCrawlArticle(deps: {
 			const suffix = redirectSuffix({ requestedUrl: currentUrl, responseUrl: terminalUrl(response) });
 			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${currentUrl}${suffix}`);
 			return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
+		}
+		if (buffer.byteLength > HTML_PARSE_BYTE_CAP[mediaType]) {
+			const suffix = redirectSuffix({ requestedUrl: currentUrl, responseUrl: terminalUrl(response) });
+			logError(
+				`[CrawlArticle] Body too large (${buffer.byteLength} bytes, cap ${MAX_HTML_BYTES.label}) for ${currentUrl}${suffix}`,
+			);
+			return {
+				status: "unsupported",
+				reason: `content body too large: ${buffer.byteLength} bytes (cap ${MAX_HTML_BYTES.bytes} bytes)`,
+				unsupportedReason: { kind: "content-too-large", bytes: buffer.byteLength },
+			};
 		}
 		const result = await dispatchSupportedMedia({
 			mediaType,

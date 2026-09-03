@@ -1,3 +1,4 @@
+import type { CrawlUnsupportedReason } from "@packages/article-state-types";
 import type { FetchFailureClassification } from "./classify-fetch-failure";
 import type { PdfExtractStage } from "./pdf-extract.types";
 
@@ -43,7 +44,7 @@ export type CrawlArticleResult =
 	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification }
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
-	| { status: "unsupported"; reason: string };
+	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason };
 
 /**
  * Provider-shaped progress callback the orchestrator passes through to a PDF

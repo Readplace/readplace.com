@@ -13,6 +13,7 @@ import type { CurlFetch } from "./curl-fetch";
 import { redirectable, type RedirectableFetch } from "./follow-redirects";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
+import { MAX_HTML_BYTES } from "./html-body-limit";
 import type { Persona } from "./persona-fallback";
 import { initXTwitterSiteRules } from "./x-twitter-site-rules";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
@@ -1301,6 +1302,62 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 			status: "unsupported",
 			reason: "unsupported content type: application/pdf",
 		});
+	});
+});
+
+describe("initCrawlArticle — oversized HTML body cap", () => {
+	it("refuses an HTML body larger than the cap as content-too-large before parsing", async () => {
+		const oversizeBytes = MAX_HTML_BYTES.bytes + 1;
+		const body = Buffer.alloc(oversizeBytes, 0x61);
+		const fakeFetch: typeof fetch = async () =>
+			new Response(body, { status: 200, headers: { "content-type": "text/html" } });
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+
+		const result = await crawlArticle({ url: "https://example.com/huge-index" });
+
+		expect(result).toEqual({
+			status: "unsupported",
+			reason: `content body too large: ${oversizeBytes} bytes (cap ${MAX_HTML_BYTES.bytes} bytes)`,
+			unsupportedReason: { kind: "content-too-large", bytes: oversizeBytes },
+		});
+		expect(logError).toHaveBeenCalledWith(
+			`[CrawlArticle] Body too large (${oversizeBytes} bytes, cap ${MAX_HTML_BYTES.label}) for https://example.com/huge-index`,
+		);
+	});
+
+	it("never applies the HTML cap to a PDF, so a PDF well past it still reaches the extractor", async () => {
+		const oversizePdf = Buffer.concat([PDF_MAGIC_BUFFER, Buffer.alloc(MAX_HTML_BYTES.bytes, 0x20)]);
+		const extractPdf: ExtractPdf = async () => ({
+			kind: "fetched",
+			html: "<html><body><p>Extracted from a very large PDF.</p></body></html>",
+			title: "Large PDF",
+		});
+		const fakeFetch: typeof fetch = async () =>
+			new Response(oversizePdf, { status: 200, headers: { "content-type": "application/pdf" } });
+		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
+
+		const result = await crawlArticle({ url: "https://example.com/big.pdf" });
+
+		assertFetched(result);
+		expect(result.html).toBe("<html><body><p>Extracted from a very large PDF.</p></body></html>");
+	});
+
+	it("classifies a PDF mislabelled text/html by its magic bytes, so the HTML cap cannot reject it", async () => {
+		const oversizePdf = Buffer.concat([PDF_MAGIC_BUFFER, Buffer.alloc(MAX_HTML_BYTES.bytes, 0x20)]);
+		const extractPdf: ExtractPdf = async () => ({
+			kind: "fetched",
+			html: "<html><body><p>Sniffed as PDF despite the header.</p></body></html>",
+			title: "Mislabelled PDF",
+		});
+		const fakeFetch: typeof fetch = async () =>
+			new Response(oversizePdf, { status: 200, headers: { "content-type": "text/html" } });
+		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
+
+		const result = await crawlArticle({ url: "https://example.com/mislabelled.pdf" });
+
+		assertFetched(result);
+		expect(result.html).toBe("<html><body><p>Sniffed as PDF despite the header.</p></body></html>");
 	});
 });
 

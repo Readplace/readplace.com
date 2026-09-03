@@ -309,6 +309,29 @@ describe("initComprehensiveCrawlHandler", () => {
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
+	it("persists the crawler's structured unsupported reason when present, rather than the non-html fallback", async () => {
+		const tooLargeComprehensiveCrawl: CrawlArticle = async () => ({
+			status: "unsupported",
+			reason: "content body too large: 54090542 bytes (cap 29360128 bytes)",
+			unsupportedReason: { kind: "content-too-large", bytes: 54090542 },
+		});
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({ crawlArticle: tooLargeComprehensiveCrawl, transitionAndPersist });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/huge", userId: "user-1" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
+			url: "https://example.com/huge",
+			input: { reason: { kind: "content-too-large", bytes: 54090542 } },
+		});
+	});
+
 	it("emits a tier-1 failure crawl-outcome on terminal unsupported, snapshotting the other tier's state", async () => {
 		const unsupportedComprehensiveCrawl: CrawlArticle = async () => ({
 			status: "unsupported",

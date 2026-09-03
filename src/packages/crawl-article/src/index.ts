@@ -1,4 +1,5 @@
 export { cachedImport } from "./cached-import";
+export type { CrawlUnsupportedReason } from "@packages/article-state-types";
 export type { FetchFailureClassification } from "./classify-fetch-failure";
 export {
 	initCrawlArticle,
