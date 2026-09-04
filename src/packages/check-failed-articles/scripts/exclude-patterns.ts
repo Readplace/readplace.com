@@ -252,6 +252,11 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// recurs as canary noise on bulk imports.
 	/^https:\/\/web\.archive\.org\/web\/20180630081250\/https:\/{1,2}www\.abu\.org\.my\/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia\.aspx$/i,
 	/^https:\/\/news\.ycombinator\.com\/item$/i,
+	// Same stored row shape as the `/item` entry above: `/user` with no `id`
+	// query is not a profile, so HN has nothing to serve (it answers 429
+	// "Sorry." to datacenter egress; `?id=<user>` returns 200). Anchored exact
+	// so real profile URLs still surface.
+	/^https:\/\/news\.ycombinator\.com\/user$/i,
 	// (j) Paths that never existed, minted by an anonymous `/view` first visit
 	// rather than by anyone saving them (issue #1066). fagnerbrack.com is Medium
 	// on a custom domain and resolves a post only by its trailing 12-hex id, so

@@ -705,6 +705,10 @@ describe("EXCLUDE_PATTERNS — news.ycombinator.com/item soft-404", () => {
 		{ url: "https://news.ycombinator.com/item?id=44567890", excluded: false, label: "a real item with its id — must NOT be hidden" },
 		{ url: "https://news.ycombinator.com/item/", excluded: false, label: "trailing slash — different stored value" },
 		{ url: "https://news.ycombinator.com/newest", excluded: false, label: "different HN page — must NOT be hidden" },
+		{ url: "https://news.ycombinator.com/user", excluded: true, label: "stored row shape — /user with no id query" },
+		{ url: "https://news.ycombinator.com/user?id=pg", excluded: false, label: "a real profile with its id — must NOT be hidden" },
+		{ url: "https://news.ycombinator.com/user/", excluded: false, label: "trailing slash — different stored value" },
+		{ url: "https://news.ycombinator.com/username", excluded: false, label: "a longer path starting with the excluded one — must NOT be hidden" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
