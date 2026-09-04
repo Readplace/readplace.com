@@ -292,6 +292,34 @@
           }
         ]
       }
+    },
+    "android-share-demo": {
+      "output": {
+        "video": "projects/hutch/static-assets/videos/android-share-demo-h264.mp4",
+        "poster": "projects/hutch/static-assets/videos/android-share-demo-poster.webp",
+        "width": 540,
+        "height": 1212
+      },
+      "indicator": {
+        "radius": 46,
+        "stroke": 7,
+        "leadMs": 350,
+        "lagMs": 250
+      },
+      "cut": {
+        "introMs": 800,
+        "leadMs": 600,
+        "holdMs": 1400,
+        "holds": {
+          "pin-readplace": 2600,
+          "sheet-resorted": 1800,
+          "back-in-chrome": 2000
+        }
+      },
+      "poster": {
+        "after": "pin-readplace",
+        "offsetMs": 1200
+      }
     }
   }
 }
