@@ -73,7 +73,7 @@ RUN apt-get update && apt-get install -y wget bzip2 libdbus-glib-1-2 \
  && rm -f /tmp/ff.tar.xz /tmp/gd.tar.gz && rm -rf /var/lib/apt/lists/*
 
 # Pre-bake Chrome-for-Testing + a matching chromedriver so the chrome-extension
-# E2E skips the ~150 MB per-job download. install-chrome-for-testing.js reuses
+# E2E skips the per-job download. install-chrome-for-testing.js reuses
 # these via CFT_BAKED_DIR; it downloads normally when the env is unset.
 RUN mkdir -p /opt/cft \
  && CHROME_OUT=$(npx -y @puppeteer/browsers install chrome@stable --path /opt/cft) \

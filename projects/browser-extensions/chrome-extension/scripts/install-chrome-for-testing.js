@@ -14,7 +14,7 @@ const cacheDir = join(projectRoot, ".cache", "chrome");
 mkdirSync(cacheDir, { recursive: true });
 
 // The self-hosted runner image bakes Chrome-for-Testing + chromedriver (see the
-// .github/runner Dockerfile) so jobs skip the ~150 MB download. When that bake
+// .github/runner Dockerfile) so jobs skip the download. When that bake
 // is present, reuse it by copying the recorded paths into the workspace cache;
 // otherwise fall through to the normal download (hosted runners, local dev).
 const bakedDir = process.env.CFT_BAKED_DIR;

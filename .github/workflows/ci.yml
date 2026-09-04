@@ -108,8 +108,8 @@ jobs:
   # dedicated VM. It also removes the Rosetta tax — self-hosted is arm64 and
   # runs Chrome for Testing emulated, so its numbers describe no real user.
   #
-  # `needs` is about cost, not isolation: a hosted runner is billable, so don't
-  # spend one measuring a commit whose build is already broken.
+  # `needs` is about cost, not isolation: don't spend a hosted runner measuring
+  # a commit whose build is already broken.
   perf-tests:
     needs: [web-tests]
     runs-on: ubuntu-latest
