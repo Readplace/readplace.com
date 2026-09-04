@@ -19,6 +19,30 @@ and summaries.
 |---|---|
 | `pnpm --filter hutch media stills` | every still in `media.json` |
 | `pnpm --filter hutch media stills --only queue.webp` | one still, repeatable |
+| `pnpm --filter hutch media desktop chrome-save-demo --dry-run` | a screenshot before each click, to correct the coordinates |
+| `pnpm --filter hutch media desktop chrome-save-demo` | records the take and writes `take.json` |
+| `pnpm --filter hutch media encode chrome-save-demo --take <take.json>` | the mp4, its poster and a contact sheet |
+
+A take drives the real cursor and records the whole screen, so the Mac cannot be
+used while one runs. Turn on a Focus first: a notification banner lands in the
+frame otherwise.
+
+## Browser profiles for the extension recordings
+
+Each recording starts from a profile that already has the extension installed
+and signed in, with the toolbar icon **unpinned** — pinning it is what the
+recording teaches. Prepare each one once; the driver refuses to record if the
+extension is already pinned.
+
+| Browser | Prepare |
+|---|---|
+| Chrome | Launch with `--user-data-dir="$CHROME_PROFILE_DIR" --no-first-run --no-default-browser-check` on the Web Store listing, click **Add to Chrome** then **Add extension**, dismiss the bubble so the icon stays unpinned, then open `chrome-extension://<id>/popup/popup.template.html?url=https://readplace.com/queue` and sign in through the popup's own **Log in to Readplace** |
+| Firefox | Download the signed XPI named by `latest.txt` in the extension's S3 bucket, launch with `-no-remote -profile "$FIREFOX_PROFILE_DIR"` on `file://<the xpi>`, click **Add**, unpin the toolbar button Firefox adds, then open the popup page as above and sign in |
+
+Opening the popup with `?url=` pointing at the app itself shows the list view
+rather than saving anything, so signing in costs the account no stray article.
+Before each re-record, delete the demo article from the readlist — a second save
+of the same link reports "Already in your readlist" instead of "Article saved".
 
 ## Before capturing
 

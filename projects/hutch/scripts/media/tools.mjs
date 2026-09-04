@@ -2,8 +2,6 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 
-const VERSION_FLAGS = ["-version", "--version", "-V"];
-
 const MIME_BY_EXTENSION = {
   ".png": "image/png",
   ".webp": "image/webp",
@@ -12,15 +10,12 @@ const MIME_BY_EXTENSION = {
 };
 
 export function resolveTool(name, installHint) {
-  for (const flag of VERSION_FLAGS) {
-    try {
-      execFileSync(name, [flag], { stdio: "ignore" });
-      return name;
-    } catch (cause) {
-      if (cause.code === "ENOENT") break;
-    }
+  try {
+    execFileSync("/usr/bin/which", [name], { stdio: "ignore" });
+    return name;
+  } catch (cause) {
+    throw new Error(`${name} not on PATH — ${installHint}`, { cause });
   }
-  throw new Error(`${name} not on PATH — ${installHint}`);
 }
 
 export function run(command, args) {
@@ -58,6 +53,31 @@ export function probeImage(file) {
     .split("x")
     .map(Number);
   return { width, height };
+}
+
+export function probeVideo(file) {
+  const parsed = JSON.parse(
+    ffprobe([
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=codec_name,profile,width,height,r_frame_rate,pix_fmt:format=duration",
+      "-of",
+      "json",
+      file,
+    ]),
+  );
+  const stream = parsed.streams[0];
+  const [numerator, denominator] = stream.r_frame_rate.split("/").map(Number);
+  return {
+    codec: stream.codec_name,
+    profile: stream.profile,
+    width: stream.width,
+    height: stream.height,
+    pixelFormat: stream.pix_fmt,
+    fps: numerator / denominator,
+    duration: Number(parsed.format.duration),
+  };
 }
 
 export function dataUri(file) {
