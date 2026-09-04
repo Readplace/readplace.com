@@ -247,6 +247,23 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
 
 ---
 
+## Recording the share demo
+
+`scripts/record-share-demo.sh <article-url> "<title fragment>"` records the demo the web
+serves from `/help/add-links`, driving Safari's share sheet with a UI test and capturing the
+Simulator with `simctl io recordVideo`. It signs the app in first, then films the save and the
+article arriving at the top of the reading list. The hutch media toolkit encodes the take — see
+[its runbook](../../hutch/scripts/media/README.md).
+
+```sh
+SIM_UDID=<udid> READPLACE_EMAIL=… READPLACE_PASSWORD=… \
+  ./scripts/record-share-demo.sh <article-url> "<title fragment>"
+```
+
+The `ReadplaceUITests` target it uses is deliberately outside the `Readplace` scheme, so
+`make test` and CI never build it. Pick an article the account has not saved: a second save
+reports "Already in your readlist" instead of the first-time copy.
+
 ## Tests
 
 `make test` (or `Cmd+U` in Xcode) runs the XCTest suite. The network is stubbed

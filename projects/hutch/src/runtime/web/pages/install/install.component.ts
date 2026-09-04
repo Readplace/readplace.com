@@ -213,7 +213,7 @@ interface NativeAppDemoCopy {
 const IPHONE_DEMO = {
 	platform: "ios",
 	ariaLabel:
-		"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
+		"Saving a page to Readplace from the iOS share sheet, and the article arriving at the top of the reading list",
 	caption: "Tap Share in any browser, choose Readplace, and the page is in your readlist.",
 } satisfies NativeAppDemoCopy;
 

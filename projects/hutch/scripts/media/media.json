@@ -320,6 +320,34 @@
         "after": "pin-readplace",
         "offsetMs": 1200
       }
+    },
+    "ios-share-demo": {
+      "output": {
+        "video": "projects/hutch/static-assets/videos/ios-share-demo-h264.mp4",
+        "poster": "projects/hutch/static-assets/videos/ios-share-demo-poster.webp",
+        "width": 540,
+        "height": 1174
+      },
+      "indicator": {
+        "radius": 46,
+        "stroke": 7,
+        "leadMs": 350,
+        "lagMs": 250
+      },
+      "cut": {
+        "introMs": 800,
+        "leadMs": 600,
+        "holdMs": 1400,
+        "holds": {
+          "readplace": 2600,
+          "sheet-dismissed": 1500,
+          "row-visible": 3500
+        }
+      },
+      "poster": {
+        "after": "readplace",
+        "offsetMs": 0
+      }
     }
   }
 }

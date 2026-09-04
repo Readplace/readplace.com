@@ -28,7 +28,7 @@ const PIN_COPY = {
 			"Tap the + beside Readplace, then Done.",
 		],
 		demoLabel:
-			"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
+			"Saving a page to Readplace from the iOS share sheet, and the article arriving at the top of the reading list",
 	},
 	android: {
 		title: "Pin Readplace in the share sheet",
