@@ -31,7 +31,7 @@ if (
 
 const chromeOutput = execSync(
   `npx @puppeteer/browsers install chrome@stable --path "${cacheDir}"`,
-  { encoding: "utf8", timeout: 120_000, stdio: ["pipe", "pipe", "inherit"] },
+  { encoding: "utf8", timeout: 600_000, stdio: ["pipe", "pipe", "inherit"] },
 );
 
 // Output format: "chrome@{version} {path}" — path may contain spaces
@@ -46,7 +46,7 @@ console.log(`Chrome for Testing: ${chromeBinaryPath}`);
 
 const driverOutput = execSync(
   `npx @puppeteer/browsers install chromedriver@${chromeVersion} --path "${cacheDir}"`,
-  { encoding: "utf8", timeout: 120_000, stdio: ["pipe", "pipe", "inherit"] },
+  { encoding: "utf8", timeout: 600_000, stdio: ["pipe", "pipe", "inherit"] },
 );
 
 const driverLastLine = driverOutput.trim().split("\n").pop();
