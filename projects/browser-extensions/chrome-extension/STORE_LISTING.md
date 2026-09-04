@@ -61,9 +61,12 @@ including the prerequisites and what to check on the account first, is
 
 ## Firefox
 
-The Firefox extension is a listed add-on on AMO
-(https://addons.mozilla.org/firefox/addon/readplace/), published by
-`.github/workflows/publish-firefox-extension.yml`. Its text metadata lives in
+The Firefox extension is submitted to AMO as a **listed** add-on by
+`.github/workflows/publish-firefox-extension.yml`, under the slug `readplace`.
+It reaches the public directory at
+`https://addons.mozilla.org/firefox/addon/readplace/` only once Mozilla
+approves a version; until then `/install?client=firefox` serves the
+self-hosted signed XPI. Its text metadata lives in
 `projects/browser-extensions/firefox-extension/amo-metadata.json` and is sent
 on every publish, so edit it there, not in the Developer Hub. Icon, screenshots
 and the privacy-policy text are managed by hand in the Developer Hub; the same
