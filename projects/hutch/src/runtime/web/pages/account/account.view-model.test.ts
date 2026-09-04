@@ -3,6 +3,7 @@ import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-meth
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import {
 	ACCOUNT_CANCEL_MAX_POLLS,
+	buildAppearanceSection,
 	buildCardSectionViewModel,
 	toAccountViewModel,
 	parseAccountQuery,
@@ -718,5 +719,28 @@ describe("buildCardSectionViewModel", () => {
 		});
 		assert.equal(vm.isAdding, false);
 		assert.equal(vm.adding, undefined);
+	});
+});
+
+describe("buildAppearanceSection", () => {
+	it("marks the current preference active and posts to the appearance route", () => {
+		const section = buildAppearanceSection({ current: "dark", appShell: false, platform: undefined });
+		assert.equal(section.formAction, "/account/appearance");
+		assert.deepEqual(
+			section.options.map((o) => [o.value, o.active, o.variant, o.ariaPressed]),
+			[
+				["system", false, "secondary", "false"],
+				["light", false, "secondary", "false"],
+				["dark", true, "primary", "true"],
+			],
+		);
+	});
+
+	it("carries the app-surface markers onto the form action for an in-app web sheet", () => {
+		const section = buildAppearanceSection({ current: "system", appShell: true, platform: "ios" });
+		const url = new URL(section.formAction, "https://internal.invalid");
+		assert.equal(url.pathname, "/account/appearance");
+		assert.equal(url.searchParams.get("shell"), "app");
+		assert.equal(url.searchParams.get("platform"), "ios");
 	});
 });

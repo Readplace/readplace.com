@@ -32,9 +32,13 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .readlist-nav {
+  body:not(.theme-light) .readlist-nav {
     --readlist-seam-ink: rgb(0 0 0 / 0.4); /* 5 */
   }
+}
+
+body.theme-dark .readlist-nav {
+  --readlist-seam-ink: rgb(0 0 0 / 0.4); /* 5 */
 }
 
 .readlist-nav__list {

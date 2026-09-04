@@ -9,7 +9,12 @@ import {
 } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { ACCOUNT_STYLES } from "./account.styles";
 import { ACCOUNT_EXPORT_URL } from "./account.url";
-import type { AccountAction, AccountViewModel, CardSectionViewModel } from "./account.view-model";
+import type {
+	AccountAction,
+	AccountViewModel,
+	AppearanceSectionViewModel,
+	CardSectionViewModel,
+} from "./account.view-model";
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
 const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.template.html"), "utf-8");
@@ -75,7 +80,7 @@ export function renderAccountCard(vm: AccountViewModel): string {
 export function AccountPage(
 	vm: AccountViewModel,
 	cardSection: CardSectionViewModel,
-	page: { email: string; surface?: AccountSurface },
+	page: { email: string; appearance: AppearanceSectionViewModel; surface?: AccountSurface },
 ): PageBody {
 	const surface = page.surface;
 	return {
@@ -96,6 +101,7 @@ export function AccountPage(
 					? renderSubscribePlansPopover({ source: "account" })
 					: "",
 				email: page.email,
+				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
 				backLink: surface?.backLink,
 			}),

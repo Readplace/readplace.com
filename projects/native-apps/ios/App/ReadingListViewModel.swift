@@ -30,6 +30,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var collectionAffordances: [Affordance] = [ReadingListViewModel.addLinksHelp]
 	@Published private(set) var tabs: [ReadlistTab] = []
 	@Published private(set) var selectedTabHref: String?
+	@Published private(set) var appearance: String?
 
 	private var nextHref: String?
 	private var currentTabHref: String?
@@ -367,6 +368,7 @@ final class ReadingListViewModel: ObservableObject {
 			applyToolbar(page)
 			sessionAction = page.action(named: "create-session")
 			tabs = page.tabs
+			appearance = page.appearance
 			if let current = page.currentTabHref {
 				currentTabHref = current
 				selectedTabHref = current

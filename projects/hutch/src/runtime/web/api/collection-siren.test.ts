@@ -48,6 +48,21 @@ describe("toArticleCollectionEntity", () => {
 		expect(entity.class).toContain("articles");
 	});
 
+	it("carries the reader's appearance preference in the collection properties, and omits it when none is supplied", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			total: 1,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		expect(
+			toArticleCollectionEntity(result, {}, { tabs, appearance: "dark" }).properties,
+		).toMatchObject({ appearance: "dark" });
+		expect(toArticleCollectionEntity(result, {}, { tabs }).properties?.appearance).toBeUndefined();
+	});
+
 	it("includes pagination properties", () => {
 		const result: FindArticlesResult = {
 			articles: [],

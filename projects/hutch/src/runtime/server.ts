@@ -23,6 +23,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
+	SetUserAppearance,
 	UpdatePassword,
 	MarkAccountDeleted,
 	UserExistsByEmail,
@@ -303,6 +304,7 @@ interface AppDependencies {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	findUserById: FindUserById;
+	setUserAppearance: SetUserAppearance;
 	googleAuth?: {
 		exchangeGoogleCode: ExchangeGoogleCode;
 		clientId: string;
@@ -642,6 +644,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		getChangelogBanner: deps.getChangelogBanner,
+		findUserById: deps.findUserById,
 		now: deps.now,
 	});
 
@@ -1173,6 +1176,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
 		secureCookies,
+		findUserById: deps.findUserById,
 		findArticlesByUser: deps.findArticlesByUser,
 		countArticlesByUser: deps.countArticlesByUser,
 		findArticleById: deps.findArticleById,
@@ -1367,6 +1371,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		upsertTrialingSubscription: deps.subscriptionProviders.upsertTrialing,
 		markActiveSubscription: deps.subscriptionProviders.markActive,
 		findEmailByUserId: deps.findEmailByUserId,
+		findUserById: deps.findUserById,
+		setUserAppearance: deps.setUserAppearance,
 		destroyUserSessions: deps.destroyUserSessions,
 		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
 		markAccountDeleted: deps.markAccountDeleted,

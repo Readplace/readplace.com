@@ -24,6 +24,7 @@ export function buildAccountUrl(params?: {
 	return qs ? `/account?${qs}` : "/account";
 }
 
+export const ACCOUNT_APPEARANCE_URL = "/account/appearance";
 export const ACCOUNT_CANCEL_URL = "/account/cancel";
 export const ACCOUNT_DELETE_URL = "/account/delete";
 export const ACCOUNT_REACTIVATE_URL = "/account/reactivate";

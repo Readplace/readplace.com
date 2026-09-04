@@ -1,4 +1,5 @@
 import type { IconName } from "@packages/ui-icons";
+import type { AppearanceSetting } from "./base.styles";
 import type { ChangelogBanner } from "./changelog-banner";
 import { type CspNonce, requireCspNonce } from "./csp-nonce.middleware";
 import { QuerystringFeatureToggle } from "./feature-toggle";
@@ -181,6 +182,7 @@ export interface BannerState {
 	/** Per-request script markup carried through from `BannerStateSource`. */
 	requestScripts?: string;
 	gmailFeatureEnabled?: boolean;
+	appearance?: AppearanceSetting;
 	cspNonce: CspNonce;
 }
 

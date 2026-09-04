@@ -7,8 +7,11 @@ import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import type {
 	DestroyUserSessions,
 	FindEmailByUserId,
+	FindUserById,
 	MarkAccountDeleted,
+	SetUserAppearance,
 } from "@packages/provider-contracts/auth";
+import { AppearancePreferenceSchema } from "@packages/domain/user";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
 import type {
 	CreateCheckoutSession,
@@ -72,6 +75,7 @@ import {
 	DELETE_ACCOUNT_CONFIRMATION_FIELD,
 	DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 	MAX_CARDS,
+	buildAppearanceSection,
 	buildCardSectionViewModel,
 	parseAccountQuery,
 	toAccountViewModel,
@@ -98,6 +102,8 @@ interface AccountDependencies {
 	upsertTrialingSubscription: UpsertTrialingSubscription;
 	markActiveSubscription: MarkSubscriptionActive;
 	findEmailByUserId: FindEmailByUserId;
+	findUserById: FindUserById;
+	setUserAppearance: SetUserAppearance;
 	destroyUserSessions: DestroyUserSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
@@ -180,8 +186,18 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		},
 	): Promise<void> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const email = await deps.findEmailByUserId(req.userId);
+		const [email, user] = await Promise.all([
+			deps.findEmailByUserId(req.userId),
+			deps.findUserById(req.userId),
+		]);
 		assert(email, "an authenticated account page must resolve an email");
+		assert(user, "an authenticated account page must resolve a user");
+		const currentAppearance = user.appearance ?? "system";
+		const appearanceSection = buildAppearanceSection({
+			current: currentAppearance,
+			appShell: isAppShell(req),
+			platform: nativeSurfaceOf(req),
+		});
 		const webVm = toAccountViewModel(
 			input.access,
 			parseAccountQuery(req.query),
@@ -201,10 +217,11 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 						input.cardSection,
 						{
 							email,
+							appearance: appearanceSection,
 							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
 						},
 					),
-					{ cspNonce: requireCspNonce(req) },
+					{ cspNonce: requireCspNonce(req), appearance: currentAppearance },
 				),
 			);
 			return;
@@ -212,8 +229,15 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		const vm = isNativeSurface(req)
 			? withoutCommerce(webVm, { appShell: false, platform: nativeSurfaceOf(req) })
 			: webVm;
-		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
-		sendComponent(req, res, Base(AccountPage(vm, input.cardSection, { email }), bannerState));
+		const bannerState = await deps.buildBannerState(req, {
+			preFetchedAccess: input.access,
+			preFetchedUser: user,
+		});
+		sendComponent(
+			req,
+			res,
+			Base(AccountPage(vm, input.cardSection, { email, appearance: appearanceSection }), bannerState),
+		);
 	}
 
 	router.get("/", async (req: Request, res: Response) => {
@@ -750,6 +774,18 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					: ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL,
 			);
 		}
+	});
+
+	router.post("/appearance", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const parsed = AppearancePreferenceSchema.safeParse(req.body?.appearance);
+		if (parsed.success) {
+			await deps.setUserAppearance({ userId: req.userId, appearance: parsed.data });
+		}
+		res.redirect(
+			303,
+			buildAccountUrl({ appShell: isAppShell(req), surfacePlatform: nativeSurfaceOf(req) }),
+		);
 	});
 
 	return router;

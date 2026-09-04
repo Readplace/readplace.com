@@ -122,6 +122,27 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
+	func testAdoptsTheServersAppearancePreferenceOnAReplacingLoad() async {
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(
+					200,
+					Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], appearanceJSON: "\"dark\"")
+				)
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.appearance, "dark")
+	}
+
 	func testToolbarKeepsExactlyOneAddControlWhenTheServerAlsoAdvertisesAddLinksHelp() async {
 		// The + is now client-owned and always injected. Should the server ever
 		// re-advertise add-links-help (a rollback of the server change, or another

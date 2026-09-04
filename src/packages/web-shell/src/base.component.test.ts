@@ -190,6 +190,76 @@ describe("Base component", () => {
 		expect(doc.body.classList.contains("page-home")).toBe(true);
 	});
 
+	function themeColorMetas(doc: Document): { content: string | null; media: string | null }[] {
+		return Array.from(doc.head.querySelectorAll('meta[name="theme-color"]')).map((el) => ({
+			content: el.getAttribute("content"),
+			media: el.getAttribute("media"),
+		}));
+	}
+
+	const SYSTEM_THEME_COLORS = [
+		{ content: "#2B3A55", media: "(prefers-color-scheme: light)" },
+		{ content: "#121212", media: "(prefers-color-scheme: dark)" },
+	];
+
+	it("pins the light theme class and a single light theme-color for a guest page", () => {
+		const result = Base(createTestPageBody(), GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("theme-light")).toBe(true);
+		expect(themeColorMetas(doc)).toEqual([{ content: "#2B3A55", media: null }]);
+	});
+
+	it("stamps no theme class and both media theme-colors for a logged-out reader that follows the system theme", () => {
+		const page = createTestPageBody({ followsSystemTheme: true });
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("theme-light")).toBe(false);
+		expect(doc.body.classList.contains("theme-dark")).toBe(false);
+		expect(themeColorMetas(doc)).toEqual(SYSTEM_THEME_COLORS);
+	});
+
+	it("follows the system theme (no class, both media theme-colors) for a signed-in reader with no stored preference", () => {
+		const result = Base(createTestPageBody(), {
+			cspNonce: CSP_NONCE,
+			isAuthenticated: true,
+			emailVerified: true,
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("theme-light")).toBe(false);
+		expect(doc.body.classList.contains("theme-dark")).toBe(false);
+		expect(themeColorMetas(doc)).toEqual(SYSTEM_THEME_COLORS);
+	});
+
+	it("pins the light theme class and a single light theme-color when a signed-in reader chose Light", () => {
+		const result = Base(createTestPageBody(), {
+			cspNonce: CSP_NONCE,
+			isAuthenticated: true,
+			emailVerified: true,
+			appearance: "light",
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("theme-light")).toBe(true);
+		expect(themeColorMetas(doc)).toEqual([{ content: "#2B3A55", media: null }]);
+	});
+
+	it("pins the dark theme class and the dark theme-color when a signed-in reader chose Dark", () => {
+		const result = Base(createTestPageBody({ bodyClass: "page-home" }), {
+			cspNonce: CSP_NONCE,
+			isAuthenticated: true,
+			emailVerified: true,
+			appearance: "dark",
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("page-home")).toBe(true);
+		expect(doc.body.classList.contains("theme-dark")).toBe(true);
+		expect(themeColorMetas(doc)).toEqual([{ content: "#121212", media: null }]);
+	});
+
 	it("should include navigation links", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");

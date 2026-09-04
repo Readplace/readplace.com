@@ -72,6 +72,7 @@ import { UPLOAD_COMPLETION_MAX_AGE_SECONDS } from "./upload-slot-ttl";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
 import { initSaveArticlesLimitHandler } from "./save-articles-limit-handler";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { FindUserById } from "@packages/provider-contracts/auth";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
@@ -428,6 +429,7 @@ interface ReadlistDependencies {
 	requireWriteAccess: RequestHandler;
 	secureCookies: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
+	findUserById: FindUserById;
 	buildBannerState: BuildBannerState;
 	/** The site-wide announcement, for the chromeless reader only. The full shell
 	 * reaches it through `buildBannerState`; the chromeless branch takes it directly
@@ -972,6 +974,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		res.vary("Cookie");
 
 		if (isAppPlatform(req)) {
+			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
 			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
 				appOrigin: deps.appOrigin,
 				summary: state.summary,
@@ -1013,6 +1016,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 							// the chromeless shell rather than the full web one.
 							currentPath: req.originalUrl,
 							cspNonce,
+							appearance,
 						},
 					),
 					{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: readerCacheControl },
@@ -1445,6 +1449,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				deps.logError,
 			);
 
+			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
 			setSirenCollectionCaching(req, res);
 			res.type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
@@ -1459,6 +1464,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						tabs: READLIST_TAB_STATUSES,
 						surfacePlatform: nativeSurfaceOf(req),
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
+						appearance,
 						crawlByUrl,
 					},
 				),

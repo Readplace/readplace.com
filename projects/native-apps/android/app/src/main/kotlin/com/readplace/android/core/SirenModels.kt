@@ -107,6 +107,7 @@ data class SirenWarning(
 data class CollectionProperties(
 	val warning: SirenWarning?,
 	val messages: List<ServerMessage>?,
+	val appearance: String?,
 )
 
 data class SirenCollection(
@@ -299,6 +300,7 @@ object SirenDecoding {
 		return CollectionProperties(
 			warning = warning(obj["warning"]),
 			messages = lossyList(obj["messages"], ::serverMessage),
+			appearance = string(obj["appearance"]),
 		)
 	}
 

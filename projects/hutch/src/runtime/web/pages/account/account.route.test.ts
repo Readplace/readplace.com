@@ -2876,3 +2876,55 @@ describe("GET /account (danger zone)", () => {
 		);
 	});
 });
+
+describe("Account appearance preference", () => {
+	function appearanceOption(doc: Document, value: string): Element {
+		const el = doc.querySelector(`[data-test-appearance-option="${value}"]`);
+		assert(el, `appearance option "${value}" must be rendered`);
+		return el;
+	}
+
+	it("renders the appearance control with System active by default and no theme class pinned", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "appearance-default@example.com");
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const section = doc.querySelector("[data-test-account-appearance]");
+		assert(section, "appearance section must be rendered");
+		expect(appearanceOption(doc, "system").getAttribute("aria-pressed")).toBe("true");
+		expect(appearanceOption(doc, "light").getAttribute("aria-pressed")).toBe("false");
+		expect(appearanceOption(doc, "dark").getAttribute("aria-pressed")).toBe("false");
+		expect(doc.body.classList.contains("theme-light")).toBe(false);
+		expect(doc.body.classList.contains("theme-dark")).toBe(false);
+	});
+
+	it("persists a chosen preference and re-renders it active with the theme pinned on the body", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "appearance-dark@example.com");
+
+		const post = await agent.post("/account/appearance").type("form").send({ appearance: "dark" });
+		expect(post.status).toBe(303);
+		expect(post.headers.location).toBe("/account");
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+		expect(appearanceOption(doc, "dark").getAttribute("aria-pressed")).toBe("true");
+		expect(appearanceOption(doc, "system").getAttribute("aria-pressed")).toBe("false");
+		expect(doc.body.classList.contains("theme-dark")).toBe(true);
+	});
+
+	it("ignores an unrecognised appearance value and leaves the preference unchanged", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "appearance-invalid@example.com");
+
+		const post = await agent.post("/account/appearance").type("form").send({ appearance: "purple" });
+		expect(post.status).toBe(303);
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+		expect(appearanceOption(doc, "system").getAttribute("aria-pressed")).toBe("true");
+	});
+});

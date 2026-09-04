@@ -65,6 +65,7 @@ struct ReadlistPage {
 	/// without re-checking. Empty when the server offered none.
 	let noticeMessages: [ServerMessage]
 	let tabs: [ReadlistTab]
+	let appearance: String?
 
 	init(collection: SirenCollection) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
@@ -76,6 +77,7 @@ struct ReadlistPage {
 		warning = collection.properties?.warning
 		noticeMessages = (collection.properties?.messages ?? []).filter(\.isRenderable)
 		tabs = (collection.properties?.tabs ?? []).map(ReadlistTab.init(tab:))
+		appearance = collection.properties?.appearance
 	}
 
 	var currentTabHref: String? { tabs.first(where: \.isCurrent)?.href }

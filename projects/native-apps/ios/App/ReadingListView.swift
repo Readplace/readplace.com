@@ -69,6 +69,7 @@ struct ReadingListView: View {
 					}
 				}
 				.background(CaptureAnchorView(anchor: captureAnchor))
+				.preferredColorScheme(AppearancePresentation.colorScheme(for: viewModel.appearance))
 				.refreshable { await viewModel.refresh() }
 				.task {
 					await viewModel.loadIfNeeded()

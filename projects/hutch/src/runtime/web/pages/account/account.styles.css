@@ -187,6 +187,37 @@
   line-height: 1.45;
 }
 
+.account-appearance {
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--muted);
+  margin-bottom: 16px;
+}
+
+.account-appearance__heading {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--foreground);
+}
+
+.account-appearance__body {
+  font-size: 0.9375rem;
+  margin: 0 0 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.account-appearance__form {
+  display: flex;
+  gap: 8px;
+}
+
+.account-appearance__option {
+  flex: 1;
+}
+
 /* Rim, not fill: a permanently red-washed delete box shouts at a user who is not
  * deleting anything. The rim marks the boundary without raising the volume. */
 .account-danger {

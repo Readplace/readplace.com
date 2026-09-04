@@ -1,4 +1,4 @@
-import { LIGHT_ONLY_BODY_CLASS } from "../../base.styles";
+import { DARK_ONLY_BODY_CLASS, LIGHT_ONLY_BODY_CLASS } from "../../base.styles";
 
 export const CONFIRM_POPOVER_STYLES = `
 /**
@@ -69,6 +69,10 @@ export const CONFIRM_POPOVER_STYLES = `
 	body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover::backdrop {
 		background: rgb(13 13 13 / 0.72); /* 3 */
 	}
+}
+
+body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
+	background: rgb(13 13 13 / 0.72); /* 3 */
 }
 
 .confirm-popover__header {

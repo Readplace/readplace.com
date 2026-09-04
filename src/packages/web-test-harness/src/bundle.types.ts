@@ -166,6 +166,7 @@ import type {
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
 	SaveAppleRefreshToken,
+	SetUserAppearance,
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
 	FindSavedUrls,
@@ -219,6 +220,7 @@ export interface AuthBundle {
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
+	setUserAppearance: SetUserAppearance;
 	deleteUser: (email: string) => Promise<void>;
 	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }

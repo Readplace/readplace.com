@@ -1,5 +1,6 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
+import { APPEARANCE_PREFERENCES, type AppearancePreference } from "@packages/domain/user";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import type { EffectiveAccess } from "@packages/subscription-access";
@@ -18,6 +19,7 @@ import {
 import type { NativeClientPlatform } from "../../onboarding/native-client";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 import {
+	ACCOUNT_APPEARANCE_URL,
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
@@ -519,6 +521,48 @@ function carryAppSurfaceHref(href: string, options: AppSurfaceOptions): string {
 
 function carryAppSurface(action: AccountAction, options: AppSurfaceOptions): AccountAction {
 	return { ...action, href: carryAppSurfaceHref(action.href, options) };
+}
+
+export interface AppearanceOptionView {
+	value: AppearancePreference;
+	label: string;
+	active: boolean;
+	ariaPressed: "true" | "false";
+	variant: "primary" | "secondary";
+}
+
+export interface AppearanceSectionViewModel {
+	formAction: string;
+	options: AppearanceOptionView[];
+}
+
+const APPEARANCE_LABELS: Record<AppearancePreference, string> = {
+	system: "System",
+	light: "Light",
+	dark: "Dark",
+};
+
+export function buildAppearanceSection(input: {
+	current: AppearancePreference;
+	appShell: boolean;
+	platform: NativeClientPlatform | undefined;
+}): AppearanceSectionViewModel {
+	return {
+		formAction: carryAppSurfaceHref(ACCOUNT_APPEARANCE_URL, {
+			appShell: input.appShell,
+			platform: input.platform,
+		}),
+		options: APPEARANCE_PREFERENCES.map((value) => {
+			const active = value === input.current;
+			return {
+				value,
+				label: APPEARANCE_LABELS[value],
+				active,
+				ariaPressed: active ? "true" : "false",
+				variant: active ? "primary" : "secondary",
+			};
+		}),
+	};
 }
 
 /** Rewrites the account view model for the iOS app's in-app web surface: strips

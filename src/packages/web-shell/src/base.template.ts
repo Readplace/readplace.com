@@ -9,12 +9,9 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	{{/each}}
 	{{{htmxConfigMeta}}}
 	<link rel="canonical" href="{{canonicalUrl}}">
-	{{#if pinsLight}}
-	<meta name="theme-color" content="#2B3A55">
-	{{else}}
-	<meta name="theme-color" content="#2B3A55" media="(prefers-color-scheme: light)">
-	<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
-	{{/if}}
+	{{#each themeColorMetas}}
+	<meta name="theme-color" content="{{content}}"{{#if media}} media="{{media}}"{{/if}}>
+	{{/each}}
 
 	<meta property="og:type" content="{{ogType}}">
 	<meta property="og:site_name" content="Readplace">

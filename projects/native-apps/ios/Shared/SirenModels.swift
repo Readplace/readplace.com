@@ -217,10 +217,11 @@ struct CollectionProperties: Decodable {
 	/// client, so its absence must decode cleanly rather than fail the collection.
 	let messages: [ServerMessage]?
 	let tabs: [CollectionTab]?
+	let appearance: String?
 }
 
 extension CollectionProperties {
-	private enum CodingKeys: String, CodingKey { case warning, messages, tabs }
+	private enum CodingKeys: String, CodingKey { case warning, messages, tabs, appearance }
 
 	/// Decodes the warning and messages leniently so an evolving or malformed value
 	/// degrades to no banner rather than failing the whole collection decode: both
@@ -231,6 +232,7 @@ extension CollectionProperties {
 		warning = try container.decodeLossyIfPresent(SirenWarning.self, forKey: .warning)
 		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
 		tabs = try container.decodeLossyArrayIfPresent(CollectionTab.self, forKey: .tabs)
+		appearance = try container.decodeLossyIfPresent(String.self, forKey: .appearance)
 	}
 }
 

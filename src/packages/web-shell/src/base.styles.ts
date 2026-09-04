@@ -129,6 +129,24 @@ function generateCssVariables(variables: Record<string, string>): string {
  */
 export const LIGHT_ONLY_BODY_CLASS = "theme-light";
 
+export const DARK_ONLY_BODY_CLASS = "theme-dark";
+
+export type AppearanceSetting = "system" | "light" | "dark";
+
+const APPEARANCE_BODY_CLASS: Record<AppearanceSetting, string | undefined> = {
+	system: undefined,
+	light: LIGHT_ONLY_BODY_CLASS,
+	dark: DARK_ONLY_BODY_CLASS,
+};
+
+export function appearanceBodyClass(
+	bodyClass: string | undefined,
+	appearance: AppearanceSetting,
+): string {
+	const classes = [bodyClass, APPEARANCE_BODY_CLASS[appearance]];
+	return classes.filter((name): name is string => name !== undefined).join(" ");
+}
+
 /**
  * Pins the light palette under {@link LIGHT_ONLY_BODY_CLASS}. Generated from the
  * same token map the default theme uses, so a token added there cannot be missed
@@ -144,6 +162,19 @@ const LIGHT_ONLY_STYLES = `
 			color-scheme: light;
 ${generateCssVariables(LIGHT_THEME_VARIABLES)}
 		}
+	}
+`;
+
+const DARK_PINNED_VARIABLES = { ...LIGHT_THEME_VARIABLES, ...DARK_THEME_VARIABLES };
+
+const DARK_ONLY_STYLES = `
+	:root:has(> body.${DARK_ONLY_BODY_CLASS}) {
+		color-scheme: dark;
+	}
+
+	body.${DARK_ONLY_BODY_CLASS} {
+		color-scheme: dark;
+${generateCssVariables(DARK_PINNED_VARIABLES)}
 	}
 `;
 
@@ -166,6 +197,7 @@ ${generateCssVariables(DARK_THEME_VARIABLES)}
 		}
 	}
 ${LIGHT_ONLY_STYLES}
+${DARK_ONLY_STYLES}
 `;
 
 export const BASE_RESET_STYLES = `

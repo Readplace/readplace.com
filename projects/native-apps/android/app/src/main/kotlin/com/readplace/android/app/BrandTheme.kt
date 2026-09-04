@@ -79,11 +79,15 @@ private val brandShapes = Shapes(small = RoundedCornerShape(6.dp))
 
 val LocalBrandColors = staticCompositionLocalOf { brandColors(isDark = false) }
 
+val LocalIsDarkTheme = staticCompositionLocalOf { false }
+
 @Composable
-fun ReadplaceTheme(content: @Composable () -> Unit) {
-	val isDark = isSystemInDarkTheme()
-	val brand = brandColors(isDark)
-	androidx.compose.runtime.CompositionLocalProvider(LocalBrandColors provides brand) {
-		MaterialTheme(colorScheme = brandScheme(brand, isDark), shapes = brandShapes, content = content)
+fun ReadplaceTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+	val brand = brandColors(darkTheme)
+	androidx.compose.runtime.CompositionLocalProvider(
+		LocalBrandColors provides brand,
+		LocalIsDarkTheme provides darkTheme,
+	) {
+		MaterialTheme(colorScheme = brandScheme(brand, darkTheme), shapes = brandShapes, content = content)
 	}
 }

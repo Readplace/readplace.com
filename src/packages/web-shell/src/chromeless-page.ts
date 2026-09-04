@@ -6,6 +6,8 @@ import {
 	CHANGELOG_BANNER_STYLES,
 	CHROMELESS_BANNER_AREA_STYLES,
 	UTILITY_STYLES,
+	appearanceBodyClass,
+	type AppearanceSetting,
 } from "./base.styles";
 import type { ChangelogBanner } from "./changelog-banner";
 import { renderChangelogBannerShell } from "./changelog-banner";
@@ -36,6 +38,7 @@ export interface ChromelessPageConfig {
 export interface ChromelessBannerState {
 	changelogBanner?: ChangelogBanner;
 	currentPath?: string;
+	appearance?: AppearanceSetting;
 	cspNonce: CspNonce;
 }
 
@@ -61,7 +64,7 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 			title: seo.title,
 			description: seo.description,
 			robots: seo.robots,
-			bodyClass: body.bodyClass,
+			bodyClass: appearanceBodyClass(body.bodyClass, state.appearance ?? "system"),
 			baseStyles: BASE_CSS_VARIABLES,
 			resetStyles: BASE_RESET_STYLES,
 			buttonStyles: BUTTON_STYLES,

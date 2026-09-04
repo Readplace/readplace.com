@@ -13,7 +13,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonColors
@@ -81,7 +80,7 @@ fun ReaderWebView(
 	var pendingDialog by remember { mutableStateOf<PendingWebDialog?>(null) }
 	var webView by remember { mutableStateOf<WebView?>(null) }
 	var canGoBack by remember { mutableStateOf(false) }
-	val isDark = isSystemInDarkTheme()
+	val isDark = LocalIsDarkTheme.current
 
 	BackHandler(enabled = canGoBack) { webView?.goBack() }
 

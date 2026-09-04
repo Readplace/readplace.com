@@ -10,6 +10,7 @@ import android.webkit.CookieManager
 import android.webkit.WebStorage
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -104,7 +105,8 @@ class MainActivity : ComponentActivity() {
 		handleCallback(intent)
 
 		setContent {
-			ReadplaceTheme {
+			val appearance = listViewModel.state.collectAsState().value.appearance
+			ReadplaceTheme(darkTheme = AppearancePresentation.isDark(appearance, isSystemInDarkTheme())) {
 				Surface(modifier = Modifier.fillMaxSize()) {
 					Root(
 						session = session,

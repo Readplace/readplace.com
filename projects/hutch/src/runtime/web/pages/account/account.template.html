@@ -65,6 +65,15 @@
         {{/if}}
       </section>
       {{/if}}
+      <section class="account-appearance" data-test-account-appearance>
+        <h2 class="account-appearance__heading">Appearance</h2>
+        <p class="account-appearance__body">Choose how Readplace looks. System follows your device's light or dark setting.</p>
+        <form class="account-appearance__form" method="POST" action="{{appearance.formAction}}">
+          {{#each appearance.options}}
+          <button type="submit" name="appearance" value="{{value}}" aria-pressed="{{ariaPressed}}" class="btn btn--compact btn--{{variant}} account-appearance__option" data-test-appearance-option="{{value}}">{{label}}</button>
+          {{/each}}
+        </form>
+      </section>
       <section class="account-export" data-test-account-export>
         <h2 class="account-export__heading">Your data</h2>
         <p class="account-export__body">Download every article you have saved, with your reading history, as a file you keep.</p>

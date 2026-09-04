@@ -1,6 +1,7 @@
 import { UserIdSchema } from "@packages/domain/user";
 import { bannerStateFromRequest } from "@packages/web-shell";
 import type { BannerState, BannerStateSource, ChangelogBanner } from "@packages/web-shell";
+import type { FindUserById, FindUserByIdResult } from "@packages/provider-contracts/auth";
 import type {
 	EffectiveAccess,
 	GetEffectiveAccess,
@@ -23,12 +24,13 @@ export function selectChangelogBanner(
 
 export type BuildBannerState = (
 	source: BannerStateSource,
-	options?: { preFetchedAccess?: EffectiveAccess },
+	options?: { preFetchedAccess?: EffectiveAccess; preFetchedUser?: FindUserByIdResult },
 ) => Promise<BannerState>;
 
 export function initBuildBannerState(deps: {
 	getEffectiveAccess: GetEffectiveAccess;
 	getChangelogBanner: GetChangelogBanner;
+	findUserById: FindUserById;
 	now: () => Date;
 }): BuildBannerState {
 	return async (source, options) => {
@@ -41,10 +43,17 @@ export function initBuildBannerState(deps: {
 		const withBanner: BannerState = changelogBanner ? { ...base, changelogBanner } : base;
 		if (!source.userId) return withBanner;
 		const userId = UserIdSchema.parse(source.userId);
-		const access =
-			options?.preFetchedAccess ?? (await deps.getEffectiveAccess(userId));
+		const [access, user] = await Promise.all([
+			options?.preFetchedAccess ?? deps.getEffectiveAccess(userId),
+			options?.preFetchedUser ?? deps.findUserById(userId),
+		]);
 		const trial = toTrialDisplay(access, deps.now());
 		const accessIsReadOnly = access.access === "read-only";
-		return { ...withBanner, accessIsReadOnly, ...(trial ? { trial } : {}) };
+		return {
+			...withBanner,
+			accessIsReadOnly,
+			appearance: user?.appearance,
+			...(trial ? { trial } : {}),
+		};
 	};
 }

@@ -246,16 +246,18 @@ enum Fixtures {
 		total: Int = 1,
 		actionsJSON: String = collectionActions,
 		messagesJSON: String? = nil,
-		tabsJSON: String? = nil
+		tabsJSON: String? = nil,
+		appearanceJSON: String? = nil
 	) -> String {
 		// Injected into `properties` only when set, so a caller that doesn't opt in
 		// models a server that emits no collection-level notices.
 		let messages = messagesJSON.map { ", \"messages\": [\($0)]" } ?? ""
 		let tabs = tabsJSON.map { ", \"tabs\": [\($0)]" } ?? ""
+		let appearance = appearanceJSON.map { ", \"appearance\": \($0)" } ?? ""
 		return """
 		{
 			"class": ["collection", "articles"],
-			"properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages)\(tabs) },
+			"properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages)\(tabs)\(appearance) },
 			"entities": [\(entitiesJSON.joined(separator: ",\n"))],
 			"links": [
 				{ "rel": ["self"], "href": "/queue?page=\(page)" },

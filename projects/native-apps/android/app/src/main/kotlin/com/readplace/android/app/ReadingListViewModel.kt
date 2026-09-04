@@ -35,6 +35,7 @@ data class ReadingListState(
 	 * invoked; drives the reader/web sheet. The session cookie is minted inside
 	 * the sheet, so the sheet opens without waiting. */
 	val readerPresentation: ReaderPresentation? = null,
+	val appearance: String? = null,
 	/** The collection-level controls the toolbar renders. The server's own collection
 	 * affordances are looped (each presentable one becomes a control), and the
 	 * client-side add (+) control that opens the Share help is always present — it is
@@ -389,6 +390,7 @@ class ReadingListViewModel(
 				// advertises none nor flaps them to a page-scoped set — the first page owns
 				// the toolbar for the whole scroll.
 				collectionAffordances = toolbarOf(page),
+				appearance = page.appearance,
 			)
 			hasPaginated = false
 			sessionAction = page.action(named = "create-session")
