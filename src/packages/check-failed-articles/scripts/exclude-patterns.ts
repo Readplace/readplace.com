@@ -153,6 +153,8 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// (c) Dead hosting platform — java.net was retired; the host serves a
 	// terminal 503.
 	/^https:\/\/jstl\.java\.net\/$/i,
+	// Website is down, returns 503.
+	/^https:\/\/www\.excelsiorspringsstandard\.com\/index\.php\/news\/school-district-selects-new-banking-depository$/i,
 	// (d) Redirects away from the saved content — the article is gone and the
 	// 30x lands on a section index or site root, so a recrawl would capture the
 	// wrong page. fastcodesign.com folded into fastcompany.com's co-design

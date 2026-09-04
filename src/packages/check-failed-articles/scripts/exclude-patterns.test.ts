@@ -494,6 +494,21 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		// (c) Dead hosting platform (terminal 503).
 		{ url: "https://jstl.java.net/", excluded: true, label: "jstl.java.net root (retired platform)" },
 		{ url: "https://jstl.java.net/foo", excluded: false, label: "jstl.java.net subpath — should NOT match" },
+		{
+			url: "https://www.excelsiorspringsstandard.com/index.php/news/school-district-selects-new-banking-depository",
+			excluded: true,
+			label: "excelsiorspringsstandard article on a site returning 503",
+		},
+		{
+			url: "https://www.excelsiorspringsstandard.com/index.php/news/some-other-story",
+			excluded: false,
+			label: "a sibling article on the same host — must NOT be hidden",
+		},
+		{
+			url: "https://www.excelsiorspringsstandard.com/",
+			excluded: false,
+			label: "the site root — must NOT be hidden",
+		},
 		// (d) Redirects away from the saved content.
 		{ url: "https://www.fastcodesign.com/3062292/evidence/brainstorming-is-dumb", excluded: true, label: "fastcodesign brainstorming article (rebranded away)" },
 		{ url: "https://www.fastcompany.com/co-design", excluded: false, label: "fastcompany co-design redirect target — must NOT be hidden" },
