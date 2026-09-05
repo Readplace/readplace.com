@@ -46,6 +46,6 @@ System is the default, and it behaves exactly as the product did last month: the
 
 The choice also stops at the sign-in line. A signed-out page has no account to ask, so it stays pinned to the light palette. And the dark palette didn't change a pixel this week. Its body text already reads at 14.73:1, well past the floors [the e-ink audit](/blog/saved-articles-hold-up-on-e-ink) held the rest of the product to, so this change decides when that palette shows rather than what it looks like.
 
-## 3 buttons under Account
+## Pick a side once
 
-The switch sits in [Account](/account), under Appearance. Press Dark once, and [your readlist](/) opens dark on every screen you sign into, at noon and at midnight alike.
+Press [Dark](/account) once, and [your readlist](/) opens dark on every screen you sign into, at noon and at midnight alike.
