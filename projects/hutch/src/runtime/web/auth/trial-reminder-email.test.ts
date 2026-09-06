@@ -63,14 +63,12 @@ describe("TrialReminderEmail", () => {
 			expect(text).toContain("your account goes read-only.");
 		});
 
-		it("says what a subscription funds: the cloud bills, Readplace, and the blog", () => {
+		it("says what a subscription funds: the running expenses", () => {
 			const text = TrialReminderEmail(baseParams).to("text/plain");
 			expect(text).toContain(
 				"There's no company behind Readplace — no investors, no team, just me.",
 			);
-			expect(text).toContain(
-				"A subscription covers the cloud bills and pays for the hours that go into building Readplace and writing the posts on the blog, which stay free to read.",
-			);
+			expect(text).toContain("A subscription covers the running expenses.");
 		});
 
 		it("still says what a subscription funds when the user saved nothing", () => {
@@ -125,7 +123,7 @@ describe("TrialReminderEmail", () => {
 		it("renders the funding paragraph as its own <p>", () => {
 			const html = TrialReminderEmail(baseParams).to("text/html");
 			expect(html).toMatch(
-				/<p[^>]*>There's no company behind Readplace — no investors, no team, just me\. A subscription covers the cloud bills and pays for the hours that go into building Readplace and writing the posts on the blog, which stay free to read\.<\/p>/,
+				/<p[^>]*>There's no company behind Readplace — no investors, no team, just me\. A subscription covers the running expenses\.<\/p>/,
 			);
 		});
 
