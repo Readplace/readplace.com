@@ -411,7 +411,7 @@ describe("View routes", () => {
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("failed");
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Readlist");
+			expect(action.querySelector(".view__cta-label")?.textContent).toBe("Save to My Readlist");
 		});
 	});
 
@@ -909,6 +909,168 @@ describe("View routes", () => {
 			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
+		});
+	});
+
+	describe("GET /view/<a host that only ever serves the reader's own session>", () => {
+		const GATED_URL = "https://mail.google.com/mail/u/0/";
+		const GATED_PATH = "mail.google.com/mail/u/0/";
+		const SEEDED_INBOX_TITLE = "Inbox (42) - someone@example.com";
+
+		const STORED_SUMMARY = "Your inbox has 42 unread messages.";
+
+		function gatedHarness() {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const publishSaveAnonymousLink = jest.fn(async () => {});
+			const publishStaleCheckRequested = jest.fn(async () => {});
+			const findGeneratedSummary: FindGeneratedSummary = async () => ({
+				status: "ready",
+				summary: STORED_SUMMARY,
+				excerpt: "Re: your invoice is attached",
+			});
+			const harness = useApp({
+				...fixture,
+				summary: { ...fixture.summary, findGeneratedSummary },
+				events: { ...fixture.events, publishSaveAnonymousLink, publishStaleCheckRequested },
+			});
+			return { fixture, harness, publishSaveAnonymousLink, publishStaleCheckRequested };
+		}
+
+		async function seedCapturedInbox(
+			fixture: ReturnType<typeof createDefaultTestAppFixture>,
+		): Promise<void> {
+			const { articleStore, articleCrawl } = fixture;
+			await articleStore.saveArticleGlobally({
+				url: GATED_URL,
+				metadata: {
+					title: SEEDED_INBOX_TITLE,
+					siteName: "Gmail",
+					excerpt: "Re: your invoice is attached",
+					wordCount: 400,
+					imageUrl: "https://cdn.example.com/avatar.jpg",
+				},
+				estimatedReadTime: MinutesSchema.parse(2),
+				savedAt: new Date("2026-05-03T13:00:00.000Z"),
+			});
+			await articleStore.writeContent({ url: GATED_URL, content: "<p>Re: your invoice is attached</p>" });
+			await articleCrawl.markCrawlReady({ url: GATED_URL });
+			await articleStore.setCrawlVersions({
+				url: GATED_URL,
+				versions: [{ crawledAtMinute: "2026-05-03T13:00", authorUserId: undefined }],
+			});
+		}
+
+		it("renders the friendly notice with no polling stub", async () => {
+			const { harness } = gatedHarness();
+
+			const response = await request(harness.server).get(`/view/${GATED_PATH}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+			expect(slot.hasAttribute("hx-get")).toBe(false);
+			expect(slot.textContent).toContain("This link isn't an article, so there's no reader view.");
+
+			const primary = doc.querySelector("[data-test-reader-failed-primary]");
+			assert(primary, "the notice must offer the original link");
+			expect(primary.getAttribute("href")).toBe(GATED_URL);
+			expect(primary.textContent?.trim()).toBe("View the link");
+		});
+
+		it("never saves an anonymous stub and publishes no crawl or stale check", async () => {
+			const { harness, publishSaveAnonymousLink, publishStaleCheckRequested } = gatedHarness();
+
+			await request(harness.server).get(`/view/${GATED_PATH}`);
+
+			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
+			expect(publishStaleCheckRequested).not.toHaveBeenCalled();
+			expect(await harness.articleStore.findArticleByUrl(GATED_URL)).toBeFalsy();
+		});
+
+		it("titles the page from the hostname stub and describes it with the Readplace default, on default OG images", async () => {
+			const { fixture, harness } = gatedHarness();
+			await seedCapturedInbox(fixture);
+
+			const response = await request(harness.server).get(`/view/${GATED_PATH}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("title")?.textContent).toBe("mail.google.com | Reader View");
+			expect(
+				doc.querySelector('meta[property="og:title"]')?.getAttribute("content"),
+			).toBe("mail.google.com | Reader View");
+			expect(
+				doc.querySelector('meta[property="og:description"]')?.getAttribute("content"),
+			).toBe("View on Readplace.");
+			expect(
+				doc.querySelector('meta[property="og:image"]')?.getAttribute("content"),
+			).toContain("og-image-1200x630.png");
+			expect(doc.querySelectorAll('script[type="application/ld+json"]').length).toBe(0);
+		});
+
+		it("renders the notice instead of the stored capture, summary and crawl versions", async () => {
+			const { fixture, harness } = gatedHarness();
+			await seedCapturedInbox(fixture);
+
+			const response = await request(harness.server).get(`/view/${GATED_PATH}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(
+				doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status"),
+			).toBe("not-an-article");
+			expect(doc.querySelector("[data-test-reader-title]")?.textContent?.trim()).toBe(
+				"mail.google.com",
+			);
+
+			const summarySlot = doc.querySelector("[data-test-reader-summary]");
+			assert(summarySlot, "summary slot must render so its emptiness is meaningful");
+			expect(summarySlot.textContent?.trim()).toBe("");
+
+			expect(doc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
+
+			expect(response.text).not.toContain(SEEDED_INBOX_TITLE);
+			expect(response.text).not.toContain(STORED_SUMMARY);
+		});
+
+		it("answers both htmx polls with the terminal notice so an already-open page settles", async () => {
+			const { fixture, harness } = gatedHarness();
+			await seedCapturedInbox(fixture);
+			const encoded = encodeURIComponent(GATED_URL);
+
+			for (const path of [`/view/reader?url=${encoded}&poll=1`, `/view/summary?url=${encoded}&poll=1`]) {
+				const response = await request(harness.server).get(path);
+				expect(response.status).toBe(200);
+				const doc = new JSDOM(response.text).window.document;
+				const slot = doc.querySelector("[data-test-reader-slot]");
+				assert(slot, `reader slot must be rendered for ${path}`);
+				expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+				expect(slot.hasAttribute("hx-get")).toBe(false);
+				const summarySlot = doc.querySelector("[data-test-reader-summary]");
+				assert(summarySlot, `summary slot must be rendered for ${path}`);
+				expect(summarySlot.hasAttribute("hx-get")).toBe(false);
+				expect(doc.querySelector("#document-title")?.textContent).toBe(
+					"mail.google.com | Reader View",
+				);
+			}
+		});
+
+		it("serves markdown as the hostname stub with an empty body", async () => {
+			const { fixture, harness } = gatedHarness();
+			await seedCapturedInbox(fixture);
+
+			const response = await request(harness.server)
+				.get(`/view/${GATED_PATH}`)
+				.set("Accept", "text/markdown");
+
+			expect(response.status).toBe(200);
+			expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+			expect(response.text.startsWith("# mail.google.com")).toBe(true);
+			expect(response.text).toContain(`Canonical: ${GATED_URL}`);
+			expect(response.text).not.toContain(SEEDED_INBOX_TITLE);
+			expect(response.text).not.toContain("Re: your invoice is attached");
 		});
 	});
 

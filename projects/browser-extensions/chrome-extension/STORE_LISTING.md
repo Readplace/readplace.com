@@ -17,7 +17,6 @@ shipped wire contract pinned in `src/packages/supported-clients`).
 | `02-queue.png` | Everything waits in one readlist, with a short AI preview of every save. |
 | `03-reader-tldr.png` | Read without the clutter — with a TL;DR before you commit. |
 | `04-import-links.png` | Moving from Pocket or a folder of tabs? Paste a link and import everything. |
-| `05-most-complete-version.png` | Readplace keeps the most complete version of what you saved. |
 
 Upload in that order: dashboard → the item → **Store listing** → *Graphic assets*
 → Screenshots. The dashboard has no caption field; captions belong in the
@@ -45,23 +44,30 @@ is safe everywhere, so keep the constraint.
 
 ## Regenerating the set
 
-The shots are real production captures, not mockups:
+The shots are real production captures, not mockups. `02`, `03`, `04` and the
+marquee come from one command, and `01` is the save-confirmation frame of the
+Chrome recording:
 
-1. Sign in at readplace.com as the screenshots account (a real account seeded
-   with well-crawled articles — Quanta, The New Yorker, Wikipedia — so cards
-   carry real thumbnails, excerpts, and AI summaries).
-2. Capture at a 1280×800 viewport (Playwright at `deviceScaleFactor: 2`, then
-   downscale to 1280×800). Strip the trial countdown/banners from the DOM
-   before shooting — they are account-state noise, not product.
-3. `01` is a composite of two real captures: the popup driven as a page at
-   `chrome-extension://<id>/popup/popup.template.html?url=<article>` (the
-   `?url=` param triggers a real save; build with `pnpm compile` so the popup
-   talks to production), over an article-page capture.
-4. Flatten to opaque RGB and resize to exactly 1280×800 before committing.
+```sh
+pnpm nx run hutch:compile
+SCREENSHOTS_ACCOUNT_EMAIL=… SCREENSHOTS_ACCOUNT_PASSWORD=… pnpm --filter hutch media stills
+```
+
+The toolkit captures at `deviceScaleFactor: 2`, strips the banners and the
+onboarding card from the DOM, burns in the red callout, downscales, and flattens
+to opaque RGB — the specs above are asserted on every write. Its runbook,
+including the prerequisites and what to check on the account first, is
+`projects/hutch/scripts/media/README.md`.
 
 ## Firefox
 
-There is **no AMO listing**: the Firefox extension is signed with
-`--channel=unlisted` and self-hosted from S3 (see
-`submit-ff-extension-for-signing.yml`), so no store screenshots exist for it.
-The same shots serve Firefox users on `/install?client=firefox`.
+The Firefox extension is submitted to AMO as a **listed** add-on by
+`.github/workflows/publish-firefox-extension.yml`, under the slug `readplace`.
+It reaches the public directory at
+`https://addons.mozilla.org/firefox/addon/readplace/` only once Mozilla
+approves a version; until then `/install?client=firefox` serves the
+self-hosted signed XPI. Its text metadata lives in
+`projects/browser-extensions/firefox-extension/amo-metadata.json` and is sent
+on every publish, so edit it there, not in the Developer Hub. Icon, screenshots
+and the privacy-policy text are managed by hand in the Developer Hub; the same
+shots above serve Firefox, uploaded in the same order.

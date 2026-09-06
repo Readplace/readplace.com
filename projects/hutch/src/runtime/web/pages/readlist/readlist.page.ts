@@ -8,11 +8,10 @@ import {
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
 import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
-import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent } from "@packages/web-analytics";
+import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
+import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
@@ -21,7 +20,7 @@ import {
 	decodeImportSkippedCookie,
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
-import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, calculateReadTime, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
@@ -50,7 +49,6 @@ import type {
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
 	MarkArticleViewed,
-	MarkLinkShared,
 	MarkReadlistArticleViewed,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
@@ -67,12 +65,13 @@ import type {
 	StatPendingUpload,
 	ReadPendingUploadPrefix,
 } from "@packages/provider-contracts/pending-upload";
-import { isPDF, MAX_PDF_BYTES } from "@packages/crawl-article";
+import { isPDF, MAX_HTML_BYTES, MAX_PDF_BYTES } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
 import { UPLOAD_COMPLETION_MAX_AGE_SECONDS } from "./upload-slot-ttl";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
 import { initSaveArticlesLimitHandler } from "./save-articles-limit-handler";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { FindUserById } from "@packages/provider-contracts/auth";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
@@ -88,6 +87,10 @@ import type {
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
+import {
+	epubDownloadHref as buildEpubDownloadHref,
+	revealsEpubDownload,
+} from "../../shared/epub/epub-link";
 import type {
 	PublishLinkDequeued,
 	PublishLinkQueued,
@@ -111,14 +114,14 @@ import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
 import { selectChangelogBanner } from "../../banner-state";
 import type { GetChangelogBanner } from "../../changelog-banner-source";
-import { requireCspNonce, sendComponent } from "@packages/web-shell";
+import { requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { initObserveSaveRefusal, tagSaveRefusal } from "../../shared/save-refusal";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
-import { CacheableComponent } from "../../conditional-get";
+import { CacheableComponent, FreshForComponent } from "../../conditional-get";
 import {
 	NO_READER_VIEW_FAILED_OOB,
 	extensionSuggestionBannerOob,
@@ -154,13 +157,14 @@ import {
 	ReadlistSlugSchema,
 	type ReadlistRenameRejection,
 	type ReadlistSlug,
+	decideReadlistCreate,
 	decideReadlistDelete,
 	decideReadlistMigration,
 	decideReadlistRename,
 	defaultReadlistLabel,
 	generateReadlistSlug,
+	readlistAfterDelete,
 } from "@packages/domain/readlist";
-import { DEFAULT_READLIST } from "./readlist.nav";
 import {
 	type ReaderReadlistFiling,
 	buildReaderReadlistFiling,
@@ -168,11 +172,12 @@ import {
 import type { ReadlistRailViewModel } from "./readlist.component";
 import { readlistReturnQuery } from "./readlist.url";
 import { collectUtmParams } from "../../shared/utm";
+import { deriveKnownUnreadCount } from "./known-unread-count";
 import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./readlist.error";
-import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, readlistErrorFlashMapping, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, readlistErrorFlashMapping, saveableUrlErrorCodeMapping, statusFlashMapping, statusFlashFor } from "./readlist.error";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -189,17 +194,22 @@ import {
 	toReadlistCardDisplayModel,
 } from "./readlist-card/readlist-card.component";
 import { computeReadlistCardEtag } from "./readlist-card/readlist-card.etag";
+import { computeArticleContentVersion } from "../../shared/article-content-version";
+import { readerCachePolicy } from "./reader-cache-policy";
+import { VIEW_BACK_LINK } from "./reader-skeleton/reader-skeleton.component";
 import { etagMatches } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
 import { safeReturnPath } from "../../shared/safe-return-path";
-import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
+import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingStep } from "../../onboarding/onboarding.steps";
 import {
-	detectPlatform,
 	extensionInstallUrlIfMissing,
+	canOfferExtensionInstall,
 	hasInstallableClient,
 	isExtensionInstalled,
 	isExtensionSavedArticle,
+	advertisedPlatformOf,
+	type PitchablePlatform,
 } from "../../onboarding/extension-install";
 import {
 	APP_SHELL_QUERY,
@@ -218,13 +228,14 @@ import type {
 	GetOnboardingSignals,
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
+	RecordEmailStepMarkedDone,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
 	RecordMarkReadAcrossQueuesAcknowledged,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
-import type { Platform } from "../../onboarding/onboarding.types";
+import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
 /** The dismiss-cookie value a device of this class writes on dismissal and the
@@ -349,7 +360,6 @@ interface ReadlistDependencies {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	markSummaryToggled: MarkSummaryToggled;
-	markLinkShared: MarkLinkShared;
 	markRelatedDismissed: MarkRelatedDismissed;
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
@@ -399,10 +409,8 @@ interface ReadlistDependencies {
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
-	/** Marks that the reader was shown the Next Read step with saves still to go,
-	 * so a milestone later reached can be told apart from one a deep readlist
-	 * satisfied on sight. */
-	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	/** Auth middleware applied to every readlist route except the public
@@ -419,6 +427,7 @@ interface ReadlistDependencies {
 	requireWriteAccess: RequestHandler;
 	secureCookies: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
+	findUserById: FindUserById;
 	buildBannerState: BuildBannerState;
 	/** The site-wide announcement, for the chromeless reader only. The full shell
 	 * reaches it through `buildBannerState`; the chromeless branch takes it directly
@@ -426,7 +435,8 @@ interface ReadlistDependencies {
 	 * `buildBannerState` also performs and this shell has nowhere to render. */
 	getChangelogBanner: GetChangelogBanner;
 	logError: (message: string, error?: Error) => void;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 }
@@ -506,11 +516,6 @@ const SAVE_INTENT_PATH = {
 	saveArticles: saveIntentPath(SAVE_ROUTE.saveArticles),
 	save: saveIntentPath(SAVE_ROUTE.save),
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
-} as const;
-
-const VIEW_BACK_LINK = {
-	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
-	label: "Back to readlist",
 } as const;
 
 /** Resolves the one way this page can reach whichever native web view is hosting
@@ -709,7 +714,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		surface: SaveSurface;
 		outcome: SaveOutcome;
 	}): void => {
-		deps.analytics.info(
+		deps.recordAnalyticsEvent(
+			params.req,
 			buildSaveIntentEvent({ now: deps.now, salt: deps.salt }, { ...params, client: saveClientOf(params.req) }),
 		);
 	};
@@ -731,7 +737,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			},
 		},
 		"text/html": {
-			uploadCeilingBytes: MAX_UPLOAD_HTML_BYTES,
+			uploadCeilingBytes: MAX_HTML_BYTES.bytes,
 			stageInlineBytes: async ({ url, bytes, title, userId }) => {
 				await deps.putPendingHtml({ url, html: bytes.toString("utf8") });
 				await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
@@ -743,6 +749,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			},
 		},
 	};
+
+	const mediaFor = (params: { mediaType: string; url: string }): SaveContentMedia | undefined =>
+		isNonArticleHost(params.url)
+			? undefined
+			: saveContentMedia[normalizeMediaType(params.mediaType)];
 
 	const reader = initArticleReader({
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
@@ -840,6 +851,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				related: RelatedArticles;
 				relatedPollUrl: string | undefined;
 				readlistFiling: ReaderReadlistFiling;
+				contentVersion: string;
 			};
 
 	/** Ownership/access (owner → reader; non-owner or anonymous → permalink
@@ -894,6 +906,29 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			ownedArticle.relatedDismissedAt === undefined
 				? relatedPollUrlFor(ownedArticle.id.value, 1)
 				: undefined;
+		const contentVersion = computeArticleContentVersion({
+			article: ownedArticle,
+			crawl: state.crawl,
+			summary: state.summary,
+		});
+
+		if (state.notice !== undefined) {
+			const hostname = new URL(ownedArticle.url).hostname;
+			return {
+				kind: "ready",
+				article: {
+					...ownedArticle,
+					content: undefined,
+					metadata: { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 },
+					estimatedReadTime: calculateReadTime(0),
+				},
+				state,
+				related: { status: "skipped" },
+				relatedPollUrl: undefined,
+				readlistFiling,
+				contentVersion,
+			};
+		}
 
 		return {
 			kind: "ready",
@@ -902,6 +937,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			related,
 			relatedPollUrl,
 			readlistFiling,
+			contentVersion,
 		};
 	};
 
@@ -917,10 +953,23 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		const { article: ownedArticle, state, related, relatedPollUrl, readlistFiling } = resolved;
+		const { article: ownedArticle, state, related, relatedPollUrl, readlistFiling, contentVersion } =
+			resolved;
+
+		const cspNonce = requireCspNonce(req);
+		const readerSettled =
+			state.readerPollUrl === undefined &&
+			state.summaryPollUrl === undefined &&
+			related.status !== "pending";
+		const readerCacheControl = readerCachePolicy({
+			requestedVersion: req.query.v,
+			currentVersion: contentVersion,
+			settled: readerSettled,
+		});
+		res.vary("Cookie");
 
 		if (isAppPlatform(req)) {
-			const cspNonce = requireCspNonce(req);
+			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
 			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
 				appOrigin: deps.appOrigin,
 				summary: state.summary,
@@ -938,83 +987,101 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				renderActions: deps.chromelessReader,
 				readlistFiling,
 				markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
+				readerNotice: state.notice,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
 				req, res,
-				ChromelessPage(
-					{
-						...readerBody,
-						scripts:
-							readerBody.scripts +
-							readerMarkReadBridgeScript(cspNonce) +
-							readerCaptureBridgeScript(cspNonce),
-					},
-					{
-						changelogBanner: selectChangelogBanner(
-							await deps.getChangelogBanner(),
-							req.dismissedChangelogVersion,
-						),
-						// The dismiss form posts this back so the 303 lands on the same
-						// article, still carrying `platform=ios` — so the reader returns to
-						// the chromeless shell rather than the full web one.
-						currentPath: req.originalUrl,
-						cspNonce,
-					},
+				FreshForComponent(
+					ChromelessPage(
+						{
+							...readerBody,
+							scripts:
+								readerBody.scripts +
+								readerMarkReadBridgeScript(cspNonce) +
+								(state.notice === undefined ? readerCaptureBridgeScript(cspNonce) : ""),
+						},
+						{
+							changelogBanner: selectChangelogBanner(
+								await deps.getChangelogBanner(),
+								req.dismissedChangelogVersion,
+							),
+							// The dismiss form posts this back so the 303 lands on the same
+							// article, still carrying `platform=ios` — so the reader returns to
+							// the chromeless shell rather than the full web one.
+							currentPath: req.originalUrl,
+							cspNonce,
+							appearance,
+						},
+					),
+					{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: readerCacheControl },
 				),
 			);
 			return;
 		}
 
-		const showExtensionSuggestionBanner = state.readerViewFailed;
+		const showExtensionSuggestionBanner =
+			state.readerViewFailed && canOfferExtensionInstall(req);
 
 		// Owner-only removal controls: which snapshots this owner authored, so the
 		// bookmark can offer to delete their versions. Only the full-shell owner
 		// reader below gets it — never the public /view or the iOS chromeless
 		// branch above.
-		const authoredVersions = await deps.findArticleCrawlVersions(ownedArticle.url);
+		const authoredVersions =
+			state.notice === undefined ? await deps.findArticleCrawlVersions(ownedArticle.url) : [];
 		const authoredMinuteIds = authoredVersions
 			.filter((version) => version.authorUserId === ownedArticle.userId)
 			.map((version) => version.crawledAtMinute);
 		const crawlBookmarkRemoval = {
 			authoredMinuteIds,
-			removeVersionUrl: `${READLIST_PATH}/${ownedArticle.id.value}/remove-my-version`,
+			removeVersionUrl: withInternalTracking(
+				`${READLIST_PATH}/${ownedArticle.id.value}/remove-my-version`,
+				{ source: "reader-crawl-bookmark", content: "remove-my-version" },
+			),
 		};
 
 		sendComponent(
 			req, res,
-			Base(ReaderPage({ ...ownedArticle, content: state.content }, {
-				appOrigin: deps.appOrigin,
-				summary: state.summary,
-				summaryPollUrl: state.summaryPollUrl,
-				crawl: state.crawl,
-				readerPollUrl: state.readerPollUrl,
-				capturePollUrl: state.capturePollUrl,
-				progress: state.progress,
-				related,
-				relatedPollUrl,
-				currentPath: req.originalUrl,
-				now: deps.now(),
-				extensionInstallUrl: extensionInstallUrlIfMissing(req),
-				backLink: VIEW_BACK_LINK,
-				renderActions: deps.stickyReader,
-				readlistFiling,
-				markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
-				crawlVersions: state.crawlVersions,
-				crawlBookmarkRemoval,
-				exitMarkReadConfirm: true,
-			}), {
-				...(await deps.buildBannerState(req)),
-				showExtensionSuggestionBanner,
-				extensionInstalled: isExtensionInstalled(req),
-			}),
+			FreshForComponent(
+				Base(ReaderPage({ ...ownedArticle, content: state.content }, {
+					appOrigin: deps.appOrigin,
+					summary: state.summary,
+					summaryPollUrl: state.summaryPollUrl,
+					crawl: state.crawl,
+					readerPollUrl: state.readerPollUrl,
+					capturePollUrl: state.capturePollUrl,
+					progress: state.progress,
+					related,
+					relatedPollUrl,
+					currentPath: req.originalUrl,
+					now: deps.now(),
+					extensionInstallUrl: extensionInstallUrlIfMissing(req),
+					backLink: VIEW_BACK_LINK,
+					renderActions: deps.stickyReader,
+					readlistFiling,
+					markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
+					crawlVersions: state.crawlVersions,
+					crawlBookmarkRemoval,
+					exitMarkReadConfirm: true,
+					readerNotice: state.notice,
+					epubDownloadHref:
+						state.content === undefined || !revealsEpubDownload(req.query.feature)
+							? undefined
+							: buildEpubDownloadHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
+				}), {
+					...(await deps.buildBannerState(req)),
+					showExtensionSuggestionBanner,
+					extensionInstalled: isExtensionInstalled(req),
+				}),
+				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: readerCacheControl },
+			),
 		);
 	});
 
 	router.post(
 		SAVE_ROUTE.saveArticles,
 		initObserveSaveRefusal({
-			analytics: deps.analytics,
+			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
 			now: deps.now,
 			salt: deps.salt,
 			path: SAVE_INTENT_PATH.saveArticles,
@@ -1031,13 +1098,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * here memoises an observation the same request already made — the account
 	 * really does hold that many saves — rather than mutating anything the user
 	 * can see, which is why it is allowed on a GET. */
-	const resolveNextReadProgress = async (
+	const resolveSavedCount = async (
 		userId: UserId,
-		signals: { nextReadMinimumReachedAt: Date | undefined; nextReadStepOutstandingAt: Date | undefined },
-	): Promise<{ savedCount: number; milestoneGranted: boolean }> => {
-		const wasOutstanding = signals.nextReadStepOutstandingAt !== undefined;
-		if (signals.nextReadMinimumReachedAt) {
-			return { savedCount: NEXT_READ_MINIMUM_SAVES, milestoneGranted: !wasOutstanding };
+		nextReadMinimumReachedAt: Date | undefined,
+	): Promise<number> => {
+		if (nextReadMinimumReachedAt) {
+			return NEXT_READ_MINIMUM_SAVES;
 		}
 		const savedCount = await deps.countArticlesByUser({
 			userId,
@@ -1047,14 +1113,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			await recordOnboardingSignalBestEffort(() =>
 				deps.recordNextReadMinimumReached({ userId }),
 			);
-			return { savedCount, milestoneGranted: !wasOutstanding };
 		}
-		if (!wasOutstanding) {
-			await recordOnboardingSignalBestEffort(() =>
-				deps.recordNextReadStepOutstanding({ userId }),
-			);
-		}
-		return { savedCount, milestoneGranted: false };
+		return savedCount;
 	};
 
 	/** Resolves the onboarding-checklist signals for an authenticated `/queue`
@@ -1076,8 +1136,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * falls through to this `installed && …` arm, where the no-client token no longer
 	 * matches and the new client isn't installed, so onboarding re-appears. */
 	const resolveOnboardingSignals = async (req: Request, userId: UserId) => {
-		const platform = detectPlatform(req);
-		const hasClient = hasInstallableClient(req);
+		const advertisedPlatform = advertisedPlatformOf(req);
+		const platform: PitchablePlatform = advertisedPlatform ?? "other";
+		const hasClient = advertisedPlatform !== undefined;
 		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
 		const dismissTokenMatches = dismissCookie === dismissTokenFor(hasClient);
 		const onboardingCompletedBefore =
@@ -1086,18 +1147,15 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const markReadAcrossQueuesAckedAt = signals.markReadAcrossQueuesAckedAt;
 		const deleteArticleAckedAt = signals.deleteArticleAckedAt;
 		if (!hasClient) {
+			const noClientContext: OnboardingContext = { hasInstallableClient: false };
 			return {
 				markReadAcrossQueuesAckedAt,
 				deleteArticleAckedAt,
 				onboarding: {
-					platform,
-					installed: false,
-					savedArticle: false,
-					savedCount: 0,
-					hasInstallableClient: hasClient,
-					onboardingDismissed: dismissTokenMatches,
-					onboardingCompletedBefore,
-					onboardingCompletionUnearned: false,
+					context: noClientContext,
+					dismissed: dismissTokenMatches,
+					completedBefore: onboardingCompletedBefore,
+					completionUnearned: false,
 				},
 			};
 		}
@@ -1105,20 +1163,30 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const { installed, savedArticle } = nativeAppPlatform
 			? signals.nativeApp[nativeAppPlatform]
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		const { savedCount, milestoneGranted } = await resolveNextReadProgress(userId, signals);
-		const onboardingDismissed = installed && dismissTokenMatches;
+		const savedCount = await resolveSavedCount(userId, signals.nextReadMinimumReachedAt);
+		const context: InstallableClientOnboarding = {
+			hasInstallableClient: true,
+			platform,
+			installed,
+			savedArticle,
+			savedCount,
+			inboxArticleQueued: signals.firstInboxArticleQueuedAt !== undefined,
+			emailStepMarkedDone: signals.emailStepMarkedDoneAt !== undefined,
+		};
+		const seenUnderThisVersion = signals.onboardingOutstandingVersion === ONBOARDING_VERSION;
+		if (!seenUnderThisVersion && hasOutstandingStep(context)) {
+			await recordOnboardingSignalBestEffort(() =>
+				deps.recordOnboardingOutstandingVersion({ userId, version: ONBOARDING_VERSION }),
+			);
+		}
 		return {
 			markReadAcrossQueuesAckedAt,
 			deleteArticleAckedAt,
 			onboarding: {
-				platform,
-				installed,
-				savedArticle,
-				savedCount,
-				hasInstallableClient: hasClient,
-				onboardingDismissed,
-				onboardingCompletedBefore,
-				onboardingCompletionUnearned: milestoneGranted,
+				context,
+				dismissed: installed && dismissTokenMatches,
+				completedBefore: onboardingCompletedBefore,
+				completionUnearned: !seenUnderThisVersion,
 			},
 		};
 	};
@@ -1190,11 +1258,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			context: ReadlistContext;
 			result: FindArticlesResult;
 			saveError?: string;
+			saveErrorCode?: SaveableUrlErrorCode;
 			importFlash?: string;
 			statusFlash?: StatusFlash;
 			importSkipped?: ImportSkippedViewModel;
 			saveUrl?: string;
-			statusCode?: number;
 		},
 	): Promise<void> => {
 		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, signals] =
@@ -1217,6 +1285,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const vm = toReadlistViewModel(input.result, input.context.state, {
 			errors: input.saveError ? [{ message: input.saveError }] : undefined,
+			saveErrorCode: input.saveErrorCode,
 			importFlash: input.importFlash,
 			statusFlash: input.statusFlash,
 			importSkipped: input.importSkipped,
@@ -1228,11 +1297,24 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const onboarding = signals.onboarding;
+		const knownUnreadCount = deriveKnownUnreadCount({
+			tab: input.context.state.tab,
+			hasMore: input.result.hasMore,
+			page: input.result.page,
+			pageSize: input.result.pageSize,
+			rowsOnPage: input.result.articles.length,
+			readlistHoldsArticles,
+		});
+		const cspNonce = requireCspNonce(req);
+		res.vary("Cookie");
 		sendComponent(
 			req, res,
-			Base(
-				ReadlistPage(vm, { ...onboarding, cspNonce: requireCspNonce(req), readlistHoldsArticles, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
-				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+			FreshForComponent(
+				Base(
+					ReadlistPage(vm, { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
+					await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+				),
+				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: "private, max-age=5" },
 			),
 		);
 	};
@@ -1366,6 +1448,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				deps.logError,
 			);
 
+			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
 			setSirenCollectionCaching(req, res);
 			res.type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
@@ -1380,6 +1463,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						tabs: READLIST_TAB_STATUSES,
 						surfacePlatform: nativeSurfaceOf(req),
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
+						appearance,
 						crawlByUrl,
 					},
 				),
@@ -1409,7 +1493,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			}
 		}
 
-		const saveError = deps.httpErrorMessageMapping(req.query);
+		const saveErrorCode = saveableUrlErrorCodeMapping(req.query);
+		const saveError = saveErrorCode
+			? saveableUrlErrorMessage(saveErrorCode)
+			: deps.httpErrorMessageMapping(req.query);
+		if (saveError) res.set("HX-Reswap", "outerHTML show:none");
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
@@ -1418,6 +1506,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			context,
 			result,
 			saveError,
+			saveErrorCode,
 			importFlash,
 			statusFlash,
 			importSkipped,
@@ -1462,6 +1551,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		const context = requestReadlistContext(req);
 		res.redirect(303, buildReadlistUrl(context.state));
+	});
+
+	router.post("/onboarding/email/done", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		await deps.recordEmailStepMarkedDone({ userId: req.userId });
+		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
 	});
 
 	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
@@ -1651,7 +1746,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					/** Stage the captured bytes when the media type is supported; an
 					 * unsupported type stages nothing and the page is saved URL-only,
 					 * so the crawl enriches it the ordinary way. */
-					const media = saveContentMedia[normalizeMediaType(job.mediaType)];
+					const media = mediaFor({ mediaType: job.mediaType, url: job.url });
 					if (media) await media.stageInlineBytes({ url: job.url, bytes: job.bytes, title: job.title, userId });
 				}
 				const { createdUserArticle } = await saveArticleFromUrl({
@@ -1799,6 +1894,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					refuse(validation.error.message);
 					return undefined;
 				}
+				if (isNonArticleHost(validation.url)) {
+					refuse(
+						"This link isn't an article, so the page capture wasn't kept",
+						"capture-not-allowed",
+					);
+					return undefined;
+				}
 				const normalized = normalizeMediaType(mediaType);
 				const media = saveContentMedia[normalized];
 				if (!media) {
@@ -1833,7 +1935,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						refuse(validation.error.message);
 						return;
 					}
-					const media = saveContentMedia[normalizeMediaType(mediaType)];
+					const media = mediaFor({ mediaType, url: validation.url });
 					if (media) {
 						await media.stageInlineBytes({ url: validation.url, bytes: contentBytes, title, userId });
 					}
@@ -1913,31 +2015,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateSaveableUrl(submittedUrl);
-
-		const context = await resolveReadlistContext(req, userId);
-		const saveContext: ReadlistContext = {
-			...context,
-			state: parseReadlistUrl({}),
-			activeReadlist: DEFAULT_READLIST,
-		};
+		const saveState = parseReadlistUrl({});
 
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			const result = await deps.findArticlesByUser({ userId, excludeContent: true });
-			const [summaryByUrl, crawlByUrl, readlistHoldsArticles] = await Promise.all([
-				loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
-				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
-				readlistHoldsAnyArticle({ userId, readlist: saveContext.state.readlist, result }),
-			]);
-			const { onboarding, deleteArticleAckedAt } = await resolveOnboardingSignals(req, userId);
-			const vm = toReadlistViewModel(result, saveContext.state, {
-				errors: [{ message: validation.error.message }],
-				saveErrorCode: validation.error.code,
-				summaryByUrl,
-				crawlByUrl,
-				deleteAcknowledged: deleteArticleAckedAt !== undefined,
-			});
-			sendComponent(req, res, Base(ReadlistPage(vm, { ...onboarding, cspNonce: requireCspNonce(req), readlistHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
+			res.redirect(303, buildReadlistUrl(saveState, [["error_code", validation.error.code]]));
 			return;
 		}
 
@@ -1950,11 +2032,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				provenance: resolveSaveProvenance(req.oauthClientId),
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
-			res.redirect(303, `${buildReadlistUrl(saveContext.state)}#latest-saved`);
+			res.redirect(303, `${buildReadlistUrl(saveState)}#latest-saved`);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, buildReadlistUrl(saveContext.state, [["error_code", "save_failed"]]));
+			res.redirect(303, buildReadlistUrl(saveState, [["error_code", "save_failed"]]));
 		}
 	});
 
@@ -2073,7 +2155,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				unknownReadlist();
 				return;
 			}
-			res.redirect(303, buildReadlistUrl({}));
+			res.redirect(
+				303,
+				buildReadlistUrl({
+					readlist: readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug }),
+				}),
+			);
 		},
 	);
 
@@ -2236,7 +2323,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			state: parsedState.data,
 			at: deps.now(),
 		});
-		deps.analytics.info({
+		deps.recordAnalyticsEvent(req, {
 			stream: STREAMS.analytics,
 			event: ANALYTICS_EVENTS.summaryToggled,
 			timestamp: deps.now().toISOString(),
@@ -2244,23 +2331,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			state: parsedState.data,
 			visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 		});
-		res.status(204).end();
-	});
-
-	router.post("/:id/share", async (req: Request<{ id: string }>, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const userId = req.userId;
-		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
-		const article = parsedId.success
-			? await deps.findArticleById(parsedId.data, userId)
-			: null;
-
-		if (!article) {
-			res.status(404).type("html").send("");
-			return;
-		}
-
-		await deps.markLinkShared({ userId, url: article.url, at: deps.now() });
 		res.status(204).end();
 	});
 
@@ -2359,7 +2429,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				flashParams.push(["status_article", req.params.id]);
 			}
 			if (updated && parsedStatus.data === "read") {
-				deps.analytics.info({
+				deps.recordAnalyticsEvent(req, {
 					stream: STREAMS.analytics,
 					event: ANALYTICS_EVENTS.articleRead,
 					timestamp: deps.now().toISOString(),
@@ -2433,6 +2503,51 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				});
 			}
 			res.redirect(303, safeReturnPath(req.body.returnTo));
+		},
+	);
+
+	router.post(
+		"/:id/create-and-assign",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request<{ id: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+			if (!parsedId.success) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const article = await deps.findArticleById(parsedId.data, userId);
+			if (article) {
+				const definitions = await deps.listReadlistDefinitions(userId);
+				const decision = decideReadlistCreate({
+					label: typeof req.body?.label === "string" ? req.body.label : "",
+					slug: generateReadlistSlug(),
+					readlists: readerReadlists(definitions),
+				});
+				if (decision.ok) {
+					try {
+						if (decision.create) {
+							await deps.createReadlistDefinition({
+								userId,
+								slug: decision.slug,
+								label: decision.create.label,
+								createdAt: deps.now(),
+							});
+						}
+						await deps.assignSavedArticleToReadlist({
+							userId,
+							readlist: decision.slug,
+							url: article.url,
+							savedAt: await deps.allocateSavedAt({ userId }),
+						});
+					} catch (error) {
+						if (!(error instanceof ReadlistLimitReachedError)) throw error;
+					}
+				}
+			}
+			res.redirect(303, safeReturnPath(req.body?.returnTo));
 		},
 	);
 

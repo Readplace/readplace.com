@@ -5,6 +5,7 @@ import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 
 const WORK: Readlist = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
+const PERSONAL: Readlist = { slug: ReadlistSlugSchema.parse("personal"), label: "Personal Reading" };
 const READLISTS: readonly Readlist[] = [DEFAULT_READLIST, WORK];
 
 function renderNav(overrides: Partial<Parameters<typeof buildReadlistNav>[0]> = {}): Document {
@@ -133,7 +134,7 @@ describe("buildReadlistNav", () => {
 			label: control.textContent,
 		}).toEqual({
 			method: "POST",
-			action: "/queue/queues",
+			action: "/queue/queues?utm_source=queue-nav&utm_medium=internal&utm_content=new-readlist",
 			type: "submit",
 			label: "New readlist",
 		});
@@ -159,7 +160,7 @@ describe("buildReadlistNav", () => {
 			readlist: hrefParts(tab).params.get("queue"),
 		}).toEqual({
 			tagName: "A",
-			action: "/queue/queues/work/rename",
+			action: "/queue/queues/work/rename?utm_source=queue-nav&utm_medium=internal&utm_content=rename-readlist",
 			field: "label",
 			max: String(READLIST_LABEL_MAX_LENGTH),
 			current: "page",
@@ -213,25 +214,47 @@ describe("buildReadlistNav", () => {
 		expect(hrefParts(readlistLink(doc, "work")).params.get("queue")).toBe("work");
 	});
 
-	it("should offer the readlist the reader is on for deleting, from its own trigger", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
+	it("should offer every readlist the reader made for deleting, each from its own trigger", () => {
+		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
 
-		expect(deletable(doc)).toEqual(["readlist-remove-confirm-work"]);
+		expect(deletable(doc)).toEqual([
+			"readlist-remove-confirm-work",
+			"readlist-remove-confirm-personal",
+		]);
 	});
 
-	it("should back the delete trigger with a plain post for a reader with no popover", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
+	it("should back every delete with a plain post that names the readlist being viewed", () => {
+		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
 
-		expect(deleteFallbackActions(doc)).toEqual(["/queue/queues/work/delete"]);
+		expect(deleteFallbackActions(doc)).toEqual([
+			"/queue/queues/work/delete?queue=work&utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
+			"/queue/queues/personal/delete?queue=work&utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
+		]);
+	});
+
+	it("should back every delete with a bare post while the reader is on the built-in readlist", () => {
+		const doc = renderNav({
+			readlists: [DEFAULT_READLIST, WORK, PERSONAL],
+			activeSlug: DEFAULT_READLIST.slug,
+		});
+
+		expect(deleteFallbackActions(doc)).toEqual([
+			"/queue/queues/work/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
+			"/queue/queues/personal/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
+		]);
 	});
 
 	it("should keep the delete trigger outside the tab so a tap cannot open the name editor", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
+		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
 
-		const trigger = doc.querySelector('[data-test-action="readlist-delete"]');
-		assert(trigger, "the readlist the reader is on must offer a delete trigger");
-		expect(trigger.closest("[data-readlist-rename]")).toBeNull();
-		expect(trigger.closest(".readlist-nav__item")).toBe(readlistLink(doc, "work").parentElement);
+		const owned = ["work", "personal"];
+		const triggers = Array.from(doc.querySelectorAll('[data-test-action="readlist-delete"]'));
+		expect(triggers).toHaveLength(owned.length);
+		owned.forEach((testReadlist, index) => {
+			const trigger = triggers[index];
+			assert(trigger, `the ${testReadlist} readlist must offer a delete trigger`);
+			expect(trigger.parentElement).toBe(readlistLink(doc, testReadlist).parentElement);
+		});
 	});
 
 	it("should say which readlist the delete control removes, for a reader who cannot see it", () => {
@@ -242,15 +265,33 @@ describe("buildReadlistNav", () => {
 		expect(label.textContent).toBe("Delete Work Reading");
 	});
 
-	it("should leave every readlist the reader is not on with nothing to delete", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
+	it("should offer a readlist the reader is not on for deleting, without offering it for renaming", () => {
+		const doc = renderNav({ activeSlug: DEFAULT_READLIST.slug });
 
 		expect(deletable(doc)).toEqual(["readlist-remove-confirm-work"]);
-		expect(readlistLink(doc, "default").parentElement?.className).toBe("readlist-nav__item");
+		expect(renameable(doc)).toEqual([]);
+		expect(hrefParts(readlistLink(doc, "work")).params.get("queue")).toBe("work");
+		expect(readlistLink(doc, "default").parentElement?.className).toBe(
+			"readlist-nav__item readlist-nav__item--active",
+		);
+	});
+
+	it("should mark the viewed readlist's item as the selected one apart from marking it deletable", () => {
+		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
+
+		expect({
+			work: readlistLink(doc, "work").parentElement?.className,
+			personal: readlistLink(doc, "personal").parentElement?.className,
+			default: readlistLink(doc, "default").parentElement?.className,
+		}).toEqual({
+			work: "readlist-nav__item readlist-nav__item--deletable readlist-nav__item--active",
+			personal: "readlist-nav__item readlist-nav__item--deletable",
+			default: "readlist-nav__item",
+		});
 	});
 
 	it("should never offer the built-in readlist for deleting, even when the reader is on it", () => {
-		const doc = renderNav({ activeSlug: DEFAULT_READLIST.slug });
+		const doc = renderNav({ readlists: [DEFAULT_READLIST], activeSlug: DEFAULT_READLIST.slug });
 
 		expect(deletable(doc)).toEqual([]);
 	});

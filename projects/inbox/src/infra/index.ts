@@ -120,7 +120,7 @@ const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config)
 // expands 3-5×, and the now-reachable curl fallback can buffer a large body
 // before the size cap applies; 1024 MB OOM'd save-link on those, so match its
 // crawl Lambdas rather than run tighter here.
-const CRAWL_LAMBDA_MEMORY_MB = 1769;
+const CRAWL_LAMBDA_MEMORY_MB = 3008;
 
 // --- Web Lambda (GET /inbox + ANY /inbox/{proxy+}) ---
 

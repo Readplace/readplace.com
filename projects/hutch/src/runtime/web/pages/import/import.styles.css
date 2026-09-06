@@ -54,7 +54,7 @@
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 
-.import__tab:hover {
+.import__tab:not(.import__tab--active):hover {
   color: var(--foreground);
 }
 
@@ -250,7 +250,7 @@
 
 .import__upload-error {
   background: var(--error-bg);
-  color: var(--error);
+  color: var(--foreground);
   border: 1px solid var(--error);
   border-radius: var(--radius);
   padding: 12px 16px;

@@ -1,3 +1,5 @@
+import { DARK_ONLY_BODY_CLASS, LIGHT_ONLY_BODY_CLASS } from "../../base.styles";
+
 export const CONFIRM_POPOVER_STYLES = `
 /**
  * Confirmation panel — native popover.
@@ -48,6 +50,10 @@ export const CONFIRM_POPOVER_STYLES = `
 	}
 }
 
+.confirm-popover--wide {
+	width: min(880px, calc(100% - 32px));
+}
+
 /* Focus opens on the panel itself (autofocus + tabindex="-1"); the global
  * ring in BASE_RESET_STYLES covers only \`button\` and \`a\`. */
 .confirm-popover:focus-visible {
@@ -60,9 +66,13 @@ export const CONFIRM_POPOVER_STYLES = `
 }
 
 @media (prefers-color-scheme: dark) {
-	.confirm-popover::backdrop {
+	body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover::backdrop {
 		background: rgb(13 13 13 / 0.72); /* 3 */
 	}
+}
+
+body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
+	background: rgb(13 13 13 / 0.72); /* 3 */
 }
 
 .confirm-popover__header {

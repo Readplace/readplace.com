@@ -128,18 +128,6 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(doc.querySelector(".banner-area")).toBe(null);
 	});
 
-	it("carries the owner's share-beacon target on the chromeless reader's balloon wrap", async () => {
-		const harness = buildHarness();
-		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-share");
-
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
-
-		const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-		assert(wrap, "the chromeless reader must render the balloon wrap");
-		expect(wrap.getAttribute("data-share-stamp-url")).toBe(`/queue/${articleId}/share`);
-	});
-
 	it("renders the full web shell when platform=ios is absent", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -580,7 +568,7 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 		// shell rather than dropping the reader into the full web shell mid-sheet.
 		const form = banner.querySelector("form.changelog-banner__dismiss");
 		assert(form, "the close control must be a real form so it works with no JS and stays inside the app sheet");
-		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss");
+		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss");
 		expect(form.querySelector('input[name="version"]')?.getAttribute("value")).toBe(CHANGELOG_VERSION);
 		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
 			`/queue/${articleId}/view?platform=ios`,
@@ -593,7 +581,7 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 		const firstArticle = await saveAndGetArticleId(agent, "https://example.com/app-first");
 
 		const dismiss = await agent
-			.post("/banner/changelog/dismiss")
+			.post("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss")
 			.type("form")
 			.send({ version: CHANGELOG_VERSION, returnTo: `/queue/${firstArticle}/view?platform=ios` });
 
@@ -622,7 +610,7 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 		const stalerVersion = "00000000";
 		assert(isChangelogVersion(stalerVersion));
 		await agent
-			.post("/banner/changelog/dismiss")
+			.post("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss")
 			.type("form")
 			.send({ version: stalerVersion, returnTo: `/queue/${articleId}/view?platform=ios` });
 
@@ -630,5 +618,47 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 		const banner = doc.querySelector("[data-test-changelog-banner]");
 		assert(banner, "the banner element is always emitted");
 		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
+	});
+	describe("a saved link whose host can never hold an article", () => {
+		const GATED_URL = "https://mail.google.com/mail/u/0/";
+
+		it("shows the app the same notice and offers it no on-device capture to run", async () => {
+			const harness = buildHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetArticleId(agent, GATED_URL);
+
+			const response = await agent.get(`/queue/${articleId}/view?platform=ios`);
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("mail.google.com");
+			expect(response.text).toContain("readplaceReader");
+			expect(response.text).not.toContain("captureBlocked");
+		});
+
+		it("answers the owner's reader and summary polls with the terminal notice", async () => {
+			const harness = buildHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetArticleId(agent, GATED_URL);
+
+			for (const path of [
+				`/queue/${articleId}/reader?poll=1`,
+				`/queue/${articleId}/summary?poll=1`,
+			]) {
+				const response = await agent.get(path);
+				expect(response.status).toBe(200);
+				const doc = new JSDOM(response.text).window.document;
+				const slot = doc.querySelector("[data-test-reader-slot]");
+				assert(slot, `reader slot must be rendered for ${path}`);
+				expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+				expect(slot.hasAttribute("hx-get")).toBe(false);
+				const summarySlot = doc.querySelector("[data-test-reader-summary]");
+				assert(summarySlot, `summary slot must be rendered for ${path}`);
+				expect(summarySlot.hasAttribute("hx-get")).toBe(false);
+			}
+		});
 	});
 });

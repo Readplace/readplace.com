@@ -56,7 +56,7 @@ That reactivate path counts as much as the cancel. Changing your mind is a singl
 
 ## Why the iPhone hides the price
 
-Open the same account page inside the Readplace iPhone app and the renewal line is gone. Apple's [App Store rules](/view/developer.apple.com/app-store/review/guidelines/) don't allow a web view inside an app to name a subscription price, so the line is stripped before the page renders on that surface. The status, the cancel control, and [the way out of the account](/blog/delete-your-account-with-a-typed-phrase) all stay. The one thing removed is the number, and only where a rule asks for it.
+Open the same account page inside the Readplace iPhone app and the renewal line is gone. Apple's [App Store rules](/view/developer.apple.com/app-store/review/guidelines/?utm_source=blog-next-charge-shown-before-it-lands&utm_medium=internal&utm_content=read-developer-apple-com) don't allow a web view inside an app to name a subscription price, so the line is stripped before the page renders on that surface. The status, the cancel control, and [the way out of the account](/blog/delete-your-account-with-a-typed-phrase?utm_source=blog-next-charge-shown-before-it-lands&utm_medium=internal&utm_content=post-delete-your-account-with-a-typed-phrase) all stay. The one thing removed is the number, and only where a rule asks for it.
 
 ```rp-figure
 kind: rule
@@ -80,6 +80,6 @@ A page that shows the charge before it lands belongs to the same idea. A subscri
 
 ## Where your next charge shows
 
-If you are on a trial or already subscribed, open your account page in the 30 days before your renewal and the date and amount are sitting there, in your own currency. Outside that window the quiet is the feature working, and a saved copy of everything you kept [outlasts the pages it came from](/blog/saved-articles-outlast-the-original-page) either way. A readlist of your own starts at [readplace.com](/).
+If you are on a trial or already subscribed, open your account page in the 30 days before your renewal and the date and amount are sitting there, in your own currency. Outside that window the quiet is the feature working, and a saved copy of everything you kept [outlasts the pages it came from](/blog/saved-articles-outlast-the-original-page?utm_source=blog-next-charge-shown-before-it-lands&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page) either way. A readlist of your own starts at [readplace.com](/?utm_source=blog-next-charge-shown-before-it-lands&utm_medium=internal&utm_content=home).
 
 Showing a price before someone subscribes is the easy half. Showing it before every charge after that is the half that counts.

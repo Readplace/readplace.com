@@ -10,6 +10,7 @@ import {
 	CheckoutSessionIdSchema,
 	CheckoutVariantSchema,
 } from "@packages/provider-contracts/hosted-checkout";
+import { BillingPlanSchema } from "@packages/provider-contracts/subscription-providers";
 import type {
 	ConsumePendingSignup,
 	DeletePendingSignupsByUser,
@@ -32,6 +33,7 @@ const PendingSignupRow = z.object({
 	/** z.string() for the same reason as `method`: an unrecognised variant on a
 	 * leftover row must not throw during the post-delete parse. Narrowed on read. */
 	variant: dynamoField(z.string()),
+	plan: dynamoField(z.string()),
 	createdAt: dynamoField(z.number()),
 });
 
@@ -75,7 +77,8 @@ export function initDynamoDbPendingSignup(deps: {
 				userId: signup.userId,
 				...(signup.returnUrl ? { returnUrl: signup.returnUrl } : {}),
 				...(signup.trialEndsAt ? { trialEndsAt: signup.trialEndsAt } : {}),
-				...(signup.variant ? { variant: signup.variant } : {})
+				...(signup.variant ? { variant: signup.variant } : {}),
+				...(signup.plan ? { plan: signup.plan } : {})
 			},
 		});
 	};
@@ -99,6 +102,7 @@ export function initDynamoDbPendingSignup(deps: {
 		const returnUrl = Attributes.returnUrl ?? undefined;
 		const trialEndsAt = Attributes.trialEndsAt ?? undefined;
 		const variant = CheckoutVariantSchema.safeParse(Attributes.variant);
+		const plan = BillingPlanSchema.safeParse(Attributes.plan);
 		const signup: PendingSignup = {
 			method: "existing-user-subscribe",
 			email: Attributes.email,
@@ -106,6 +110,7 @@ export function initDynamoDbPendingSignup(deps: {
 			...(returnUrl ? { returnUrl } : {}),
 			...(trialEndsAt ? { trialEndsAt } : {}),
 			...(variant.success ? { variant: variant.data } : {}),
+			...(plan.success ? { plan: plan.data } : {}),
 		};
 		return signup;
 	};

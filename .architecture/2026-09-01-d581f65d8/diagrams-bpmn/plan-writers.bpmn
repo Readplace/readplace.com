@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_plan_writers" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_plan_writers" name="plan-writers" isExecutable="false">
+    <bpmn:sendTask id="n_U" name="Reader picks a tier — subscribe-plans popover on /account or the queue banner">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_C1" name="POST /account/subscribe body plan optional, unknown value = 400">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_S1" name="hutch web · pickSubscribeBranch on row.status">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_ROW0" name="subscription_providers row"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_B1" name="startCheckout plan = chosen ?? yearly default trial preserved when time remains">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_B2" name="one-click resubscribe plan = chosen ?? row.plan ?? yearly default">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_NOOP" name="303 back to /account">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_CK" name="Stripe Checkout session price = stripePriceIds of plan">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:incoming>f_17</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_PS" name="pending_signups row plan attribute"></bpmn:dataStoreReference>
+    <bpmn:sendTask id="n_C2" name="GET /auth/checkout/success">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_S2" name="hutch web · consumePendingSignup, then delete trial schedules, create charge reminder">
+      <bpmn:incoming>f_10</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_ROWA" name="subscription_providers status=active, plan recorded"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_SC" name="Stripe POST /v1/subscriptions price = stripePriceIds of plan">
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_W2" name="upsertActive with plan — synchronous, no event">
+      <bpmn:incoming>f_14</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_B1F" name="checkout fallback, same resolved plan">
+      <bpmn:incoming>f_16</bpmn:incoming>
+      <bpmn:outgoing>f_17</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_U" targetRef="n_C1" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_C1" targetRef="n_S1" />
+    <bpmn:sequenceFlow id="f_3" name="trialing" sourceRef="n_S1" targetRef="n_B1" />
+    <bpmn:sequenceFlow id="f_4" name="cancelled with customerId" sourceRef="n_S1" targetRef="n_B2" />
+    <bpmn:sequenceFlow id="f_5" name="cancelled without customerId" sourceRef="n_S1" targetRef="n_B1" />
+    <bpmn:sequenceFlow id="f_6" name="active or pending — noop" sourceRef="n_S1" targetRef="n_NOOP" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_B1" targetRef="n_CK" />
+    <bpmn:sequenceFlow id="f_9" name="payment completes" sourceRef="n_CK" targetRef="n_C2" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_C2" targetRef="n_S2" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_B2" targetRef="n_SC" />
+    <bpmn:sequenceFlow id="f_14" name="2xx" sourceRef="n_SC" targetRef="n_W2" />
+    <bpmn:sequenceFlow id="f_16" name="declined / throw" sourceRef="n_SC" targetRef="n_B1F" />
+    <bpmn:sequenceFlow id="f_17" name="" sourceRef="n_B1F" targetRef="n_CK" />
+    <bpmn:association id="f_2" sourceRef="n_ROW0" targetRef="n_S1" associationDirection="One" />
+    <bpmn:association id="f_8" sourceRef="n_B1" targetRef="n_PS" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_PS" targetRef="n_S2" associationDirection="One" />
+    <bpmn:association id="f_12" sourceRef="n_S2" targetRef="n_ROWA" associationDirection="One" />
+    <bpmn:association id="f_15" sourceRef="n_W2" targetRef="n_ROWA" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_plan_writers">
+    <bpmndi:BPMNPlane id="Plane_plan_writers" bpmnElement="Process_plan_writers">
+      <bpmndi:BPMNShape id="n_U_di" bpmnElement="n_U">
+        <dc:Bounds x="109.1" y="28" width="197" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_C1_di" bpmnElement="n_C1">
+        <dc:Bounds x="220.08" y="170" width="187.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_S1_di" bpmnElement="n_S1">
+        <dc:Bounds x="226.45" y="296" width="174.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ROW0_di" bpmnElement="n_ROW0">
+        <dc:Bounds x="342.11" y="37.25" width="176.44" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_B1_di" bpmnElement="n_B1">
+        <dc:Bounds x="28" y="422" width="193.5" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_B2_di" bpmnElement="n_B2">
+        <dc:Bounds x="257.5" y="438" width="186.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NOOP_di" bpmnElement="n_NOOP">
+        <dc:Bounds x="519.7" y="442.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CK_di" bpmnElement="n_CK">
+        <dc:Bounds x="220.08" y="832" width="187.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PS_di" bpmnElement="n_PS">
+        <dc:Bounds x="134.2" y="582.5" width="135.74" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_C2_di" bpmnElement="n_C2">
+        <dc:Bounds x="223.83" y="958" width="180" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_S2_di" bpmnElement="n_S2">
+        <dc:Bounds x="225.7" y="1068" width="176.25" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ROWA_di" bpmnElement="n_ROWA">
+        <dc:Bounds x="222.64" y="1226" width="182.38" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SC_di" bpmnElement="n_SC">
+        <dc:Bounds x="305.94" y="580" width="187.5" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_W2_di" bpmnElement="n_W2">
+        <dc:Bounds x="131.32" y="722" width="183.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_B1F_di" bpmnElement="n_B1F">
+        <dc:Bounds x="350.83" y="722" width="145.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="207.61" y="112" />
+        <di:waypoint x="207.61" y="141" />
+        <di:waypoint x="313.83" y="141" />
+        <di:waypoint x="313.83" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="313.83" y="238" />
+        <di:waypoint x="313.83" y="296" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="313.83" y="364" />
+        <di:waypoint x="313.83" y="393" />
+        <di:waypoint x="124.75" y="393" />
+        <di:waypoint x="124.75" y="422" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="313.83" y="364" />
+        <di:waypoint x="313.83" y="401" />
+        <di:waypoint x="350.63" y="401" />
+        <di:waypoint x="350.63" y="438" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="313.83" y="364" />
+        <di:waypoint x="313.83" y="393" />
+        <di:waypoint x="124.75" y="393" />
+        <di:waypoint x="124.75" y="422" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="313.83" y="364" />
+        <di:waypoint x="313.83" y="403.38" />
+        <di:waypoint x="539.7" y="403.38" />
+        <di:waypoint x="539.7" y="442.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="124.75" y="522" />
+        <di:waypoint x="124.75" y="677" />
+        <di:waypoint x="313.83" y="677" />
+        <di:waypoint x="313.83" y="832" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="313.83" y="900" />
+        <di:waypoint x="313.83" y="958" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="313.83" y="1010" />
+        <di:waypoint x="313.83" y="1068" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="350.63" y="506" />
+        <di:waypoint x="350.63" y="543" />
+        <di:waypoint x="399.69" y="543" />
+        <di:waypoint x="399.69" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="399.69" y="664" />
+        <di:waypoint x="399.69" y="693" />
+        <di:waypoint x="223.08" y="693" />
+        <di:waypoint x="223.08" y="722" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="399.69" y="664" />
+        <di:waypoint x="399.69" y="693" />
+        <di:waypoint x="423.58" y="693" />
+        <di:waypoint x="423.58" y="722" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="423.58" y="774" />
+        <di:waypoint x="423.58" y="803" />
+        <di:waypoint x="313.83" y="803" />
+        <di:waypoint x="313.83" y="832" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="430.33" y="85.25" />
+        <di:waypoint x="430.33" y="190.63" />
+        <di:waypoint x="313.83" y="190.63" />
+        <di:waypoint x="313.83" y="296" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="124.75" y="522" />
+        <di:waypoint x="124.75" y="552.25" />
+        <di:waypoint x="202.08" y="552.25" />
+        <di:waypoint x="202.08" y="582.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="202.08" y="630.5" />
+        <di:waypoint x="202.08" y="849.25" />
+        <di:waypoint x="313.83" y="849.25" />
+        <di:waypoint x="313.83" y="1068" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="313.83" y="1168" />
+        <di:waypoint x="313.83" y="1226" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="223.08" y="774" />
+        <di:waypoint x="223.08" y="1000" />
+        <di:waypoint x="313.83" y="1000" />
+        <di:waypoint x="313.83" y="1226" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

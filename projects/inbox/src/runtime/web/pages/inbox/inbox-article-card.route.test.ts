@@ -58,8 +58,8 @@ function expectBareUrlRow(card: Element): void {
 	const saveForm = save.closest("form");
 	assert(saveForm, "the save button must stay inside its form");
 	expect(saveForm.getAttribute("method")).toBe("POST");
-	expect(saveForm.getAttribute("action")).toBe(savePath);
-	expect(saveForm.getAttribute("hx-post")).toBe(savePath);
+	expect(saveForm.getAttribute("action")).toBe(`${savePath}?utm_source=inbox-link-card&utm_medium=internal&utm_content=save-link`);
+	expect(saveForm.getAttribute("hx-post")).toBe(`${savePath}?utm_source=inbox-link-card&utm_medium=internal&utm_content=save-link`);
 	expect(saveForm.getAttribute("hx-target")).toBe("#inbox-card-0000");
 	expect(saveForm.getAttribute("hx-swap")).toBe("outerHTML");
 	expect(saveForm.getAttribute("hx-disabled-elt")).toBe("find button");
@@ -419,7 +419,7 @@ describe("Inbox link card route", () => {
 
 			const form = saveButton(response.text).closest("form");
 			expect(form?.getAttribute("action")).toBe(
-				`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
+				`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-link-card&utm_medium=internal&utm_content=save-link`,
 			);
 			expect(form?.getAttribute("method")).toBe("POST");
 			expect(form?.getAttribute("hx-disabled-elt")).toBe("find button");

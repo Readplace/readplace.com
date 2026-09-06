@@ -24,6 +24,7 @@ export function buildAccountUrl(params?: {
 	return qs ? `/account?${qs}` : "/account";
 }
 
+export const ACCOUNT_APPEARANCE_URL = "/account/appearance";
 export const ACCOUNT_CANCEL_URL = "/account/cancel";
 export const ACCOUNT_DELETE_URL = "/account/delete";
 export const ACCOUNT_REACTIVATE_URL = "/account/reactivate";
@@ -31,6 +32,8 @@ export const ACCOUNT_STATUS_URL = "/account/status";
 export const ACCOUNT_EXPORT_URL = "/export";
 export const ACCOUNT_SUBSCRIBE_URL = "/account/subscribe";
 export const ACCOUNT_ERROR_PAYMENT_METHOD_URL = "/account?error=payment_method";
+
+export const ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL = "/account?error=subscribe_failed";
 
 export function buildAccountStatusPollUrl(pollCount: number): string {
 	return `${ACCOUNT_STATUS_URL}?cancelling=1&poll=${pollCount}`;

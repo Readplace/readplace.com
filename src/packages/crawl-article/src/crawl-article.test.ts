@@ -13,6 +13,7 @@ import type { CurlFetch } from "./curl-fetch";
 import { redirectable, type RedirectableFetch } from "./follow-redirects";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
+import { MAX_HTML_BYTES } from "./html-body-limit";
 import type { Persona } from "./persona-fallback";
 import { initXTwitterSiteRules } from "./x-twitter-site-rules";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
@@ -490,7 +491,11 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed", finalUrl: "https://example.com" });
+		expect(result).toEqual({
+			status: "failed",
+			finalUrl: "https://example.com",
+			failure: { kind: "fetch-failed", httpStatus: 500 },
+		});
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 500 for https://example.com");
 	});
 
@@ -509,7 +514,11 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed", finalUrl: "https://example.com" });
+		expect(result).toEqual({
+			status: "failed",
+			finalUrl: "https://example.com",
+			failure: { kind: "origin-unreachable", httpStatus: 503 },
+		});
 		expect(logError).toHaveBeenCalledWith(
 			"[CrawlArticle] HTTP 503 for https://example.com (server=cloudflare, cf-mitigated=challenge, cf-ray=9560a1b2c3d4e5f6-SYD)",
 		);
@@ -753,7 +762,10 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({
+			status: "failed",
+			failure: { kind: "origin-unreachable", code: "ECONNREFUSED" },
+		});
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Network error for https://example.com", networkError);
 	});
 
@@ -964,7 +976,11 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: WRAPPER_URL });
 
-		expect(result).toEqual({ status: "failed", finalUrl: DESTINATION_URL });
+		expect(result).toEqual({
+			status: "failed",
+			finalUrl: DESTINATION_URL,
+			failure: { kind: "fetch-failed" },
+		});
 		expect(logError).toHaveBeenCalledTimes(1);
 		const [loggedMessage, loggedError] = logError.mock.calls[0];
 		expect(loggedMessage).toBe(`[CrawlArticle] Network error for ${WRAPPER_URL} → ${DESTINATION_URL}`);
@@ -1217,7 +1233,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 		const startedAt = Date.now();
 		const result = await crawlArticle({ url: "https://example.com/huge.pdf" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "failed", failure: { kind: "fetch-failed" } });
 		expect(curlCalls).toEqual(["https://example.com/huge.pdf"]);
 		expect(Date.now() - startedAt).toBeLessThan(1000);
 		expect(logError).toHaveBeenCalledTimes(1);
@@ -1247,7 +1263,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "failed", failure: { kind: "fetch-failed" } });
 		expect(logError).toHaveBeenCalledTimes(1);
 		const loggedError = logError.mock.calls[0][1];
 		assert(loggedError instanceof Error, "Expected the body timeout to be logged as an Error");
@@ -1286,6 +1302,62 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 			status: "unsupported",
 			reason: "unsupported content type: application/pdf",
 		});
+	});
+});
+
+describe("initCrawlArticle — oversized HTML body cap", () => {
+	it("refuses an HTML body larger than the cap as content-too-large before parsing", async () => {
+		const oversizeBytes = MAX_HTML_BYTES.bytes + 1;
+		const body = Buffer.alloc(oversizeBytes, 0x61);
+		const fakeFetch: typeof fetch = async () =>
+			new Response(body, { status: 200, headers: { "content-type": "text/html" } });
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+
+		const result = await crawlArticle({ url: "https://example.com/huge-index" });
+
+		expect(result).toEqual({
+			status: "unsupported",
+			reason: `content body too large: ${oversizeBytes} bytes (cap ${MAX_HTML_BYTES.bytes} bytes)`,
+			unsupportedReason: { kind: "content-too-large", bytes: oversizeBytes },
+		});
+		expect(logError).toHaveBeenCalledWith(
+			`[CrawlArticle] Body too large (${oversizeBytes} bytes, cap ${MAX_HTML_BYTES.label}) for https://example.com/huge-index`,
+		);
+	});
+
+	it("never applies the HTML cap to a PDF, so a PDF well past it still reaches the extractor", async () => {
+		const oversizePdf = Buffer.concat([PDF_MAGIC_BUFFER, Buffer.alloc(MAX_HTML_BYTES.bytes, 0x20)]);
+		const extractPdf: ExtractPdf = async () => ({
+			kind: "fetched",
+			html: "<html><body><p>Extracted from a very large PDF.</p></body></html>",
+			title: "Large PDF",
+		});
+		const fakeFetch: typeof fetch = async () =>
+			new Response(oversizePdf, { status: 200, headers: { "content-type": "application/pdf" } });
+		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
+
+		const result = await crawlArticle({ url: "https://example.com/big.pdf" });
+
+		assertFetched(result);
+		expect(result.html).toBe("<html><body><p>Extracted from a very large PDF.</p></body></html>");
+	});
+
+	it("classifies a PDF mislabelled text/html by its magic bytes, so the HTML cap cannot reject it", async () => {
+		const oversizePdf = Buffer.concat([PDF_MAGIC_BUFFER, Buffer.alloc(MAX_HTML_BYTES.bytes, 0x20)]);
+		const extractPdf: ExtractPdf = async () => ({
+			kind: "fetched",
+			html: "<html><body><p>Sniffed as PDF despite the header.</p></body></html>",
+			title: "Mislabelled PDF",
+		});
+		const fakeFetch: typeof fetch = async () =>
+			new Response(oversizePdf, { status: 200, headers: { "content-type": "text/html" } });
+		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
+
+		const result = await crawlArticle({ url: "https://example.com/mislabelled.pdf" });
+
+		assertFetched(result);
+		expect(result.html).toBe("<html><body><p>Sniffed as PDF despite the header.</p></body></html>");
 	});
 });
 

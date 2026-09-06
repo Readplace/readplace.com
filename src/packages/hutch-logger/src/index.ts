@@ -66,6 +66,7 @@ export const noopLogger: HutchLogger = {
  */
 export function formatErrorLogLine(input: {
 	message: string;
+	url?: string;
 	error?: Error;
 	now: () => Date;
 }): string {
@@ -75,6 +76,7 @@ export function formatErrorLogLine(input: {
 		level: "ERROR",
 		timestamp: input.now().toISOString(),
 		message: input.message,
+		url: input.url,
 		...serializeError(input.error),
 	});
 }

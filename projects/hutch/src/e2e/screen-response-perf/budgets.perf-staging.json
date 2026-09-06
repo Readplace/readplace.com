@@ -75,7 +75,7 @@
         "shas": ["6c8bbf9d"],
         "recordedAt": "2026-08-28T06:00:03.000Z"
       },
-      "note": "budgetMs is baseline.maxMs rounded up to the next 50ms — 6.4% above the worst run the soak saw. The soak spanned 347 to 564ms with a 414ms median max. Ratchet target when visible cards are prefetched; expect responseStart to collapse on a prefetch hit."
+      "note": "The open is now a boosted same-document swap that paints a reader skeleton after 150ms and fills it asynchronously; the sample carries beforeRequest/afterSwap/afterSettle phases rather than a document hop. The baseline below predates that change (a new-document open) — re-record it from the first same-document soak before ratcheting."
     },
     "back-to-readlist": {
       "level": "error",

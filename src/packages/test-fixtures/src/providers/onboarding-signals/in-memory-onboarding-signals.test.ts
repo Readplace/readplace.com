@@ -11,7 +11,9 @@ const NOTHING_RECORDED = {
 		android: { installed: false, savedArticle: false },
 	},
 	nextReadMinimumReachedAt: undefined,
-	nextReadStepOutstandingAt: undefined,
+	firstInboxArticleQueuedAt: undefined,
+	emailStepMarkedDoneAt: undefined,
+	onboardingOutstandingVersion: undefined,
 	markReadAcrossQueuesAckedAt: undefined,
 };
 
@@ -91,14 +93,34 @@ describe("initInMemoryOnboardingSignals", () => {
 		expect(signals.nextReadMinimumReachedAt).toEqual(FIRST);
 	});
 
-	it("marks the step outstanding set-once with the injected clock", async () => {
+	it("stamps the first inbox article set-once with the injected clock", async () => {
 		const store = storeAt(FIRST, LATER);
 
-		await store.recordNextReadStepOutstanding({ userId: USER });
-		await store.recordNextReadStepOutstanding({ userId: USER });
+		await store.recordInboxArticleQueued({ userId: USER });
+		await store.recordInboxArticleQueued({ userId: USER });
 
 		const signals = await store.getOnboardingSignals({ userId: USER });
-		expect(signals.nextReadStepOutstandingAt).toEqual(FIRST);
+		expect(signals.firstInboxArticleQueuedAt).toEqual(FIRST);
+	});
+
+	it("stamps the email step marked-done set-once with the injected clock", async () => {
+		const store = storeAt(FIRST, LATER);
+
+		await store.recordEmailStepMarkedDone({ userId: USER });
+		await store.recordEmailStepMarkedDone({ userId: USER });
+
+		const signals = await store.getOnboardingSignals({ userId: USER });
+		expect(signals.emailStepMarkedDoneAt).toEqual(FIRST);
+	});
+
+	it("keeps the newest outstanding version, overwriting the previous one", async () => {
+		const store = storeAt(FIRST);
+
+		await store.recordOnboardingOutstandingVersion({ userId: USER, version: "aaaa1111" });
+		await store.recordOnboardingOutstandingVersion({ userId: USER, version: "bbbb2222" });
+
+		const signals = await store.getOnboardingSignals({ userId: USER });
+		expect(signals.onboardingOutstandingVersion).toBe("bbbb2222");
 	});
 
 	it("stamps the mark-read acknowledgement set-once with the injected clock", async () => {
@@ -141,14 +163,45 @@ describe("initInMemoryOnboardingSignals", () => {
 		expect(signals.deleteArticleAckedAt).toBeUndefined();
 	});
 
-	it("clears the outstanding marker on deleteOnboarding", async () => {
+	it("clears the inbox, marked-done and version stamps on deleteOnboarding", async () => {
 		const store = storeAt(FIRST);
-		await store.recordNextReadStepOutstanding({ userId: USER });
+		await store.recordInboxArticleQueued({ userId: USER });
+		await store.recordEmailStepMarkedDone({ userId: USER });
+		await store.recordOnboardingOutstandingVersion({ userId: USER, version: "aaaa1111" });
 
 		await store.deleteOnboarding({ userId: USER });
 
 		const signals = await store.getOnboardingSignals({ userId: USER });
-		expect(signals.nextReadStepOutstandingAt).toBeUndefined();
+		expect(signals.firstInboxArticleQueuedAt).toBeUndefined();
+		expect(signals.emailStepMarkedDoneAt).toBeUndefined();
+		expect(signals.onboardingOutstandingVersion).toBeUndefined();
+	});
+
+	it("claims the first-inbox-email marker once, then reports already-sent", async () => {
+		const store = storeAt(FIRST);
+
+		const first = await store.markFirstInboxEmailNoticeSent({
+			userId: USER,
+			sentAt: FIRST.toISOString(),
+		});
+		const second = await store.markFirstInboxEmailNoticeSent({
+			userId: USER,
+			sentAt: LATER.toISOString(),
+		});
+
+		expect(first).toBe("claimed");
+		expect(second).toBe("already-sent");
+	});
+
+	it("lets the marker be claimed again after deleteOnboarding clears it", async () => {
+		const store = storeAt(FIRST);
+		await store.markFirstInboxEmailNoticeSent({ userId: USER, sentAt: FIRST.toISOString() });
+
+		await store.deleteOnboarding({ userId: USER });
+
+		expect(
+			await store.markFirstInboxEmailNoticeSent({ userId: USER, sentAt: LATER.toISOString() }),
+		).toBe("claimed");
 	});
 
 	it("tracks signals per user independently", async () => {

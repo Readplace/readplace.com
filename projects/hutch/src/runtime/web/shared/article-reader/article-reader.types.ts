@@ -18,6 +18,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { ProgressTick, SaveProvenance } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
+import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ReaderReadlistTags } from "../article-body/article-header/article-header.component";
 
 export type ReaderViewFailedOob = () => string;
@@ -81,7 +82,7 @@ export interface ReaderState {
 	summary: GeneratedSummary | undefined;
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
-	capturePollUrl: string;
+	capturePollUrl: string | undefined;
 	/**
 	 * Single unified progress tick driving the article-body progress bar.
 	 * Computed from whichever pipeline (crawl → summary) is in flight,
@@ -97,6 +98,7 @@ export interface ReaderState {
 	 */
 	crawlVersions: LocalTime[];
 	readerViewFailed: boolean;
+	notice: ReaderFailedVariant | undefined;
 }
 
 export interface ResolveReaderStateParams {

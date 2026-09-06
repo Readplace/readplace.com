@@ -14,7 +14,7 @@ const cacheDir = join(projectRoot, ".cache", "chrome");
 mkdirSync(cacheDir, { recursive: true });
 
 // The self-hosted runner image bakes Chrome-for-Testing + chromedriver (see the
-// .github/runner Dockerfile) so jobs skip the ~150 MB download. When that bake
+// .github/runner Dockerfile) so jobs skip the download. When that bake
 // is present, reuse it by copying the recorded paths into the workspace cache;
 // otherwise fall through to the normal download (hosted runners, local dev).
 const bakedDir = process.env.CFT_BAKED_DIR;
@@ -31,7 +31,7 @@ if (
 
 const chromeOutput = execSync(
   `npx @puppeteer/browsers install chrome@stable --path "${cacheDir}"`,
-  { encoding: "utf8", timeout: 120_000, stdio: ["pipe", "pipe", "inherit"] },
+  { encoding: "utf8", timeout: 600_000, stdio: ["pipe", "pipe", "inherit"] },
 );
 
 // Output format: "chrome@{version} {path}" — path may contain spaces
@@ -46,7 +46,7 @@ console.log(`Chrome for Testing: ${chromeBinaryPath}`);
 
 const driverOutput = execSync(
   `npx @puppeteer/browsers install chromedriver@${chromeVersion} --path "${cacheDir}"`,
-  { encoding: "utf8", timeout: 120_000, stdio: ["pipe", "pipe", "inherit"] },
+  { encoding: "utf8", timeout: 600_000, stdio: ["pipe", "pipe", "inherit"] },
 );
 
 const driverLastLine = driverOutput.trim().split("\n").pop();

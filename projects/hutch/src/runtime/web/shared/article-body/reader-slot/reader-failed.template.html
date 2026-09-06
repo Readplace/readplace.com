@@ -3,7 +3,7 @@
   <p class="article-body__reader-notice-text">{{explanation}}</p>
   <div class="article-body__reader-notice-actions">
     <a class="btn btn--primary article-body__reader-notice-link" href="{{url}}" target="_blank" rel="noopener" data-test-reader-failed-primary data-test-reader-action="open">
-      Read it on {{hostname}} {{icon "arrow-right"}}
+      {{ctaLabel}} {{icon "arrow-right"}}
     </a>
     {{#if showCapture}}
     <button type="button" class="btn btn--secondary article-body__reader-notice-capture" data-reader-capture{{#if capturePollUrl}} data-reader-capture-poll="{{capturePollUrl}}"{{/if}} data-test-reader-action="capture">

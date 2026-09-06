@@ -5,6 +5,7 @@ import { initCreateDeepseekMessage } from "@packages/ai-message";
 import { deriveSanitizedBody, EMAIL_LINK_ORDINAL_CAPACITY, parseEmail } from "@packages/domain/inbox";
 import {
 	CrawlEmailLinkPreview,
+	SendFirstInboxEmailNoticeCommand,
 	SendTrialFeedbackEmailCommand,
 	SubmitLinkCommand,
 } from "@packages/hutch-infra-components";
@@ -89,6 +90,8 @@ export const handler = initExtractEmailLinksHandler({
 			receivedAtMessageId,
 			inboxAddress,
 		}),
+	publishFirstInboxEmailNotice: (input) =>
+		publishEvent(SendFirstInboxEmailNoticeCommand, input),
 	findSubscriptionByUserId: findByUserId,
 	now: () => new Date(),
 	triageEmailLinks,

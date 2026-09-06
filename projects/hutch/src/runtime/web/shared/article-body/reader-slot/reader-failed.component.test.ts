@@ -10,9 +10,26 @@ function parse(html: string) {
 		.document;
 }
 
+const ALL_VARIANTS = [
+	"failed",
+	"unsupported",
+	"slow",
+	"blocked",
+	"origin-down",
+	"not-found",
+	"not-an-article",
+] as const satisfies readonly ReaderFailedVariant[];
+
+function ctaLabelFor(variant: ReaderFailedVariant): string {
+	const doc = parse(
+		renderReaderFailed({ url: "https://example.com/some-article", variant }),
+	);
+	return doc.querySelector("[data-test-reader-failed-primary]")?.textContent?.trim() ?? "";
+}
+
 describe("renderReaderFailed", () => {
 	it("renders the reassuring 'Your link is saved' title regardless of variant", () => {
-		for (const variant of ["failed", "unsupported", "slow", "blocked", "not-found"] as const) {
+		for (const variant of ALL_VARIANTS) {
 			const doc = parse(
 				renderReaderFailed({ url: "https://example.com/post", variant }),
 			);
@@ -46,7 +63,9 @@ describe("renderReaderFailed", () => {
 			["failed", /blocking automated fetches/],
 			["slow", /taking longer than usual/],
 			["blocked", /Open it in your browser/],
+			["origin-down", /its server was down, not blocking us/],
 			["not-found", /no longer exists at this address/],
+			["not-an-article", /This link isn't an article, so there's no reader view\./],
 		];
 		for (const [variant, expected] of cases) {
 			const doc = parse(
@@ -61,7 +80,7 @@ describe("renderReaderFailed", () => {
 	});
 
 	it("exposes the variant on the slot via data-reader-status (so tests can pin behaviour per variant)", () => {
-		for (const variant of ["failed", "unsupported", "slow", "blocked", "not-found"] as const) {
+		for (const variant of ALL_VARIANTS) {
 			const doc = parse(
 				renderReaderFailed({ url: "https://example.com/post", variant }),
 			);
@@ -83,10 +102,13 @@ describe("renderReaderFailed", () => {
 
 			const installCta = doc.querySelector("[data-test-reader-failed-install]");
 			assert(installCta, `install CTA must be rendered for variant=${variant}`);
-			assert.equal(installCta.getAttribute("href"), "/install?client=chrome");
+			assert.equal(
+				installCta.getAttribute("href"),
+				`/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-${variant}`,
+			);
 			assert.match(
 				doc.body.textContent ?? "",
-				/Tip: the browser extension and phone apps capture the full page in one tap/,
+				/Tip: the browser extension and the iPhone app capture the full page in one tap/,
 			);
 		}
 	});
@@ -102,7 +124,7 @@ describe("renderReaderFailed", () => {
 		}
 
 		assert.deepEqual(actionsFor("blocked"), ["open", "capture"]);
-		for (const variant of ["failed", "unsupported", "slow", "not-found"] as const) {
+		for (const variant of ["failed", "unsupported", "slow", "origin-down", "not-found", "not-an-article"] as const) {
 			assert.deepEqual(actionsFor(variant), ["open"], `actions for variant=${variant}`);
 		}
 	});
@@ -112,7 +134,7 @@ describe("renderReaderFailed", () => {
 			renderReaderFailed({
 				url: "https://example.com/post",
 				variant: "not-found",
-				extensionInstallUrl: "/install?client=chrome",
+				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
 		);
 
@@ -122,12 +144,31 @@ describe("renderReaderFailed", () => {
 		assert.doesNotMatch(doc.body.textContent ?? "", /capture the full page in one tap/);
 	});
 
+	it("withholds the extension pitch on the origin-down variant — the reader's own browser would hit the same dead origin", () => {
+		const doc = parse(
+			renderReaderFailed({
+				url: "https://example.com/post",
+				variant: "origin-down",
+				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "slot must render so the absence check is meaningful");
+		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
+		assert.doesNotMatch(doc.body.textContent ?? "", /blocking automated fetches/);
+	});
+
+	it("labels the origin-down CTA 'Try it on <host>', not 'Read it on', because the page just failed to load", () => {
+		assert.equal(ctaLabelFor("origin-down"), "Try it on example.com");
+	});
+
 	it("never blames a bot wall on the not-found variant — the 404 copy must not send the reader after a fix that cannot work", () => {
 		const doc = parse(
 			renderReaderFailed({
 				url: "https://example.com/post",
 				variant: "not-found",
-				extensionInstallUrl: "/install?client=chrome",
+				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
 		);
 
@@ -153,6 +194,31 @@ describe("renderReaderFailed", () => {
 			doc.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
 			"https://example.com/some-article",
 		);
+	});
+
+	it("names the source host in the primary CTA on every variant a fetch could still have worked for", () => {
+		for (const variant of ["failed", "unsupported", "slow", "blocked", "not-found"] as const) {
+			assert.equal(ctaLabelFor(variant), "Read it on example.com", `CTA for variant=${variant}`);
+		}
+	});
+
+	it("drops the host from the primary CTA on the not-an-article variant — there is nothing to read on it", () => {
+		assert.equal(ctaLabelFor("not-an-article"), "View the link");
+	});
+
+	it("withholds the extension pitch on the not-an-article variant — a capture of a mail session is not an article either", () => {
+		const doc = parse(
+			renderReaderFailed({
+				url: "https://mail.google.com/mail/u/0/",
+				variant: "not-an-article",
+				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "slot must render so the absence check is meaningful");
+		assert.equal(slot.getAttribute("data-reader-status"), "not-an-article");
+		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
 	});
 
 	it("omits the extension install pitch when extensionInstallUrl is not provided (extension already installed)", () => {

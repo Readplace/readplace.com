@@ -40,7 +40,7 @@ describe("Save routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
 			assert(meta, "meta refresh must be rendered");
-			expect(meta.getAttribute("content")).toBe("5;url=/");
+			expect(meta.getAttribute("content")).toBe("5;url=/?utm_source=save-error&utm_medium=internal&utm_content=home");
 		});
 
 		it("should show a fallback link to home", async () => {
@@ -49,7 +49,7 @@ describe("Save routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const link = doc.querySelector(".save-error__link");
 			assert(link, "fallback link must be rendered");
-			expect(link.getAttribute("href")).toBe("/");
+			expect(link.getAttribute("href")).toBe("/?utm_source=save-error&utm_medium=internal&utm_content=home");
 		});
 	});
 
@@ -64,7 +64,7 @@ describe("Save routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
 			assert(meta, "meta refresh must be rendered");
-			expect(meta.getAttribute("content")).toBe("5;url=/queue");
+			expect(meta.getAttribute("content")).toBe("5;url=/queue?utm_source=save-error&utm_medium=internal&utm_content=back-to-queue");
 		});
 
 		it("should show a fallback link to queue", async () => {
@@ -74,7 +74,7 @@ describe("Save routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const link = doc.querySelector(".save-error__link");
 			assert(link, "fallback link must be rendered");
-			expect(link.getAttribute("href")).toBe("/queue");
+			expect(link.getAttribute("href")).toBe("/queue?utm_source=save-error&utm_medium=internal&utm_content=back-to-queue");
 		});
 
 		it("should display the countdown seconds", async () => {
@@ -98,7 +98,7 @@ describe("Save routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
 			assert(meta, "meta refresh must be rendered");
-			expect(meta.getAttribute("content")).toBe("5;url=/");
+			expect(meta.getAttribute("content")).toBe("5;url=/?utm_source=save-error&utm_medium=internal&utm_content=home");
 		});
 
 		it("should render an error page for an invalid URL when authenticated", async () => {
@@ -111,7 +111,7 @@ describe("Save routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
 			assert(meta, "meta refresh must be rendered");
-			expect(meta.getAttribute("content")).toBe("5;url=/queue");
+			expect(meta.getAttribute("content")).toBe("5;url=/queue?utm_source=save-error&utm_medium=internal&utm_content=back-to-queue");
 		});
 	});
 
@@ -128,7 +128,7 @@ describe("Save routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
 			assert(meta, "meta refresh must be rendered");
-			expect(meta.getAttribute("content")).toBe("5;url=/queue");
+			expect(meta.getAttribute("content")).toBe("5;url=/queue?utm_source=save-error&utm_medium=internal&utm_content=back-to-queue");
 		});
 	});
 
@@ -470,11 +470,15 @@ describe("Save routes", () => {
 			const intent = saveIntents(harness)[0];
 			assert(intent.pending_save_id, "the blocked save must mint a pending_save_id");
 
-			const signup = await agent.post("/signup").type("form").send({
-				email: "blocked-then-signed-up@example.com",
-				password: "password123",
-				loadedAt: String(Date.now() - 5000),
-			});
+			const signup = await agent
+				.post("/signup")
+				.set(BROWSER_REQUEST_HEADERS)
+				.type("form")
+				.send({
+					email: "blocked-then-signed-up@example.com",
+					password: "password123",
+					loadedAt: String(Date.now() - 5000),
+				});
 			expect(signup.status).toBe(303);
 
 			const conversion = harness.conversions.events.find((e) => e.event === "user_created");

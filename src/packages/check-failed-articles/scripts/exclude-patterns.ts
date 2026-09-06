@@ -153,6 +153,8 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// (c) Dead hosting platform — java.net was retired; the host serves a
 	// terminal 503.
 	/^https:\/\/jstl\.java\.net\/$/i,
+	// Website is down, returns 503.
+	/^https:\/\/www\.excelsiorspringsstandard\.com\/index\.php\/news\/school-district-selects-new-banking-depository$/i,
 	// (d) Redirects away from the saved content — the article is gone and the
 	// 30x lands on a section index or site root, so a recrawl would capture the
 	// wrong page. fastcodesign.com folded into fastcompany.com's co-design
@@ -252,6 +254,11 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// recurs as canary noise on bulk imports.
 	/^https:\/\/web\.archive\.org\/web\/20180630081250\/https:\/{1,2}www\.abu\.org\.my\/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia\.aspx$/i,
 	/^https:\/\/news\.ycombinator\.com\/item$/i,
+	// Same stored row shape as the `/item` entry above: `/user` with no `id`
+	// query is not a profile, so HN has nothing to serve (it answers 429
+	// "Sorry." to datacenter egress; `?id=<user>` returns 200). Anchored exact
+	// so real profile URLs still surface.
+	/^https:\/\/news\.ycombinator\.com\/user$/i,
 	// (j) Paths that never existed, minted by an anonymous `/view` first visit
 	// rather than by anyone saving them (issue #1066). fagnerbrack.com is Medium
 	// on a custom domain and resolves a post only by its trailing 12-hex id, so
@@ -267,6 +274,10 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// and any future genuine block of them, still surface.
 	/^https:\/\/fagnerbrack\.com\/x$/i,
 	/^https:\/\/fagnerbrack\.com\/business-success$/i,
+	// Medium `/null` junk path (cf. fagnerbrack.com/null, issue #1066): the host
+	// blog.cloudboost.io no longer resolves, and `/null` was never a real page, so
+	// a recrawl can never land. Anchored exact so a genuine post still surfaces.
+	/^https:\/\/blog\.cloudboost\.io\/null$/i,
 	// (k) Origin unreachable behind its CDN: Cloudflare answers 530 for every
 	// request, from datacenter and residential egress alike, so no crawl can
 	// land. Stored as `exhausted-retries` because a 530 is neither a block nor a

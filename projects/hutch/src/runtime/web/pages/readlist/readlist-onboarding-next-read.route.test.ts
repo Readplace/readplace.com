@@ -153,6 +153,9 @@ describe("Readlist onboarding — Next Read milestone", () => {
 			},
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist");
+		await fixture.onboardingSignals.recordInboxArticleQueued({ userId: user.userId });
 		// The reader has to have seen the step outstanding for finishing it to
 		// mean anything; a readlist that was already deep enough earns no card.
 		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", EXTENSION_COOKIES);
@@ -172,8 +175,12 @@ describe("Readlist onboarding — Next Read milestone", () => {
 	});
 
 	it("keeps the card away from a reader whose readlist was already deep enough", async () => {
-		const harness = useApp(countingFixture(NEXT_READ_MINIMUM_SAVES).fixture);
+		const counting = countingFixture(NEXT_READ_MINIMUM_SAVES);
+		const harness = useApp(counting.fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist");
+		await counting.fixture.onboardingSignals.recordInboxArticleQueued({ userId: user.userId });
 
 		const response = await agent
 			.get("/queue")

@@ -107,6 +107,45 @@ describe("saveArticleFromUrl", () => {
 		});
 	});
 
+	it("saves the bookmark and primes nothing when the link's host can never hold an article", async () => {
+		const tracker = makeTracker();
+
+		const result = await initSaveArticleFromUrl(tracker.deps)({
+			userId,
+			url: SaveableUrlSchema.parse("https://mail.google.com/mail/u/0/"),
+			provenance,
+			savedAt: operationSavedAt,
+			freshness: { action: "new" },
+		});
+
+		expect(result.createdUserArticle).toBe(true);
+		expect(tracker.calls).toEqual({
+			markCrawlPending: 0,
+			markSummaryPending: 0,
+			publishUpdateFetchTimestamp: 0,
+			publishLinkSaved: 0,
+			publishLinkQueued: 1,
+			publishQueueEntryCreated: 1,
+			updateArticleStatusUnread: 0,
+		});
+	});
+
+	it("re-marks a gated save unread when the reader had already read that bookmark", async () => {
+		const tracker = makeTracker(makeSaved({ status: "read", readAt: operationSavedAt }));
+
+		const result = await initSaveArticleFromUrl(tracker.deps)({
+			userId,
+			url: SaveableUrlSchema.parse("https://mail.google.com/mail/u/0/"),
+			provenance,
+			savedAt: operationSavedAt,
+			freshness: { action: "new" },
+		});
+
+		expect(result.saved.status).toBe("unread");
+		expect(tracker.calls.updateArticleStatusUnread).toBe(1);
+		expect(tracker.calls.publishLinkSaved).toBe(0);
+	});
+
 	it("keys the save + crawl + link-saved on the alias target when the URL resolves to a different identity", async () => {
 		const tracker = makeTracker();
 		const keyedOn: string[] = [];

@@ -1,4 +1,4 @@
-import { calculateReadTime, stubMetadataFor } from "@packages/domain/article";
+import { calculateReadTime, isNonArticleHost, stubMetadataFor } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
@@ -85,6 +85,13 @@ async function saveByFreshness(
 			provenance,
 			savedAt,
 		});
+		if (isNonArticleHost(url)) {
+			return {
+				saved: await markUnreadIfRead(deps.updateArticleStatus, { saved, wroteUserArticle }),
+				createdUserArticle,
+				wroteUserArticle,
+			};
+		}
 		await deps.markCrawlPending({ url });
 		await deps.markSummaryPending({ url });
 		const [unread] = await Promise.all([

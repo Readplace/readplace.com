@@ -52,6 +52,12 @@ function pickerOptions(doc: Document): (string | null)[] {
 	);
 }
 
+function pickerRows(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-readlists-row]"), (el) =>
+		el.getAttribute("data-test-readlists-row"),
+	);
+}
+
 function readlistTags(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-readlist-tag]"), (el) =>
 		el.getAttribute("data-test-readlist-tag"),
@@ -76,14 +82,16 @@ function listedArticleIds(doc: Document): (string | null)[] {
 }
 
 describe("the reader's add-to-readlist control", () => {
-	it("stays hidden for a reader with only the default readlist", async () => {
+	it("shows only the create row for a reader with no readlists yet", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveArticle(agent, "https://example.com/a");
 
 		const doc = await openReader(agent, articleId);
 
-		expect(pickerSlot(doc).classList.contains("article-body__readlists-slot--hidden")).toBe(true);
+		expect(pickerSlot(doc).classList.contains("article-body__readlists-slot--visible")).toBe(true);
+		expect(pickerOptions(doc)).toEqual([]);
+		expect(pickerRows(doc)).toEqual(["create"]);
 		expect(readlistTags(doc)).toEqual([]);
 	});
 

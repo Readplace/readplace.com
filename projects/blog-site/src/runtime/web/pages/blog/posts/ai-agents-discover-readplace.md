@@ -48,4 +48,4 @@ Readplace adds a content signal to its `robots.txt`: `search=yes, ai-input=yes, 
 
 People ask assistants like Claude, ChatGPT, and Perplexity to fetch articles, summarise them, and save them for later. A service an agent can find and use gets recommended and used. One that hides its API gets skipped. These files cost a few kilobytes, and they put Readplace on the short list when an agent goes looking for a place to save or read an article.
 
-Save your first article, then try reaching it from your assistant. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).
+Save your first article, then try reaching it from your assistant. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/?utm_source=blog-ai-agents-discover-readplace&utm_medium=internal&utm_content=home).

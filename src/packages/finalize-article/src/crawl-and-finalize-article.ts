@@ -1,4 +1,9 @@
-import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
+import {
+	type CrawlArticle,
+	type CrawlUnsupportedReason,
+	type FetchFailureClassification,
+	resolveDocumentUrl,
+} from "@packages/crawl-article";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { FinalizeArticle, FinalizedArticle } from "./finalize-article";
 
@@ -15,10 +20,15 @@ export type CrawlAndFinalizeResult =
 			bodyHash: string;
 		}
 	| { status: "not-modified" }
-	| { status: "failed"; reason: string; finalUrl?: string }
+	| {
+			status: "failed";
+			reason: string;
+			finalUrl?: string;
+			failure?: FetchFailureClassification;
+		}
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
-	| { status: "unsupported"; reason: string };
+	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason };
 
 export type CrawlAndFinalizeArticle = (params: {
 	url: string;
@@ -61,7 +71,11 @@ export function initCrawlAndFinalizeArticle(deps: {
 
 		if (crawlResult.status === "not-modified") return { status: "not-modified" };
 		if (crawlResult.status === "unsupported") {
-			return { status: "unsupported", reason: crawlResult.reason };
+			return {
+				status: "unsupported",
+				reason: crawlResult.reason,
+				unsupportedReason: crawlResult.unsupportedReason,
+			};
 		}
 		if (crawlResult.status === "not-found") {
 			return { status: "not-found", httpStatus: crawlResult.httpStatus, finalUrl: crawlResult.finalUrl };
@@ -70,7 +84,12 @@ export function initCrawlAndFinalizeArticle(deps: {
 			return { status: "blocked", httpStatus: crawlResult.httpStatus, finalUrl: crawlResult.finalUrl };
 		}
 		if (crawlResult.status === "failed") {
-			return { status: "failed", reason: "crawl-failed", finalUrl: crawlResult.finalUrl };
+			return {
+				status: "failed",
+				reason: "crawl-failed",
+				finalUrl: crawlResult.finalUrl,
+				failure: crawlResult.failure,
+			};
 		}
 
 		const finalized = await finalizeArticle({

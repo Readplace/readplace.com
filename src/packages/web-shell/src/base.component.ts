@@ -12,7 +12,8 @@ import {
 	TRIAL_COUNTDOWN_STYLES,
 	VERIFY_BANNER_STYLES,
 	UTILITY_STYLES,
-	LIGHT_ONLY_BODY_CLASS,
+	appearanceBodyClass,
+	type AppearanceSetting,
 } from "./base.styles";
 import { BASE_TEMPLATE } from "./base.template";
 import { FOOTER_TEMPLATE } from "./footer.template";
@@ -170,13 +171,23 @@ function renderMarkdown(body: PageBody): string {
  * injects the dev livereload script. Both are injected rather than read from
  * the environment so the package stays free of process.env coupling and can
  * be reused by sites that resolve these values differently. */
-/** Dark mode belongs to a signed-in reader; every logged-out page renders in the
- * light palette its design was drawn for, unless the page reads as a document
- * the viewer's own theme should govern. */
-function bodyClassFor(body: PageBody, isAuthenticated: boolean): string {
-	const pinsLight = !isAuthenticated && body.followsSystemTheme !== true;
-	const classes = [body.bodyClass, pinsLight ? LIGHT_ONLY_BODY_CLASS : undefined];
-	return classes.filter((name): name is string => name !== undefined).join(" ");
+interface ThemeColorMeta {
+	content: string;
+	media?: string;
+}
+
+const THEME_COLOR_METAS: Record<AppearanceSetting, ThemeColorMeta[]> = {
+	system: [
+		{ content: "#2B3A55", media: "(prefers-color-scheme: light)" },
+		{ content: "#121212", media: "(prefers-color-scheme: dark)" },
+	],
+	light: [{ content: "#2B3A55" }],
+	dark: [{ content: "#121212" }],
+};
+
+function resolveAppearance(body: PageBody, state: BannerState): AppearanceSetting {
+	if (state.isAuthenticated) return state.appearance ?? "system";
+	return body.followsSystemTheme ? "system" : "light";
 }
 
 export interface BaseConfig {
@@ -236,6 +247,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			? externalCanonicalUrl(seo.canonicalUrl)
 			: normalizeCanonicalUrl(seo.canonicalUrl);
 		const ogUrl = seo.ogUrl ? normalizeCanonicalUrl(seo.ogUrl) : canonicalUrl;
+		const appearance = resolveAppearance(body, state);
 
 		return render(BASE_TEMPLATE, {
 			staticBaseUrl: config.staticBaseUrl,
@@ -277,7 +289,8 @@ export function initBase(config: BaseConfig): RenderBase {
 				show: state.showExtensionSuggestionBanner ?? false,
 				extensionInstalled: state.extensionInstalled ?? false,
 			}),
-			bodyClass: bodyClassFor(body, state.isAuthenticated),
+			bodyClass: appearanceBodyClass(body.bodyClass, appearance),
+			themeColorMetas: THEME_COLOR_METAS[appearance],
 			header: config.renderNav({
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,

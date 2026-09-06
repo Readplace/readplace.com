@@ -32,7 +32,6 @@ import type {
 	DeleteReadlistArticle,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
-	ListSharedArticles,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -49,12 +48,12 @@ import type {
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
-	MarkLinkShared,
 	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	ContentProvider,
+	ReadArticleImage,
 	SaveArticle,
 	SaveArticleGlobally,
 	SaveArticleParams,
@@ -94,7 +93,6 @@ interface UserArticle {
 	emailSentAt?: Date;
 	lastSummaryOpenedAt?: Date;
 	lastSummaryClosedAt?: Date;
-	sharedAt?: Date;
 	provenance?: SaveProvenance;
 	relatedDismissedAt?: Date;
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
@@ -113,7 +111,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		status: userArticle.status,
 		savedAt: userArticle.savedAt,
 		readAt: userArticle.readAt,
-		sharedAt: userArticle.sharedAt,
+		contentFetchedAt: article.contentFetchedAt === undefined ? undefined : new Date(article.contentFetchedAt),
 		provenance: userArticle.provenance,
 		relatedDismissedAt: userArticle.relatedDismissedAt,
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
@@ -141,8 +139,6 @@ export function initInMemoryArticleStore(): {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
-	markLinkShared: MarkLinkShared;
-	listSharedArticles: ListSharedArticles;
 	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
@@ -170,6 +166,13 @@ export function initInMemoryArticleStore(): {
 	} | null>;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
+	readArticleImage: ReadArticleImage;
+	writeImage: (params: {
+		url: string;
+		filename: string;
+		body: Buffer;
+		contentType: string;
+	}) => Promise<void>;
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
@@ -184,6 +187,7 @@ export function initInMemoryArticleStore(): {
 	}) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
+	const articleImages = new Map<string, { body: Buffer; contentType: string }>();
 	const userArticles = new Map<string, UserArticle>();
 	const saveCursors = new Map<UserId, number>();
 	const readlistDefinitions = new Map<string, { userId: UserId; slug: ReadlistSlug; label: string; createdAt: Date }>();
@@ -617,32 +621,6 @@ export function initInMemoryArticleStore(): {
 		else ua.lastSummaryClosedAt = at;
 	};
 
-	const markLinkShared: MarkLinkShared = async ({ userId, url, at }) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
-		if (!ua) return;
-		ua.sharedAt = at;
-	};
-
-	const listSharedArticles: ListSharedArticles = async ({ userId }) => {
-		const shared = Array.from(userArticles.values()).filter(
-			(ua) => ua.userId === userId && ua.sharedAt !== undefined,
-		);
-		shared.sort((a, b) => {
-			assert(a.sharedAt, "a shared article must carry sharedAt");
-			assert(b.sharedAt, "a shared article must carry sharedAt");
-			return b.sharedAt.getTime() - a.sharedAt.getTime();
-		});
-		const result: SavedArticle[] = [];
-		for (const ua of shared) {
-			const article = articles.get(ua.url);
-			if (article) {
-				result.push(toSavedArticle(article, ua));
-			}
-		}
-		return result;
-	};
-
 	const markRelatedDismissed: MarkRelatedDismissed = async ({
 		userId,
 		url,
@@ -727,6 +705,23 @@ export function initInMemoryArticleStore(): {
 		article.content = params.content;
 	};
 
+	const readArticleImage: ReadArticleImage = async ({ url, filename }) => {
+		const key = ArticleResourceUniqueId.parse(url).toS3ImageKey(filename);
+		const image = articleImages.get(key);
+		if (!image) return undefined;
+		return image.body;
+	};
+
+	const writeImage = async (params: {
+		url: string;
+		filename: string;
+		body: Buffer;
+		contentType: string;
+	}) => {
+		const key = ArticleResourceUniqueId.parse(params.url).toS3ImageKey(params.filename);
+		articleImages.set(key, { body: params.body, contentType: params.contentType });
+	};
+
 	const writeMetadata = async (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
@@ -791,8 +786,6 @@ export function initInMemoryArticleStore(): {
 		updateArticleStatus,
 		markArticleViewed,
 		markSummaryToggled,
-		markLinkShared,
-		listSharedArticles,
 		markRelatedDismissed,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
@@ -815,6 +808,8 @@ export function initInMemoryArticleStore(): {
 		getSummaryToggleState,
 		readContent,
 		writeContent,
+		readArticleImage,
+		writeImage,
 		writeMetadata,
 		setContentSourceTier,
 		setContentFetchedAt,

@@ -201,12 +201,14 @@ describe("GET /embed", () => {
 		expect(source.textContent).toBe(renderCanonicalSnippet("b"));
 	});
 
-	it("should link the footer back to the Readplace app origin", async () => {
+	it("should link the footer back to the Readplace app origin, tagged so the click is attributable", async () => {
 		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const link = doc.querySelector('[data-test="link-app"]');
 		assert(link, "app link must be rendered");
-		expect(link.getAttribute("href")).toBe("https://readplace.com");
+		expect(link.getAttribute("href")).toBe(
+			"https://readplace.com/?utm_source=embed-footer&utm_medium=internal&utm_content=home",
+		);
 	});
 
 	it("should render the shared guest header nav when no session cookie resolves to a user", async () => {

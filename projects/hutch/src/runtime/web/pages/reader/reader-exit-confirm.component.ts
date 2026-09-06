@@ -1,5 +1,7 @@
 import { render, renderConfirmPopover } from "@packages/web-shell";
 
+export const READER_EXIT_CONFIRM_SCRIPT = `<script src="/client-dist/reader-exit-confirm.client.js" defer></script>`;
+
 const READER_EXIT_CONFIRM_ID = "reader-exit-confirm";
 
 const EXIT_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions" method="POST" action="{{postUrl}}" data-exit-confirm-form>

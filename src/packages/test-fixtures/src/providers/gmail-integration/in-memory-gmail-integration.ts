@@ -1,6 +1,7 @@
 import type { ForwardableSender } from "@packages/domain/gmail";
 import { aliasNameForSender } from "@packages/domain/gmail";
 import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
+import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { GmailIntegrationBundle } from "@packages/web-test-harness";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
@@ -11,6 +12,7 @@ import { initInMemoryGmailSender } from "../gmail-sender";
 
 export interface InMemoryGmailIntegration {
 	bundle: GmailIntegrationBundle;
+	addresses: InboxAddressStore;
 	exchangedCodes: string[];
 	rewriteRequests: { userId: UserId; reason: string }[];
 	disconnectRequests: { userId: UserId }[];
@@ -29,6 +31,7 @@ export function initInMemoryGmailIntegration(input: {
 	const disconnectRequests: { userId: UserId }[] = [];
 
 	return {
+		addresses,
 		exchangedCodes,
 		rewriteRequests,
 		disconnectRequests,
@@ -51,6 +54,7 @@ export function initInMemoryGmailIntegration(input: {
 				});
 				return entry.address;
 			},
+			findInboxAddress: addresses.findByAddress,
 			mintSenderAddress: async ({
 				userId,
 				senderEmail,

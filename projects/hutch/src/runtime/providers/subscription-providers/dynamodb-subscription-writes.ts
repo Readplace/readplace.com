@@ -50,10 +50,11 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, automationSavesHeldEmailSentAt, nextCharge",
+				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, automationSavesHeldEmailSentAt, nextCharge, #plan",
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
+				"#plan": "plan",
 			},
 			ExpressionAttributeValues: {
 				":provider": "stripe",
@@ -64,21 +65,29 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		});
 	};
 
-	const upsertActive: UpsertActiveSubscription = async ({ userId, subscriptionId, customerId }) => {
+	const upsertActive: UpsertActiveSubscription = async ({
+		userId,
+		subscriptionId,
+		customerId,
+		plan,
+	}) => {
 		const nowIso = deps.now().toISOString();
+		const planSet = plan === undefined ? "" : ", #plan = :plan";
+		const planRemove = plan === undefined ? ", #plan" : "";
 		await table.update({
 			Key: { userId },
-			UpdateExpression:
-				"SET #provider = :provider, #status = :status, subscriptionId = :subscriptionId, customerId = :customerId, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, automationSavesHeldEmailSentAt, nextCharge",
+			UpdateExpression: `SET #provider = :provider, #status = :status, subscriptionId = :subscriptionId, customerId = :customerId${planSet}, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, automationSavesHeldEmailSentAt, nextCharge${planRemove}`,
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
+				"#plan": "plan",
 			},
 			ExpressionAttributeValues: {
 				":provider": "stripe",
 				":status": "active",
 				":subscriptionId": subscriptionId,
 				":customerId": customerId,
+				...(plan === undefined ? {} : { ":plan": plan }),
 				":now": nowIso,
 			},
 		});

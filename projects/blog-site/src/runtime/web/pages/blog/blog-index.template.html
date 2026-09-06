@@ -5,7 +5,7 @@
     <div class="blog__list">
       {{#each posts}}
       <article class="blog-card">
-        <a href="/blog/{{this.slug}}" class="blog-card__link">
+        <a href="{{this.href}}" class="blog-card__link">
           <h2 class="blog-card__title">{{this.title}}</h2>
           <time class="blog-card__date" datetime="{{this.date}}">{{this.formattedDate}}</time>
           <p class="blog-card__description">{{this.description}}</p>

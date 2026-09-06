@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
-import { initOnboardingSignals } from "./onboarding-signals/dynamodb-onboarding-signals";
+import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initDynamoDbReadlistDefinitions, initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -22,8 +22,9 @@ import { initDynamoDbGeneratedSummary, initDynamoDbRelatedArticles } from "@pack
 import { initDynamoDbArticleCrawl } from "@packages/article-store";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { initS3ReadContent } from "@packages/article-store";
+import { initS3ReadContent, initS3ReadArticleImage } from "@packages/article-store";
 import { initStripeSubscriptions } from "./stripe-subscriptions/stripe-subscriptions";
+import { initStripePrices } from "./stripe-prices/stripe-prices";
 import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-payment-methods";
 import { initAwsTrialScheduler } from "./trial-scheduler/aws-trial-scheduler";
 import { initReadArticleContent } from "@packages/article-store";
@@ -106,7 +107,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const appOriginForRedirect = input.appOrigin;
 	const resendApiKey = requireEnv("RESEND_API_KEY");
 	const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
-	const stripePriceId = requireEnv("STRIPE_PRICE_ID");
 	const stripePublishableKey = requireEnv("STRIPE_PUBLISHABLE_KEY");
 	const eventBusName = requireEnv("EVENT_BUS_NAME");
 	const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
@@ -137,6 +137,10 @@ export function initProdProviders(input: { appOrigin: string }) {
 			articleStore.readContent, // Legacy fallback for articles saved before S3 migration
 		],
 		logError,
+	});
+	const readArticleImage = initS3ReadArticleImage({
+		send: (cmd) => s3Client.send(cmd),
+		bucketName: contentBucketName,
 	});
 	const oauthClients = initDynamoDbOAuthClients({ client, tableName: oauthTable, now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
@@ -223,10 +227,13 @@ export function initProdProviders(input: { appOrigin: string }) {
 
 	const stripe = initStripeCheckout({
 		apiKey: stripeApiKey,
-		priceId: stripePriceId,
 		fetch: globalThis.fetch,
 	});
 	const stripeSubscriptions = initStripeSubscriptions({
+		apiKey: stripeApiKey,
+		fetch: globalThis.fetch,
+	});
+	const stripePrices = initStripePrices({
 		apiKey: stripeApiKey,
 		fetch: globalThis.fetch,
 	});
@@ -294,6 +301,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 			});
 			return entry.address;
 		},
+		findInboxAddress: inboxAddressStore.findByAddress,
 		mintSenderAddress: async ({ senderEmail, userId }: {
 			userId: UserId;
 			senderEmail: ForwardableSender;
@@ -308,7 +316,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		},
 		publishRewriteGmailFilter: async (detail: {
 			userId: UserId;
-			reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+			reason: "forwarding-confirmed" | "sender-added" | "sender-removed";
 		}) => {
 			await publishEvent(RewriteGmailFilterCommand, detail);
 		},
@@ -341,6 +349,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		...articleStore,
 		...queueDefinitions,
 		readArticleContent,
+		readArticleImage,
 		importSessionStore,
 		extractLinksFromPageUrl,
 		provisionInboxAddress: async (userId: UserId) => {
@@ -357,7 +366,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		findSubscriptionNextCharge: stripeSubscriptions.findSubscriptionNextCharge,
 		reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods,
-		stripePriceId,
+		resolvePriceId: stripePrices.resolvePriceId,
 		stripePublishableKey,
 
 		...initSkipReservedDomain({
@@ -413,7 +422,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
-		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
+		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion: onboardingSignals.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged:
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,

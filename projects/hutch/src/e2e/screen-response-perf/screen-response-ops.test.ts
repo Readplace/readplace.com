@@ -103,7 +103,7 @@ describe("screen response operations", () => {
 		const op = openArticleOp({ articleId: "hash-42" });
 
 		assert.equal(op.trigger, '[data-test-article="hash-42"] a[data-test-article-title]');
-		assert.equal(op.navigation, "new-document");
+		assert.equal(op.navigation, "same-document");
 	});
 
 	it("requires a ready reader slot and a rendered title before the open clock stops", () => {

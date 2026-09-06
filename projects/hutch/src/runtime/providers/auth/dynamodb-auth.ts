@@ -13,6 +13,7 @@ import {
 import { z } from "zod";
 import {
 	UserIdSchema,
+	AppearancePreferenceSchema,
 	normalizeEmail,
 	canonicalizeEmail,
 	gmailIdentityKey,
@@ -42,6 +43,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
+	SetUserAppearance,
 	UpdatePassword,
 	UserAcquisitionAttribution,
 	UserExistsByEmail,
@@ -71,6 +73,7 @@ const UserRow = z.object({
 	first_seen_at: dynamoField(z.string()),
 	landing_path: dynamoField(z.string()),
 	deletedAt: dynamoField(z.string()),
+	appearance: dynamoField(AppearancePreferenceSchema),
 });
 
 /* Gmail uniqueness claims live in the users table under this PK prefix. Zod
@@ -110,6 +113,7 @@ export function initDynamoDbAuth(deps: {
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
+	setUserAppearance: SetUserAppearance;
 } {
 	const users = defineDynamoTable({
 		client: deps.client,
@@ -465,7 +469,19 @@ export function initDynamoDbAuth(deps: {
 			userId: row.userId,
 			emailVerified: row.emailVerified === true,
 			registeredAt: row.registeredAt,
+			appearance: row.appearance,
 		};
+	};
+
+	const setUserAppearance: SetUserAppearance = async ({ userId, appearance }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET appearance = :appearance",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":appearance": appearance },
+		});
 	};
 
 	const updatePassword: UpdatePassword = async ({ email, password }) => {
@@ -502,6 +518,7 @@ export function initDynamoDbAuth(deps: {
 		findEmailByUserId,
 		findUserContactByUserId,
 		findUserById,
+		setUserAppearance,
 	};
 }
 /* c8 ignore stop */

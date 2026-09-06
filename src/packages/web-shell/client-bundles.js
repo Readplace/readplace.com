@@ -7,17 +7,24 @@ const CLIPBOARD_COPY_ENTRY = path.join(
   "shared/clipboard-copy/clipboard-copy.client.ts",
 );
 
-function clipboardCopyFooter(copySelector, textAttr) {
-  return [
-    "ClipboardCopy.initClipboardCopy({",
+function clipboardCopyFooter(copySelector, textAttr, options) {
+  const lines = [
+    "var clipboardCopy = ClipboardCopy.initClipboardCopy({",
     "  document: window.document,",
     "  navigator: window.navigator,",
     "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
     "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
     `  copySelector: '${copySelector}',`,
     `  textAttr: '${textAttr}'`,
-    "}).attach();",
-  ].join("\n");
+    "});",
+    "clipboardCopy.attach();",
+  ];
+  if (options && options.reattachOnSettle) {
+    lines.push(
+      "document.body.addEventListener('htmx:afterSettle', function () { clipboardCopy.attach(); });",
+    );
+  }
+  return lines.join("\n");
 }
 
 const SHARED_CLIENT_BUNDLES = [
@@ -43,7 +50,9 @@ const SHARED_CLIENT_BUNDLES = [
     outfile: "integrations.client.js",
     entry: CLIPBOARD_COPY_ENTRY,
     globalName: "ClipboardCopy",
-    footer: clipboardCopyFooter("[data-integrations-copy]", "data-integrations-address"),
+    footer: clipboardCopyFooter("[data-integrations-copy]", "data-integrations-address", {
+      reattachOnSettle: true,
+    }),
   },
   {
     outfile: "extension-suggestion-banner.client.js",

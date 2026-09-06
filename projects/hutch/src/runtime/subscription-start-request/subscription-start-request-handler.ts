@@ -8,8 +8,14 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionStartRequestCommand } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import type { CreateSubscriptionOnExistingCustomer } from "@packages/provider-contracts/subscription-billing";
+import {
+	DEFAULT_BILLING_PLAN,
+	type FindSubscriptionByUserId,
+} from "@packages/provider-contracts/subscription-providers";
+import type {
+	CreateSubscriptionOnExistingCustomer,
+	ResolvePriceId,
+} from "@packages/provider-contracts/subscription-billing";
 import type {
 	PublishSubscriptionChargeFailed,
 	PublishSubscriptionChargeSucceeded,
@@ -20,7 +26,7 @@ interface HandlerDeps {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	publishSubscriptionChargeSucceeded: PublishSubscriptionChargeSucceeded;
 	publishSubscriptionChargeFailed: PublishSubscriptionChargeFailed;
-	stripePriceId: string;
+	resolvePriceId: ResolvePriceId;
 	logger: HutchLogger;
 }
 
@@ -46,16 +52,19 @@ export function initSubscriptionStartRequestHandler(
 			return;
 		}
 
+		const plan = row.plan ?? DEFAULT_BILLING_PLAN;
 		try {
 			const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 				customerId: row.customerId,
-				priceId: deps.stripePriceId,
+				priceId: await deps.resolvePriceId(plan),
 				userId,
+				onUnpaidFirstInvoice: "leave-pending",
 			});
 			await deps.publishSubscriptionChargeSucceeded({
 				userId,
 				subscriptionId,
 				customerId: row.customerId,
+				plan,
 			});
 		} catch (err) {
 			deps.logger.error("[start-request] Stripe error", {

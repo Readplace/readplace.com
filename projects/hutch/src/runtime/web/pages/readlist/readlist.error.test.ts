@@ -4,6 +4,7 @@ import {
 	collectStatusFlashParams,
 	httpErrorMessageMapping,
 	readlistErrorFlashMapping,
+	saveableUrlErrorCodeMapping,
 	statusFlashMapping,
 } from "./readlist.error";
 
@@ -62,6 +63,24 @@ describe("httpErrorMessageMapping", () => {
 
 	it("returns the mapped message for save_failed", () => {
 		expect(httpErrorMessageMapping({ error_code: "save_failed" })).toBe("Could not save article. Please try again.");
+	});
+});
+
+describe("saveableUrlErrorCodeMapping", () => {
+	it("returns undefined when error_code is absent", () => {
+		expect(saveableUrlErrorCodeMapping({})).toBeUndefined();
+	});
+
+	it("returns undefined when error_code is not a string", () => {
+		expect(saveableUrlErrorCodeMapping({ error_code: 42 })).toBeUndefined();
+	});
+
+	it("returns undefined for a save error that is not a URL rejection", () => {
+		expect(saveableUrlErrorCodeMapping({ error_code: "save_failed" })).toBeUndefined();
+	});
+
+	it("returns the URL rejection code the save redirect carried", () => {
+		expect(saveableUrlErrorCodeMapping({ error_code: "private_network" })).toBe("private_network");
 	});
 });
 

@@ -17,9 +17,12 @@ describe("readBodyWithCap", () => {
 		expect(buffer.byteLength).toBe(0);
 	});
 
-	it("throws BodyTooLargeError and stops reading once the running total exceeds the cap", async () => {
+	it("throws BodyTooLargeError carrying the observed and cap sizes once the running total exceeds the cap", async () => {
 		const response = new Response(Buffer.alloc(100));
 
-		await expect(readBodyWithCap(response, 10)).rejects.toBeInstanceOf(BodyTooLargeError);
+		const error = await readBodyWithCap(response, 10).catch((thrown) => thrown);
+
+		expect(error).toBeInstanceOf(BodyTooLargeError);
+		expect(error).toMatchObject({ bytes: 100, maxBytes: 10 });
 	});
 });

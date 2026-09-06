@@ -241,6 +241,48 @@ describe("renderReaderSlot", () => {
 		},
 	);
 
+	it.each([
+		JSON.stringify({ kind: "origin-unreachable", httpStatus: 522 }),
+		JSON.stringify({ kind: "origin-unreachable", httpStatus: 503 }),
+		JSON.stringify({ kind: "origin-unreachable", code: "ETIMEDOUT" }),
+	])(
+		"routes an origin-unreachable crawl (%s) to the origin-down variant, which offers no capture",
+		(reason) => {
+			const doc = parse(
+				renderReaderSlot({
+					crawl: { status: "failed", reason },
+					url: URL,
+					appOrigin: APP_ORIGIN,
+				}),
+			);
+
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("origin-down");
+			const actions = Array.from(
+				slot.querySelectorAll("[data-test-reader-action]"),
+			).map((el) => el.getAttribute("data-test-reader-action"));
+			expect(actions).toEqual(["open"]);
+		},
+	);
+
+	it("leaves a fetch-failed 5xx on the generic failed variant — only the minted origin-unreachable kind may claim the origin was down", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "fetch-failed", httpStatus: 503 }),
+				},
+				url: URL,
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("failed");
+	});
+
 	it("tells a reader of a deleted page that it is gone, not that the site is blocking us", () => {
 		const doc = parse(
 			renderReaderSlot({
@@ -445,6 +487,25 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("ready");
 		expect(slot.getAttribute("hx-get")).toBeNull();
+	});
+
+	it("renders the notice in place of stored content, so a ready crawl on a gated host still shows it", () => {
+		const doc = parse(
+			renderReaderSlot({
+				notice: "not-an-article",
+				crawl: { status: "ready" },
+				content: "<p>Inbox (42) — someone@example.com</p>",
+				url: "https://mail.google.com/mail/u/0/",
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+		expect(slot.getAttribute("hx-get")).toBeNull();
+		expect(slot.textContent).toContain("This link isn't an article");
 	});
 
 	it("dispatches every CrawlStatus variant — adding a new variant must break this test (and the renderer's exhaustive switch)", () => {

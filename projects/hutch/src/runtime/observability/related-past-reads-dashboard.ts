@@ -6,7 +6,7 @@ import {
 } from "@packages/hutch-infra-components";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, STREAMS } from "./events";
-import { type ExcludedIdentities, excludeInternalVisitorsClauses } from "./excluded-identities";
+import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
 import type { DashboardBody, DashboardWidget } from "./analytics-dashboard";
 
 export interface BuildRelatedPastReadsDashboardDeps extends ExcludedIdentities {
@@ -113,7 +113,7 @@ export function buildRelatedPastReadsDashboardBody(
 	deps: BuildRelatedPastReadsDashboardDeps,
 ): DashboardBody {
 	const { region, analyticsLogGroupName } = deps;
-	const exclude = excludeInternalVisitorsClauses(deps);
+	const exclude = excludeNonAudienceClauses(deps);
 	const analyticsSource = [analyticsLogGroupName];
 	const widgets: DashboardWidget[] = [];
 

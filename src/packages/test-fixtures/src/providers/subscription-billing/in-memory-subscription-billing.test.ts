@@ -38,11 +38,13 @@ describe("initInMemorySubscriptionBilling", () => {
 			customerId: "cus_existing",
 			priceId: "price_abc",
 			userId: USER_ID,
+			onUnpaidFirstInvoice: "refuse",
 		});
 		const second = await stripe.createSubscriptionOnExistingCustomer({
 			customerId: "cus_existing",
 			priceId: "price_abc",
 			userId: USER_ID,
+			onUnpaidFirstInvoice: "leave-pending",
 		});
 
 		assert.notEqual(first.subscriptionId, second.subscriptionId);
@@ -51,12 +53,14 @@ describe("initInMemorySubscriptionBilling", () => {
 				customerId: "cus_existing",
 				priceId: "price_abc",
 				userId: USER_ID,
+				onUnpaidFirstInvoice: "refuse",
 				subscriptionId: first.subscriptionId,
 			},
 			{
 				customerId: "cus_existing",
 				priceId: "price_abc",
 				userId: USER_ID,
+				onUnpaidFirstInvoice: "leave-pending",
 				subscriptionId: second.subscriptionId,
 			},
 		]);
@@ -71,6 +75,7 @@ describe("initInMemorySubscriptionBilling", () => {
 					customerId: "cus_x",
 					priceId: "price_y",
 					userId: USER_ID,
+					onUnpaidFirstInvoice: "refuse",
 				}),
 			/In-memory billing createSubscription failure/,
 		);

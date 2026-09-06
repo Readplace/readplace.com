@@ -3,6 +3,7 @@ import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-meth
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import {
 	ACCOUNT_CANCEL_MAX_POLLS,
+	buildAppearanceSection,
 	buildCardSectionViewModel,
 	toAccountViewModel,
 	parseAccountQuery,
@@ -36,7 +37,8 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
+			{ cancelling: false, pollCount: 0, errorPaymentMethod: false,
+		errorSubscribeFailed: false, deleteConfirmationError: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusLine, "Your free trial ends on ");
@@ -59,7 +61,8 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
+			{ cancelling: false, pollCount: 0, errorPaymentMethod: false,
+		errorSubscribeFailed: false, deleteConfirmationError: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusDateTail, " — 1 day left.");
@@ -72,6 +75,7 @@ describe("toAccountViewModel — next charge", () => {
 		cancelling: false,
 		pollCount: 0,
 		errorPaymentMethod: false,
+		errorSubscribeFailed: false,
 		deleteConfirmationError: false,
 		cardError: undefined,
 	} as const;
@@ -147,7 +151,8 @@ describe("toAccountViewModel — next charge", () => {
 
 describe("toAccountViewModel — actions", () => {
 	const now = new Date();
-	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
+	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false,
+		errorSubscribeFailed: false, deleteConfirmationError: false, cardError: undefined };
 
 	it("founding members get no actions", () => {
 		const vm = toAccountViewModel(
@@ -368,7 +373,8 @@ describe("toAccountViewModel — actions", () => {
 
 describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 	const now = new Date();
-	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
+	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false,
+		errorSubscribeFailed: false, deleteConfirmationError: false, cardError: undefined };
 
 	it("hides the payment-methods section", () => {
 		const web = toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now);
@@ -502,6 +508,7 @@ describe("parseAccountQuery", () => {
 			cancelling: false,
 			pollCount: 0,
 			errorPaymentMethod: false,
+		errorSubscribeFailed: false,
 			deleteConfirmationError: false,
 			cardError: undefined,
 		});
@@ -712,5 +719,30 @@ describe("buildCardSectionViewModel", () => {
 		});
 		assert.equal(vm.isAdding, false);
 		assert.equal(vm.adding, undefined);
+	});
+});
+
+describe("buildAppearanceSection", () => {
+	it("marks the current preference active and posts to the appearance route", () => {
+		const section = buildAppearanceSection({ current: "dark", appShell: false, platform: undefined });
+		assert.equal(section.formAction, "/account/appearance?utm_source=account&utm_medium=internal&utm_content=appearance");
+		assert.deepEqual(
+			section.options.map((o) => [o.value, o.active, o.variant, o.ariaPressed]),
+			[
+				["system", false, "secondary", "false"],
+				["light", false, "secondary", "false"],
+				["dark", true, "primary", "true"],
+			],
+		);
+	});
+
+	it("carries the app-surface markers onto the form action for an in-app web sheet", () => {
+		const section = buildAppearanceSection({ current: "system", appShell: true, platform: "ios" });
+		const url = new URL(section.formAction, "https://internal.invalid");
+		assert.equal(url.pathname, "/account/appearance");
+		assert.equal(url.searchParams.get("utm_source"), "account");
+		assert.equal(url.searchParams.get("utm_content"), "appearance");
+		assert.equal(url.searchParams.get("shell"), "app");
+		assert.equal(url.searchParams.get("platform"), "ios");
 	});
 });

@@ -27,6 +27,11 @@ describe("formatErrorLogLine", () => {
 		expect(JSON.parse(formatErrorLogLine({ message: "boom", now })).level).toBe("ERROR");
 	});
 
+	it("carries the request url, which is the column the errors table names the failing asset in", () => {
+		const line = formatErrorLogLine({ message: "boom", url: "/client-dist/htmx.client.js.map", now });
+		expect(JSON.parse(line).url).toBe("/client-dist/htmx.client.js.map");
+	});
+
 	it("includes the stack when an Error is given", () => {
 		const error = new Error("kaboom");
 		expect(JSON.parse(formatErrorLogLine({ message: "boom", error, now })).stack).toBe(error.stack);

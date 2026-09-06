@@ -18,7 +18,7 @@ describe("utm validation", () => {
 		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
 
 		const response = await request(harness.server).get(
-			"/install?utm_source=web-app'&utm_medium=banner&utm_campaign=extension-suggestion",
+			"/install?utm_source=reader-failed'&utm_medium=banner&utm_campaign=extension-suggestion",
 		);
 
 		expect(response.status).toBe(400);

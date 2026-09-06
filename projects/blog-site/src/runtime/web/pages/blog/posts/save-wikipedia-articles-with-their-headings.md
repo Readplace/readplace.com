@@ -22,15 +22,15 @@ Every section heading had gone missing from the saved copy of a Wikipedia articl
 
 The live page was fine. In a browser, the same address shows each heading where the writer put it, one to a section, an outline to skim before committing to the read. Readplace had kept the words and lost the shape.
 
-So the reader copy held the full body and none of its structure. That put the fault in the step that turns a fetched page into [the clean article you keep](/blog/read-any-article-clean-reader).
+So the reader copy held the full body and none of its structure. That put the fault in the step that turns a fetched page into [the clean article you keep](/blog/read-any-article-clean-reader?utm_source=blog-save-wikipedia-articles-with-their-headings&utm_medium=internal&utm_content=post-read-any-article-clean-reader).
 
 ## The rule that deletes link menus
 
-Readplace runs each saved page through [Mozilla Readability](/view/github.com/mozilla/readability), the same library behind a browser's reader mode. It scores every block on the page and drops the parts that read as chrome: navigation, sidebars, boxes of related links. Most of the time it keeps the article and leaves the furniture behind.
+Readplace runs each saved page through [Mozilla Readability](/view/github.com/mozilla/readability?utm_source=blog-save-wikipedia-articles-with-their-headings&utm_medium=internal&utm_content=read-github-com), the same library behind a browser's reader mode. It scores every block on the page and drops the parts that read as chrome: navigation, sidebars, boxes of related links. Most of the time it keeps the article and leaves the furniture behind.
 
 On a Wikipedia page it was dropping the headings too. A plain `<h2>` should be the easiest thing on the page to keep, so the question was what made this one look disposable.
 
-The answer is in how MediaWiki builds a heading. Its current skin, [Vector 2022](/view/www.mediawiki.org/wiki/Skin:Vector_2022), doesn't emit a bare `<h2>`. It wraps the heading and an edit link together in one div: the `<h2>` with the section title, and beside it a `<span class="mw-editsection">` holding the bracketed `[edit]` link that lets a signed-in editor jump straight to that section.
+The answer is in how MediaWiki builds a heading. Its current skin, [Vector 2022](/view/www.mediawiki.org/wiki/Skin:Vector_2022?utm_source=blog-save-wikipedia-articles-with-their-headings&utm_medium=internal&utm_content=read-www-mediawiki-org), doesn't emit a bare `<h2>`. It wraps the heading and an edit link together in one div: the `<h2>` with the section title, and beside it a `<span class="mw-editsection">` holding the bracketed `[edit]` link that lets a signed-in editor jump straight to that section.
 
 That edit link is the whole problem. Readability has a rule, `_cleanConditionally`, that deletes a short div when most of its text sits inside links. The rule is usually right, because a small block that is mostly links is a menu or a related-stories strip, not prose. It works out link density, the share of a block's text wrapped in an anchor.
 
@@ -48,7 +48,7 @@ The detection had to be careful. MediaWiki runs far past Wikipedia, on a Linux d
 
 ## The headings that came back
 
-Run against real saved pages, the pre-pass put the structure back and left the healthy pages alone. The Mythical Man-Month went from 0 headings to 6. [Bioluminescence](/view/en.wikipedia.org/wiki/Bioluminescence) went from 0 to 11. The Great Barrier Reef article, which Readability had been handling correctly all along, stayed at 10 and 10. Because the pre-pass only takes out edit links, a page that didn't have the problem doesn't notice it ran.
+Run against real saved pages, the pre-pass put the structure back and left the healthy pages alone. The Mythical Man-Month went from 0 headings to 6. [Bioluminescence](/view/en.wikipedia.org/wiki/Bioluminescence?utm_source=blog-save-wikipedia-articles-with-their-headings&utm_medium=internal&utm_content=read-en-wikipedia-org) went from 0 to 11. The Great Barrier Reef article, which Readability had been handling correctly all along, stayed at 10 and 10. Because the pre-pass only takes out edit links, a page that didn't have the problem doesn't notice it ran.
 
 ```rp-figure
 kind: bars
@@ -75,4 +75,4 @@ It looks for the surviving heading, not the leaked edit text, and that's deliber
 
 Save a long Wikipedia entry now and the headings ride along with the text, the outline intact and the "[edit]" litter gone. The same holds for any site built on MediaWiki, a distribution's manual or a fan-run reference, because the rule reads the software behind the page, not the name in front of it.
 
-An encyclopedia entry you mean to read later is worth more with its parts still marked. Pick one of those long articles you keep meaning to get to, [a copy that keeps its shape past the day the live page moves on](/blog/saved-articles-outlast-the-original-page), and send it in through [the browser extension](https://readplace.com/install) or by dropping the link at [readplace.com](/). The headings will be where the writer left them.
+An encyclopedia entry you mean to read later is worth more with its parts still marked. Pick one of those long articles you keep meaning to get to, [a copy that keeps its shape past the day the live page moves on](/blog/saved-articles-outlast-the-original-page?utm_source=blog-save-wikipedia-articles-with-their-headings&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page), and send it in through [the browser extension](https://readplace.com/install) or by dropping the link at [readplace.com](/?utm_source=blog-save-wikipedia-articles-with-their-headings&utm_medium=internal&utm_content=home). The headings will be where the writer left them.

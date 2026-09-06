@@ -7,7 +7,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -31,7 +30,7 @@ fun WebPageSheet(
 	onFinish: () -> Unit,
 	onFail: () -> Unit,
 ) {
-	val isDark = isSystemInDarkTheme()
+	val isDark = LocalIsDarkTheme.current
 
 	AndroidView(
 		modifier = Modifier.fillMaxSize(),

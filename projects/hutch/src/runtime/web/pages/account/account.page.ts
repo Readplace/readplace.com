@@ -1,26 +1,32 @@
 import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
+import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import type {
 	DestroyUserSessions,
 	FindEmailByUserId,
+	FindUserById,
 	MarkAccountDeleted,
+	SetUserAppearance,
 } from "@packages/provider-contracts/auth";
+import { AppearancePreferenceSchema } from "@packages/domain/user";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
-import type { ListSharedArticles } from "@packages/provider-contracts/article-store";
 import type {
 	CreateCheckoutSession,
 	CheckoutSessionId,
 } from "@packages/provider-contracts/hosted-checkout";
-import type {
-	FindSubscriptionByUserId,
-	MarkSubscriptionActive,
-	SetSubscriptionNextCharge,
-	SubscriptionRecord,
-	UpsertActiveSubscription,
-	UpsertTrialingSubscription,
+import {
+	BillingPlanSchema,
+	DEFAULT_BILLING_PLAN,
+	type BillingPlan,
+	type FindSubscriptionByUserId,
+	type MarkSubscriptionActive,
+	type SetSubscriptionNextCharge,
+	type SubscriptionRecord,
+	type UpsertActiveSubscription,
+	type UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	PublishCancelSubscriptionCommand,
@@ -29,6 +35,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	ResolvePriceId,
 	FindSubscriptionNextCharge,
 	ReverseScheduledCancellation,
 	SubscriptionNextCharge,
@@ -54,7 +61,12 @@ import {
 import { type TrialSchedulerPort, startTrial } from "../../../domain/trial/start-trial";
 import { initLoadNextCharge } from "../../../domain/subscription/next-charge";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
-import type { EmitSubscriptionEvent } from "../../../observability/subscription-events";
+import type { RecordAudienceEvent } from "@packages/web-analytics";
+import {
+	buildCheckoutStartedEvent,
+	buildResubscribeCompletedEvent,
+	type SubscriptionLogEvent,
+} from "../../../observability/subscription-events";
 import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/native-app-links";
@@ -62,13 +74,13 @@ import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import { AccountPage, renderAccountCard } from "./account.component";
-import { buildSharedLinksViewModel } from "./shared-links.view-model";
 import {
 	type CardError,
 	type CardSectionViewModel,
 	DELETE_ACCOUNT_CONFIRMATION_FIELD,
 	DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 	MAX_CARDS,
+	buildAppearanceSection,
 	buildCardSectionViewModel,
 	parseAccountQuery,
 	toAccountViewModel,
@@ -82,12 +94,12 @@ import {
 	ACCOUNT_ERROR_CARD_SETUP_FAILED_URL,
 	ACCOUNT_ERROR_CARD_SETUP_UNVERIFIED_URL,
 	ACCOUNT_ERROR_PAYMENT_METHOD_URL,
+	ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL,
 	buildAccountUrl,
 } from "./account.url";
 
 interface AccountDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
-	listSharedArticles: ListSharedArticles;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
 	setSubscriptionNextCharge: SetSubscriptionNextCharge;
@@ -95,6 +107,8 @@ interface AccountDependencies {
 	upsertTrialingSubscription: UpsertTrialingSubscription;
 	markActiveSubscription: MarkSubscriptionActive;
 	findEmailByUserId: FindEmailByUserId;
+	findUserById: FindUserById;
+	setUserAppearance: SetUserAppearance;
 	destroyUserSessions: DestroyUserSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
@@ -114,13 +128,13 @@ interface AccountDependencies {
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	storePendingSignup: StorePendingSignup;
-	stripePriceId: string;
+	resolvePriceId: ResolvePriceId;
 	buildCheckoutSuccessUrl: (sessionIdPlaceholder: string) => string;
 	appOrigin: string;
 	logger: HutchLogger;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
-	emitSubscriptionEvent: Pick<EmitSubscriptionEvent, "checkoutStarted" | "resubscribeCompleted">;
+	recordSubscriptionEvent: RecordAudienceEvent<SubscriptionLogEvent>;
 }
 
 type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
@@ -177,11 +191,17 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		},
 	): Promise<void> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const email = await deps.findEmailByUserId(req.userId);
+		const [email, user] = await Promise.all([
+			deps.findEmailByUserId(req.userId),
+			deps.findUserById(req.userId),
+		]);
 		assert(email, "an authenticated account page must resolve an email");
-		const sharedLinks = buildSharedLinksViewModel({
-			articles: await deps.listSharedArticles({ userId: req.userId }),
-			now: deps.now(),
+		assert(user, "an authenticated account page must resolve a user");
+		const currentAppearance = user.appearance ?? "system";
+		const appearanceSection = buildAppearanceSection({
+			current: currentAppearance,
+			appShell: isAppShell(req),
+			platform: nativeSurfaceOf(req),
 		});
 		const webVm = toAccountViewModel(
 			input.access,
@@ -200,13 +220,13 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					AccountPage(
 						withoutCommerce(webVm, { appShell: true, platform: nativeSurfaceOf(req) }),
 						input.cardSection,
-						sharedLinks,
 						{
 							email,
+							appearance: appearanceSection,
 							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
 						},
 					),
-					{ cspNonce: requireCspNonce(req) },
+					{ cspNonce: requireCspNonce(req), appearance: currentAppearance },
 				),
 			);
 			return;
@@ -214,8 +234,15 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		const vm = isNativeSurface(req)
 			? withoutCommerce(webVm, { appShell: false, platform: nativeSurfaceOf(req) })
 			: webVm;
-		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
-		sendComponent(req, res, Base(AccountPage(vm, input.cardSection, sharedLinks, { email }), bannerState));
+		const bannerState = await deps.buildBannerState(req, {
+			preFetchedAccess: input.access,
+			preFetchedUser: user,
+		});
+		sendComponent(
+			req,
+			res,
+			Base(AccountPage(vm, input.cardSection, { email, appearance: appearanceSection }), bannerState),
+		);
 	}
 
 	router.get("/", async (req: Request, res: Response) => {
@@ -577,7 +604,11 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	async function startCheckout(
 		req: Request,
-		params: { trialEndsAt: string | undefined; variant: CheckoutVariant },
+		params: {
+			trialEndsAt: string | undefined;
+			variant: CheckoutVariant;
+			plan: BillingPlan;
+		},
 	): Promise<{ id: CheckoutSessionId; url: string }> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -586,6 +617,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 		const checkout = await deps.createCheckoutSession({
 			customerEmail: email,
+			priceId: await deps.resolvePriceId(params.plan),
 			successUrl: deps.buildCheckoutSuccessUrl("{CHECKOUT_SESSION_ID}"),
 			cancelUrl: `${deps.appOrigin}${buildAccountUrl()}`,
 			trialEndsAt: params.trialEndsAt,
@@ -600,15 +632,23 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				returnUrl: "/queue",
 				trialEndsAt: params.trialEndsAt,
 				variant: params.variant,
+				plan: params.plan,
 			},
 			createdAt: deps.now().getTime(),
 		});
 
-		deps.emitSubscriptionEvent.checkoutStarted({
-			userId,
-			variant: params.variant,
-			checkoutSessionId: checkout.id,
-		});
+		deps.recordSubscriptionEvent(
+			req,
+			buildCheckoutStartedEvent(
+				{ now: deps.now },
+				{
+					userId,
+					variant: params.variant,
+					checkoutSessionId: checkout.id,
+					plan: params.plan,
+				},
+			),
+		);
 
 		return checkout;
 	}
@@ -630,9 +670,16 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	const subscribeBranches: Record<
 		SubscribeBranchKey,
-		(req: Request, res: Response, row: SubscriptionRecord | undefined) => Promise<void>
+		(
+			req: Request,
+			res: Response,
+			input: {
+				row: SubscriptionRecord | undefined;
+				chosenPlan: BillingPlan | undefined;
+			},
+		) => Promise<void>
 	> = {
-		trialing: async (req, res, row) => {
+		trialing: async (req, res, { row, chosenPlan }) => {
 			assert(row, "trialing branch requires a row");
 			assert(row.trialEndsAt, "trialing row must have trialEndsAt");
 			const trialRemainingMs = Date.parse(row.trialEndsAt) - deps.now().getTime();
@@ -642,13 +689,15 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 						? row.trialEndsAt
 						: undefined,
 				variant: CHECKOUT_VARIANTS.trialCheckout,
+				plan: chosenPlan ?? DEFAULT_BILLING_PLAN,
 			});
 			redirectFullPage(req, res, checkout.url);
 		},
-		cancelled: async (req, res, row) => {
+		cancelled: async (req, res, { row, chosenPlan }) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
 			assert(row, "cancelled branch requires a row");
+			const plan = chosenPlan ?? row.plan ?? DEFAULT_BILLING_PLAN;
 			if (!row.customerId) {
 				deps.logger.warn(
 					"[subscribe] cancelled row without customerId — falling back to checkout",
@@ -657,6 +706,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				const checkout = await startCheckout(req, {
 					trialEndsAt: undefined,
 					variant: CHECKOUT_VARIANTS.cancelledResubscribe,
+					plan,
 				});
 				redirectFullPage(req, res, checkout.url);
 				return;
@@ -665,17 +715,20 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			try {
 				({ subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 					customerId: row.customerId,
-					priceId: deps.stripePriceId,
+					priceId: await deps.resolvePriceId(plan),
 					userId,
+					onUnpaidFirstInvoice: "refuse",
 				}));
 			} catch (err) {
-				deps.logger.warn(
-					"[subscribe/cancelled] saved-card charge failed — falling back to checkout",
-					{ userId, error: err instanceof Error ? err.message : String(err) },
+				deps.logger.error(
+					`[subscribe/cancelled] saved-card charge failed for ${userId} — falling back to checkout: ${
+						err instanceof Error ? err.message : String(err)
+					}`,
 				);
 				const checkout = await startCheckout(req, {
 					trialEndsAt: undefined,
 					variant: CHECKOUT_VARIANTS.cardDeclineFallback,
+					plan,
 				});
 				redirectFullPage(req, res, checkout.url);
 				return;
@@ -684,8 +737,9 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				userId,
 				subscriptionId,
 				customerId: row.customerId,
+				plan,
 			});
-			deps.emitSubscriptionEvent.resubscribeCompleted({ userId, subscriptionId });
+			deps.recordSubscriptionEvent(req, buildResubscribeCompletedEvent({ now: deps.now }, { userId, subscriptionId, plan }));
 			res.redirect(303, buildAccountUrl());
 		},
 		noop: async (_req, res) => {
@@ -698,21 +752,51 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	router.post("/subscribe", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const chosenPlan = z
+			.object({ plan: BillingPlanSchema.optional() })
+			.safeParse(req.body ?? {});
+		if (!chosenPlan.success) {
+			res.status(400).send("Unknown subscription plan");
+			return;
+		}
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const branch = pickSubscribeBranch(row?.status);
 		try {
-			await subscribeBranches[branch](req, res, row);
+			await subscribeBranches[branch](req, res, {
+				row,
+				chosenPlan: chosenPlan.data.plan,
+			});
 		} catch (err) {
 			/** Single route-level catch keeps every branch resilient: Stripe
 			 * (checkout create, subscriptions.create), DynamoDB (pending-signup
 			 * write, upsertActive) or any other downstream failure redirects to
-			 * the payment-method error page instead of crashing the Lambda. */
+			 * an error page instead of crashing the Lambda. Only a subscriber
+			 * with a saved customer can have a card that went bad; for everyone
+			 * else — a trialing reader has never given one — the failure is ours
+			 * and the page must offer the retry rather than send them to support. */
 			deps.logger.error(`[subscribe/${branch}] failed`, {
 				userId: req.userId,
 				error: err instanceof Error ? err.message : String(err),
 			});
-			res.redirect(303, ACCOUNT_ERROR_PAYMENT_METHOD_URL);
+			res.redirect(
+				303,
+				row?.customerId
+					? ACCOUNT_ERROR_PAYMENT_METHOD_URL
+					: ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL,
+			);
 		}
+	});
+
+	router.post("/appearance", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const parsed = AppearancePreferenceSchema.safeParse(req.body?.appearance);
+		if (parsed.success) {
+			await deps.setUserAppearance({ userId: req.userId, appearance: parsed.data });
+		}
+		res.redirect(
+			303,
+			buildAccountUrl({ appShell: isAppShell(req), surfacePlatform: nativeSurfaceOf(req) }),
+		);
 	});
 
 	return router;

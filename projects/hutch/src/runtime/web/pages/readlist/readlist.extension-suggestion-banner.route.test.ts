@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { BROWSER_REQUEST_HEADERS, useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -13,6 +13,11 @@ import {
 import { initReadabilityParser } from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+
+/** Android's app is not advertised, so an Android visitor has no client the
+ * banner could send them to install. */
+const ANDROID_CHROME_UA =
+	"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
 
 const useApp = useTestServer();
 
@@ -62,7 +67,7 @@ describe("GET /queue — extension suggestion banner", () => {
 			.type("form")
 			.send({ url: "https://example.com/pending" });
 
-		const response = await agent.get("/queue");
+		const response = await agent.get("/queue").set(BROWSER_REQUEST_HEADERS);
 
 		expect(bannerAttr(response.text)).toBe("false");
 	});
@@ -71,7 +76,7 @@ describe("GET /queue — extension suggestion banner", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get("/queue");
+		const response = await agent.get("/queue").set(BROWSER_REQUEST_HEADERS);
 
 		expect(response.status).toBe(200);
 		expect(bannerAttr(response.text)).toBe("false");
@@ -95,7 +100,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(agent, "https://example.com/pending-read");
 
-		const response = await agent.get(`/queue/${articleId}/view`);
+		const response = await agent.get(`/queue/${articleId}/view`).set(BROWSER_REQUEST_HEADERS);
 
 		expect(response.status).toBe(200);
 		expect(bannerAttr(response.text)).toBe("false");
@@ -118,7 +123,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(agent, "https://example.com/failed-read");
 
-		const response = await agent.get(`/queue/${articleId}/view`);
+		const response = await agent.get(`/queue/${articleId}/view`).set(BROWSER_REQUEST_HEADERS);
 
 		expect(response.status).toBe(200);
 		expect(bannerAttr(response.text)).toBe("true");
@@ -165,7 +170,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(agent, "https://example.com/parsed-read");
 
-		const response = await agent.get(`/queue/${articleId}/view`);
+		const response = await agent.get(`/queue/${articleId}/view`).set(BROWSER_REQUEST_HEADERS);
 
 		expect(bannerAttr(response.text)).toBe("false");
 	});
@@ -214,7 +219,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			"https://example.com/summary-failed-read",
 		);
 
-		const response = await agent.get(`/queue/${articleId}/view`);
+		const response = await agent.get(`/queue/${articleId}/view`).set(BROWSER_REQUEST_HEADERS);
 
 		expect(bannerAttr(response.text)).toBe("true");
 	});
@@ -236,7 +241,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(agent, "https://example.com/failed-poll");
 
-		const response = await agent.get(`/queue/${articleId}/reader?poll=1`);
+		const response = await agent.get(`/queue/${articleId}/reader?poll=1`).set(BROWSER_REQUEST_HEADERS);
 
 		expect(response.status).toBe(200);
 		const banner = new JSDOM(response.text).window.document.querySelector(
@@ -245,6 +250,34 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		assert(banner, "banner OOB fragment must be present on a settled failed poll");
 		expect(banner.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		expect(banner.getAttribute("data-show-extension-suggestion")).toBe("true");
+	});
+
+	it("emits no banner OOB on a settled failed poll for a platform with no advertised client", async () => {
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "failed",
+			reason: "blocked",
+		});
+		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+			status: "skipped",
+		});
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+			summary: { ...fixture.summary, findGeneratedSummary },
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndFindId(agent, "https://example.com/failed-poll-android");
+
+		const response = await agent
+			.get(`/queue/${articleId}/reader?poll=1`)
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": ANDROID_CHROME_UA });
+
+		expect(response.status).toBe(200);
+		const ids = Array.from(
+			new JSDOM(response.text).window.document.querySelectorAll("[hx-swap-oob]"),
+		).map((el) => el.id);
+		expect(ids).not.toContain("extension-suggestion-banner");
 	});
 
 	it("emits no banner OOB while the owner reader poll is still loading", async () => {
@@ -263,7 +296,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(agent, "https://example.com/pending-poll");
 
-		const response = await agent.get(`/queue/${articleId}/reader?poll=1`);
+		const response = await agent.get(`/queue/${articleId}/reader?poll=1`).set(BROWSER_REQUEST_HEADERS);
 
 		const ids = Array.from(
 			new JSDOM(response.text).window.document.querySelectorAll("[hx-swap-oob]"),

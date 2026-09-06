@@ -494,6 +494,21 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		// (c) Dead hosting platform (terminal 503).
 		{ url: "https://jstl.java.net/", excluded: true, label: "jstl.java.net root (retired platform)" },
 		{ url: "https://jstl.java.net/foo", excluded: false, label: "jstl.java.net subpath — should NOT match" },
+		{
+			url: "https://www.excelsiorspringsstandard.com/index.php/news/school-district-selects-new-banking-depository",
+			excluded: true,
+			label: "excelsiorspringsstandard article on a site returning 503",
+		},
+		{
+			url: "https://www.excelsiorspringsstandard.com/index.php/news/some-other-story",
+			excluded: false,
+			label: "a sibling article on the same host — must NOT be hidden",
+		},
+		{
+			url: "https://www.excelsiorspringsstandard.com/",
+			excluded: false,
+			label: "the site root — must NOT be hidden",
+		},
 		// (d) Redirects away from the saved content.
 		{ url: "https://www.fastcodesign.com/3062292/evidence/brainstorming-is-dumb", excluded: true, label: "fastcodesign brainstorming article (rebranded away)" },
 		{ url: "https://www.fastcompany.com/co-design", excluded: false, label: "fastcompany co-design redirect target — must NOT be hidden" },
@@ -705,6 +720,10 @@ describe("EXCLUDE_PATTERNS — news.ycombinator.com/item soft-404", () => {
 		{ url: "https://news.ycombinator.com/item?id=44567890", excluded: false, label: "a real item with its id — must NOT be hidden" },
 		{ url: "https://news.ycombinator.com/item/", excluded: false, label: "trailing slash — different stored value" },
 		{ url: "https://news.ycombinator.com/newest", excluded: false, label: "different HN page — must NOT be hidden" },
+		{ url: "https://news.ycombinator.com/user", excluded: true, label: "stored row shape — /user with no id query" },
+		{ url: "https://news.ycombinator.com/user?id=pg", excluded: false, label: "a real profile with its id — must NOT be hidden" },
+		{ url: "https://news.ycombinator.com/user/", excluded: false, label: "trailing slash — different stored value" },
+		{ url: "https://news.ycombinator.com/username", excluded: false, label: "a longer path starting with the excluded one — must NOT be hidden" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
@@ -845,6 +864,16 @@ describe("EXCLUDE_PATTERNS — never-existed /view-minted paths (issue #1066)", 
 			url: "https://fagnerbrack.com/xyz",
 			excluded: false,
 			label: "a longer slug starting with the excluded one — must NOT be hidden",
+		},
+		{
+			url: "https://blog.cloudboost.io/null",
+			excluded: true,
+			label: "Medium `/null` junk path on an unreachable host",
+		},
+		{
+			url: "https://blog.cloudboost.io/some-real-post-slug",
+			excluded: false,
+			label: "a genuine post on the same host — must NOT be hidden",
 		},
 	];
 	for (const { url, excluded, label } of cases) {

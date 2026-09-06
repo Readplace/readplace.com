@@ -1,9 +1,10 @@
+import assert from "node:assert/strict";
 import type {
 	Minutes,
 	SavedArticle,
 } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -470,5 +471,74 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 			pollCount: 4,
 		});
 		expect(vm.isStalePending).toBe(false);
+	});
+});
+
+describe("toReadlistArticleViewModel — versioned reader href", () => {
+	function readerVersion(readerHref: string): string | null {
+		return new URL(readerHref, "https://internal.invalid").searchParams.get("v");
+	}
+
+	it("stamps a content version on the reader link", () => {
+		const vm = toReadlistArticleViewModel({
+			article: makeArticle(),
+			now: NOW,
+			returnQuery: "",
+			summary: undefined,
+			crawl: { status: "ready" },
+			filters: DEFAULT_FILTERS,
+			maxPolls: 3,
+		});
+		const version = readerVersion(vm.readerHref);
+		assert(version, "the reader href must carry a v param");
+		expect(version).toMatch(/^[0-9a-f]{16}$/);
+		expect(vm.readerHref).toBe(`/queue/${ARTICLE_ID}/view?v=${version}`);
+	});
+
+	it("orders the queue slug before the version for a non-default readlist", () => {
+		const vm = toReadlistArticleViewModel({
+			article: makeArticle(),
+			now: NOW,
+			returnQuery: "",
+			summary: undefined,
+			crawl: { status: "ready" },
+			filters: { readlist: ReadlistSlugSchema.parse("reading"), tab: "queue", order: "desc", page: 1 },
+			maxPolls: 3,
+		});
+		expect(vm.readerHref).toMatch(new RegExp(`^/queue/${ARTICLE_ID}/view\\?queue=reading&v=[0-9a-f]{16}$`));
+	});
+
+	it("changes the version when the summary settles", () => {
+		const base = {
+			article: makeArticle(),
+			now: NOW,
+			returnQuery: "",
+			crawl: { status: "ready" as const },
+			filters: DEFAULT_FILTERS,
+			maxPolls: 3,
+		};
+		const pending = toReadlistArticleViewModel({ ...base, summary: undefined });
+		const ready = toReadlistArticleViewModel({ ...base, summary: { status: "ready", summary: "TL;DR" } });
+		expect(readerVersion(pending.readerHref)).not.toBe(readerVersion(ready.readerHref));
+	});
+
+	it("changes the version when contentFetchedAt advances", () => {
+		const base = {
+			now: NOW,
+			returnQuery: "",
+			summary: undefined,
+			crawl: { status: "ready" as const },
+			filters: DEFAULT_FILTERS,
+			maxPolls: 3,
+		};
+		const earlier = toReadlistArticleViewModel({
+			...base,
+			article: makeArticle({ contentFetchedAt: new Date("2026-01-01T00:00:00Z") }),
+		});
+		const later = toReadlistArticleViewModel({
+			...base,
+			article: makeArticle({ contentFetchedAt: new Date("2026-02-01T00:00:00Z") }),
+		});
+		expect(readerVersion(earlier.readerHref)).not.toBe(readerVersion(later.readerHref));
 	});
 });

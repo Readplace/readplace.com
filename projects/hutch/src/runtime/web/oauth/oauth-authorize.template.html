@@ -6,7 +6,7 @@
         {{/if}}
         <p class="oauth-authorize__text"><strong>{{clientName}}</strong> wants full read and write access to your Readplace reading readlist, including saving and deleting links.</p>
         {{#if userEmail}}<p class="oauth-authorize__account">Signed in as <strong>{{userEmail}}</strong></p>{{/if}}
-        <form method="POST" action="/oauth/authorize">
+        <form method="POST" action="{{track '/oauth/authorize' source='oauth-authorize' content='decision'}}">
           <input type="hidden" name="client_id" value="{{clientId}}">
           <input type="hidden" name="redirect_uri" value="{{redirectUri}}">
           <input type="hidden" name="response_type" value="code">

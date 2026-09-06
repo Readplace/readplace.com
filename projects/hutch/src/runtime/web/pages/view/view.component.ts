@@ -5,6 +5,7 @@ import type {
 	ArticleMetadata,
 	Minutes,
 } from "@packages/domain/article";
+import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -54,11 +55,12 @@ const VIEW_CTA_ACTION_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-export type ViewActionKey = "save" | "paste-another-link";
+export type ViewActionKey = "save" | "paste-another-link" | "download-epub";
 
 export interface ViewAction {
 	key: ViewActionKey;
 	name: string;
+	shortName: string;
 	href: string;
 	variant: "primary" | "secondary";
 	/** Present on the action the save-tip panel holds back, so the client script
@@ -70,6 +72,7 @@ function renderViewCtaAction(action: ViewAction, oob: boolean): string {
 	return render(VIEW_CTA_ACTION_TEMPLATE, {
 		key: action.key,
 		name: action.name,
+		shortName: action.shortName,
 		href: action.href,
 		variant: action.variant,
 		saveTipState: action.saveTipState,
@@ -100,6 +103,7 @@ export interface ViewPageInput {
 	saveTip: SaveTip;
 	extensionInstallUrl?: string;
 	crawlVersions?: LocalTime[];
+	readerNotice?: ReaderFailedVariant;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -123,6 +127,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 		crawlVersions: input.crawlVersions,
+		readerNotice: input.readerNotice,
 	});
 
 	const viewPath = viewPathFor(input.articleUrl);
@@ -176,7 +181,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			ogImage,
 			ogImageAlt,
 			twitterImage,
-			structuredData: [structuredData],
+			structuredData: input.readerNotice === undefined ? [structuredData] : [],
 		},
 		styles: `${VIEW_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: "page-view",

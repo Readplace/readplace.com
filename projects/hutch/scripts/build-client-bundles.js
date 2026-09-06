@@ -48,7 +48,6 @@ const BUNDLES = [
       "  document: window.document,",
       "  storage: window.localStorage,",
       "  navigator: window.navigator,",
-      "  sendBeacon: function (url) { window.navigator.sendBeacon(url); },",
       "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
       "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
       "  addSwapListener: function (cb) {",
@@ -254,6 +253,19 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/article-body/reader-actions/readlist-picker.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "readlist-picker.client.js"),
+    globalName: "ReadlistPicker",
+    footer: [
+      "ReadlistPicker.initReadlistPicker({",
+      "  document: window.document",
+      "}).attach();",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/save/save-error.client.ts",
     ),
     outfile: path.join(OUT_DIR, "save-error.client.js"),
@@ -333,6 +345,30 @@ const BUNDLES = [
       "});",
     ].join("\n"),
   },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/shared/reader-open/reader-open.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "reader-open.client.js"),
+    globalName: "ReaderOpen",
+    footer: [
+      "ReaderOpen.initReaderOpen({",
+      "  document: window.document,",
+      "  history: window.history,",
+      "  currentHref: function () { return window.location.href; },",
+      "  currentPath: function () { return window.location.pathname + window.location.search; },",
+      "  navigate: function (href) { window.location.replace(href); },",
+      "  reload: function () { window.location.reload(); },",
+      "  scrollToTop: function () { window.scrollTo(0, 0); },",
+      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+      "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
+      "  parseHtml: function (html) { return new window.DOMParser().parseFromString(html, 'text/html'); },",
+      "  paintDelayMs: 150,",
+      "  addHtmxListener: function (name, cb) { window.document.body.addEventListener(name, cb); }",
+      "});",
+    ].join("\n"),
+  },
 ];
 
 const ALL_BUNDLES = [
@@ -368,10 +404,14 @@ async function main() {
   fs.rmSync(OUT_DIR, { recursive: true, force: true });
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.copyFileSync(
-    require.resolve("htmx.org/dist/htmx.min.js"),
-    path.join(OUT_DIR, "htmx.client.js"),
-  );
+  await esbuild.build({
+    entryPoints: [require.resolve("htmx.org/dist/htmx.js")],
+    outfile: path.join(OUT_DIR, "htmx.client.js"),
+    minify: true,
+    sourcemap: true,
+    target: ["es2020"],
+    logLevel: "info",
+  });
 
   if (watch) {
     const contexts = await Promise.all(

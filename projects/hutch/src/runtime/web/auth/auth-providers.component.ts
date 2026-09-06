@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import type { LastAuthProvider } from "../last-auth-provider";
 
 const AUTH_PROVIDERS_TEMPLATE = readFileSync(
@@ -19,7 +19,7 @@ interface AuthProviderSpec {
 	name: string;
 	logoSvg: string;
 	buttonClass: string;
-	signupUtmContent: string;
+	utmContent: Record<AuthIntent, string>;
 	supportsAccountChooser: boolean;
 }
 
@@ -29,7 +29,7 @@ const AUTH_PROVIDERS: readonly AuthProviderSpec[] = [
 		name: "Google",
 		logoSvg: GOOGLE_LOGO_SVG,
 		buttonClass: "auth-provider-button auth-provider-button--google",
-		signupUtmContent: "google-signup-btn",
+		utmContent: { "sign-up": "google-signup-btn", "sign-in": "google-login-btn" },
 		supportsAccountChooser: true,
 	},
 	{
@@ -37,7 +37,7 @@ const AUTH_PROVIDERS: readonly AuthProviderSpec[] = [
 		name: "Apple",
 		logoSvg: APPLE_LOGO_SVG,
 		buttonClass: "auth-provider-button auth-provider-button--apple",
-		signupUtmContent: "apple-signup-btn",
+		utmContent: { "sign-up": "apple-signup-btn", "sign-in": "apple-login-btn" },
 		supportsAccountChooser: false,
 	},
 ];
@@ -49,6 +49,8 @@ const INTENT_VERB: Record<AuthIntent, string> = {
 
 const LAST_USED_BADGE = { text: "Last used" };
 
+const AUTH_PAGE_SOURCE = "auth-page";
+
 function providerHref(input: {
 	spec: AuthProviderSpec;
 	intent: AuthIntent;
@@ -56,18 +58,16 @@ function providerHref(input: {
 	chooseAccount?: boolean;
 }): string {
 	const params = new URLSearchParams();
-	if (input.intent === "sign-up") {
-		params.set("utm_source", "auth-page");
-		params.set("utm_medium", "internal");
-		params.set("utm_content", input.spec.signupUtmContent);
-	}
 	if (input.returnUrl) params.set("return", input.returnUrl);
 	if (input.chooseAccount && input.spec.supportsAccountChooser) {
 		params.set("prompt", "select_account");
 	}
 	const query = params.toString();
-	if (!query) return `/auth/${input.spec.key}`;
-	return `/auth/${input.spec.key}?${query}`;
+	const href = query ? `/auth/${input.spec.key}?${query}` : `/auth/${input.spec.key}`;
+	return withInternalTracking(href, {
+		source: AUTH_PAGE_SOURCE,
+		content: input.spec.utmContent[input.intent],
+	});
 }
 
 export function renderAuthProviders(input: {

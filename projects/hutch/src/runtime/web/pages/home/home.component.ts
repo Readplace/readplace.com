@@ -1,11 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
+import {
+	CONFIRM_POPOVER_STYLES,
+	PRICING_PANELS,
+	render,
+	withInternalTracking,
+} from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
-import type { ClientGroup } from "@packages/supported-clients";
+import { ADVERTISED_CLIENTS } from "@packages/supported-clients";
 
 import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
+import { AI_ASSISTANTS_OR } from "../../shared/client-enumerations";
 import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
 import {
 	PAGE_DEPTH_SCRIPT,
@@ -14,8 +19,9 @@ import {
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import {
+	HOME_BROWSER_EXTENSION_ROW,
 	HOME_CONTENT,
-	HOME_WAY_BY_GROUP,
+	HOME_NATIVE_APP_ROW_BY_CLIENT,
 	HOME_WAY_LINK_BY_CLIENT,
 	HOME_WAYS_WITHOUT_A_CLIENT,
 	type HomeWayLink,
@@ -54,7 +60,6 @@ interface RenderedAction {
 	/** What the action would act on, named and linked so a reader who left the
 	 * article minutes ago can tell which one this saves — and reopen it. */
 	readonly target?: RenderedLink;
-	readonly subLabel?: string;
 }
 
 interface RenderedLink {
@@ -78,7 +83,6 @@ function renderAction(input: {
 	saveTipState?: SaveTipState;
 	lead?: string;
 	target?: RenderedLink;
-	subLabel?: string;
 }): RenderedAction {
 	const tracked = new URL(
 		withInternalTracking(input.href, { source: TRACKING_SOURCE, content: input.content }),
@@ -92,7 +96,6 @@ function renderAction(input: {
 		saveTipState: input.saveTipState,
 		lead: input.lead,
 		target: input.target,
-		subLabel: input.subLabel,
 		action: tracked.pathname,
 		hiddenParams: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
 	};
@@ -112,45 +115,63 @@ function trackedLink(link: {
 
 const { hero, ways, assistant, proof, principle, pricing, faq, close } = HOME_CONTENT;
 
-const ADVERTISED_CLIENTS = SUPPORTED_CLIENTS.filter((client) => client.advertised);
-
-const ROW_CLIENTS = ADVERTISED_CLIENTS.filter((client) => client.group !== "aiAssistant");
-
-/** The groups that earn a row, in roster order, each once. */
-const ROW_GROUPS: readonly ClientGroup[] = ROW_CLIENTS.reduce<ClientGroup[]>((groups, client) => {
-	if (!groups.includes(client.group)) groups.push(client.group);
-	return groups;
-}, []);
+function byOrder(left: HomeWayLink, right: HomeWayLink): number {
+	return left.order - right.order;
+}
 
 /**
- * The save routes that get a row: one per group of advertised clients whose save
- * carries the page's own content, then the ways in that have no client behind
- * them. An assistant saves a bare URL and gets its own section instead, and a
- * client nobody can install yet is not offered here at all.
+ * The save routes that get a row: the advertised browser extensions merged into
+ * one row, one row per advertised phone app, then the ways in that have no
+ * client behind them. An assistant saves a bare URL and gets its own section
+ * instead, and a client nobody can install yet is not offered here at all —
+ * every map indexed below is keyed by an advertised-only union, so this
+ * assembly cannot reach for one.
  */
 const HOMEPAGE_WAYS: readonly HomeWayRow[] = [
-	...ROW_GROUPS.map((group) => ({
-		...HOME_WAY_BY_GROUP[group],
-		links: [
-			...ROW_CLIENTS.filter((client) => client.group === group).map(
-				(client) => HOME_WAY_LINK_BY_CLIENT[client.name],
-			),
-		].sort((left: HomeWayLink, right: HomeWayLink) => left.order - right.order),
-	})),
+	{
+		...HOME_BROWSER_EXTENSION_ROW,
+		links: ADVERTISED_CLIENTS.flatMap((client) =>
+			client.group === "browserExtension" ? [HOME_WAY_LINK_BY_CLIENT[client.name]] : [],
+		)
+			.slice()
+			.sort(byOrder),
+	},
+	...ADVERTISED_CLIENTS.flatMap((client) =>
+		client.group === "nativeApp"
+			? [
+					{
+						...HOME_NATIVE_APP_ROW_BY_CLIENT[client.name],
+						links: [HOME_WAY_LINK_BY_CLIENT[client.name]],
+					},
+				]
+			: [],
+	),
 	...HOME_WAYS_WITHOUT_A_CLIENT,
 ];
 
-const ADVERTISED_ASSISTANTS = ADVERTISED_CLIENTS.filter(
-	(client) => client.group === "aiAssistant",
-).map((client) => client.displayName);
-
-/** "A, B, or C" — the assistants a reader can connect today, named from the
- * roster so a new one reaches this sentence without an edit here. */
-function assistantsPhrase(names: readonly string[]): string {
-	if (names.length === 1) return names[0];
-	return `${names.slice(0, -1).join(", ")}, or ${names[names.length - 1]}`;
-}
-
+const HOMEPAGE_PRICING_PANELS = PRICING_PANELS.map((panel) => {
+	const emphasis = panel.featured
+		? {
+				panelClass: "home-pricing__plan home-pricing__plan--featured",
+				buttonVariant: "btn--primary",
+			}
+		: { panelClass: "home-pricing__plan", buttonVariant: "btn--secondary" };
+	return {
+		tierId: panel.key,
+		name: panel.name,
+		monthlyDisplay: panel.monthlyDisplay,
+		billedNote: panel.billedNote,
+		badge: panel.badge,
+		panelClass: emphasis.panelClass,
+		cta: renderAction({
+			key: `plan-${panel.key}`,
+			label: pricing.panelCtaLabel,
+			href: "/signup",
+			content: `plan-${panel.key}`,
+			cssClass: `${emphasis.buttonVariant} home-pricing__plan-button`,
+		}),
+	};
+});
 function buildPasteAction(input: { primary: boolean; saveTipState: SaveTipState }): RenderedAction {
 	return renderAction({
 		key: "homepage-link-input",
@@ -265,7 +286,7 @@ export function HomePage(params: {
 				waysNoteLink: trackedLink({ ...ways.noteLink, source: "home-ways" }),
 				assistantTitle: assistant.title,
 				assistantBodyLead: assistant.bodyLead,
-				assistantNames: assistantsPhrase(ADVERTISED_ASSISTANTS),
+				assistantNames: AI_ASSISTANTS_OR,
 				assistantBodyTail: assistant.bodyTail,
 				assistantLink: trackedLink({
 					label: assistant.linkLabel,
@@ -292,15 +313,7 @@ export function HomePage(params: {
 				pricingTitleBefore: pricing.titleBefore,
 				pricingPriceAmount: pricing.priceAmount,
 				pricingTitleAfter: pricing.titleAfter,
-				pricingBody: pricing.body,
-				pricingCta: renderAction({
-					key: "signup-body",
-					label: pricing.ctaLabel,
-					href: "/signup",
-					content: "signup-body",
-					cssClass: "btn--primary home-pricing__cta-button",
-					subLabel: pricing.ctaSubLabel,
-				}),
+				pricingPanels: HOMEPAGE_PRICING_PANELS,
 				pricingNote: pricing.ctaNote,
 				pricingAssurances: pricing.assurances,
 				pricingSourceLead: pricing.sourceLead,

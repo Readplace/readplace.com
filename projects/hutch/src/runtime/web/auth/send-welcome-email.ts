@@ -2,6 +2,7 @@ import type { SendEmail } from "@packages/provider-contracts/email";
 import { buildWelcomeEmailHtml } from "./welcome-email";
 
 const WELCOME_EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
+const WELCOME_EMAIL_REPLY_TO = "fayner@readplace.com";
 
 interface SendWelcomeEmailDeps {
 	sendEmail: SendEmail;
@@ -14,12 +15,13 @@ export type SendWelcomeEmail = (email: string) => void;
 
 export function initSendWelcomeEmail(deps: SendWelcomeEmailDeps): SendWelcomeEmail {
 	return (email: string): void => {
-		const installUrl = `${deps.baseUrl}/install`;
+		const installUrl = `${deps.baseUrl}/install?utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=install`;
 		const avatarUrl = `${deps.staticBaseUrl}/fayner-brack.jpg`;
 		deps.sendEmail({
 			from: WELCOME_EMAIL_FROM,
 			to: email,
 			bcc: "readplace+welcome@readplace.com",
+			replyTo: WELCOME_EMAIL_REPLY_TO,
 			subject: "Welcome to Readplace",
 			html: buildWelcomeEmailHtml({ installUrl, avatarUrl }),
 		}).catch((err) => {

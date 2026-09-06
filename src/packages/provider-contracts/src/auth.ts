@@ -1,4 +1,4 @@
-import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
+import type { AppearancePreference, AuthenticatedUserId, UserId } from "@packages/domain/user";
 
 export type CreateUserResult =
 	| { ok: true; userId: UserId }
@@ -76,10 +76,15 @@ export type FindUserByEmailResult =
 export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
 export type FindUserByIdResult =
-	| { userId: UserId; emailVerified: boolean; registeredAt?: string }
+	| { userId: UserId; emailVerified: boolean; registeredAt?: string; appearance?: AppearancePreference }
 	| null;
 
 export type FindUserById = (userId: UserId) => Promise<FindUserByIdResult>;
+
+export type SetUserAppearance = (input: {
+	userId: UserId;
+	appearance: AppearancePreference;
+}) => Promise<void>;
 
 export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;
 

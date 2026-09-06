@@ -22,7 +22,7 @@ The Save button under a newsletter link had one job. It had to tell me whether t
 
 An already-saved link, a link I had never touched, and a link whose save had failed all came out as the same button, down to the last byte. Nothing on the card carried the difference, so there was nothing to render.
 
-On its own that is a small bug. It was not small here, because of how the inbox already works. Readplace [gives each newsletter its own address](/blog/save-newsletter-links-to-your-readlist), and when an issue arrives it pulls the article links out and saves them for you right then. So by the time you open that issue in the inbox, most of its links are already in your readlist. The button was asking you to save things you had saved a minute earlier.
+On its own that is a small bug. It was not small here, because of how the inbox already works. Readplace [gives each newsletter its own address](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-newsletter-links-show-when-already-saved&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist), and when an issue arrives it pulls the article links out and saves them for you right then. So by the time you open that issue in the inbox, most of its links are already in your readlist. The button was asking you to save things you had saved a minute earlier.
 
 > **Most of those buttons were out of date before the reader ever looked at them.**
 
@@ -30,7 +30,7 @@ On its own that is a small bug. It was not small here, because of how the inbox 
 
 The obvious fix is to check the readlist. Read each link, see whether it is already there, set the label to match.
 
-I can't reach the readlist from the inbox. The part of Readplace that handles your newsletters runs on the [principle of least privilege](/view/en.wikipedia.org/wiki/Principle_of_least_privilege), holding only the keys its own work needs, and reading your reading-readlist tables is not one of them. That boundary is deliberate. Your newsletter mail and the articles you keep live apart, and the newsletter side has no way to read across into the other.
+I can't reach the readlist from the inbox. The part of Readplace that handles your newsletters runs on the [principle of least privilege](/view/en.wikipedia.org/wiki/Principle_of_least_privilege?utm_source=blog-newsletter-links-show-when-already-saved&utm_medium=internal&utm_content=read-en-wikipedia-org), holding only the keys its own work needs, and reading your reading-readlist tables is not one of them. That boundary is deliberate. Your newsletter mail and the articles you keep live apart, and the newsletter side has no way to read across into the other.
 
 So the saved state had to arrive at the inbox as a fact it was told, not a table it went and read.
 
@@ -73,4 +73,4 @@ row: What the inbox was told | !nothing>>this link was accepted | !nothing>>this
 
 A saved-state indicator that can be wrong is worse than none at all. You learn it lies, then you stop reading it, and the doubt spreads to the parts that were telling the truth. So the button had to be right on the case that matters most, the link you saved thirty seconds ago without thinking about it.
 
-If you already forward a newsletter into Readplace, open its Articles tab and the links you have saved will say so. If you don't yet, [give one newsletter an address of its own](/) and read the next issue as a short list of what is already waiting in your readlist.
+If you already forward a newsletter into Readplace, open its Articles tab and the links you have saved will say so. If you don't yet, [give one newsletter an address of its own](/?utm_source=blog-newsletter-links-show-when-already-saved&utm_medium=internal&utm_content=home) and read the next issue as a short list of what is already waiting in your readlist.

@@ -15,6 +15,7 @@ import {
 } from "@packages/article-store";
 import { initSubmitLinkCommandHandler } from "./domain/submit-link/submit-link-command-handler";
 import { initSubmitFreshness } from "@packages/save-article";
+import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
@@ -27,6 +28,7 @@ import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-i
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
+const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
@@ -37,6 +39,12 @@ const sqsClient = new SQSClient({});
 const dynamoClient = createDynamoDocumentClient();
 const eventBridgeClient = new EventBridgeClient({});
 const now = () => new Date();
+
+const onboardingSignals = initOnboardingSignals({
+	client: dynamoClient,
+	onboardingTableName: onboardingTable,
+	now,
+});
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
@@ -103,6 +111,7 @@ export const handler = initSubmitLinkCommandHandler({
 	validateSaveableUrl,
 	saveArticle: savedArticleStore.saveArticle,
 	allocateSavedAt: savedArticleStore.allocateSavedAt,
+	recordInboxArticleQueued: onboardingSignals.recordInboxArticleQueued,
 	updateArticleStatus: savedArticleStore.updateArticleStatus,
 	markCrawlPending: crawlStore.markCrawlPending,
 	markSummaryPending: summaryStore.markSummaryPending,

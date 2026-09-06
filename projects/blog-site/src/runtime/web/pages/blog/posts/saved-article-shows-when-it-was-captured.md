@@ -20,7 +20,7 @@ Open any article in the Readplace reader and a small bookmark now rides the righ
 
 Web pages change after they go up, and they rarely date the change. A story gets corrected a day later, or a paragraph disappears, or the whole page starts returning a 404. Nothing on it says when, so the version you read last month is just gone.
 
-A saved copy holds still while that happens. Readplace stores the article as it was the second it fetched the page, and [that copy stays put](/blog/saved-articles-outlast-the-original-page) while the live one drifts or disappears.
+A saved copy holds still while that happens. Readplace stores the article as it was the second it fetched the page, and [that copy stays put](/blog/saved-articles-outlast-the-original-page?utm_source=blog-saved-article-shows-when-it-was-captured&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page) while the live one drifts or disappears.
 
 **The copy always had its date underneath. The reader just never showed it.**
 
@@ -32,7 +32,7 @@ The time is yours, not the server's. Readplace writes it once in UTC, so it read
 
 On a wide screen the tab sits open, the date in view. On a phone it folds down to a thin handle against the edge, clear of the text. Tap the handle and it opens. Tap it again and it closes.
 
-If Readplace ever fetches the page again, [say a first save came back empty and retried](/blog/watch-your-article-save-step-by-step), the bookmark moves to the newer time. It names the copy you are actually reading, not the first attempt at it.
+If Readplace ever fetches the page again, [say a first save came back empty and retried](/blog/watch-your-article-save-step-by-step?utm_source=blog-saved-article-shows-when-it-was-captured&utm_medium=internal&utm_content=post-watch-your-article-save-step-by-step), the bookmark moves to the newer time. It names the copy you are actually reading, not the first attempt at it.
 
 ## The date the live page won't give you
 
@@ -52,8 +52,8 @@ A copy you keep that long has to be one you can place in time. The bookmark is w
 
 ## Read a saved piece and check its date
 
-The bookmark shows up on every article you open in the Readplace reader, on the web and in the [iPhone app](/blog/read-saved-articles-in-the-iphone-app). You don't switch it on. It is already there on the copies you have saved.
+The bookmark shows up on every article you open in the Readplace reader, on the web and in the [iPhone app](/blog/read-saved-articles-in-the-iphone-app?utm_source=blog-saved-article-shows-when-it-was-captured&utm_medium=internal&utm_content=post-read-saved-articles-in-the-iphone-app). You don't switch it on. It is already there on the copies you have saved.
 
-Open something you already saved at [readplace.com](/), or save a fresh page with [the browser extension](https://readplace.com/install), then look to the right edge of the reader for the day your copy was taken.
+Open something you already saved at [readplace.com](/?utm_source=blog-saved-article-shows-when-it-was-captured&utm_medium=internal&utm_content=home), or save a fresh page with [the browser extension](https://readplace.com/install), then look to the right edge of the reader for the day your copy was taken.
 
 A page on the open web tells you when it was published, if it tells you anything. A copy on Readplace tells you when it became yours.

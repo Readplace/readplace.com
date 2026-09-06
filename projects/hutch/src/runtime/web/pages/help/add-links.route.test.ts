@@ -60,7 +60,7 @@ describe("GET /help/add-links", () => {
 			"https://static.test/videos/ios-share-demo-poster.webp",
 		);
 		expect(video.getAttribute("aria-label")).toBe(
-			"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
+			"Saving a page to Readplace from the iOS share sheet, and the article arriving at the top of the reading list",
 		);
 	});
 
@@ -195,7 +195,7 @@ describe("GET /help/add-links", () => {
 			el.getAttribute("aria-label"),
 		);
 		expect(recordings).toEqual([
-			"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
+			"Saving a page to Readplace from the iOS share sheet, and the article arriving at the top of the reading list",
 		]);
 	});
 
@@ -222,7 +222,7 @@ describe("GET /help/add-links", () => {
 			el.getAttribute("aria-label"),
 		);
 		expect(recordings).toEqual([
-			"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
+			"Saving a page to Readplace from the iOS share sheet, and the article arriving at the top of the reading list",
 		]);
 	});
 

@@ -1,7 +1,7 @@
 <nav class="readlist-nav" aria-label="Readlists" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-readlist-nav>
           <ul class="readlist-nav__list">
             {{#each items}}
-            <li class="readlist-nav__item{{#if isDeletable}} readlist-nav__item--deletable{{/if}}">
+            <li class="{{itemClass}}">
               <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}}{{#if isRenameable}} hx-boost="false" aria-label="Rename {{title}}" data-readlist-rename="{{renameAction}}" data-readlist-rename-field="{{renameField}}" data-readlist-label-max="{{maxLength}}"{{/if}} data-test-readlist="{{name}}"><span class="readlist-nav__label">{{title}}</span>{{#if isRenameable}}{{icon "pencil"}}{{/if}}</a>
               {{#if isDeletable}}
               <form class="readlist-nav__delete-fallback" method="POST" action="{{deleteAction}}" hx-boost="false">

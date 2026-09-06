@@ -76,6 +76,8 @@ const userArticlesTableArn = config.require("userArticlesTableArn");
 // for per-IP throttles and the global paid-crawl budget share one TTL'd table.
 const rateLimitsTableName = config.require("rateLimitsTableName");
 const rateLimitsTableArn = config.require("rateLimitsTableArn");
+const onboardingTableName = config.require("onboardingTableName");
+const onboardingTableArn = config.require("onboardingTableArn");
 // "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
@@ -363,9 +365,11 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 	entryPoint: "./src/runtime/save-link-command.main.ts",
 	outputDir: ".lib/save-link-command",
 	assetDir: "./src",
-	// 1769 MB = 1 full vCPU. Large HTML pages (40 MB+ interactive research
-	// papers) expand to 3-5× in linkedom; 512 MB OOM'd on those.
-	memorySize: 1769,
+	// 3008 MB is the account's per-function ceiling — it is not a Service Quota,
+	// so raising it needs an AWS support case. Measured peak RSS through
+	// linkedom + Readability is ~80× the HTML source, which is what bounds the
+	// 28 MB body cap (MAX_HTML_BYTES) rather than the other way round.
+	memorySize: 3008,
 	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
@@ -433,17 +437,23 @@ const submitLinkUserArticlesDynamodb = new HutchDynamoDBAccess(
 	},
 );
 
+const submitLinkOnboardingDynamodb = new HutchDynamoDBAccess("submit-link-onboarding-dynamodb", {
+	tables: [{ arn: onboardingTableArn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
 const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	entryPoint: "./src/runtime/submit-link.main.ts",
 	outputDir: ".lib/submit-link",
 	assetDir: "./src",
-	memorySize: 1769,
+	memorySize: 3008,
 	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
@@ -452,6 +462,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	policies: [
 		...submitLinkArticlesDynamodb.policies,
 		...submitLinkUserArticlesDynamodb.policies,
+		...submitLinkOnboardingDynamodb.policies,
 		...contentBucket.readPolicies("submit-link-content-read"),
 		...contentBucket.writePolicies("submit-link-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "submit-link"),
@@ -481,8 +492,8 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	entryPoint: "./src/runtime/save-link-raw-html-command.main.ts",
 	outputDir: ".lib/save-link-raw-html-command",
 	assetDir: "./src",
-	// 1769 MB = 1 full vCPU.
-	memorySize: 1769,
+	// 3008 MB — the account's per-function memory ceiling.
+	memorySize: 3008,
 	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
@@ -529,8 +540,8 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	entryPoint: "./src/runtime/save-anonymous-link-command.main.ts",
 	outputDir: ".lib/save-anonymous-link-command",
 	assetDir: "./src",
-	// 1769 MB = 1 full vCPU.
-	memorySize: 1769,
+	// 3008 MB — the account's per-function memory ceiling.
+	memorySize: 3008,
 	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
@@ -978,8 +989,8 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	entryPoint: "./src/runtime/stale-check.main.ts",
 	outputDir: ".lib/stale-check-requested",
 	assetDir: "./src",
-	// 1769 MB = 1 full vCPU.
-	memorySize: 1769,
+	// 3008 MB — the account's per-function memory ceiling.
+	memorySize: 3008,
 	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {
@@ -1391,8 +1402,8 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 	entryPoint: "./src/runtime/recrawl-link-initiated.main.ts",
 	outputDir: ".lib/recrawl-link-initiated",
 	assetDir: "./src",
-			// 1769 MB = 1 full vCPU.
-	memorySize: 1769,
+			// 3008 MB — the account's per-function memory ceiling.
+	memorySize: 3008,
 	timeout: 300,
 	layers: [curlImpersonateLayerArn],
 	environment: {

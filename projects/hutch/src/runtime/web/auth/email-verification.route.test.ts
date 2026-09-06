@@ -30,7 +30,7 @@ describe("Email verification", () => {
 			const sent = email.getSentEmails();
 			expect(sent).toHaveLength(1);
 			expect(sent[0].to).toBe("new@example.com");
-			expect(sent[0].from).toContain("readplace@readplace.com");
+			expect(sent[0].from).toBe("Fayner from Readplace <fayner@readplace.com>");
 			expect(sent[0].subject).toContain("Verify");
 			expect(sent[0].html).toContain("verify-email?token&#x3D;");
 		});
@@ -195,6 +195,7 @@ describe("Email verification", () => {
 			expect(welcome.to).toBe("welcome@example.com");
 			expect(welcome.from).toContain("fayner@readplace.com");
 			expect(welcome.bcc).toBe("readplace+welcome@readplace.com");
+			expect(welcome.replyTo).toBe("fayner@readplace.com");
 			expect(welcome.subject).toBe("Welcome to Readplace");
 			expect(welcome.html).toContain("/install");
 		});

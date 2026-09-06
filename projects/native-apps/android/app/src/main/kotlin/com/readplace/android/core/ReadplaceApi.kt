@@ -76,6 +76,7 @@ class ReadlistPage(collection: SirenCollection) {
 	 * what you render), so the caller renders whatever survives without
 	 * re-checking. Empty when the server offered none. */
 	val noticeMessages: List<ServerMessage>
+	val appearance: String?
 
 	init {
 		articles = collection.entities.orEmpty().mapNotNull { Article.of(it) }
@@ -86,6 +87,7 @@ class ReadlistPage(collection: SirenCollection) {
 		affordances = actionAffordances + linkAffordances
 		warning = collection.properties?.warning
 		noticeMessages = collection.properties?.messages.orEmpty().filter { it.isRenderable }
+		appearance = collection.properties?.appearance
 	}
 
 	/** The advertised action with this name, when present and invokable. The

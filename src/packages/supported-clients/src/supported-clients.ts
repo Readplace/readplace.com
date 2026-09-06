@@ -39,7 +39,7 @@ export type InstallSource =
 			readonly serverUrl: string;
 			readonly guidePath: string;
 			readonly directInstallUrl: string | null;
-	  };
+	};
 
 /** The storefront-less form. A region-prefixed link (`/au/`) shows a "not
  * available in your storefront" interstitial to everyone outside that region,
@@ -174,6 +174,34 @@ export const SUPPORTED_CLIENTS = [
 
 export type SupportedClient = (typeof SUPPORTED_CLIENTS)[number];
 export type ClientName = SupportedClient["name"];
+
+/**
+ * The clients a marketing surface may name or offer. `advertised` narrows
+ * literally per roster entry, so these unions move the moment the flag flips:
+ * copy held under `satisfies Record<AdvertisedClientName…, T>` gains a
+ * missing-key compile error when a client starts being advertised, and an
+ * excess-key error when it stops — which is what makes the flag the single
+ * switch instead of a filter someone has to remember.
+ */
+export type AdvertisedClient = Extract<SupportedClient, { advertised: true }>;
+export type AdvertisedClientName = AdvertisedClient["name"];
+export type UnadvertisedClientName = Extract<SupportedClient, { advertised: false }>["name"];
+export type AdvertisedClientInGroup<G extends ClientGroup> = Extract<AdvertisedClient, { group: G }>;
+export type AdvertisedClientNameInGroup<G extends ClientGroup> = AdvertisedClientInGroup<G>["name"];
+export type AdvertisedClientNameInCategory<C extends ClientCategory> = Extract<
+	AdvertisedClient,
+	{ group: ClientGroupInCategory<C> }
+>["name"];
+
+/** The advertised roster in registry order — the list every pitch renders from. */
+export const ADVERTISED_CLIENTS: readonly AdvertisedClient[] = SUPPORTED_CLIENTS.filter(
+	(client): client is AdvertisedClient => client.advertised,
+);
+
+export const UNADVERTISED_CLIENTS: readonly Extract<SupportedClient, { advertised: false }>[] =
+	SUPPORTED_CLIENTS.filter(
+		(client): client is Extract<SupportedClient, { advertised: false }> => !client.advertised,
+	);
 export type ClientInGroup<G extends ClientGroup> = Extract<SupportedClient, { group: G }>;
 export type ClientNameInGroup<G extends ClientGroup> = ClientInGroup<G>["name"];
 export type BuiltInOAuthClientId = Extract<SupportedClient["auth"], { kind: "builtIn" }>["oauthClientId"];
@@ -191,31 +219,6 @@ export type ClientNameInCategory<C extends ClientCategory> = ClientInGroup<Clien
 
 export function clientCategoryOfGroup(group: ClientGroup): ClientCategory {
 	return GROUP_CATEGORY[group];
-}
-
-/** Narrows a group to a category's groups so callers can index a
- * `Record<ClientGroupInCategory<C>, …>` without a cast. */
-function isGroupInCategory<C extends ClientCategory>(
-	group: ClientGroup,
-	category: C,
-): group is ClientGroupInCategory<C> {
-	return GROUP_CATEGORY[group] === category;
-}
-
-/** The groups in category `C`, each once, in registry order — the basis for a
- * phrase that names every content-capture (or url-only) surface exactly once.
- * Derived from the roster so a new group can't drift out of sync with a parallel
- * list. */
-export function clientGroupsInCategory<C extends ClientCategory>(
-	category: C,
-): readonly ClientGroupInCategory<C>[] {
-	const groups: ClientGroupInCategory<C>[] = [];
-	for (const client of SUPPORTED_CLIENTS) {
-		if (isGroupInCategory(client.group, category) && !groups.includes(client.group)) {
-			groups.push(client.group);
-		}
-	}
-	return groups;
 }
 
 const CLIENT_NAMES: ReadonlySet<string> = new Set(SUPPORTED_CLIENTS.map((client) => client.name));

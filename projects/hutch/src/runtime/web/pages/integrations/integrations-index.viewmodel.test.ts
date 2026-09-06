@@ -49,7 +49,12 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(gmail.statusLabel, "Not set up");
 		assert.deepEqual(
 			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
-			[["connect", "POST", GMAIL_CONNECT_PATH, "primary"]],
+			[[
+				"connect",
+				"POST",
+				`${GMAIL_CONNECT_PATH}?utm_source=integrations&utm_medium=internal&utm_content=connect`,
+				"primary",
+			]],
 		);
 	});
 
@@ -60,7 +65,12 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(gmail.statusLabel, "Step 2 of 2");
 		assert.deepEqual(
 			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
-			[["finish-setup", "GET", GMAIL_PATH, "primary"]],
+			[[
+				"finish-setup",
+				"GET",
+				`${GMAIL_PATH}?utm_source=integrations&utm_medium=internal&utm_content=finish-setup`,
+				"primary",
+			]],
 		);
 	});
 
@@ -73,7 +83,12 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(gmail.statusLabel, "Connected");
 		assert.deepEqual(
 			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
-			[["manage", "GET", GMAIL_PATH, "secondary"]],
+			[[
+				"manage",
+				"GET",
+				`${GMAIL_PATH}?utm_source=integrations&utm_medium=internal&utm_content=manage`,
+				"secondary",
+			]],
 		);
 	});
 
@@ -89,7 +104,12 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(gmail.statusLabel, "Connected");
 		assert.deepEqual(
 			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
-			[["manage", "GET", GMAIL_PATH, "secondary"]],
+			[[
+				"manage",
+				"GET",
+				`${GMAIL_PATH}?utm_source=integrations&utm_medium=internal&utm_content=manage`,
+				"secondary",
+			]],
 		);
 	});
 
@@ -109,7 +129,12 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(gmail.statusLabel, "Needs attention");
 		assert.deepEqual(
 			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
-			[["manage", "GET", GMAIL_PATH, "primary"]],
+			[[
+				"manage",
+				"GET",
+				`${GMAIL_PATH}?utm_source=integrations&utm_medium=internal&utm_content=manage`,
+				"primary",
+			]],
 		);
 	});
 
@@ -125,7 +150,12 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(gmail.statusLabel, "Reconnect needed");
 		assert.deepEqual(
 			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
-			[["reconnect", "POST", GMAIL_CONNECT_PATH, "primary"]],
+			[[
+				"reconnect",
+				"POST",
+				`${GMAIL_CONNECT_PATH}?utm_source=integrations&utm_medium=internal&utm_content=reconnect`,
+				"primary",
+			]],
 		);
 	});
 
@@ -133,8 +163,6 @@ describe("toIntegrationsIndexViewModel", () => {
 		const vm = toIntegrationsIndexViewModel({ connection: undefined });
 
 		assert.deepEqual(vm.alerts, []);
-		assert.equal(vm.hasAlert, false);
-		assert.equal(vm.alertVisibility, "hidden");
 	});
 
 	it("explains each connect failure the callback can redirect with", () => {
@@ -150,8 +178,6 @@ describe("toIntegrationsIndexViewModel", () => {
 				vm.alerts.map((a) => a.key),
 				[error],
 			);
-			assert.equal(vm.hasAlert, true);
-			assert.equal(vm.alertVisibility, "visible");
 		}
 	});
 
@@ -159,6 +185,5 @@ describe("toIntegrationsIndexViewModel", () => {
 		const vm = toIntegrationsIndexViewModel({ connection: undefined, error: "made-up" });
 
 		assert.deepEqual(vm.alerts, []);
-		assert.equal(vm.hasAlert, false);
 	});
 });

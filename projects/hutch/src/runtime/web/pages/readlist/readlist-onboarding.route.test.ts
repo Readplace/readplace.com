@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { NEXT_READ_MINIMUM_SAVES } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
 import type { CountArticlesQuery } from "@packages/provider-contracts/article-store";
+import type { OnboardingSignalsBundle } from "@packages/web-test-harness";
 import { JSDOM } from "jsdom";
 import {
 	ALIVE_COOKIE_NAME,
@@ -59,6 +61,31 @@ function fixtureCrossingMilestone(): {
 			},
 		},
 	};
+}
+
+async function loggedInUserId(harness: TestAppHarness): Promise<UserId> {
+	const user = await harness.auth.findUserByEmail("test@example.com");
+	assert(user, "logged-in user must exist");
+	return user.userId;
+}
+
+async function tickEmailStep(
+	fixture: { onboardingSignals: OnboardingSignalsBundle },
+	harness: TestAppHarness,
+): Promise<void> {
+	await fixture.onboardingSignals.recordInboxArticleQueued({
+		userId: await loggedInUserId(harness),
+	});
+}
+
+async function markSeenOutstanding(
+	fixture: { onboardingSignals: OnboardingSignalsBundle },
+	harness: TestAppHarness,
+): Promise<void> {
+	await fixture.onboardingSignals.recordOnboardingOutstandingVersion({
+		userId: await loggedInUserId(harness),
+		version: ONBOARDING_VERSION,
+	});
 }
 
 /** Desktop Chrome — a platform with an installable client, so these requests
@@ -151,6 +178,7 @@ describe("Readlist onboarding", () => {
 		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", cookies);
 		crossing.reachMilestone();
+		await tickEmailStep(crossing.fixture, harness);
 
 		const response = await agent
 			.get("/queue")
@@ -205,6 +233,7 @@ describe("Readlist onboarding", () => {
 		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", cookies);
 		crossing.reachMilestone();
+		await tickEmailStep(crossing.fixture, harness);
 
 		const response = await agent
 			.get("/queue?status=read")
@@ -276,7 +305,7 @@ describe("Readlist onboarding", () => {
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
 
-		const response = await agent.post("/queue/dismiss-onboarding").set("User-Agent", CHROME_UA);
+		const response = await agent.post("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client").set("User-Agent", CHROME_UA);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue");
@@ -298,8 +327,11 @@ describe("Readlist onboarding", () => {
 		const ALL_COMPLETE_COOKIES = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 
 		it("welcomes a first-time completion with the full message", async () => {
-			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
+			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
+			await tickEmailStep(fixture, harness);
+			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
 				.get("/queue")
@@ -312,8 +344,11 @@ describe("Readlist onboarding", () => {
 		});
 
 		it("greets a re-onboarded user with just the title once a past dismissal shows they finished before", async () => {
-			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
+			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
+			await tickEmailStep(fixture, harness);
+			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
 				.get("/queue")
@@ -328,8 +363,11 @@ describe("Readlist onboarding", () => {
 		});
 
 		it("still welcomes in full when the only past dismissal was the no-client escape card", async () => {
-			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
+			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
+			await tickEmailStep(fixture, harness);
+			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
 				.get("/queue")
@@ -393,11 +431,12 @@ describe("Readlist onboarding — iPhone", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		expect(installTitle(response.text)).toBe("Install the Readplace iPhone app");
-		expect(
-			doc
-				.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]')
-				?.getAttribute("href"),
-		).toBe("/install?client=iphone");
+		const installForm = doc
+			.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action="install"]')
+			?.closest("form");
+		assert(installForm, "install action must render as a form");
+		expect(installForm.getAttribute("action")).toBe("/install");
+		expect(installForm.querySelector('input[name="client"]')?.getAttribute("value")).toBe("iphone");
 		expect(
 			doc
 				.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title')
@@ -427,6 +466,7 @@ describe("Readlist onboarding — iPhone", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await agent.get("/queue").set("User-Agent", IPHONE_UA);
 		crossing.reachMilestone();
+		await tickEmailStep(crossing.fixture, harness);
 		const token = await bearerForLoggedInUser(harness);
 
 		// A share-sheet save (Bearer-authed, client header) records both signals at once.
@@ -544,19 +584,20 @@ describe("Readlist onboarding — no installable client", () => {
 		);
 	});
 
-	it("renders the Android app install step (not the no-client card) for Android Chrome", async () => {
+	it("renders the no-client card (not an install step) for Android Chrome, whose app is not advertised", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const response = await agent.get("/queue").set("User-Agent", ANDROID_CHROME_UA);
 
 		const doc = new JSDOM(response.text).window.document;
+		const noClient = doc.querySelector("[data-test-onboarding-no-client]");
+		assert(noClient, "no-client card must render while the Android app is unadvertised");
 		assert.equal(
-			doc.querySelector("[data-test-onboarding-no-client]"),
+			doc.querySelector("[data-test-onboarding-steps]"),
 			null,
-			"the no-client card must not render for a device that has an app",
+			"the completion-gated step checklist must not render",
 		);
-		assert.equal(installTitle(response.text), "Install the Readplace Android app");
 	});
 
 	it("shows a Dismiss button on the no-client card when no dismiss cookie is set", async () => {
@@ -574,7 +615,7 @@ describe("Readlist onboarding — no installable client", () => {
 		assert(dismiss, "Dismiss button must be rendered on the no-client card");
 		const form = dismiss.closest("form");
 		assert(form, "Dismiss button must submit a form");
-		expect(form.getAttribute("action")).toBe("/queue/dismiss-onboarding");
+		expect(form.getAttribute("action")).toBe("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client");
 	});
 
 	it("hides the no-client card when the dismiss cookie matches the stable no-client token", async () => {
@@ -621,7 +662,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.post("/queue/dismiss-onboarding").set("User-Agent", DESKTOP_SAFARI_UA);
+		const response = await agent.post("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client").set("User-Agent", DESKTOP_SAFARI_UA);
 
 		expect(response.status).toBe(303);
 		const cookies = response.headers["set-cookie"];
@@ -636,7 +677,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		// The POST carries no client UA → the route persists the no-client token.
-		const dismiss = await agent.post("/queue/dismiss-onboarding").set("User-Agent", DESKTOP_SAFARI_UA);
+		const dismiss = await agent.post("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client").set("User-Agent", DESKTOP_SAFARI_UA);
 		expect(dismiss.status).toBe(303);
 
 		// The agent replays the dismiss cookie on the follow-up no-client render.
@@ -646,59 +687,5 @@ describe("Readlist onboarding — no installable client", () => {
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must still be rendered");
 		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
-	});
-});
-
-/** The save-bar 422 re-render (an invalid URL submitted at the top of `/queue`)
- * goes through the second ReadlistPage caller, which must resolve the same
- * onboarding signals as the GET render. If it doesn't, `hasInstallableClient`
- * defaults to false and the no-client card is shown to every device — including
- * the client devices it is not meant for. These pin the re-render to the device's
- * actual client. */
-describe("Readlist onboarding — save-bar 422 re-render", () => {
-	it("renders the step checklist (not the no-client card) when a client device submits an invalid URL", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent
-			.post("/queue/save")
-			.set("User-Agent", CHROME_UA)
-			.type("form")
-			.send({ url: "not-a-url" });
-
-		expect(response.status).toBe(422);
-		const doc = new JSDOM(response.text).window.document;
-		assert(
-			doc.querySelector("[data-test-onboarding-steps]"),
-			"a client device must still get the step checklist on the save-error re-render",
-		);
-		assert.equal(
-			doc.querySelector("[data-test-onboarding-no-client]"),
-			null,
-			"the no-client card must not render for a device that has a client",
-		);
-	});
-
-	it("renders the no-client card when a no-client device submits an invalid URL", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent
-			.post("/queue/save")
-			.set("User-Agent", DESKTOP_SAFARI_UA)
-			.type("form")
-			.send({ url: "not-a-url" });
-
-		expect(response.status).toBe(422);
-		const doc = new JSDOM(response.text).window.document;
-		assert(
-			doc.querySelector("[data-test-onboarding-no-client]"),
-			"a no-client device must still get the no-client card on the save-error re-render",
-		);
-		assert.equal(
-			doc.querySelector("[data-test-onboarding-steps]"),
-			null,
-			"the completion-gated step checklist must not render on a no-client device",
-		);
 	});
 });

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS } from "../email-colors";
+import { EMAIL_REPLY_INVITATION } from "../email-copy";
 import { render } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(
@@ -76,6 +77,7 @@ export function AutomationSavesHeldEmail(
 					paragraphs: paragraphs.map((paragraph) => paragraph.html),
 					ctaUrl: params.inboxUrl,
 					ctaLabel: CTA_LABEL,
+					replyLine: EMAIL_REPLY_INVITATION,
 					manageAddressesUrl: params.manageAddressesUrl,
 					signoff: SIGNOFF,
 					colors: EMAIL_COLORS,
@@ -86,6 +88,7 @@ export function AutomationSavesHeldEmail(
 				`${opening.before}${opening.address}${opening.after}`,
 				...paragraphs.map((paragraph) => paragraph.text),
 				`${CTA_LABEL}: ${params.inboxUrl}`,
+				EMAIL_REPLY_INVITATION,
 				`If you'd rather not continue, turn off your inbox addresses and nothing more will be forwarded and you will stop receiving these emails: ${params.manageAddressesUrl}`,
 				SIGNOFF,
 			].join("\n\n");

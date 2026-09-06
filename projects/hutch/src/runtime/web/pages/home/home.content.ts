@@ -1,9 +1,10 @@
 import { MAX_PDF_PAGES } from "@packages/crawl-article";
-import { ANNUAL_PRICE_AMOUNT, MONTHLY_EQUIVALENT_AMOUNT } from "@packages/web-shell";
-import type { ClientGroup, ClientName } from "@packages/supported-clients";
+import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS } from "@packages/web-shell";
+import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 import type { IconName } from "@packages/ui-icons";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+import { AI_ASSISTANTS_OR } from "../../shared/client-enumerations";
 import { CANONICAL_SLOGAN } from "../../slogans";
 
 export interface HomeWayLink {
@@ -37,9 +38,13 @@ export interface HomeFaqEntry {
 const TRIAL_DAYS = STRIPE_TRIAL_PERIOD_DAYS;
 
 /**
- * 1. Every client in the roster needs an install link, so a new one cannot ship
- *    without somebody deciding how the homepage sends people to it; only the
- *    advertised ones are rendered.
+ * 1. Keyed by the ADVERTISED install-row roster: a browser extension or phone
+ *    app cannot start being advertised without somebody writing how the
+ *    homepage sends people to it, and a client that stops being advertised
+ *    leaves an excess key the compiler rejects — an entry for an unshipped
+ *    client once sat here as dead copy that would have started rendering,
+ *    status wording and all, the day its flag flipped. Assistants have no entry
+ *    because their section derives its names and link elsewhere.
  */
 export const HOME_WAY_LINK_BY_CLIENT = {
 	chrome: {
@@ -60,45 +65,37 @@ export const HOME_WAY_LINK_BY_CLIENT = {
 		trackContent: "iphone",
 		order: 1,
 	},
-	android: {
-		label: "See where it's up to",
-		href: "/install?client=android",
-		trackContent: "android",
-		order: 2,
-	},
-	chatgpt: {
-		label: "Connect ChatGPT",
-		href: "/mcp",
-		trackContent: "chatgpt",
-		order: 1,
-	},
-	gemini: {
-		label: "Connect Gemini",
-		href: "/mcp",
-		trackContent: "gemini",
-		order: 2,
-	},
-	claude: {
-		label: "Connect Claude",
-		href: "/mcp",
-		trackContent: "claude",
-		order: 3,
-	},
-} as const satisfies Record<ClientName, HomeWayLink>; /* 1 */
+} as const satisfies Record<
+	AdvertisedClientNameInGroup<"browserExtension"> | AdvertisedClientNameInGroup<"nativeApp">,
+	HomeWayLink
+>; /* 1 */
 
 /**
- * One row per client group, so the browser extensions read as the single way in
- * they are rather than one row per browser. An assistant saves a bare URL and
- * earns its own section, so its row copy is never rendered — it exists because a
- * new group must be answered for here before it can ship.
+ * The heading fragment each advertised browser extension contributes to the one
+ * merged row (they genuinely share the copy below it). Chrome's fragment carries
+ * the Chromium family the one store listing serves. Keyed per advertised client
+ * so a new or newly advertised extension is a compile error until the heading
+ * names it.
  */
-export const HOME_WAY_BY_GROUP = {
-	browserExtension: {
-		name: "Browser Extension: Firefox, Chrome, Edge, or Brave",
-		bodyLead:
-			"One click. Full-page capture. Also, Ctrl/Cmd+D, or click to save ALL open tabs at once.",
-	},
-	nativeApp: {
+export const HOME_BROWSER_EXTENSION_HEADING_BY_CLIENT = {
+	firefox: "Firefox",
+	chrome: "Chrome, Edge, or Brave",
+} as const satisfies Record<AdvertisedClientNameInGroup<"browserExtension">, string>;
+
+export const HOME_BROWSER_EXTENSION_ROW: HomeWayBody = {
+	name: `Browser Extension: ${Object.values(HOME_BROWSER_EXTENSION_HEADING_BY_CLIENT).join(", ")}`,
+	bodyLead:
+		"One click. Full-page capture. Also, Ctrl/Cmd+D, or click to save ALL open tabs at once.",
+};
+
+/**
+ * One row per ADVERTISED phone app, with copy written for that app — a shared
+ * "Your phone" row once narrated the App Store to Android readers. Flipping a
+ * native client's advertised flag is a compile error here until its row exists
+ * (or stops existing).
+ */
+export const HOME_NATIVE_APP_ROW_BY_CLIENT = {
+	iphone: {
 		name: "Your iPhone",
 		bodyLead: "Open an article anywhere, tap Share",
 		bodyIcon: "share",
@@ -111,11 +108,7 @@ export const HOME_WAY_BY_GROUP = {
 		bodyTail:
 			", and it opens your saved copy with its one line summary and TL;DR without leaving the phone.",
 	},
-	aiAssistant: {
-		name: "ChatGPT, Gemini, or Claude",
-		bodyLead: "Save links and read your list back inside the conversation, over the MCP server.",
-	},
-} as const satisfies Record<ClientGroup, HomeWayBody>;
+} as const satisfies Record<AdvertisedClientNameInGroup<"nativeApp">, HomeWayBody>;
 
 export interface HomeWayRow extends HomeWayBody {
 	readonly links: readonly HomeWayLink[];
@@ -145,6 +138,20 @@ export const HOME_WAYS_WITHOUT_A_CLIENT: readonly HomeWayRow[] = [
 		],
 	},
 ];
+
+/** How the what-is answer names each advertised phone app's save surface, so
+ * the answer cannot keep naming a surface nobody can install. */
+const HOME_SHARE_SHEET_BY_CLIENT = {
+	iphone: "the iPhone share sheet",
+} as const satisfies Record<AdvertisedClientNameInGroup<"nativeApp">, string>;
+
+/** The mobile-app FAQ answer, one sentence per advertised phone app, so the
+ * answer cannot keep promising an app nobody can install — or omit one people
+ * can. */
+const HOME_MOBILE_APP_FAQ_BY_CLIENT = {
+	iphone:
+		"An iPhone app on the App Store that saves from the share sheet, and it runs on Mac too.",
+} as const satisfies Record<AdvertisedClientNameInGroup<"nativeApp">, string>;
 
 export const HOME_CONTENT = {
 	hero: {
@@ -206,12 +213,10 @@ export const HOME_CONTENT = {
 		body: "It will not grow social feeds, public collections, or silent browsing-history capture. Those apps grow daily active users by encouraging saving. Readplace is for reading what matters, not saving more.",
 	},
 	pricing: {
-		titleBefore: "Only",
-		priceAmount: MONTHLY_EQUIVALENT_AMOUNT,
+		titleBefore: "From",
+		priceAmount: CHEAPEST_MONTHLY_DISPLAY,
 		titleAfter: "a month to pay running costs, and that's it!",
-		body: `${ANNUAL_PRICE_AMOUNT} a year, billed once. No data resale, no investor whose timeline outlives yours. ${TRIAL_DAYS} days free first, and I don't ask for a card to start them. If you never subscribe, nothing is charged: the account drops to read-only, not dark — you keep reading every article you saved, and you can still export.`,
-		ctaLabel: "Become a Member",
-		ctaSubLabel: "Support open source",
+		panelCtaLabel: "Become a Member",
 		ctaNote: `Google, Apple, or an email address — about twenty seconds. No card at any point in the ${TRIAL_DAYS} days.`,
 		assurances: [
 			"Export everything, anytime — even after you cancel.",
@@ -230,12 +235,11 @@ export const HOME_CONTENT = {
 		items: [
 			{
 				question: "What is Readplace?",
-				answer:
-					"A read-it-later app built from a ten-year personal reading system. Save an article from a browser extension, the iPhone share sheet, an AI assistant like ChatGPT or Claude, a bulk import of an old export file, or by pasting the link on this page — then read it in a clean reader view, with an AI TL;DR on every article to help you choose what is worth your time.",
+				answer: `A read-it-later app built from a ten-year personal reading system. Save an article from a browser extension, ${Object.values(HOME_SHARE_SHEET_BY_CLIENT).join(", ")}, an AI assistant like ${AI_ASSISTANTS_OR}, a bulk import of an old export file, or by pasting the link on this page — then read it in a clean reader view, with an AI TL;DR on every article to help you choose what is worth your time.`,
 			},
 			{
 				question: "Do I need a credit card to start?",
-				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that it is ${MONTHLY_EQUIVALENT_AMOUNT} a month (${ANNUAL_PRICE_AMOUNT} a year). If you don't subscribe, nothing is charged and the account goes read-only.`,
+				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that you choose how often you're billed, and every plan is the same full product: ${PRICING_PLANS.monthly.name} is ${PRICING_PLANS.monthly.monthlyDisplay} a month (${PRICING_PLANS.monthly.billedNote}), ${PRICING_PLANS.yearly.name} is ${PRICING_PLANS.yearly.monthlyDisplay} a month (${PRICING_PLANS.yearly.billedNote}), and ${PRICING_PLANS.triennial.name} is ${PRICING_PLANS.triennial.monthlyDisplay} a month (${PRICING_PLANS.triennial.billedNote}). If you don't subscribe, nothing is charged and the account goes read-only.`,
 			},
 			{
 				question: "What happens to my articles if I stop paying?",
@@ -249,8 +253,7 @@ export const HOME_CONTENT = {
 			},
 			{
 				question: "Is there a mobile app?",
-				answer:
-					"An iPhone app on the App Store that saves from the share sheet, and it runs on Mac too. An Android app is built and its Play Store listing is on the way.",
+				answer: Object.values(HOME_MOBILE_APP_FAQ_BY_CLIENT).join(" "),
 			},
 			{
 				question: "Does Readplace hallucinate text when extracting PDFs?",

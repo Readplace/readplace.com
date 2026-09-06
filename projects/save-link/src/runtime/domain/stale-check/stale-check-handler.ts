@@ -22,6 +22,7 @@ import type {
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
+import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-reason";
 
 /**
  * Stale-check is a simple-only worker: PDFs flow through the
@@ -136,6 +137,17 @@ export function initStaleCheckHandler(deps: {
 		if (result.status === "not-found") return "skip";
 
 		if (result.status === "unsupported") {
+			if (terminalUnsupportedReason(result.unsupportedReason) !== undefined) {
+				// Back off (keeping the served content) rather than defer: the
+				// comprehensive crawl ignores refresh and would terminalise the row,
+				// destroying good content over a page that merely grew too big.
+				await publishUpdateFetchTimestamp({
+					url,
+					contentFetchedAt: now().toISOString(),
+					bodyHash: freshness.bodyHash,
+				});
+				return "backoff";
+			}
 			/* Write the stage marker so the reader's progress bar advances
 			 * immediately, then emit the event with `refresh=true` so the
 			 * comprehensive crawl ultimately drives the refresh. That crawl

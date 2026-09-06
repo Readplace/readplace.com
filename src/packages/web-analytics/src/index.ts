@@ -48,6 +48,7 @@ export {
 export { utmValidationMiddleware } from "./utm-validation.middleware";
 export {
 	createAnalyticsMiddleware,
+	isBotRequest,
 	isBotUserAgent,
 	isReadplaceNativeClient,
 	readplaceNativeClientOf,
@@ -87,3 +88,8 @@ export {
 	type DeviceClass,
 	type BrowserFamily,
 } from "./analytics";
+export {
+	initRecordAudienceEvent,
+	type RecordAudienceEvent,
+	type RecordUngatedEvent,
+} from "./record-audience-event";

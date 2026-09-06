@@ -26,7 +26,7 @@ Each of those reads asked for the whole row. A saved article row still carries, 
 
 ## Forty reads for twenty cards
 
-The fix is two reads, not 40. Readplace now asks for every card's summary in one [batched read](/view/docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html), and every card's crawl status in a second. Two round trips draw the whole page.
+The fix is two reads, not 40. Readplace now asks for every card's summary in one [batched read](/view/docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html?utm_source=blog-forty-reads-to-draw-twenty-cards&utm_medium=internal&utm_content=read-docs-aws-amazon-com), and every card's crawl status in a second. Two round trips draw the whole page.
 
 ```rp-figure
 kind: budget
@@ -43,7 +43,7 @@ step: 15 | 30 | 2
 step: 20 | 40 | 2
 ```
 
-Both batched reads name their columns. They ask [DynamoDB](/view/en.wikipedia.org/wiki/Amazon_DynamoDB) for the handful of fields a card renders and leave the inline text alone. The row can stay heavy. The read stays light.
+Both batched reads name their columns. They ask [DynamoDB](/view/en.wikipedia.org/wiki/Amazon_DynamoDB?utm_source=blog-forty-reads-to-draw-twenty-cards&utm_medium=internal&utm_content=read-en-wikipedia-org) for the handful of fields a card renders and leave the inline text alone. The row can stay heavy. The read stays light.
 
 Failure behaves the same as before, on purpose. A row that is missing, or corrupt, or shaped wrong comes back as no summary for that one card, and the card still draws. What changed is the whole-batch case. If the read to the database itself falls over, it now lands in the log instead of vanishing, so a real outage leaves a trace to find.
 
@@ -71,4 +71,4 @@ The two fixes are the same move. A read taken to decide what a write already kno
 
 Caching the slow reads would have made the readlist feel quicker. Deleting the reads made it quicker and left less behind to break.
 
-Save a stack of links with [the browser extension](https://readplace.com/install), let the crawl catch up, and open [your readlist](/) once it has filled. The load you're watching is the one those 38 extra reads used to sit in the middle of.
+Save a stack of links with [the browser extension](https://readplace.com/install), let the crawl catch up, and open [your readlist](/?utm_source=blog-forty-reads-to-draw-twenty-cards&utm_medium=internal&utm_content=home) once it has filled. The load you're watching is the one those 38 extra reads used to sit in the middle of.

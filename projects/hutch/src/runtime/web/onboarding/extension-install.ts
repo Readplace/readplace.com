@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
-import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
-import type { ClientName, ClientNameInCategory } from "@packages/supported-clients";
+import { ADVERTISED_CLIENTS, clientCategoryOfGroup, SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import type { AdvertisedClientNameInCategory, ClientName, ClientNameInCategory } from "@packages/supported-clients";
 import type { Platform } from "./onboarding.types";
 
 const INSTALL_URLS: Record<Platform, string> = {
@@ -54,12 +54,49 @@ export function detectPlatform(req: Request): Platform {
 	return DETECTION_ORDER.find((name) => ua.includes(UA_SIGNATURES[name].token)) ?? "other";
 }
 
-/** True when this device has a first-party client the user can actually
- * install (a browser extension or one of the phone apps). False for the
- * "other" bucket (desktop Safari, iPad, unrecognised UAs), where the
- * onboarding install step can never complete. */
+const ADVERTISED_INSTALLABLE_NAMES: ReadonlySet<string> = new Set(
+	ADVERTISED_CLIENTS.flatMap((client) =>
+		clientCategoryOfGroup(client.group) === "contentCapture" ? [client.name] : [],
+	),
+);
+
+/** The platforms a pitch may address: the advertised content-capture clients,
+ * plus the `other` bucket every unrecognised device falls into. */
+export type PitchablePlatform = AdvertisedClientNameInCategory<"contentCapture"> | "other";
+
+function isAdvertisedInstallable(
+	name: Exclude<Platform, "other">,
+): name is Exclude<PitchablePlatform, "other"> {
+	return ADVERTISED_INSTALLABLE_NAMES.has(name);
+}
+
+/**
+ * The advertised client this device runs, or undefined when there is nothing
+ * Readplace may offer it. A client that is built but not advertised reads as
+ * not existing: the moment its flag flips, every surface gated through here
+ * starts addressing that platform without another edit.
+ */
+export function advertisedPlatformOf(req: Request): Exclude<PitchablePlatform, "other"> | undefined {
+	const platform = detectPlatform(req);
+	if (platform === "other") return undefined;
+	return isAdvertisedInstallable(platform) ? platform : undefined;
+}
+
+/** True when this device has a first-party client the visitor can actually go
+ * and install right now. False for the "other" bucket (desktop Safari, iPad,
+ * unrecognised UAs) and for a platform whose only client is not advertised —
+ * an app with no store listing is not installable in any sense a pitch may
+ * rely on. */
 export function hasInstallableClient(req: Request): boolean {
-	return detectPlatform(req) !== "other";
+	return advertisedPlatformOf(req) !== undefined;
+}
+
+// A pitch, not a status: the install pitch renders only where the visitor could
+// act on it — they already hold the extension, or their platform has an
+// advertised client to go and get. An Android reader saw this for a month
+// offering two installs their device could not perform.
+export function canOfferExtensionInstall(req: Request): boolean {
+	return isExtensionInstalled(req) || hasInstallableClient(req);
 }
 
 export function buildExtensionInstallUrl(platform: Platform): string {

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { DisplayableReadTime } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -51,6 +52,7 @@ export interface ArticleBodyInput {
 	 * passes it; the public `/view` and the admin recrawl omit it. */
 	provenance?: SaveProvenance;
 	readlistTags?: ReaderReadlistTags;
+	readerNotice?: ReaderFailedVariant;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -61,6 +63,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		readerPollUrl: input.readerPollUrl,
 		capturePollUrl: input.capturePollUrl,
 		extensionInstallUrl: input.extensionInstallUrl,
+		notice: input.readerNotice,
 		appOrigin: input.appOrigin,
 	});
 

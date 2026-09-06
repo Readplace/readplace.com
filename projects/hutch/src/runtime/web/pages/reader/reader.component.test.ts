@@ -66,6 +66,28 @@ describe("ReaderPage", () => {
 		assert(wrap, "share balloon wrap must be rendered");
 	});
 
+	it("opts the reader <main> out of htmx history snapshots so a boosted open never restores it", () => {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, readlistFiling: NO_QUEUE_FILING, now: NOW, currentPath: TEST_CURRENT_PATH }), {
+			isAuthenticated: true,
+			emailVerified: undefined,
+			cspNonce: CSP_NONCE,
+		}).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+		expect(doc.querySelector("main.reader")?.getAttribute("hx-history")).toBe("false");
+	});
+
+	it("loads the reader-open client so a boosted queue open can fill the reader in place", () => {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, readlistFiling: NO_QUEUE_FILING, now: NOW, currentPath: TEST_CURRENT_PATH }), {
+			isAuthenticated: true,
+			emailVerified: undefined,
+			cspNonce: CSP_NONCE,
+		}).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+		const script = doc.querySelector('script[src="/client-dist/reader-open.client.js"]');
+		assert(script, "the reader page must load the reader-open bundle");
+		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
 	it("points the header 'View original' at the redirect destination for a merged article", () => {
 		const article = makeArticle({
 			url: SaveableUrlSchema.parse("https://example.com/post.html"),

@@ -1,4 +1,5 @@
-import { displayableReadTime } from "@packages/domain/article";
+import { displayableReadTime, isNonArticleHost } from "@packages/domain/article";
+import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type {
@@ -58,7 +59,7 @@ interface PollResponseBodyInput {
 	content: string | undefined;
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
-	capturePollUrl: string;
+	capturePollUrl: string | undefined;
 	capturing: boolean;
 	summaryOpen: boolean;
 	summaryToggleUrl: string | undefined;
@@ -67,6 +68,7 @@ interface PollResponseBodyInput {
 	metadataOob: string;
 	readerViewFailedOob: string;
 	appOrigin: string;
+	readerNotice: ReaderFailedVariant | undefined;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
@@ -78,6 +80,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		capturePollUrl: input.capturePollUrl,
 		capturing: input.capturing,
 		extensionInstallUrl: input.extensionInstallUrl,
+		notice: input.readerNotice,
 		oob: input.primary !== "reader",
 		appOrigin: input.appOrigin,
 	});
@@ -281,6 +284,21 @@ function resolveCrawlVersions(
 	return [];
 }
 
+const NOT_AN_ARTICLE: ReaderFailedVariant = "not-an-article";
+
+const GATED_READER_STATE: ReaderState = {
+	content: undefined,
+	crawl: undefined,
+	summary: undefined,
+	readerPollUrl: undefined,
+	summaryPollUrl: undefined,
+	capturePollUrl: undefined,
+	progress: undefined,
+	crawlVersions: [],
+	readerViewFailed: false,
+	notice: NOT_AN_ARTICLE,
+};
+
 export function initArticleReader(deps: ArticleReaderDeps): {
 	resolveReaderState: (params: ResolveReaderStateParams) => Promise<ReaderState>;
 	handleSummaryPoll: (params: HandlePollParams) => Promise<Component>;
@@ -290,6 +308,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		params: ResolveReaderStateParams,
 	): Promise<ReaderState> {
 		const { article, pollUrlBuilder, capturing } = params;
+		if (isNonArticleHost(article.url)) return GATED_READER_STATE;
 		const crawl = await deps.findArticleCrawlStatus(article.url);
 		const summary = await deps.findGeneratedSummary(article.url);
 		const freshness = await deps.findArticleFreshness(article.url);
@@ -317,7 +336,44 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				crawlStatus: crawl?.status,
 				summaryStatus: summary?.status,
 			}),
+			notice: undefined,
 		};
+	}
+
+	function gatedPollResponse(
+		primary: "reader" | "summary",
+		articleUrl: string,
+	): Component {
+		const hostname = new URL(articleUrl).hostname;
+		return HtmlPage(
+			renderPollResponseBody({
+				primary,
+				url: articleUrl,
+				crawl: undefined,
+				summary: undefined,
+				content: undefined,
+				readerPollUrl: undefined,
+				summaryPollUrl: undefined,
+				capturePollUrl: undefined,
+				capturing: false,
+				summaryOpen: deps.summaryOpen,
+				summaryToggleUrl: undefined,
+				extensionInstallUrl: undefined,
+				progress: undefined,
+				metadataOob:
+					renderArticleHeaderOob({
+						title: hostname,
+						siteName: hostname,
+						readTime: undefined,
+						url: articleUrl,
+						provenance: undefined,
+						readlistTags: undefined,
+					}) + renderDocumentTitleOob(deps.formatDocumentTitle(hostname)),
+				readerViewFailedOob: "",
+				appOrigin: deps.appOrigin,
+				readerNotice: NOT_AN_ARTICLE,
+			}),
+		);
 	}
 
 	/**
@@ -351,6 +407,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 
 	async function handleSummaryPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
+		if (isNonArticleHost(articleUrl)) return gatedPollResponse("summary", articleUrl);
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary(articleUrl),
@@ -384,11 +441,13 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				render: params.readerViewFailedOob,
 			}),
 			appOrigin: deps.appOrigin,
+			readerNotice: undefined,
 		}));
 	}
 
 	async function handleReaderPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
+		if (isNonArticleHost(articleUrl)) return gatedPollResponse("reader", articleUrl);
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary(articleUrl),
@@ -422,6 +481,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				render: params.readerViewFailedOob,
 			}),
 			appOrigin: deps.appOrigin,
+			readerNotice: undefined,
 		}));
 	}
 

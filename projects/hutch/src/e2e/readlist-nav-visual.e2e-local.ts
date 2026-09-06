@@ -12,10 +12,15 @@ import {
 } from "@packages/e2e-harness";
 import { formatTabCountLabel } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
+import { clickAndWaitForPageReload } from "./page-interactions";
 import {
 	type MeasuredBox,
+	centreEditingTab,
+	measureBackgrounds,
 	measureBoxes,
+	measureInks,
 	measureNameSize,
+	measureRenameRing,
 	neutraliseVolatileChrome,
 	pageOverflowsSideways,
 } from "./readlist-nav.browser";
@@ -35,8 +40,19 @@ const READLIST_DELETE_TRIGGER = 'main.readlist [data-test-action="readlist-delet
 const READLIST_EMPTY = "main.readlist [data-test-empty-readlist]";
 const OPEN_FILTER_TAB = "main.readlist .readlist__filter-link--active";
 const UNREAD_FILTER_TAB = 'main.readlist [data-test-filter="unread"]';
-const UNREAD_FILTER_LABEL = "main.readlist #readlist-unread-label";
+const UNREAD_FILTER_LABEL = 'main.readlist [data-test-filter="unread"] span[id]';
 const READ_FILTER_TAB = 'main.readlist [data-test-filter="read"]';
+const IN_FLIGHT_LISTING = "main.readlist .readlist__listing.htmx-request";
+const CURRENT_FILTER_TAB = 'main.readlist [data-test-filter][aria-current="page"]';
+const SORT_LINK = "main.readlist [data-test-sort]";
+const ARTICLE_HEADER = "main.readlist .readlist-article__header";
+const ARTICLE_TITLE = "main.readlist [data-test-article-title]";
+const EMPTY_TITLE = "main.readlist [data-test-empty-readlist] .readlist__empty-title";
+const FILTER_TAB = { queue: UNREAD_FILTER_TAB, done: READ_FILTER_TAB };
+type TabId = keyof typeof FILTER_TAB;
+const OUTGOING_TAB = { queue: READ_FILTER_TAB, done: UNREAD_FILTER_TAB } satisfies Record<TabId, string>;
+const OUTGOING_CONTENT = { queue: EMPTY_TITLE, done: ARTICLE_TITLE } satisfies Record<TabId, string>;
+const LANDED_CONTENT = { queue: ARTICLE_TITLE, done: READLIST_EMPTY } satisfies Record<TabId, string>;
 
 /* A name at the 24-character cap with nothing to break at — the hardest case
  * the rail has to render in full, so it exercises the wrap and the cap at once. */
@@ -45,6 +61,20 @@ const RENAMEABLE_TAB = "[data-readlist-rename]";
 const EDITING_TAB = "main.readlist .readlist-nav__link--editing";
 const ACTIVE_READLIST_TAB = "main.readlist .readlist-nav__link--active";
 const ACTIVE_READLIST_LABEL = "main.readlist .readlist-nav__link--active .readlist-nav__label";
+const OWNED_READLIST_ITEM = "main.readlist .readlist-nav__item--deletable";
+const ACTIVE_OWNED_ITEM = `${OWNED_READLIST_ITEM}.readlist-nav__item--active`;
+const INACTIVE_OWNED_ITEM = `${OWNED_READLIST_ITEM}:not(.readlist-nav__item--active)`;
+const INACTIVE_OWNED_TAB = `${INACTIVE_OWNED_ITEM} .readlist-nav__link`;
+const ACTIVE_OWNED_TRIGGER = `${ACTIVE_OWNED_ITEM} [data-test-action="readlist-delete"]`;
+const INACTIVE_OWNED_TRIGGER = `${INACTIVE_OWNED_ITEM} [data-test-action="readlist-delete"]`;
+const READLIST_DELETE_TRIGGER_IN_ITEM = '[data-test-action="readlist-delete"]';
+const EDITING_LABEL = "main.readlist .readlist-nav__link--editing .readlist-nav__label";
+const ACTIVE_READLIST_PENCIL = "main.readlist .readlist-nav__link--active svg";
+const READLIST_TAB = "main.readlist [data-test-readlist]";
+const READLIST_DELETE_CONFIRM = '[data-test-confirm-popover="readlist-delete"]';
+const RAIL_TAB_INLINE_PADDING_PX = 10;
+const RAIL_TAB_GAP_PX = 6;
+const RENAME_RING_REACH_PX = 4;
 
 const WCAG_REFLOW_MINIMUM = { width: 320, height: 800 };
 const PHONE = { width: 390, height: 844 };
@@ -157,6 +187,106 @@ async function openReadlist(page: Page): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
+async function openSecondReadlist(page: Page): Promise<void> {
+	await page.click('[data-test-action="new-readlist"]');
+	await expect(page.locator(READLIST_TAB)).toHaveCount(3);
+}
+
+async function holdCounts(page: Page): Promise<() => () => void> {
+	let held: Promise<void> | undefined;
+	await page.route("**/queue/counts*", async (route) => {
+		if (held) await held;
+		await route.continue();
+	});
+	return () => {
+		const resolvers: Array<() => void> = [];
+		held = new Promise<void>((resolve) => {
+			resolvers.push(resolve);
+		});
+		const release = resolvers[0];
+		assert.ok(release, "a promise executor runs synchronously, so its resolver must be captured");
+		return () => {
+			held = undefined;
+			release();
+		};
+	};
+}
+
+type RenameRing = ReturnType<typeof measureRenameRing>;
+
+async function renameRing(page: Page): Promise<RenameRing> {
+	return await page.evaluate(measureRenameRing, {
+		editing: EDITING_TAB,
+		item: OWNED_READLIST_ITEM,
+		trigger: READLIST_DELETE_TRIGGER_IN_ITEM,
+		list: READLIST_NAV_LIST,
+		reach: RENAME_RING_REACH_PX,
+	});
+}
+
+function ringIsVisible(ring: RenameRing, width: number): void {
+	assert.deepEqual(
+		{
+			left: ring.ring.left >= ring.scroller.left,
+			top: ring.ring.top >= ring.scroller.top,
+			right: ring.ring.right <= ring.scroller.right,
+			bottom: ring.ring.bottom <= ring.scroller.bottom,
+		},
+		{ left: true, top: true, right: true, bottom: true },
+		`at ${width}px the ring must fit inside the tab strip's box, or the strip's scroller clips it, measured ${JSON.stringify(ring.ring)} inside ${JSON.stringify(ring.scroller)}`,
+	);
+	assert.deepEqual(
+		ring.legs.map((leg) => leg.paintedBy),
+		["Readlists", "Readlists", "Readlists", "Readlists"],
+		`at ${width}px every leg of the ring must be painted by the rail, never by the listing panel`,
+	);
+	assert.equal(
+		ring.ringShadow,
+		`${ring.pageBackground} 0px 0px 0px 2px, ${ring.ringColour} 0px 0px 0px 4px`,
+		`at ${width}px the ring must be a page-colour gap inside an amber line`,
+	);
+}
+
+async function ownedTabsColoured(page: Page, width: number): Promise<void> {
+	const [defaultLink, activeItem] = await page.evaluate(measureBackgrounds, [
+		READLIST_NAV_LINK,
+		ACTIVE_OWNED_ITEM,
+	]);
+	await expect
+		.poll(() => page.evaluate(measureBackgrounds, [INACTIVE_OWNED_ITEM]), {
+			message: `at ${width}px a readlist the reader is not on must rest as muted as the default readlist's tab`,
+		})
+		.toEqual([defaultLink]);
+	assert.notEqual(
+		defaultLink,
+		activeItem,
+		`at ${width}px only the readlist the reader is on may carry the active colour`,
+	);
+}
+
+async function railDeleteTakesTheTabFill(page: Page): Promise<void> {
+	const [inactiveItem] = await page.evaluate(measureBackgrounds, [INACTIVE_OWNED_ITEM]);
+	await expect
+		.poll(() => page.evaluate(measureBackgrounds, [INACTIVE_OWNED_TRIGGER]), {
+			message: "in the rail the delete control must take the fill of the tab it belongs to",
+		})
+		.toEqual([inactiveItem]);
+}
+
+async function railDeleteSharesTheTabInk(page: Page): Promise<void> {
+	await page.locator(INACTIVE_OWNED_TRIGGER).hover();
+	await expect(page.locator(INACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "1");
+	const [tabInk, itemInk] = await page.evaluate(measureInks, [
+		INACTIVE_OWNED_TAB,
+		INACTIVE_OWNED_ITEM,
+	]);
+	assert.equal(
+		tabInk,
+		itemInk,
+		"a tab whose delete control is under the pointer must carry the ink its fill was swapped for",
+	);
+}
+
 /* Both boxes are read in one frame. The banner area re-measures itself through a
  * ResizeObserver as the viewport changes, and a page that shifts between two
  * separate reads reports the rail and the listing at heights they never held at
@@ -225,10 +355,6 @@ async function railBesideTheListing(page: Page): Promise<void> {
 	);
 }
 
-/* The count lands out of band: the page ships the tab reading "To Read" and a
- * GET /queue/counts swaps in "To Read (2)" a round-trip later, widening it. A
- * capture or a measurement taken before that swap records a layout the page
- * holds for one frame. */
 async function seededReadlistSettled(page: Page): Promise<void> {
 	await expect(page.locator("[data-test-article]")).toHaveCount(SEEDED_ARTICLES.length);
 	await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
@@ -289,6 +415,72 @@ async function railOffersDelete(page: Page): Promise<void> {
 	await expect(page.locator(READLIST_DELETE_TRIGGER)).toHaveCSS("opacity", "1");
 }
 
+async function madeRailEditingSettled(page: Page): Promise<void> {
+	await page.waitForSelector("body.page-readlist");
+	await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText("New Readlist");
+	await page.click(RENAMEABLE_TAB);
+	await expect(page.locator(EDITING_TAB)).toHaveCount(1);
+	await expect(page.locator(EDITING_LABEL)).toBeFocused();
+	await page.mouse.move(DESKTOP.width - 5, 5);
+	await expect(page.locator(READLIST_DELETE_TRIGGER)).toHaveCSS("opacity", "1");
+}
+
+async function railShowsTheRenameRing(page: Page): Promise<void> {
+	await railBesideTheListing(page);
+	ringIsVisible(await renameRing(page), DESKTOP.width);
+}
+
+async function twoMadeRailSettled(page: Page): Promise<void> {
+	await page.waitForSelector("body.page-readlist");
+	await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText("New Readlist 2");
+	await page.mouse.move(DESKTOP.width - 5, 5);
+	await expect(page.locator(INACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "0");
+	await expect(page.locator(ACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "0");
+	await page.locator(INACTIVE_OWNED_TAB).hover();
+	await expect(page.locator(INACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "1");
+}
+
+async function railRevealsTheInactiveDelete(page: Page): Promise<void> {
+	await railBesideTheListing(page);
+	const [tab, trigger] = await measurePair(page, [INACTIVE_OWNED_TAB, INACTIVE_OWNED_TRIGGER]);
+	assert.equal(
+		trigger.y,
+		tab.y,
+		"the delete control must sit on the tab it deletes, never on a row of its own",
+	);
+	assert.equal(
+		trigger.x + trigger.width,
+		tab.x,
+		"in the rail the delete control must meet the tab's leading edge from outside it",
+	);
+	assert.ok(
+		trigger.height >= MINIMUM_TOUCH_TARGET,
+		`the delete control must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
+	);
+}
+
+async function twoMadeRowSettled(page: Page): Promise<void> {
+	await page.waitForSelector("body.page-readlist");
+	await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText("New Readlist 2");
+	await page.mouse.move(5, 5);
+	await expect(page.locator(INACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "1");
+	await expect(page.locator(ACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "1");
+}
+
+async function rowOffersEveryDelete(page: Page): Promise<void> {
+	await stacksAboveTheListing(page);
+	const [item, trigger] = await measurePair(page, [INACTIVE_OWNED_ITEM, INACTIVE_OWNED_TRIGGER]);
+	assert.equal(
+		trigger.x + trigger.width,
+		item.x + item.width,
+		"in the row the delete control must sit on the trailing edge of the tab it deletes",
+	);
+	assert.ok(
+		trigger.height >= MINIMUM_TOUCH_TARGET,
+		`the delete control must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
+	);
+}
+
 async function madeReadlistSettled(page: Page): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 	await page.mouse.move(5, 5);
@@ -302,29 +494,25 @@ async function madeReadlistSettled(page: Page): Promise<void> {
 	});
 }
 
-async function madeReadlistGeometry(page: Page): Promise<void> {
-	await expect(page.locator(READLIST_SAVE_FORM)).toBeHidden();
+async function pageFitsTheClip(page: Page, clipTarget: string): Promise<void> {
 	const overflows = await page.evaluate(pageOverflowsSideways);
 	assert.equal(overflows, false, "the readlist page must never scroll sideways");
 	const viewport = page.viewportSize();
 	assert.ok(viewport, "a whole-page capture needs a fixed viewport to size its clip");
-	const listing = await measuredBox(page, READLIST_LISTING);
+	const target = await measuredBox(page, clipTarget);
 	assert.ok(
-		listing.y + listing.height <= viewport.height,
-		`the whole-page clip runs to ${Math.ceil(listing.y + listing.height)}px, past the ${viewport.height}px viewport a clip can reach`,
+		target.y + target.height <= viewport.height,
+		`the whole-page clip runs to ${Math.ceil(target.y + target.height)}px, past the ${viewport.height}px viewport a clip can reach`,
 	);
 }
 
+async function madeReadlistGeometry(page: Page): Promise<void> {
+	await expect(page.locator(READLIST_SAVE_FORM)).toBeHidden();
+	await pageFitsTheClip(page, READLIST_LISTING);
+}
+
 async function wholeReadlistGeometry(page: Page): Promise<void> {
-	const overflows = await page.evaluate(pageOverflowsSideways);
-	assert.equal(overflows, false, "the readlist page must never scroll sideways");
-	const viewport = page.viewportSize();
-	assert.ok(viewport, "a whole-page capture needs a fixed viewport to size its clip");
-	const listing = await measuredBox(page, READLIST_LIST);
-	assert.ok(
-		listing.y + listing.height <= viewport.height,
-		`the whole-page clip runs to ${Math.ceil(listing.y + listing.height)}px, past the ${viewport.height}px viewport a clip can reach`,
-	);
+	await pageFitsTheClip(page, READLIST_LIST);
 }
 
 async function tabsJoinTheListing(page: Page): Promise<void> {
@@ -353,6 +541,131 @@ async function tabsJoinTheListing(page: Page): Promise<void> {
 		`a status tab must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
 	);
 }
+
+async function holdListing(page: Page): Promise<() => Promise<void>> {
+	const resolvers: Array<() => void> = [];
+	const released = new Promise<void>((resolve) => {
+		resolvers.push(resolve);
+	});
+	const release = resolvers[0];
+	assert.ok(release, "a promise executor runs synchronously, so its resolver must be captured");
+	let held = 0;
+	await page.route(
+		(url) => url.pathname === "/queue",
+		async (route) => {
+			held += 1;
+			await released;
+			await route.continue();
+		},
+	);
+	return async () => {
+		await expect
+			.poll(() => held, {
+				message: "the listing request must be waiting on the veil before it is released",
+			})
+			.toBe(1);
+		release();
+	};
+}
+
+async function veilShown(page: Page, tab: TabId): Promise<void> {
+	await expect(page.locator(IN_FLIGHT_LISTING)).toHaveCount(1);
+	await expect(page.locator(FILTER_TAB[tab])).toHaveClass(/htmx-request/);
+	await expect(page.locator(OUTGOING_CONTENT[tab]).first()).toHaveCSS("visibility", "hidden");
+	await expect(page.locator(CURRENT_FILTER_TAB)).toHaveCount(1);
+	await expect(page.locator(OUTGOING_TAB[tab])).toHaveAttribute("aria-current", "page");
+	const [panelFill] = await page.evaluate(measureBackgrounds, [READLIST_LISTING]);
+	await expect
+		.poll(() => page.evaluate(measureBackgrounds, [FILTER_TAB[tab]]), {
+			message: "the pressed tab must take the panel's fill the moment it is pressed",
+		})
+		.toEqual([panelFill]);
+}
+
+async function openSkeleton(page: Page, tab: TabId): Promise<() => Promise<void>> {
+	await waitForBrandFonts(page, ["Inter"]);
+	const before = await measuredBox(page, READLIST_LISTING);
+	const release = await holdListing(page);
+	await page.locator(FILTER_TAB[tab]).click();
+	await veilShown(page, tab);
+	const during = await measuredBox(page, READLIST_LISTING);
+	assert.deepEqual(
+		{ width: during.width, height: during.height },
+		{ width: before.width, height: before.height },
+		`the veil must keep the listing at the size it had before the press, measured ${JSON.stringify(before)} then ${JSON.stringify(during)}`,
+	);
+	return release;
+}
+
+async function listingLanded(page: Page, tab: TabId): Promise<void> {
+	await expect(page.locator(FILTER_TAB[tab])).toHaveAttribute("aria-current", "page");
+	await expect(page.locator(READLIST_LISTING)).toHaveClass("readlist__listing");
+	await expect(page.locator(LANDED_CONTENT[tab]).first()).toBeVisible();
+}
+
+async function openVeiledReadTab(page: Page, email: string): Promise<() => Promise<void>> {
+	await createVerifiedUserWithReadlist(page, email);
+	await loginAs(page, email);
+	await wholeReadlistSettled(page);
+	return openSkeleton(page, "done");
+}
+
+async function veiledReadTabSettled(page: Page): Promise<void> {
+	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
+	await veilShown(page, "done");
+}
+
+async function pressedTabJoinsTheListing(page: Page): Promise<void> {
+	const [pressed, listing] = await measurePair(page, [READ_FILTER_TAB, READLIST_LISTING]);
+	assert.equal(
+		pressed.y + pressed.height - listing.y,
+		TAB_PANEL_JOIN_PX,
+		"the pressed tab's base must sit on the listing's border while the veil is up, the way the open tab does",
+	);
+	assert.ok(
+		pressed.height >= MINIMUM_TOUCH_TARGET,
+		`a status tab must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
+	);
+}
+
+async function skeletonBesideTheRail(page: Page): Promise<void> {
+	await railBesideTheListing(page);
+	await pressedTabJoinsTheListing(page);
+	await pageFitsTheClip(page, READLIST_LISTING);
+}
+
+async function skeletonUnderTheRow(page: Page): Promise<void> {
+	await stacksAboveTheListing(page);
+	await pressedTabJoinsTheListing(page);
+	await pageFitsTheClip(page, READLIST_LISTING);
+}
+
+const TAB_SKELETON_DESKTOP_LIGHT: VisualCheckpoint = {
+	name: "readlist-tab-skeleton-desktop-light",
+	settled: veiledReadTabSettled,
+	geometry: skeletonBesideTheRail,
+	target: READLIST_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const TAB_SKELETON_DESKTOP_DARK: VisualCheckpoint = {
+	name: "readlist-tab-skeleton-desktop-dark",
+	settled: veiledReadTabSettled,
+	geometry: skeletonBesideTheRail,
+	target: READLIST_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const TAB_SKELETON_MOBILE_LIGHT: VisualCheckpoint = {
+	name: "readlist-tab-skeleton-mobile-light",
+	settled: veiledReadTabSettled,
+	geometry: skeletonUnderTheRow,
+	target: READLIST_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
 
 const WHOLE_READLIST_DESKTOP_LIGHT: VisualCheckpoint = {
 	name: "readlist-page-desktop-light",
@@ -413,6 +726,42 @@ const MADE_RAIL_DESKTOP_LIGHT: VisualCheckpoint = {
 	settled: madeRailSettled,
 	geometry: railOffersDelete,
 	target: READLIST_NAV_LIST,
+	capture: "element",
+	pinnedText: [],
+};
+
+const MADE_RAIL_EDITING_DESKTOP_LIGHT: VisualCheckpoint = {
+	name: "readlist-nav-rail-editing-desktop-light",
+	settled: madeRailEditingSettled,
+	geometry: railShowsTheRenameRing,
+	target: READLIST_NAV_LIST,
+	capture: "element",
+	pinnedText: [],
+};
+
+const MADE_RAIL_EDITING_DESKTOP_DARK: VisualCheckpoint = {
+	name: "readlist-nav-rail-editing-desktop-dark",
+	settled: madeRailEditingSettled,
+	geometry: railShowsTheRenameRing,
+	target: READLIST_NAV_LIST,
+	capture: "element",
+	pinnedText: [],
+};
+
+const TWO_MADE_RAIL_DESKTOP_LIGHT: VisualCheckpoint = {
+	name: "readlist-nav-rail-two-made-desktop-light",
+	settled: twoMadeRailSettled,
+	geometry: railRevealsTheInactiveDelete,
+	target: READLIST_NAV_LIST,
+	capture: "element",
+	pinnedText: [],
+};
+
+const TWO_MADE_ROW_MOBILE_LIGHT: VisualCheckpoint = {
+	name: "readlist-nav-row-two-made-mobile-light",
+	settled: twoMadeRowSettled,
+	geometry: rowOffersEveryDelete,
+	target: READLIST_NAV,
 	capture: "element",
 	pinnedText: [],
 };
@@ -528,6 +877,144 @@ test.describe("Readlist the reader made, in the rail", () => {
 		await openNewReadlist(page);
 
 		await captureCheckpoint(page, MADE_RAIL_DESKTOP_LIGHT);
+	});
+
+	test("pins the rename hint to the tab's trailing edge and centres the name beside it", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-nav-made-rail-pencil-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewReadlist(page);
+		await waitForBrandFonts(page, ["Inter"]);
+
+		const [chip, pencil, label] = await measureTrio(page, [
+			OWNED_READLIST_ITEM,
+			ACTIVE_READLIST_PENCIL,
+			ACTIVE_READLIST_LABEL,
+		]);
+		assert.equal(
+			pencil.x + pencil.width,
+			chip.x + chip.width - RAIL_TAB_INLINE_PADDING_PX,
+			"the rename hint must sit on the tab's trailing padding edge, not beside the name",
+		);
+		assert.equal(
+			label.x,
+			chip.x + RAIL_TAB_INLINE_PADDING_PX,
+			"the name must start on the tab's leading padding edge",
+		);
+		assert.equal(
+			label.x + label.width + RAIL_TAB_GAP_PX,
+			pencil.x,
+			"the name must own the whole space left of the rename hint, so it centres there",
+		);
+	});
+});
+
+test.describe("Readlist the reader made, being renamed in the rail", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("rings the tab being renamed, nub and all (light)", async ({ page }, testInfo) => {
+		const email = `readlist-nav-editing-rail-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewReadlist(page);
+
+		await captureCheckpoint(page, MADE_RAIL_EDITING_DESKTOP_LIGHT);
+	});
+
+	test("rings the tab being renamed, nub and all (dark)", async ({ page }, testInfo) => {
+		const email = `readlist-nav-editing-rail-dark-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await page.emulateMedia({ colorScheme: "dark" });
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewReadlist(page);
+
+		await captureCheckpoint(page, MADE_RAIL_EDITING_DESKTOP_DARK);
+	});
+});
+
+test.describe("Readlists the reader made, in the rail", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("shows every readlist the reader made for deleting, muted until it is the open one", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-nav-two-made-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewReadlist(page);
+		await openSecondReadlist(page);
+
+		await expect(page.locator(READLIST_DELETE_TRIGGER)).toHaveCount(2);
+		await expect(page.locator(READLIST_DELETE_CONFIRM)).toHaveCount(2);
+
+		await page.mouse.move(DESKTOP.width - 5, 5);
+		await expect(page.locator(INACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "0");
+		await page.locator(INACTIVE_OWNED_TAB).hover();
+		await expect(page.locator(INACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "1");
+		await expect(page.locator(ACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "0");
+		await page.mouse.move(DESKTOP.width - 5, 5);
+		await ownedTabsColoured(page, DESKTOP.width);
+		await railDeleteTakesTheTabFill(page);
+		await railDeleteSharesTheTabInk(page);
+		await page.mouse.move(DESKTOP.width - 5, 5);
+
+		await page.setViewportSize(PHONE);
+		await expect(page.locator(INACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "1");
+		await expect(page.locator(ACTIVE_OWNED_TRIGGER)).toHaveCSS("opacity", "1");
+		await ownedTabsColoured(page, PHONE.width);
+	});
+
+	test("stays on the readlist it was viewing after deleting another one", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-nav-delete-other-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewReadlist(page);
+		await openSecondReadlist(page);
+
+		const trigger = page.locator(INACTIVE_OWNED_TRIGGER);
+		await expect(trigger).toHaveCount(1);
+		const popoverId = await trigger.getAttribute("popovertarget");
+		assert.ok(popoverId, "the delete trigger must reference its confirmation popover");
+		const confirm = page.locator(`[id="${popoverId}"] [data-test-action="readlist-delete-confirm"]`);
+		await trigger.click();
+		await expect(confirm).toBeVisible();
+		await clickAndWaitForPageReload(page, confirm);
+
+		await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText("New Readlist 2");
+		await expect(page.locator(READLIST_TAB)).toHaveCount(2);
+		await expect(page.locator(READLIST_DELETE_TRIGGER)).toHaveCount(1);
+	});
+
+	test("reveals the delete control of a readlist the reader is not on, from its tab", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-nav-two-made-rail-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewReadlist(page);
+		await openSecondReadlist(page);
+
+		await captureCheckpoint(page, TWO_MADE_RAIL_DESKTOP_LIGHT);
+	});
+});
+
+test.describe("Readlists the reader made (mobile)", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("offers every readlist the reader made for deleting, in the row", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-nav-two-made-row-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewReadlist(page);
+		await openSecondReadlist(page);
+
+		await captureCheckpoint(page, TWO_MADE_ROW_MOBILE_LIGHT);
 	});
 });
 
@@ -719,6 +1206,28 @@ test.describe("Naming a readlist the reader just made", () => {
 		}
 	});
 
+	test("keeps the rename ring where the reader can see it, on the rail and in the row", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-nav-rename-ring-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openNewReadlist(page);
+
+		for (const viewport of [DESKTOP, PHONE]) {
+			await page.setViewportSize(viewport);
+			await page.click(RENAMEABLE_TAB);
+			await expect(page.locator(EDITING_TAB)).toHaveCount(1);
+			await page.evaluate(centreEditingTab, EDITING_TAB);
+			const ring = await renameRing(page);
+
+			await page.keyboard.press("Escape");
+			await expect(page.locator(EDITING_TAB)).toHaveCount(0);
+
+			ringIsVisible(ring, viewport.width);
+		}
+	});
+
 	test("keeps the rename working after the listing has been swapped", async ({
 		page,
 	}, testInfo) => {
@@ -790,6 +1299,32 @@ test.describe("Readlist status tabs", () => {
 		);
 	});
 
+	test("never carries the previous queue's count into the queue the reader switched to", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-filter-tabs-switch-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithReadlist(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+		const holdNextCounts = await holdCounts(page);
+
+		const releaseMade = holdNextCounts();
+		await page.click('[data-test-action="new-readlist"]');
+		await page.waitForSelector(RENAMEABLE_TAB);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText("To Read (0)");
+		releaseMade();
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText("To Read (0)");
+
+		const releaseDefault = holdNextCounts();
+		await page.click(READLIST_NAV_LINK);
+		await expect(page.locator(READLIST_NAV_LINK)).toHaveClass(/readlist-nav__link--active/);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(
+			`To Read (${SEEDED_ARTICLES.length})`,
+		);
+		releaseDefault();
+	});
+
 	test("reserves the unread tab's widest count from first paint", async ({ page }, testInfo) => {
 		const email = `readlist-filter-tabs-reserve-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithReadlist(page, email);
@@ -801,12 +1336,13 @@ test.describe("Readlist status tabs", () => {
 
 		await page.route("**/queue/counts*", (route) => route.abort());
 		await openReadlist(page);
-		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText("To Read");
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(
+			`To Read (${SEEDED_ARTICLES.length})`,
+		);
 		await waitForBrandFonts(page, ["Inter"]);
 		const cold = await measuredBox(page, UNREAD_FILTER_TAB);
 
-		const bare = await page.locator(UNREAD_FILTER_TAB).innerText();
-		const widestLabel = formatTabCountLabel({ label: bare, count: Number.MAX_SAFE_INTEGER });
+		const widestLabel = formatTabCountLabel({ label: "To Read", count: Number.MAX_SAFE_INTEGER });
 		await page.locator(UNREAD_FILTER_LABEL).evaluate((label, text) => {
 			label.textContent = text;
 		}, widestLabel);
@@ -822,6 +1358,102 @@ test.describe("Readlist status tabs", () => {
 			counted.width,
 			`the reserve must cover "${widestLabel}", measured ${widest.width} against ${counted.width}`,
 		);
+	});
+
+	test("veils the rows the instant a status tab is pressed, and only until that tab's listing lands", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-tab-veil-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithReadlist(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+		await waitForBrandFonts(page, ["Inter"]);
+
+		const [unreadFill, readFill] = await page.evaluate(measureBackgrounds, [
+			UNREAD_FILTER_TAB,
+			READ_FILTER_TAB,
+		]);
+
+		const releaseRead = await openSkeleton(page, "done");
+		await expect
+			.poll(() => page.evaluate(measureBackgrounds, [UNREAD_FILTER_TAB, READ_FILTER_TAB]), {
+				message: "the pressed tab must take the open tab's fill and the tab being left must give it up",
+			})
+			.toEqual([readFill, unreadFill]);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveClass(
+			"readlist__filter-link readlist__filter-link--active",
+		);
+		await releaseRead();
+		await listingLanded(page, "done");
+
+		const emptyBefore = await measuredBox(page, READLIST_EMPTY);
+		const releaseUnread = await openSkeleton(page, "queue");
+		const emptyDuring = await measuredBox(page, READLIST_EMPTY);
+		assert.deepEqual(
+			{ width: emptyDuring.width, height: emptyDuring.height },
+			{ width: emptyBefore.width, height: emptyBefore.height },
+			"the veil must keep the empty state at the size it had before the press",
+		);
+		await expect(page.locator(READ_FILTER_TAB)).toHaveClass(
+			"readlist__filter-link readlist__filter-link--active",
+		);
+		await releaseUnread();
+		await listingLanded(page, "queue");
+		await expect(page.locator("[data-test-article]")).toHaveCount(SEEDED_ARTICLES.length);
+	});
+
+	test("keeps the rows in view while a sort request is in flight", async ({ page }, testInfo) => {
+		const email = `readlist-tab-sort-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithReadlist(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+
+		const release = await holdListing(page);
+		await page.locator(SORT_LINK).click();
+		await expect(page.locator(`${SORT_LINK}.htmx-request`)).toHaveCount(1);
+		await expect(page.locator(READLIST_LISTING)).toHaveClass("readlist__listing");
+		await expect(page.locator(ARTICLE_HEADER).first()).toBeVisible();
+		await release();
+		await expect(page.locator(SORT_LINK)).toHaveText(/Oldest first/);
+	});
+});
+
+test.describe("Readlist status tabs, veiled", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
+
+	test("paints the veil over the rows the Read tab is leaving (light)", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-tab-skeleton-desktop-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const release = await openVeiledReadTab(page, email);
+		await captureCheckpoint(page, TAB_SKELETON_DESKTOP_LIGHT);
+		await release();
+		await listingLanded(page, "done");
+	});
+
+	test("paints the veil over the rows the Read tab is leaving (dark)", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		const email = `readlist-tab-skeleton-desktop-dark-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const release = await openVeiledReadTab(page, email);
+		await captureCheckpoint(page, TAB_SKELETON_DESKTOP_DARK);
+		await release();
+		await listingLanded(page, "done");
+	});
+});
+
+test.describe("Readlist status tabs, veiled (mobile)", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE_TALL });
+
+	test("paints the veil over the rows the Read tab is leaving", async ({ page }, testInfo) => {
+		const email = `readlist-tab-skeleton-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const release = await openVeiledReadTab(page, email);
+		await captureCheckpoint(page, TAB_SKELETON_MOBILE_LIGHT);
+		await release();
+		await listingLanded(page, "done");
 	});
 });
 

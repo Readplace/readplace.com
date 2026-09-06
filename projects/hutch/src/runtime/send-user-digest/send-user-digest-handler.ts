@@ -32,7 +32,8 @@ import { buildDigestPreview } from "../web/digest-preview";
 import { buildDigestEmailHtml, type DigestEmailItem } from "../web/digest-email";
 import { buildOwnerReaderPath } from "../web/pages/readlist/owner-reader-link";
 
-const EMAIL_FROM = "Fayner from Readplace <readplace@readplace.com>";
+const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
+const EMAIL_REPLY_TO = "fayner@readplace.com";
 const DIGEST_BCC = "readplace+reader_ready@readplace.com";
 const SUBJECT = "Reader views are ready for articles you saved.";
 /** The article body must have been unavailable for longer than a minute to
@@ -175,6 +176,7 @@ async function processUserDigest(params: {
 			from: EMAIL_FROM,
 			to: contact.email,
 			bcc: DIGEST_BCC,
+			replyTo: EMAIL_REPLY_TO,
 			subject: SUBJECT,
 			html: buildDigestEmailHtml({
 				items: included.map((i) => i.email),
@@ -261,10 +263,21 @@ async function resolveDigestItem(
 		email: {
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
-			readerUrl: `${deps.appOrigin}${buildOwnerReaderPath(article.id)}`,
+			readerUrl: digestReaderUrl({
+				appOrigin: deps.appOrigin,
+				path: buildOwnerReaderPath(article.id),
+			}),
 			preview: buildDigestPreview(summary),
 		},
 	};
+}
+
+function digestReaderUrl(input: { appOrigin: string; path: string }): string {
+	const url = new URL(input.path, input.appOrigin);
+	url.searchParams.set("utm_source", "reader-ready-email");
+	url.searchParams.set("utm_medium", "email");
+	url.searchParams.set("utm_content", "article");
+	return url.toString();
 }
 
 /** Best-effort removal of digest-queue rows: TTL is the backstop, so a failed

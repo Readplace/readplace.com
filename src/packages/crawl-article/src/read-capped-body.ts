@@ -4,9 +4,13 @@ import assert from "node:assert";
  * byte cap. A distinct type so a caller can map it to its own "too large"
  * outcome while letting genuine network errors fall through unchanged. */
 export class BodyTooLargeError extends Error {
-	constructor(maxBytes: number) {
-		super(`Response body exceeds ${maxBytes} bytes`);
+	readonly bytes: number;
+	readonly maxBytes: number;
+	constructor(params: { bytes: number; maxBytes: number }) {
+		super(`Response body exceeds ${params.maxBytes} bytes`);
 		this.name = "BodyTooLargeError";
+		this.bytes = params.bytes;
+		this.maxBytes = params.maxBytes;
 	}
 }
 
@@ -29,7 +33,7 @@ export async function readBodyWithCap(response: Response, maxBytes: number): Pro
 		total += value.byteLength;
 		if (total > maxBytes) {
 			await reader.cancel();
-			throw new BodyTooLargeError(maxBytes);
+			throw new BodyTooLargeError({ bytes: total, maxBytes });
 		}
 		chunks.push(Buffer.from(value));
 	}

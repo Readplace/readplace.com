@@ -65,25 +65,19 @@
         {{/if}}
       </section>
       {{/if}}
+      <section class="account-appearance" data-test-account-appearance>
+        <h2 class="account-appearance__heading">Appearance</h2>
+        <p class="account-appearance__body">Choose how Readplace looks. System follows your device's light or dark setting.</p>
+        <form class="account-appearance__form" method="POST" action="{{appearance.formAction}}">
+          {{#each appearance.options}}
+          <button type="submit" name="appearance" value="{{value}}" aria-pressed="{{ariaPressed}}" class="btn btn--compact btn--{{variant}} account-appearance__option" data-test-appearance-option="{{value}}">{{label}}</button>
+          {{/each}}
+        </form>
+      </section>
       <section class="account-export" data-test-account-export>
         <h2 class="account-export__heading">Your data</h2>
         <p class="account-export__body">Download every article you have saved, with your reading history, as a file you keep.</p>
         <a class="btn btn--secondary btn--compact account-export__action" href="{{exportHref}}" data-test-account-export-link>Export my data</a>
-      </section>
-      <section class="account-shared" data-test-account-shared>
-        <h2 class="account-shared__heading">Shared links</h2>
-        {{#if sharedLinks.hasItems}}
-        <ul class="account-shared__list">
-          {{#each sharedLinks.items}}
-          <li class="account-shared__item" data-test-shared-item>
-            <a class="account-shared__link" href="{{href}}" data-test-shared-link>{{title}}</a>
-            <time class="account-shared__time" datetime="{{sharedLabel.iso}}" data-local-time="{{sharedLabel.mode}}">{{sharedLabel.label}}</time>
-          </li>
-          {{/each}}
-        </ul>
-        {{else}}
-        <p class="account-shared__body" data-test-shared-message>Links you share from the reader will appear here.</p>
-        {{/if}}
       </section>
       <section class="account-danger" data-test-account-danger>
         <h2 class="account-danger__heading">Danger zone</h2>
@@ -102,4 +96,5 @@
           <button type="submit" class="{{dangerAction.buttonClass}}">{{dangerAction.name}}</button>
         </form>
       </section>
+      {{{subscribePlansHtml}}}
     </main>

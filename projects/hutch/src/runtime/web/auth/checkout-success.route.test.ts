@@ -2,16 +2,21 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { CHECKOUT_RETURN_FAILURE_REASONS } from "../../observability/events";
 import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup";
+
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 const useApp = useTestServer();
 
 describe("GET /auth/checkout/success", () => {
 	it("renders an error and 400 when the session_id query param is missing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/auth/checkout/success");
+		const response = await request(harness.server)
+			.get("/auth/checkout/success")
+			.set("User-Agent", BROWSER_USER_AGENT);
 
 		expect(response.status).toBe(400);
 		const doc = new JSDOM(response.text).window.document;
@@ -29,7 +34,9 @@ describe("GET /auth/checkout/success", () => {
 
 	it("renders 404 when Stripe says the session does not exist", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/auth/checkout/success?session_id=cs_test_unknown");
+		const response = await request(harness.server)
+			.get("/auth/checkout/success?session_id=cs_test_unknown")
+			.set("User-Agent", BROWSER_USER_AGENT);
 
 		expect(response.status).toBe(404);
 		const doc = new JSDOM(response.text).window.document;
@@ -48,13 +55,14 @@ describe("GET /auth/checkout/success", () => {
 
 		const checkout = await hostedCheckout.createCheckoutSession({
 			customerEmail: "unpaid@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
 		});
 
-		const response = await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
-		);
+		const response = await request(harness.server)
+			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`)
+			.set("User-Agent", BROWSER_USER_AGENT);
 
 		expect(response.status).toBe(402);
 		const doc = new JSDOM(response.text).window.document;
@@ -80,13 +88,14 @@ describe("GET /auth/checkout/success", () => {
 
 		const checkout = await hostedCheckout.createCheckoutSession({
 			customerEmail: "trial-peeker@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
 		});
 
-		const response = await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
-		);
+		const response = await request(harness.server)
+			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`)
+			.set("User-Agent", BROWSER_USER_AGENT);
 
 		expect(response.status).toBe(402);
 		const doc = new JSDOM(response.text).window.document;
@@ -106,9 +115,9 @@ describe("GET /auth/checkout/success", () => {
 			password: "password123",
 		});
 
-		const replay = await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
-		);
+		const replay = await request(harness.server)
+			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`)
+			.set("User-Agent", BROWSER_USER_AGENT);
 
 		expect(replay.status).toBe(409);
 		const doc = new JSDOM(replay.text).window.document;
@@ -152,6 +161,55 @@ describe("GET /auth/checkout/success", () => {
 		expect(evt.subscription_id).toMatch(/^sub_test_/);
 		expect(evt.paid_now).toBe(true);
 		expect(typeof evt.timestamp).toBe("string");
+	});
+
+	it("emits no subscription event when a crawler follows the checkout return URL, so a Googlebot fetch of a leaked Stripe link never counts as a conversion", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, pendingSignup } = harness;
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "crawler-return@example.com",
+			password: "password123",
+			agent: request.agent(harness.server).set("User-Agent", GOOGLEBOT),
+		});
+
+		expect(successResponse.status).toBe(303);
+		assert.equal(
+			harness.subscriptionEvents.events.length,
+			0,
+			"a crawler visiting the return URL is not a paying reader",
+		);
+	});
+
+	it("emits exactly one checkout_completed for the same return from a real browser, so the crawler gate can never swallow a reader's conversion", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, pendingSignup } = harness;
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "browser-return@example.com",
+			password: "password123",
+			agent: request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT),
+		});
+
+		expect(successResponse.status).toBe(303);
+		assert.equal(
+			harness.subscriptionEvents.events.length,
+			1,
+			"a browser returning from Stripe is one conversion",
+		);
+		assert.equal(
+			harness.subscriptionEvents.events[0].event,
+			"checkout_completed",
+			"the browser return records the completion, not a failure",
+		);
 	});
 
 	it("carries the originating variant on checkout_completed, so a completion attributes to its entry path without a self-join", async () => {
@@ -236,6 +294,7 @@ describe("GET /auth/checkout/success", () => {
 		assert(created.ok, "user must be created before driving Stripe success");
 		const checkout = await hostedCheckout.createCheckoutSession({
 			customerEmail: "trial-capture@example.com",
+			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
 		});
@@ -253,6 +312,7 @@ describe("GET /auth/checkout/success", () => {
 
 		const response = await request
 			.agent(harness.server)
+			.set("User-Agent", BROWSER_USER_AGENT)
 			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`);
 
 		expect(response.status).toBe(303);
@@ -284,6 +344,51 @@ describe("GET /auth/checkout/success", () => {
 		expect(subRow.subscriptionId).toMatch(/^sub_test_[0-9a-f]+$/);
 		expect(subRow.customerId).toMatch(/^cus_test_[0-9a-f]+$/);
 		expect(subRow.trialEndsAt).toBeUndefined();
+	});
+
+	it("writes the plan the reader picked onto the subscription row on first paid visit", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, subscriptionProviders, pendingSignup } = harness;
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "plan-monthly@example.com",
+			password: "password123",
+			plan: "monthly",
+		});
+
+		expect(successResponse.status).toBe(303);
+		expect(successResponse.headers.location).toBe("/queue");
+		const lookup = await auth.findUserByEmail("plan-monthly@example.com");
+		assert(lookup, "user must exist after paid checkout");
+		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+		assert(subRow, "subscription row must exist after paid checkout");
+		expect(subRow.plan).toBe("monthly");
+	});
+
+	it("leaves the row's plan unset for a checkout opened before the plan picker existed — a grandfathered checkout must not be stamped with a plan it was never charged on", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, subscriptionProviders, pendingSignup } = harness;
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "plan-grandfathered@example.com",
+			password: "password123",
+		});
+
+		expect(successResponse.status).toBe(303);
+		expect(successResponse.headers.location).toBe("/queue");
+		const lookup = await auth.findUserByEmail("plan-grandfathered@example.com");
+		assert(lookup, "user must exist after paid checkout");
+		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+		assert(subRow, "subscription row must exist after paid checkout");
+		expect(subRow.plan).toBeUndefined();
 	});
 
 	it("calls deleteTrialEndSchedule on first paid visit so any prior trial scheduler is cleared", async () => {

@@ -1,0 +1,32 @@
+<template data-reader-skeleton data-main-class="reader" data-body-class="page-reader" data-body-class-from="page-readlist">
+  <style nonce="{{cspNonce}}">{{{styles}}}</style>
+  <div class="reader__article-body" data-article-body>
+    <div class="article-body__actions--sticky">
+      <div class="article-body__actions article-body__actions--top">
+        <div class="article-body__back-slot article-body__back-slot--visible">
+          <a class="article-body__back" href="{{backHref}}">{{icon "arrow-left"}}<span class="article-body__action-label">{{backLabel}}</span></a>
+        </div>
+        <div class="article-body__readlists-slot article-body__readlists-slot--visible" inert>
+          <span class="article-body__readlists-trigger"><span class="article-body__action-icon">{{icon "plus"}}</span><span class="article-body__action-label">Add to readlist</span><span class="article-body__action-label-short" aria-hidden="true">Add</span>{{icon "chevron-down"}}</span>
+        </div>
+        <div class="article-body__mark-read-slot article-body__mark-read-slot--visible" inert>
+          <button class="btn btn--secondary btn--compact article-body__mark-read" type="button" disabled><span class="article-body__action-icon article-body__mark-read-icon">{{icon "check"}}</span><span class="article-body__mark-read-label article-body__action-label">Mark as read</span><span class="article-body__mark-read-label article-body__action-label-short" aria-hidden="true">Read</span></button>
+        </div>
+        <div class="article-body__download-epub-slot article-body__download-epub-slot--hidden"></div>
+      </div>
+    </div>
+    <div class="article-body__header">
+      <h1 class="article-body__title" data-reader-field-text="title"></h1>
+      <div class="article-body__meta">
+        <span data-reader-field-text="site"></span>
+        <span class="article-body__read-time" data-reader-field-text="read-time" data-reader-field-empty-class="article-body__read-time--empty"></span>
+      </div>
+      <a class="article-body__original-link" href="" target="_blank" rel="noopener" data-reader-field-href="site">View original</a>
+    </div>
+    <div class="article-body__reader-slot reader-skeleton" data-reader-status="loading" data-test-reader-skeleton>
+      <div class="reader-skeleton__paragraph"><span class="reader-skeleton__line"></span><span class="reader-skeleton__line"></span><span class="reader-skeleton__line reader-skeleton__line--short"></span></div>
+      <div class="reader-skeleton__paragraph"><span class="reader-skeleton__line"></span><span class="reader-skeleton__line"></span><span class="reader-skeleton__line reader-skeleton__line--short"></span></div>
+      <div class="reader-skeleton__paragraph"><span class="reader-skeleton__line"></span><span class="reader-skeleton__line"></span><span class="reader-skeleton__line reader-skeleton__line--short"></span></div>
+    </div>
+  </div>
+</template>

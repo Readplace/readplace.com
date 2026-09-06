@@ -1,12 +1,12 @@
 import type { RequestHandler } from "express";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	type AnalyticsEvent,
 	buildOAuthTokenIssuedEvent,
 	buildOAuthTokenRefusedEvent,
 	OAUTH_TOKEN_GRANT_TYPES,
 	type OAuthTokenGrantType,
+	type RecordUngatedEvent,
 } from "@packages/web-analytics";
 
 const TokenRequestFields = z
@@ -29,7 +29,7 @@ function isSuccess(statusCode: number): boolean {
 }
 
 export function initObserveTokenOutcome(deps: {
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	now: () => Date;
 	salt: string;
 }): RequestHandler {
@@ -39,7 +39,7 @@ export function initObserveTokenOutcome(deps: {
 			const grantType = grantTypeOf(fields.grant_type);
 			const clientId = fields.client_id ?? "missing";
 			if (isSuccess(res.statusCode)) {
-				deps.analytics.info(
+				deps.recordUngatedAnalyticsEvent(
 					buildOAuthTokenIssuedEvent(
 						{ now: deps.now, salt: deps.salt },
 						{ req, grantType, clientId },
@@ -47,7 +47,7 @@ export function initObserveTokenOutcome(deps: {
 				);
 				return;
 			}
-			deps.analytics.info(
+			deps.recordUngatedAnalyticsEvent(
 				buildOAuthTokenRefusedEvent(
 					{ now: deps.now, salt: deps.salt },
 					{ req, grantType, clientId, status: res.statusCode },

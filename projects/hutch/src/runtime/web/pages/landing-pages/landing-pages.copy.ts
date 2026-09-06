@@ -1,7 +1,7 @@
-import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import type { LandingPageAction, LandingPageActionInput } from "./landing-pages.types";
+import type { LandingPageAction, LandingPageActionInput, LandingPageSlug } from "./landing-pages.types";
 
 /**
  * The sentences and assets more than one landing page needs. They live together
@@ -38,10 +38,17 @@ export const EARLY_USER_QUOTE = {
 	attribution: "Matthew Motz, early user",
 };
 
-export const FOUNDER_LINE =
-	'Built by one person. I wrote js-cookie, which browsers download about 22 billion times a year, and ran my own reading pipeline for ten years before turning it into this. <a href="/blog/why-i-built-readplace">Why I built it</a>.';
+export function founderLine(slug: LandingPageSlug): string {
+	const href = withInternalTracking("/blog/why-i-built-readplace", {
+		source: `lp-${slug}-founder`,
+		content: "blog-why",
+	});
+	return `Built by one person. I wrote js-cookie, which browsers download about 22 billion times a year, and ran my own reading pipeline for ten years before turning it into this. <a href="${href}">Why I built it</a>.`;
+}
 
-export const TRIAL_TERMS = `${STRIPE_TRIAL_PERIOD_DAYS} days free, no card. After that ${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}.`;
+export const TRIAL_TERMS = `${STRIPE_TRIAL_PERIOD_DAYS} days free, no card. After that ${CHEAPEST_MONTHLY_DISPLAY}/month.`;
+
+export const PLAN_CHOICES = `${PRICING_PLANS.monthly.billedNote}, ${PRICING_PLANS.yearly.billedNote}, or ${PRICING_PLANS.triennial.billedNote}`;
 
 /** The sentence this whole product is arguing for. Every offer section lands on
  * it, because for a reader who has already lost one readlist it answers the

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { BLOG_STYLES } from "./blog.styles";
@@ -63,6 +63,16 @@ export function BlogIndexPage(params: { posts: BlogPost[] }): PageBody {
 		},
 		styles: BLOG_STYLES,
 		bodyClass: "page-blog",
-		content: { html: render(BLOG_INDEX_TEMPLATE, { posts: params.posts }) },
+		content: {
+			html: render(BLOG_INDEX_TEMPLATE, {
+				posts: params.posts.map((post) => ({
+					...post,
+					href: withInternalTracking(`/blog/${post.slug}`, {
+						source: "blog-index",
+						content: post.slug,
+					}),
+				})),
+			}),
+		},
 	};
 }

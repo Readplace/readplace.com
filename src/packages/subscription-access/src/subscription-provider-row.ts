@@ -4,6 +4,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionNextChargeSchema } from "@packages/provider-contracts/subscription-billing";
 import {
 	type SubscriptionRecord,
+	BillingPlanSchema,
 	SubscriptionProviderSchema,
 } from "@packages/provider-contracts/subscription-providers";
 
@@ -18,6 +19,7 @@ export const SubscriptionProviderRow = z.object({
 	trialFeedbackEmailSentAt: dynamoField(z.string()),
 	trialReminderEmailSentAt: dynamoField(z.string()),
 	automationSavesHeldEmailSentAt: dynamoField(z.string()),
+	plan: dynamoField(BillingPlanSchema.optional().catch(undefined)),
 	/* `.catch` degrades a malformed map to `undefined` rather than throwing. Every
 	 * read of this row runs through `schema.parse`, and that read feeds the save
 	 * gate and the header banner — a strict parse here would turn one bad attribute
@@ -47,6 +49,7 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 		...(row.automationSavesHeldEmailSentAt !== undefined
 			? { automationSavesHeldEmailSentAt: row.automationSavesHeldEmailSentAt }
 			: {}),
+		...(row.plan !== undefined ? { plan: row.plan } : {}),
 		...(row.nextCharge !== undefined ? { nextCharge: row.nextCharge } : {}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,

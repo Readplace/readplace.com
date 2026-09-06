@@ -11,7 +11,7 @@ keywords: "free read it later app, read it later free, instapaper free, wallabag
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, costs $4/month ($49/year), and that price is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there.
+Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, costs $3/month, and that price is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there.
 
 </div>
 </details>
@@ -32,7 +32,7 @@ Instapaper has been around since 2008, and it has changed hands from Betaworks t
 
 That track record is the strongest argument for it. It does not tell you who will own Instapaper in 5 years, or whether the next owner keeps the free tier intact.
 
-One number worth holding onto: Instapaper Premium at $59.99/year costs more than Readplace at $4/month ($49/year). The free tier is a genuine bargain right up until the day you want full-text search, and then the price comparison flips. So the free tier's niche is the reader who is confident they will never pay for search or text-to-speech, and who is comfortable not knowing who owns the service in 5 years.
+One number worth holding onto: Instapaper Premium at $59.99/year costs more than Readplace at $3/month. The free tier is a genuine bargain right up until the day you want full-text search, and then the price comparison flips. So the free tier's niche is the reader who is confident they will never pay for search or text-to-speech, and who is comfortable not knowing who owns the service in 5 years.
 
 ### Raindrop.io (Free Tier)
 
@@ -100,7 +100,7 @@ I built Readplace after watching too many of these services close and wanting on
 
 The model is the plain one. You pay for the product, and the money keeps the product alive.
 
-Readplace costs $4/month ($49/year). That is less than a cup of coffee a month for a full-blown reader system powered by AI.
+Readplace costs $3/month. That is less than a cup of coffee a month for a full-blown reader system powered by AI.
 
 That subscription is the whole funding source. There is no venture capital to run out, no acqui-hire to pull the team onto someone else's roadmap, no ads, and no data selling. Nothing here needs your reading history to work. The fees cover servers and development. If the product stays good enough that people keep paying, it keeps running, which is the same test any honest business has to pass.
 
@@ -124,7 +124,7 @@ It is still not the right fit for every reader, and the table below should tell 
 | Karakeep | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Wallabag | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Browser bookmarks | $0 | Zero dependencies | No reader view, no offline, no organisation |
-| Readplace | 14-day free trial (no card), then $4/month ($49/yr) | Hosted, maintained, no ads | A one-person business can shut down too |
+| Readplace | 14-day free trial (no card), then $3/month | Hosted, maintained, no ads | A one-person business can shut down too |
 
 Every row in that table is a real bargain, not a free lunch.
 
@@ -134,5 +134,5 @@ The choice comes down to which cost you would rather carry: the dollars, the mai
 <p class="blog-cta__title">Try Readplace for two weeks</p>
 <p class="blog-cta__text">Save this week's articles into Readplace and see if it sticks.</p>
 <a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. $4/month ($49/year) if you subscribe.</p>
+<p class="blog-cta__note">No credit card required. $3/month if you subscribe.</p>
 </div>

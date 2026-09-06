@@ -441,7 +441,7 @@ describe("View routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Readlist");
+			expect(action.querySelector(".view__cta-label")?.textContent).toBe("Save to My Readlist");
 			const href = action.getAttribute("href");
 			assert(href, "action must have an href");
 			const parsed = new URL(href, "http://localhost");
@@ -543,7 +543,7 @@ describe("View routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Readlist");
+			expect(action.querySelector(".view__cta-label")?.textContent).toBe("Save to My Readlist");
 			expect(action.getAttribute("href")?.startsWith("/save?")).toBe(true);
 		});
 
@@ -595,7 +595,7 @@ describe("View routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Readlist");
+			expect(action.querySelector(".view__cta-label")?.textContent).toBe("Save to My Readlist");
 			expect(action.getAttribute("href")?.startsWith("/save?")).toBe(true);
 		});
 
@@ -650,7 +650,7 @@ describe("View routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
-			expect(action.textContent).toBe("Save to My Readlist");
+			expect(action.querySelector(".view__cta-label")?.textContent).toBe("Save to My Readlist");
 			expect(action.getAttribute("href")?.startsWith("/save?")).toBe(true);
 		});
 
@@ -694,7 +694,7 @@ describe("View routes", () => {
 			expect(actions.length).toBe(2);
 			const second = actions[1];
 			assert(second, "second cta action must be rendered");
-			expect(second.textContent).toBe("Paste another link");
+			expect(second.querySelector(".view__cta-label")?.textContent).toBe("Paste another link");
 			const href = second.getAttribute("href");
 			assert(href, "paste-another-link href must be set");
 			const parsed = new URL(href, "http://localhost");
@@ -999,7 +999,6 @@ describe("View routes", () => {
 			const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
 			assert(wrap, "share balloon wrapper must be rendered");
 			expect(wrap.hasAttribute("hidden")).toBe(true);
-			expect(wrap.getAttribute("data-share-stamp-url")).toBe(null);
 			const btn = doc.querySelector("[data-test-share-balloon]");
 			assert(btn, "share button must be rendered");
 			expect(btn.getAttribute("aria-label")).toBe("Share this article");
@@ -1950,9 +1949,9 @@ describe("View routes", () => {
 			});
 			await seedRow(fixture);
 
-			const response = await request(harness.server).get(
-				`/view/reader?url=${ENCODED}&poll=1&utm_source=medium`,
-			);
+			const response = await request(harness.server)
+				.get(`/view/reader?url=${ENCODED}&poll=1&utm_source=medium`)
+				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(200);
 			const ids = oobIds(response.text);
@@ -1982,9 +1981,9 @@ describe("View routes", () => {
 			});
 			await seedRow(fixture, { content: "<p>body</p>" });
 
-			const response = await request(harness.server).get(
-				`/view/summary?url=${ENCODED}&poll=1&utm_source=medium`,
-			);
+			const response = await request(harness.server)
+				.get(`/view/summary?url=${ENCODED}&poll=1&utm_source=medium`)
+				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;

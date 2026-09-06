@@ -106,11 +106,9 @@ import type {
 	InMemoryMarkCrawlReady,
 	InMemoryMarkCrawlStage,
 	InMemoryMarkCrawlUnsupported,
-	ListSharedArticles,
 	ListUserArticleUrls,
 	MarkAccountDeleted,
 	MarkArticleViewed,
-	MarkLinkShared,
 	MarkCrawlPending,
 	MarkEmailVerified,
 	MarkReaderReadyEmailSent,
@@ -122,6 +120,7 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
+	OnUnpaidFirstInvoice,
 	RevokeAllUserOAuthTokens,
 	FindOAuthClient,
 	RegisterOAuthClient,
@@ -155,16 +154,21 @@ import type {
 	ReadPendingUploadPrefix,
 	RateLimitRules,
 	ReadArticleContent,
+	ReadArticleImage,
 	RecordDeleteArticleAcknowledged,
+	RecordEmailStepMarkedDone,
+	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 	RefreshArticleIfStale,
+	ResolvePriceId,
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
 	SaveAppleRefreshToken,
+	SetUserAppearance,
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
 	FindSavedUrls,
@@ -188,7 +192,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts";
 import type { UserId } from "@packages/domain/user";
-import type { InboxAddress } from "@packages/domain/inbox";
+import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
 
@@ -218,6 +222,7 @@ export interface AuthBundle {
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
+	setUserAppearance: SetUserAppearance;
 	deleteUser: (email: string) => Promise<void>;
 	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }
@@ -227,6 +232,11 @@ export interface HostedCheckoutBundle {
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	markPaid: (id: CheckoutSessionId, opts?: { paymentStatus?: CheckoutPaymentStatus }) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
+	createdCheckoutSessions: () => Array<{
+		id: CheckoutSessionId;
+		priceId: string;
+		customerEmail: string;
+	}>;
 }
 
 export interface PendingSignupBundle {
@@ -299,6 +309,7 @@ export interface SubscriptionBillingBundle {
 		customerId: string;
 		priceId: string;
 		userId: UserId;
+		onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
 		subscriptionId: string;
 	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
@@ -329,8 +340,6 @@ export interface ArticleStoreBundle {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
-	markLinkShared: MarkLinkShared;
-	listSharedArticles: ListSharedArticles;
 	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
@@ -357,6 +366,13 @@ export interface ArticleStoreBundle {
 	readArticleContent: ReadArticleContent;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
+	readArticleImage: ReadArticleImage;
+	writeImage: (params: {
+		url: string;
+		filename: string;
+		body: Buffer;
+		contentType: string;
+	}) => Promise<void>;
 	writeMetadata: (params: {
 		url: string;
 		metadata: ArticleMetadata;
@@ -474,7 +490,9 @@ export interface OnboardingSignalsBundle {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
-	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordInboxArticleQueued: RecordInboxArticleQueued;
+	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	getOnboardingSignals: GetOnboardingSignals;
@@ -494,13 +512,14 @@ export interface GmailIntegrationBundle {
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
+	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
 	mintSenderAddress: (input: {
 		userId: UserId;
 		senderEmail: ForwardableSender;
 	}) => Promise<InboxAddress>;
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
-		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed";
 	}) => Promise<void>;
 	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
 }
@@ -594,7 +613,7 @@ export interface TestAppFixture {
 	trialScheduler: TrialSchedulerBundle;
 	subscriptionBilling: SubscriptionBillingBundle;
 	paymentMethods: PaymentMethodsBundle;
-	stripePriceId: string;
+	resolvePriceId: ResolvePriceId;
 	/** Public Stripe publishable key embedded in the card-add Elements form.
 	 * `undefined` models local dev without a key — the page then renders the
 	 * list/remove/promote actions but not the add form. */

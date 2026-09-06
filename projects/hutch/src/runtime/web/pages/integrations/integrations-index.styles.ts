@@ -117,12 +117,4 @@ export const INTEGRATIONS_INDEX_STYLES = `
 	border: 1px solid var(--error-text);
 	color: var(--error-text);
 }
-
-.integrations__alert--visible {
-	display: block;
-}
-
-.integrations__alert--hidden {
-	display: none;
-}
 `;

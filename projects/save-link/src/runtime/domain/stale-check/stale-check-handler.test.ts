@@ -284,6 +284,41 @@ describe("initStaleCheckHandler", () => {
 		expect(publishRefreshArticleContent).not.toHaveBeenCalled();
 	});
 
+	it("backs off (keeping the served content) instead of deferring when a refreshed page is now content-too-large", async () => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+			bodyHash: "h".repeat(64),
+		});
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "unsupported",
+			reason: "content body too large: 54090542 bytes (cap 29360128 bytes)",
+			unsupportedReason: { kind: "content-too-large", bytes: 54090542 },
+		});
+		const emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+		const markCrawlStage: MarkCrawlStage = jest.fn().mockResolvedValue(undefined);
+		const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({
+			findArticleFreshness,
+			crawlAndFinalizeArticle,
+			emitSimpleCrawlUnsupported,
+			markCrawlStage,
+			publishUpdateFetchTimestamp,
+		});
+
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			contentFetchedAt: fixedNow().toISOString(),
+			bodyHash: "h".repeat(64),
+		});
+		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
+		expect(markCrawlStage).not.toHaveBeenCalledWith({ url: URL_UNDER_TEST, stage: "comprehensive-fetching" });
+	});
+
 	it("backs off when crawl returns failed: resets the freshness clock (carrying the bodyHash) so the next attempt waits a full TTL", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: undefined,

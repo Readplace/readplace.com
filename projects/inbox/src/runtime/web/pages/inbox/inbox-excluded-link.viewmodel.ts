@@ -1,3 +1,4 @@
+import { withInternalTracking } from "@packages/web-shell";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type {
 	EmailLinkSkipReason,
@@ -82,7 +83,10 @@ export function toInboxExcludedLinkViewModel(input: {
 				: SKIP_REASON_LABELS[link.skipReason],
 		saveAction:
 			validateSaveableUrl(link.url).status === "SUCCESS"
-				? buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal })
+				? withInternalTracking(buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }), {
+						source: "inbox-excluded-link",
+						content: "save-link",
+					})
 				: undefined,
 		domId,
 		saveButtonId: `${domId}-save`,

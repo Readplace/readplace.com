@@ -244,7 +244,7 @@ private fun AlwaysLight(content: @Composable () -> Unit) {
 	}
 	val lightContext = remember(context, light) { context.createConfigurationContext(light) }
 	CompositionLocalProvider(LocalConfiguration provides light, LocalContext provides lightContext) {
-		ReadplaceTheme(content)
+		ReadplaceTheme(content = content)
 	}
 }
 

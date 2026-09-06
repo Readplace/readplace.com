@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { initSaveLinkWork } from "./save-link-work";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -131,6 +131,35 @@ describe("initSaveLinkWork", () => {
 		});
 	});
 
+	it("persists the classified origin-unreachable reason via markCrawlFailed before the CrawlFailedError that dead-letters the record", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "failed",
+			reason: "crawl-failed",
+			failure: { kind: "origin-unreachable", httpStatus: 522 },
+		});
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist });
+
+		await expect(saveLinkWork("https://example.com/article")).rejects.toMatchObject({
+			name: "CrawlFailedError",
+			crawlFailureReason: { kind: "origin-unreachable", httpStatus: 522 },
+		});
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+			url: "https://example.com/article",
+			input: { reason: { kind: "origin-unreachable", httpStatus: 522 } },
+		});
+	});
+
+	it("surfaces the inline write's error when the network-failure terminal-state write fails, so the record dead-letters and the DLQ handler still terminalises it", async () => {
+		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("conditional check failed"));
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist });
+
+		await expect(saveLinkWork("https://example.com/article")).rejects.toThrow("conditional check failed");
+	});
+
 	it("reports a parse-class failure to both telemetry sinks even when the terminal-state write fails, and still surfaces the persistence error", async () => {
 		const logParseError = jest.fn();
 		const logCrawlOutcome = jest.fn();
@@ -181,6 +210,53 @@ describe("initSaveLinkWork", () => {
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(updateFetchTimestamp).not.toHaveBeenCalled();
 		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
+	});
+
+	it("terminalises a content-too-large crawl in-process via markCrawlUnsupported, never deferring to the comprehensive crawl that would re-fetch and OOM on the same body", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+		const markCrawlStage = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "unsupported",
+			reason: "content body too large: 54090542 bytes (cap 29360128 bytes)",
+			unsupportedReason: { kind: "content-too-large", bytes: 54090542 },
+		});
+
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle,
+			transitionAndPersist,
+			emitSimpleCrawlUnsupported,
+			markCrawlStage,
+		});
+
+		await expect(saveLinkWork("https://example.com/huge")).resolves.toBe("tier-1-terminal");
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
+			url: "https://example.com/huge",
+			input: { reason: { kind: "content-too-large", bytes: 54090542 } },
+		});
+		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
+		expect(markCrawlStage).not.toHaveBeenCalledWith({
+			url: "https://example.com/huge",
+			stage: "comprehensive-fetching",
+		});
+	});
+
+	it("defers an unsupported crawl with no structured reason (non-html body) to the comprehensive crawl", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+		const markCrawlStage = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "unsupported",
+			reason: "unsupported content type: application/pdf",
+		});
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported, markCrawlStage });
+
+		await expect(saveLinkWork("https://example.com/doc.pdf")).resolves.toBe("tier-1-deferred");
+		expect(markCrawlStage).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			stage: "comprehensive-fetching",
+		});
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalled();
 	});
 
 	it.each([402, 403])(

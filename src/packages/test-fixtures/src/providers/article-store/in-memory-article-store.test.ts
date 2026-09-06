@@ -1020,6 +1020,23 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("writeImage + readArticleImage", () => {
+		const url = "https://example.com/article";
+		const filename = "abcdef0123456789.jpg";
+
+		it("reads back an image written under its article and filename", async () => {
+			const store = initInMemoryArticleStore();
+			await store.writeImage({ url, filename, body: Buffer.from([1, 2, 3]), contentType: "image/jpeg" });
+
+			expect(await store.readArticleImage({ url, filename })).toEqual(Buffer.from([1, 2, 3]));
+		});
+
+		it("returns undefined for an image that was never written", async () => {
+			const store = initInMemoryArticleStore();
+			expect(await store.readArticleImage({ url, filename })).toBeUndefined();
+		});
+	});
+
 	describe("markSummaryToggled + getSummaryToggleState", () => {
 		const URL = "https://example.com/article";
 
@@ -1542,72 +1559,6 @@ describe("initInMemoryArticleStore", () => {
 			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z"), suggestionId: undefined });
 
 			expect(await store.findArticleByUrl(URL)).toBeNull();
-		});
-	});
-
-	describe("markLinkShared + listSharedArticles", () => {
-		it("stamps sharedAt on the saved row, visible through listSharedArticles and findArticleById", async () => {
-			const store = initInMemoryArticleStore();
-			const { saved } = await store.saveArticle(makeArticleParams());
-			const at = new Date("2026-08-10T09:00:00.000Z");
-
-			await store.markLinkShared({ userId: USER_A, url: URL, at });
-
-			const shared = await store.listSharedArticles({ userId: USER_A });
-			expect(shared.map((a) => a.id.value)).toEqual([saved.id.value]);
-			expect(shared[0]?.sharedAt).toEqual(at);
-
-			const found = await store.findArticleById(saved.id, USER_A);
-			expect(found?.sharedAt).toEqual(at);
-		});
-
-		it("keeps the latest share instant when a link is shared again", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams());
-			await store.markLinkShared({ userId: USER_A, url: URL, at: new Date("2026-08-10T09:00:00.000Z") });
-			await store.markLinkShared({ userId: USER_A, url: URL, at: new Date("2026-08-10T10:00:00.000Z") });
-
-			const shared = await store.listSharedArticles({ userId: USER_A });
-			expect(shared[0]?.sharedAt).toEqual(new Date("2026-08-10T10:00:00.000Z"));
-		});
-
-		it("orders shared links newest-shared first, not newest-saved", async () => {
-			const store = initInMemoryArticleStore();
-			const { saved: savedFirst } = await store.saveArticle(
-				makeArticleParams({ url: "https://example.com/first", savedAt: new Date("2026-08-01T00:00:00.000Z") }),
-			);
-			const { saved: savedSecond } = await store.saveArticle(
-				makeArticleParams({ url: "https://example.com/second", savedAt: new Date("2026-08-02T00:00:00.000Z") }),
-			);
-			await store.markLinkShared({ userId: USER_A, url: "https://example.com/second", at: new Date("2026-08-10T09:00:00.000Z") });
-			await store.markLinkShared({ userId: USER_A, url: "https://example.com/first", at: new Date("2026-08-10T10:00:00.000Z") });
-
-			const sharedNewestFirst = await store.listSharedArticles({ userId: USER_A });
-
-			expect(sharedNewestFirst.map((a) => a.id.value)).toEqual([savedFirst.id.value, savedSecond.id.value]);
-		});
-
-		it("is a no-op on a link the user has not saved", async () => {
-			const store = initInMemoryArticleStore();
-
-			await store.markLinkShared({ userId: USER_A, url: URL, at: new Date() });
-
-			expect(await store.listSharedArticles({ userId: USER_A })).toEqual([]);
-		});
-
-		it("returns nothing for a user who has saved but never shared", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams());
-
-			expect(await store.listSharedArticles({ userId: USER_A })).toEqual([]);
-		});
-
-		it("does not leak one user's shared links to another", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams({ userId: USER_A }));
-			await store.markLinkShared({ userId: USER_A, url: URL, at: new Date() });
-
-			expect(await store.listSharedArticles({ userId: USER_B })).toEqual([]);
 		});
 	});
 });

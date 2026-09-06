@@ -70,6 +70,7 @@ export interface McpArticle {
 export type ArticleContentResult =
 	| { readonly status: "ready"; readonly content: string }
 	| { readonly status: "pending" }
+	| { readonly status: "not_an_article" }
 	| { readonly status: "not_found" };
 
 export interface RelatedArticleResult {
@@ -90,6 +91,7 @@ export type ArticleRelatedResult =
 
 export type ArticleSummaryResult =
 	| { readonly status: "not_found" }
+	| { readonly status: "not_an_article" }
 	| { readonly status: "pending" }
 	| { readonly status: "ready"; readonly summary: string; readonly excerpt?: string }
 	| { readonly status: "failed"; readonly reason: string }
@@ -260,6 +262,9 @@ function data(textValue: string, structuredContent: unknown): ToolResult {
 function toolError(value: string): ToolResult {
 	return { content: [{ type: "text", text: value }], isError: true };
 }
+
+const NOT_AN_ARTICLE_REPLY =
+	"This link isn't an article, so there's no reader view — open the link itself.";
 
 function notFoundResult(id: string): ToolResult {
 	return data(`No saved article with id ${id} is in your readlist.`, {
@@ -472,6 +477,8 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			switch (result.status) {
 				case "not_found":
 					return notFoundResult(args.data.id);
+				case "not_an_article":
+					return data(NOT_AN_ARTICLE_REPLY, result);
 				case "pending":
 					return data(
 						"That article is still being fetched; its reader view isn't ready yet. Try again shortly.",
@@ -505,6 +512,8 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			switch (result.status) {
 				case "not_found":
 					return notFoundResult(args.data.id);
+				case "not_an_article":
+					return data(NOT_AN_ARTICLE_REPLY, result);
 				case "pending":
 					return data(
 						"The AI summary for that article is still being generated. Try again shortly.",

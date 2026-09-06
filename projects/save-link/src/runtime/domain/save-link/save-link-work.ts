@@ -4,6 +4,7 @@ import {
 	markCrawlBlocked,
 	markCrawlFailed,
 	markCrawlNotFound,
+	markCrawlUnsupported,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
@@ -15,6 +16,8 @@ import type { PutTierSource } from "../../providers/article-store/put-tier-sourc
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
+import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
+import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
 
 /**
  * `"tier-1-written"` — the worker fetched, parsed, and wrote a tier-1 source.
@@ -55,11 +58,11 @@ export class ClassifiedCrawlError extends Error {
 }
 
 class CrawlFailedError extends ClassifiedCrawlError {
-	constructor(url: string) {
+	constructor(params: { url: string; crawlFailureReason: CrawlFailureReason }) {
 		super({
-			url,
-			message: `crawl failed for ${url}: ${CRAWL_FAILED_REASON}`,
-			crawlFailureReason: { kind: "fetch-failed" },
+			url: params.url,
+			message: `crawl failed for ${params.url}: ${CRAWL_FAILED_REASON}`,
+			crawlFailureReason: params.crawlFailureReason,
 		});
 		this.name = "CrawlFailedError";
 	}
@@ -140,6 +143,15 @@ export function initSaveLinkWork(deps: {
 		const result = await crawlAndFinalizeArticle({ url });
 
 		if (result.status === "unsupported") {
+			const terminalReason = terminalUnsupportedReason(result.unsupportedReason);
+			if (terminalReason !== undefined) {
+				// Terminalise in-process rather than defer: the comprehensive Lambda
+				// would re-fetch the same oversized body and OOM again.
+				await emitTier1FailureOutcome({ url });
+				await transitionAndPersist(markCrawlUnsupported, { url, input: { reason: terminalReason } });
+				logger.info(`${logPrefix} tier-1 unsupported terminal`, { url, reason: result.reason });
+				return "tier-1-terminal";
+			}
 			/* The simple crawl bailed because the origin returned a non-html body.
 			 * Defer to the comprehensive Lambda — it extracts and decides whether
 			 * the content is a PDF (handle) or something else (mark unsupported).
@@ -199,13 +211,13 @@ export function initSaveLinkWork(deps: {
 				recrawl: options?.recrawl,
 			});
 			if (result.reason === CRAWL_FAILED_REASON) {
-				throw new CrawlFailedError(url);
+				const crawlFailureReason = crawlFailureReasonForFetchFailure(result.failure);
+				await transitionAndPersist(markCrawlFailed, {
+					url,
+					input: { reason: crawlFailureReason },
+				});
+				throw new CrawlFailedError({ url, crawlFailureReason });
 			}
-			/* Parse-error reasons are terminal — re-running yields the same failure.
-			 * Flip the crawl state to `failed` immediately so readers and the canary
-			 * see it on the next poll, not after the SQS retry → DLQ delay.
-			 * Network "crawl-failed" reasons let SQS retry and only land at DLQ
-			 * after maxReceiveCount. */
 			await transitionAndPersist(markCrawlFailed, {
 				url,
 				input: { reason: { kind: "parse-error", detail: result.reason } },

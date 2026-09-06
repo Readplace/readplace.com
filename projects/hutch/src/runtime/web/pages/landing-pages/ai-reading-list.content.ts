@@ -1,6 +1,6 @@
-import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { READLIST_SHOT, FOUNDER_LINE, TRIAL_TERMS, START_TRIAL } from "./landing-pages.copy";
+import { READLIST_SHOT, founderLine, PLAN_CHOICES, TRIAL_TERMS, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const AI_READING_LIST_CONTENT: LandingPageContent = {
@@ -44,7 +44,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 			caption:
 				"A link saved mid-conversation lands in the same readlist you read from in the browser and on your phone.",
 		},
-		founderLine: FOUNDER_LINE,
+		founderLine: founderLine("ai-reading-list"),
 	},
 	mechanismTitle: "Eight tools that act, one that refuses",
 	mechanismLede: "The refusal is the design, not a gap in it.",
@@ -89,7 +89,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Do I need a credit card to start?",
-			answer: `No. Making the account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card at any point in it. After that it is ${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}.`,
+			answer: `No. Making the account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card at any point in it. After that you pick how often you pay: ${PLAN_CHOICES}. Every one of them is the same whole product.`,
 		},
 		{
 			question: "What happens to the connection if I stop paying?",
@@ -101,7 +101,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		title: "What it costs",
 		paragraphs: [
 			`Connecting costs nothing. The readlist behind the connection is a subscription: ${TRIAL_TERMS}`,
-			`${MONTHLY_EQUIVALENT_DISPLAY} a month is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
+			`${CHEAPEST_MONTHLY_DISPLAY}/month is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
 			"If the subscription lapses, only saving refuses. Your assistant can still list your readlist, pull an article's text or summary, and mark things read as you work through them — it just cannot add anything new.",
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
@@ -109,5 +109,5 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 	closeTitle: "Connect it in about a minute",
 	closeSecondaryAction: START_TRIAL,
 	closeNote:
-		'The <a href="/mcp">setup guide</a> has the steps for Claude, ChatGPT and Gemini.',
+		`The <a href="${withInternalTracking("/mcp", { source: "lp-ai-reading-list-body", content: "mcp-guide" })}">setup guide</a> has the steps for Claude, ChatGPT and Gemini.`,
 };

@@ -61,25 +61,21 @@ describe("buildDigestEmailHtml", () => {
 		}
 	});
 
-	it("renders exactly two continue-reading CTAs pointing at the unread queue, tagged top and bottom", () => {
+	it("renders exactly one continue-reading CTA pointing at the unread queue", () => {
 		const ctas = ctasOf(build([item(), item({ title: "Second" })]));
-		expect(ctas).toHaveLength(2);
+		expect(ctas).toHaveLength(1);
 
-		const [top, bottom] = ctas.map((a) => new URL(a.getAttribute("href") ?? ""));
-		for (const url of [top, bottom]) {
-			expect(`${url.origin}${url.pathname}`).toBe(QUEUE_URL);
-			expect(url.searchParams.get("utm_source")).toBe("reader-ready-email");
-			expect(url.searchParams.get("utm_medium")).toBe("email");
-		}
-		expect(top.searchParams.get("utm_content")).toBe("top");
-		expect(bottom.searchParams.get("utm_content")).toBe("bottom");
+		const cta = new URL(ctas[0].getAttribute("href") ?? "");
+		expect(`${cta.origin}${cta.pathname}`).toBe(QUEUE_URL);
+		expect(cta.searchParams.get("utm_source")).toBe("reader-ready-email");
+		expect(cta.searchParams.get("utm_medium")).toBe("email");
+		expect(cta.searchParams.get("utm_content")).toBe("bottom");
 	});
 
-	it("places the top CTA before the first card and the bottom CTA after the last", () => {
+	it("places the only CTA after the last card, never before the first", () => {
 		const anchors = anchorsOf(build([item({ title: "Only card" })]));
 
-		expect(anchors[0].textContent?.trim()).toBe("Continue reading");
-		expect(anchors[1].textContent).toBe("Only card");
+		expect(anchors[0].textContent).toBe("Only card");
 		expect(anchors[anchors.length - 1].textContent?.trim()).toBe("Continue reading");
 	});
 
@@ -90,8 +86,8 @@ describe("buildDigestEmailHtml", () => {
 	it("renders a card with no body when an item has no preview", () => {
 		const html = build([item({ title: "No content", preview: "" })]);
 
-		// Two queue CTAs plus the title and site-name links — no preview link.
-		expect(anchorsOf(html)).toHaveLength(4);
+		// One queue CTA plus the title and site-name links — no preview link.
+		expect(anchorsOf(html)).toHaveLength(3);
 		expect(html).toContain("No content");
 	});
 

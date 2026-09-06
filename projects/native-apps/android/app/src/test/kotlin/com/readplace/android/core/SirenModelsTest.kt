@@ -286,6 +286,23 @@ class SirenModelsTest {
 	}
 
 	@Test
+	fun `decodes the collection appearance preference and leaves it null when absent`() {
+		assertEquals(
+			"dark",
+			present(
+				decodedCollection("""{ "class": ["collection"], "properties": { "appearance": "dark" } }""").properties,
+				"the collection properties",
+			).appearance,
+		)
+		assertNull(
+			present(
+				decodedCollection("""{ "class": ["collection"], "properties": { "total": 0 } }""").properties,
+				"the collection properties",
+			).appearance,
+		)
+	}
+
+	@Test
 	fun `a collection that is not an object does not decode`() {
 		assertNull(SirenDecoding.collection(element("\"not-a-collection\"")))
 	}

@@ -3,14 +3,14 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
-import { MinutesSchema } from "@packages/domain/article";
-import type { UserId } from "@packages/domain/user";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { CHECKOUT_VARIANTS } from "../../../observability/events";
+import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { ACCOUNT_CANCEL_MAX_POLLS } from "./account.view-model";
 
 function card(id: string, isPrimary: boolean, last4: string): SavedCard {
@@ -36,6 +36,7 @@ function cardActionKeys(row: Element): string[] {
 
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 async function loginUser(
 	harness: ReturnType<ReturnType<typeof useTestServer>>,
@@ -45,7 +46,7 @@ async function loginUser(
 	await auth.createUser({ email, password: "password123" });
 	const lookup = await auth.findUserByEmail(email);
 	assert(lookup, "test user should exist");
-	const agent = request.agent(harness.server);
+	const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
 	await agent.post("/login").type("form").send({ email, password: "password123" });
 	return { agent, userId: lookup.userId };
 }
@@ -66,6 +67,20 @@ function actionKeys(root: Document | Element): string[] {
 	return Array.from(root.querySelectorAll("[data-test-account-action]")).map(
 		(el) => el.getAttribute("data-test-account-action") ?? "",
 	);
+}
+
+function confirmPopoverKeys(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll("[data-test-confirm-popover]")).map(
+		(panel) => panel.getAttribute("data-test-confirm-popover") ?? "",
+	);
+}
+
+function subscribePlanKeys(doc: Document): string[] {
+	return Array.from(
+		doc.querySelectorAll(
+			`[data-test-confirm-popover="subscribe-plans"] [data-test-plan]`,
+		),
+	).map((panel) => panel.getAttribute("data-test-plan") ?? "");
 }
 
 describe("GET /account (unauthenticated)", () => {
@@ -97,105 +112,6 @@ describe("GET /account (founding member, no subscription row)", () => {
 		// The nav-hide bundle is injected per page and carries no page gate, so a
 		// page that doesn't opt in must not serve it or its nav would hide on scroll.
 		expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
-	});
-});
-
-describe("GET /account (shared links section)", () => {
-	function metadata(title: string) {
-		return { title, siteName: "example.com", excerpt: "An excerpt", wordCount: 500 };
-	}
-
-	async function seedShare(
-		harness: ReturnType<ReturnType<typeof useTestServer>>,
-		input: { userId: UserId; url: string; title: string; savedAt: Date; sharedAt: Date },
-	): Promise<void> {
-		await harness.articleStore.saveArticle({
-			userId: input.userId,
-			url: input.url,
-			metadata: metadata(input.title),
-			estimatedReadTime: MinutesSchema.parse(3),
-			provenance: { kind: "web" },
-			savedAt: input.savedAt,
-		});
-		await harness.articleStore.markLinkShared({ userId: input.userId, url: input.url, at: input.sharedAt });
-	}
-
-	it("shows an empty-state message for a reader who has shared nothing", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get("/account");
-
-		expect(response.status).toBe(200);
-		const doc = new JSDOM(response.text).window.document;
-		const section = doc.querySelector("[data-test-account-shared]");
-		assert(section, "the shared-links section must always render");
-		expect(section.querySelectorAll("[data-test-shared-item]").length).toBe(0);
-		const message = section.querySelector("[data-test-shared-message]");
-		assert(message, "the empty state must render its message");
-		expect(message.textContent).toContain("Links you share from the reader will appear here.");
-	});
-
-	it("lists shared links newest-shared first, each linking to its /view permalink with the shared instant", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, userId } = await loginUser(harness, "sharer@example.com");
-		await seedShare(harness, {
-			userId,
-			url: "https://example.com/first",
-			title: "First Post",
-			savedAt: new Date("2026-08-01T00:00:00.000Z"),
-			sharedAt: new Date("2026-08-10T09:00:00.000Z"),
-		});
-		await seedShare(harness, {
-			userId,
-			url: "https://example.com/second",
-			title: "Second Post",
-			savedAt: new Date("2026-08-02T00:00:00.000Z"),
-			sharedAt: new Date("2026-08-10T10:00:00.000Z"),
-		});
-
-		const doc = new JSDOM((await agent.get("/account")).text).window.document;
-
-		const items = Array.from(doc.querySelectorAll("[data-test-account-shared] [data-test-shared-item]"));
-		const rows = items.map((item) => {
-			const link = item.querySelector("[data-test-shared-link]");
-			assert(link, "each shared item must render a link");
-			const time = item.querySelector("time");
-			assert(time, "each shared item must render a shared-at time");
-			return {
-				title: link.textContent,
-				href: link.getAttribute("href"),
-				datetime: time.getAttribute("datetime"),
-			};
-		});
-
-		expect(rows.map((r) => r.title)).toEqual(["Second Post", "First Post"]);
-		expect(rows.map((r) => r.href)).toEqual(["/view/example.com/second", "/view/example.com/first"]);
-		expect(rows.map((r) => r.datetime)).toEqual([
-			"2026-08-10T10:00:00.000Z",
-			"2026-08-10T09:00:00.000Z",
-		]);
-	});
-
-	it("keeps the shared-links section on the iOS surface, which strips only commerce", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, userId } = await loginUser(harness, "ios-sharer@example.com");
-		await seedShare(harness, {
-			userId,
-			url: "https://example.com/app-shared",
-			title: "App Shared",
-			savedAt: new Date("2026-08-01T00:00:00.000Z"),
-			sharedAt: new Date("2026-08-10T09:00:00.000Z"),
-		});
-
-		const doc = new JSDOM((await agent.get("/account?platform=ios")).text).window.document;
-
-		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
-		const section = doc.querySelector("[data-test-account-shared]");
-		assert(section, "the shared-links section must survive on the iOS surface");
-		const link = section.querySelector("[data-test-shared-link]");
-		assert(link, "the shared link must render on the iOS surface");
-		expect(link.getAttribute("href")).toBe("/view/example.com/app-shared");
 	});
 });
 
@@ -654,6 +570,33 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 	});
 });
 
+describe("GET /account?error=subscribe_failed", () => {
+	it("offers the subscribe action again and says nothing was charged, so a failed checkout is not a dead end", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "retryable-subscribe-error@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account?error=subscribe_failed");
+		const doc = new JSDOM(response.text).window.document;
+
+		const card = doc.querySelector("[data-test-account-card]");
+		assert(card, "account card must render");
+		expect(card.getAttribute("data-test-account-state")).toBe("error-subscribe-failed");
+		const body = doc.querySelector("[data-test-account-error-body]");
+		assert(body, "the retryable error body must render");
+		expect(body.textContent).toContain("nothing was charged");
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-account-action]")).map((el) =>
+				el.getAttribute("data-test-account-action"),
+			),
+		).toContain("subscribe");
+	});
+});
+
 describe("GET /account?error=payment_method", () => {
 	it("renders the payment-method error card with a support email link", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -785,6 +728,69 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 		assert(cardB, "card B must render");
 
 		expect(cardA).toEqual(cardB);
+	});
+});
+
+describe("GET /account (plan-chooser popover wiring)", () => {
+	function expectPlanChooser(doc: Document) {
+		const trigger = findCard(doc).querySelector('[data-test-action="subscribe-plans-open"]');
+		assert(trigger, "the card must render the plan-chooser trigger");
+		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
+		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
+		const fallback = findAction(doc, "subscribe");
+		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
+		expect(confirmPopoverKeys(doc)).toEqual(["subscribe-plans"]);
+		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
+	}
+
+	it("offers a trialing user the three-plan chooser: the trigger opens the popover and the subscribe form stays as the no-JS fallback", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-plans@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		expectPlanChooser(new JSDOM(response.text).window.document);
+	});
+
+	it("offers a cancelled user the same three-plan chooser on the re-subscribe path", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "cancelled-plans@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_plans_cancelled",
+			customerId: "cus_plans_cancelled",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		expectPlanChooser(new JSDOM(response.text).window.document);
+	});
+
+	it("renders no plan popover for an active subscriber — the page's popover key list carries exactly what the card's actions declare", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "active-plans@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_plans_active",
+			customerId: "cus_plans_active",
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(confirmPopoverKeys(doc)).toEqual([]);
 	});
 });
 
@@ -1211,9 +1217,10 @@ describe("POST /account/subscribe", () => {
 		const created = subscriptionBilling.createdSubscriptions();
 		expect(created).toHaveLength(1);
 		expect(created[0].customerId).toBe("cus_was_paid");
-		expect(created[0].priceId).toBe("price_test_default");
+		expect(created[0].priceId).toBe("price_test_yearly");
 		// userId rides into Stripe metadata so the subscription is traceable to this account.
 		expect(created[0].userId).toBe(userId);
+		expect(created[0].onUnpaidFirstInvoice).toBe("refuse");
 
 		// Row is now active with the NEW subscriptionId, replacing sub_was_paid.
 		const row = await subscriptionProviders.findByUserId(userId);
@@ -1238,7 +1245,13 @@ describe("POST /account/subscribe", () => {
 		// Replace the stripe subscriptions wrapper with one that throws —
 		// simulates a declined/expired saved card.
 		fixture.subscriptionBilling.createSubscriptionOnExistingCustomer = async () => {
-			throw new Error("card_declined");
+			throw new Error(
+				"Stripe createSubscriptionOnExistingCustomer failed (402): Your card was declined.",
+			);
+		};
+		const errorLines: string[] = [];
+		fixture.shared.logError = (message: string) => {
+			errorLines.push(message);
 		};
 		const harness = useApp(fixture);
 		const { subscriptionProviders } = harness;
@@ -1269,6 +1282,13 @@ describe("POST /account/subscribe", () => {
 		expect(started).toHaveLength(1);
 		expect(started[0].variant).toBe(CHECKOUT_VARIANTS.cardDeclineFallback);
 		expect(started[0].user_id).toBe(userId);
+
+		const declineLines = errorLines.filter((line) => line.includes("[subscribe/cancelled]"));
+		expect(declineLines).toHaveLength(1);
+		expect(declineLines[0]).toContain(userId);
+		expect(declineLines[0]).toContain(
+			"Stripe createSubscriptionOnExistingCustomer failed (402): Your card was declined.",
+		);
 	});
 
 	it("cancelled user — saved-card charge SUCCEEDS but the active-row upsert throws → 303 /account?error=payment_method, and NOT a card_decline_fallback checkout (the card was already charged, so it is not a decline)", async () => {
@@ -1342,7 +1362,7 @@ describe("POST /account/subscribe", () => {
 		expect(hxRedirect).toContain("checkout.stripe.test");
 	});
 
-	it("trialing user — Stripe Checkout throws → 303 to /account?error=payment_method (no 500)", async () => {
+	it("trialing user — Stripe Checkout throws → 303 to the retryable error, never the card-on-file one, because a trialing reader has never given a card", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.hostedCheckout.createCheckoutSession = async () => {
 			throw new Error("Stripe createCheckoutSession failed (400): something bad");
@@ -1358,12 +1378,36 @@ describe("POST /account/subscribe", () => {
 		const response = await agent.post("/account/subscribe");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?error=payment_method");
+		expect(response.headers.location).toBe("/account?error=subscribe_failed");
 
 		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
 	});
 
-	it("cancelled user without customerId — Stripe Checkout fallback throws → 303 to /account?error=payment_method (no 500)", async () => {
+	it("keeps the card-on-file error for a lapsed subscriber whose saved card is the plausible cause", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.subscriptionBilling.createSubscriptionOnExistingCustomer = async () => {
+			throw new Error("card_declined");
+		};
+		fixture.hostedCheckout.createCheckoutSession = async () => {
+			throw new Error("Stripe createCheckoutSession failed (400): something bad");
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "lapsed-card-error@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+	});
+
+	it("cancelled user without customerId — checkout fallback throws → the retryable error, since a row with no saved customer has no card to blame", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.hostedCheckout.createCheckoutSession = async () => {
 			throw new Error("Stripe createCheckoutSession failed (400): something bad");
@@ -1382,7 +1426,7 @@ describe("POST /account/subscribe", () => {
 		const response = await agent.post("/account/subscribe");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?error=payment_method");
+		expect(response.headers.location).toBe("/account?error=subscribe_failed");
 	});
 
 	it("Phase 3: cancelled user WITHOUT customerId (defensive) falls back to checkout", async () => {
@@ -1466,6 +1510,204 @@ describe("POST /account/subscribe", () => {
 		// No NEW subscription created — the user still has the existing one
 		// with cancel-at-period-end set; Reactivate is the only un-cancel path.
 		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(0);
+	});
+
+	it("charges the crawler's saved card but records no resubscribe_completed, so the one-click resubscribe path is gated like the checkout beside it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "crawler-one-click@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.post("/account/subscribe").set("User-Agent", GOOGLEBOT);
+
+		expect(response.status).toBe(303);
+		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(1);
+		assert.equal(
+			harness.subscriptionEvents.events.filter((e) => e.event === "resubscribe_completed").length,
+			0,
+			"only the measurement is gated — the crawler's subscription is still created",
+		);
+	});
+
+	it("records exactly one resubscribe_completed for the identical one-click resubscribe from a browser", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "browser-one-click@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.post("/account/subscribe").set("User-Agent", BROWSER_USER_AGENT);
+
+		expect(response.status).toBe(303);
+		assert.equal(
+			harness.subscriptionEvents.events.filter((e) => e.event === "resubscribe_completed").length,
+			1,
+			"a browser resubscribe records exactly one resubscribe_completed",
+		);
+	});
+
+	it("emits no subscription event when a crawler submits the Subscribe form, so paid-conversion reporting counts readers and not bots", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "crawler-subscribe@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe").set("User-Agent", GOOGLEBOT);
+
+		expect(response.status).toBe(303);
+		assert.equal(
+			harness.subscriptionEvents.events.length,
+			0,
+			"a crawler-driven checkout must leave no subscription event behind",
+		);
+	});
+
+	it("emits exactly one checkout_started for the identical request from a browser, so the bot gate cannot silence a paying reader", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "browser-subscribe@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent
+			.post("/account/subscribe")
+			.set("User-Agent", BROWSER_USER_AGENT);
+
+		expect(response.status).toBe(303);
+		assert.equal(
+			harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started").length,
+			1,
+			"a browser checkout must record exactly one checkout_started",
+		);
+	});
+});
+
+describe("POST /account/subscribe (which plan gets charged)", () => {
+	it("opens checkout against the plan the reader picked", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "picks-monthly@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe").type("form").send({ plan: "monthly" });
+
+		expect(response.status).toBe(303);
+		expect(hostedCheckout.createdCheckoutSessions().map((s) => s.priceId)).toEqual([
+			"price_test_monthly",
+		]);
+		const started = harness.subscriptionEvents.events.filter(
+			(e) => e.event === "checkout_started",
+		);
+		expect(started.map((e) => e.plan)).toEqual(["monthly"]);
+	});
+
+	it("remembers the chosen plan on the pending signup, so returning from Stripe records the plan the subscription was created on", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, pendingSignup, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "remembers-plan@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		await agent.post("/account/subscribe").type("form").send({ plan: "triennial" });
+
+		const [session] = hostedCheckout.createdCheckoutSessions();
+		const pending = await pendingSignup.consumePendingSignup(session.id);
+		assert(pending, "pending signup must be stored for the checkout session");
+		expect(pending.plan).toBe("triennial");
+	});
+
+	it("charges the featured plan when the form carries none, so the no-JS fallback and an older client still land on the plan the page pushes", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "no-plan-field@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		await agent.post("/account/subscribe");
+
+		expect(hostedCheckout.createdCheckoutSessions().map((s) => s.priceId)).toEqual([
+			"price_test_yearly",
+		]);
+	});
+
+	it("refuses a plan it does not sell rather than silently charging the default", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "unknown-plan@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent
+			.post("/account/subscribe")
+			.type("form")
+			.send({ plan: "fortnightly" });
+
+		expect(response.status).toBe(400);
+		expect(hostedCheckout.createdCheckoutSessions()).toEqual([]);
+	});
+
+	it("charges a resubscriber the plan they pick now, in preference to the one their cancelled subscription carried", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-picks@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+			plan: "monthly",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		await agent.post("/account/subscribe").type("form").send({ plan: "triennial" });
+
+		expect(subscriptionBilling.createdSubscriptions().map((s) => s.priceId)).toEqual([
+			"price_test_triennial",
+		]);
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.plan).toBe("triennial");
+	});
+
+	it("falls back to the plan a resubscriber's cancelled subscription carried when they pick none", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-remembers@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+			plan: "monthly",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		await agent.post("/account/subscribe");
+
+		expect(subscriptionBilling.createdSubscriptions().map((s) => s.priceId)).toEqual([
+			"price_test_monthly",
+		]);
 	});
 });
 
@@ -2717,5 +2959,57 @@ describe("GET /account (danger zone)", () => {
 			deleteForm.contains(input),
 			"the confirmation input must submit with the delete form",
 		);
+	});
+});
+
+describe("Account appearance preference", () => {
+	function appearanceOption(doc: Document, value: string): Element {
+		const el = doc.querySelector(`[data-test-appearance-option="${value}"]`);
+		assert(el, `appearance option "${value}" must be rendered`);
+		return el;
+	}
+
+	it("renders the appearance control with System active by default and no theme class pinned", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "appearance-default@example.com");
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const section = doc.querySelector("[data-test-account-appearance]");
+		assert(section, "appearance section must be rendered");
+		expect(appearanceOption(doc, "system").getAttribute("aria-pressed")).toBe("true");
+		expect(appearanceOption(doc, "light").getAttribute("aria-pressed")).toBe("false");
+		expect(appearanceOption(doc, "dark").getAttribute("aria-pressed")).toBe("false");
+		expect(doc.body.classList.contains("theme-light")).toBe(false);
+		expect(doc.body.classList.contains("theme-dark")).toBe(false);
+	});
+
+	it("persists a chosen preference and re-renders it active with the theme pinned on the body", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "appearance-dark@example.com");
+
+		const post = await agent.post("/account/appearance").type("form").send({ appearance: "dark" });
+		expect(post.status).toBe(303);
+		expect(post.headers.location).toBe("/account");
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+		expect(appearanceOption(doc, "dark").getAttribute("aria-pressed")).toBe("true");
+		expect(appearanceOption(doc, "system").getAttribute("aria-pressed")).toBe("false");
+		expect(doc.body.classList.contains("theme-dark")).toBe(true);
+	});
+
+	it("ignores an unrecognised appearance value and leaves the preference unchanged", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "appearance-invalid@example.com");
+
+		const post = await agent.post("/account/appearance").type("form").send({ appearance: "purple" });
+		expect(post.status).toBe(303);
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+		expect(appearanceOption(doc, "system").getAttribute("aria-pressed")).toBe("true");
 	});
 });

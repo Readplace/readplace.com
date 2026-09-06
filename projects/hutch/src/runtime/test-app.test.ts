@@ -79,7 +79,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			trialScheduler: fixture.trialScheduler,
 			subscriptionBilling: fixture.subscriptionBilling,
 			paymentMethods: fixture.paymentMethods,
-			stripePriceId: fixture.stripePriceId,
+			resolvePriceId: fixture.resolvePriceId,
 			stripePublishableKey: fixture.stripePublishableKey,
 			botDefense: fixture.botDefense,
 			conversions: fixture.conversions,

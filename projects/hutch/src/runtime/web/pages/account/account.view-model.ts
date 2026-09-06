@@ -1,5 +1,6 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
+import { APPEARANCE_PREFERENCES, type AppearancePreference } from "@packages/domain/user";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import type { EffectiveAccess } from "@packages/subscription-access";
@@ -16,7 +17,9 @@ import {
 	PLATFORM_QUERY,
 } from "../../onboarding/native-client";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
+import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 import {
+	ACCOUNT_APPEARANCE_URL,
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
@@ -31,6 +34,8 @@ import {
 	type NextChargeViewModel,
 	buildNextChargeViewModel,
 } from "./next-charge.view-model";
+
+const ACCOUNT_SOURCE = "account";
 
 export const ACCOUNT_CANCEL_MAX_POLLS = 20;
 
@@ -52,7 +57,8 @@ export type AccountCardState =
 	| "trial"
 	| "cancellation-scheduled"
 	| "inactive"
-	| "error-payment-method";
+	| "error-payment-method"
+	| "error-subscribe-failed";
 
 export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form" | "delete-account";
 
@@ -68,6 +74,7 @@ export interface AccountAction {
 	method: "POST";
 	href: string;
 	isPending: boolean;
+	popoverTarget?: string;
 }
 
 export interface DangerConfirmationViewModel {
@@ -97,6 +104,7 @@ export interface AccountViewModel {
 	pollState: AccountPollState;
 	pollUrl?: string;
 	stateIsErrorPaymentMethod: boolean;
+	stateIsErrorSubscribeFailed: boolean;
 	actions: AccountAction[];
 	/** The irreversible "delete account" control. Kept out of the state-dependent
 	 * `actions` array so the danger zone renders in every subscription state. */
@@ -126,6 +134,7 @@ export interface AccountUrlState {
 	cancelling: boolean;
 	pollCount: number;
 	errorPaymentMethod: boolean;
+	errorSubscribeFailed: boolean;
 	deleteConfirmationError: boolean;
 	cardError: CardError | undefined;
 }
@@ -144,6 +153,7 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 		cancelling: query?.cancelling === "1",
 		pollCount: parsePollParam(query?.poll, ACCOUNT_CANCEL_MAX_POLLS),
 		errorPaymentMethod: query?.error === "payment_method",
+		errorSubscribeFailed: query?.error === "subscribe_failed",
 		deleteConfirmationError: query?.error === "delete_confirmation",
 		cardError: parseCardError(query?.error),
 	};
@@ -160,7 +170,7 @@ function action(input: Omit<AccountAction, "isPending" | "buttonClass">): Accoun
 		...input,
 		isPending: false,
 		buttonClass: ACCOUNT_ACTION_BUTTON_CLASS[input.variant],
-		href: withInternalTracking(input.href, { source: "account", content: input.key }),
+		href: withInternalTracking(input.href, { source: ACCOUNT_SOURCE, content: input.key }),
 	};
 }
 
@@ -170,6 +180,7 @@ const SUBSCRIBE_ACTION = action({
 	variant: "primary",
 	method: "POST",
 	href: ACCOUNT_SUBSCRIBE_URL,
+	popoverTarget: SUBSCRIBE_PLANS_POPOVER_ID,
 });
 
 const CANCEL_FORM_ACTION = action({
@@ -387,6 +398,7 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): AccountCard
 		cancellingNotice: "",
 		pollState: "idle",
 		stateIsErrorPaymentMethod: false,
+		stateIsErrorSubscribeFailed: false,
 		actions,
 		dangerAction: DELETE_ACCOUNT_ACTION,
 		showCardSection: true,
@@ -440,6 +452,14 @@ function stateViewModel(
 			...baseFor("error-payment-method", []),
 			statusLine: "We couldn't restart your subscription.",
 			stateIsErrorPaymentMethod: true,
+		};
+	}
+
+	if (queryState.errorSubscribeFailed) {
+		return {
+			...baseFor("error-subscribe-failed", [SUBSCRIBE_ACTION]),
+			statusLine: "We couldn't start your subscription. Nothing was charged.",
+			stateIsErrorSubscribeFailed: true,
 		};
 	}
 
@@ -503,6 +523,51 @@ function carryAppSurfaceHref(href: string, options: AppSurfaceOptions): string {
 
 function carryAppSurface(action: AccountAction, options: AppSurfaceOptions): AccountAction {
 	return { ...action, href: carryAppSurfaceHref(action.href, options) };
+}
+
+export interface AppearanceOptionView {
+	value: AppearancePreference;
+	label: string;
+	active: boolean;
+	ariaPressed: "true" | "false";
+	variant: "primary" | "secondary";
+}
+
+export interface AppearanceSectionViewModel {
+	formAction: string;
+	options: AppearanceOptionView[];
+}
+
+const APPEARANCE_LABELS: Record<AppearancePreference, string> = {
+	system: "System",
+	light: "Light",
+	dark: "Dark",
+};
+
+export function buildAppearanceSection(input: {
+	current: AppearancePreference;
+	appShell: boolean;
+	platform: NativeClientPlatform | undefined;
+}): AppearanceSectionViewModel {
+	return {
+		formAction: withInternalTracking(
+			carryAppSurfaceHref(ACCOUNT_APPEARANCE_URL, {
+				appShell: input.appShell,
+				platform: input.platform,
+			}),
+			{ source: ACCOUNT_SOURCE, content: "appearance" },
+		),
+		options: APPEARANCE_PREFERENCES.map((value) => {
+			const active = value === input.current;
+			return {
+				value,
+				label: APPEARANCE_LABELS[value],
+				active,
+				ariaPressed: active ? "true" : "false",
+				variant: active ? "primary" : "secondary",
+			};
+		}),
+	};
 }
 
 /** Rewrites the account view model for the iOS app's in-app web surface: strips

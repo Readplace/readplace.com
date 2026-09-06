@@ -10,7 +10,12 @@ import type { OnRedirect } from "./follow-redirects";
  */
 const ESCALATE_STATUS_CODES = new Set([402, 403, 429]);
 
-const TERMINAL_NETWORK_CODES = new Set(["ENOTFOUND", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH"]);
+export const TERMINAL_NETWORK_CODES = new Set([
+	"ENOTFOUND",
+	"ECONNREFUSED",
+	"EHOSTUNREACH",
+	"ENETUNREACH",
+]);
 
 const UNLOCKER_ERROR_HEADERS = ["x-brd-err-code", "x-brd-error-code"];
 

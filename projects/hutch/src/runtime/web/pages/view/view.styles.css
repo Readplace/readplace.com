@@ -34,6 +34,28 @@
   width: 100%;
 }
 
+.view__cta-label-short {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .view__cta-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .view__cta-label-short {
+    display: inline;
+  }
+}
+
 .view__share-row {
   position: sticky;
   bottom: calc(8.875rem + env(safe-area-inset-bottom, 0));

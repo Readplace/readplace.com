@@ -626,6 +626,23 @@ describe("initMcpServer", () => {
 			});
 		});
 
+		it("says the link is not an article rather than handing back what was captured", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleContent: async () => ({ status: "not_an_article" }) }),
+			);
+			const response = await call(server, 45, "get_article_content", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: {
+					content: [
+						{
+							text: "This link isn't an article, so there's no reader view — open the link itself.",
+						},
+					],
+					structuredContent: { status: "not_an_article" },
+				},
+			});
+		});
+
 		it("rejects a missing id", async () => {
 			const server = initMcpServer(fakeDeps());
 			const response = await call(server, 43, "get_article_content", {});
@@ -681,6 +698,23 @@ describe("initMcpServer", () => {
 			const response = await call(server, 51, "get_article_summary", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("still being generated") }] },
+			});
+		});
+
+		it("says the link is not an article rather than summarising a mail session", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleSummary: async () => ({ status: "not_an_article" }) }),
+			);
+			const response = await call(server, 55, "get_article_summary", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: {
+					content: [
+						{
+							text: "This link isn't an article, so there's no reader view — open the link itself.",
+						},
+					],
+					structuredContent: { status: "not_an_article" },
+				},
 			});
 		});
 

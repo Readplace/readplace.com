@@ -98,10 +98,14 @@ describe("GET /blog", () => {
 		expect(doc.querySelector(".blog__title")?.textContent).toBe("Blog");
 	});
 
-	it("should render links to blog posts", async () => {
+	it("should render links to blog posts, each tagged so the click is attributable", async () => {
 		const response = await request(app).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector(`a[href="/blog/${firstPost.slug}"]`)).not.toBeNull();
+		const card = doc.querySelector(".blog-card__link");
+		assert(card, "the listing renders a card link per post");
+		expect(card.getAttribute("href")).toBe(
+			`/blog/${firstPost.slug}?utm_source=blog-index&utm_medium=internal&utm_content=${firstPost.slug}`,
+		);
 	});
 
 	it("should render post titles in the listing", async () => {

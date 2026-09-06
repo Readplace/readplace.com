@@ -3,7 +3,6 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	CountUsers,
 	CreateAppleUser,
@@ -28,7 +27,7 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { oauthClientIdFrom } from "./oauth-client-id";
 import { baseCookieOptions } from "@packages/web-analytics";
-import type { AnalyticsEvent } from "@packages/web-analytics";
+import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { LoginPage } from "./auth.component";
@@ -41,7 +40,7 @@ import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider
 import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
-import { emitUserCreated } from "../../conversions";
+import { buildUserCreatedEvent } from "../../conversions";
 import { verifyState } from "./oauth-state";
 import { signAppleState } from "./apple-state";
 
@@ -90,8 +89,8 @@ interface AppleAuthDependencies {
 	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
-	conversionLogger: HutchLogger.Typed<ConversionEvent>;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 }
@@ -300,20 +299,23 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			clearPendingSave();
 			clearLastView();
 			sendWelcomeEmail(tokenResult.email);
-			emitUserCreated(
-				{ logger: deps.conversionLogger, now: deps.now },
-				{
-					userId: created.userId,
-					email: tokenResult.email,
-					method: "apple",
-					tier: "free",
-					...conversionContext,
-				},
+			deps.recordConversionEvent(
+				req,
+				buildUserCreatedEvent(
+					{ now: deps.now },
+					{
+						userId: created.userId,
+						email: tokenResult.email,
+						method: "apple",
+						tier: "free",
+						...conversionContext,
+					},
+				),
 			);
 			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
 			emitFirstArticleAutosaved(
-				{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
+				{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
+				{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
 			);
 			res.redirect(303, redirect.location);
 			return;
@@ -359,20 +361,23 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		clearPendingSave();
 		clearLastView();
 		sendWelcomeEmail(tokenResult.email);
-		emitUserCreated(
-			{ logger: deps.conversionLogger, now: deps.now },
-			{
-				userId: created.userId,
-				email: tokenResult.email,
-				method: "apple",
-				tier: "trial",
-				...conversionContext,
-			},
+		deps.recordConversionEvent(
+			req,
+			buildUserCreatedEvent(
+				{ now: deps.now },
+				{
+					userId: created.userId,
+					email: tokenResult.email,
+					method: "apple",
+					tier: "trial",
+					...conversionContext,
+				},
+			),
 		);
 		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
 		emitFirstArticleAutosaved(
-			{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
+			{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
+			{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
 		);
 		res.redirect(303, redirect.location);
 	});

@@ -34,7 +34,8 @@ export interface ReadlistFiltersDisplayModel {
 export function buildReadlistFilters(input: {
 	activeTab: TabId;
 	order?: SortOrder;
-	readlist?: ReadlistSlug;
+	readlist: ReadlistSlug;
+	knownUnreadCount?: number;
 }): ReadlistFiltersDisplayModel {
 	return {
 		tabs: READLIST_TABS.map((tab) => ({
@@ -46,10 +47,13 @@ export function buildReadlistFilters(input: {
 					content: tab.trackingContent,
 				},
 			),
-			label: tab.label,
+			label:
+				tab.labelId !== undefined && input.knownUnreadCount !== undefined
+					? formatUnreadLabel(input.knownUnreadCount)
+					: tab.label,
 			testFilter: tab.testFilter,
 			isActive: tab.id === input.activeTab,
-			labelId: tab.labelId,
+			labelId: tab.labelId?.(input.readlist),
 			widestLabel:
 				tab.labelId === undefined ? undefined : formatUnreadLabel(Number.MAX_SAFE_INTEGER),
 		})),

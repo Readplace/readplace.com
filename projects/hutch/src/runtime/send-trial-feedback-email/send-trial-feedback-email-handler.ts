@@ -176,11 +176,12 @@ async function processCommand(
 	});
 }
 
-function trackedUrl(input: { appOrigin: string; path: string }): string {
+function trackedUrl(input: { appOrigin: string; path: string; content: string }): string {
 	const url = new URL(input.path, input.appOrigin);
 	url.searchParams.set("utm_source", "automation-saves-held");
 	url.searchParams.set("utm_medium", "email");
 	url.searchParams.set("utm_campaign", "lapsed-inbox-save");
+	url.searchParams.set("utm_content", input.content);
 	return url.toString();
 }
 
@@ -230,11 +231,17 @@ async function processAutomationSavesHeld(
 		inboxUrl: trackedUrl({
 			appOrigin: deps.appOrigin,
 			path: buildInboxHighlightUrl({ receivedAtMessageId: arrival.receivedAtMessageId }),
+			content: "open-inbox",
 		}),
-		reactivateUrl: trackedUrl({ appOrigin: deps.appOrigin, path: "/account" }),
+		reactivateUrl: trackedUrl({
+			appOrigin: deps.appOrigin,
+			path: "/account",
+			content: "reactivate",
+		}),
 		manageAddressesUrl: trackedUrl({
 			appOrigin: deps.appOrigin,
 			path: INBOX_ADDRESSES_PATH,
+			content: "manage-addresses",
 		}),
 	});
 
@@ -307,7 +314,7 @@ async function processReminder(
 	const component = TrialReminderEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
 		savedArticlesCount: total,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=trial-reminder&utm_medium=email&utm_campaign=trial-preexpiry`,
+		ctaUrl: `${deps.appOrigin}/account?utm_source=trial-reminder&utm_medium=email&utm_campaign=trial-preexpiry&utm_content=subscribe`,
 	});
 
 	await deps.sendEmail({
@@ -383,7 +390,8 @@ async function processChargeReminder(
 	const component = ChargeReminderEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
 		chargeAt,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=charge-reminder&utm_medium=email&utm_campaign=trial-precharge`,
+		ctaUrl: `${deps.appOrigin}/account?utm_source=charge-reminder&utm_medium=email&utm_campaign=trial-precharge&utm_content=manage-subscription`,
+		plan: row.plan,
 	});
 
 	await deps.sendEmail({
@@ -436,7 +444,7 @@ async function processPaymentFailed(
 
 	const component = PaymentFailedEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=payment-failed&utm_medium=email&utm_campaign=dunning`,
+		ctaUrl: `${deps.appOrigin}/account?utm_source=payment-failed&utm_medium=email&utm_campaign=dunning&utm_content=update-card`,
 	});
 
 	await deps.sendEmail({

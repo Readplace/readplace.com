@@ -28,6 +28,7 @@ export function initSubscriptionChargeSucceededHandler(deps: {
 					userId,
 					subscriptionId: detail.subscriptionId,
 					customerId: detail.customerId,
+					plan: detail.plan,
 				});
 				deps.emit.chargeSucceeded({
 					userId,

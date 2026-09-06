@@ -13,6 +13,7 @@ import {
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
+import { initStripePrices } from "./providers/stripe-prices/stripe-prices";
 import { initEventBridgeCancelSubscriptionCommand } from "./providers/events/eventbridge-cancel-subscription-command";
 import { initEventBridgeSubscriptionCancellationScheduled } from "./providers/events/eventbridge-subscription-cancellation-scheduled";
 import { initEventBridgeSubscriptionCancelled } from "./providers/events/eventbridge-subscription-cancelled";
@@ -40,6 +41,11 @@ const subscriptionProviders = initDynamoDbSubscriptionProviders({
 });
 
 const stripeSubscriptions = initStripeSubscriptions({
+	apiKey: requireEnv("STRIPE_SECRET_KEY"),
+	fetch: globalThis.fetch,
+});
+
+const stripePrices = initStripePrices({
 	apiKey: requireEnv("STRIPE_SECRET_KEY"),
 	fetch: globalThis.fetch,
 });
@@ -122,7 +128,7 @@ export const handler = initHandleByDetailType({
 				createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
 				publishSubscriptionChargeSucceeded,
 				publishSubscriptionChargeFailed,
-				stripePriceId: requireEnv("STRIPE_PRICE_ID"),
+				resolvePriceId: stripePrices.resolvePriceId,
 				logger,
 			}),
 		],

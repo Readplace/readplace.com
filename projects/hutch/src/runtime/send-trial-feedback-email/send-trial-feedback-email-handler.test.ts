@@ -137,6 +137,11 @@ describe("automation-saves-held notice", () => {
 		assert.equal(sent.to, "user@example.com");
 		assert.equal(sent.bcc, "readplace+automation_saves_held@readplace.com");
 		assert.equal(sent.subject, "links sent to your Readplace inbox are waiting");
+		assert.equal(sent.replyTo, "fayner@readplace.com");
+		assert.ok(
+			sent.text.includes("If you have any questions, please reply to this email"),
+			"the reply invitation must render — it is only honest because replyTo is asserted above",
+		);
 		assert.ok(
 			sent.text.startsWith(
 				`An email to your Readplace inbox at ${HELD_INBOX_ADDRESS} just arrived,`,
@@ -144,9 +149,9 @@ describe("automation-saves-held notice", () => {
 		);
 		assert.ok(
 			sent.html.includes(
-				`<span style="white-space:nowrap;">${HELD_INBOX_ADDRESS}</span>`,
+				`<span style="white-space:nowrap;font-weight:700;">${HELD_INBOX_ADDRESS}</span>`,
 			),
-			"the hyphenated address must be unbreakable and byte-exact in the HTML",
+			"the hyphenated address must be bold, unbreakable and byte-exact in the HTML",
 		);
 		const highlighted = new URL(
 			"https://readplace.com/inbox?highlight=2026-06-04T08%3A00%3A00.000Z%23%3Cnews%40example.com%3E&utm_source=automation-saves-held&utm_medium=email&utm_campaign=lapsed-inbox-save",
@@ -704,7 +709,7 @@ describe("send-trial-feedback-email handler", () => {
 			assert.equal(sent.bcc, "readplace+charge_reminder@readplace.com");
 			assert.equal(sent.subject, "your Readplace membership starts on Jun 6, 2026");
 			assert.ok(sent.text);
-			assert.ok(sent.text.includes("$49 for the year"));
+			assert.ok(sent.text.includes("the plan you are on is charged to the card on file"));
 			assert.ok(sent.text.includes("charged to the card on file on Jun 6, 2026"));
 			assert.ok(sent.text.includes("/account?utm_source=charge-reminder"));
 			assert.ok(sent.html.includes("charge-reminder"));
@@ -712,6 +717,30 @@ describe("send-trial-feedback-email handler", () => {
 			const row = await subject.providers.findByUserId(USER_ID);
 			assert(row, "row must still exist");
 			assert.equal(row.trialReminderEmailSentAt, SENT_AT.toISOString());
+		});
+
+		it("names the yearly total and cadence when the row carries the plan the checkout was charged on", async () => {
+			const subject = buildSubject();
+			await subject.providers.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub_trial_preserving",
+				customerId: "cus_trial_preserving",
+				plan: "yearly",
+			});
+
+			await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-yearly", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 1);
+			const sent = subject.email.getSentEmails()[0];
+			assert.ok(sent.text);
+			assert.ok(sent.text.includes("$60 charged to the card on file"));
+			assert.ok(sent.text.includes("once a year after that"));
 		});
 
 		it("noops with a warn when the command carries no chargeAt", async () => {

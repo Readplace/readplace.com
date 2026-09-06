@@ -26,6 +26,7 @@ export interface ConfirmPopover {
 	lead?: ConfirmPopoverLead;
 	openBeaconUrl?: string;
 	dismissBeaconUrl?: string;
+	wide?: boolean;
 	/** The panel's controls, rendered by the caller: their markup, wording and
 	 * button tier belong to the decision, not to the shell. Must be a single
 	 * `.confirm-popover__actions` element. */

@@ -53,10 +53,12 @@ const application = express()
 	.use(ban)
 	.use(analytics)
 	.use(app)
-	.use(logAndRespondOnError(logger));
+	.use(logAndRespondOnError({ logger, now: () => new Date() }));
 
 if (!lambda) {
 	localServer(application, log);
 }
 
-export const handler: Handler = lambda ? serverless(application) : () => {};
+export const handler: Handler = lambda
+	? serverless(application, { binary: ["application/epub\\+zip"] })
+	: () => {};

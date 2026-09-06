@@ -3,8 +3,8 @@ import { join } from "node:path";
 import assert from "node:assert";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
-import type { ClientNameInGroup } from "@packages/supported-clients";
+import { ADVERTISED_CLIENTS, SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 import { mcpOperationsWithEffect } from "@packages/domain/mcp";
 
 import { MCP_CONNECT_STYLES } from "./mcp-connect.styles";
@@ -51,7 +51,7 @@ const MCP_SETUP = {
 			"Open the connector and complete the one-time OAuth sign-in to authorize Claude.",
 		],
 	},
-} satisfies Record<ClientNameInGroup<"aiAssistant">, Omit<McpTool, "name">>;
+} satisfies Record<AdvertisedClientNameInGroup<"aiAssistant">, Omit<McpTool, "name">>;
 
 const PERPLEXITY_CARD: McpTool = {
 	name: "Perplexity",
@@ -77,7 +77,7 @@ const OTHER_CLIENTS_CARD: McpTool = {
 };
 
 const MCP_TOOLS: readonly McpTool[] = [
-	...SUPPORTED_CLIENTS.flatMap((client) =>
+	...ADVERTISED_CLIENTS.flatMap((client) =>
 		client.group === "aiAssistant" ? [{ name: client.displayName, ...MCP_SETUP[client.name] }] : [],
 	),
 	PERPLEXITY_CARD,

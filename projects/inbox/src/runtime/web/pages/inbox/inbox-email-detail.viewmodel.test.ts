@@ -361,7 +361,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				ordinal: "0001",
 				url: "https://news.example.com/unsub",
 				reasonLabel: "Unsubscribe link",
-				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0001/save`,
+				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0001/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 				domId: "inbox-skipped-0001",
 				saveButtonId: "inbox-skipped-0001-save",
 				saveButton: {
@@ -376,7 +376,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				ordinal: "0002",
 				url: "https://sponsor.example.com/deal",
 				reasonLabel: "Advertisement",
-				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0002/save`,
+				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0002/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 				domId: "inbox-skipped-0002",
 				saveButtonId: "inbox-skipped-0002-save",
 				saveButton: {
@@ -460,7 +460,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		});
 
 		expect(vm.excluded.links[0].saveAction).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
+			`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 		);
 	});
 
@@ -478,7 +478,7 @@ describe("toInboxEmailDetailViewModel", () => {
 			iconName: "check",
 		});
 		expect(vm.excluded.links[0].saveAction).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
+			`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 		);
 	});
 
@@ -526,7 +526,7 @@ describe("toInboxEmailDetailViewModel", () => {
 			crawledLinks(ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
 		);
 		expect(vm.articles.showMore).toEqual({
-			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=40`,
+			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=40&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
 			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?shown=40`,
 			count: 5,
 		});
@@ -636,7 +636,7 @@ describe("toInboxArticlesMoreViewModel", () => {
 			crawledLinks(ARTICLES_PAGE_SIZE, ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
 		);
 		expect(vm.showMore).toEqual({
-			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60`,
+			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
 			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?shown=60`,
 			count: 5,
 		});

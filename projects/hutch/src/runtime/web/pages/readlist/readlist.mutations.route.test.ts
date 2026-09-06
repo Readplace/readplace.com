@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import request from "supertest";
 import { JSDOM } from "jsdom";
-import { MinutesSchema } from "@packages/domain/article";
+import { MinutesSchema, saveableUrlErrorMessage, type SaveableUrlErrorCode } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
 import type { ArticleReadEvent } from "@packages/web-analytics";
-import type { FindArticlesQuery } from "@packages/provider-contracts/article-store";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 const useApp = useTestServer();
 
@@ -60,104 +61,9 @@ describe("Readlist routes", () => {
 			]);
 		});
 
-		it("should show error for invalid URL", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "not-a-url" });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toBe("Please enter a valid URL");
-		});
-
-		it("skips the article body when re-rendering the readlist after an invalid save", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const recorded: FindArticlesQuery[] = [];
-			const harness = useApp({
-				...fixture,
-				articleStore: {
-					...fixture.articleStore,
-					findArticlesByUser: async (query: FindArticlesQuery) => {
-						recorded.push(query);
-						return fixture.articleStore.findArticlesByUser(query);
-					},
-				},
-			});
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "not-a-url" });
-
-			expect(response.status).toBe(422);
-			expect(recorded).toHaveLength(1);
-			expect(recorded[0]).toMatchObject({ excludeContent: true });
-		});
-
-		it("rejects a chrome:// URL with an unsupported-scheme message and never saves", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, articleStore } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "chrome://extensions/" });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/http/);
-
-			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
-			assert.ok(userId);
-			const stored = await articleStore.findArticlesByUser({ userId });
-			expect(stored.articles).toHaveLength(0);
-		});
-
-		it("rejects a localhost URL with a private-network message and never saves", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, articleStore } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "http://localhost:3000/queue" });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/[Pp]rivate-network/);
-
-			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
-			assert.ok(userId);
-			const stored = await articleStore.findArticlesByUser({ userId });
-			expect(stored.articles).toHaveLength(0);
-		});
-
-		it("rejects a .home.arpa URL with a private-network message", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "http://router.home.arpa/" });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/[Pp]rivate-network/);
-		});
-
-		describe("form-level URL-validation regression (canary-historical inputs)", () => {
-			const cases: Array<{ url: string; code: "unsupported_scheme" | "private_network" | "malformed_url" }> = [
+		describe("invalid URLs redirect so htmx swaps the error pill in (canary-historical inputs)", () => {
+			const cases: Array<{ url: string; code: SaveableUrlErrorCode }> = [
+				{ url: "not-a-url",                  code: "malformed_url" },
 				{ url: "chrome://extensions/",       code: "unsupported_scheme" },
 				{ url: "about:blank",                code: "unsupported_scheme" },
 				{ url: "https://cd.home.arpa/x",     code: "private_network" },
@@ -169,7 +75,7 @@ describe("Readlist routes", () => {
 			];
 
 			for (const { url, code } of cases) {
-				it(`rejects ${JSON.stringify(url)} with ${code} and never saves`, async () => {
+				it(`redirects ${JSON.stringify(url)} to /queue with ${code} and never saves`, async () => {
 					const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 					const { auth, articleStore } = harness;
 					const agent = await loginAgent(harness.server, auth);
@@ -179,10 +85,14 @@ describe("Readlist routes", () => {
 						.type("form")
 						.send({ url });
 
-					expect(response.status).toBe(422);
-					const doc = new JSDOM(response.text).window.document;
-					const pill = doc.querySelector("[data-test-save-error]");
-					assert.ok(pill, "error pill should render");
+					expect(response.status).toBe(303);
+					expect(response.headers.location).toBe(`/queue?error_code=${code}`);
+
+					const landing = await agent.get(response.headers.location);
+					expect(landing.status).toBe(200);
+					const pill = new JSDOM(landing.text).window.document.querySelector("[data-test-save-error]");
+					assert.ok(pill, "the page the redirect lands on must render the error pill");
+					expect(pill.textContent).toBe(saveableUrlErrorMessage(code));
 					expect(pill.getAttribute("data-test-saveable-url-code")).toBe(code);
 
 					const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
@@ -627,6 +537,47 @@ describe("Readlist routes", () => {
 				assert.equal(reads.length, 1);
 				assert.equal(reads[0].device_class, "mobile_ios");
 			});
+
+			it("keeps article_read a count of people: a crawler posting the mark-as-read form emits nothing, while the same post from a browser emits one", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const agent = await loginAgent(harness.server, harness.auth);
+
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/crawled" });
+				const crawled = await harness.articleStore.findArticleByUrl("https://example.com/crawled");
+				assert.ok(crawled, "the crawler's target must be saved before it is marked read");
+
+				const crawlerResponse = await agent
+					.post(`/queue/${crawled.id.value}/status`)
+					.set("User-Agent", GOOGLEBOT)
+					.type("form")
+					.send({ status: "read" });
+
+				assert.equal(
+					crawlerResponse.headers.location,
+					`/queue?status_changed=read&status_article=${crawled.id.value}`,
+					"the row still moves to read — only the measurement is dropped",
+				);
+				assert.equal(
+					harness.analytics.events.filter((e) => e.event === "article_read").length,
+					0,
+					"a bot user-agent marking an article read emits no article_read",
+				);
+
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/read-by-hand" });
+				const readByHand = await harness.articleStore.findArticleByUrl("https://example.com/read-by-hand");
+				assert.ok(readByHand, "the reader's target must be saved before it is marked read");
+
+				await agent
+					.post(`/queue/${readByHand.id.value}/status`)
+					.type("form")
+					.send({ status: "read" });
+
+				assert.equal(
+					harness.analytics.events.filter((e) => e.event === "article_read").length,
+					1,
+					"the identical post from a browser user-agent still emits exactly one article_read",
+				);
+			});
 		});
 	});
 
@@ -688,6 +639,33 @@ describe("Readlist routes", () => {
 			assert.equal(toggles[0].state, "closed");
 		});
 
+		it("keeps summary_toggled a measure of people: the beacon emits nothing from a crawler user-agent, while the identical beacon from a browser emits one", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			const articleId = await saveAndGetArticleId(agent);
+
+			const botResponse = await agent
+				.post(`/queue/${articleId}/summary-toggle?state=open`)
+				.set("User-Agent", GOOGLEBOT);
+
+			expect(botResponse.status).toBe(204);
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "summary_toggled").length,
+				0,
+				"a bot user-agent opening the summary emits no summary_toggled",
+			);
+
+			const browserResponse = await agent.post(`/queue/${articleId}/summary-toggle?state=open`);
+
+			expect(browserResponse.status).toBe(204);
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "summary_toggled").length,
+				1,
+				"the identical beacon from a browser user-agent still emits exactly one summary_toggled",
+			);
+		});
+
 		it("answers 204 with no event and no row write when state is absent or invalid (a beacon must never error)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
@@ -722,77 +700,6 @@ describe("Readlist routes", () => {
 
 			const toggles = harness.analytics.events.filter((e) => e.event === "summary_toggled");
 			assert.equal(toggles.length, 0);
-		});
-	});
-
-	describe("POST /queue/:id/share", () => {
-		async function saveAndGetArticleId(agent: Awaited<ReturnType<typeof loginAgent>>): Promise<string> {
-			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
-			const doc = new JSDOM((await agent.get("/queue")).text).window.document;
-			const articleId = doc
-				.querySelector("[data-test-article-list] .readlist-article")
-				?.getAttribute("data-test-article");
-			assert(articleId, "saved article must have an id");
-			return articleId;
-		}
-
-		it("stamps the share record and answers 204 so the beacon never surfaces an error", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-			const articleId = await saveAndGetArticleId(agent);
-
-			const response = await agent.post(`/queue/${articleId}/share`);
-			expect(response.status).toBe(204);
-
-			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
-			assert(userId);
-			const shared = await harness.articleStore.listSharedArticles({ userId });
-			expect(shared.map((a) => a.url)).toEqual(["https://example.com/article"]);
-			assert(shared[0]?.sharedAt, "the shared row must carry a sharedAt");
-		});
-
-		it("keeps a single share record when the same link is shared again", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-			const articleId = await saveAndGetArticleId(agent);
-
-			expect((await agent.post(`/queue/${articleId}/share`)).status).toBe(204);
-			expect((await agent.post(`/queue/${articleId}/share`)).status).toBe(204);
-
-			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
-			assert(userId);
-			const shared = await harness.articleStore.listSharedArticles({ userId });
-			expect(shared.map((a) => a.url)).toEqual(["https://example.com/article"]);
-		});
-
-		it("returns 404 and stamps nothing for a well-formed id that resolves to no owned article", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-			await saveAndGetArticleId(agent);
-
-			const response = await agent.post("/queue/00000000000000000000000000000000/share");
-			expect(response.status).toBe(404);
-
-			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
-			assert(userId);
-			expect(await harness.articleStore.listSharedArticles({ userId })).toEqual([]);
-		});
-
-		it("returns 404 and stamps nothing for a malformed id", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-			await saveAndGetArticleId(agent);
-
-			const response = await agent.post("/queue/not-a-valid-id/share");
-			expect(response.status).toBe(404);
-
-			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
-			assert(userId);
-			expect(await harness.articleStore.listSharedArticles({ userId })).toEqual([]);
 		});
 	});
 

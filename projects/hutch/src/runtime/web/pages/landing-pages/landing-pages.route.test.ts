@@ -3,8 +3,9 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+import { ADVERTISED_CLIENTS, UNADVERTISED_CLIENTS } from "@packages/supported-clients";
 import { LANDING_PAGE_CONTENT } from "./landing-pages.content";
 import type { LandingPageSlug } from "./landing-pages.types";
 
@@ -30,6 +31,19 @@ async function loadPage(slug: LandingPageSlug) {
 }
 
 describe("landing pages", () => {
+	it("names every advertised assistant on /ai-reading-list, and no unadvertised one", async () => {
+		const { response } = await loadPage("ai-reading-list");
+
+		for (const client of ADVERTISED_CLIENTS) {
+			if (client.group !== "aiAssistant") continue;
+			expect(response.text).toContain(client.displayName);
+		}
+		for (const client of UNADVERTISED_CLIENTS) {
+			expect(response.text).not.toContain(client.displayName);
+		}
+	});
+
+
 	it.each(SLUGS)("serves /%s as HTML", async (slug) => {
 		const { response } = await loadPage(slug);
 
@@ -64,8 +78,7 @@ describe("landing pages", () => {
 
 		const offer = doc.querySelector('[data-test-section="lp-offer"]');
 		assert(offer, `${slug} must state its offer`);
-		expect(offer.textContent).toContain(ANNUAL_PRICE_DISPLAY);
-		expect(offer.textContent).toContain(MONTHLY_EQUIVALENT_DISPLAY);
+		expect(offer.textContent).toContain(`${CHEAPEST_MONTHLY_DISPLAY}/month`);
 		expect(offer.textContent).toContain(String(STRIPE_TRIAL_PERIOD_DAYS));
 	});
 

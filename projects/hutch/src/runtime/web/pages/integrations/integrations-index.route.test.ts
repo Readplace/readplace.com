@@ -96,7 +96,25 @@ describe("GET /integrations", () => {
 		const form = action.closest("form");
 		assert(form, "the finish-setup action navigates via a form");
 		expect(form.getAttribute("method")?.toLowerCase()).toBe("get");
-		expect(form.getAttribute("action")).toBe("/integrations/gmail");
+		expect(form.getAttribute("action")).toBe("/integrations/gmail?utm_source=integrations&utm_medium=internal&utm_content=finish-setup");
+	});
+
+	it("boosts the action form and loads the clipboard bundle so a boosted hop keeps copy working", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/integrations");
+		const doc = load(response.text);
+
+		const action = doc.querySelector("[data-test-integration-action='connect']");
+		assert(action, "the connect action renders");
+		const form = action.closest("form");
+		assert(form, "the action navigates via a form");
+		expect(form.getAttribute("hx-boost")).toBe("true");
+		expect(form.getAttribute("hx-target")).toBe("main");
+		expect(form.getAttribute("hx-select")).toBe("main");
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
+		expect(response.text).toContain("/client-dist/integrations.client.js");
 	});
 
 	it("renders the alert an interrupted connection redirects back with", async () => {

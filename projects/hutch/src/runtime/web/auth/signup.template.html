@@ -28,7 +28,7 @@
           {{#unless foundingAvailable}}<p class="auth-form__hint" data-test-trial-hint>{{trialPeriodDays}}-day free trial, then {{monthlyPriceDisplay}}/month. No credit card required.</p>{{/unless}}
         </form>
         <p class="auth-card__footer">
-          Already have an account? <a href="/login{{#if returnUrl}}?return={{returnUrl}}{{/if}}" data-test-action="sign-in">Sign in</a>
+          Already have an account? <a href="/login?utm_source=auth-page&utm_medium=internal&utm_content=sign-in-link{{#if returnUrl}}&return={{returnUrl}}{{/if}}" data-test-action="sign-in">Sign in</a>
         </p>
       </div>
     </main>

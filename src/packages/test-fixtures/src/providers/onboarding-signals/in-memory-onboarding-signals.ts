@@ -2,22 +2,28 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	DeleteOnboarding,
 	GetOnboardingSignals,
+	MarkFirstInboxEmailNoticeSent,
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
+	RecordEmailStepMarkedDone,
+	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
 
 export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
-	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordInboxArticleQueued: RecordInboxArticleQueued;
+	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
+	markFirstInboxEmailNoticeSent: MarkFirstInboxEmailNoticeSent;
 	getOnboardingSignals: GetOnboardingSignals;
 	deleteOnboarding: DeleteOnboarding;
 } {
@@ -30,9 +36,12 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		android: new Set(),
 	};
 	const nextReadMinimumReached = new Map<UserId, Date>();
-	const nextReadStepOutstanding = new Map<UserId, Date>();
+	const firstInboxArticleQueued = new Map<UserId, Date>();
+	const emailStepMarkedDone = new Map<UserId, Date>();
+	const onboardingOutstandingVersion = new Map<UserId, string>();
 	const markReadAcrossQueuesAcked = new Map<UserId, Date>();
 	const deleteArticleAcked = new Map<UserId, Date>();
+	const firstInboxEmailNoticeSent = new Map<UserId, string>();
 
 	const recordNativeAppAnyActivity: RecordNativeAppAnyActivity = async ({ userId, platform }) => {
 		activated[platform].add(userId);
@@ -50,11 +59,21 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		nextReadMinimumReached.set(userId, deps.now());
 	};
 
-	const recordNextReadStepOutstanding: RecordNextReadStepOutstanding = async ({
+	const recordInboxArticleQueued: RecordInboxArticleQueued = async ({ userId }) => {
+		if (firstInboxArticleQueued.has(userId)) return;
+		firstInboxArticleQueued.set(userId, deps.now());
+	};
+
+	const recordEmailStepMarkedDone: RecordEmailStepMarkedDone = async ({ userId }) => {
+		if (emailStepMarkedDone.has(userId)) return;
+		emailStepMarkedDone.set(userId, deps.now());
+	};
+
+	const recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion = async ({
 		userId,
+		version,
 	}) => {
-		if (nextReadStepOutstanding.has(userId)) return;
-		nextReadStepOutstanding.set(userId, deps.now());
+		onboardingOutstandingVersion.set(userId, version);
 	};
 
 	const recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged = async ({
@@ -69,6 +88,15 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		deleteArticleAcked.set(userId, deps.now());
 	};
 
+	const markFirstInboxEmailNoticeSent: MarkFirstInboxEmailNoticeSent = async ({
+		userId,
+		sentAt,
+	}) => {
+		if (firstInboxEmailNoticeSent.has(userId)) return "already-sent";
+		firstInboxEmailNoticeSent.set(userId, sentAt);
+		return "claimed";
+	};
+
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => ({
 		nativeApp: {
 			ios: { installed: activated.ios.has(userId), savedArticle: saved.ios.has(userId) },
@@ -78,7 +106,9 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 			},
 		},
 		nextReadMinimumReachedAt: nextReadMinimumReached.get(userId),
-		nextReadStepOutstandingAt: nextReadStepOutstanding.get(userId),
+		firstInboxArticleQueuedAt: firstInboxArticleQueued.get(userId),
+		emailStepMarkedDoneAt: emailStepMarkedDone.get(userId),
+		onboardingOutstandingVersion: onboardingOutstandingVersion.get(userId),
 		markReadAcrossQueuesAckedAt: markReadAcrossQueuesAcked.get(userId),
 		deleteArticleAckedAt: deleteArticleAcked.get(userId),
 	});
@@ -89,18 +119,24 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		saved.ios.delete(userId);
 		saved.android.delete(userId);
 		nextReadMinimumReached.delete(userId);
-		nextReadStepOutstanding.delete(userId);
+		firstInboxArticleQueued.delete(userId);
+		emailStepMarkedDone.delete(userId);
+		onboardingOutstandingVersion.delete(userId);
 		markReadAcrossQueuesAcked.delete(userId);
 		deleteArticleAcked.delete(userId);
+		firstInboxEmailNoticeSent.delete(userId);
 	};
 
 	return {
 		recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle,
 		recordNextReadMinimumReached,
-		recordNextReadStepOutstanding,
+		recordInboxArticleQueued,
+		recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged,
+		markFirstInboxEmailNoticeSent,
 		getOnboardingSignals,
 		deleteOnboarding,
 	};

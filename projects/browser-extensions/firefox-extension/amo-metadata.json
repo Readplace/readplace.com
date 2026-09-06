@@ -1,0 +1,19 @@
+{
+  "default_locale": "en-US",
+  "slug": "readplace",
+  "name": { "en-US": "Readplace — Save Articles & Read Later" },
+  "summary": {
+    "en-US": "Save articles with one click. A privacy-first read-it-later app and Pocket alternative. Your #1 AI-Powered Reading List."
+  },
+  "description": {
+    "en-US": "Readplace is a read-it-later app. Save articles from anywhere and read them later in a clean, focused reader — without the clutter, popups, and noise of the open web.\n\nSAVE FROM ANY TAB\nClick the Readplace button in the toolbar (or press Ctrl+D, Cmd+D on Mac) and the page you are reading is added to your reading list — the full rendered page, not just the link. Right-click a link and choose \"Save Link to Readplace\" to save it without opening it, or save every tab in the window at once with Ctrl+Shift+D.\n\nA CALM READING LIST\nEverything you saved in one place at readplace.com. Open an article to read it in a distraction-free reader, and get an AI summary so you can decide what is worth your time before you dive in.\n\nBUILT ON A DECADE OF READING\nReadplace grew out of a personal reading system refined over ten years. It does one thing well: help you actually read the things you meant to read.\n\nWhen you save a page, its address, title and content are sent to your Readplace account at readplace.com. While you are signed in, the address of the page you are viewing is also checked against your list so the toolbar icon can show whether it is already saved. Privacy policy: https://readplace.com/privacy\n\nYour #1 AI-Powered Reading List.\n\nA Readplace subscription is required after the free trial."
+  },
+  "categories": ["bookmarks"],
+  "homepage": { "en-US": "https://readplace.com" },
+  "support_url": { "en-US": "https://readplace.com/support" },
+  "support_email": { "en-US": "readplace@readplace.com" },
+  "version": {
+    "license": "all-rights-reserved",
+    "approval_notes": "Source: https://github.com/Readplace/readplace.com (public), tag firefox-extension@v<version>. Build with Node.js 22 and pnpm 10.28.0: pnpm install --frozen-lockfile && EXTENSION_VERSION=<version> pnpm nx run-many --target=compile --projects=browser-extension-core,firefox-extension — the unpacked extension is projects/browser-extensions/firefox-extension/dist-extension-compiled/ (esbuild bundles of src/runtime, browser-extension-core/src and src/packages/{hutch-logger,ui-icons,article-resource-unique-id})."
+  }
+}

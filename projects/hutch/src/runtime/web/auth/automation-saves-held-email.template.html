@@ -17,7 +17,7 @@
             </tr>
             <tr>
               <td>
-                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.body}};">{{opening.before}}<span style="white-space:nowrap;">{{opening.address}}</span>{{opening.after}}</p>
+                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.body}};">{{opening.before}}<span style="white-space:nowrap;font-weight:700;">{{opening.address}}</span>{{opening.after}}</p>
                 {{#each paragraphs}}
                 <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:{{../colors.body}};">{{{this}}}</p>
                 {{/each}}
@@ -28,6 +28,7 @@
                     </td>
                   </tr>
                 </table>
+                <p style="margin:24px 0 0;font-size:16px;line-height:1.6;color:{{colors.body}};">{{replyLine}}</p>
                 <p style="margin:24px 0 0;font-size:16px;line-height:1.6;color:{{colors.body}};">If you'd rather not continue, <a href="{{manageAddressesUrl}}" style="color:{{colors.heading}};">turn off your inbox addresses</a> and nothing more will be forwarded and you will stop receiving these emails.</p>
                 <p style="margin:32px 0 0;font-size:16px;line-height:1.6;color:{{colors.body}};">{{{signoff}}}</p>
               </td>

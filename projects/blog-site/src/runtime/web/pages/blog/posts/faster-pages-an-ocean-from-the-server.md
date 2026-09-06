@@ -30,7 +30,7 @@ Sydney readers pay about 10 milliseconds more than before, because their request
 
 ## Behind an edge, a whole city shares 1 address
 
-The distribution wasn't the hard part of the week. Behind a CDN, the socket that reaches the origin belongs to the edge, so the address the server sees is the edge's own. Rate limits, ban decisions and [the vendor-free analytics](/blog/analytics-without-a-vendor) key off that address. Left as it was, every reader served by 1 point of presence would have shared a rate-limit bucket, a ban record and an analytics identity. A single heavy user could have slowed a whole region down, and banning 1 abuser would have banned the readers beside them.
+The distribution wasn't the hard part of the week. Behind a CDN, the socket that reaches the origin belongs to the edge, so the address the server sees is the edge's own. Rate limits, ban decisions and [the vendor-free analytics](/blog/analytics-without-a-vendor?utm_source=blog-faster-pages-an-ocean-from-the-server&utm_medium=internal&utm_content=post-analytics-without-a-vendor) key off that address. Left as it was, every reader served by 1 point of presence would have shared a rate-limit bucket, a ban record and an analytics identity. A single heavy user could have slowed a whole region down, and banning 1 abuser would have banned the readers beside them.
 
 So the edge states the viewer's real address in a header, and the origin believes it only when the request also carries a secret CloudFront stamps on each request it forwards. The bare origin endpoint stays publicly reachable, since that is what the edge forwards to, and a request that shows up with the header but without the proof is someone picking their own bucket. It gets ignored.
 
@@ -61,10 +61,10 @@ The cause was density, not configuration. Reuse needs a 2nd request to land on t
 
 ## 1 pool warm enough to matter
 
-CloudFront's answer to exactly this is [Origin Shield](/view/docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/origin-shield.html): every point of presence sends its origin fetches through 1 shield sitting beside the origin, so the sockets worth keeping warm all live in 1 pool that each region's traffic feeds. Sparse traffic through dozens of doors becomes enough traffic through 1. The rollout plan had listed Shield as the step to take only if measurements showed cold connections, and the measurements had just shown them, so it shipped the same day.
+CloudFront's answer to exactly this is [Origin Shield](/view/docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/origin-shield.html?utm_source=blog-faster-pages-an-ocean-from-the-server&utm_medium=internal&utm_content=read-docs-aws-amazon-com): every point of presence sends its origin fetches through 1 shield sitting beside the origin, so the sockets worth keeping warm all live in 1 pool that each region's traffic feeds. Sparse traffic through dozens of doors becomes enough traffic through 1. The rollout plan had listed Shield as the step to take only if measurements showed cold connections, and the measurements had just shown them, so it shipped the same day.
 
 ## What the wait is made of now
 
 A first visit from far away spends its opening 2 round trips at an edge nearby and its third on a socket that stays warm between visitors. What's left of the wait is 1 crossing and the render, and the crossing is geography rather than software.
 
-Wherever in the world you're reading this, saving a page with [the browser extension](https://readplace.com/install) and opening it in [your readlist](/) now costs 1 trip to Sydney instead of 3.
+Wherever in the world you're reading this, saving a page with [the browser extension](https://readplace.com/install) and opening it in [your readlist](/?utm_source=blog-faster-pages-an-ocean-from-the-server&utm_medium=internal&utm_content=home) now costs 1 trip to Sydney instead of 3.

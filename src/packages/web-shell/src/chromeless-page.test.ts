@@ -48,6 +48,33 @@ function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 }
 
 describe("ChromelessPage", () => {
+	it("pins the dark theme class on the body when the app supplies a dark appearance preference", () => {
+		const result = ChromelessPage(createTestPageBody(), { cspNonce: CSP_NONCE, appearance: "dark" }).to(
+			"text/html",
+		);
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("theme-dark")).toBe(true);
+	});
+
+	it("pins the light theme class on the body when the app supplies a light appearance preference", () => {
+		const result = ChromelessPage(createTestPageBody(), { cspNonce: CSP_NONCE, appearance: "light" }).to(
+			"text/html",
+		);
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("theme-light")).toBe(true);
+	});
+
+	it("stamps no theme class when the app supplies no appearance preference", () => {
+		const result = ChromelessPage(createTestPageBody({ bodyClass: "page-account" }), NO_BANNER).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("page-account")).toBe(true);
+		expect(doc.body.classList.contains("theme-light")).toBe(false);
+		expect(doc.body.classList.contains("theme-dark")).toBe(false);
+	});
+
 	it("renders the page <main>, its styles, and htmx — with none of the web shell chrome", () => {
 		const result = ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html");
 
@@ -197,7 +224,7 @@ describe("ChromelessPage", () => {
 		const form = doc.querySelector("form.changelog-banner__dismiss");
 		assert(form, "the close control must be a real form so it works with no JS and stays inside the app sheet");
 		expect(form.getAttribute("method")).toBe("POST");
-		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss");
+		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss");
 		expect(form.querySelector('input[name="version"]')?.getAttribute("value")).toBe(CHANGELOG_VERSION);
 		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
 			"/queue/abc/view?platform=ios",

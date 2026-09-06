@@ -1,3 +1,4 @@
+import { withInternalTracking } from "@packages/web-shell";
 import type {
 	GmailConnection,
 	GmailConnectionState,
@@ -5,12 +6,13 @@ import type {
 } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
 import {
+	buildGmailStatusUrl,
+	GMAIL_CONFIRM_MAX_POLLS,
 	GMAIL_DISCONNECT_PATH,
 	GMAIL_SENDER_ADD_PATH,
 	GMAIL_SENDER_MAP_PATH,
 	GMAIL_SENDER_REMOVE_PATH,
 	GMAIL_SETTINGS_URL,
-	GMAIL_VERIFY_PATH,
 	type GmailPageError,
 	type GmailPageNotice,
 } from "./gmail.url";
@@ -19,8 +21,7 @@ import { GMAIL_CONNECT_PATH, INTEGRATIONS_PATH } from "./gmail-connect.url";
 export interface GmailSenderRowViewModel {
 	email: string;
 	detail: string;
-	mappedAddress: string;
-	mappedVisibility: "visible" | "hidden";
+	mappedAddress: string | undefined;
 	removeAction: string;
 }
 
@@ -42,22 +43,29 @@ export interface GmailPageViewModel {
 	integrationsPath: string;
 	gatewayAddress: string;
 	settingsUrl: string;
-	verifyAction: string;
 	addSenderAction: string;
 	disconnectAction: string;
 	reconnectAction: string;
-	stepVisibility: "visible" | "hidden";
-	sendersVisibility: "visible" | "hidden";
-	reconnectVisibility: "visible" | "hidden";
+	showStep: boolean;
+	showSenders: boolean;
+	showReconnect: boolean;
 	senders: GmailSenderRowViewModel[];
 	unsorted: GmailUnsortedRowViewModel[];
 	hasSenders: boolean;
 	hasUnsorted: boolean;
-	unsortedVisibility: "visible" | "hidden";
 	alerts: GmailBannerViewModel[];
 	notices: GmailBannerViewModel[];
-	alertVisibility: "visible" | "hidden";
-	noticeVisibility: "visible" | "hidden";
+}
+
+export interface GmailPollViewModel {
+	pollUrl: string | undefined;
+	message: string;
+}
+
+const GMAIL_SOURCE = "integrations-gmail";
+
+function track(href: string, content: string): string {
+	return withInternalTracking(href, { source: GMAIL_SOURCE, content });
 }
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
@@ -75,13 +83,19 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	sender_unknown: "I couldn't find that sender any more. Reload the page and try again.",
 };
 
+export const GMAIL_GATEWAY_DISABLED_MESSAGE =
+	"This forwarding address has been switched off, so Gmail can't deliver to it. Disconnect Gmail below, then connect again to get a working one.";
+
 export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	connected: "Gmail is connected.",
-	verifying: "Checking with Gmail. This page updates once the rule is in place.",
+	confirmed: "Forwarding confirmed.",
 	sender_added: "Added. Gmail will start forwarding that sender.",
 	sender_removed: "Removed. Gmail will stop forwarding that sender.",
 	sender_mapped: "Done. That sender now has its own inbox.",
 };
+
+const GMAIL_POLL_WATCHING = "Watching for Gmail to confirm the forwarding address.";
+const GMAIL_POLL_STALLED = "Still waiting. Once you've added the address in Gmail, refresh this page.";
 
 function bannersFor(
 	key: string | undefined,
@@ -98,59 +112,66 @@ function senderDetail(sender: GmailSenderEntry): string {
 	return `Last: ${sender.lastSubject}`;
 }
 
+export function toGmailPollViewModel(input: { pollCount: number }): GmailPollViewModel {
+	const canPoll = input.pollCount < GMAIL_CONFIRM_MAX_POLLS;
+	return {
+		pollUrl: canPoll ? buildGmailStatusUrl(input.pollCount + 1) : undefined,
+		message: canPoll ? GMAIL_POLL_WATCHING : GMAIL_POLL_STALLED,
+	};
+}
+
 export function toGmailPageViewModel(input: {
 	connection: GmailConnection;
 	senders: readonly GmailSenderEntry[];
+	gatewayLive: boolean;
 	error?: string;
 	notice?: string;
 }): GmailPageViewModel {
 	const state = gmailConnectionState(input.connection);
+	const awaiting = state === "awaiting-confirmation";
+	const revoked = state === "revoked";
 	const onFilter = input.senders.filter((sender) => sender.addedToFilterAt !== undefined);
 	const unsorted = input.senders.filter(
 		(sender) => sender.addedToFilterAt === undefined && sender.mappedAddress === undefined,
 	);
 	const alerts = [
+		...(input.gatewayLive
+			? []
+			: [{ key: "gateway_disabled", message: GMAIL_GATEWAY_DISABLED_MESSAGE }]),
 		...bannersFor(input.error, GMAIL_PAGE_ERRORS),
 		...(input.connection.lastFilterError === undefined
 			? []
 			: [{ key: "filter", message: input.connection.lastFilterError.message }]),
 	];
 	const notices = bannersFor(input.notice, GMAIL_PAGE_NOTICES);
-	const awaiting = state === "awaiting-confirmation";
-	const revoked = state === "revoked";
 
 	return {
 		state,
 		stateModifier: `gmail__status--${state}`,
 		statusLabel: STATUS_LABELS[state],
-		integrationsPath: INTEGRATIONS_PATH,
+		integrationsPath: track(INTEGRATIONS_PATH, "back-to-integrations"),
 		gatewayAddress: input.connection.gatewayAddress,
 		settingsUrl: GMAIL_SETTINGS_URL,
-		verifyAction: GMAIL_VERIFY_PATH,
-		addSenderAction: GMAIL_SENDER_ADD_PATH,
-		disconnectAction: GMAIL_DISCONNECT_PATH,
-		reconnectAction: GMAIL_CONNECT_PATH,
-		stepVisibility: awaiting ? "visible" : "hidden",
-		sendersVisibility: awaiting || revoked ? "hidden" : "visible",
-		reconnectVisibility: revoked ? "visible" : "hidden",
+		addSenderAction: track(GMAIL_SENDER_ADD_PATH, "add-sender"),
+		disconnectAction: track(GMAIL_DISCONNECT_PATH, "disconnect"),
+		reconnectAction: track(GMAIL_CONNECT_PATH, "reconnect"),
+		showStep: awaiting && input.gatewayLive,
+		showSenders: !awaiting && !revoked,
+		showReconnect: revoked,
 		senders: onFilter.map((sender) => ({
 			email: sender.senderEmail,
 			detail: senderDetail(sender),
-			mappedAddress: sender.mappedAddress ?? "",
-			mappedVisibility: sender.mappedAddress === undefined ? "hidden" : "visible",
-			removeAction: GMAIL_SENDER_REMOVE_PATH,
+			mappedAddress: sender.mappedAddress,
+			removeAction: track(GMAIL_SENDER_REMOVE_PATH, "remove-sender"),
 		})),
 		unsorted: unsorted.map((sender) => ({
 			email: sender.senderEmail,
 			detail: senderDetail(sender),
-			mapAction: GMAIL_SENDER_MAP_PATH,
+			mapAction: track(GMAIL_SENDER_MAP_PATH, "map-sender"),
 		})),
 		hasSenders: onFilter.length > 0,
 		hasUnsorted: unsorted.length > 0,
-		unsortedVisibility: unsorted.length > 0 ? "visible" : "hidden",
 		alerts,
 		notices,
-		alertVisibility: alerts.length > 0 ? "visible" : "hidden",
-		noticeVisibility: notices.length > 0 ? "visible" : "hidden",
 	};
 }

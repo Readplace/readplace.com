@@ -10,6 +10,9 @@ import {
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
 import { UserIdSchema } from '@packages/domain/user'
+import { ForwardableSenderSchema } from '@packages/domain/gmail'
+import { GMAIL_SETTINGS_SCOPE } from '@packages/provider-contracts/gmail-oauth'
+import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
 import { createTestApp } from '../runtime/test-app'
 import {
 	createDefaultTestAppFixture,
@@ -107,6 +110,17 @@ const e2eValidateSaveableUrl: ValidateSaveableUrl = (value) => {
 }
 
 const fixture = createDefaultTestAppFixture(origin)
+
+const gmailIntegration = initInMemoryGmailIntegration({
+	grant: {
+		ok: true,
+		grant: {
+			refreshToken: 'e2e-refresh',
+			accessToken: 'e2e-access',
+			grantedScope: GMAIL_SETTINGS_SCOPE,
+		},
+	},
+})
 // E2E exercises the HTMX polling UI end-to-end, so opt the summary fake into
 // transitioning pending → ready after a few reads. Unit/route tests use the
 // default (stays pending) for deterministic HTML assertions.
@@ -177,6 +191,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 	},
 	hostedCheckout: e2eStripe,
+	gmailIntegration: gmailIntegration.bundle,
 	parser: { parseArticle, crawlArticle },
 	events: {
 		publishLinkSaved,
@@ -351,6 +366,92 @@ server.post('/e2e/seed-related-articles', async (req, res) => {
 	if (outcome === 'superseded') {
 		res.status(409).json({ error: 'relations already settled for this article' })
 		return
+	}
+	res.status(201).json({ ok: true })
+})
+
+const SeedInboxArticleQueuedBody = z.object({ userId: UserIdSchema })
+server.post('/e2e/seed-inbox-article-queued', async (req, res) => {
+	const parsed = SeedInboxArticleQueuedBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	await fixture.onboardingSignals.recordInboxArticleQueued({ userId: parsed.data.userId })
+	res.status(201).json({ ok: true })
+})
+
+const SeedGmailStateBody = z.object({
+	userId: UserIdSchema,
+	state: z.enum(['awaiting', 'ready', 'filtering', 'filter-failed', 'revoked']),
+	senders: z
+		.array(
+			z.object({
+				email: z.string(),
+				place: z.enum(['filter', 'unsorted', 'mapped']),
+				subject: z.string().optional(),
+			}),
+		)
+		.default([]),
+})
+server.post('/e2e/seed-gmail-state', async (req, res) => {
+	const parsed = SeedGmailStateBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const { userId, state, senders } = parsed.data
+	const { gmailConnectionStore, gmailSenderStore, mintGatewayAddress, mintSenderAddress } =
+		gmailIntegration.bundle
+	await gmailConnectionStore.createConnection({
+		userId,
+		gatewayAddress: await mintGatewayAddress({ userId }),
+	})
+	if (state === 'revoked') {
+		await gmailConnectionStore.markRevoked({ userId, reason: 'invalid-grant' })
+	}
+	if (state === 'ready' || state === 'filtering' || state === 'filter-failed') {
+		await gmailConnectionStore.markForwardingConfirmed({ userId })
+	}
+	if (state === 'filtering') {
+		await gmailConnectionStore.recordFilter({
+			userId,
+			filterId: 'filter-e2e',
+			filterQuery: 'from:(dan@tldr.tech)',
+			filterSenderCount: senders.filter((s) => s.place !== 'unsorted').length,
+		})
+	}
+	if (state === 'filter-failed') {
+		await gmailConnectionStore.recordFilterError({
+			userId,
+			error: {
+				code: 'query-too-long',
+				message: '40 senders produce a 2396-character query',
+				at: '2026-04-27T08:00:00.000Z',
+			},
+		})
+	}
+	for (const entry of senders) {
+		const senderEmail = ForwardableSenderSchema.parse(entry.email)
+		if (entry.place === 'unsorted') {
+			await gmailSenderStore.recordSenderSeen({
+				userId,
+				senderEmail,
+				subject: entry.subject ?? 'Newsletter',
+			})
+			continue
+		}
+		if (entry.subject !== undefined) {
+			await gmailSenderStore.recordSenderSeen({ userId, senderEmail, subject: entry.subject })
+		}
+		if (entry.place === 'mapped') {
+			await gmailSenderStore.mapSenderToAddress({
+				userId,
+				senderEmail,
+				mappedAddress: await mintSenderAddress({ userId, senderEmail }),
+			})
+		}
+		await gmailSenderStore.addSenderToFilter({ userId, senderEmail })
 	}
 	res.status(201).json({ ok: true })
 })

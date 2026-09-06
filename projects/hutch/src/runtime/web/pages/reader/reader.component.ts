@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { nextReadDismissalOf } from "@packages/domain/article";
+import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -11,9 +12,10 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
-import type {
-	MarkReadAction,
-	RenderReaderActions,
+import {
+	type MarkReadAction,
+	READLIST_PICKER_SCRIPT,
+	type RenderReaderActions,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
 import {
@@ -21,6 +23,9 @@ import {
 	renderMarkStatusConfirm,
 } from "../readlist/mark-status-confirm.component";
 import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
+import { PROGRESS_BAR_SCRIPT } from "../../shared/article-body/progress-bar.component";
+import { SUMMARY_TOGGLE_SCRIPT } from "../../shared/article-body/summary-slot/summary-slot.component";
+import { READER_OPEN_SCRIPT } from "../../shared/reader-open/reader-open-script";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
@@ -32,14 +37,14 @@ import {
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
 import { viewPathFor } from "../view/view-path";
-import { renderExitConfirm } from "./reader-exit-confirm.component";
+import {
+	READER_EXIT_CONFIRM_SCRIPT,
+	renderExitConfirm,
+} from "./reader-exit-confirm.component";
 import { READER_STYLES } from "./reader.styles";
 import { displayableReadTime } from "@packages/domain/article";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
-const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
-const SUMMARY_TOGGLE_SCRIPT = `<script src="/client-dist/summary-toggle.client.js" defer></script>`;
-const READER_EXIT_CONFIRM_SCRIPT = `<script src="/client-dist/reader-exit-confirm.client.js" defer></script>`;
 
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by reader
@@ -103,11 +108,15 @@ export function ReaderPage(
 		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 		exitMarkReadConfirm?: boolean;
 		markStatusConfirmReadlistLabels?: readonly string[];
+		readerNotice?: ReaderFailedVariant;
+		epubDownloadHref?: string;
 	},
 ): PageBody {
 	const articleId = article.id.value;
 	const isRead = article.status === "read";
 	const markReadLabel = isRead ? "Mark as unread" : "Mark as read";
+	const markReadShortLabel = isRead ? "Unread" : "Read";
+	const markReadIcon = isRead ? "inbox" : "check";
 	const markReadStatus: ArticleStatus = isRead ? "unread" : "read";
 	const markStatusConfirm =
 		options.markStatusConfirmReadlistLabels === undefined
@@ -124,6 +133,8 @@ export function ReaderPage(
 			position: "top",
 			postUrl: markReadPostUrl({ articleId, utmContent: "mark-read-top" }),
 			label: markReadLabel,
+			shortLabel: markReadShortLabel,
+			iconName: markReadIcon,
 			testAction: `mark-${markReadStatus}`,
 			fields: [{ name: "status", value: markReadStatus }],
 			...(markStatusConfirm === undefined
@@ -136,6 +147,8 @@ export function ReaderPage(
 			backLink: options.backLink,
 			markReadActions,
 			readlistPicker: options.readlistFiling.picker,
+			epubDownload:
+				options.epubDownloadHref === undefined ? undefined : { href: options.epubDownloadHref },
 		},
 	});
 	const innerContent = renderArticleBody({
@@ -162,13 +175,13 @@ export function ReaderPage(
 		crawlVersions: options.crawlVersions,
 		crawlBookmarkRemoval: options.crawlBookmarkRemoval,
 		extensionInstallUrl: options.extensionInstallUrl,
+		readerNotice: options.readerNotice,
 	});
 	const shareBalloon = renderShareBalloon({
 		shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,
 		shareTitle: article.metadata.title,
 		shareHint: "Click here to share this post!",
 		shareSource: "reader-internal",
-		shareStampUrl: `/queue/${articleId}/share`,
 	});
 	const nextRead = renderNextRead({
 		related: options.related
@@ -219,7 +232,9 @@ export function ReaderPage(
 				PROGRESS_BAR_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
-				(exitMarkReadConfirm ? READER_EXIT_CONFIRM_SCRIPT : ""),
+				(options.readlistFiling.picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
+				(exitMarkReadConfirm ? READER_EXIT_CONFIRM_SCRIPT : "") +
+				READER_OPEN_SCRIPT,
 		}),
 	};
 }

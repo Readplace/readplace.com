@@ -69,7 +69,9 @@ describe("toInboxExcludedLinkViewModel", () => {
 	});
 
 	it("offers the save action for a saveable url", () => {
-		expect(build({}).saveAction).toBe(`/inbox/${encodeURIComponent(SK)}/links/0000/save`);
+		expect(build({}).saveAction).toBe(
+			`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
+		);
 	});
 
 	it("withholds the save action from a url the save pipeline would reject", () => {

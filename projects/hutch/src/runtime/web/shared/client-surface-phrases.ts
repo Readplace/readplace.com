@@ -1,4 +1,4 @@
-import type { ClientGroup, ClientGroupInCategory } from "@packages/supported-clients";
+import type { AdvertisedClientNameInGroup, ClientGroup } from "@packages/supported-clients";
 
 /**
  * User-facing copy enumerates client GROUPS, not individual clients: a new
@@ -29,13 +29,23 @@ const SETUP_LOCATIONS = {
 
 export const SETUP_SURFACES_PHRASE = `${SETUP_LOCATIONS.browserExtension}, ${SETUP_LOCATIONS.nativeApp}, or ${SETUP_LOCATIONS.aiAssistant}`;
 
-/** The content-capture surfaces, keyed by the groups in that category — so a
- * group joining or leaving `contentCapture` is a compile error here. Only these
- * clients can save the full rendered page; url-only clients (MCP) cannot, which
- * is why this phrase deliberately excludes them. */
-const FULL_PAGE_CAPTURE_SURFACES = {
-	browserExtension: "the browser extension",
-	nativeApp: "phone apps",
-} satisfies Record<ClientGroupInCategory<"contentCapture">, string>;
+/**
+ * What each advertised content-capture client is called when a pitch names the
+ * surfaces that save the full rendered page. Keyed per ADVERTISED client, not
+ * per group, so a client starting or stopping being advertised is a compile
+ * error here until this phrase is re-worded — a group-level noun once let
+ * "phone apps" pitch an Android app nobody could install. Url-only clients
+ * (MCP) cannot capture a page, which is why they are deliberately absent.
+ */
+const FULL_PAGE_CAPTURE_NOUNS = {
+	firefox: "the browser extension",
+	chrome: "the browser extension",
+	iphone: "the iPhone app",
+} satisfies Record<
+	AdvertisedClientNameInGroup<"browserExtension"> | AdvertisedClientNameInGroup<"nativeApp">,
+	string
+>;
 
-export const FULL_PAGE_CAPTURE_PHRASE = `${FULL_PAGE_CAPTURE_SURFACES.browserExtension} and ${FULL_PAGE_CAPTURE_SURFACES.nativeApp}`;
+const FULL_PAGE_CAPTURE_UNIQUE = [...new Set(Object.values(FULL_PAGE_CAPTURE_NOUNS))];
+
+export const FULL_PAGE_CAPTURE_PHRASE = FULL_PAGE_CAPTURE_UNIQUE.join(" and ");

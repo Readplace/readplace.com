@@ -11,6 +11,10 @@ export function messageForCrawlFailure(reason: CrawlFailureReason): string {
 			return reason.httpStatus !== undefined
 				? `The site returned an error (HTTP ${reason.httpStatus}) when we tried to fetch it.`
 				: "We couldn't reach the article's host.";
+		case "origin-unreachable":
+			return reason.httpStatus !== undefined
+				? `The site's own server was unreachable (HTTP ${reason.httpStatus}) when we tried to fetch it — the site was down, not blocking us.`
+				: "The site's own server was unreachable when we tried to fetch it — the site was down, not blocking us.";
 		case "exhausted-retries":
 			return "We retried fetching this article several times without success.";
 		case "not-found":

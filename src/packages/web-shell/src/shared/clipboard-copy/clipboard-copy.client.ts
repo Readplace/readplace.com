@@ -25,10 +25,13 @@ export function initClipboardCopy(deps: ClipboardCopyDeps): ClipboardCopyControl
 	const RESET_MS = 2000;
 	const COPIED_LABEL = "Copied";
 	const FAILED_LABEL = "Press Ctrl+C";
+	const wired = new WeakSet<HTMLButtonElement>();
 
 	function wire(button: HTMLButtonElement, clipboard: CopyClipboard): void {
 		const text = button.getAttribute(deps.textAttr);
 		if (text === null) return;
+		if (wired.has(button)) return;
+		wired.add(button);
 		const idleLabel = button.textContent;
 		let pendingReset: CopyTimerId | undefined;
 

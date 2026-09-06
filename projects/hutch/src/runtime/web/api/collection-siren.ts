@@ -2,6 +2,7 @@ import assert from "node:assert";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
+import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
 import type { SirenEntity, SirenLink } from "./siren";
@@ -24,6 +25,7 @@ export function toArticleCollectionEntity(
 		warning?: CollectionWarning;
 		surfacePlatform?: NativeClientPlatform;
 		showSaveInProgressNotice?: boolean;
+		appearance?: AppearancePreference;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 	},
 ): SirenEntity {
@@ -82,6 +84,7 @@ export function toArticleCollectionEntity(
 			hrefForStatus: (status) => `/queue${buildQueryString({ status, order: queryParams.order })}`,
 		}),
 	};
+	if (options.appearance) properties.appearance = options.appearance;
 	if (options.warning) properties.warning = options.warning;
 	// Offered only to a native app's own requests (header-gated, never `?platform=`),
 	// so its share sheet can render "don't close this" beneath its spinner. Every

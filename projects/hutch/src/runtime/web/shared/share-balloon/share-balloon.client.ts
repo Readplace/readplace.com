@@ -25,7 +25,6 @@ interface ShareBalloonDeps {
 	document: Document;
 	storage: ShareBalloonStorage;
 	navigator: ShareBalloonNavigator;
-	sendBeacon: (url: string) => void;
 	setTimeoutFn: (cb: () => void, ms: number) => ShareTimerId;
 	clearTimeoutFn: (id: ShareTimerId) => void;
 	addSwapListener: (listener: () => void) => void;
@@ -48,7 +47,6 @@ interface ShareBalloonPage {
 	shareUrl: string;
 	copyUrl: string;
 	title: string;
-	stampUrl: string | null;
 }
 
 export function initShareBalloon(
@@ -114,7 +112,6 @@ export function initShareBalloon(
 			shareUrl: pickAttribute(shareBtn, "data-share-url"),
 			copyUrl: pickAttribute(copyBtn, "data-share-url"),
 			title: pickAttribute(shareBtn, "data-share-title"),
-			stampUrl: wrap.getAttribute("data-share-stamp-url"),
 		};
 	}
 
@@ -194,7 +191,6 @@ export function initShareBalloon(
 
 	function onShareClick() {
 		assert(page, "the share button is only bound while a balloon is adopted");
-		if (page.stampUrl !== null) deps.sendBeacon(page.stampUrl);
 		const { title, shareUrl } = page;
 		if (deps.navigator.share !== undefined) {
 			deps.navigator.share({ title, url: shareUrl }).catch((err) => {
@@ -205,7 +201,6 @@ export function initShareBalloon(
 
 	function onCopyClick() {
 		assert(page, "the copy button is only bound while a balloon is adopted");
-		if (page.stampUrl !== null) deps.sendBeacon(page.stampUrl);
 		const { copyUrl, copiedLabel, status } = page;
 		if (deps.navigator.clipboard !== undefined) {
 			deps.navigator.clipboard.writeText(copyUrl).then(
@@ -276,11 +271,11 @@ export function initShareBalloon(
 		if (!canShare && !canCopy) return;
 		const root = deps.document.documentElement;
 		if (root.hasAttribute(OWNED_ATTR)) return;
-		const wrap = pickElement(deps.document, "[data-share-balloon-wrap]");
 		root.setAttribute(OWNED_ATTR, "");
 		attached = true;
 		deps.addSwapListener(onSwap);
-		adopt(wrap);
+		const wrap = findWrap();
+		if (wrap !== null) adopt(wrap);
 	}
 
 	function detach(): void {

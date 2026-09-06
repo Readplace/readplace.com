@@ -73,8 +73,14 @@ describe("initDisconnectGmail", () => {
 		assert.deepEqual(harness.rewrites, [USER]);
 		assert.deepEqual(harness.revokes, ["refresh-1"]);
 		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), undefined);
-		const connection = await harness.connections.findConnectionByUserId(USER);
-		assert.equal(connection?.revokedReason, "user-disconnected");
+	});
+
+	it("deletes the connection so the next connect mints a fresh gateway address", async () => {
+		const harness = await makeHarness();
+
+		await harness.disconnect({ userId: USER });
+
+		assert.equal(await harness.connections.findConnectionByUserId(USER), undefined);
 	});
 
 	it("still disconnects when the Gmail filter could not be removed", async () => {

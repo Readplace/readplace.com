@@ -89,7 +89,12 @@ function makeHarness(opts?: {
 		receivedAtMessageId: string;
 		inboxAddress: string;
 	}[] = [];
-	const publishOrder: ("notice" | "preview" | "submit")[] = [];
+	const firstInboxNotices: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		inboxAddress: string;
+	}[] = [];
+	const publishOrder: ("notice" | "first-notice" | "preview" | "submit")[] = [];
 	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
 	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
 	const countsWrites: InboxEmailLinkCounts[] = [];
@@ -136,6 +141,10 @@ function makeHarness(opts?: {
 			publishOrder.push("notice");
 			heldNotices.push(input);
 		},
+		publishFirstInboxEmailNotice: async (input) => {
+			publishOrder.push("first-notice");
+			firstInboxNotices.push(input);
+		},
 		findSubscriptionByUserId: async (userId) => {
 			subscriptionReads.push(UserIdSchema.parse(userId));
 			return opts?.subscription;
@@ -149,7 +158,7 @@ function makeHarness(opts?: {
 	const run = (body: string) =>
 		handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
 
-	return { linkStore, published, submitted, alerts, heldNotices, triageCalls, deriveInputs, countsWrites, writeOrder, subscriptionReads, publishOrder, run };
+	return { linkStore, published, submitted, alerts, heldNotices, firstInboxNotices, triageCalls, deriveInputs, countsWrites, writeOrder, subscriptionReads, publishOrder, run };
 }
 
 describe("initExtractEmailLinksHandler", () => {
@@ -165,6 +174,25 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.submitted).toEqual([
 			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE },
 			{ userId: USER, url: "https://b.test/y", provenance: DIGEST_PROVENANCE },
+		]);
+	});
+
+	it("announces the reader's first inbox save once, right after the first submit", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.publishOrder).toEqual([
+			"submit",
+			"first-notice",
+			"preview",
+			"submit",
+			"preview",
+		]);
+		expect(harness.firstInboxNotices).toEqual([
+			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
 		]);
 	});
 
@@ -191,6 +219,7 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.heldNotices).toEqual([
 			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
 		]);
+		expect(harness.firstInboxNotices).toEqual([]);
 		const { links } = await harness.linkStore.listLinksByEmail({
 			userId: USER,
 			receivedAtMessageId: RAM,
@@ -269,6 +298,7 @@ describe("initExtractEmailLinksHandler", () => {
 
 		expect(harness.subscriptionReads).toEqual([]);
 		expect(harness.submitted).toEqual([]);
+		expect(harness.firstInboxNotices).toEqual([]);
 		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x"]);
 	});
 
@@ -315,6 +345,7 @@ describe("initExtractEmailLinksHandler", () => {
 
 		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x"]);
 		expect(harness.submitted).toEqual([]);
+		expect(harness.firstInboxNotices).toEqual([]);
 	});
 
 	it("re-extracts previews for a backfill replay without submitting anything to the queue", async () => {
@@ -341,6 +372,7 @@ describe("initExtractEmailLinksHandler", () => {
 		await harness.run(eventBody());
 
 		expect(harness.submitted).toEqual([]);
+		expect(harness.firstInboxNotices).toEqual([]);
 	});
 
 	it("writes one pending row per link and fans out a crawl command for each", async () => {

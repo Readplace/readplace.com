@@ -12,9 +12,7 @@ on:
       CHROME_EXTENSION_ID:
         required: true
       # Fine-grained PAT with `Contents: Read and write` + `Workflows: Read
-      # and write`. See submit-ff-extension-for-signing.yml for why the
-      # default GITHUB_TOKEN can't push tags whose tree contains workflow
-      # file changes.
+      # and write`.
       TAG_PUSH_TOKEN:
         required: true
 

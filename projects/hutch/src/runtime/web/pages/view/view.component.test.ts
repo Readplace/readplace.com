@@ -28,6 +28,7 @@ const baseInput: ViewPageInput = {
 		{
 			key: "save",
 			name: "Save to My Readlist",
+			shortName: "Save",
 			href: "/save?url=https%3A%2F%2Fexample.com%2Fpost",
 			variant: "primary",
 		},
@@ -102,7 +103,7 @@ describe("ViewPage", () => {
 		const doc = render({
 			...baseInput,
 			actions: [
-				{ key: "save", name: "Save to My Readlist", href: "/save?url=x", variant: "primary" },
+				{ key: "save", name: "Save to My Readlist", shortName: "Save", href: "/save?url=x", variant: "primary" },
 			],
 		});
 
@@ -112,14 +113,14 @@ describe("ViewPage", () => {
 		assert(link, "cta action link must be rendered");
 		expect(link.tagName).toBe("A");
 		expect(link.getAttribute("href")).toBe("/save?url=x");
-		expect(link.textContent).toBe("Save to My Readlist");
+		expect(link.querySelector(".view__cta-label")?.textContent).toBe("Save to My Readlist");
 	});
 
 	it("gives each action a stable id derived from its key so an OOB swap can target it", () => {
 		const doc = render({
 			...baseInput,
 			actions: [
-				{ key: "save", name: "Save to My Readlist", href: "/save?url=x", variant: "primary" },
+				{ key: "save", name: "Save to My Readlist", shortName: "Save", href: "/save?url=x", variant: "primary" },
 			],
 		});
 
@@ -135,12 +136,14 @@ describe("ViewPage", () => {
 				{
 					key: "save",
 					name: "Save to My Readlist",
+					shortName: "Save",
 					href: "/save?url=x",
 					variant: "primary",
 				},
 				{
 					key: "paste-another-link",
 					name: "Paste another link",
+					shortName: "Paste",
 					href: "/?utm_source=view-article",
 					variant: "secondary",
 				},
@@ -157,6 +160,7 @@ describe("ViewPage", () => {
 		const SAVE_ACTION: ViewAction = {
 			key: "save",
 			name: "Save to My Readlist",
+			shortName: "Save",
 			href: "/save?url=x",
 			variant: "primary",
 		};

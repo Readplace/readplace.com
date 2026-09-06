@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
 import {
 	buildReadlistFilters,
@@ -8,8 +9,12 @@ import {
 } from "./readlist-filters.component";
 import { READLIST_TABS } from "./readlist.tabs";
 
-function renderTabs(input: Parameters<typeof buildReadlistFilters>[0]): Document {
-	return new JSDOM(`<main>${renderReadlistFilters(buildReadlistFilters(input))}</main>`).window.document;
+function renderTabs(
+	input: Omit<Parameters<typeof buildReadlistFilters>[0], "readlist"> & { readlist?: ReadlistSlug },
+): Document {
+	return new JSDOM(
+		`<main>${renderReadlistFilters(buildReadlistFilters({ readlist: DEFAULT_READLIST_SLUG, ...input }))}</main>`,
+	).window.document;
 }
 
 function tabLink(doc: Document, testFilter: string): Element {
@@ -112,7 +117,32 @@ describe("buildReadlistFilters", () => {
 			el.closest("[data-test-filter]")?.getAttribute("data-test-filter"),
 			el.getAttribute("id"),
 		]);
-		expect(labelled).toEqual([["unread", "readlist-unread-label"]]);
+		expect(labelled).toEqual([["unread", "readlist-unread-label--default"]]);
+	});
+
+	it("should scope the counted tab's label id to the queue being viewed", () => {
+		const doc = renderTabs({ activeTab: "queue", readlist: ReadlistSlugSchema.parse("work") });
+
+		const labelled = Array.from(doc.querySelectorAll("[data-test-filter] span[id]")).map((el) => [
+			el.closest("[data-test-filter]")?.getAttribute("data-test-filter"),
+			el.getAttribute("id"),
+		]);
+		expect(labelled).toEqual([["unread", "readlist-unread-label--work"]]);
+
+		const label = doc.querySelector("#readlist-unread-label--work");
+		assert(label, "the unread tab must render the label the counts fragment refreshes");
+		expect(label.hasAttribute("hx-preserve")).toBe(true);
+		expect(label.textContent).toBe("To Read");
+	});
+
+	it("should paint the count the render already knows into the counted tab", () => {
+		expect(tabLink(renderTabs({ activeTab: "queue", knownUnreadCount: 0 }), "unread").textContent).toBe(
+			"To Read (0)",
+		);
+		expect(tabLink(renderTabs({ activeTab: "queue", knownUnreadCount: 2 }), "unread").textContent).toBe(
+			"To Read (2)",
+		);
+		expect(tabLink(renderTabs({ activeTab: "queue" }), "unread").textContent).toBe("To Read");
 	});
 
 	it("should reserve the counted tab's widest label, on that tab only", () => {
@@ -127,10 +157,21 @@ describe("buildReadlistFilters", () => {
 
 	it("should mark the counted tab's label preserved so a boosted swap keeps the count", () => {
 		const doc = renderTabs({ activeTab: "queue" });
-		const label = doc.querySelector("#readlist-unread-label");
+		const label = doc.querySelector('[data-test-filter="unread"] span[id]');
 		assert(label, "the unread tab must render the label the counts fragment refreshes");
 
 		expect(label.hasAttribute("hx-preserve")).toBe(true);
 		expect(label.textContent).toBe("To Read");
+	});
+
+	it("should name the strip, the pressed tab and the listing as where a tab switch paints its in-flight state", () => {
+		const nav = renderTabs({ activeTab: "queue" }).querySelector("nav[data-test-filters]");
+		assert(nav, "the filters nav must be rendered");
+
+		expect(nav.getAttribute("hx-boost")).toBe("true");
+		expect(nav.getAttribute("hx-target")).toBe("main");
+		expect(nav.getAttribute("hx-indicator")).toBe(
+			"closest .readlist__filters, closest .readlist__filter-link, .readlist__listing",
+		);
 	});
 });

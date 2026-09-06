@@ -1,11 +1,35 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { SUBSCRIBE_CTA_LABEL } from "@packages/web-shell";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
+
+function confirmPopoverKeys(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll("[data-test-confirm-popover]")).map(
+		(panel) => panel.getAttribute("data-test-confirm-popover") ?? "",
+	);
+}
+
+function subscribePlanKeys(doc: Document): string[] {
+	return Array.from(
+		doc.querySelectorAll(
+			`[data-test-confirm-popover="subscribe-plans"] [data-test-plan]`,
+		),
+	).map((panel) => panel.getAttribute("data-test-plan") ?? "");
+}
+
+function subscribeCtaPair(banner: Element, fallbackKey: "subscribe" | "resubscribe") {
+	const trigger = banner.querySelector('[data-test-action="subscribe-plans-open"]');
+	const fallback = banner.querySelector(`[data-test-action="${fallbackKey}"]`);
+	assert(trigger, "the banner must offer the plan-chooser trigger");
+	assert(fallback, "the banner must keep its plain /account link for a legacy engine");
+	return { trigger, fallback };
+}
 
 async function loginUser(harness: ReturnType<ReturnType<typeof useTestServer>>, email: string) {
 	const { auth } = harness;
@@ -35,6 +59,7 @@ describe("Readlist page banner state", () => {
 		assert(countdown, "trial countdown element must always be in the DOM");
 		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
 		expect(countdown.getAttribute("data-trial-state")).toBe("");
+		expect(confirmPopoverKeys(doc)).toEqual(["save-tip"]);
 	});
 
 	it("renders the header trial countdown and the readlist aside trial-countdown banner for a trialing user", async () => {
@@ -57,6 +82,15 @@ describe("Readlist page banner state", () => {
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner aside must be rendered");
 		expect(banner.classList.contains("readlist-banner--trial-countdown")).toBe(true);
+
+		const { trigger, fallback } = subscribeCtaPair(banner, "subscribe");
+		expect(trigger.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
+		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
+		expect(fallback.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
+		expect(fallback.getAttribute("href")).toContain("utm_content=subscribe");
+		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
 	});
 
 	it("flips the header countdown to 'Subscription not active' and disables the save form after the trial window ends", async () => {
@@ -85,13 +119,17 @@ describe("Readlist page banner state", () => {
 		expect(banner.classList.contains("readlist-banner--inactive")).toBe(true);
 		// Trial expiry is how the entire churned cohort reaches the inactive
 		// state, so the re-subscribe CTA must be present on this path too.
-		const cta = banner.querySelector('[data-test-action="resubscribe"]');
-		assert(cta, "expired-trial inactive banner must offer a resubscribe CTA");
-		expect(cta.textContent).toBe("Subscribe — $4.08/month");
-		const ctaHref = cta.getAttribute("href");
+		const { trigger, fallback } = subscribeCtaPair(banner, "resubscribe");
+		expect(trigger.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
+		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
+		expect(fallback.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
+		const ctaHref = fallback.getAttribute("href");
 		assert(ctaHref, "resubscribe CTA must have an href");
 		expect(ctaHref).toContain("/account");
 		expect(ctaHref).toContain("utm_content=resubscribe");
+		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
 	});
 
 	it("shows cancellation-scheduled banner with full access when pending_cancellation is before effectiveAt", async () => {
@@ -125,6 +163,10 @@ describe("Readlist page banner state", () => {
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access");
 		expect(saveForm.classList.contains("readlist__save-form--disabled")).toBe(false);
+		const reactivate = banner.querySelector('[data-test-action="reactivate"]');
+		assert(reactivate, "cancellation-scheduled banner must offer Reactivate");
+		expect(reactivate.textContent).toBe("Reactivate");
+		expect(confirmPopoverKeys(doc)).toEqual(["save-tip"]);
 	});
 
 	it("flips banner to inactive and disables save after the cancellation window elapses", async () => {
@@ -154,13 +196,14 @@ describe("Readlist page banner state", () => {
 		);
 		// An expired/cancelled user must be able to re-subscribe from the readlist
 		// itself, not be dead-ended into hunting for /account.
-		const cta = banner.querySelector('[data-test-action="resubscribe"]');
-		assert(cta, "inactive banner must offer a subscribe CTA");
-		expect(cta.textContent).toBe("Subscribe — $4.08/month");
-		const ctaHref = cta.getAttribute("href");
+		const { trigger, fallback } = subscribeCtaPair(banner, "resubscribe");
+		expect(trigger.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(fallback.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		const ctaHref = fallback.getAttribute("href");
 		assert(ctaHref, "inactive banner CTA must have an href");
 		expect(ctaHref).toContain("/account");
 		expect(ctaHref).toContain("utm_content=resubscribe");
+		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
 	});
 
 	it("flips the header countdown to 'Subscription not active' for a cancelled user too, with the same wording as trial-expired", async () => {

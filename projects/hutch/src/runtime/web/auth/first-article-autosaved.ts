@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Request } from "express";
 import type { UserId } from "@packages/domain/user";
 import type { ViewerIp } from "@packages/viewer-identity";
 import {
@@ -6,6 +6,7 @@ import {
 	articleHostFrom,
 	type FirstArticleAutosavedEvent,
 	hashIp,
+	type RecordAudienceEvent,
 } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, STREAMS } from "../../observability/events";
 
@@ -16,8 +17,8 @@ import { ANALYTICS_EVENTS, STREAMS } from "../../observability/events";
  * discrete event exists.
  */
 export function emitFirstArticleAutosaved(
-	deps: { logger: HutchLogger.Typed<AnalyticsEvent>; now: () => Date; salt: string },
-	params: { autosavedUrl: string | undefined; userId: UserId; visitorId?: string; ip: ViewerIp | undefined },
+	deps: { record: RecordAudienceEvent<AnalyticsEvent>; now: () => Date; salt: string },
+	params: { req: Request; autosavedUrl: string | undefined; userId: UserId; visitorId?: string; ip: ViewerIp | undefined },
 ): void {
 	if (params.autosavedUrl === undefined) return;
 	const event: FirstArticleAutosavedEvent = {
@@ -29,5 +30,5 @@ export function emitFirstArticleAutosaved(
 		visitor_hash: hashIp({ ip: params.ip, salt: deps.salt }),
 		...(params.visitorId ? { visitor_id: params.visitorId } : {}),
 	};
-	deps.logger.info(event);
+	deps.record(params.req, event);
 }

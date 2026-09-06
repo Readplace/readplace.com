@@ -26,7 +26,6 @@ export {
 	type BulkSaveOutcome,
 	MAX_UPLOAD_REQUEST_BYTES,
 	MAX_UPLOAD_CONTENT_BYTES,
-	MAX_UPLOAD_HTML_BYTES,
 	MAX_BULK_PAGE_CONTENT_BYTES,
 	MinutesSchema,
 	ArticleStatusSchema,
@@ -34,6 +33,7 @@ export {
 export {
 	MAX_SAVEABLE_URL_LENGTH,
 	SaveableUrlSchema,
+	SaveableUrlErrorCodeSchema,
 	validateSaveableUrl,
 	saveableUrlCodeFromIssues,
 	saveableUrlErrorMessage,
@@ -49,6 +49,7 @@ export {
 } from "./save-provenance";
 export { sanitizeArticleHtml } from "./sanitize-article-html";
 export { isBlockedIpAddress } from "./blocked-address";
+export { isNonArticleHost } from "./non-article-host";
 export { calculateReadTime } from "./estimated-read-time";
 export {
 	displayableReadTime,

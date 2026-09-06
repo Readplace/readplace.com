@@ -74,7 +74,7 @@ export const INSTALL_PAGE_STYLES = `
 	transition: color 0.2s, background 0.2s, border-color 0.2s;
 }
 
-.install-page__tab:hover {
+.install-page__tab:not(.install-page__tab--active):hover {
 	color: var(--foreground);
 	border-color: var(--primary);
 }

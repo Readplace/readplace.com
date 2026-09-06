@@ -6,14 +6,14 @@ import type {
 	Minutes,
 } from "@packages/domain/article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { calculateReadTime } from "@packages/domain/article";
+import { calculateReadTime, isNonArticleHost } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	SaveArticleGlobally,
 } from "@packages/provider-contracts/article-store";
-import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type {
 	FindArticleCrawlStatus,
 	MarkCrawlPending,
@@ -28,8 +28,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
+import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
@@ -39,7 +38,11 @@ import { CacheableComponent } from "../../conditional-get";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 
-import { extensionInstallUrlIfMissing, isExtensionInstalled } from "../../onboarding/extension-install";
+import {
+	extensionInstallUrlIfMissing,
+	canOfferExtensionInstall,
+	isExtensionInstalled,
+} from "../../onboarding/extension-install";
 import { setLastViewUrl } from "../../last-view";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen, saveTipState, type SaveTipState } from "../../shared/save-tip/save-tip";
@@ -54,6 +57,8 @@ import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
 import { parseViewPath, viewPathFor } from "./view-path";
+import { epubFilename, initBuildArticleEpub } from "../../shared/epub/article-epub";
+import { epubDownloadHref, revealsEpubDownload } from "../../shared/epub/epub-link";
 import {
 	ViewPage,
 	formatViewDocumentTitle,
@@ -70,6 +75,8 @@ interface ViewDependencies {
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
+	readArticleImage: ReadArticleImage;
+	logError: (message: string, error?: Error) => void;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -82,7 +89,7 @@ interface ViewDependencies {
 	viewCrawlRateLimit: RateLimitRule;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 }
 
@@ -112,6 +119,7 @@ function saveAction(input: {
 	return {
 		key: "save",
 		name: "Save to My Readlist",
+		shortName: "Save",
 		href: `/save?${saveParams.toString()}`,
 		variant: "primary",
 		saveTipState: input.saveTipState,
@@ -121,6 +129,7 @@ function saveAction(input: {
 const PASTE_ANOTHER_ACTION: ViewAction = {
 	key: "paste-another-link",
 	name: "Paste another link",
+	shortName: "Paste",
 	href: "/?utm_source=view-article&utm_medium=internal&utm_content=paste-another-link",
 	variant: "secondary",
 };
@@ -194,7 +203,11 @@ function handleViewRoot(deps: ViewDependencies) {
 	};
 }
 
-function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
+function handleViewArticle(
+	deps: ViewDependencies,
+	reader: ReturnType<typeof initArticleReader>,
+	buildArticleEpub: ReturnType<typeof initBuildArticleEpub>,
+) {
 	return async (
 		req: Request<{ splat: string[] }>,
 		res: Response,
@@ -231,9 +244,31 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 			return;
 		}
+		if (req.query.format === "epub") {
+			const content = await deps.readArticleContent(articleUrl);
+			if (content === undefined) {
+				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+				return;
+			}
+			assert(existing, "a ready article must have a saved row");
+			const title = existing.metadata.title;
+			const epubBytes = await buildArticleEpub({ articleUrl, title, contentHtml: content });
+			res
+				.status(200)
+				.set({
+					"Content-Type": "application/epub+zip",
+					"Content-Disposition": `attachment; filename="${epubFilename({ title, articleUrl })}"`,
+					"Cache-Control": "private, no-cache",
+					"X-Robots-Tag": "noindex",
+					"Content-Signal": "search=no, ai-input=no, ai-train=no",
+				})
+				.send(Buffer.from(epubBytes));
+			return;
+		}
 		const hostname = articleHostFrom(articleUrl);
 		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
 		const stubReadTime = calculateReadTime(0);
+		const gated = isNonArticleHost(articleUrl);
 		// A prefetch gets the rendered page (stub metadata below) but triggers
 		// none of the paid crawl work: a speculative fetch is not a reader asking
 		// to spend budget. Bots are deliberately NOT excluded — a third-party
@@ -241,7 +276,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// it came for. The per-IP budget below caps the first-visit cascade; a
 		// repeat visit only publishes a stale check, which the stale-check
 		// handler TTL-bounds per article.
-		if (!isPrefetch(req)) {
+		if (!isPrefetch(req) && !gated) {
 			if (!existing) {
 				// First visit is the request that triggers the whole crawl cascade
 				// (stub save → crawl → summary → possibly OCR), each leg with real
@@ -279,7 +314,9 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const articleSnapshot = await deps.findArticleByUrl(articleUrl);
 		const pendingSnapshot: { metadata: ArticleMetadata; estimatedReadTime: Minutes } =
 			existing ?? { metadata: stubMetadata, estimatedReadTime: stubReadTime };
-		const snapshot = articleSnapshot ?? pendingSnapshot;
+		const snapshot = gated
+			? { metadata: stubMetadata, estimatedReadTime: stubReadTime }
+			: (articleSnapshot ?? pendingSnapshot);
 		const metadata: ArticleMetadata = snapshot.metadata;
 		const estimatedReadTime: Minutes = snapshot.estimatedReadTime;
 
@@ -304,7 +341,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 
 		if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
 			assert(req.visitorId, "visitor-id middleware must run before the /view router");
-			deps.analytics.info({
+			deps.recordAnalyticsEvent(req, {
 				stream: STREAMS.analytics,
 				event: ANALYTICS_EVENTS.viewOpened,
 				timestamp: deps.now().toISOString(),
@@ -332,8 +369,18 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			}),
 			PASTE_ANOTHER_ACTION,
 		];
+		if (state.content !== undefined && revealsEpubDownload(req.query.feature)) {
+			actions.push({
+				key: "download-epub",
+				name: "Download EPUB",
+				shortName: "EPUB",
+				href: epubDownloadHref({ articleUrl, utmSource: "view-article" }),
+				variant: "secondary",
+			});
+		}
 
-		const showExtensionSuggestionBanner = state.readerViewFailed;
+		const showExtensionSuggestionBanner =
+			state.readerViewFailed && canOfferExtensionInstall(req);
 
 		sendComponent(
 			req, res,
@@ -354,6 +401,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					saveTip,
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
 					crawlVersions: state.crawlVersions,
+					readerNotice: state.notice,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),
@@ -438,13 +486,18 @@ function redirectMixedCaseMount(req: Request, res: Response, next: NextFunction)
 export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
 	const reader = initArticleReader(buildArticleReaderDeps(deps));
+	const buildArticleEpub = initBuildArticleEpub({
+		readArticleImage: deps.readArticleImage,
+		logError: deps.logError,
+		now: deps.now,
+	});
 
 	router.use(redirectMixedCaseMount);
 
 	router.get("/", handleViewRoot(deps));
 	router.get("/summary", handleViewSummary(deps, reader));
 	router.get("/reader", handleViewReader(deps, reader));
-	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader));
+	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader, buildArticleEpub));
 
 	return router;
 }

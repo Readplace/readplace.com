@@ -112,6 +112,25 @@ describe("initCrawlAndFinalizeArticle", () => {
 		});
 	});
 
+	it("carries a structured content-too-large reason through the unsupported status", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "unsupported",
+				reason: "content body too large: 54090542 bytes (cap 29360128 bytes)",
+				unsupportedReason: { kind: "content-too-large", bytes: 54090542 },
+			}),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({
+			status: "unsupported",
+			reason: "content body too large: 54090542 bytes (cap 29360128 bytes)",
+			unsupportedReason: { kind: "content-too-large", bytes: 54090542 },
+		});
+	});
+
 	it("maps the crawler's failed status to status:failed with a stable reason", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle: async () => ({ status: "failed" }),
@@ -135,6 +154,26 @@ describe("initCrawlAndFinalizeArticle", () => {
 			status: "failed",
 			reason: "crawl-failed",
 			finalUrl: "https://dest.example/article",
+		});
+	});
+
+	it("threads the crawler's failure classification through so save-link-work can persist a precise reason", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "failed",
+				finalUrl: "https://dest.example/article",
+				failure: { kind: "origin-unreachable", httpStatus: 503 },
+			}),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({
+			status: "failed",
+			reason: "crawl-failed",
+			finalUrl: "https://dest.example/article",
+			failure: { kind: "origin-unreachable", httpStatus: 503 },
 		});
 	});
 

@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
-import type { SuperTest, Test } from "supertest";
 import request from "supertest";
 import type {
 	CheckoutSessionId,
 	CheckoutVariant,
 } from "@packages/provider-contracts/hosted-checkout";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import type { AuthBundle, PendingSignupBundle } from "../../../test-app";
 
 interface HostedCheckoutLike {
 	createCheckoutSession: (input: {
 		customerEmail: string;
+		priceId: string;
 		successUrl: string;
 		cancelUrl: string;
 	}) => Promise<{ id: CheckoutSessionId; url: string }>;
@@ -36,7 +38,8 @@ export async function completeCheckoutSignup(params: {
 	returnUrl?: string;
 	trialEndsAt?: string;
 	variant?: CheckoutVariant;
-	agent?: SuperTest<Test>;
+	plan?: BillingPlan;
+	agent?: ReturnType<typeof request.agent>;
 }): Promise<{
 	successResponse: import("supertest").Response;
 	checkoutSessionId: CheckoutSessionId;
@@ -49,6 +52,7 @@ export async function completeCheckoutSignup(params: {
 
 	const checkout = await params.hostedCheckout.createCheckoutSession({
 		customerEmail: params.email,
+		priceId: `price_test_${params.plan ?? "yearly"}`,
 		successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 		cancelUrl: "http://localhost:3000/signup",
 	});
@@ -61,12 +65,14 @@ export async function completeCheckoutSignup(params: {
 			...(params.returnUrl ? { returnUrl: params.returnUrl } : {}),
 			...(params.trialEndsAt ? { trialEndsAt: params.trialEndsAt } : {}),
 			...(params.variant ? { variant: params.variant } : {}),
+			...(params.plan ? { plan: params.plan } : {}),
 		},
 		createdAt: 1735000000,
 	});
 	params.hostedCheckout.markPaid(checkout.id);
 
-	const agent = params.agent ?? request.agent(params.server);
+	const agent =
+		params.agent ?? request.agent(params.server).set("User-Agent", BROWSER_USER_AGENT);
 	const successResponse = await agent.get(
 		`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 	);

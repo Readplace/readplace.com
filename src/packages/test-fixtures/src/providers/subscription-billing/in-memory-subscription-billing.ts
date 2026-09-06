@@ -3,6 +3,7 @@ import type {
 	CancelSubscriptionImmediately,
 	CreateSubscriptionOnExistingCustomer,
 	FindSubscriptionNextCharge,
+	OnUnpaidFirstInvoice,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
 	SubscriptionNextCharge,
@@ -29,6 +30,7 @@ export function initInMemorySubscriptionBilling(opts?: {
 		customerId: string;
 		priceId: string;
 		userId: UserId;
+		onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
 		subscriptionId: string;
 	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
@@ -38,8 +40,13 @@ export function initInMemorySubscriptionBilling(opts?: {
 	nextChargeLookups: () => readonly string[];
 } {
 	const cancelled: string[] = [];
-	const created: { customerId: string; priceId: string; userId: UserId; subscriptionId: string }[] =
-		[];
+	const created: {
+		customerId: string;
+		priceId: string;
+		userId: UserId;
+		onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
+		subscriptionId: string;
+	}[] = [];
 	const scheduledCancellationCalls: { subscriptionId: string; cancellationEffectiveAt: string }[] = [];
 	const reversed: string[] = [];
 	const nextCharges = new Map<string, SubscriptionNextCharge>();
@@ -55,12 +62,13 @@ export function initInMemorySubscriptionBilling(opts?: {
 		customerId,
 		priceId,
 		userId,
+		onUnpaidFirstInvoice,
 	}) => {
 		if (opts?.createSubscriptionFails) {
 			throw new Error("In-memory billing createSubscription failure");
 		}
 		const subscriptionId = `sub_inmem_${nextId++}`;
-		created.push({ customerId, priceId, userId, subscriptionId });
+		created.push({ customerId, priceId, userId, onUnpaidFirstInvoice, subscriptionId });
 		return { subscriptionId };
 	};
 

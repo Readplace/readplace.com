@@ -56,4 +56,4 @@ There is a smaller benefit on your side too. You send the copy you already trust
 
 > The link you share matches the page you read, down to the thumbnail.
 
-Save an article, tap share, and paste the link into a chat with yourself first. Look at how the preview renders. Then send the next good read to someone who will thank you for the clean version. Start at [readplace.com](/) or [install the browser extension](https://readplace.com/install).
+Save an article, tap share, and paste the link into a chat with yourself first. Look at how the preview renders. Then send the next good read to someone who will thank you for the clean version. Start at [readplace.com](/?utm_source=blog-share-a-clean-article-link&utm_medium=internal&utm_content=home) or [install the browser extension](https://readplace.com/install).

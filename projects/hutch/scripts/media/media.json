@@ -1,0 +1,353 @@
+{
+  "origin": "https://readplace.com",
+  "screenDevice": "4",
+  "volatile": [
+    "[data-test-onboarding]",
+    "[data-test-subscription-banner]",
+    "[data-test-verify-banner]",
+    "[data-test-changelog]",
+    "[data-test-trial-countdown]",
+    "[data-test-extension-suggestion-banner]",
+    ".offline-banner"
+  ],
+  "stills": {
+    "readlist-1440": {
+      "page": "readlist",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    "readlist-1280": {
+      "page": "readlist",
+      "viewport": [
+        1280,
+        800
+      ]
+    },
+    "reader-1440": {
+      "page": "reader",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    "reader-1280": {
+      "page": "reader",
+      "viewport": [
+        1280,
+        800
+      ]
+    },
+    "import-1280": {
+      "page": "import",
+      "viewport": [
+        1280,
+        800
+      ]
+    }
+  },
+  "linksPage": "https://news.ycombinator.com/",
+  "outputs": [
+    {
+      "file": "projects/hutch/static-assets/screenshots/queue.webp",
+      "still": "readlist-1440",
+      "callout": {
+        "around": "#latest-saved",
+        "pad": [
+          26,
+          22
+        ],
+        "arrowFrom": "e",
+        "stroke": 7
+      }
+    },
+    {
+      "file": "projects/hutch/static-assets/screenshots/reader-tldr.webp",
+      "still": "reader-1440",
+      "callout": {
+        "around": ".article-body__summary-heading",
+        "pad": [
+          22,
+          16
+        ],
+        "arrowFrom": "e",
+        "stroke": 7,
+        "tight": true
+      }
+    },
+    {
+      "file": "projects/hutch/static-assets/screenshots/og-install-1200x630.png",
+      "still": "readlist-1440",
+      "cropBelow": "header.header",
+      "size": [
+        1200,
+        630
+      ]
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/02-queue.png",
+      "still": "readlist-1280",
+      "callout": {
+        "around": "#latest-saved",
+        "pad": [
+          26,
+          22
+        ],
+        "arrowFrom": "e",
+        "stroke": 9
+      }
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/03-reader-tldr.png",
+      "still": "reader-1280",
+      "callout": {
+        "around": ".article-body__summary-heading",
+        "pad": [
+          22,
+          16
+        ],
+        "arrowFrom": "e",
+        "stroke": 9,
+        "tight": true
+      }
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/04-import-links.png",
+      "still": "import-1280",
+      "callout": {
+        "around": "[data-test-action=\"import-commit\"]",
+        "pad": [
+          30,
+          18
+        ],
+        "arrowFrom": "se",
+        "stroke": 9
+      }
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/01-save-from-extension.png",
+      "source": "projects/hutch/test-results/media/chrome-save-demo/saved-still.png",
+      "size": [
+        1280,
+        800
+      ],
+      "callout": {
+        "around": [
+          797,
+          84,
+          352,
+          200
+        ],
+        "pad": [
+          24,
+          14
+        ],
+        "arrowFrom": "w",
+        "stroke": 9
+      }
+    },
+    {
+      "file": "projects/browser-extensions/chrome-extension/store-assets/promo-marquee-1400x560.png",
+      "still": "readlist-1440",
+      "card": {
+        "rect": [
+          727,
+          90,
+          608,
+          380
+        ],
+        "radius": 12
+      }
+    }
+  ],
+  "videos": {
+    "chrome-save-demo": {
+      "output": {
+        "video": "projects/hutch/static-assets/videos/chrome-save-demo-h264.mp4",
+        "poster": "projects/hutch/static-assets/videos/chrome-save-demo-poster.webp",
+        "width": 1280,
+        "height": 800
+      },
+      "cut": {
+        "introMs": 800,
+        "leadMs": 500,
+        "holdMs": 1200,
+        "holds": {
+          "toolbar-icon": 8000
+        }
+      },
+      "poster": {
+        "after": "toolbar-icon",
+        "offsetMs": 5500
+      },
+      "desktop": {
+        "browser": "chrome",
+        "profileDirEnv": "CHROME_PROFILE_DIR",
+        "pinnedMarker": "klblengmhlfnmjoagchagfcdbpbocgbf",
+        "article": "https://plato.stanford.edu/entries/church-turing/",
+        "window": [
+          100,
+          40,
+          1280,
+          800
+        ],
+        "settleMs": 6000,
+        "steps": [
+          {
+            "label": "extensions-menu",
+            "at": [
+              1167,
+              62
+            ]
+          },
+          {
+            "label": "pin",
+            "at": [
+              1098,
+              218
+            ]
+          },
+          {
+            "label": "close-menu",
+            "at": [
+              1156,
+              110
+            ]
+          },
+          {
+            "label": "toolbar-icon",
+            "at": [
+              1130,
+              62
+            ],
+            "still": "saved-still"
+          }
+        ]
+      }
+    },
+    "firefox-save-demo": {
+      "output": {
+        "video": "projects/hutch/static-assets/videos/firefox-save-demo-h264.mp4",
+        "poster": "projects/hutch/static-assets/videos/firefox-save-demo-poster.webp",
+        "width": 1280,
+        "height": 800
+      },
+      "cut": {
+        "introMs": 800,
+        "leadMs": 500,
+        "holdMs": 1200,
+        "holds": {
+          "toolbar-icon": 8000
+        }
+      },
+      "poster": {
+        "after": "toolbar-icon",
+        "offsetMs": 5500
+      },
+      "desktop": {
+        "browser": "firefox",
+        "profileDirEnv": "FIREFOX_PROFILE_DIR",
+        "pinnedMarker": "hutch-extension_hutch-app_com-browser-action",
+        "article": "https://plato.stanford.edu/entries/turing-machine/",
+        "window": [
+          232,
+          40,
+          1280,
+          800
+        ],
+        "settleMs": 6000,
+        "steps": [
+          {
+            "label": "extensions-menu",
+            "at": [
+              1215,
+              44
+            ]
+          },
+          {
+            "label": "row-menu",
+            "at": [
+              1209,
+              163
+            ]
+          },
+          {
+            "label": "pin-to-toolbar",
+            "at": [
+              1136,
+              230
+            ]
+          },
+          {
+            "label": "close-menu",
+            "key": "esc"
+          },
+          {
+            "label": "toolbar-icon",
+            "at": [
+              1218,
+              64
+            ]
+          }
+        ]
+      }
+    },
+    "android-share-demo": {
+      "output": {
+        "video": "projects/hutch/static-assets/videos/android-share-demo-h264.mp4",
+        "poster": "projects/hutch/static-assets/videos/android-share-demo-poster.webp",
+        "width": 540,
+        "height": 1212
+      },
+      "indicator": {
+        "radius": 46,
+        "stroke": 7,
+        "leadMs": 350,
+        "lagMs": 250
+      },
+      "cut": {
+        "introMs": 800,
+        "leadMs": 600,
+        "holdMs": 1400,
+        "holds": {
+          "pin-readplace": 2600,
+          "sheet-resorted": 1800,
+          "back-in-chrome": 2000
+        }
+      },
+      "poster": {
+        "after": "pin-readplace",
+        "offsetMs": 1200
+      }
+    },
+    "ios-share-demo": {
+      "output": {
+        "video": "projects/hutch/static-assets/videos/ios-share-demo-h264.mp4",
+        "poster": "projects/hutch/static-assets/videos/ios-share-demo-poster.webp",
+        "width": 540,
+        "height": 1174
+      },
+      "indicator": {
+        "radius": 46,
+        "stroke": 7,
+        "leadMs": 350,
+        "lagMs": 250
+      },
+      "cut": {
+        "introMs": 800,
+        "leadMs": 600,
+        "holdMs": 1400,
+        "holds": {
+          "readplace": 2600,
+          "sheet-dismissed": 1500,
+          "row-visible": 3500
+        }
+      },
+      "poster": {
+        "after": "readplace",
+        "offsetMs": 0
+      }
+    }
+  }
+}

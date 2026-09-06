@@ -1,12 +1,20 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
+import {
+	SUBSCRIBE_PLANS_STYLES,
+	renderSubscribePlansPopover,
+} from "../../shared/subscribe-plans/subscribe-plans.component";
 import { ACCOUNT_STYLES } from "./account.styles";
 import { ACCOUNT_EXPORT_URL } from "./account.url";
-import type { AccountViewModel, CardSectionViewModel } from "./account.view-model";
-import type { SharedLinksViewModel } from "./shared-links.view-model";
+import type {
+	AccountAction,
+	AccountViewModel,
+	AppearanceSectionViewModel,
+	CardSectionViewModel,
+} from "./account.view-model";
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
 const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.template.html"), "utf-8");
@@ -32,15 +40,47 @@ export interface AccountSurface {
 	backLink: { href: string; label: string };
 }
 
+const ACCOUNT_ACTION_FORM_CLASS = "account-card__action-form";
+
+interface AccountCardPopoverTrigger {
+	popoverTarget: string;
+	buttonClass: string;
+	label: string;
+	testAction: string;
+}
+
+interface AccountCardAction extends AccountAction {
+	formClass: string;
+	popoverTriggers: readonly AccountCardPopoverTrigger[];
+}
+
+function toAccountCardAction(action: AccountAction): AccountCardAction {
+	const popoverTarget = action.popoverTarget;
+	if (popoverTarget === undefined) {
+		return { ...action, formClass: ACCOUNT_ACTION_FORM_CLASS, popoverTriggers: [] };
+	}
+	return {
+		...action,
+		formClass: `${ACCOUNT_ACTION_FORM_CLASS} subscribe-plans__fallback`,
+		popoverTriggers: [
+			{
+				popoverTarget,
+				buttonClass: `${action.buttonClass} subscribe-plans__trigger`,
+				label: action.name,
+				testAction: `${popoverTarget}-open`,
+			},
+		],
+	};
+}
+
 export function renderAccountCard(vm: AccountViewModel): string {
-	return render(ACCOUNT_CARD_TEMPLATE, vm);
+	return render(ACCOUNT_CARD_TEMPLATE, { ...vm, actions: vm.actions.map(toAccountCardAction) });
 }
 
 export function AccountPage(
 	vm: AccountViewModel,
 	cardSection: CardSectionViewModel,
-	sharedLinks: SharedLinksViewModel,
-	page: { email: string; surface?: AccountSurface },
+	page: { email: string; appearance: AppearanceSectionViewModel; surface?: AccountSurface },
 ): PageBody {
 	const surface = page.surface;
 	return {
@@ -50,15 +90,18 @@ export function AccountPage(
 			canonicalUrl: "/account",
 			robots: "noindex, nofollow",
 		},
-		styles: ACCOUNT_STYLES,
+		styles: `${ACCOUNT_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${SUBSCRIBE_PLANS_STYLES}`,
 		bodyClass: surface ? "page-account page-account--chromeless" : "page-account",
 		content: {
 			html: render(ACCOUNT_TEMPLATE, {
 				...vm,
 				cardSection,
-				sharedLinks,
 				cardHtml: renderAccountCard(vm),
+				subscribePlansHtml: vm.actions.some((action) => action.popoverTarget !== undefined)
+					? renderSubscribePlansPopover({ source: "account" })
+					: "",
 				email: page.email,
+				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
 				backLink: surface?.backLink,
 			}),

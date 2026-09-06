@@ -69,6 +69,21 @@ describe("POST /integrations/gmail/connect", () => {
 		expect(url.searchParams.get("redirect_uri")).toBe(`${TEST_APP_ORIGIN}${CALLBACK}`);
 	});
 
+	it("hands an htmx client an HX-Redirect to Google instead of a cross-origin 303", async () => {
+		const { fixture } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.post(CONNECT).set("HX-Request", "true").send();
+
+		expect(response.status).toBe(200);
+		expect(response.headers.location).toBeUndefined();
+		const hxRedirect = response.headers["hx-redirect"];
+		assert(typeof hxRedirect === "string", "an htmx connect must carry an HX-Redirect header");
+		const url = new URL(hxRedirect);
+		expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+	});
+
 	it("requires a signed-in reader", async () => {
 		const { fixture } = fixtureWithGmail();
 		const harness = useApp(fixture);

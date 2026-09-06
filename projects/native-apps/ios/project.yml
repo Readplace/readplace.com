@@ -65,6 +65,22 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1"
 
+  ReadplaceUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: Readplace
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.readplace.UITests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+    scheme:
+      testTargets:
+        - ReadplaceUITests
+
   ReadplaceTests:
     type: bundle.unit-test
     platform: iOS
@@ -76,3 +92,4 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.readplace.Tests
         GENERATE_INFOPLIST_FILE: YES
+

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { IconName } from "@packages/ui-icons";
 import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
-import type { Platform } from "../../onboarding/onboarding.types";
+import type { OnboardingContext } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "@packages/web-analytics";
 import {
 	render,
@@ -14,8 +14,16 @@ import {
 import type { CspNonce, LocalTime, PageBody } from "@packages/web-shell";
 
 import { READLIST_STYLES } from "./readlist.styles";
+import {
+	READER_PAGE_SCRIPTS,
+	renderReaderSkeleton,
+} from "./reader-skeleton/reader-skeleton.component";
 import { renderReadlistCountsTrigger, renderStatusToast } from "./readlist-mutation-fragments";
 import { renderReadlistCard, toReadlistCardDisplayModel } from "./readlist-card/readlist-card.component";
+import {
+	renderReadlistSaveSkeleton,
+	toReadlistSaveSkeletonDisplayModel,
+} from "./readlist-save-skeleton.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { buildReadlistFilters, renderReadlistFilters } from "./readlist-filters.component";
@@ -25,12 +33,16 @@ import {
 	readlistDeleteConfirmPopoverId,
 	renderReadlistDeleteConfirm,
 } from "./readlist-delete-confirm.component";
+import {
+	SUBSCRIBE_PLANS_POPOVER_ID,
+	SUBSCRIBE_PLANS_STYLES,
+	renderSubscribePlansPopover,
+} from "../../shared/subscribe-plans/subscribe-plans.component";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { ReadlistViewModel, SubscriptionBannerState } from "./readlist.viewmodel";
 import {
-	READLIST_DISMISS_ONBOARDING_PATH,
 	READLIST_SAVE_PATH,
 	buildReadlistUrl,
 	readlistDeletePath,
@@ -89,11 +101,14 @@ interface ReadlistDisplayModel {
 	subscriptionBannerIsCancellationScheduled: boolean;
 	subscriptionBannerIsInactive: boolean;
 	subscribeCtaLabel: string;
+	subscribePlansPopoverId: string;
+	subscribePlansHtml: string;
 	trialDaysLeft?: number;
 	trialDaysLeftWord?: string;
 	cancellationEffectiveAt?: LocalTime;
 	accessIsReadOnly: boolean;
 	saveFormClass: string;
+	saveSkeletonHtml: string;
 	saveBarHidden: boolean;
 	defaultReadlistUrl: string;
 	defaultReadlistLabel: string;
@@ -112,21 +127,30 @@ export function emptyStateTitle(input: { tab: TabId; readlistHoldsArticles: bool
 	return input.readlistHoldsArticles ? EMPTY_STATE_TITLES[input.tab] : NOTHING_SAVED_TITLE;
 }
 
-function readlistDeleteConfirmPanel(rail: ReadlistRailViewModel): string {
+function readlistDeleteConfirmPanels(rail: ReadlistRailViewModel): string {
 	if (!rail.canCreate) return "";
-	const active = rail.activeReadlist;
-	if (active.slug === DEFAULT_READLIST.slug) return "";
-	return renderReadlistDeleteConfirm({
-		popoverId: readlistDeleteConfirmPopoverId(active.slug),
-		url: `${readlistDeletePath(active.slug)}${readlistReturnQuery({})}`,
-		label: active.label,
-		destinations: rail.readlists.filter(
-			(readlist) => readlist.slug !== DEFAULT_READLIST.slug && readlist.slug !== active.slug,
-		),
-	});
+	const owned = rail.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST.slug);
+	const returnQuery = readlistReturnQuery({ readlist: rail.activeReadlist.slug });
+	return owned
+		.map((readlist) =>
+			renderReadlistDeleteConfirm({
+				popoverId: readlistDeleteConfirmPopoverId(readlist.slug),
+				url: `${readlistDeletePath(readlist.slug)}${returnQuery}`,
+				label: readlist.label,
+				destinations: owned.filter((other) => other.slug !== readlist.slug),
+			}),
+		)
+		.join("\n");
 }
 
-function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; installed: boolean; savedArticle: boolean; savedCount: number; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail: ReadlistRailViewModel; saveTip: SaveTip }): ReadlistDisplayModel {
+interface ReadlistOnboarding {
+	context: OnboardingContext;
+	dismissed: boolean;
+	completedBefore: boolean;
+	completionUnearned: boolean;
+}
+
+function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; knownUnreadCount?: number; onboarding: ReadlistOnboarding; deviceClass: DeviceClass; rail: ReadlistRailViewModel; saveTip: SaveTip }): ReadlistDisplayModel {
 	const activeTab = vm.filters.tab;
 	const saveBarHidden = vm.filters.readlist !== DEFAULT_READLIST.slug;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
@@ -144,25 +168,16 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 		},
 	);
 
-	const onboardingHtml = OnboardingChecklist(
-		options.hasInstallableClient
-			? {
-				hasInstallableClient: true,
-				installed: options.installed,
-				savedArticle: options.savedArticle,
-				savedCount: options.savedCount,
-				platform: options.platform,
-			}
-			: { hasInstallableClient: false },
-		{
-			dismissed: options.onboardingDismissed,
-			completedBefore: options.onboardingCompletedBefore,
-			completionUnearned: options.onboardingCompletionUnearned,
-			dismissAction: `${READLIST_DISMISS_ONBOARDING_PATH}${readlistReturnQuery(vm.filters)}`,
-		},
-	);
+	const onboardingHtml = OnboardingChecklist(options.onboarding.context, {
+		dismissed: options.onboarding.dismissed,
+		completedBefore: options.onboarding.completedBefore,
+		completionUnearned: options.onboarding.completionUnearned,
+		returnQuery: readlistReturnQuery(vm.filters),
+	});
 
 	const banner: SubscriptionBannerState = vm.subscriptionBanner;
+	const bannerIsTrialCountdown = banner.state === "trial-countdown";
+	const bannerIsInactive = banner.state === "inactive";
 	return {
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
@@ -204,7 +219,7 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 						],
 			)
 			.join("\n"),
-		readlistDeleteConfirmHtml: readlistDeleteConfirmPanel(options.rail),
+		readlistDeleteConfirmHtml: readlistDeleteConfirmPanels(options.rail),
 		readlistNavHtml: renderReadlistNav(
 			buildReadlistNav({
 				readlists: options.rail.readlists,
@@ -224,6 +239,7 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 				activeTab,
 				order: vm.filters.order,
 				readlist: vm.filters.readlist,
+				knownUnreadCount: options.knownUnreadCount,
 			}),
 		),
 		countsSpanHtml: renderReadlistCountsTrigger({ countsUrl: vm.countsUrl }),
@@ -241,12 +257,17 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			: undefined,
 		currentPage: vm.currentPage,
 		subscriptionBannerStateClass: `readlist-banner--${banner.state}`,
-		subscriptionBannerIsTrialCountdown: banner.state === "trial-countdown",
+		subscriptionBannerIsTrialCountdown: bannerIsTrialCountdown,
 		subscriptionBannerIsCancellationScheduled: banner.state === "cancellation-scheduled",
-		subscriptionBannerIsInactive: banner.state === "inactive",
+		subscriptionBannerIsInactive: bannerIsInactive,
 		subscribeCtaLabel: SUBSCRIBE_CTA_LABEL,
-		trialDaysLeft: banner.state === "trial-countdown" ? banner.daysLeft : undefined,
-		trialDaysLeftWord: banner.state === "trial-countdown" ? banner.daysLeftWord : undefined,
+		subscribePlansPopoverId: SUBSCRIBE_PLANS_POPOVER_ID,
+		subscribePlansHtml:
+			bannerIsTrialCountdown || bannerIsInactive
+				? renderSubscribePlansPopover({ source: "queue-banner" })
+				: "",
+		trialDaysLeft: bannerIsTrialCountdown ? banner.daysLeft : undefined,
+		trialDaysLeftWord: bannerIsTrialCountdown ? banner.daysLeftWord : undefined,
 		cancellationEffectiveAt: banner.state === "cancellation-scheduled" ? banner.cancellationEffectiveAt : undefined,
 		accessIsReadOnly: vm.accessIsReadOnly,
 		saveFormClass: [
@@ -254,6 +275,12 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			saveBarHidden ? "readlist__save-form--hidden" : "readlist__save-form--visible",
 			...(vm.accessIsReadOnly ? ["readlist__save-form--disabled"] : []),
 		].join(" "),
+		saveSkeletonHtml: renderReadlistSaveSkeleton(
+			toReadlistSaveSkeletonDisplayModel({
+				filters: vm.filters,
+				accessIsReadOnly: vm.accessIsReadOnly,
+			}),
+		),
 		saveBarHidden,
 		defaultReadlistUrl: buildReadlistUrl({}),
 		defaultReadlistLabel: DEFAULT_READLIST.label,
@@ -281,12 +308,21 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
+export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; knownUnreadCount?: number; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; onboarding: ReadlistOnboarding }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
-	const content = render(READLIST_TEMPLATE, { ...displayModel, saveUrl });
+	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, knownUnreadCount: options.knownUnreadCount, onboarding: options.onboarding, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
+	const content = render(READLIST_TEMPLATE, {
+		...displayModel,
+		saveUrl,
+		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
+	});
 
-	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT, READLIST_RENAME_SCRIPT];
+	const scriptParts: string[] = [
+		NAV_HIDE_SCRIPT,
+		SAVE_TIP_SCRIPT,
+		READLIST_RENAME_SCRIPT,
+		READER_PAGE_SCRIPTS,
+	];
 	if (saveUrl) scriptParts.push(autoSubmitScript(options.cspNonce));
 
 	return {
@@ -296,10 +332,9 @@ export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonc
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${READLIST_STYLES}\n${ONBOARDING_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
+		styles: `${READLIST_STYLES}\n${ONBOARDING_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${SUBSCRIBE_PLANS_STYLES}`,
 		bodyClass: "page-readlist",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),
-		statusCode: options.statusCode,
 	};
 }

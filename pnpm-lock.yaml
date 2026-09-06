@@ -23,6 +23,9 @@ importers:
       '@types/node':
         specifier: 22.19.19
         version: 22.19.19
+      editorconfig-checker:
+        specifier: 6.1.1
+        version: 6.1.1
       husky:
         specifier: 9.1.7
         version: 9.1.7
@@ -108,6 +111,9 @@ importers:
       '@packages/test-fixtures':
         specifier: workspace:*
         version: link:../../src/packages/test-fixtures
+      '@packages/web-test-harness':
+        specifier: workspace:*
+        version: link:../../src/packages/web-test-harness
       '@pulumi/aws':
         specifier: 7.32.0
         version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
@@ -147,9 +153,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -272,9 +275,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -339,9 +339,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -423,6 +420,9 @@ importers:
       '@packages/onboarding-extension-signal':
         specifier: workspace:*
         version: link:../../src/packages/onboarding-extension-signal
+      '@packages/onboarding-signals':
+        specifier: workspace:*
+        version: link:../../src/packages/onboarding-signals
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../../src/packages/provider-contracts
@@ -474,6 +474,9 @@ importers:
       express:
         specifier: 5.2.1
         version: 5.2.1
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3
@@ -562,9 +565,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       esbuild:
         specifier: 'catalog:'
         version: 0.28.0
@@ -728,9 +728,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       esbuild:
         specifier: 'catalog:'
         version: 0.28.0
@@ -825,6 +822,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../../src/packages/hutch-storage-client
+      '@packages/onboarding-signals':
+        specifier: workspace:*
+        version: link:../../src/packages/onboarding-signals
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../../src/packages/provider-contracts
@@ -944,6 +944,9 @@ importers:
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../src/packages/test-phase-runner
+      '@packages/web-test-harness':
+        specifier: workspace:*
+        version: link:../../src/packages/web-test-harness
       '@playwright/test':
         specifier: 1.60.0
         version: 1.60.0
@@ -977,9 +980,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -1531,6 +1531,37 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  src/packages/onboarding-signals:
+    dependencies:
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../hutch-storage-client
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   src/packages/provider-contracts:
     dependencies:
       '@node-oauth/oauth2-server':
@@ -1934,6 +1965,9 @@ importers:
 
   src/packages/web-shell:
     dependencies:
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../supported-clients
@@ -2007,6 +2041,9 @@ importers:
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
       supertest:
         specifier: 7.2.2
         version: 7.2.2
@@ -3043,21 +3080,25 @@ packages:
     resolution: {integrity: sha512-QLnkJl3HkHsPfpLiNiAiMfpfAeFpic0U1diAxF8RqChOkCpQ7ulvyBVgE1UrQxvhd+gFQ3ed5RNDxtCRw8nTiw==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@nx/nx-linux-arm64-musl@22.7.5':
     resolution: {integrity: sha512-cEP6KmwBgnb38+jTTaibWCjwXcHmigqhTfy0tN1be7WZr6bHxbqNLsXqKRN70PSNA3HouZcxw1cdRL8tqbPBBA==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@nx/nx-linux-x64-gnu@22.7.5':
     resolution: {integrity: sha512-tbaX1tZCSpGifDNBfDdEZAMxVF3Yg4bhFP/bm1needc0diqb+Zflc0u5tM5/6BWDMITQDwenJVsNiQ8ZdtJURA==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@nx/nx-linux-x64-musl@22.7.5':
     resolution: {integrity: sha512-H0M7csOZIgPT822LqjxSXzf4MXRND15vIkAQe3F3Jlr3Si8LC3tzbL52aVcRfgb8MF/xOB5U47mSwxWt1M2bPQ==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@nx/nx-win32-arm64-msvc@22.7.5':
     resolution: {integrity: sha512-JTcZch9YAnDL1gbhqePz3DZ4x7iYemLn1yJzrjbbXAmXju2eiiJiZvJJHbV06+SP9HKXDT8RjTKuAWTdVxnHug==}
@@ -4777,6 +4818,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.2:
+    resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
 
   figures@3.2.0:
     resolution: {integrity: sha512-yaduQFRKLXYOGgEn6AZau90j3ggSOyiqXU0F9JZfeXYhNa+Jk4X+s45A2zg5jns87GAFa34BBm2kXw4XpNcbdg==}
@@ -10127,6 +10171,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
+
+  fflate@0.8.2: {}
 
   figures@3.2.0:
     dependencies:

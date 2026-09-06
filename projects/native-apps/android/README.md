@@ -19,6 +19,13 @@ The emulator detaches from the shell that starts it, and its AVD is shared with 
 of this repo on the machine, so nothing else will stop it. Whoever runs `emulator-boot` runs
 `emulator-stop`.
 
+`scripts/record-share-demo.sh <article-url>` records the share-sheet demo the web serves from
+`/help/add-links?platform=android`. It drives Chrome's menu, the share sheet, the long-press pin and
+the save, then writes a take the hutch media toolkit encodes — see
+[its runbook](../../hutch/scripts/media/README.md). It needs the app installed and signed in on a
+visible emulator (`make emulator-window`), and it unpins Readplace itself between takes so the
+recording can teach the pinning.
+
 Every toolchain invocation goes through `scripts/ax.sh`. See
 [`.claude/skills/android-emulator/SKILL.md`](../../../.claude/skills/android-emulator/SKILL.md)
 for the one-time SDK setup and the emulator troubleshooting.

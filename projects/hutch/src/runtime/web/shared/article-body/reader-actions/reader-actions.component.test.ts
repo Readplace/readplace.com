@@ -22,6 +22,8 @@ const ACTION_BTNS: ActionButtons = {
 			position: "top",
 			postUrl: "/queue/abc/status?utm_content=mark-read-top",
 			label: "Mark as read",
+			shortLabel: "Read",
+			iconName: "check",
 			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
 		},
@@ -29,6 +31,8 @@ const ACTION_BTNS: ActionButtons = {
 			position: "bottom",
 			postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
 			label: "Mark as read",
+			shortLabel: "Read",
+			iconName: "check",
 			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
 		},
@@ -51,6 +55,7 @@ describe("readlist picker", () => {
 						{ slug: ReadlistSlugSchema.parse("work"), label: "Work" },
 						{ slug: ReadlistSlugSchema.parse("later"), label: "Later" },
 					],
+					create: undefined,
 				},
 			},
 		});
@@ -74,6 +79,51 @@ describe("readlist picker", () => {
 		expect(
 			Array.from(doc.querySelectorAll("[data-test-assign-readlist]"), (el) => el.textContent),
 		).toEqual(["Work", "Later"]);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-readlists-row]"), (el) =>
+				el.getAttribute("data-test-readlists-row"),
+			),
+		).toEqual(["work", "later"]);
+	});
+
+	it("appends a create row that posts the typed name to create-and-assign", () => {
+		const { top } = StickyReader({
+			actionBtns: {
+				...ACTION_BTNS,
+				readlistPicker: {
+					assignUrl: "/queue/abc/assign",
+					returnTo: "/queue/abc/view",
+					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
+					create: { createUrl: "/queue/abc/create-and-assign", maxLength: 24 },
+				},
+			},
+		});
+		const doc = parse(top.to("text/html").body);
+
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-readlists-row]"), (el) =>
+				el.getAttribute("data-test-readlists-row"),
+			),
+		).toEqual(["work", "create"]);
+
+		const createForm = doc.querySelector('[data-test-readlists-row="create"] form');
+		assert(createForm, "the create row must carry its form");
+		expect(createForm.getAttribute("action")).toBe("/queue/abc/create-and-assign");
+		expect(createForm.getAttribute("hx-disabled-elt")).toBe("find button");
+		expect(createForm.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
+			"/queue/abc/view",
+		);
+
+		const nameInput = doc.querySelector("[data-test-readlist-create-name]");
+		assert(nameInput, "the create row must carry its name input");
+		expect(nameInput.getAttribute("name")).toBe("label");
+		expect(nameInput.hasAttribute("required")).toBe(true);
+		expect(nameInput.getAttribute("maxlength")).toBe("24");
+		expect(nameInput.getAttribute("aria-label")).toBe("New readlist name");
+
+		const submit = doc.querySelector('[data-test-action="readlist-create-assign"]');
+		assert(submit, "the create row must carry its submit button");
+		expect(submit.getAttribute("type")).toBe("submit");
 	});
 
 	it("keeps the slot in the bar, hidden, when there is nothing to offer", () => {
@@ -83,6 +133,98 @@ describe("readlist picker", () => {
 		const slot = doc.querySelector("[data-test-readlists-slot]");
 		assert(slot, "the readlists slot must render");
 		expect(slot.classList.contains("article-body__readlists-slot--hidden")).toBe(true);
+	});
+});
+
+describe("epub download", () => {
+	it("renders the download link in a visible slot when a href is offered", () => {
+		const { top } = StickyReader({
+			actionBtns: { ...ACTION_BTNS, epubDownload: { href: "/view/example.com/a?format=epub" } },
+		});
+		const doc = parse(top.to("text/html").body);
+
+		const slot = doc.querySelector("[data-test-download-epub-slot]");
+		assert(slot, "the download-epub slot must render");
+		expect(slot.classList.contains("article-body__download-epub-slot--visible")).toBe(true);
+		const link = doc.querySelector("[data-test-download-epub]");
+		assert(link, "the download-epub link must render");
+		expect(link.getAttribute("href")).toBe("/view/example.com/a?format=epub");
+	});
+
+	it("keeps the slot in the bar, hidden, when no href is offered", () => {
+		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+		const doc = parse(top.to("text/html").body);
+
+		const slot = doc.querySelector("[data-test-download-epub-slot]");
+		assert(slot, "the download-epub slot must render");
+		expect(slot.classList.contains("article-body__download-epub-slot--hidden")).toBe(true);
+	});
+});
+
+describe("narrow-viewport labels", () => {
+	const NARROW_ACTION_BTNS: ActionButtons = {
+		...ACTION_BTNS,
+		readlistPicker: {
+			assignUrl: "/queue/abc/assign",
+			returnTo: "/queue/abc/view",
+			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
+			create: undefined,
+		},
+		epubDownload: { href: "/view/example.com/a?format=epub" },
+	};
+
+	function topBarOf(actionBtns: ActionButtons): Document {
+		return parse(StickyReader({ actionBtns }).top.to("text/html").body);
+	}
+
+	it("keeps every control's full label in the document so the accessible name survives the swap", () => {
+		const doc = topBarOf(NARROW_ACTION_BTNS);
+
+		const labelled = [
+			"[data-test-back-link]",
+			"[data-test-readlists-trigger]",
+			"[data-test-mark-read-btn]",
+			"[data-test-download-epub]",
+		];
+		expect(
+			labelled.map(
+				(selector) =>
+					doc.querySelector(`${selector} .article-body__action-label`)?.textContent ?? null,
+			),
+		).toEqual(["Back to readlist", "Add to readlist", "Mark as read", "Download EPUB"]);
+	});
+
+	it("offers a short, aria-hidden twin for every control the arrow cannot stand in for", () => {
+		const doc = topBarOf(NARROW_ACTION_BTNS);
+
+		const shorts = Array.from(doc.querySelectorAll(".article-body__action-label-short"));
+		expect(shorts.map((el) => el.textContent)).toEqual(["Add", "Read", "EPUB"]);
+		expect(shorts.map((el) => el.getAttribute("aria-hidden"))).toEqual(["true", "true", "true"]);
+		expect(
+			doc.querySelectorAll("[data-test-back-link] .article-body__action-label-short"),
+		).toHaveLength(0);
+	});
+
+	it("flips the mark-read icon and short label with the direction the button marks in", () => {
+		const doc = topBarOf({
+			...NARROW_ACTION_BTNS,
+			markReadActions: [
+				{
+					position: "top",
+					postUrl: "/queue/abc/status?utm_content=mark-read-top",
+					label: "Mark as unread",
+					shortLabel: "Unread",
+					iconName: "inbox",
+					testAction: "mark-unread",
+					fields: [{ name: "status", value: "unread" }],
+				},
+			],
+		});
+
+		const button = doc.querySelector("[data-test-mark-read-btn]");
+		assert(button, "the mark-read button must render");
+		expect(button.querySelector(".article-body__action-label-short")?.textContent).toBe("Unread");
+		expect(button.querySelector(".article-body__mark-read-icon svg")).not.toBeNull();
 	});
 });
 
@@ -108,6 +250,8 @@ describe("mark-read confirmation", () => {
 						position: "top",
 						postUrl: "/queue/abc/status?utm_content=mark-read-top",
 						label: "Mark as read",
+						shortLabel: "Read",
+						iconName: "check",
 						testAction: "mark-read",
 						fields: [{ name: "status", value: "read" }],
 						confirmPopoverId: "readlist-mark-status-confirm-abc",

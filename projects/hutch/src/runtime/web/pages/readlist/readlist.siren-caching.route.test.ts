@@ -119,13 +119,17 @@ describe("Siren discovery caching (GET /queue)", () => {
 		);
 	});
 
-	it("leaves the browser listing uncached, since only the Siren representation is held", async () => {
+	it("holds the browser listing for a short window, keyed on every header that shapes it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const response = await agent.get("/queue");
 
 		expect(response.status).toBe(200);
-		expect(response.headers["cache-control"]).toBeUndefined();
+		expect(response.headers["cache-control"]).toBe("private, max-age=5");
+		expect(varyFields(response.headers.vary)).toEqual(["accept", "origin", "cookie"]);
+		const etag = response.headers.etag;
+		assert(etag, "the browser listing must carry an ETag so a stale copy can revalidate");
+		expect(etag.startsWith('W/"')).toBe(true);
 	});
 });

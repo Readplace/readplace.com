@@ -32,13 +32,17 @@ export type RecordNextReadMinimumReached = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
-/** Records that the reader was shown the Next Read step with saves still to go
- * (set-once). Its absence beside a reached milestone is what tells the render
- * the step was satisfied by a queue the reader already had, so nothing was
- * accomplished and there is nothing to congratulate.
- * Idempotent — repeated calls never overwrite the first timestamp. */
-export type RecordNextReadStepOutstanding = (params: {
+export type RecordInboxArticleQueued = (params: {
 	userId: UserId;
+}) => Promise<void>;
+
+export type RecordEmailStepMarkedDone = (params: {
+	userId: UserId;
+}) => Promise<void>;
+
+export type RecordOnboardingOutstandingVersion = (params: {
+	userId: UserId;
+	version: string;
 }) => Promise<void>;
 
 /** Records that the reader acknowledged that marking an article read or unread
@@ -61,18 +65,23 @@ export type RecordDeleteArticleAcknowledged = (params: {
  * Per app, `installed` is true once that app has made any authenticated request
  * and `savedArticle` once a save has come from it — both read by the phone's
  * browser, which can't see the app's cookies. `nextReadMinimumReachedAt` is
- * account-scoped rather than device-scoped, and its presence is the milestone;
- * `nextReadStepOutstandingAt` says the reader once had saves to go, so the pair
- * separates a milestone earned from one granted to an already-deep queue. */
+ * account-scoped rather than device-scoped, and its presence is the milestone. */
 export type GetOnboardingSignals = (params: {
 	userId: UserId;
 }) => Promise<{
 	nativeApp: Record<NativeAppPlatform, { installed: boolean; savedArticle: boolean }>;
 	nextReadMinimumReachedAt: Date | undefined;
-	nextReadStepOutstandingAt: Date | undefined;
+	firstInboxArticleQueuedAt: Date | undefined;
+	emailStepMarkedDoneAt: Date | undefined;
+	onboardingOutstandingVersion: string | undefined;
 	markReadAcrossQueuesAckedAt: Date | undefined;
 	deleteArticleAckedAt: Date | undefined;
 }>;
+
+export type MarkFirstInboxEmailNoticeSent = (input: {
+	userId: UserId;
+	sentAt: string;
+}) => Promise<"claimed" | "already-sent">;
 
 /** Delete the single onboarding row for a user (account deletion). */
 export type DeleteOnboarding = (params: { userId: UserId }) => Promise<void>;

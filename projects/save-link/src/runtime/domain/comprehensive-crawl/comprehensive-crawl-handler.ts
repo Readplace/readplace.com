@@ -140,7 +140,7 @@ export function initComprehensiveCrawlHandler(deps: {
 				await transitionAndPersist(markCrawlUnsupported, {
 					url,
 					input: {
-						reason: { kind: "non-html-content", contentType: crawlResult.reason },
+						reason: crawlResult.unsupportedReason ?? { kind: "non-html-content", contentType: crawlResult.reason },
 					},
 				});
 				logger.info(`${logPrefix} crawl unsupported — terminal`, { url });

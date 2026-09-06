@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
-import type { UserId } from "@packages/domain/user";
+import type { AppearancePreference, UserId } from "@packages/domain/user";
 import {
 	UserIdSchema,
 	authenticatedUserIdFrom,
@@ -27,6 +27,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
+	SetUserAppearance,
 	UpdatePassword,
 	UserAcquisitionAttribution,
 	UserExistsByEmail,
@@ -42,6 +43,7 @@ interface StoredUser {
 	registeredAt: string;
 	deletedAt?: string;
 	attribution?: UserAcquisitionAttribution;
+	appearance?: AppearancePreference;
 }
 
 interface StoredSession {
@@ -79,6 +81,7 @@ export function initInMemoryAuth(opts: {
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
+	setUserAppearance: SetUserAppearance;
 	deleteUser: (email: string) => Promise<void>;
 	/** Test-only accessor for the attribution persisted at signup, so signup
 	 * tests can assert the raw utm/referrer/landing fields reached the row. */
@@ -312,10 +315,20 @@ export function initInMemoryAuth(opts: {
 					userId: user.id,
 					emailVerified: user.emailVerified,
 					registeredAt: user.registeredAt,
+					appearance: user.appearance,
 				};
 			}
 		}
 		return null;
+	};
+
+	const setUserAppearance: SetUserAppearance = async ({ userId, appearance }) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				user.appearance = appearance;
+				return;
+			}
+		}
 	};
 
 	const updatePassword: UpdatePassword = async ({ email, password }) => {
@@ -361,6 +374,7 @@ export function initInMemoryAuth(opts: {
 		findEmailByUserId,
 		findUserContactByUserId,
 		findUserById,
+		setUserAppearance,
 		getAcquisitionAttribution,
 		deleteUser,
 	};

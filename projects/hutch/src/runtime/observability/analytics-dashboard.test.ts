@@ -262,13 +262,6 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(deviceBreakdown).toContain('concat(coalesce(device_class, "unclassified"), " / ", coalesce(browser, "-")) as device_browser');
 	});
 
-	it("keeps the bot and no-User-Agent buckets in the anonymous save-intent breakdown — unlike pageview, no bot gate drops a save intent, and those two buckets are exactly the crawler population the widget exists to expose", () => {
-		const deviceBreakdown = widgetQueries().find((q) => q.includes("stats count(*) as save_intents by device_browser"));
-		assert(deviceBreakdown, "the anonymous save-intent device breakdown widget must exist");
-		expect(deviceBreakdown).not.toContain('device_class != "other"');
-		expect(deviceBreakdown).not.toContain("ispresent(device_class)");
-	});
-
 	it("leaves the by-surface breakdown unscoped, so every new save surface shows up as its own row without a dashboard change", () => {
 		const queries = widgetQueries();
 		const breakdown = queries.find((q) => q.includes("stats count(*) as saves by surface, save_client, content_class"));
@@ -601,16 +594,18 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		}
 	});
 
-	it("guards every exclusion clause with its own not-ispresent half — Logs Insights reads a null field as absent, so a bare not-in would drop the whole anonymous population instead of the owner", () => {
+	it("guards every exclusion clause with its own not-ispresent half — Logs Insights reads a null field as absent, so a bare not-in or a bare != would drop the whole population that carries no such field instead of the owner or the crawler", () => {
 		const emitted = queriesOf(buildBody()).flatMap((q) =>
-			[...q.matchAll(/\| filter [^|]*?(?:visitor_id|user_id) not in \[[^\]]*\]\)/g)].map((m) =>
-				m[0].trim(),
-			),
+			[
+				...q.matchAll(
+					/\| filter [^|]*?(?:visitor_id|user_id) not in \[[^\]]*\]\)|\| filter [^|]*?device_class != "bot"\)/g,
+				),
+			].map((m) => m[0].trim()),
 		);
 
 		expect(emitted.length).toBeGreaterThan(0);
 		for (const clause of emitted) {
-			const field = /\((\w+) not in \[/.exec(clause)?.[1];
+			const field = /\((\w+) (?:not in \[|!= ")/.exec(clause)?.[1];
 			expect(field).toBeDefined();
 			expect(clause).toContain(`(not ispresent(${field})) or`);
 		}

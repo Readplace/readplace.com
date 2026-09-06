@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ImportSessionIdSchema } from "@packages/domain/import-session";
 import { useTestServer, loginAgent } from "../../../test-app";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import type { ImportUploadedEvent, ImportCommittedEvent } from "@packages/web-analytics";
 import {
 	TEST_APP_ORIGIN,
@@ -38,12 +39,13 @@ function multipartBody(filename: string, content: Buffer): { body: Buffer; conte
 
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 describe("Import routes", () => {
 	describe("GET /import (unauthenticated)", () => {
 		it("renders the acquire page with both tabs for a logged-out visitor", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/import");
+			const response = await request(harness.server).get("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const tabKeys = Array.from(doc.querySelectorAll("[data-test-import-tab]")).map(
@@ -54,7 +56,7 @@ describe("Import routes", () => {
 
 		it("renders the from-url form by default at /import", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/import");
+			const response = await request(harness.server).get("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const formIds = Array.from(doc.querySelectorAll("[data-test-form]")).map(
@@ -68,7 +70,7 @@ describe("Import routes", () => {
 
 		it("renders the guest nav with an Import Links entry", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/import");
+			const response = await request(harness.server).get("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 			const doc = new JSDOM(response.text).window.document;
 			const nav = doc.querySelector("[data-test-nav-variant]");
 			assert(nav, "nav must render");
@@ -91,7 +93,7 @@ describe("Import routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const form = doc.querySelector('[data-test-form="import-file"]');
 			assert(form, "upload form must be rendered");
-			expect(form.getAttribute("action")).toBe("/import");
+			expect(form.getAttribute("action")).toBe("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 			const button = form.querySelector('[data-test-action="import-upload"]');
 			assert(button, "Upload button must remain in the DOM as the no-JS fallback");
 			expect(button.textContent).toBe("Upload");
@@ -115,7 +117,7 @@ describe("Import routes", () => {
 			const form = doc.querySelector<HTMLFormElement>('[data-test-form="import-file"]');
 			assert(form, "upload form must be rendered");
 			expect(form.getAttribute("data-import-state")).toBe("idle");
-			expect(form.getAttribute("hx-post")).toBe("/import");
+			expect(form.getAttribute("hx-post")).toBe("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 			expect(form.getAttribute("hx-encoding")).toBe("multipart/form-data");
 			const idle = form.querySelector('[data-import-region="idle"]');
 			const uploading = form.querySelector('[data-import-region="uploading"]');
@@ -179,7 +181,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import");
+			const response = await agent.get("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-import-error]")).toBeNull();
@@ -196,7 +198,7 @@ describe("Import routes", () => {
 			);
 
 			const response = await request(harness.server)
-				.post("/import")
+				.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
 				.set("Content-Type", contentType)
 				.send(body);
 
@@ -221,7 +223,7 @@ describe("Import routes", () => {
 			const { body, contentType } = multipartBody("pocket.html", file);
 
 			const response = await agent
-				.post("/import")
+				.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
 				.set("Content-Type", contentType)
 				.send(body);
 
@@ -235,7 +237,7 @@ describe("Import routes", () => {
 			const { body, contentType } = multipartBody("empty.txt", Buffer.from("just some prose"));
 
 			const response = await agent
-				.post("/import")
+				.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
 				.set("Content-Type", contentType)
 				.send(body);
 
@@ -253,7 +255,7 @@ describe("Import routes", () => {
 			const { body, contentType } = multipartBody("big.bin", oversize);
 
 			const response = await agent
-				.post("/import")
+				.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
 				.set("Content-Type", contentType)
 				.send(body);
 
@@ -266,7 +268,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import")
+				.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
 				.set("Content-Type", "text/plain")
 				.send("https://example.com/x");
 
@@ -284,7 +286,7 @@ describe("Import routes", () => {
 			);
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent
-				.post("/import")
+				.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
 				.set("Content-Type", contentType)
 				.send(body);
 			const sessionPath = create.headers.location;
@@ -319,7 +321,7 @@ describe("Import routes", () => {
 			const owner = request.agent(harness.server);
 			await owner.post("/login").type("form").send({ email: "owner@example.com", password: "password123" });
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/owned"));
-			const create = await owner.post("/import").set("Content-Type", contentType).send(body);
+			const create = await owner.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			await auth.createUser({ email: "intruder@example.com", password: "password123" });
@@ -337,7 +339,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
 			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const page1 = await agent.get(create.headers.location);
 			const page2 = await agent.get(`${create.headers.location}?page=2`);
@@ -355,7 +357,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			const toggleResp = await agent
@@ -379,7 +381,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/a"));
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const response = await agent
 				.post(`${create.headers.location}/toggle`)
@@ -406,7 +408,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
 			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			const page2 = await agent.get(`${sessionPath}?page=2`);
@@ -436,7 +438,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const response = await agent.get(create.headers.location);
 
@@ -452,7 +454,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 			await agent
 				.post(`${sessionPath}/toggle`)
@@ -473,7 +475,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 			await agent.post(`${sessionPath}/toggle-all`).type("form").send({ checked: "false" });
 
@@ -493,7 +495,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b https://example.com/c");
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			const toggleResp = await agent
@@ -517,7 +519,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 			await agent
 				.post(`${sessionPath}/toggle`)
@@ -544,7 +546,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
 			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			await agent.post(`${sessionPath}/toggle-all`).type("form").send({ checked: "false" });
@@ -563,7 +565,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
 			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			const page2 = await agent.get(`${sessionPath}?page=2`);
@@ -583,7 +585,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/a"));
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const response = await agent
 				.post(`${create.headers.location}/toggle-all`)
@@ -615,7 +617,7 @@ describe("Import routes", () => {
 				"urls.txt",
 				Buffer.from("https://example.com/imported-a https://example.com/imported-b"),
 			);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			await agent.post(`${create.headers.location}/commit`);
 
@@ -636,7 +638,7 @@ describe("Import routes", () => {
 				"urls.txt",
 				Buffer.from("https://example.com/imported-a https://example.com/imported-b"),
 			);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const commit = await agent.post(`${create.headers.location}/commit`);
 
@@ -683,7 +685,7 @@ describe("Import routes", () => {
 				"urls.txt",
 				Buffer.from("https://example.com/slow https://example.com/fast-1 https://example.com/fast-2"),
 			);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const commit = await agent.post(`${create.headers.location}/commit`);
 
@@ -720,7 +722,7 @@ describe("Import routes", () => {
 				"urls.txt",
 				Buffer.from("https://example.com/broken-1 https://example.com/broken-2"),
 			);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const commit = await agent.post(`${create.headers.location}/commit`);
 
@@ -749,7 +751,7 @@ describe("Import routes", () => {
 				"urls.txt",
 				Buffer.from("https://example.com/a https://example.com/b"),
 			);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			const commit = await agent.post(`${sessionPath}/commit`);
@@ -782,7 +784,7 @@ describe("Import routes", () => {
 				"urls.txt",
 				Buffer.from("https://example.com/broken https://example.com/healthy"),
 			);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const commit = await agent.post(`${create.headers.location}/commit`);
 
@@ -819,7 +821,7 @@ describe("Import routes", () => {
 				"urls.txt",
 				Buffer.from("https://example.com/broken https://example.com/healthy"),
 			);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const commit = await agent.post(`${create.headers.location}/commit`);
 
@@ -841,7 +843,7 @@ describe("Import routes", () => {
 				"https://example.com/a https://example.com/b https://example.com/c",
 			);
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 			await agent
 				.post(`${sessionPath}/toggle`)
@@ -892,7 +894,7 @@ describe("Import routes", () => {
 				"https://example.com/a http://localhost:3000/queue http://router.home.arpa/ https://example.com/b",
 			);
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			const commit = await agent.post(`${sessionPath}/commit`);
@@ -916,7 +918,7 @@ describe("Import routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			const commit = await agent.post(`${sessionPath}/commit`);
@@ -936,7 +938,7 @@ describe("Import routes", () => {
 				"https://example.com/a http://localhost/secret http://router.home.arpa/",
 			);
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			await agent.post(`${sessionPath}/commit`);
@@ -977,7 +979,7 @@ describe("Import routes", () => {
 				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
 			});
 
-			const acquire = await agent.get("/import");
+			const acquire = await agent.get("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 			expect(acquire.status).toBe(200);
 
 			const create = await agent
@@ -1000,7 +1002,7 @@ describe("Import routes", () => {
 		async function anonUpload(server: Parameters<typeof request>[0], content: string) {
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from(content));
 			const create = await request(server)
-				.post("/import")
+				.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
 				.set("Content-Type", contentType)
 				.send(body);
 			return create.headers.location;
@@ -1113,7 +1115,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const owner = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/owned"));
-			const create = await owner.post("/import").set("Content-Type", contentType).send(body);
+			const create = await owner.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const response = await request(harness.server).get(create.headers.location);
 
@@ -1129,7 +1131,7 @@ describe("Import routes", () => {
 			const file = Buffer.from("https://example.com/post-1 https://example.com/post-2");
 			const { body, contentType } = multipartBody("urls.txt", file);
 
-			await agent.post("/import").set("Content-Type", contentType).send(body);
+			await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			const uploaded = harness.analytics.events.filter(
 				(e): e is ImportUploadedEvent => e.event === "import_uploaded",
@@ -1147,13 +1149,47 @@ describe("Import routes", () => {
 			const file = Buffer.from("https://example.com/post-1 https://example.com/post-2");
 			const { body, contentType } = multipartBody("urls.txt", file);
 
-			await request(harness.server).post("/import").set("Content-Type", contentType).send(body);
+			await request(harness.server)
+				.post("/import")
+				.set("Content-Type", contentType)
+				.set("User-Agent", BROWSER_USER_AGENT)
+				.send(body);
 
 			const uploaded = harness.analytics.events.filter(
 				(e): e is ImportUploadedEvent => e.event === "import_uploaded",
 			);
 			assert.equal(uploaded.length, 1, "exactly one import_uploaded event");
 			assert.equal(uploaded[0].is_authenticated, 0);
+		});
+
+		it("counts an anonymous upload from a browser but not the identical one from a crawler, so the logged-out top of the import funnel measures people rather than bots", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const file = Buffer.from("https://example.com/post-1 https://example.com/post-2");
+			const { body, contentType } = multipartBody("urls.txt", file);
+
+			await request(harness.server)
+				.post("/import")
+				.set("Content-Type", contentType)
+				.set("User-Agent", GOOGLEBOT)
+				.send(body);
+
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_uploaded").length,
+				0,
+				"no import_uploaded event for a crawler upload",
+			);
+
+			await request(harness.server)
+				.post("/import")
+				.set("Content-Type", contentType)
+				.set("User-Agent", BROWSER_USER_AGENT)
+				.send(body);
+
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_uploaded").length,
+				1,
+				"exactly one import_uploaded event, from the browser upload alone",
+			);
 		});
 
 		it("emits import_committed event with correct counts after a successful commit", async () => {
@@ -1163,7 +1199,7 @@ describe("Import routes", () => {
 				"https://example.com/a https://example.com/b http://localhost/invalid",
 			);
 			const { body, contentType } = multipartBody("urls.txt", file);
-			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			await agent.post(`${sessionPath}/commit`);
@@ -1181,16 +1217,56 @@ describe("Import routes", () => {
 			assert.equal(committed[0].is_authenticated, 1);
 		});
 
+		it("commits the crawler's session but records no import_committed, so the imports counter the dashboard cannot filter stays a count of people", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/crawler-a https://example.com/crawler-b"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			await agent.post(`${create.headers.location}/commit`).set("User-Agent", GOOGLEBOT);
+
+			assert.ok(
+				await harness.articleStore.findArticleByUrl("https://example.com/crawler-a"),
+				"only the measurement is gated — the commit still saves the articles",
+			);
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_committed").length,
+				0,
+				"a crawler's commit is not an import_committed",
+			);
+		});
+
+		it("records exactly one import_committed for the identical commit from a browser, so the bot gate cannot silence a real import", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/browser-a https://example.com/browser-b"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			await agent.post(`${create.headers.location}/commit`).set("User-Agent", BROWSER_USER_AGENT);
+
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_committed").length,
+				1,
+				"a browser's commit records exactly one import_committed",
+			);
+		});
+
 		it("does not emit analytics events on error paths (tooLarge, noUrls, sessionNotFound)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const oversize = Buffer.alloc(6 * 1024 * 1024, 0x41);
 			const { body: largeBody, contentType: largeType } = multipartBody("big.bin", oversize);
-			await agent.post("/import").set("Content-Type", largeType).send(largeBody);
+			await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", largeType).send(largeBody);
 
 			const { body: emptyBody, contentType: emptyType } = multipartBody("empty.txt", Buffer.from("just prose"));
-			await agent.post("/import").set("Content-Type", emptyType).send(emptyBody);
+			await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", emptyType).send(emptyBody);
 
 			await agent.post("/import/00000000000000000000000000000000/commit");
 
@@ -1212,8 +1288,8 @@ describe("Import routes", () => {
 			const harness = useApp(fixture);
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/a"));
 
-			const first = await request(harness.server).post("/import").set("Content-Type", contentType).send(body);
-			const throttled = await request(harness.server).post("/import").set("Content-Type", contentType).send(body);
+			const first = await request(harness.server).post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+			const throttled = await request(harness.server).post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
 
 			expect(first.status).toBe(303);
 			expect(throttled.status).toBe(429);

@@ -105,24 +105,25 @@ describe("initSendUserDigestHandler", () => {
 			});
 			expect(deps.sendEmail).toHaveBeenCalledTimes(1);
 			const sent = (deps.sendEmail as jest.Mock).mock.calls[0][0];
-			expect(sent.from).toBe("Fayner from Readplace <readplace@readplace.com>");
+			expect(sent.from).toBe("Fayner from Readplace <fayner@readplace.com>");
 			expect(sent.to).toBe("reader@example.com");
 			expect(sent.bcc).toBe("readplace+reader_ready@readplace.com");
+			expect(sent.replyTo).toBe("fayner@readplace.com");
+			expect(sent.html).toContain("If you have any questions, please reply to this email");
 			expect(sent.subject).toBe("Reader views are ready for articles you saved.");
 			expect(sent.html).toContain("Alpha");
 			expect(sent.html).toContain("Beta");
 			expect(sent.html).toContain("Short excerpt teaser.");
-			// Titles link to the private reader view; the two CTAs to the unread
+			// Titles link to the private reader view; the CTA to the unread
 			// queue. Parsed with JSDOM because Handlebars entity-escapes `=`/`&`
 			// inside href attributes, so raw-substring checks would miss them.
 			const hrefs = [...new JSDOM(sent.html).window.document.querySelectorAll("a[href]")].map(
 				(a) => a.getAttribute("href"),
 			);
 			const readerHrefs = new Set(
-				hrefs.filter((href) => href?.endsWith("/view?from=reader-ready-email")),
+				hrefs.filter((href) => href?.includes("/view?from=reader-ready-email&utm_source=reader-ready-email")),
 			);
 			expect(readerHrefs.size).toBe(2); // one private reader permalink per article
-			expect(hrefs.filter((href) => href?.includes("utm_content=top"))).toHaveLength(1);
 			expect(hrefs.filter((href) => href?.includes("utm_content=bottom"))).toHaveLength(1);
 			// Nothing in the digest may link off to the article's original site.
 			for (const href of hrefs) {

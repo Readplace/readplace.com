@@ -57,7 +57,12 @@ export function initInMemorySubscriptionProviders(opts: {
 		});
 	};
 
-	const upsertActive: UpsertActiveSubscription = async ({ userId, subscriptionId, customerId }) => {
+	const upsertActive: UpsertActiveSubscription = async ({
+		userId,
+		subscriptionId,
+		customerId,
+		plan,
+	}) => {
 		const existing = rows.get(userId);
 		const nowIso = opts.now().toISOString();
 		rows.set(userId, {
@@ -66,6 +71,7 @@ export function initInMemorySubscriptionProviders(opts: {
 			subscriptionId,
 			customerId,
 			status: "active",
+			...(plan === undefined ? {} : { plan }),
 			createdAt: existing?.createdAt ?? nowIso,
 			updatedAt: nowIso,
 		});

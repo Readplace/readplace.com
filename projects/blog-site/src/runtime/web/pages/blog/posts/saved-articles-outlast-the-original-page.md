@@ -38,6 +38,6 @@ Readplace re-checks saved articles over time. If the source corrects a typo or s
 
 A reading list is a note to your future self. Read this later. The worth of that note sits in the days or months between the save and the read. A list that quietly loses items breaks the promise, and you find out at the worst moment, when you finally sit down to read.
 
-Readplace keeps your copy on its side, so a page going dark stays the source site's problem and not yours. If you came over from a service that shut down, the same idea drove those moves too, and you can read the longer story in [the Pocket recovery guide](/blog/pocket-migration) or [the Omnivore writeup](/blog/omnivore-alternative).
+Readplace keeps your copy on its side, so a page going dark stays the source site's problem and not yours. If you came over from a service that shut down, the same idea drove those moves too, and you can read the longer story in [the Pocket recovery guide](/blog/pocket-migration?utm_source=blog-saved-articles-outlast-the-original-page&utm_medium=internal&utm_content=post-pocket-migration) or [the Omnivore writeup](/blog/omnivore-alternative?utm_source=blog-saved-articles-outlast-the-original-page&utm_medium=internal&utm_content=post-omnivore-alternative).
 
-Save one article today and open it again next month. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).
+Save one article today and open it again next month. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/?utm_source=blog-saved-articles-outlast-the-original-page&utm_medium=internal&utm_content=home).

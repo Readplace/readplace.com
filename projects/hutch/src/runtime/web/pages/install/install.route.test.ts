@@ -823,11 +823,11 @@ describe("GET /install client detection", () => {
 	it("carries the campaign params through the hop, because dropping them would erase the attribution of the warmest links into this page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
-			.get("/install?utm_source=web-app&utm_medium=banner&utm_campaign=extension-suggestion")
+			.get("/install?utm_source=reader-failed&utm_medium=banner&utm_campaign=extension-suggestion")
 			.set("User-Agent", MACOS_FIREFOX);
 
 		expect(response.headers.location).toBe(
-			"/install?utm_source=web-app&utm_medium=banner&utm_campaign=extension-suggestion&client=firefox",
+			"/install?utm_source=reader-failed&utm_medium=banner&utm_campaign=extension-suggestion&client=firefox",
 		);
 	});
 

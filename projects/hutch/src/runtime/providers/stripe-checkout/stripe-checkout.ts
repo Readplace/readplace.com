@@ -37,7 +37,6 @@ const StripeErrorResponse = z.object({
 
 export function initStripeCheckout(deps: {
 	apiKey: string;
-	priceId: string;
 	fetch: typeof globalThis.fetch;
 }): {
 	createCheckoutSession: CreateCheckoutSession;
@@ -50,13 +49,14 @@ export function initStripeCheckout(deps: {
 
 	const createCheckoutSession: CreateCheckoutSession = async ({
 		customerEmail,
+		priceId,
 		successUrl,
 		cancelUrl,
 		trialEndsAt,
 	}) => {
 		const body = new URLSearchParams({
 			mode: "subscription",
-			"line_items[0][price]": deps.priceId,
+			"line_items[0][price]": priceId,
 			"line_items[0][quantity]": "1",
 			customer_email: customerEmail,
 			success_url: successUrl,

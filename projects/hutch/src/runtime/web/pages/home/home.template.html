@@ -81,18 +81,26 @@
   <section id="pricing" class="home-pricing" data-test-section="pricing" aria-label="Pricing">
     <div class="home-section__container home-pricing__container">
       <h2 class="home-section__title home-pricing__title">{{pricingTitleBefore}} <span class="home-pricing__amount" data-test-price>{{pricingPriceAmount}}</span> {{pricingTitleAfter}}</h2>
-      <p class="home-pricing__body">{{pricingBody}}</p>
-      {{#with pricingCta}}
-      <form class="home-pricing__cta" method="GET" action="{{action}}">
-        {{#each hiddenParams}}
-        <input type="hidden" name="{{name}}" value="{{value}}">
+    </div>
+    <div class="home-pricing__grid-container">
+      <ul class="home-pricing__grid" role="list" data-test-plans>
+        {{#each pricingPanels}}
+        <li class="{{panelClass}}" data-test-plan="{{tierId}}">
+          {{#if badge}}<p class="home-pricing__plan-badge" data-test-plan-badge>{{badge}}</p>{{/if}}
+          <h3 class="home-pricing__plan-name">{{name}}</h3>
+          <p class="home-pricing__plan-price"><span class="home-pricing__plan-amount" data-test-plan-price>{{monthlyDisplay}}</span><span class="home-pricing__plan-per">/month</span></p>
+          <p class="home-pricing__plan-billing" data-test-plan-billing>{{billedNote}}</p>
+          <form class="home-pricing__plan-form" method="GET" action="{{cta.action}}">
+            {{#each cta.hiddenParams}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            <button class="btn {{cta.cssClass}}" type="submit" data-test-cta="{{cta.key}}">{{cta.label}}</button>
+          </form>
+        </li>
         {{/each}}
-        <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">
-          <span class="home-pricing__cta-label">{{label}}</span>
-          {{#if subLabel}}<span class="home-pricing__cta-sub">{{subLabel}}</span>{{/if}}
-        </button>
-      </form>
-      {{/with}}
+      </ul>
+    </div>
+    <div class="home-section__container home-pricing__container">
       <p class="home-pricing__note">{{pricingNote}}</p>
       <ul class="home-pricing__assurances" data-test-assurances>
         {{#each pricingAssurances}}

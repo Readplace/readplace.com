@@ -1,9 +1,12 @@
 export type {
 	GetOnboardingSignals,
+	MarkFirstInboxEmailNoticeSent,
 	NativeAppPlatform,
+	RecordEmailStepMarkedDone,
+	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";

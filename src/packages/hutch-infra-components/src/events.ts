@@ -741,6 +741,7 @@ export const SubscriptionChargeSucceededEvent = defineEvent({
 		userId: z.string(),
 		subscriptionId: z.string(),
 		customerId: z.string(),
+		plan: z.enum(["monthly", "yearly", "triennial"]).optional(),
 	}),
 });
 export type SubscriptionChargeSucceededDetail = z.infer<
@@ -790,6 +791,20 @@ export const SendTrialFeedbackEmailCommand = defineEvent({
 });
 export type SendTrialFeedbackEmailDetail = z.infer<
 	typeof SendTrialFeedbackEmailCommand.detailSchema
+>;
+
+export const SendFirstInboxEmailNoticeCommand = defineEvent({
+	name: "send-first-inbox-email-notice-command",
+	source: "hutch.inbox",
+	detailType: "SendFirstInboxEmailNoticeCommand",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		inboxAddress: z.string(),
+	}),
+});
+export type SendFirstInboxEmailNoticeDetail = z.infer<
+	typeof SendFirstInboxEmailNoticeCommand.detailSchema
 >;
 
 /** Global, per-URL fact: an article's clean reader view reached the successful
@@ -947,7 +962,7 @@ export const RewriteGmailFilterCommand = defineEvent({
 	detailType: "RewriteGmailFilter",
 	detailSchema: z.object({
 		userId: z.string(),
-		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed", "requested"]),
+		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed"]),
 	}),
 });
 export type RewriteGmailFilterDetail = z.infer<typeof RewriteGmailFilterCommand.detailSchema>;

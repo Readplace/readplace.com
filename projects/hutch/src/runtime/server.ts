@@ -23,6 +23,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
+	SetUserAppearance,
 	UpdatePassword,
 	MarkAccountDeleted,
 	UserExistsByEmail,
@@ -59,6 +60,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	ResolvePriceId,
 	FindSubscriptionNextCharge,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/subscription-billing";
@@ -74,11 +76,12 @@ import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth"
 import type {
 	GetOnboardingSignals,
 	RecordDeleteArticleAcknowledged,
+	RecordEmailStepMarkedDone,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
 import type {
 	AllocateSavedAt,
@@ -107,8 +110,6 @@ import type {
 	RenameReadlistDefinition,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
-	ListSharedArticles,
-	MarkLinkShared,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
@@ -116,7 +117,7 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -175,6 +176,8 @@ import { HutchLogger } from "@packages/hutch-logger";
 import {
 	type AnalyticsEvent,
 	createClickAttributionMiddleware,
+	initRecordAudienceEvent,
+	type RecordUngatedEvent,
 	createVisitorIdMiddleware,
 	isHttpsOrigin,
 	tagPageviewExperiment,
@@ -184,10 +187,7 @@ import { viewerOf } from "@packages/viewer-identity";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
-import {
-	initEmitSubscriptionEvent,
-	type SubscriptionLogEvent,
-} from "./observability/subscription-events";
+import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { canonicalizeViewLandingPath } from "./web/pages/view/view-path";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
@@ -241,6 +241,7 @@ import {
 import { wantsSiren } from "./web/content-negotiation";
 import { setSirenDiscoveryRedirectCaching } from "./web/siren-discovery-cache";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
+import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
 import { buildSiteWebmanifest } from "./web/site-webmanifest";
 import { SLOGANS } from "./web/slogans";
@@ -303,6 +304,7 @@ interface AppDependencies {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	findUserById: FindUserById;
+	setUserAppearance: SetUserAppearance;
 	googleAuth?: {
 		exchangeGoogleCode: ExchangeGoogleCode;
 		clientId: string;
@@ -345,8 +347,6 @@ interface AppDependencies {
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	markSummaryToggled: MarkSummaryToggled;
-	markLinkShared: MarkLinkShared;
-	listSharedArticles: ListSharedArticles;
 	markRelatedDismissed: MarkRelatedDismissed;
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
@@ -399,13 +399,15 @@ interface AppDependencies {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
-	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
+	readArticleImage: ReadArticleImage;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
@@ -444,7 +446,7 @@ interface AppDependencies {
 		removeCard: RemoveCard;
 		setPrimaryCard: SetPrimaryCard;
 	};
-	stripePriceId: string;
+	resolvePriceId: ResolvePriceId;
 	stripePublishableKey: string | undefined;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
@@ -471,8 +473,12 @@ const OPENAI_APPS_CHALLENGE_TOKEN = "dfMZUMNhT2ApI31okvdB5BD1vdly8Ku5QRGcSLtDQ5k
 const LANDING_PAGE_SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 
 export function createApp(dependencies: AppDependencies): Express {
-	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
+	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, analytics, conversionLogger, subscriptionLogger, ...deps } = dependencies;
 	const ownHost = new URL(appOrigin).hostname;
+	const recordAnalyticsEvent = initRecordAudienceEvent({ logger: analytics });
+	const recordConversionEvent = initRecordAudienceEvent({ logger: conversionLogger });
+	const recordSubscriptionEvent = initRecordAudienceEvent({ logger: subscriptionLogger });
+	const recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent> = (event) => analytics.info(event);
 	const app: Express = express();
 
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
@@ -516,7 +522,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const mcpServer = initMcpServer({
 		resolveToolAccess,
 		recordToolCall: initRecordMcpToolCall({
-			analytics: deps.analytics,
+			recordUngatedAnalyticsEvent,
 			now: deps.now,
 		}),
 		logError: deps.logError,
@@ -587,6 +593,12 @@ export function createApp(dependencies: AppDependencies): Express {
 			ownHost,
 		}),
 	);
+	app.use(
+		createListingGenerationMiddleware({
+			nextGeneration: randomUUID,
+			secure: secureCookies,
+		}),
+	);
 
 	// Same-origin client bundles — the Lambda packaging step copies
 	// src/runtime/web/client-dist/ into the bundle, so `__dirname/web/client-dist`
@@ -637,6 +649,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		getChangelogBanner: deps.getChangelogBanner,
+		findUserById: deps.findUserById,
 		now: deps.now,
 	});
 
@@ -1011,7 +1024,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * here on $default even when the close button is clicked on a /blog page. */
 	app.use(initChangelogDismissRoute({ secureCookies }));
 	app.use(initSaveTipEventRoute());
-	app.use(initPageDepthRoute({ analytics: deps.analytics, now: deps.now, salt: deps.salt }));
+	app.use(initPageDepthRoute({ recordAnalyticsEvent, now: deps.now, salt: deps.salt }));
 
 	/** Every account-creation path (password, trial, checkout, Google) funnels
 	 * its user creation through these two deps, so wrapping them here provisions
@@ -1044,11 +1057,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		return result;
 	};
 
-	const emitSubscriptionEvent = initEmitSubscriptionEvent({
-		logger: deps.subscriptionLogger,
-		now: deps.now,
-	});
-
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
 		createUserWithPasswordHash,
@@ -1076,10 +1084,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		now: deps.now,
 		botDefenseLogger: deps.botDefenseLogger,
-		conversionLogger: deps.conversionLogger,
-		analytics: deps.analytics,
+		recordConversionEvent,
+		recordAnalyticsEvent,
 		salt: deps.salt,
-		emitSubscriptionEvent,
+		recordSubscriptionEvent,
 		foundingAllocation,
 		buildBannerState,
 		consumeRateLimit: deps.consumeRateLimit,
@@ -1111,8 +1119,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			sendEmail: deps.sendEmail,
 			logError: deps.logError,
 			now: deps.now,
-			conversionLogger: deps.conversionLogger,
-			analytics: deps.analytics,
+			recordConversionEvent,
+			recordAnalyticsEvent,
 			salt: deps.salt,
 			foundingAllocation,
 		});
@@ -1138,8 +1146,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		sendEmail: deps.sendEmail,
 		logError: deps.logError,
 		now: deps.now,
-		conversionLogger: deps.conversionLogger,
-		analytics: deps.analytics,
+		recordConversionEvent,
+		recordAnalyticsEvent,
 		salt: deps.salt,
 		foundingAllocation,
 	});
@@ -1168,6 +1176,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
 		secureCookies,
+		findUserById: deps.findUserById,
 		findArticlesByUser: deps.findArticlesByUser,
 		countArticlesByUser: deps.countArticlesByUser,
 		findArticleById: deps.findArticleById,
@@ -1195,7 +1204,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		createReadlistDefinition: deps.createReadlistDefinition,
 		deleteReadlistDefinition: deps.deleteReadlistDefinition,
 		markSummaryToggled: deps.markSummaryToggled,
-		markLinkShared: deps.markLinkShared,
 		markRelatedDismissed: deps.markRelatedDismissed,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
@@ -1230,7 +1238,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: deps.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
-		recordNextReadStepOutstanding: deps.recordNextReadStepOutstanding,
+		recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion: deps.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged: deps.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: deps.recordDeleteArticleAcknowledged,
 		dualAuth: dualAuthMiddleware,
@@ -1240,7 +1249,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 		getChangelogBanner: deps.getChangelogBanner,
 		logError: deps.logError,
-		analytics: deps.analytics,
+		recordAnalyticsEvent,
+		recordUngatedAnalyticsEvent,
 		salt: deps.salt,
 		now: deps.now,
 	});
@@ -1268,7 +1278,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		logError: deps.logError,
-		analytics: deps.analytics,
+		recordAnalyticsEvent,
 		salt: deps.salt,
 		now: deps.now,
 		buildBannerState,
@@ -1284,7 +1294,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
 	app.use("/import", importRouter);
 
-	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID, ownHost });
+	const saveRouter = initSaveRoutes({ buildBannerState, recordAnalyticsEvent, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID, ownHost });
 	app.use("/save", saveRouter);
 
 	const viewRouter = initViewRoutes({
@@ -1296,6 +1306,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
+		readArticleImage: deps.readArticleImage,
+		logError: deps.logError,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
@@ -1308,7 +1320,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		viewCrawlRateLimit: deps.rateLimitRules.viewCrawl,
 		now: deps.now,
 		buildBannerState,
-		analytics: deps.analytics,
+		recordAnalyticsEvent,
 		salt: deps.salt,
 	});
 	app.use("/view", viewRouter);
@@ -1356,12 +1368,13 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,
-		listSharedArticles: deps.listSharedArticles,
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
 		upsertActiveSubscription: deps.subscriptionProviders.upsertActive,
 		upsertTrialingSubscription: deps.subscriptionProviders.upsertTrialing,
 		markActiveSubscription: deps.subscriptionProviders.markActive,
 		findEmailByUserId: deps.findEmailByUserId,
+		findUserById: deps.findUserById,
+		setUserAppearance: deps.setUserAppearance,
 		destroyUserSessions: deps.destroyUserSessions,
 		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
 		markAccountDeleted: deps.markAccountDeleted,
@@ -1384,7 +1397,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,
 		storePendingSignup: deps.storePendingSignup,
-		stripePriceId: deps.stripePriceId,
+		resolvePriceId: deps.resolvePriceId,
 		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
 			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
 		appOrigin,
@@ -1398,7 +1411,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		}),
 		now: deps.now,
 		buildBannerState,
-		emitSubscriptionEvent,
+		recordSubscriptionEvent,
 	});
 	app.use("/account", requireAuth, accountRouter);
 
@@ -1429,7 +1442,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		consumeRateLimit: deps.consumeRateLimit,
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
 		tokenRateLimitRule: deps.rateLimitRules.oauthToken,
-		analytics: deps.analytics,
+		recordUngatedAnalyticsEvent,
 		now: deps.now,
 		salt: deps.salt,
 	});

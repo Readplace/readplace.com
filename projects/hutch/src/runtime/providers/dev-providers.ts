@@ -1,5 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
@@ -184,6 +185,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 						});
 						return entry.address;
 					},
+					findInboxAddress: inboxAddressStore.findByAddress,
 					mintSenderAddress: async ({
 						userId,
 						senderEmail,
@@ -416,7 +418,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		findSubscriptionNextCharge: devStripeSubscriptions.findSubscriptionNextCharge,
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods: devPaymentMethods,
-		stripePriceId: "price_dev_default",
+		resolvePriceId: async (plan: BillingPlan) => `price_dev_${plan}`,
 		stripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY"),
 
 		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),
@@ -471,7 +473,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
-		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
+		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion: onboardingSignals.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged:
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,

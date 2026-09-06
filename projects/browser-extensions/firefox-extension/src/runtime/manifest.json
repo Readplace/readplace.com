@@ -6,11 +6,11 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "hutch-extension@hutch-app.com",
-      "update_url": "https://hutch-extension-prod.s3.ap-southeast-2.amazonaws.com/updates.json",
       "strict_min_version": "109.0",
       "data_collection_permissions": {
         "required": [
-          "none"
+          "websiteContent",
+          "browsingActivity"
         ]
       }
     }

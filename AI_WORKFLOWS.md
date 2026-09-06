@@ -30,8 +30,8 @@ You can also talk to Claude directly in any issue or PR comment. It will respond
 | `failed-articles-canary.yml` | Surfaces articles whose crawl/summary pipelines reached a terminal failure; opens a debug-worklist tracking issue for an operator to debug and close manually. |
 | `stuck-articles-canary.yml` | Detects articles stuck in non-terminal pipeline states; opens or comments on a tracking issue on failure for an operator to debug and close manually. |
 | `publish-chrome-extension.yml` | Publishes Chrome extension to the Chrome Web Store. |
-| `submit-ff-extension-for-signing.yml` | Submits Firefox extension to AMO for signing. |
-| `sync-signed-extension.yml` | Syncs signed Firefox extension from AMO to S3. |
+| `publish-firefox-extension.yml` | Publishes the Firefox extension to AMO as a listed add-on. |
+| `sync-signed-extension.yml` | Mirrors the newest AMO-approved Firefox XPI to S3 for existing self-hosted installs. |
 
 Each workflow has a companion `.md` file (e.g. `claude-PR-CI-failure-fixer.md`) — that's the prompt file. Separating prompts from workflow orchestration keeps things maintainable and makes prompt iteration fast without touching the YAML.
 

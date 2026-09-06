@@ -185,16 +185,6 @@ export type MarkSummaryToggled = (params: {
 	at: Date;
 }) => Promise<void>;
 
-export type MarkLinkShared = (params: {
-	userId: UserId;
-	url: string;
-	at: Date;
-}) => Promise<void>;
-
-export type ListSharedArticles = (params: {
-	userId: UserId;
-}) => Promise<SavedArticle[]>;
-
 export type MarkRelatedDismissed = (params: {
 	userId: UserId;
 	url: string;
@@ -238,6 +228,11 @@ export type FindUserArticleNotificationState = (params: {
 export type ContentProvider = (articleResourceUniqueId: ArticleResourceUniqueId) => Promise<string | undefined>;
 
 export type ReadArticleContent = (url: string) => Promise<string | undefined>;
+
+export type ReadArticleImage = (params: {
+	url: string;
+	filename: string;
+}) => Promise<Uint8Array | undefined>;
 
 /** Delete every per-user article row for a user (account deletion). Only the
  * per-user gateway rows are removed; the URL-keyed global article cache is

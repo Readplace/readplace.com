@@ -40,9 +40,11 @@ describe("analytics metric filters", () => {
 		expect(ANALYTICS_METRIC_NAMESPACE).not.toBe(METRICS.importsCompleted.namespace);
 	});
 
-	it("says on the face of every counter that it includes internal traffic, because a metric filter cannot express the exclusion list the Logs Insights widgets carry and these counters therefore read higher than the widget beside them", () => {
+	it("dates every counter and says on its face that it includes internal traffic: the exclusion list is expressible as a metric-filter pattern and is left off by choice, and a series whose first datapoint is the day its filter was created is not a lifetime", () => {
 		for (const filter of Object.values(ANALYTICS_METRIC_FILTERS)) {
-			expect(filter.widgetTitle).toContain("internal traffic included");
+			expect(filter.widgetTitle).toMatch(
+				/ \(CloudWatch metric since \d{4}-\d{2}-\d{2}, internal traffic included\)$/,
+			);
 		}
 	});
 
