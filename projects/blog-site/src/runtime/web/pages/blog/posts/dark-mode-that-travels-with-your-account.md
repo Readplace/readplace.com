@@ -22,7 +22,7 @@ For a reading app that is the wrong authority. Reading runs in long sessions at 
 
 So the choice moved onto the account.
 
-Under [Account](/account) there is now a section called Appearance with 3 buttons: System, Light, and Dark. Press one and the answer is stored with the account itself, not with the screen it was pressed on.
+Under [Account](/account?utm_source=blog-dark-mode-that-travels-with-your-account&utm_medium=internal&utm_content=account) there is now a section called Appearance with 3 buttons: System, Light, and Dark. Press one and the answer is stored with the account itself, not with the screen it was pressed on.
 
 ## The phone follows the laptop
 
@@ -40,10 +40,10 @@ Readplace skips both problems because the server already knows whose page it is 
 
 ## System keeps its job
 
-System is the default, and it behaves exactly as the product did last month: the page ships both theme colours behind [`prefers-color-scheme`](/view/developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-color-scheme) media queries and the OS keeps deciding. I left it that way on purpose. An account that skips the new section notices nothing.
+System is the default, and it behaves exactly as the product did last month: the page ships both theme colours behind [`prefers-color-scheme`](/view/developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-color-scheme?utm_source=blog-dark-mode-that-travels-with-your-account&utm_medium=internal&utm_content=read-developer-mozilla-org) media queries and the OS keeps deciding. I left it that way on purpose. An account that skips the new section notices nothing.
 
-The choice also stops at the sign-in line. A signed-out page has no account to ask, so it stays pinned to the light palette. And the dark palette didn't change a pixel this week. Its body text already reads at 14.73:1, well past the floors [the e-ink audit](/blog/saved-articles-hold-up-on-e-ink) held the rest of the product to, so this change decides when that palette shows rather than what it looks like.
+The choice also stops at the sign-in line. A signed-out page has no account to ask, so it stays pinned to the light palette. And the dark palette didn't change a pixel this week. Its body text already reads at 14.73:1, well past the floors [the e-ink audit](/blog/saved-articles-hold-up-on-e-ink?utm_source=blog-dark-mode-that-travels-with-your-account&utm_medium=internal&utm_content=post-saved-articles-hold-up-on-e-ink) held the rest of the product to, so this change decides when that palette shows rather than what it looks like.
 
 ## Pick a side once
 
-Press [Dark](/account) once, and [your readlist](/) opens dark on every screen you sign into, at noon and at midnight alike.
+Press [Dark](/account?utm_source=blog-dark-mode-that-travels-with-your-account&utm_medium=internal&utm_content=account) once, and [your readlist](/?utm_source=blog-dark-mode-that-travels-with-your-account&utm_medium=internal&utm_content=home) opens dark on every screen you sign into, at noon and at midnight alike.
