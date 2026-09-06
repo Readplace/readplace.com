@@ -66,9 +66,7 @@ jobs:
 
       # The binary cache lives inside node_modules, which checkout's
       # `git clean -ffdx` wipes each job. Keep a copy on the persistent volume
-      # so the runner fetches once per version, not once per job. Downloading
-      # here rather than inside `pnpm check` also serialises what is otherwise
-      # six parallel lint tasks racing one unlocked cache directory.
+      # so the runner fetches once per version, not once per job.
       - name: Reuse the persisted editorconfig-checker binary
         if: runner.environment != 'github-hosted'
         run: |

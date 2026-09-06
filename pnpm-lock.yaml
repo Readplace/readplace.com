@@ -23,6 +23,9 @@ importers:
       '@types/node':
         specifier: 22.19.19
         version: 22.19.19
+      editorconfig-checker:
+        specifier: 6.1.1
+        version: 6.1.1
       husky:
         specifier: 9.1.7
         version: 9.1.7
@@ -150,9 +153,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -275,9 +275,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -342,9 +339,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -571,9 +565,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       esbuild:
         specifier: 'catalog:'
         version: 0.28.0
@@ -737,9 +728,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       esbuild:
         specifier: 'catalog:'
         version: 0.28.0
@@ -992,9 +980,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      editorconfig-checker:
-        specifier: 6.1.1
-        version: 6.1.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))

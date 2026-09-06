@@ -8,7 +8,7 @@
     "compile": "rm -rf dist && tsc && EXTENSION_VERSION=\"${EXTENSION_VERSION:-0.0.0}\" HUTCH_SERVER_URL=https://readplace.com node scripts/build-extension.js",
     "compile-dev": "rm -rf dist && tsc && HUTCH_SERVER_URL=http://127.0.0.1:3000 node scripts/build-extension.js",
     "check-unused-css": "node scripts/check-unused-css.js",
-    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"editorconfig-checker\" \"pnpm check-unused-css\"",
+    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --passWithNoTests",
     "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand --passWithNoTests",
     "test-with-coverage": "pnpm compile && c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
@@ -41,7 +41,6 @@
     "@types/selenium-webdriver": "4.35.6",
     "c8": "11.0.0",
     "concurrently": "10.0.0",
-    "editorconfig-checker": "6.1.1",
     "jest": "30.4.2",
     "selenium-webdriver": "4.44.0",
     "typescript": "6.0.3"

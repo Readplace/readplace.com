@@ -326,7 +326,7 @@ body {
 }
 
 /* No colour of its own, so the hover swap carries both lines rather than
-   stranding a grey one on the filled background. */
+ * stranding a grey one on the filled background. */
 .list-view__save-all-scope {
   font-size: 9px;
   letter-spacing: 0.02em;

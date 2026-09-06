@@ -9,7 +9,7 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
-    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"editorconfig-checker\"",
+    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\"",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "check": "nx run blog-site:check"
   },
@@ -51,7 +51,6 @@
     "@types/supertest": "7.2.0",
     "c8": "11.0.0",
     "concurrently": "10.0.0",
-    "editorconfig-checker": "6.1.1",
     "jest": "30.4.2",
     "jsdom": "26.1.0",
     "supertest": "7.2.2",

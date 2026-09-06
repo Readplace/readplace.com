@@ -458,8 +458,8 @@ const content = document.querySelector('meta[property="og:image"]')?.getAttribut
 Templates indent with **2 spaces per level, never tabs**. Biome does not format
 `.html` (the shared Biome config excludes it), so the rule lives in
 [`.editorconfig`](../../../.editorconfig) and is enforced in CI by
-`editorconfig-checker`, wired into the `lint` script of every project that ships templates. It reports and
-fails; it never rewrites a file.
+`editorconfig-checker`, which the repository-root `check` script runs once for the whole
+repository rather than per project. It reports and fails; it never rewrites a file.
 
 Two conventions the checker cannot see, so they rely on review:
 
