@@ -15,6 +15,7 @@ import { requireEnv } from "@packages/require-env";
 import { clickAndWaitForPageReload } from "./page-interactions";
 import {
 	type MeasuredBox,
+	centreEditingTab,
 	measureBackgrounds,
 	measureBoxes,
 	measureInks,
@@ -1217,6 +1218,7 @@ test.describe("Naming a readlist the reader just made", () => {
 			await page.setViewportSize(viewport);
 			await page.click(RENAMEABLE_TAB);
 			await expect(page.locator(EDITING_TAB)).toHaveCount(1);
+			await page.evaluate(centreEditingTab, EDITING_TAB);
 			const ring = await renameRing(page);
 
 			await page.keyboard.press("Escape");

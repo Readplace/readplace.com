@@ -42,6 +42,12 @@ export function measureInks(selectors: readonly string[]): string[] {
 	});
 }
 
+export function centreEditingTab(selector: string): void {
+	const editing = document.querySelector(selector);
+	if (!editing) throw new Error(`"${selector}" must be laid out to be centred`);
+	editing.scrollIntoView({ block: "center", inline: "nearest" });
+}
+
 export function measureRenameRing(input: {
 	editing: string;
 	item: string;
