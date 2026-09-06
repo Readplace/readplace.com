@@ -192,7 +192,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts";
 import type { UserId } from "@packages/domain/user";
-import type { InboxAddress } from "@packages/domain/inbox";
+import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
 
@@ -512,13 +512,14 @@ export interface GmailIntegrationBundle {
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
+	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
 	mintSenderAddress: (input: {
 		userId: UserId;
 		senderEmail: ForwardableSender;
 	}) => Promise<InboxAddress>;
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
-		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed";
 	}) => Promise<void>;
 	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
 }

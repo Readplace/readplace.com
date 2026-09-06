@@ -12,7 +12,6 @@ import {
 	GMAIL_SENDER_MAP_PATH,
 	GMAIL_SENDER_REMOVE_PATH,
 	GMAIL_SETTINGS_URL,
-	GMAIL_VERIFY_PATH,
 	type GmailPageError,
 	type GmailPageNotice,
 } from "./gmail.url";
@@ -43,7 +42,6 @@ export interface GmailPageViewModel {
 	integrationsPath: string;
 	gatewayAddress: string;
 	settingsUrl: string;
-	verifyAction: string;
 	addSenderAction: string;
 	disconnectAction: string;
 	reconnectAction: string;
@@ -78,9 +76,11 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	sender_unknown: "I couldn't find that sender any more. Reload the page and try again.",
 };
 
+export const GMAIL_GATEWAY_DISABLED_MESSAGE =
+	"This forwarding address has been switched off, so Gmail can't deliver to it. Disconnect Gmail below, then connect again to get a working one.";
+
 export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	connected: "Gmail is connected.",
-	verifying: "Checking with Gmail. This page updates on its own once forwarding is confirmed.",
 	confirmed: "Forwarding confirmed.",
 	sender_added: "Added. Gmail will start forwarding that sender.",
 	sender_removed: "Removed. Gmail will stop forwarding that sender.",
@@ -116,6 +116,7 @@ export function toGmailPollViewModel(input: { pollCount: number }): GmailPollVie
 export function toGmailPageViewModel(input: {
 	connection: GmailConnection;
 	senders: readonly GmailSenderEntry[];
+	gatewayLive: boolean;
 	error?: string;
 	notice?: string;
 }): GmailPageViewModel {
@@ -127,14 +128,15 @@ export function toGmailPageViewModel(input: {
 		(sender) => sender.addedToFilterAt === undefined && sender.mappedAddress === undefined,
 	);
 	const alerts = [
+		...(input.gatewayLive
+			? []
+			: [{ key: "gateway_disabled", message: GMAIL_GATEWAY_DISABLED_MESSAGE }]),
 		...bannersFor(input.error, GMAIL_PAGE_ERRORS),
 		...(input.connection.lastFilterError === undefined
 			? []
 			: [{ key: "filter", message: input.connection.lastFilterError.message }]),
 	];
-	const notices = bannersFor(input.notice, GMAIL_PAGE_NOTICES).filter(
-		(banner) => banner.key !== "verifying" || awaiting,
-	);
+	const notices = bannersFor(input.notice, GMAIL_PAGE_NOTICES);
 
 	return {
 		state,
@@ -143,11 +145,10 @@ export function toGmailPageViewModel(input: {
 		integrationsPath: INTEGRATIONS_PATH,
 		gatewayAddress: input.connection.gatewayAddress,
 		settingsUrl: GMAIL_SETTINGS_URL,
-		verifyAction: GMAIL_VERIFY_PATH,
 		addSenderAction: GMAIL_SENDER_ADD_PATH,
 		disconnectAction: GMAIL_DISCONNECT_PATH,
 		reconnectAction: GMAIL_CONNECT_PATH,
-		showStep: awaiting,
+		showStep: awaiting && input.gatewayLive,
 		showSenders: !awaiting && !revoked,
 		showReconnect: revoked,
 		senders: onFilter.map((sender) => ({

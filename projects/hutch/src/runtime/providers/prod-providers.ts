@@ -301,6 +301,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 			});
 			return entry.address;
 		},
+		findInboxAddress: inboxAddressStore.findByAddress,
 		mintSenderAddress: async ({ senderEmail, userId }: {
 			userId: UserId;
 			senderEmail: ForwardableSender;
@@ -315,7 +316,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		},
 		publishRewriteGmailFilter: async (detail: {
 			userId: UserId;
-			reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+			reason: "forwarding-confirmed" | "sender-added" | "sender-removed";
 		}) => {
 			await publishEvent(RewriteGmailFilterCommand, detail);
 		},

@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
-import { InboxAddressSchema } from "@packages/domain/inbox";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
@@ -14,7 +13,6 @@ const useApp = useTestServer();
 
 const GMAIL = "/integrations/gmail";
 const STATUS = "/integrations/gmail/status";
-const VERIFY = "/integrations/gmail/verify";
 const ADD = "/integrations/gmail/senders/add";
 const REMOVE = "/integrations/gmail/senders/remove";
 const MAP = "/integrations/gmail/senders/map";
@@ -22,7 +20,6 @@ const DISCONNECT = "/integrations/gmail/disconnect";
 const CONNECT = "/integrations/gmail/connect";
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const MORNING = ForwardableSenderSchema.parse("crew@morningbrew.com");
-const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 
 const BOOST = {
 	"hx-boost": "true",
@@ -81,14 +78,12 @@ async function connectedAgent(options: { confirmed?: boolean } = {}) {
 		.post("/login")
 		.type("form")
 		.send({ email: "reader@example.com", password: "password123" });
-	await gmail.bundle.gmailConnectionStore.createConnection({
-		userId,
-		gatewayAddress: GATEWAY,
-	});
+	const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+	await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
 	if (options.confirmed !== false) {
 		await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
 	}
-	return { harness, gmail, agent, userId };
+	return { harness, gmail, agent, userId, gatewayAddress };
 }
 
 describe("GET /integrations/gmail", () => {
@@ -112,14 +107,14 @@ describe("GET /integrations/gmail", () => {
 	});
 
 	it("shows only step 2 with the address to paste into Gmail", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
+		const { agent, gatewayAddress } = await connectedAgent({ confirmed: false });
 
 		const doc = load((await agent.get(GMAIL)).text);
 
 		expect(sections(doc)).toEqual(["step"]);
 		const address = doc.querySelector("[data-test-gmail-address]");
 		assert(address, "the gateway address is always rendered");
-		assert.equal(address.textContent, GATEWAY);
+		assert.equal(address.textContent, gatewayAddress);
 		const disconnect = doc.querySelector(`form[action="${DISCONNECT}"]`);
 		assert(disconnect, "disconnect is reachable while awaiting confirmation");
 		const disconnectParent = disconnect.parentElement;
@@ -152,12 +147,24 @@ describe("GET /integrations/gmail", () => {
 		assert.equal(doc.querySelector("[data-test-gmail-poll]"), null);
 	});
 
+	it("stops handing out a gateway address that has been switched off", async () => {
+		const { agent, gmail, userId, gatewayAddress } = await connectedAgent({ confirmed: false });
+		await gmail.addresses.disableAddress({ userId, address: gatewayAddress });
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		expect(sections(doc)).toEqual([]);
+		const alerts = Array.from(doc.querySelectorAll("[data-test-gmail-alert]")).map((el) =>
+			el.getAttribute("data-test-gmail-alert-key"),
+		);
+		expect(alerts).toEqual(["gateway_disabled"]);
+	});
+
 	it("boosts the awaiting-state mutations so they swap in place", async () => {
 		const { agent } = await connectedAgent({ confirmed: false });
 
 		const doc = load((await agent.get(GMAIL)).text);
 
-		assertBoosted(doc.querySelector(`form[action="${VERIFY}"]`));
 		assertBoosted(doc.querySelector(`form[action="${DISCONNECT}"]`));
 	});
 
@@ -223,13 +230,13 @@ describe("GET /integrations/gmail", () => {
 	});
 
 	it("serves only the awaiting content to a markdown reader while awaiting", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
+		const { agent, gatewayAddress } = await connectedAgent({ confirmed: false });
 
 		const response = await agent.get(GMAIL).set("Accept", "text/markdown");
 
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 		expect(response.text).toContain("Add the forwarding address");
-		expect(response.text).toContain(GATEWAY);
+		expect(response.text).toContain(gatewayAddress);
 		expect(response.text).not.toContain("Newsletters you forward");
 	});
 
@@ -322,21 +329,6 @@ describe("GET /integrations/gmail/status", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/integrations");
-	});
-});
-
-describe("POST /integrations/gmail/verify", () => {
-	it("asks for the filter to be written and says the check started", async () => {
-		const { agent, gmail } = await connectedAgent();
-
-		const response = await agent.post(VERIFY).send();
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations/gmail?notice=verifying");
-		assert.deepEqual(
-			gmail.rewriteRequests.map((request) => request.reason),
-			["requested"],
-		);
 	});
 });
 

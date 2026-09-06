@@ -15,16 +15,14 @@
         {{#if showStep}}
         <section class="gmail__step" data-test-gmail-step>
           <h2 class="gmail__step-title">Add the forwarding address</h2>
-          <p class="gmail__step-copy">In Gmail, open Settings, then Forwarding and POP/IMAP, and add this address as a forwarding address. Readplace confirms it for you.</p>
+          <p class="gmail__step-copy">In Gmail, open Settings, then Forwarding and POP/IMAP, and click <strong>Add a forwarding address</strong>. Paste the address below, click Next, then Proceed. Readplace confirms it for you — you never need the code Gmail mentions.</p>
+          <p class="gmail__step-copy">No <strong>Add a forwarding address</strong> button? Reach the page by hand instead — Gmail's Settings menu, then See all settings, then Forwarding and POP/IMAP — and turn off any browser extensions that change Gmail.</p>
           <div class="gmail__copy-field">
             <code class="gmail__copy-value" data-test-gmail-address>{{gatewayAddress}}</code>
             <button type="button" class="btn btn--secondary btn--compact gmail__copy-button" data-integrations-copy data-integrations-address="{{gatewayAddress}}" aria-label="Copy the forwarding address" data-test-gmail-copy hidden>Copy</button>
           </div>
           <div class="gmail__step-actions">
             <a class="btn btn--primary" href="{{settingsUrl}}" target="_blank" rel="noopener" data-test-gmail-open-settings>Open Gmail settings</a>
-            <form method="POST" action="{{verifyAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-              <button type="submit" class="btn btn--secondary" data-test-gmail-verify>Verify now</button>
-            </form>
           </div>
           {{{pollLine}}}
         </section>

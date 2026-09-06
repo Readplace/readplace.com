@@ -185,6 +185,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 						});
 						return entry.address;
 					},
+					findInboxAddress: inboxAddressStore.findByAddress,
 					mintSenderAddress: async ({
 						userId,
 						senderEmail,

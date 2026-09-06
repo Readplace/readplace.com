@@ -1,6 +1,5 @@
 export const GMAIL_PATH = "/integrations/gmail";
 export const GMAIL_STATUS_PATH = "/integrations/gmail/status";
-export const GMAIL_VERIFY_PATH = "/integrations/gmail/verify";
 export const GMAIL_SENDER_ADD_PATH = "/integrations/gmail/senders/add";
 export const GMAIL_SENDER_MAP_PATH = "/integrations/gmail/senders/map";
 export const GMAIL_SENDER_REMOVE_PATH = "/integrations/gmail/senders/remove";
@@ -14,7 +13,6 @@ export type GmailPageError = "sender_invalid" | "sender_duplicate" | "sender_unk
 
 export type GmailPageNotice =
 	| "connected"
-	| "verifying"
 	| "confirmed"
 	| "sender_added"
 	| "sender_removed"

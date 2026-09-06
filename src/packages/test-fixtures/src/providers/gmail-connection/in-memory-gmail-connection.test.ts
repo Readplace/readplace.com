@@ -167,7 +167,7 @@ describe("initInMemoryGmailConnection", () => {
 			gatewayAddress: gateway,
 		});
 
-		await store.markRevoked({ userId: otherUser, reason: "user-disconnected" });
+		await store.markRevoked({ userId: otherUser, reason: "scope-not-granted" });
 
 		assert.equal(await store.countConnected(), 1);
 	});

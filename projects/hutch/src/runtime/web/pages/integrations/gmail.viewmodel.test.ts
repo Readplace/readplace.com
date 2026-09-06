@@ -4,7 +4,11 @@ import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_CONFIRM_MAX_POLLS } from "./gmail.url";
-import { toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
+import {
+	GMAIL_GATEWAY_DISABLED_MESSAGE,
+	toGmailPageViewModel,
+	toGmailPollViewModel,
+} from "./gmail.viewmodel";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
@@ -46,6 +50,7 @@ function sender(overrides: Partial<GmailSenderEntry> = {}): GmailSenderEntry {
 describe("toGmailPageViewModel", () => {
 	it("shows step 2 and hides the sender list until Google confirms the address", () => {
 		const vm = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection({ forwardingConfirmedAt: undefined }),
 			senders: [],
 		});
@@ -60,7 +65,7 @@ describe("toGmailPageViewModel", () => {
 	});
 
 	it("shows the sender list once the address is confirmed", () => {
-		const vm = toGmailPageViewModel({ connection: connection(), senders: [sender()] });
+		const vm = toGmailPageViewModel({ connection: connection(), senders: [sender()], gatewayLive: true });
 
 		assert.equal(vm.state, "ready-to-filter");
 		assert.equal(vm.showStep, false);
@@ -74,6 +79,7 @@ describe("toGmailPageViewModel", () => {
 
 	it("offers only a reconnect once Google ends the grant", () => {
 		const vm = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection({ revokedAt: "2026-08-27T01:00:00.000Z", revokedReason: "invalid-grant" }),
 			senders: [sender()],
 		});
@@ -86,6 +92,7 @@ describe("toGmailPageViewModel", () => {
 
 	it("surfaces the alias a sender's mail lands in", () => {
 		const vm = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection(),
 			senders: [sender({ mappedAddress: ALIAS, lastSubject: "TLDR 2026-08-27" })],
 		});
@@ -95,7 +102,7 @@ describe("toGmailPageViewModel", () => {
 	});
 
 	it("leaves the alias undefined for a sender that has none yet", () => {
-		const vm = toGmailPageViewModel({ connection: connection(), senders: [sender()] });
+		const vm = toGmailPageViewModel({ connection: connection(), senders: [sender()], gatewayLive: true });
 
 		assert.equal(vm.senders[0].mappedAddress, undefined);
 		assert.equal(vm.senders[0].detail, "No mail yet.");
@@ -103,6 +110,7 @@ describe("toGmailPageViewModel", () => {
 
 	it("lists a seen-but-unclaimed sender under unsorted", () => {
 		const vm = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection(),
 			senders: [
 				sender({ addedToFilterAt: undefined, seenCount: 2, lastSubject: "Morning Brew" }),
@@ -119,6 +127,7 @@ describe("toGmailPageViewModel", () => {
 
 	it("keeps a mapped sender out of unsorted even before it reaches the filter", () => {
 		const vm = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection(),
 			senders: [sender({ addedToFilterAt: undefined, mappedAddress: ALIAS })],
 		});
@@ -128,6 +137,7 @@ describe("toGmailPageViewModel", () => {
 
 	it("shows the reason the last filter write failed", () => {
 		const vm = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection({
 				lastFilterError: {
 					code: "query-too-long",
@@ -146,12 +156,14 @@ describe("toGmailPageViewModel", () => {
 
 	it("renders a known flash message and ignores one it does not know", () => {
 		const known = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection(),
 			senders: [],
 			error: "sender_duplicate",
 			notice: "sender_added",
 		});
 		const unknown = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection(),
 			senders: [],
 			error: "made_up",
@@ -164,31 +176,9 @@ describe("toGmailPageViewModel", () => {
 		assert.deepEqual(unknown.notices, []);
 	});
 
-	it("keeps the verifying notice while still awaiting confirmation", () => {
-		const vm = toGmailPageViewModel({
-			connection: connection({ forwardingConfirmedAt: undefined }),
-			senders: [],
-			notice: "verifying",
-		});
-
-		assert.deepEqual(
-			vm.notices.map((banner) => banner.key),
-			["verifying"],
-		);
-	});
-
-	it("drops a stale verifying notice once forwarding has been confirmed", () => {
-		const vm = toGmailPageViewModel({
-			connection: connection(),
-			senders: [],
-			notice: "verifying",
-		});
-
-		assert.deepEqual(vm.notices, []);
-	});
-
 	it("greets a confirmed connection with the forwarding-confirmed notice", () => {
 		const vm = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection(),
 			senders: [],
 			notice: "confirmed",
@@ -200,8 +190,38 @@ describe("toGmailPageViewModel", () => {
 		);
 	});
 
+	it("hides step 2 and says how to recover when the gateway address is switched off", () => {
+		const vm = toGmailPageViewModel({
+			gatewayLive: false,
+			connection: connection({ forwardingConfirmedAt: undefined }),
+			senders: [],
+		});
+
+		assert.equal(vm.showStep, false);
+		assert.deepEqual(
+			vm.alerts.map((banner) => banner.key),
+			["gateway_disabled"],
+		);
+		assert.equal(vm.alerts[0].message, GMAIL_GATEWAY_DISABLED_MESSAGE);
+	});
+
+	it("warns about a switched-off gateway even after forwarding was confirmed", () => {
+		const vm = toGmailPageViewModel({
+			gatewayLive: false,
+			connection: connection({ filterId: "f-1", filterQuery: "from:(dan@tldr.tech)" }),
+			senders: [sender()],
+		});
+
+		assert.equal(vm.state, "filtering");
+		assert.deepEqual(
+			vm.alerts.map((banner) => banner.key),
+			["gateway_disabled"],
+		);
+	});
+
 	it("reports the filtering state once a filter is live", () => {
 		const vm = toGmailPageViewModel({
+			gatewayLive: true,
 			connection: connection({ filterId: "f-1", filterQuery: "from:(dan@tldr.tech)" }),
 			senders: [sender()],
 		});

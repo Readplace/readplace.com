@@ -3,6 +3,7 @@ import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
 import { parsePollParam, sendComponent } from "@packages/web-shell";
 import { ForwardableSenderSchema, gmailConnectionState } from "@packages/domain/gmail";
+import { isLiveAddress } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import { Base } from "../../base.component";
@@ -64,9 +65,11 @@ export function registerGmailPageRoutes(
 			return;
 		}
 		const senders = await gmail.gmailSenderStore.listSendersByUserId(userId);
+		const gateway = await gmail.findInboxAddress(connection.gatewayAddress);
 		const vm = toGmailPageViewModel({
 			connection,
 			senders,
+			gatewayLive: gateway !== undefined && isLiveAddress(gateway),
 			error: flash(req, "error"),
 			notice: flash(req, "notice"),
 		});
@@ -90,12 +93,6 @@ export function registerGmailPageRoutes(
 			.set("Cache-Control", "private, no-cache")
 			.type("html")
 			.send(renderGmailPoll(toGmailPollViewModel({ pollCount })));
-	});
-
-	router.post("/gmail/verify", write, async (req: Request, res: Response) => {
-		const userId = ownerOf(req);
-		await gmail.publishRewriteGmailFilter({ userId, reason: "requested" });
-		res.redirect(303, buildGmailUrl({ notice: "verifying" }));
 	});
 
 	router.post("/gmail/senders/add", write, async (req: Request, res: Response) => {

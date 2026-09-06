@@ -63,7 +63,7 @@ async function makeHarness(options: {
 		});
 		if (options.confirmed !== false) await connections.markForwardingConfirmed({ userId: USER });
 		if (options.revoked === true) {
-			await connections.markRevoked({ userId: USER, reason: "user-disconnected" });
+			await connections.markRevoked({ userId: USER, reason: "invalid-grant" });
 		}
 	}
 	for (const sender of options.onFilter ?? [TLDR]) {
