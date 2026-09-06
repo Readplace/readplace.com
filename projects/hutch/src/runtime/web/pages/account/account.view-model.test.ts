@@ -725,7 +725,7 @@ describe("buildCardSectionViewModel", () => {
 describe("buildAppearanceSection", () => {
 	it("marks the current preference active and posts to the appearance route", () => {
 		const section = buildAppearanceSection({ current: "dark", appShell: false, platform: undefined });
-		assert.equal(section.formAction, "/account/appearance");
+		assert.equal(section.formAction, "/account/appearance?utm_source=account&utm_medium=internal&utm_content=appearance");
 		assert.deepEqual(
 			section.options.map((o) => [o.value, o.active, o.variant, o.ariaPressed]),
 			[
@@ -740,6 +740,8 @@ describe("buildAppearanceSection", () => {
 		const section = buildAppearanceSection({ current: "system", appShell: true, platform: "ios" });
 		const url = new URL(section.formAction, "https://internal.invalid");
 		assert.equal(url.pathname, "/account/appearance");
+		assert.equal(url.searchParams.get("utm_source"), "account");
+		assert.equal(url.searchParams.get("utm_content"), "appearance");
 		assert.equal(url.searchParams.get("shell"), "app");
 		assert.equal(url.searchParams.get("platform"), "ios");
 	});

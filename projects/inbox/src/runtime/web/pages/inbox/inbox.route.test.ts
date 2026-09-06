@@ -77,7 +77,9 @@ describe("Inbox address routes", () => {
 			assert(doc.querySelector("[data-test-inbox-create]"), "the create form must render");
 			const back = doc.querySelector("[data-test-inbox-back]");
 			assert(back, "the header back link must render");
-			expect(back.getAttribute("href")).toBe("/inbox");
+			expect(back.getAttribute("href")).toBe(
+				"/inbox?utm_source=inbox-addresses&utm_medium=internal&utm_content=back-to-inbox",
+			);
 			expect(back.textContent?.trim()).toBe("Inbox");
 		});
 
@@ -652,7 +654,9 @@ describe("Inbox address routes", () => {
 				"[data-test-inbox-disabled-group] [data-test-inbox-enable]",
 			);
 			assert(enable, "the disabled row must render an enable control");
-			expect(enable.closest("form")?.getAttribute("action")).toBe("/inbox/enable");
+			expect(enable.closest("form")?.getAttribute("action")).toBe(
+				"/inbox/enable?utm_source=inbox-addresses&utm_medium=internal&utm_content=enable-address",
+			);
 		});
 
 		it("leaves an already-live address unchanged and issues no error param", async () => {

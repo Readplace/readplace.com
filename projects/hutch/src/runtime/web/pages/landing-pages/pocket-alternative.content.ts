@@ -1,4 +1,4 @@
-import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { READLIST_SHOT, EARLY_USER_QUOTE, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -110,5 +110,5 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	closeTitle: "Start with the file Pocket gave you",
 	closeSecondaryAction: START_TRIAL,
 	closeNote:
-		'No account needed to see what comes across. <a href="/blog/pocket-migration">The recovery guide</a> covers getting the export out of Pocket.',
+		`No account needed to see what comes across. <a href="${withInternalTracking("/blog/pocket-migration", { source: "lp-pocket-alternative-body", content: "pocket-guide" })}">The recovery guide</a> covers getting the export out of Pocket.`,
 };

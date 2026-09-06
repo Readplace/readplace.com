@@ -78,7 +78,7 @@ describe("toInboxEmailsViewModel", () => {
 		expect(empty?.key).toBe("no-address");
 		expect(empty?.text).toContain("don't have an inbox email address");
 		expect(empty?.cta).toEqual({
-			href: "/inbox/addresses",
+			href: "/inbox/addresses?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
 			label: "Create my first inbox address",
 		});
 		expect(empty?.addresses).toEqual([]);
@@ -89,7 +89,7 @@ describe("toInboxEmailsViewModel", () => {
 
 		expect(vm.empty).toBeUndefined();
 		expect(vm.rows[0].href).toBe(
-			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<a@x>")}`,
+			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<a@x>")}?utm_source=inbox-emails&utm_medium=internal&utm_content=open-email`,
 		);
 	});
 
@@ -173,9 +173,7 @@ describe("toInboxEmailsViewModel", () => {
 				label: "Older",
 				iconName: "arrow-right",
 				iconLeading: false,
-				href: `/inbox?older=${encodeURIComponent(
-					"2026-06-24T09:00:00.000Z#<old@x>",
-				)}`,
+				href: `/inbox?older=${encodeURIComponent("2026-06-24T09:00:00.000Z#<old@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=older`,
 			},
 		]);
 	});
@@ -189,9 +187,7 @@ describe("toInboxEmailsViewModel", () => {
 				label: "Newer",
 				iconName: "arrow-left",
 				iconLeading: true,
-				href: `/inbox?newer=${encodeURIComponent(
-					"2026-06-24T10:00:00.000Z#<new@x>",
-				)}`,
+				href: `/inbox?newer=${encodeURIComponent("2026-06-24T10:00:00.000Z#<new@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=newer`,
 			},
 		]);
 	});

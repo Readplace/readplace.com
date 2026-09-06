@@ -1,3 +1,4 @@
+import { withInternalTracking } from "@packages/web-shell";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_LABEL_MAX_LENGTH,
@@ -9,6 +10,8 @@ import type { ReaderReadlistTags } from "../../shared/article-body/article-heade
 import type { ReaderReadlistPicker } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { readerReadlists } from "./readlist-context";
 import { READLIST_PATH } from "./readlist.url";
+
+const FILING_SOURCE = "reader-readlists";
 
 export interface ReaderReadlistFiling {
 	tags: ReaderReadlistTags | undefined;
@@ -38,11 +41,17 @@ export function buildReaderReadlistFiling(input: {
 			input.definitions.length >= READLIST_MAX_PER_USER
 				? undefined
 				: {
-						createUrl: `${READLIST_PATH}/${input.articleId}/create-and-assign`,
+						createUrl: withInternalTracking(
+							`${READLIST_PATH}/${input.articleId}/create-and-assign`,
+							{ source: FILING_SOURCE, content: "create-and-assign" },
+						),
 						maxLength: READLIST_LABEL_MAX_LENGTH,
 					};
 		return {
-			assignUrl: `${READLIST_PATH}/${input.articleId}/assign`,
+			assignUrl: withInternalTracking(`${READLIST_PATH}/${input.articleId}/assign`, {
+				source: FILING_SOURCE,
+				content: "assign",
+			}),
 			returnTo: input.returnTo,
 			options: assignable.map(({ slug, label }) => ({ slug, label })),
 			create,
@@ -58,7 +67,10 @@ export function buildReaderReadlistFiling(input: {
 			assigned.length === 0
 				? undefined
 				: {
-						unassignUrl: `${READLIST_PATH}/${input.articleId}/unassign`,
+						unassignUrl: withInternalTracking(
+							`${READLIST_PATH}/${input.articleId}/unassign`,
+							{ source: FILING_SOURCE, content: "unassign" },
+						),
 						returnTo: input.returnTo,
 						tags: assigned.map(({ slug, label }) => ({ slug, label })),
 					},

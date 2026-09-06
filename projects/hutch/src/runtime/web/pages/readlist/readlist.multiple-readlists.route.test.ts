@@ -170,7 +170,7 @@ describe("POST /queue/queues", () => {
 		expect(tab.tagName).toBe("A");
 		expect(tab.getAttribute("href")).toContain(`queue=${slug}`);
 		expect(tab.getAttribute("hx-boost")).toBe("false");
-		expect(tab.getAttribute("data-readlist-rename")).toBe(`/queue/queues/${slug}/rename`);
+		expect(tab.getAttribute("data-readlist-rename")).toBe(`/queue/queues/${slug}/rename?utm_source=queue-nav&utm_medium=internal&utm_content=rename-readlist`);
 		expect(tab.getAttribute("data-readlist-label-max")).toBe(String(READLIST_LABEL_MAX_LENGTH));
 		expect(doc.querySelector('script[src="/client-dist/readlist-rename.client.js"]')).not.toBeNull();
 	});
@@ -476,8 +476,8 @@ describe("the readlists the reader made, seen from the rail", () => {
 		expect(panels.map((panel) => panel.getAttribute("id"))).toEqual(deleteTriggerTargets(doc));
 		expect(panels.map(migrateTargetsOf)).toEqual([[second], [first]]);
 		expect(deleteFallbackActions(doc)).toEqual([
-			`/queue/queues/${first}/delete`,
-			`/queue/queues/${second}/delete`,
+			`/queue/queues/${first}/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist`,
+			`/queue/queues/${second}/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist`,
 		]);
 	});
 

@@ -61,7 +61,7 @@ describe("toGmailPageViewModel", () => {
 		assert.equal(vm.showSenders, false);
 		assert.equal(vm.showReconnect, false);
 		assert.equal(vm.gatewayAddress, GATEWAY);
-		assert.equal(vm.integrationsPath, "/integrations");
+		assert.equal(vm.integrationsPath, "/integrations?utm_source=integrations-gmail&utm_medium=internal&utm_content=back-to-integrations");
 	});
 
 	it("shows the sender list once the address is confirmed", () => {

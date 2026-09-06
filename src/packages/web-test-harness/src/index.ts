@@ -39,3 +39,5 @@ export type {
 } from "./bundle.types";
 export type { RunningServer } from "./harness";
 export { BROWSER_USER_AGENT, buildHarness, loginAgent, useTestServer } from "./harness";
+export type { FindUntrackedCtasOptions, UntrackedCta } from "./cta-tracking";
+export { describeUntrackedCtas, findUntrackedCtas } from "./cta-tracking";

@@ -39,6 +39,7 @@ function trackedUrl(input: { appOrigin: string; path: string }): string {
 	url.searchParams.set("utm_source", "first-inbox-email");
 	url.searchParams.set("utm_medium", "email");
 	url.searchParams.set("utm_campaign", "inbox-first-arrival");
+	url.searchParams.set("utm_content", "open-inbox");
 	return url.toString();
 }
 

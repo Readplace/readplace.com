@@ -121,7 +121,7 @@ describe("initSendUserDigestHandler", () => {
 				(a) => a.getAttribute("href"),
 			);
 			const readerHrefs = new Set(
-				hrefs.filter((href) => href?.endsWith("/view?from=reader-ready-email")),
+				hrefs.filter((href) => href?.includes("/view?from=reader-ready-email&utm_source=reader-ready-email")),
 			);
 			expect(readerHrefs.size).toBe(2); // one private reader permalink per article
 			expect(hrefs.filter((href) => href?.includes("utm_content=bottom"))).toHaveLength(1);

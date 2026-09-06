@@ -1,3 +1,4 @@
+import { withInternalTracking } from "@packages/web-shell";
 import type {
 	GmailConnection,
 	GmailConnectionState,
@@ -59,6 +60,12 @@ export interface GmailPageViewModel {
 export interface GmailPollViewModel {
 	pollUrl: string | undefined;
 	message: string;
+}
+
+const GMAIL_SOURCE = "integrations-gmail";
+
+function track(href: string, content: string): string {
+	return withInternalTracking(href, { source: GMAIL_SOURCE, content });
 }
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
@@ -142,12 +149,12 @@ export function toGmailPageViewModel(input: {
 		state,
 		stateModifier: `gmail__status--${state}`,
 		statusLabel: STATUS_LABELS[state],
-		integrationsPath: INTEGRATIONS_PATH,
+		integrationsPath: track(INTEGRATIONS_PATH, "back-to-integrations"),
 		gatewayAddress: input.connection.gatewayAddress,
 		settingsUrl: GMAIL_SETTINGS_URL,
-		addSenderAction: GMAIL_SENDER_ADD_PATH,
-		disconnectAction: GMAIL_DISCONNECT_PATH,
-		reconnectAction: GMAIL_CONNECT_PATH,
+		addSenderAction: track(GMAIL_SENDER_ADD_PATH, "add-sender"),
+		disconnectAction: track(GMAIL_DISCONNECT_PATH, "disconnect"),
+		reconnectAction: track(GMAIL_CONNECT_PATH, "reconnect"),
 		showStep: awaiting && input.gatewayLive,
 		showSenders: !awaiting && !revoked,
 		showReconnect: revoked,
@@ -155,12 +162,12 @@ export function toGmailPageViewModel(input: {
 			email: sender.senderEmail,
 			detail: senderDetail(sender),
 			mappedAddress: sender.mappedAddress,
-			removeAction: GMAIL_SENDER_REMOVE_PATH,
+			removeAction: track(GMAIL_SENDER_REMOVE_PATH, "remove-sender"),
 		})),
 		unsorted: unsorted.map((sender) => ({
 			email: sender.senderEmail,
 			detail: senderDetail(sender),
-			mapAction: GMAIL_SENDER_MAP_PATH,
+			mapAction: track(GMAIL_SENDER_MAP_PATH, "map-sender"),
 		})),
 		hasSenders: onFilter.length > 0,
 		hasUnsorted: unsorted.length > 0,

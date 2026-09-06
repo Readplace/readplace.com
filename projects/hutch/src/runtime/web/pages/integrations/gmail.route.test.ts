@@ -13,11 +13,11 @@ const useApp = useTestServer();
 
 const GMAIL = "/integrations/gmail";
 const STATUS = "/integrations/gmail/status";
-const ADD = "/integrations/gmail/senders/add";
-const REMOVE = "/integrations/gmail/senders/remove";
-const MAP = "/integrations/gmail/senders/map";
-const DISCONNECT = "/integrations/gmail/disconnect";
-const CONNECT = "/integrations/gmail/connect";
+const ADD = "/integrations/gmail/senders/add?utm_source=integrations-gmail&utm_medium=internal&utm_content=add-sender";
+const REMOVE = "/integrations/gmail/senders/remove?utm_source=integrations-gmail&utm_medium=internal&utm_content=remove-sender";
+const MAP = "/integrations/gmail/senders/map?utm_source=integrations-gmail&utm_medium=internal&utm_content=map-sender";
+const DISCONNECT = "/integrations/gmail/disconnect?utm_source=integrations-gmail&utm_medium=internal&utm_content=disconnect";
+const CONNECT = "/integrations/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=reconnect";
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const MORNING = ForwardableSenderSchema.parse("crew@morningbrew.com");
 
@@ -122,7 +122,10 @@ describe("GET /integrations/gmail", () => {
 		assert.equal(disconnectParent.classList.contains("gmail__container"), true);
 		const back = doc.querySelector("a.gmail__back");
 		assert(back, "the page links back to the integrations list");
-		assert.equal(back.getAttribute("href"), "/integrations");
+		assert.equal(
+			back.getAttribute("href"),
+			"/integrations?utm_source=integrations-gmail&utm_medium=internal&utm_content=back-to-integrations",
+		);
 	});
 
 	it("polls the status route for a self-updating confirmation while awaiting", async () => {

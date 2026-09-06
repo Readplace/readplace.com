@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { BROWSER_EXTENSIONS_OR, NATIVE_APP_DEVICES_OR } from "../shared/client-enumerations";
 import { READLIST_DISMISS_ONBOARDING_PATH } from "../pages/readlist/readlist.url";
@@ -8,6 +8,7 @@ import { ONBOARDING_STEPS, hasOutstandingStep } from "./onboarding.steps";
 import type {
 	InstallableClientOnboarding,
 	OnboardingAction,
+	OnboardingActionKey,
 	OnboardingActionMethod,
 	OnboardingActionVariant,
 	OnboardingContext,
@@ -45,6 +46,8 @@ interface OnboardingActionDisplayModel {
 	buttonClass: string;
 }
 
+const ONBOARDING_SOURCE = "onboarding";
+
 function toActionDisplayModel(
 	action: OnboardingAction,
 	returnQuery: string,
@@ -55,10 +58,12 @@ function toActionDisplayModel(
 		label: action.label,
 		buttonClass: BUTTON_CLASS_BY_VARIANT[action.variant],
 	};
+	const tracking = { source: ONBOARDING_SOURCE, content: action.key };
 	if (action.method === "POST") {
-		return { ...shared, action: `${action.href}${returnQuery}`, inputs: [] };
+		const href = withInternalTracking(`${action.href}${returnQuery}`, tracking);
+		return { ...shared, action: href, inputs: [] };
 	}
-	const [path, query] = action.href.split("?");
+	const [path, query] = withInternalTracking(action.href, tracking).split("?");
 	const inputs = [...new URLSearchParams(query)].map(([name, value]) => ({ name, value }));
 	return { ...shared, action: path, inputs };
 }
@@ -90,6 +95,30 @@ function toStepDisplayModel(
 	};
 }
 
+function dismissDisplayModel(
+	key: Extract<OnboardingActionKey, "dismiss-no-client" | "dismiss-success">,
+	options: OnboardingChecklistOptions,
+): OnboardingActionDisplayModel {
+	return toActionDisplayModel(
+		{
+			key,
+			method: "POST",
+			href: READLIST_DISMISS_ONBOARDING_PATH,
+			label: "Dismiss",
+			variant: "text",
+		},
+		options.returnQuery,
+	);
+}
+
+const SEE_INSTALL_OPTIONS_ACTION: OnboardingAction = {
+	key: "see-install-options",
+	method: "GET",
+	href: "/install",
+	label: "See install options",
+	variant: "primary",
+};
+
 /** Escape card for devices with no installable first-party client. The
  * completion-gated checklist would nag forever there — its install step can
  * never tick — so this drops the steps for an honest message, a link to the
@@ -99,9 +128,9 @@ function renderNoClientCard(options: OnboardingChecklistOptions): string {
 	return render(ONBOARDING_TEMPLATE, {
 		noClient: true,
 		stateClass,
-		dismissAction: `${READLIST_DISMISS_ONBOARDING_PATH}${options.returnQuery}`,
+		dismiss: dismissDisplayModel("dismiss-no-client", options),
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
-		installOptionsUrl: "/install",
+		installOptions: toActionDisplayModel(SEE_INSTALL_OPTIONS_ACTION, ""),
 		noClientLede: `Readplace doesn't have an app for this device yet. If you use ${BROWSER_EXTENSIONS_OR} on a computer, or ${NATIVE_APP_DEVICES_OR}, you can install Readplace there.`,
 	});
 }
@@ -130,6 +159,6 @@ export function OnboardingChecklist(
 			? "onboarding__success-message onboarding__success-message--hidden"
 			: "onboarding__success-message",
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
-		dismissAction: `${READLIST_DISMISS_ONBOARDING_PATH}${options.returnQuery}`,
+		dismiss: dismissDisplayModel("dismiss-success", options),
 	});
 }

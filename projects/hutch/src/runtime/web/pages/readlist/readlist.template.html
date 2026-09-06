@@ -54,7 +54,7 @@
               {{#if saveBarHidden}}
               <p class="readlist__empty-text">Every link you save lands in <a href="{{defaultReadlistUrl}}">{{defaultReadlistLabel}}</a>. Open an article there to add it to this readlist.</p>
               {{else}}
-              <p class="readlist__empty-text">Paste a URL above to save a link. Or <a href="/install">set up one-tap saving</a> from {{saveSurfacesShort}}.</p>
+              <p class="readlist__empty-text">Paste a URL above to save a link. Or <a href="{{track '/install' source='queue-empty' content='install'}}">set up one-tap saving</a> from {{saveSurfacesShort}}.</p>
               {{/if}}
             </div>
             {{/if}}

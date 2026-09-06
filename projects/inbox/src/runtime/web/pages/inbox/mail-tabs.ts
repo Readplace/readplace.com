@@ -1,4 +1,4 @@
-import { formatTabCountLabel } from "@packages/web-shell";
+import { formatTabCountLabel, withInternalTracking } from "@packages/web-shell";
 import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 
 const MAIL_TAB_DEFINITIONS: readonly { readonly key: MailTabKey; readonly label: string }[] = [
@@ -30,7 +30,10 @@ export function buildMailTabs(input: {
 		return {
 			key,
 			label: count === undefined ? label : formatTabCountLabel({ label, count }),
-			href: buildInboxEmailDetailUrl({ emailId: input.emailId, tab: key }),
+			href: withInternalTracking(
+				buildInboxEmailDetailUrl({ emailId: input.emailId, tab: key }),
+				{ source: "inbox-mail-tabs", content: key },
+			),
 			ariaCurrent: key === input.active ? "page" : undefined,
 		};
 	});

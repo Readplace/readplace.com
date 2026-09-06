@@ -1,3 +1,4 @@
+import { withInternalTracking } from "@packages/web-shell";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { InboxEmailLinkEntry, InboxLinkSaveState } from "@packages/domain/inbox";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
@@ -5,6 +6,8 @@ import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
 import { buildInboxLinkPollUrl } from "./inbox-link-poll-url";
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
 import { type SaveButtonState, toInboxSaveButtonViewModel } from "./inbox-save-button.viewmodel";
+
+const INBOX_LINK_CARD_SOURCE = "inbox-link-card";
 
 type InboxCardActionKey = "save" | "feedback-exclude";
 
@@ -117,7 +120,10 @@ function buildCardActions(input: {
 				whenNotSaved,
 			}),
 			buttonId: buttonId("save"),
-			href: buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }),
+			href: withInternalTracking(buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }), {
+				source: INBOX_LINK_CARD_SOURCE,
+				content: "save-link",
+			}),
 			method: "POST",
 			hiddenParams: shownParam,
 			inPlaceTargetId: cardDomId(link.ordinal),
@@ -128,7 +134,10 @@ function buildCardActions(input: {
 		label: "Not an article (report)",
 		ariaLabel: `Not an article (report): ${displayUrl}`,
 		buttonId: buttonId("feedback-exclude"),
-		href: buildInboxLinkFeedbackUrl({ emailId, ordinal: link.ordinal }),
+		href: withInternalTracking(buildInboxLinkFeedbackUrl({ emailId, ordinal: link.ordinal }), {
+			source: INBOX_LINK_CARD_SOURCE,
+			content: "feedback-exclude",
+		}),
 		method: "POST",
 		hiddenParams: { ...shownParam, verdict: "should-be-excluded" },
 	});

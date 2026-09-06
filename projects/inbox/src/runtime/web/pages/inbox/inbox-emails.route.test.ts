@@ -113,7 +113,9 @@ describe("Inbox emails list route", () => {
 		expect(empty.getAttribute("data-test-inbox-empty-state")).toBe("no-address");
 		const cta = empty.querySelector("[data-test-inbox-emails-empty-cta]");
 		assert(cta, "setup CTA must render while the reader has no address");
-		expect(cta.getAttribute("href")).toBe("/inbox/addresses");
+		expect(cta.getAttribute("href")).toBe(
+			"/inbox/addresses?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
+		);
 		expect(cta.textContent).toBe("Create my first inbox address");
 	});
 
@@ -264,7 +266,7 @@ describe("Inbox emails list route", () => {
 
 		const newestHref = rows[0].querySelector("a")?.getAttribute("href");
 		expect(newestHref).toBe(
-			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<r3@x>")}`,
+			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<r3@x>")}?utm_source=inbox-emails&utm_medium=internal&utm_content=open-email`,
 		);
 
 		expect(rows[2].querySelector("[data-test-inbox-email-subject]")?.textContent).toBe(
@@ -345,7 +347,7 @@ describe("Inbox emails list route", () => {
 			]);
 			expect(links[0].textContent?.trim()).toBe("Older");
 			expect(links[0].getAttribute("href")).toBe(
-				`/inbox?older=${encodeURIComponent("2026-06-24T00:01:00.000Z#<m-1@x>")}`,
+				`/inbox?older=${encodeURIComponent("2026-06-24T00:01:00.000Z#<m-1@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=older`,
 			);
 		});
 
@@ -397,7 +399,7 @@ describe("Inbox emails list route", () => {
 			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
 
 			const response = await agent.get(
-				`/inbox?older=${encodeURIComponent("2026-06-24T00:00:00.000Z#<m-0@x>")}`,
+				`/inbox?older=${encodeURIComponent("2026-06-24T00:00:00.000Z#<m-0@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=older`,
 			);
 
 			expect(response.status).toBe(302);

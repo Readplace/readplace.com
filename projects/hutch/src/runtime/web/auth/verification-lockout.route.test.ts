@@ -114,7 +114,9 @@ describe("Email verification lockout", () => {
 			"mailto:readplace+verification@readplace.com",
 		);
 
-		const logout = doc.querySelector('form[action="/logout"]');
+		const logout = doc.querySelector(
+			'form[action="/logout?utm_source=account-locked&utm_medium=internal&utm_content=logout"]',
+		);
 		assert(logout, "locked screen must keep a logout escape hatch");
 		expect(logout.getAttribute("method")?.toUpperCase()).toBe("POST");
 	});

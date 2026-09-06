@@ -108,6 +108,9 @@ importers:
       '@packages/test-fixtures':
         specifier: workspace:*
         version: link:../../src/packages/test-fixtures
+      '@packages/web-test-harness':
+        specifier: workspace:*
+        version: link:../../src/packages/web-test-harness
       '@pulumi/aws':
         specifier: 7.32.0
         version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
@@ -953,6 +956,9 @@ importers:
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../src/packages/test-phase-runner
+      '@packages/web-test-harness':
+        specifier: workspace:*
+        version: link:../../src/packages/web-test-harness
       '@playwright/test':
         specifier: 1.60.0
         version: 1.60.0
@@ -2050,6 +2056,9 @@ importers:
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
       supertest:
         specifier: 7.2.2
         version: 7.2.2

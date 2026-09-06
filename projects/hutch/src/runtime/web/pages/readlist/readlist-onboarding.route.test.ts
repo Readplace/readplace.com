@@ -305,7 +305,7 @@ describe("Readlist onboarding", () => {
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
 
-		const response = await agent.post("/queue/dismiss-onboarding").set("User-Agent", CHROME_UA);
+		const response = await agent.post("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client").set("User-Agent", CHROME_UA);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue");
@@ -615,7 +615,7 @@ describe("Readlist onboarding — no installable client", () => {
 		assert(dismiss, "Dismiss button must be rendered on the no-client card");
 		const form = dismiss.closest("form");
 		assert(form, "Dismiss button must submit a form");
-		expect(form.getAttribute("action")).toBe("/queue/dismiss-onboarding");
+		expect(form.getAttribute("action")).toBe("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client");
 	});
 
 	it("hides the no-client card when the dismiss cookie matches the stable no-client token", async () => {
@@ -662,7 +662,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.post("/queue/dismiss-onboarding").set("User-Agent", DESKTOP_SAFARI_UA);
+		const response = await agent.post("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client").set("User-Agent", DESKTOP_SAFARI_UA);
 
 		expect(response.status).toBe(303);
 		const cookies = response.headers["set-cookie"];
@@ -677,7 +677,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		// The POST carries no client UA → the route persists the no-client token.
-		const dismiss = await agent.post("/queue/dismiss-onboarding").set("User-Agent", DESKTOP_SAFARI_UA);
+		const dismiss = await agent.post("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client").set("User-Agent", DESKTOP_SAFARI_UA);
 		expect(dismiss.status).toBe(303);
 
 		// The agent replays the dismiss cookie on the follow-up no-client render.

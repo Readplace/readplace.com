@@ -114,7 +114,7 @@ import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
 import { selectChangelogBanner } from "../../banner-state";
 import type { GetChangelogBanner } from "../../changelog-banner-source";
-import { requireCspNonce, sendComponent } from "@packages/web-shell";
+import { requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
@@ -1034,7 +1034,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			.map((version) => version.crawledAtMinute);
 		const crawlBookmarkRemoval = {
 			authoredMinuteIds,
-			removeVersionUrl: `${READLIST_PATH}/${ownedArticle.id.value}/remove-my-version`,
+			removeVersionUrl: withInternalTracking(
+				`${READLIST_PATH}/${ownedArticle.id.value}/remove-my-version`,
+				{ source: "reader-crawl-bookmark", content: "remove-my-version" },
+			),
 		};
 
 		sendComponent(

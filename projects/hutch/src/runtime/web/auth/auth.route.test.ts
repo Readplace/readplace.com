@@ -437,8 +437,8 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector('[data-test-auth-provider-section="google"] [data-test-auth-provider="google"]')?.getAttribute("href")).toBe("/auth/google?utm_source=auth-page&utm_medium=internal&utm_content=google-signup-btn&return=%2Fqueue");
-			expect(doc.querySelector('[data-test-auth-provider-section="apple"] [data-test-auth-provider="apple"]')?.getAttribute("href")).toBe("/auth/apple?utm_source=auth-page&utm_medium=internal&utm_content=apple-signup-btn&return=%2Fqueue");
+			expect(doc.querySelector('[data-test-auth-provider-section="google"] [data-test-auth-provider="google"]')?.getAttribute("href")).toBe("/auth/google?return=%2Fqueue&utm_source=auth-page&utm_medium=internal&utm_content=google-signup-btn");
+			expect(doc.querySelector('[data-test-auth-provider-section="apple"] [data-test-auth-provider="apple"]')?.getAttribute("href")).toBe("/auth/apple?return=%2Fqueue&utm_source=auth-page&utm_medium=internal&utm_content=apple-signup-btn");
 		});
 
 		it("should pass return URL to login link", async () => {
@@ -1974,7 +1974,7 @@ describe("Auth routes", () => {
 			const response = await request(harness.server).get("/login");
 
 			const link = getGoogleButton(response.text);
-			expect(link.getAttribute("href")).toBe("/auth/google");
+			expect(link.getAttribute("href")).toBe("/auth/google?utm_source=auth-page&utm_medium=internal&utm_content=google-login-btn");
 			expect(link.querySelector(".auth-provider-button__label")?.textContent).toBe("Sign in with Google");
 			const logo = link.querySelector("svg.auth-provider-button__logo");
 			assert(logo, "google logo must be rendered");
@@ -2022,7 +2022,7 @@ describe("Auth routes", () => {
 			const response = await request(harness.server).get("/login");
 
 			const link = getAppleButton(response.text);
-			expect(link.getAttribute("href")).toBe("/auth/apple");
+			expect(link.getAttribute("href")).toBe("/auth/apple?utm_source=auth-page&utm_medium=internal&utm_content=apple-login-btn");
 			expect(link.querySelector(".auth-provider-button__label")?.textContent).toBe("Sign in with Apple");
 			const logo = link.querySelector("svg.auth-provider-button__logo");
 			assert(logo, "apple logo must be rendered");

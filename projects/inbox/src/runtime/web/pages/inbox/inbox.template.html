@@ -1,6 +1,6 @@
     <main class="inbox">
       <div class="inbox__header">
-        <a class="inbox__back" href="/inbox" data-test-inbox-back>{{icon "arrow-left"}} Inbox</a>
+        <a class="inbox__back" href="{{track '/inbox' source='inbox-addresses' content='back-to-inbox'}}" data-test-inbox-back>{{icon "arrow-left"}} Inbox</a>
         <h1 class="inbox__title">Your inbox emails</h1>
         <p class="inbox__subtitle">Sign up for any newsletter with one of these inbox emails (or use them to email links to yourself) and it lands in your Readplace inbox. I'll pull out the links and list them under the email for you to read later.</p>
       </div>
@@ -11,7 +11,7 @@
           <ol class="inbox__steps">
             <li>Create an inbox email and copy it.</li>
             <li>In your email app, forward a newsletter (or set up forwarding) to it.</li>
-            <li>New issues show up in your <a class="inbox__steps-link" href="/inbox">Inbox</a> automatically.</li>
+            <li>New issues show up in your <a class="inbox__steps-link" href="{{track '/inbox' source='inbox-addresses' content='steps-inbox'}}">Inbox</a> automatically.</li>
           </ol>
         </section>
 

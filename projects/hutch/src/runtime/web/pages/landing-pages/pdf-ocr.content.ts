@@ -1,6 +1,6 @@
 import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PASTE_A_LINK, READER_SHOT, FOUNDER_LINE, PLAN_CHOICES, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
+import { PASTE_A_LINK, READER_SHOT, founderLine, PLAN_CHOICES, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const PDF_OCR_CONTENT: LandingPageContent = {
@@ -48,7 +48,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 			caption:
 				"The reader view any saved link opens into. An extracted PDF lands here too — as text that reflows on a phone, not as a page you pinch and drag.",
 		},
-		founderLine: FOUNDER_LINE,
+		founderLine: founderLine("pdf-ocr"),
 	},
 	mechanismTitle: "What the checks actually check",
 	mechanismLede:

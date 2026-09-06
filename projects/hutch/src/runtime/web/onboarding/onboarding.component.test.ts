@@ -223,13 +223,23 @@ describe("OnboardingChecklist", () => {
 		}
 	});
 
-	it("renders a query-less Choose browser action with no hidden inputs for unrecognised platforms", () => {
+	it("renders a query-less Choose browser action carrying only its tracking inputs for unrecognised platforms", () => {
 		const doc = parse(checklist(contextWith({ platform: "other" })));
 		const step = stepOf(doc, "install-extension");
 		assert.deepEqual(actionKeys(step), ["choose-browser"]);
 		const form = actionForm(step, "choose-browser");
 		assert.equal(form.getAttribute("action"), "/install");
-		assert.equal(form.querySelectorAll("input").length, 0);
+		assert.deepEqual(
+			Array.from(form.querySelectorAll("input"), (input) => [
+				input.getAttribute("name"),
+				input.getAttribute("value"),
+			]),
+			[
+				["utm_source", "onboarding"],
+				["utm_medium", "internal"],
+				["utm_content", "choose-browser"],
+			],
+		);
 	});
 
 	it("titles the save step per platform", () => {
@@ -299,6 +309,17 @@ describe("OnboardingChecklist", () => {
 			const cta = actionForm(step, "see-inbox-address");
 			assert.equal(cta.getAttribute("method"), "GET");
 			assert.equal(cta.getAttribute("action"), "/inbox/addresses");
+			assert.deepEqual(
+				Array.from(cta.querySelectorAll("input"), (input) => [
+					input.getAttribute("name"),
+					input.getAttribute("value"),
+				]),
+				[
+					["utm_source", "onboarding"],
+					["utm_medium", "internal"],
+					["utm_content", "see-inbox-address"],
+				],
+			);
 			assert.equal(
 				step
 					.querySelector('[data-test-onboarding-action="see-inbox-address"]')
@@ -308,7 +329,7 @@ describe("OnboardingChecklist", () => {
 
 			const markDone = actionForm(step, "email-mark-done");
 			assert.equal(markDone.getAttribute("method"), "POST");
-			assert.equal(markDone.getAttribute("action"), "/queue/onboarding/email/done");
+			assert.equal(markDone.getAttribute("action"), "/queue/onboarding/email/done?utm_source=onboarding&utm_medium=internal&utm_content=email-mark-done");
 			assert.equal(
 				step.querySelector('[data-test-onboarding-action="email-mark-done"]')?.getAttribute("class"),
 				"onboarding__dismiss-text",
@@ -319,7 +340,7 @@ describe("OnboardingChecklist", () => {
 			const doc = parse(checklist(contextWith(), { returnQuery: "?tab=done" }));
 			assert.equal(
 				actionForm(emailStep(doc), "email-mark-done").getAttribute("action"),
-				"/queue/onboarding/email/done?tab=done",
+				"/queue/onboarding/email/done?tab=done&utm_source=onboarding&utm_medium=internal&utm_content=email-mark-done",
 			);
 			assert.equal(
 				actionForm(emailStep(doc), "see-inbox-address").getAttribute("action"),
@@ -331,7 +352,7 @@ describe("OnboardingChecklist", () => {
 			assert(dismiss, "success dismiss must be rendered");
 			assert.equal(
 				dismiss.closest("form")?.getAttribute("action"),
-				"/queue/dismiss-onboarding?tab=done",
+				"/queue/dismiss-onboarding?tab=done&utm_source=onboarding&utm_medium=internal&utm_content=dismiss-success",
 			);
 		});
 
@@ -576,7 +597,7 @@ describe("OnboardingChecklist", () => {
 			const form = dismiss.closest("form");
 			assert(form, "Dismiss button must live inside a form");
 			assert.equal(form.getAttribute("method"), "POST");
-			assert.equal(form.getAttribute("action"), "/queue/dismiss-onboarding");
+			assert.equal(form.getAttribute("action"), "/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client");
 		});
 
 		it("stamps the return query onto the no-client dismiss form", () => {
@@ -586,7 +607,7 @@ describe("OnboardingChecklist", () => {
 			assert(dismiss, "Dismiss button must be rendered");
 			assert.equal(
 				dismiss.closest("form")?.getAttribute("action"),
-				"/queue/dismiss-onboarding?tab=done",
+				"/queue/dismiss-onboarding?tab=done&utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client",
 			);
 		});
 

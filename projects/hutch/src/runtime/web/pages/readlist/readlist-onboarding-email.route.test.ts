@@ -26,6 +26,7 @@ const DESKTOP_SAFARI_UA =
 const EXTENSION_COOKIES = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 const EMAIL_STEP = '[data-test-onboarding-step="receive-articles-by-email"]';
 const MARK_DONE_PATH = "/queue/onboarding/email/done";
+const MARK_DONE_ACTION = `${MARK_DONE_PATH}?utm_source=onboarding&utm_medium=internal&utm_content=email-mark-done`;
 
 function versionStampingFixture(savedCount: number) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -91,7 +92,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		);
 		assert.equal(
 			step.querySelector('[data-test-onboarding-action="email-mark-done"]')?.closest("form")?.getAttribute("action"),
-			MARK_DONE_PATH,
+			MARK_DONE_ACTION,
 		);
 	});
 

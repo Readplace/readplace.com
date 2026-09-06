@@ -38,7 +38,7 @@ describe("POST /import/from-url routes", () => {
 			expect(uploadTab.getAttribute("aria-current")).toBe("false");
 			const form = doc.querySelector('[data-test-form="import-from-url"]');
 			assert(form, "from-url form must be rendered");
-			expect(form.getAttribute("action")).toBe("/import/from-url");
+			expect(form.getAttribute("action")).toBe("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links");
 			const input = form.querySelector('[data-test-import-from-url-input]');
 			assert(input, "url input must be rendered");
 			expect(input.getAttribute("type")).toBe("url");
@@ -142,7 +142,7 @@ describe("POST /import/from-url routes", () => {
 				}),
 			);
 			const response = await request(harness.server)
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 			expect(response.status).toBe(303);
@@ -172,7 +172,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 
@@ -195,7 +195,7 @@ describe("POST /import/from-url routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.post("/import/from-url").type("form").send({});
+			const response = await agent.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links").type("form").send({});
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
@@ -208,7 +208,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "http://localhost/secret" });
 
@@ -225,7 +225,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 
@@ -240,7 +240,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 
@@ -255,7 +255,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 
@@ -270,7 +270,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 
@@ -287,7 +287,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42.pdf" });
 
@@ -307,7 +307,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 
@@ -327,7 +327,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "  https://news.example/  " });
 
@@ -365,7 +365,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 
@@ -414,12 +414,12 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "http://localhost/" });
 
 			await agent
-				.post("/import/from-url")
+				.post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links")
 				.type("form")
 				.send({ url: "" });
 
@@ -491,8 +491,8 @@ describe("POST /import/from-url routes", () => {
 			};
 			const harness = useApp(fixture);
 
-			const first = await request(harness.server).post("/import/from-url").type("form").send({ url: "https://example.com" });
-			const throttled = await request(harness.server).post("/import/from-url").type("form").send({ url: "https://example.com" });
+			const first = await request(harness.server).post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links").type("form").send({ url: "https://example.com" });
+			const throttled = await request(harness.server).post("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links").type("form").send({ url: "https://example.com" });
 
 			expect(first.status).toBe(303);
 			expect(throttled.status).toBe(429);

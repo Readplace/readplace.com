@@ -1576,7 +1576,7 @@ describe("Readlist routes", () => {
 			const link = new JSDOM(await openFailedReader(DESKTOP_UA)).window.document
 				.querySelector("[data-test-reader-failed-install]");
 			assert(link, "desktop reader-failed card must offer the extension install CTA");
-			expect(link.getAttribute("href")).toBe("/install?client=chrome");
+			expect(link.getAttribute("href")).toBe("/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-failed");
 		});
 
 		it("suppresses the extension install CTA on iPhone, which has no extension", async () => {
@@ -1634,7 +1634,7 @@ describe("Readlist routes", () => {
 			expect(doc.querySelectorAll("form.crawl-bookmark__remove").length).toBe(1);
 			const removeVersionForm = authoredTab.querySelector("form.crawl-bookmark__remove");
 			assert(removeVersionForm, "the authored tab must carry a delete-version form");
-			expect(removeVersionForm.getAttribute("action")).toBe(`/queue/${articleId}/remove-my-version`);
+			expect(removeVersionForm.getAttribute("action")).toBe(`/queue/${articleId}/remove-my-version?utm_source=reader-crawl-bookmark&utm_medium=internal&utm_content=remove-my-version`);
 			expect(
 				removeVersionForm.querySelector('input[name="versionMinuteId"]')?.getAttribute("value"),
 			).toBe("2026-07-10T09:14Z");

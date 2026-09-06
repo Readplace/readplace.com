@@ -46,7 +46,9 @@ export type OnboardingActionKey =
 	| "choose-browser"
 	| "see-install-options"
 	| "see-inbox-address"
-	| "email-mark-done";
+	| "email-mark-done"
+	| "dismiss-no-client"
+	| "dismiss-success";
 
 export interface OnboardingAction {
 	key: OnboardingActionKey;

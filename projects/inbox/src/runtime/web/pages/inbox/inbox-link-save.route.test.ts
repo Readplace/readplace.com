@@ -119,7 +119,7 @@ describe("Inbox link save route", () => {
 		await seed(fixture);
 
 		const plain = await agent.get(
-			`/inbox/${encodeURIComponent(SK)}?tab=articles`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=articles`,
 		);
 
 		expect(new JSDOM(plain.text).window.document.querySelector("[data-test-toast]")).toBe(null);
@@ -358,8 +358,8 @@ describe("Inbox link save route answering htmx in place", () => {
 		const form = saveButton(excludedRow(response.text)).closest("form");
 		assert(form, "the save button must stay inside its form");
 		expect(form.getAttribute("method")).toBe("POST");
-		expect(form.getAttribute("action")).toBe(savePath);
-		expect(form.getAttribute("hx-post")).toBe(savePath);
+		expect(form.getAttribute("action")).toBe(`${savePath}?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`);
+		expect(form.getAttribute("hx-post")).toBe(`${savePath}?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`);
 		expect(form.getAttribute("hx-target")).toBe("#inbox-skipped-0000");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML");
 		expect(form.getAttribute("hx-disabled-elt")).toBe("find button");
@@ -420,8 +420,8 @@ describe("Inbox link save route answering htmx in place", () => {
 		const saveForm = cardSaveButton(card).closest("form");
 		assert(saveForm, "the save button must stay inside its form");
 		expect(saveForm.getAttribute("method")).toBe("POST");
-		expect(saveForm.getAttribute("action")).toBe(savePath);
-		expect(saveForm.getAttribute("hx-post")).toBe(savePath);
+		expect(saveForm.getAttribute("action")).toBe(`${savePath}?utm_source=inbox-link-card&utm_medium=internal&utm_content=save-link`);
+		expect(saveForm.getAttribute("hx-post")).toBe(`${savePath}?utm_source=inbox-link-card&utm_medium=internal&utm_content=save-link`);
 		expect(saveForm.getAttribute("hx-target")).toBe("#inbox-card-0000");
 		expect(saveForm.getAttribute("hx-swap")).toBe("outerHTML");
 		expect(saveForm.getAttribute("hx-disabled-elt")).toBe("find button");
@@ -664,7 +664,7 @@ describe("Inbox link save route with a relayed publisher", () => {
 		});
 
 		const beforeSave = new JSDOM(
-			(await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=excluded`)).text,
+			(await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=excluded&utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=excluded`)).text,
 		).window.document.querySelector("[data-test-inbox-excluded-save]");
 		assert(beforeSave, "the skipped row must offer its save button before the save");
 		expect(beforeSave.getAttribute("data-test-save-state")).toBe("unsaved");

@@ -102,7 +102,10 @@ describe("renderReaderFailed", () => {
 
 			const installCta = doc.querySelector("[data-test-reader-failed-install]");
 			assert(installCta, `install CTA must be rendered for variant=${variant}`);
-			assert.equal(installCta.getAttribute("href"), "/install?client=chrome");
+			assert.equal(
+				installCta.getAttribute("href"),
+				`/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-${variant}`,
+			);
 			assert.match(
 				doc.body.textContent ?? "",
 				/Tip: the browser extension and the iPhone app capture the full page in one tap/,
@@ -131,7 +134,7 @@ describe("renderReaderFailed", () => {
 			renderReaderFailed({
 				url: "https://example.com/post",
 				variant: "not-found",
-				extensionInstallUrl: "/install?client=chrome",
+				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
 		);
 
@@ -146,7 +149,7 @@ describe("renderReaderFailed", () => {
 			renderReaderFailed({
 				url: "https://example.com/post",
 				variant: "origin-down",
-				extensionInstallUrl: "/install?client=chrome",
+				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
 		);
 
@@ -165,7 +168,7 @@ describe("renderReaderFailed", () => {
 			renderReaderFailed({
 				url: "https://example.com/post",
 				variant: "not-found",
-				extensionInstallUrl: "/install?client=chrome",
+				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
 		);
 
@@ -208,7 +211,7 @@ describe("renderReaderFailed", () => {
 			renderReaderFailed({
 				url: "https://mail.google.com/mail/u/0/",
 				variant: "not-an-article",
-				extensionInstallUrl: "/install?client=chrome",
+				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
 		);
 

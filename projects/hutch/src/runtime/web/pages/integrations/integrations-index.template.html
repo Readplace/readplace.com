@@ -18,6 +18,9 @@
             <span class="integrations__status {{statusModifier}}" data-test-integration-status="{{statusKey}}">{{statusLabel}}</span>
             {{#each actions}}
             <form class="integrations__action" method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+              <input type="hidden" name="utm_source" value="{{trackSource}}">
+              <input type="hidden" name="utm_medium" value="internal">
+              <input type="hidden" name="utm_content" value="{{trackContent}}">
               <button type="submit" class="btn btn--{{variant}} btn--compact" data-test-integration-action="{{key}}">{{label}}</button>
             </form>
             {{/each}}

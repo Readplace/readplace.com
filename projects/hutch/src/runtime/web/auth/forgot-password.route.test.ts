@@ -14,11 +14,11 @@ describe("Forgot password", () => {
 	describe("GET /forgot-password", () => {
 		it("should render the forgot password form", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/forgot-password");
+			const response = await request(harness.server).get("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector('[data-test-form="forgot-password"]')?.getAttribute("action")).toBe("/forgot-password");
+			expect(doc.querySelector('[data-test-form="forgot-password"]')?.getAttribute("action")).toBe("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link");
 			expect(doc.querySelector('input[name="email"]')?.getAttribute("type")).toBe("email");
 		});
 	});
@@ -30,7 +30,7 @@ describe("Forgot password", () => {
 			await auth.createUser({ email: "user@example.com", password: "password123" });
 
 			const response = await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "user@example.com" });
 
@@ -43,7 +43,7 @@ describe("Forgot password", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "nobody@example.com" });
 
@@ -58,7 +58,7 @@ describe("Forgot password", () => {
 			await auth.createUser({ email: "user@example.com", password: "password123" });
 
 			await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "user@example.com" });
 
@@ -75,7 +75,7 @@ describe("Forgot password", () => {
 			const { email } = harness;
 
 			await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "nobody@example.com" });
 
@@ -86,7 +86,7 @@ describe("Forgot password", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "" });
 
@@ -125,7 +125,7 @@ describe("Forgot password", () => {
 			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
 
 			await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "user@example.com" });
 
@@ -158,7 +158,7 @@ describe("Forgot password", () => {
 			const stolenSession = await auth.createSession({ userId: created.userId, emailVerified: true });
 
 			await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "user@example.com" });
 			const sent = email.getSentEmails();
@@ -207,7 +207,7 @@ describe("Forgot password", () => {
 			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
 
 			await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "user@example.com" });
 
@@ -276,7 +276,7 @@ describe("Forgot password", () => {
 			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
 
 			await request(harness.server)
-				.post("/forgot-password")
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
 				.type("form")
 				.send({ email: "user@example.com" });
 
@@ -305,7 +305,7 @@ describe("Forgot password", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const forgotLink = doc.querySelector('a[href^="/forgot-password"]');
+			const forgotLink = doc.querySelector('a[href^="/forgot-password?utm_source=auth-login"]');
 			expect(forgotLink?.textContent).toContain("Forgot your password?");
 		});
 	});

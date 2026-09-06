@@ -3,11 +3,11 @@
         {{#if success}}
         <h1 class="auth-card__title">Email verified</h1>
         <p class="auth-card__subtitle">Your email has been verified. You can now use your account.</p>
-        <a class="btn btn--primary btn--field auth-form__submit" href="/queue">Go to your readlist</a>
+        <a class="btn btn--primary btn--field auth-form__submit" href="{{track '/queue' source='auth-verify' content='go-to-queue'}}">Go to your readlist</a>
         {{else}}
         <h1 class="auth-card__title">Verification failed</h1>
         <p class="auth-card__subtitle">{{error}}</p>
-        <a class="btn btn--primary btn--field auth-form__submit" href="/login">Go to login</a>
+        <a class="btn btn--primary btn--field auth-form__submit" href="{{track '/login' source='auth-verify' content='go-to-login'}}">Go to login</a>
         {{/if}}
       </div>
     </main>

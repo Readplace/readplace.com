@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import { FULL_PAGE_CAPTURE_PHRASE } from "../../client-surface-phrases";
 
 const TEMPLATE = readFileSync(
@@ -64,6 +64,15 @@ const CAPTURE_PITCH_VARIANTS: ReadonlySet<ReaderFailedVariant> = new Set([
 	"blocked",
 ]);
 
+function pitchInstallUrl(input: ReaderFailedInput): string | undefined {
+	if (!CAPTURE_PITCH_VARIANTS.has(input.variant)) return undefined;
+	if (!input.extensionInstallUrl) return undefined;
+	return withInternalTracking(input.extensionInstallUrl, {
+		source: "reader-failed",
+		content: `install-${input.variant}`,
+	});
+}
+
 export function renderReaderFailed(input: ReaderFailedInput): string {
 	return render(TEMPLATE, {
 		url: input.url,
@@ -72,9 +81,7 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 		explanation: EXPLANATIONS[input.variant],
 		showCapture: input.variant === "blocked",
 		capturePollUrl: input.capturePollUrl,
-		extensionInstallUrl: CAPTURE_PITCH_VARIANTS.has(input.variant)
-			? input.extensionInstallUrl
-			: undefined,
+		extensionInstallUrl: pitchInstallUrl(input),
 		captureSurfaces: FULL_PAGE_CAPTURE_PHRASE,
 		oob: input.oob === true,
 	});

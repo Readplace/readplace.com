@@ -16,6 +16,8 @@ const TEMPLATE = readFileSync(join(__dirname, "readlist-nav.template.html"), "ut
 
 const READLIST_RENAME_FIELD = "label";
 
+const NAV_SOURCE = "queue-nav";
+
 interface ReadlistNavRename {
 	isRenameable: boolean;
 	renameAction?: string;
@@ -66,7 +68,10 @@ function navRename(input: {
 	if (!isRenameable) return { isRenameable: false };
 	return {
 		isRenameable: true,
-		renameAction: `${readlistRenamePath(input.slug)}${readlistReturnQuery({})}`,
+		renameAction: withInternalTracking(
+			`${readlistRenamePath(input.slug)}${readlistReturnQuery({})}`,
+			{ source: NAV_SOURCE, content: "rename-readlist" },
+		),
 		renameField: READLIST_RENAME_FIELD,
 		maxLength: READLIST_LABEL_MAX_LENGTH,
 	};
@@ -81,7 +86,10 @@ function navDelete(input: {
 	if (!isDeletable) return { isDeletable: false };
 	return {
 		isDeletable: true,
-		deleteAction: `${readlistDeletePath(input.slug)}${readlistReturnQuery({ readlist: input.viewedSlug })}`,
+		deleteAction: withInternalTracking(
+			`${readlistDeletePath(input.slug)}${readlistReturnQuery({ readlist: input.viewedSlug })}`,
+			{ source: NAV_SOURCE, content: "delete-readlist" },
+		),
 		deletePopoverId: readlistDeleteConfirmPopoverId(input.slug),
 	};
 }
@@ -102,7 +110,7 @@ export function buildReadlistNav(input: {
 			});
 			return {
 				href: withInternalTracking(buildReadlistUrl({ readlist: readlist.slug }), {
-					source: "queue-nav",
+					source: NAV_SOURCE,
 					content: `queue-${readlist.slug}`,
 				}),
 				title: readlist.label,
@@ -118,7 +126,10 @@ export function buildReadlistNav(input: {
 				...remove,
 			};
 		}),
-		newReadlistAction: input.newReadlistAction,
+		newReadlistAction: withInternalTracking(input.newReadlistAction, {
+			source: NAV_SOURCE,
+			content: "new-readlist",
+		}),
 		canCreate: input.canCreate,
 	};
 }
