@@ -25,6 +25,7 @@ import type {
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { createApp } from "./server";
+import type { ConvertEpubToAzw3 } from "./web/shared/epub/article-azw3";
 import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
@@ -74,6 +75,13 @@ export type {
 export const TEST_EDGE_SECRET = "test-edge-secret";
 export { loginAgent } from "@packages/web-test-harness";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+
+interface TestAppOverrides {
+	getChangelogBanner?: GetChangelogBanner;
+	getSessionUserId?: GetSessionUserId;
+	resolveCanonicalIdentity?: (url: string) => Promise<string>;
+	convertEpubToAzw3?: ConvertEpubToAzw3;
+}
 
 export interface AnalyticsBundle {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -180,6 +188,7 @@ function flattenFixtureToAppDependencies(
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,
 		readArticleImage: fixture.articleStore.readArticleImage,
+		convertEpubToAzw3: async () => new Uint8Array([0x41, 0x5a, 0x57, 0x33]),
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(fixture.articleCrawl.findArticleCrawlStatus),
 		markCrawlPending: fixture.articleCrawl.markCrawlPending,
@@ -314,11 +323,7 @@ export const BROWSER_REQUEST_HEADERS: Record<string, string> = {
  * needs a real alias fold has to say so). */
 export function createTestApp(
 	fixture: TestAppFixture,
-	overrides?: {
-		getChangelogBanner?: GetChangelogBanner;
-		getSessionUserId?: GetSessionUserId;
-		resolveCanonicalIdentity?: (url: string) => Promise<string>;
-	},
+	overrides?: TestAppOverrides,
 ): TestAppResult {
 	const analyticsEvents: AnalyticsEvent[] = [];
 	const captureAnalytics = (data: AnalyticsEvent) => { analyticsEvents.push(data); };
@@ -369,10 +374,6 @@ export function createTestApp(
 
 export interface TestAppHarness extends TestAppResult, RunningServer {}
 
-export function useTestServer(overrides?: {
-	getChangelogBanner?: GetChangelogBanner;
-	getSessionUserId?: GetSessionUserId;
-	resolveCanonicalIdentity?: (url: string) => Promise<string>;
-}): (fixture: TestAppFixture) => TestAppHarness {
+export function useTestServer(overrides?: TestAppOverrides): (fixture: TestAppFixture) => TestAppHarness {
 	return useServerForFixture((fixture) => createTestApp(fixture, overrides));
 }

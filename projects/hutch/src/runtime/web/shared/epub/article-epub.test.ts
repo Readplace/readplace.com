@@ -37,6 +37,33 @@ describe("initBuildArticleEpub", () => {
 		expect(logError).not.toHaveBeenCalled();
 	});
 
+	it("continues to embed supported modern image formats", async () => {
+		const webp = "1111111111111111.webp";
+		const avif = "2222222222222222.avif";
+		const svg = "3333333333333333.svg";
+		const build = initBuildArticleEpub({
+			readArticleImage: readerFor({
+				[webp]: new Uint8Array([1]),
+				[avif]: new Uint8Array([2]),
+				[svg]: new Uint8Array([3]),
+			}),
+			logError: () => undefined,
+			now: NOW,
+		});
+
+		const bytes = await build({
+			articleUrl: ARTICLE_URL,
+			title: "The Article",
+			contentHtml: `<img src="${embeddedSrc(webp)}"><img src="${embeddedSrc(avif)}"><img src="${embeddedSrc(svg)}">`,
+		});
+
+		expect(
+			Object.keys(unzipSync(bytes))
+				.filter((filename) => filename.startsWith("OEBPS/images/"))
+				.sort(),
+		).toEqual([`OEBPS/images/${webp}`, `OEBPS/images/${avif}`, `OEBPS/images/${svg}`].sort());
+	});
+
 	it("skips an image over the embed budget and logs it", async () => {
 		const fits = "1111111111111111.jpg";
 		const over = "2222222222222222.jpg";

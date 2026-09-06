@@ -1,5 +1,7 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import { spawn } from "node:child_process";
+import { join } from "node:path";
 import type { Express } from "express";
 import type { Logger } from "./domain/logger";
 import { hashPassword } from "@packages/domain/user";
@@ -18,6 +20,11 @@ import { initFoundingAllocation } from "./web/shared/founding-progress/founding-
 import { initCachedUserCount } from "./web/auth/cached-user-count";
 import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { getEnv, requireEnv } from "@packages/require-env";
+import {
+	BOKO_EXECUTABLE,
+	initBokoProcessSpawner,
+	initConvertEpubToAzw3,
+} from "./web/shared/epub/boko-converter";
 
 type AssemblyProvidedKeys =
 	| "validateSaveableUrl"
@@ -35,6 +42,7 @@ type AssemblyProvidedKeys =
 	| "conversionLogger"
 	| "subscriptionLogger"
 	| "analytics"
+	| "convertEpubToAzw3"
 	| "salt"
 	| "foundingAllocation";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
@@ -85,6 +93,12 @@ export function assembleReadplaceApp(input: {
 		appOrigin,
 		staticBaseUrl,
 		hashPassword,
+		convertEpubToAzw3: initConvertEpubToAzw3({
+			executable: getEnv("AWS_LAMBDA_FUNCTION_NAME")
+				? BOKO_EXECUTABLE
+				: join(__dirname, "..", "..", ".lib", "boko-host", "boko"),
+			startBokoProcess: initBokoProcessSpawner({ spawn }),
+		}),
 		...providers,
 		countUsers: initCachedUserCount({ countUsers: providers.countUsers, now: () => Date.now(), ttlMs: 60_000 }),
 		adminEmails,

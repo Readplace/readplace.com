@@ -1,0 +1,18 @@
+<div id="reader-downloads-slot" class="article-body__downloads-slot {{#if downloads}}article-body__downloads-slot--visible{{else}}article-body__downloads-slot--hidden{{/if}}" data-test-downloads-slot{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
+  {{#if downloads}}
+  <details id="reader-downloads" class="article-body__downloads"{{#if oob}} hx-preserve{{/if}}>
+    <summary class="btn btn--secondary btn--compact article-body__downloads-trigger" data-test-downloads-trigger>
+      <span class="article-body__action-icon">{{icon "download"}}</span>
+      <span class="article-body__action-label">Download</span>
+      {{icon "chevron-down"}}
+    </summary>
+    <ul class="article-body__downloads-menu" data-test-downloads-menu>
+      {{#each downloads}}
+      <li class="article-body__downloads-item">
+        <a class="article-body__downloads-option" href="{{href}}" data-test-download="{{format}}">{{label}}</a>
+      </li>
+      {{/each}}
+    </ul>
+  </details>
+  {{/if}}
+</div>

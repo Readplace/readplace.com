@@ -537,6 +537,37 @@ describe("Admin recrawl routes", () => {
 		});
 	});
 
+	it.each([
+		{ poll: "reader", siblingSlot: "article-body-summary-slot" },
+		{ poll: "summary", siblingSlot: "article-body-reader-slot" },
+	])("keeps ready admin $poll polls scoped to the admin reader", async ({ poll, siblingSlot }) => {
+		const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		await harness.articleStore.saveArticleGlobally({
+			url: ARTICLE_URL,
+			metadata: { title: "Ready article", siteName: "example.com", excerpt: "", wordCount: 2 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			savedAt: new Date(),
+		});
+		await harness.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>Ready content.</p>" });
+		await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+		const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+		const response = await agent.get(`/admin/recrawl/${poll}?url=${ENCODED}`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const readerSlot = doc.querySelector("[data-test-reader-slot]");
+		assert(readerSlot, "the admin poll must render its reader slot");
+		expect(readerSlot.textContent).toContain("Ready content.");
+		expect(Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
+			siblingSlot,
+			"article-body-progress",
+			"article-header",
+			"document-title",
+		]);
+	});
+
 	describe("GET /admin/recrawl/reader (poll) — validation", () => {
 		it("returns 400 when the ?url query is missing", async () => {
 			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });

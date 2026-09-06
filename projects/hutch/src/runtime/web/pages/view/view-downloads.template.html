@@ -1,0 +1,22 @@
+<div id="view-cta-downloads-slot" class="view__cta-item{{#unless options}} view__cta-item--downloads-hidden{{/unless}}"{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
+  {{#if options}}
+  <div class="view__downloads-slot view__downloads-slot--visible" data-test-view-downloads-slot>
+    <details id="view-cta-downloads" class="view__downloads" data-test-view-downloads{{#if oob}} hx-preserve{{/if}}>
+      <summary class="btn btn--secondary btn--compact view__downloads-trigger" data-test-view-downloads-trigger>
+        <span class="view__downloads-icon">{{icon "download"}}</span>
+        <span class="view__downloads-label">Download</span>
+        {{icon "chevron-down"}}
+      </summary>
+      <ul class="view__downloads-menu" data-test-view-downloads-menu>
+        {{#each options}}
+        <li class="view__downloads-item">
+          <a class="view__downloads-option" href="{{href}}" data-test-view-download="{{format}}">{{label}}</a>
+        </li>
+        {{/each}}
+      </ul>
+    </details>
+  </div>
+  {{else}}
+  <div class="view__downloads-slot view__downloads-slot--hidden" data-test-view-downloads-slot></div>
+  {{/if}}
+</div>

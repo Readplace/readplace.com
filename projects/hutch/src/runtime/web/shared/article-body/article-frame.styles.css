@@ -81,7 +81,7 @@
 
 @supports selector(:has(*)) {
   @media (max-width: 374px) {
-    .article-body__actions--top:not(:has(.article-body__download-epub-slot--visible))
+    .article-body__actions--top:not(:has(.article-body__downloads-slot--visible))
       .article-body__action-label-short {
       display: inline;
     }
@@ -96,12 +96,66 @@
   display: none;
 }
 
-.article-body__download-epub-slot--visible {
+.article-body__downloads-slot--visible {
   display: inline-flex;
 }
 
-.article-body__download-epub-slot--hidden {
+.article-body__downloads-slot--hidden {
   display: none;
+}
+
+.article-body__downloads {
+  position: relative;
+}
+
+.article-body__downloads-trigger {
+  list-style: none;
+}
+
+.article-body__downloads-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.article-body__downloads-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.article-body__downloads-trigger svg {
+  width: 0.875em;
+  height: 0.875em;
+}
+
+.article-body__downloads-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 13;
+  min-width: max-content;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.article-body__downloads-option {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--button-padding-sm);
+  font-size: 0.875rem;
+  text-align: left;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.article-body__downloads-option:hover {
+  background: var(--color-surface);
 }
 
 .article-body__readlists-slot--visible {
@@ -242,11 +296,13 @@
     position: relative;
   }
 
-  .article-body__readlists {
+  .article-body__readlists,
+  .article-body__downloads {
     position: static;
   }
 
-  .article-body__readlists-menu {
+  .article-body__readlists-menu,
+  .article-body__downloads-menu {
     min-width: 0;
     max-width: 100%;
   }
@@ -282,7 +338,7 @@
 }
 
 .article-body__mark-read,
-.article-body__download-epub {
+.article-body__downloads-trigger {
   gap: 4px;
 }
 
@@ -430,4 +486,3 @@
   color: var(--primary-text);
   text-decoration: underline;
 }
-

@@ -118,6 +118,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
+import type { ConvertEpubToAzw3 } from "./web/shared/epub/article-azw3";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -408,6 +409,7 @@ interface AppDependencies {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	readArticleImage: ReadArticleImage;
+	convertEpubToAzw3: ConvertEpubToAzw3;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
@@ -1307,6 +1309,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
 		readArticleImage: deps.readArticleImage,
+		convertEpubToAzw3: deps.convertEpubToAzw3,
 		logError: deps.logError,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
@@ -1318,6 +1321,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		consumeRateLimit: deps.consumeRateLimit,
 		viewCrawlRateLimit: deps.rateLimitRules.viewCrawl,
+		articleDownloadRateLimit: deps.rateLimitRules.articleDownload,
 		now: deps.now,
 		buildBannerState,
 		recordAnalyticsEvent,

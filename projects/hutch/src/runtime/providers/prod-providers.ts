@@ -334,6 +334,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	// stack config via the Lambda environment.
 	const rateLimitRules: RateLimitRules = {
 		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
+		articleDownload: parseRateLimitRule(requireEnv("RATE_LIMIT_ARTICLE_DOWNLOAD")),
 		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
 		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),

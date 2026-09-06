@@ -13,7 +13,7 @@ const UNSTYLED_HOOK_CLASSES = new Set([
 	"article-body__back-slot",
 	"article-body__readlists-slot",
 	"article-body__mark-read-slot",
-	"article-body__download-epub-slot",
+	"article-body__downloads-slot",
 	"article-body__read-time",
 	"article-body__reader-slot",
 	"reader-skeleton",
@@ -40,13 +40,13 @@ describe("renderReaderSkeleton", () => {
 		expect(template.getAttribute("data-body-class-from")).toBe("page-readlist");
 	});
 
-	it("shows the back, readlists and mark-read toolbar slots and hides the epub slot", () => {
+	it("shows the back, readlists and mark-read toolbar slots and hides the downloads slot", () => {
 		const content = templateContent();
 		const slots = [
 			".article-body__back-slot",
 			".article-body__readlists-slot",
 			".article-body__mark-read-slot",
-			".article-body__download-epub-slot",
+			".article-body__downloads-slot",
 		].map((selector) => {
 			const slot = content.querySelector(selector);
 			assert(slot, `${selector} must be present`);

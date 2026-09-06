@@ -1,5 +1,7 @@
 import assert from 'node:assert'
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { spawn } from 'node:child_process'
+import { join } from 'node:path'
 import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
@@ -14,6 +16,7 @@ import { ForwardableSenderSchema } from '@packages/domain/gmail'
 import { GMAIL_SETTINGS_SCOPE } from '@packages/provider-contracts/gmail-oauth'
 import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
 import { createTestApp } from '../runtime/test-app'
+import { initBokoProcessSpawner, initConvertEpubToAzw3 } from '../runtime/web/shared/epub/boko-converter'
 import {
 	createDefaultTestAppFixture,
 	createFakeApplyParseResult,
@@ -181,6 +184,10 @@ const { refreshArticleIfStale, publishLinkSaved } =
 const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
 
 const changelogBannerForRequest = new AsyncLocalStorage<ChangelogBanner>()
+const convertEpubToAzw3 = initConvertEpubToAzw3({
+	executable: join(__dirname, '..', '..', '.lib', 'boko-host', 'boko'),
+	startBokoProcess: initBokoProcessSpawner({ spawn }),
+})
 
 const { app: readplaceApp, auth, email } = createTestApp({
 	...fixture,
@@ -229,6 +236,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 	},
 }, {
 	getChangelogBanner: async () => changelogBannerForRequest.getStore(),
+	convertEpubToAzw3,
 })
 
 const server = express()
