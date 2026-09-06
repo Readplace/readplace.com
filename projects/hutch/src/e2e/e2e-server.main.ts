@@ -370,6 +370,17 @@ server.post('/e2e/seed-related-articles', async (req, res) => {
 	res.status(201).json({ ok: true })
 })
 
+const SeedInboxArticleQueuedBody = z.object({ userId: UserIdSchema })
+server.post('/e2e/seed-inbox-article-queued', async (req, res) => {
+	const parsed = SeedInboxArticleQueuedBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	await fixture.onboardingSignals.recordInboxArticleQueued({ userId: parsed.data.userId })
+	res.status(201).json({ ok: true })
+})
+
 const SeedGmailStateBody = z.object({
 	userId: UserIdSchema,
 	state: z.enum(['awaiting', 'ready', 'filtering', 'filter-failed', 'revoked']),

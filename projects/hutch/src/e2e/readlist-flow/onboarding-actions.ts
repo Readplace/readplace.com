@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import {
 	ALIVE_COOKIE_NAME,
@@ -5,6 +6,7 @@ import {
 	SAVE_COOKIE_NAME,
 	SAVE_COOKIE_VALUE,
 } from '@packages/onboarding-extension-signal'
+import { clickAndWaitForPageReload } from '../page-interactions'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { OnboardingActionKey } from './action-catalog'
 import type { AuthProgress } from './auth-actions'
@@ -12,6 +14,15 @@ import type { AuthProgress } from './auth-actions'
 export type OnboardingProgress = {
 	installedExtension: boolean
 	savedFirstArticle: boolean
+	markedEmailDone: boolean
+}
+
+const EMAIL_STEP = '[data-test-onboarding-step="receive-articles-by-email"]'
+
+async function visibleStepIds(page: Page): Promise<string[]> {
+	return page
+		.locator('[data-test-onboarding-step]:visible')
+		.evaluateAll((els) => els.map((el) => el.getAttribute('data-test-onboarding-step') ?? ''))
 }
 
 export function createOnboardingActions(
@@ -81,16 +92,50 @@ export function createOnboardingActions(
 				await expect(savedStep).toHaveAttribute('data-test-onboarding-complete', 'true')
 				await expect(savedStep).toBeHidden()
 
-				// The Next Read milestone needs a readlist this flow can't build in a
-				// browser run, so the success card stays out of reach here; it is
-				// covered by readlist-onboarding-next-read.route.test.ts instead.
-				const milestoneStep = page.locator(
-					'[data-test-onboarding-step="save-enough-for-next-read"]',
+				expect(await visibleStepIds(page)).toEqual([
+					'receive-articles-by-email',
+					'save-enough-for-next-read',
+				])
+				await expect(page.locator(EMAIL_STEP)).toHaveAttribute(
+					'data-test-onboarding-complete',
+					'false',
 				)
-				await expect(milestoneStep).toHaveAttribute('data-test-onboarding-complete', 'false')
-				await expect(milestoneStep).toBeVisible()
 
 				progress.savedFirstArticle = true
+			},
+		},
+
+		'onboarding-mark-email-done': {
+			isAvailable: async (page) => {
+				if (!authProgress.accountCreated) return false
+				if (!progress.savedFirstArticle) return false
+				if (progress.markedEmailDone) return false
+				return (
+					(await page
+						.locator(`${EMAIL_STEP}[data-test-onboarding-complete="false"]`)
+						.count()) > 0
+				)
+			},
+			execute: async (page) => {
+				await expect(
+					page.locator(`${EMAIL_STEP} [data-test-onboarding-action="see-inbox-address"]`),
+				).toBeVisible()
+
+				await clickAndWaitForPageReload(
+					page,
+					page.locator(`${EMAIL_STEP} [data-test-onboarding-action="email-mark-done"]`),
+				)
+				await expect(page.locator('body.page-readlist')).toHaveCount(1)
+
+				await expect(page.locator(EMAIL_STEP)).toHaveAttribute(
+					'data-test-onboarding-complete',
+					'true',
+				)
+				await expect(page.locator(EMAIL_STEP)).toBeHidden()
+				expect(await visibleStepIds(page)).toEqual(['save-enough-for-next-read'])
+				await expect(page.locator('[data-test-onboarding-steps]')).toHaveCount(1)
+
+				progress.markedEmailDone = true
 			},
 		},
 	})

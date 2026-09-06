@@ -156,11 +156,13 @@ import type {
 	ReadArticleContent,
 	ReadArticleImage,
 	RecordDeleteArticleAcknowledged,
+	RecordEmailStepMarkedDone,
+	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 	RefreshArticleIfStale,
 	ResolvePriceId,
 	RetrieveCheckoutSession,
@@ -488,7 +490,9 @@ export interface OnboardingSignalsBundle {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
-	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordInboxArticleQueued: RecordInboxArticleQueued;
+	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	getOnboardingSignals: GetOnboardingSignals;

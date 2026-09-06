@@ -12,7 +12,9 @@
   <div data-test-onboarding-no-client>
     {{> intro lede=noClientLede}}
     <div class="onboarding__actions">
-      <a href="{{installOptionsUrl}}" class="btn btn--primary btn--compact" data-test-onboarding-action="{{installOptionsUrl}}">See install options</a>
+      <form method="GET" action="{{installOptionsUrl}}">
+        <button type="submit" class="btn btn--primary btn--compact" data-test-onboarding-action="see-install-options">See install options</button>
+      </form>
       <form method="POST" action="{{dismissAction}}">
         <button type="submit" class="onboarding__dismiss-text" data-test-onboarding-dismiss>Dismiss</button>
       </form>
@@ -42,7 +44,12 @@
         {{#if actions.length}}
         <div class="onboarding__actions">
           {{#each actions}}
-          <a href="{{url}}" class="btn btn--primary btn--compact" data-test-onboarding-action="{{url}}">{{label}}</a>
+          <form method="{{method}}" action="{{action}}">
+            {{#each inputs}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            <button type="submit" class="{{buttonClass}}" data-test-onboarding-action="{{key}}">{{label}}</button>
+          </form>
           {{/each}}
         </div>
         {{/if}}

@@ -203,7 +203,7 @@ import { etagMatches } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
 import { safeReturnPath } from "../../shared/safe-return-path";
-import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
+import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingStep } from "../../onboarding/onboarding.steps";
 import {
 	extensionInstallUrlIfMissing,
 	canOfferExtensionInstall,
@@ -230,13 +230,14 @@ import type {
 	GetOnboardingSignals,
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
+	RecordEmailStepMarkedDone,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
 	RecordMarkReadAcrossQueuesAcknowledged,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
-import type { Platform } from "../../onboarding/onboarding.types";
+import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
 /** The dismiss-cookie value a device of this class writes on dismissal and the
@@ -410,10 +411,8 @@ interface ReadlistDependencies {
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
-	/** Marks that the reader was shown the Next Read step with saves still to go,
-	 * so a milestone later reached can be told apart from one a deep readlist
-	 * satisfied on sight. */
-	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	/** Auth middleware applied to every readlist route except the public
@@ -1096,13 +1095,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * here memoises an observation the same request already made — the account
 	 * really does hold that many saves — rather than mutating anything the user
 	 * can see, which is why it is allowed on a GET. */
-	const resolveNextReadProgress = async (
+	const resolveSavedCount = async (
 		userId: UserId,
-		signals: { nextReadMinimumReachedAt: Date | undefined; nextReadStepOutstandingAt: Date | undefined },
-	): Promise<{ savedCount: number; milestoneGranted: boolean }> => {
-		const wasOutstanding = signals.nextReadStepOutstandingAt !== undefined;
-		if (signals.nextReadMinimumReachedAt) {
-			return { savedCount: NEXT_READ_MINIMUM_SAVES, milestoneGranted: !wasOutstanding };
+		nextReadMinimumReachedAt: Date | undefined,
+	): Promise<number> => {
+		if (nextReadMinimumReachedAt) {
+			return NEXT_READ_MINIMUM_SAVES;
 		}
 		const savedCount = await deps.countArticlesByUser({
 			userId,
@@ -1112,14 +1110,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			await recordOnboardingSignalBestEffort(() =>
 				deps.recordNextReadMinimumReached({ userId }),
 			);
-			return { savedCount, milestoneGranted: !wasOutstanding };
 		}
-		if (!wasOutstanding) {
-			await recordOnboardingSignalBestEffort(() =>
-				deps.recordNextReadStepOutstanding({ userId }),
-			);
-		}
-		return { savedCount, milestoneGranted: false };
+		return savedCount;
 	};
 
 	/** Resolves the onboarding-checklist signals for an authenticated `/queue`
@@ -1152,18 +1144,15 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const markReadAcrossQueuesAckedAt = signals.markReadAcrossQueuesAckedAt;
 		const deleteArticleAckedAt = signals.deleteArticleAckedAt;
 		if (!hasClient) {
+			const noClientContext: OnboardingContext = { hasInstallableClient: false };
 			return {
 				markReadAcrossQueuesAckedAt,
 				deleteArticleAckedAt,
 				onboarding: {
-					platform,
-					installed: false,
-					savedArticle: false,
-					savedCount: 0,
-					hasInstallableClient: hasClient,
-					onboardingDismissed: dismissTokenMatches,
-					onboardingCompletedBefore,
-					onboardingCompletionUnearned: false,
+					context: noClientContext,
+					dismissed: dismissTokenMatches,
+					completedBefore: onboardingCompletedBefore,
+					completionUnearned: false,
 				},
 			};
 		}
@@ -1171,20 +1160,30 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const { installed, savedArticle } = nativeAppPlatform
 			? signals.nativeApp[nativeAppPlatform]
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		const { savedCount, milestoneGranted } = await resolveNextReadProgress(userId, signals);
-		const onboardingDismissed = installed && dismissTokenMatches;
+		const savedCount = await resolveSavedCount(userId, signals.nextReadMinimumReachedAt);
+		const context: InstallableClientOnboarding = {
+			hasInstallableClient: true,
+			platform,
+			installed,
+			savedArticle,
+			savedCount,
+			inboxArticleQueued: signals.firstInboxArticleQueuedAt !== undefined,
+			emailStepMarkedDone: signals.emailStepMarkedDoneAt !== undefined,
+		};
+		const seenUnderThisVersion = signals.onboardingOutstandingVersion === ONBOARDING_VERSION;
+		if (!seenUnderThisVersion && hasOutstandingStep(context)) {
+			await recordOnboardingSignalBestEffort(() =>
+				deps.recordOnboardingOutstandingVersion({ userId, version: ONBOARDING_VERSION }),
+			);
+		}
 		return {
 			markReadAcrossQueuesAckedAt,
 			deleteArticleAckedAt,
 			onboarding: {
-				platform,
-				installed,
-				savedArticle,
-				savedCount,
-				hasInstallableClient: hasClient,
-				onboardingDismissed,
-				onboardingCompletedBefore,
-				onboardingCompletionUnearned: milestoneGranted,
+				context,
+				dismissed: installed && dismissTokenMatches,
+				completedBefore: onboardingCompletedBefore,
+				completionUnearned: !seenUnderThisVersion,
 			},
 		};
 	};
@@ -1308,7 +1307,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			req, res,
 			FreshForComponent(
 				Base(
-					ReadlistPage(vm, { ...onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
+					ReadlistPage(vm, { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
 					await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 				),
 				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: "private, max-age=5" },
@@ -1543,6 +1542,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		const context = requestReadlistContext(req);
 		res.redirect(303, buildReadlistUrl(context.state));
+	});
+
+	router.post("/onboarding/email/done", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		await deps.recordEmailStepMarkedDone({ userId: req.userId });
+		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
 	});
 
 	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
@@ -2025,7 +2030,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				crawlByUrl,
 				deleteAcknowledged: deleteArticleAckedAt !== undefined,
 			});
-			sendComponent(req, res, Base(ReadlistPage(vm, { ...onboarding, cspNonce: requireCspNonce(req), readlistHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(ReadlistPage(vm, { onboarding, cspNonce: requireCspNonce(req), readlistHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
 			return;
 		}
 

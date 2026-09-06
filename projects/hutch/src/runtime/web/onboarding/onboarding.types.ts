@@ -22,6 +22,8 @@ export interface InstallableClientOnboarding {
 	 * device whose client is advertised, so the copy maps it indexes never need
 	 * an entry for one that is not. */
 	platform: AdvertisedClientNameInCategory<"contentCapture"> | "other";
+	inboxArticleQueued: boolean;
+	emailStepMarkedDone: boolean;
 }
 
 /** Onboarding for a device with no installable first-party client (desktop
@@ -37,9 +39,21 @@ export type OnboardingContext =
 	| InstallableClientOnboarding
 	| NoInstallableClientOnboarding;
 
+export type OnboardingActionMethod = "GET" | "POST";
+export type OnboardingActionVariant = "primary" | "text";
+export type OnboardingActionKey =
+	| "install"
+	| "choose-browser"
+	| "see-install-options"
+	| "see-inbox-address"
+	| "email-mark-done";
+
 export interface OnboardingAction {
+	key: OnboardingActionKey;
+	method: OnboardingActionMethod;
+	href: string;
 	label: string;
-	url: string;
+	variant: OnboardingActionVariant;
 }
 
 export interface OnboardingStep {

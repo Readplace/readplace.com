@@ -3,14 +3,38 @@ import {
 	NEXT_READ_MINIMUM_SAVES,
 	hasEnoughSavesForNextRead,
 } from "@packages/domain/article";
+import { INBOX_ADDRESSES_PATH } from "@packages/domain/inbox";
 import { buildExtensionInstallUrl, type PitchablePlatform } from "./extension-install";
-import type { OnboardingAction, OnboardingStep } from "./onboarding.types";
+import type {
+	InstallableClientOnboarding,
+	OnboardingAction,
+	OnboardingStep,
+} from "./onboarding.types";
+import { READLIST_EMAIL_STEP_DONE_PATH } from "../pages/readlist/readlist.url";
 
 interface StepCopy {
 	title: string;
 	description: string;
 	actions: OnboardingAction[];
 }
+
+function installAction(platform: PitchablePlatform): OnboardingAction {
+	return {
+		key: "install",
+		method: "GET",
+		href: buildExtensionInstallUrl(platform),
+		label: "Install",
+		variant: "primary",
+	};
+}
+
+const CHOOSE_BROWSER_ACTION: OnboardingAction = {
+	key: "choose-browser",
+	method: "GET",
+	href: buildExtensionInstallUrl("other"),
+	label: "Choose browser",
+	variant: "primary",
+};
 
 const INSTALL_BROWSER_DESCRIPTION =
 	"Add Readplace to your browser and log-in so you can save any page with one click.";
@@ -19,23 +43,23 @@ const INSTALL_COPY: Record<PitchablePlatform, StepCopy> = {
 	firefox: {
 		title: "Install the Firefox browser extension",
 		description: INSTALL_BROWSER_DESCRIPTION,
-		actions: [{ label: "Install", url: buildExtensionInstallUrl("firefox") }],
+		actions: [installAction("firefox")],
 	},
 	chrome: {
 		title: "Install the Chrome browser extension",
 		description: INSTALL_BROWSER_DESCRIPTION,
-		actions: [{ label: "Install", url: buildExtensionInstallUrl("chrome") }],
+		actions: [installAction("chrome")],
 	},
 	iphone: {
 		title: "Install the Readplace iPhone app",
 		description:
 			"Add the Readplace iPhone app and sign in so you can save any page from the iOS share sheet.",
-		actions: [{ label: "Install", url: buildExtensionInstallUrl("iphone") }],
+		actions: [installAction("iphone")],
 	},
 	other: {
 		title: "Install a browser extension",
 		description: INSTALL_BROWSER_DESCRIPTION,
-		actions: [{ label: "Choose browser", url: buildExtensionInstallUrl("other") }],
+		actions: [CHOOSE_BROWSER_ACTION],
 	},
 };
 
@@ -59,9 +83,29 @@ const SAVE_COPY: Record<PitchablePlatform, StepCopy> = {
 	other: {
 		title: "Save your first article using a browser extension",
 		description: "",
-		actions: [{ label: "Choose browser", url: buildExtensionInstallUrl("other") }],
+		actions: [CHOOSE_BROWSER_ACTION],
 	},
 };
+
+const EMAIL_STEP_TITLE = "Get articles from email";
+const EMAIL_STEP_DESCRIPTION =
+	"Your account has its own email address. Forward a newsletter, or any email with links in it, and the links are saved here for you to read.";
+const EMAIL_STEP_ACTIONS: OnboardingAction[] = [
+	{
+		key: "see-inbox-address",
+		method: "GET",
+		href: INBOX_ADDRESSES_PATH,
+		label: "See your inbox address",
+		variant: "primary",
+	},
+	{
+		key: "email-mark-done",
+		method: "POST",
+		href: READLIST_EMAIL_STEP_DONE_PATH,
+		label: "I've done this already",
+		variant: "text",
+	},
+];
 
 const NEXT_READ_TITLE = `Save ${NEXT_READ_MINIMUM_SAVES} articles so Next Read can start`;
 
@@ -90,6 +134,13 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		actions: (ctx) => SAVE_COPY[ctx.platform].actions,
 	},
 	{
+		id: "receive-articles-by-email",
+		title: () => EMAIL_STEP_TITLE,
+		description: () => EMAIL_STEP_DESCRIPTION,
+		isComplete: (ctx) => ctx.inboxArticleQueued || ctx.emailStepMarkedDone,
+		actions: () => EMAIL_STEP_ACTIONS,
+	},
+	{
 		id: "save-enough-for-next-read",
 		title: () => NEXT_READ_TITLE,
 		description: (ctx) => nextReadDescription(ctx.savedCount),
@@ -102,6 +153,10 @@ export const ONBOARDING_VERSION = createHash("sha256")
 	.update(ONBOARDING_STEPS.map((step) => step.id).sort().join("|"))
 	.digest("hex")
 	.slice(0, 8);
+
+export function hasOutstandingStep(ctx: InstallableClientOnboarding): boolean {
+	return ONBOARDING_STEPS.some((step) => !step.isComplete(ctx));
+}
 
 /** Dismiss token for the no-client escape card. Deliberately a fixed string,
  * NOT hashed from the step list like {@link ONBOARDING_VERSION}: a no-client

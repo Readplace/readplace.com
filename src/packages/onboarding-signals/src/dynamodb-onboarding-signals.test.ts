@@ -108,17 +108,55 @@ describe("initOnboardingSignals", () => {
 		});
 	});
 
-	describe("recordNextReadStepOutstanding", () => {
-		it("upserts the outstanding marker (set-once) keyed directly by userId", async () => {
+	describe("recordInboxArticleQueued", () => {
+		it("upserts the first inbox article instant (set-once) keyed directly by userId", async () => {
 			const { client, commands } = createFakeClient({});
 
-			await initSignal(client).recordNextReadStepOutstanding({ userId: USER });
+			await initSignal(client).recordInboxArticleQueued({ userId: USER });
 
 			const update = updateOf(commands);
 			expect(update?.input.Key).toEqual({ userId: "user-1" });
 			expect(update?.input.UpdateExpression).toBe(
-				"SET nextReadStepOutstandingAt = if_not_exists(nextReadStepOutstandingAt, :now)",
+				"SET firstInboxArticleQueuedAt = if_not_exists(firstInboxArticleQueuedAt, :now)",
 			);
+			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
+				NOW.toISOString(),
+			);
+		});
+	});
+
+	describe("recordEmailStepMarkedDone", () => {
+		it("upserts the marked-done instant (set-once) keyed directly by userId", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initSignal(client).recordEmailStepMarkedDone({ userId: USER });
+
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toBe(
+				"SET emailStepMarkedDoneAt = if_not_exists(emailStepMarkedDoneAt, :now)",
+			);
+			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
+				NOW.toISOString(),
+			);
+		});
+	});
+
+	describe("recordOnboardingOutstandingVersion", () => {
+		it("overwrites the outstanding version with a plain SET keyed by userId", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initSignal(client).recordOnboardingOutstandingVersion({
+				userId: USER,
+				version: "0badf00d",
+			});
+
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toBe("SET onboardingOutstandingVersion = :version");
+			expect(
+				(update?.input.ExpressionAttributeValues as Record<string, unknown>)[":version"],
+			).toBe("0badf00d");
 		});
 	});
 
@@ -169,7 +207,9 @@ describe("initOnboardingSignals", () => {
 					android: { installed: false, savedArticle: false },
 				},
 				nextReadMinimumReachedAt: undefined,
-				nextReadStepOutstandingAt: undefined,
+				firstInboxArticleQueuedAt: undefined,
+				emailStepMarkedDoneAt: undefined,
+				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 			});
 		});
@@ -187,7 +227,9 @@ describe("initOnboardingSignals", () => {
 					android: { installed: false, savedArticle: false },
 				},
 				nextReadMinimumReachedAt: undefined,
-				nextReadStepOutstandingAt: undefined,
+				firstInboxArticleQueuedAt: undefined,
+				emailStepMarkedDoneAt: undefined,
+				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 			});
 		});
@@ -209,7 +251,9 @@ describe("initOnboardingSignals", () => {
 					android: { installed: false, savedArticle: false },
 				},
 				nextReadMinimumReachedAt: undefined,
-				nextReadStepOutstandingAt: undefined,
+				firstInboxArticleQueuedAt: undefined,
+				emailStepMarkedDoneAt: undefined,
+				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 			});
 		});
@@ -231,16 +275,45 @@ describe("initOnboardingSignals", () => {
 			});
 		});
 
-		it("surfaces the outstanding marker once the row carries it", async () => {
+		it("surfaces the first inbox article instant once the row carries it", async () => {
+			const { client } = createFakeClient({
+				row: { userId: "user-1", firstInboxArticleQueuedAt: "2026-09-04T08:15:00.000Z" },
+			});
+
+			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
+
+			expect(signals.firstInboxArticleQueuedAt).toEqual(new Date("2026-09-04T08:15:00.000Z"));
+		});
+
+		it("surfaces the email marked-done instant once the row carries it", async () => {
+			const { client } = createFakeClient({
+				row: { userId: "user-1", emailStepMarkedDoneAt: "2026-09-05T08:15:00.000Z" },
+			});
+
+			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
+
+			expect(signals.emailStepMarkedDoneAt).toEqual(new Date("2026-09-05T08:15:00.000Z"));
+		});
+
+		it("surfaces the outstanding version as the stored string, not a Date", async () => {
+			const { client } = createFakeClient({
+				row: { userId: "user-1", onboardingOutstandingVersion: "0badf00d" },
+			});
+
+			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
+
+			expect(signals.onboardingOutstandingVersion).toBe("0badf00d");
+		});
+
+		it("ignores the retired nextReadStepOutstandingAt attribute on a legacy row", async () => {
 			const { client } = createFakeClient({
 				row: { userId: "user-1", nextReadStepOutstandingAt: "2026-06-19T08:15:00.000Z" },
 			});
 
 			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
 
-			expect(signals.nextReadStepOutstandingAt).toEqual(
-				new Date("2026-06-19T08:15:00.000Z"),
-			);
+			expect(signals.firstInboxArticleQueuedAt).toBeUndefined();
+			expect(signals.onboardingOutstandingVersion).toBeUndefined();
 		});
 
 		it("surfaces the mark-read acknowledgement once the row carries it", async () => {

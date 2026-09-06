@@ -4,6 +4,13 @@ import { JSDOM } from "jsdom";
 import { OnboardingChecklist } from "./onboarding.component";
 import type { InstallableClientOnboarding, OnboardingContext } from "./onboarding.types";
 
+const DEFAULT_OPTIONS = {
+	dismissed: false,
+	completedBefore: false,
+	completionUnearned: false,
+	returnQuery: "",
+};
+
 function contextWith(
 	overrides: Partial<Omit<InstallableClientOnboarding, "hasInstallableClient">> = {},
 ): InstallableClientOnboarding {
@@ -13,8 +20,24 @@ function contextWith(
 		savedArticle: false,
 		savedCount: 0,
 		platform: "chrome",
+		inboxArticleQueued: false,
+		emailStepMarkedDone: false,
 		...overrides,
 	};
+}
+
+const COMPLETE = {
+	installed: true,
+	savedArticle: true,
+	inboxArticleQueued: true,
+	savedCount: NEXT_READ_MINIMUM_SAVES,
+} as const;
+
+function checklist(
+	ctx: OnboardingContext,
+	options: Partial<typeof DEFAULT_OPTIONS> = {},
+): string {
+	return OnboardingChecklist(ctx, { ...DEFAULT_OPTIONS, ...options });
 }
 
 /** A device with no installable client renders the escape card; its context is
@@ -26,30 +49,55 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
+function stepIds(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll("[data-test-onboarding-step]")).map(
+		(el) => el.getAttribute("data-test-onboarding-step") ?? "",
+	);
+}
+
+function stepOf(doc: Document, id: string): Element {
+	const step = doc.querySelector(`[data-test-onboarding-step="${id}"]`);
+	assert(step, `${id} step must be rendered`);
+	return step;
+}
+
+function actionKeys(step: Element): string[] {
+	return Array.from(step.querySelectorAll("[data-test-onboarding-action]")).map(
+		(el) => el.getAttribute("data-test-onboarding-action") ?? "",
+	);
+}
+
+function actionForm(step: Element, key: string): Element {
+	const button = step.querySelector(`[data-test-onboarding-action="${key}"]`);
+	assert(button, `action ${key} must be rendered`);
+	const form = button.closest("form");
+	assert(form, `action ${key} must live inside a form`);
+	return form;
+}
+
+const PLATFORMS = ["chrome", "firefox", "iphone", "other"] as const;
+
 describe("OnboardingChecklist", () => {
 	it("renders every step incomplete and container visible when nothing is done", () => {
-		const doc = parse(OnboardingChecklist(contextWith()));
+		const doc = parse(checklist(contextWith()));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
 		assert(container.classList.contains("onboarding--visible"));
 		assert(!container.classList.contains("onboarding--hidden"));
 
-		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
-		assert(installStep, "install-extension step must be rendered");
-		assert.equal(installStep.getAttribute("data-test-onboarding-complete"), "false");
-
-		const saveStep = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
-		assert(saveStep, "save-first-article step must be rendered");
-		assert.equal(saveStep.getAttribute("data-test-onboarding-complete"), "false");
-
-		const nextReadStep = doc.querySelector('[data-test-onboarding-step="save-enough-for-next-read"]');
-		assert(nextReadStep, "save-enough-for-next-read step must be rendered");
-		assert.equal(nextReadStep.getAttribute("data-test-onboarding-complete"), "false");
+		for (const id of [
+			"install-extension",
+			"save-first-article-via-extension",
+			"receive-articles-by-email",
+			"save-enough-for-next-read",
+		]) {
+			assert.equal(stepOf(doc, id).getAttribute("data-test-onboarding-complete"), "false");
+		}
 	});
 
 	it("renders the founder avatar alongside the intro text", () => {
-		const doc = parse(OnboardingChecklist(contextWith()));
+		const doc = parse(checklist(contextWith()));
 
 		const avatar = doc.querySelector(".onboarding__avatar");
 		assert(avatar, "founder avatar must be rendered");
@@ -57,285 +105,337 @@ describe("OnboardingChecklist", () => {
 		assert.match(avatar.getAttribute("src") ?? "", /\/fayner-brack\.jpg$/);
 	});
 
-	it("renders install-extension, then save-first-article, then the Next Read milestone", () => {
-		const doc = parse(OnboardingChecklist(contextWith()));
+	it("renders install, save, the email step, then the Next Read milestone in order", () => {
+		const doc = parse(checklist(contextWith()));
 
-		const steps = doc.querySelectorAll("[data-test-onboarding-step]");
-		assert.equal(steps.length, 3);
-		assert.equal(steps[0].getAttribute("data-test-onboarding-step"), "install-extension");
-		assert.equal(steps[1].getAttribute("data-test-onboarding-step"), "save-first-article-via-extension");
-		assert.equal(steps[2].getAttribute("data-test-onboarding-step"), "save-enough-for-next-read");
+		assert.deepEqual(stepIds(doc), [
+			"install-extension",
+			"save-first-article-via-extension",
+			"receive-articles-by-email",
+			"save-enough-for-next-read",
+		]);
 	});
 
 	it("marks install-extension complete when installed is true", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ installed: true })));
+		const doc = parse(checklist(contextWith({ installed: true })));
 
-		const step = doc.querySelector('[data-test-onboarding-step="install-extension"]');
-		assert(step, "install-extension step must be rendered");
+		const step = stepOf(doc, "install-extension");
 		assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
+		assert.equal(step.classList.contains("onboarding__step--complete"), true);
 	});
 
 	it("carries the hiding state class on a completed row and not on an outstanding one", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ installed: true })));
+		const doc = parse(checklist(contextWith({ installed: true })));
 
-		const done = doc.querySelector('[data-test-onboarding-step="install-extension"]');
-		assert(done, "install-extension step must still be rendered once complete");
-		assert.equal(done.classList.contains("onboarding__step--complete"), true);
-
-		const outstanding = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
-		assert(outstanding, "save-first-article step must be rendered");
-		assert.equal(outstanding.classList.contains("onboarding__step--complete"), false);
+		assert.equal(
+			stepOf(doc, "install-extension").classList.contains("onboarding__step--complete"),
+			true,
+		);
+		assert.equal(
+			stepOf(doc, "save-first-article-via-extension").classList.contains(
+				"onboarding__step--complete",
+			),
+			false,
+		);
 	});
 
 	it("keeps install-extension incomplete when installed is false", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ installed: false, savedArticle: true })));
+		const doc = parse(checklist(contextWith({ installed: false, savedArticle: true })));
 
-		const step = doc.querySelector('[data-test-onboarding-step="install-extension"]');
-		assert(step, "install-extension step must be rendered");
-		assert.equal(step.getAttribute("data-test-onboarding-complete"), "false");
+		assert.equal(
+			stepOf(doc, "install-extension").getAttribute("data-test-onboarding-complete"),
+			"false",
+		);
 	});
 
 	it("marks save-first-article complete when savedArticle is true", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true })));
+		const doc = parse(checklist(contextWith({ savedArticle: true })));
 
-		const step = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
-		assert(step, "save-first-article step must be rendered");
-		assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
-	});
-
-	it("keeps save-first-article incomplete when savedArticle is false", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: false })));
-
-		const step = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
-		assert(step, "save-first-article step must be rendered");
-		assert.equal(step.getAttribute("data-test-onboarding-complete"), "false");
+		assert.equal(
+			stepOf(doc, "save-first-article-via-extension").getAttribute(
+				"data-test-onboarding-complete",
+			),
+			"true",
+		);
 	});
 
 	it("lets the save step's title stand alone while the install step keeps its description", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "chrome" })));
+		const doc = parse(checklist(contextWith({ platform: "chrome" })));
 
-		const install = doc.querySelector('[data-test-onboarding-step="install-extension"]');
-		assert(install, "install-extension step must be rendered");
-		assert.equal(install.querySelectorAll(".onboarding__step-description").length, 1);
-
-		const save = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
-		assert(save, "save-first-article step must be rendered");
-		assert.equal(save.querySelectorAll(".onboarding__step-description").length, 0);
+		assert.equal(
+			stepOf(doc, "install-extension").querySelectorAll(".onboarding__step-description").length,
+			1,
+		);
+		assert.equal(
+			stepOf(doc, "save-first-article-via-extension").querySelectorAll(
+				".onboarding__step-description",
+			).length,
+			0,
+		);
 	});
 
 	it("keeps the share-sheet walkthrough on the iPhone save step", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone" })));
+		const doc = parse(checklist(contextWith({ platform: "iphone" })));
 
-		const save = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
-		assert(save, "save-first-article step must be rendered");
-		const description = save.querySelector(".onboarding__step-description");
+		const description = stepOf(doc, "save-first-article-via-extension").querySelector(
+			".onboarding__step-description",
+		);
 		assert(description, "the iPhone save step must keep its description");
 		assert.match(description.textContent ?? "", /tap Share/);
 	});
 
-	it("shows container when only save-first-article is complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: false })));
+	it("shows the container while any step is outstanding", () => {
+		const doc = parse(checklist(contextWith({ savedArticle: true, installed: true })));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
 		assert(container.classList.contains("onboarding--visible"));
 	});
 
-	it("shows container when only install-extension is complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: false, installed: true })));
-
-		const container = doc.querySelector("[data-test-onboarding]");
-		assert(container, "onboarding container must be rendered");
-		assert(container.classList.contains("onboarding--visible"));
-	});
-
-	it("shows 'Install the Chrome browser extension' for Chrome users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "chrome" })));
-		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
-		assert(title);
-		assert.equal(title.textContent, "Install the Chrome browser extension");
-	});
-
-	it("shows 'Install the Firefox browser extension' for Firefox users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "firefox" })));
-		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
-		assert(title);
-		assert.equal(title.textContent, "Install the Firefox browser extension");
-	});
-
-	it("shows 'Install the Readplace iPhone app' for iPhone users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone" })));
-		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
-		assert(title);
-		assert.equal(title.textContent, "Install the Readplace iPhone app");
-	});
-
-	it("shows 'Install a browser extension' for unrecognised platforms", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "other" })));
-		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
-		assert(title);
-		assert.equal(title.textContent, "Install a browser extension");
-	});
-
-	it("shows an 'Install' action linking to /install?client=chrome for Chrome users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "chrome" })));
-		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
-		assert(action, "action link must be rendered");
-		assert.equal(action.textContent, "Install");
-		assert.equal(action.getAttribute("href"), "/install?client=chrome");
-	});
-
-	it("shows an 'Install' action linking to /install?client=firefox for Firefox users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "firefox" })));
-		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
-		assert(action, "action link must be rendered");
-		assert.equal(action.textContent, "Install");
-		assert.equal(action.getAttribute("href"), "/install?client=firefox");
-	});
-
-	it("shows an 'Install' action linking to /install?client=iphone for iPhone users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone" })));
-		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
-		assert(action, "action link must be rendered");
-		assert.equal(action.textContent, "Install");
-		assert.equal(action.getAttribute("href"), "/install?client=iphone");
-	});
-
-	it("shows a 'Choose browser' action linking to /install for unrecognised platforms", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "other" })));
-		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
-		assert(action, "action link must be rendered");
-		assert.equal(action.textContent, "Choose browser");
-		assert.equal(action.getAttribute("href"), "/install");
-	});
-
-	it("shows 'Save your first article using the browser extension' for Chrome users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "chrome" })));
-		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
-		assert(title);
-		assert.equal(title.textContent, "Save your first article using the browser extension");
-	});
-
-	it("shows 'Save your first article using the browser extension' for Firefox users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "firefox" })));
-		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
-		assert(title);
-		assert.equal(title.textContent, "Save your first article using the browser extension");
-	});
-
-	it("shows 'Save your first article using the iPhone app' for iPhone users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone" })));
-		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
-		assert(title);
-		assert.equal(title.textContent, "Save your first article using the iPhone app");
-	});
-
-	it("shows 'Save your first article using a browser extension' for unrecognised platforms", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "other" })));
-		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
-		assert(title);
-		assert.equal(title.textContent, "Save your first article using a browser extension");
-	});
-
-	it("does not render actions on save-first-article for platforms with their own client", () => {
-		for (const platform of ["chrome", "firefox", "iphone"] as const) {
-			const doc = parse(OnboardingChecklist(contextWith({ platform })));
-			const actions = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__actions');
-			assert.equal(actions, null, `${platform} save step must render no action`);
+	it("titles the install step per platform", () => {
+		const titleByPlatform = {
+			chrome: "Install the Chrome browser extension",
+			firefox: "Install the Firefox browser extension",
+			iphone: "Install the Readplace iPhone app",
+			other: "Install a browser extension",
+		} satisfies Record<(typeof PLATFORMS)[number], string>;
+		for (const platform of PLATFORMS) {
+			const doc = parse(checklist(contextWith({ platform })));
+			assert.equal(
+				stepOf(doc, "install-extension").querySelector(".onboarding__step-title")?.textContent,
+				titleByPlatform[platform],
+			);
 		}
 	});
 
-	it("renders a 'Choose browser' action on save-first-article for unrecognised platforms", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "other" })));
-		const action = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] [data-test-onboarding-action]');
-		assert(action, "fallback action must be rendered when no platform-specific client exists");
-		assert.equal(action.textContent, "Choose browser");
-		assert.equal(action.getAttribute("href"), "/install");
+	it("renders the install action as a GET form carrying the client as a hidden input", () => {
+		const byPlatform = { chrome: "chrome", firefox: "firefox", iphone: "iphone" } as const;
+		for (const client of Object.values(byPlatform)) {
+			const doc = parse(checklist(contextWith({ platform: client })));
+			const step = stepOf(doc, "install-extension");
+			assert.deepEqual(actionKeys(step), ["install"]);
+			const form = actionForm(step, "install");
+			assert.equal(form.getAttribute("method"), "GET");
+			assert.equal(form.getAttribute("action"), "/install");
+			const input = form.querySelector('input[name="client"]');
+			assert(input, "the platform must ride as a hidden input, not in the action query");
+			assert.equal(input.getAttribute("value"), client);
+		}
+	});
+
+	it("renders a query-less Choose browser action with no hidden inputs for unrecognised platforms", () => {
+		const doc = parse(checklist(contextWith({ platform: "other" })));
+		const step = stepOf(doc, "install-extension");
+		assert.deepEqual(actionKeys(step), ["choose-browser"]);
+		const form = actionForm(step, "choose-browser");
+		assert.equal(form.getAttribute("action"), "/install");
+		assert.equal(form.querySelectorAll("input").length, 0);
+	});
+
+	it("titles the save step per platform", () => {
+		const titleByPlatform = {
+			chrome: "Save your first article using the browser extension",
+			firefox: "Save your first article using the browser extension",
+			iphone: "Save your first article using the iPhone app",
+			other: "Save your first article using a browser extension",
+		} satisfies Record<(typeof PLATFORMS)[number], string>;
+		for (const platform of PLATFORMS) {
+			const doc = parse(checklist(contextWith({ platform })));
+			assert.equal(
+				stepOf(doc, "save-first-article-via-extension").querySelector(".onboarding__step-title")
+					?.textContent,
+				titleByPlatform[platform],
+			);
+		}
+	});
+
+	it("renders no action on save-first-article for platforms with their own client", () => {
+		for (const platform of ["chrome", "firefox", "iphone"] as const) {
+			const doc = parse(checklist(contextWith({ platform })));
+			assert.deepEqual(actionKeys(stepOf(doc, "save-first-article-via-extension")), []);
+		}
+	});
+
+	it("renders a Choose browser action on save-first-article for unrecognised platforms", () => {
+		const doc = parse(checklist(contextWith({ platform: "other" })));
+		const step = stepOf(doc, "save-first-article-via-extension");
+		assert.deepEqual(actionKeys(step), ["choose-browser"]);
+		assert.equal(actionForm(step, "choose-browser").getAttribute("action"), "/install");
+	});
+
+	describe("Get articles from email step", () => {
+		const emailStep = (doc: Document) => stepOf(doc, "receive-articles-by-email");
+
+		it("stays incomplete until a link from an inbox email is queued", () => {
+			const doc = parse(checklist(contextWith()));
+			assert.equal(emailStep(doc).getAttribute("data-test-onboarding-complete"), "false");
+		});
+
+		it("completes once a link from an inbox email has been queued", () => {
+			const doc = parse(checklist(contextWith({ inboxArticleQueued: true })));
+			const step = emailStep(doc);
+			assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
+			assert.equal(step.classList.contains("onboarding__step--complete"), true);
+		});
+
+		it("reads the same title and description on every platform", () => {
+			const titles = (["chrome", "firefox", "iphone", "other"] as const).map((platform) => {
+				const doc = parse(checklist(contextWith({ platform })));
+				const step = emailStep(doc);
+				assert.match(
+					step.querySelector(".onboarding__step-description")?.textContent ?? "",
+					/own email address/,
+				);
+				return step.querySelector(".onboarding__step-title")?.textContent;
+			});
+			assert.deepEqual([...new Set(titles)], ["Get articles from email"]);
+		});
+
+		it("offers the inbox addresses page as its GET CTA, followed by the POST mark-done", () => {
+			const doc = parse(checklist(contextWith()));
+			const step = emailStep(doc);
+			assert.deepEqual(actionKeys(step), ["see-inbox-address", "email-mark-done"]);
+
+			const cta = actionForm(step, "see-inbox-address");
+			assert.equal(cta.getAttribute("method"), "GET");
+			assert.equal(cta.getAttribute("action"), "/inbox/addresses");
+			assert.equal(
+				step
+					.querySelector('[data-test-onboarding-action="see-inbox-address"]')
+					?.getAttribute("class"),
+				"btn btn--primary btn--compact",
+			);
+
+			const markDone = actionForm(step, "email-mark-done");
+			assert.equal(markDone.getAttribute("method"), "POST");
+			assert.equal(markDone.getAttribute("action"), "/queue/onboarding/email/done");
+			assert.equal(
+				step.querySelector('[data-test-onboarding-action="email-mark-done"]')?.getAttribute("class"),
+				"onboarding__dismiss-text",
+			);
+		});
+
+		it("stamps the return query onto the POST mark-done and dismiss forms, never the GET CTA", () => {
+			const doc = parse(checklist(contextWith(), { returnQuery: "?tab=done" }));
+			assert.equal(
+				actionForm(emailStep(doc), "email-mark-done").getAttribute("action"),
+				"/queue/onboarding/email/done?tab=done",
+			);
+			assert.equal(
+				actionForm(emailStep(doc), "see-inbox-address").getAttribute("action"),
+				"/inbox/addresses",
+			);
+
+			const success = parse(checklist(contextWith(COMPLETE), { returnQuery: "?tab=done" }));
+			const dismiss = success.querySelector("[data-test-onboarding-dismiss]");
+			assert(dismiss, "success dismiss must be rendered");
+			assert.equal(
+				dismiss.closest("form")?.getAttribute("action"),
+				"/queue/dismiss-onboarding?tab=done",
+			);
+		});
+
+		it("keeps the mark-done control off every other step", () => {
+			const doc = parse(checklist(contextWith({ platform: "chrome" })));
+			assert.deepEqual(actionKeys(stepOf(doc, "install-extension")), ["install"]);
+			assert.deepEqual(actionKeys(stepOf(doc, "save-first-article-via-extension")), []);
+			assert.deepEqual(actionKeys(stepOf(doc, "save-enough-for-next-read")), []);
+		});
+
+		it("completes once the reader marks it done, with no inbox article needed", () => {
+			const doc = parse(checklist(contextWith({ emailStepMarkedDone: true })));
+
+			const step = emailStep(doc);
+			assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
+			assert.equal(step.classList.contains("onboarding__step--complete"), true);
+		});
+
+		it("hides the card without congratulating a reader whose every step, this one included, was satisfied on arrival", () => {
+			const doc = parse(
+				checklist(
+					contextWith({ ...COMPLETE, inboxArticleQueued: false, emailStepMarkedDone: true }),
+					{ completionUnearned: true },
+				),
+			);
+
+			const container = doc.querySelector("[data-test-onboarding]");
+			assert(container, "onboarding container must still be rendered");
+			assert(container.classList.contains("onboarding--hidden"));
+			assert(!container.classList.contains("onboarding--complete"));
+		});
+
+		it("congratulates a reader who marks the email step done as the last thing on the list", () => {
+			const doc = parse(
+				checklist(
+					contextWith({ ...COMPLETE, inboxArticleQueued: false, emailStepMarkedDone: true }),
+					{ completionUnearned: false },
+				),
+			);
+
+			const container = doc.querySelector("[data-test-onboarding]");
+			assert(container, "onboarding container must be rendered");
+			assert(container.classList.contains("onboarding--complete"));
+			assert(doc.querySelector("[data-test-onboarding-success]"), "success card must be rendered");
+		});
+
+		it("keeps the checklist visible after marking the email step done while others remain", () => {
+			const doc = parse(checklist(contextWith({ emailStepMarkedDone: true, installed: true })));
+
+			const container = doc.querySelector("[data-test-onboarding]");
+			assert(container, "onboarding container must be rendered");
+			assert(container.classList.contains("onboarding--visible"));
+		});
 	});
 
 	describe("Next Read milestone step", () => {
-		const stepOf = (doc: Document) =>
-			doc.querySelector('[data-test-onboarding-step="save-enough-for-next-read"]');
+		const stepOfDoc = (doc: Document) => stepOf(doc, "save-enough-for-next-read");
 
 		it("stays incomplete one save short of the minimum", () => {
-			const doc = parse(
-				OnboardingChecklist(contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES - 1 })),
-			);
-
-			const step = stepOf(doc);
-			assert(step, "Next Read step must be rendered");
-			assert.equal(step.getAttribute("data-test-onboarding-complete"), "false");
+			const doc = parse(checklist(contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES - 1 })));
+			assert.equal(stepOfDoc(doc).getAttribute("data-test-onboarding-complete"), "false");
 		});
 
 		it("completes at exactly the minimum", () => {
-			const doc = parse(
-				OnboardingChecklist(contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES })),
-			);
-
-			const step = stepOf(doc);
-			assert(step, "Next Read step must be rendered");
-			assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
+			const doc = parse(checklist(contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES })));
+			assert.equal(stepOfDoc(doc).getAttribute("data-test-onboarding-complete"), "true");
 		});
 
 		it("counts the saves so far in the description while short of the minimum", () => {
-			const doc = parse(OnboardingChecklist(contextWith({ savedCount: 12 })));
-
-			const step = stepOf(doc);
-			assert(step, "Next Read step must be rendered");
+			const doc = parse(checklist(contextWith({ savedCount: 12 })));
 			assert.match(
-				step.querySelector(".onboarding__step-description")?.textContent ?? "",
+				stepOfDoc(doc).querySelector(".onboarding__step-description")?.textContent ?? "",
 				new RegExp(`saved 12 of ${NEXT_READ_MINIMUM_SAVES}`),
 			);
 		});
 
 		it("stops counting and points at the reader once the minimum is reached", () => {
 			const doc = parse(
-				OnboardingChecklist(
-					contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES, installed: true }),
-				),
+				checklist(contextWith({ savedCount: NEXT_READ_MINIMUM_SAVES, installed: true })),
 			);
-
-			const step = stepOf(doc);
-			assert(step, "Next Read step must be rendered");
 			assert.match(
-				step.querySelector(".onboarding__step-description")?.textContent ?? "",
+				stepOfDoc(doc).querySelector(".onboarding__step-description")?.textContent ?? "",
 				/only shows when something you've saved relates/,
 			);
 		});
 
 		it("names the minimum in the title", () => {
-			const doc = parse(OnboardingChecklist(contextWith()));
-
-			const step = stepOf(doc);
-			assert(step, "Next Read step must be rendered");
+			const doc = parse(checklist(contextWith()));
 			assert.equal(
-				step.querySelector(".onboarding__step-title")?.textContent,
+				stepOfDoc(doc).querySelector(".onboarding__step-title")?.textContent,
 				`Save ${NEXT_READ_MINIMUM_SAVES} articles so Next Read can start`,
 			);
 		});
 
-		it("reads the same on every platform, unlike the device-scoped steps", () => {
-			const titles = (["chrome", "firefox", "iphone", "other"] as const).map((platform) => {
-				const doc = parse(OnboardingChecklist(contextWith({ platform })));
-				const step = stepOf(doc);
-				assert(step, `Next Read step must be rendered for ${platform}`);
-				return step.querySelector(".onboarding__step-title")?.textContent;
-			});
-
-			assert.equal(new Set(titles).size, 1);
-		});
-
 		it("offers no action of its own — saving is the action", () => {
-			const doc = parse(OnboardingChecklist(contextWith()));
-
-			const step = stepOf(doc);
-			assert(step, "Next Read step must be rendered");
-			assert.equal(step.querySelectorAll("[data-test-onboarding-action]").length, 0);
+			const doc = parse(checklist(contextWith()));
+			assert.deepEqual(actionKeys(stepOfDoc(doc)), []);
 		});
 
 		it("holds back the success card while it is the only step outstanding", () => {
 			const doc = parse(
-				OnboardingChecklist(contextWith({ installed: true, savedArticle: true, savedCount: 3 })),
+				checklist(
+					contextWith({ installed: true, savedArticle: true, inboxArticleQueued: true, savedCount: 3 }),
+				),
 			);
 
 			const container = doc.querySelector("[data-test-onboarding]");
@@ -345,8 +445,8 @@ describe("OnboardingChecklist", () => {
 		});
 	});
 
-	it("shows success message with avatar when both steps are complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
+	it("shows success message with avatar when every step is complete", () => {
+		const doc = parse(checklist(contextWith(COMPLETE)));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
@@ -355,21 +455,13 @@ describe("OnboardingChecklist", () => {
 
 		const success = doc.querySelector("[data-test-onboarding-success]");
 		assert(success, "success section must be rendered");
-
-		const title = success.querySelector(".onboarding__success-title");
-		assert(title);
-		assert.match(title.textContent ?? "", /You did it!/);
-
-		const message = success.querySelector(".onboarding__success-message");
-		assert(message);
-		assert.match(message.textContent ?? "", /one of us/);
-
-		const avatar = success.querySelector(".onboarding__avatar");
-		assert(avatar, "founder avatar must be shown in success state");
+		assert.match(success.querySelector(".onboarding__success-title")?.textContent ?? "", /You did it!/);
+		assert.match(success.querySelector(".onboarding__success-message")?.textContent ?? "", /one of us/);
+		assert(success.querySelector(".onboarding__avatar"), "founder avatar must be shown in success state");
 	});
 
 	it("keeps the full welcome visible for a first-time completion", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
+		const doc = parse(checklist(contextWith(COMPLETE)));
 
 		const message = doc.querySelector(".onboarding__success-message");
 		assert(message, "success message must be rendered");
@@ -378,16 +470,9 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("greets a user who completed a previous checklist with just the title", () => {
-		const doc = parse(
-			OnboardingChecklist(contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES }), {
-				completedBefore: true,
-			}),
-		);
+		const doc = parse(checklist(contextWith(COMPLETE), { completedBefore: true }));
 
-		const title = doc.querySelector(".onboarding__success-title");
-		assert(title, "success title must be rendered");
-		assert.match(title.textContent ?? "", /You did it!/);
-
+		assert.match(doc.querySelector(".onboarding__success-title")?.textContent ?? "", /You did it!/);
 		const message = doc.querySelector(".onboarding__success-message");
 		assert(message, "success message must stay rendered for its state class");
 		assert.equal(message.classList.contains("onboarding__success-message--hidden"), true);
@@ -395,10 +480,7 @@ describe("OnboardingChecklist", () => {
 
 	it("stays hidden when every step was already satisfied on arrival", () => {
 		const doc = parse(
-			OnboardingChecklist(
-				contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES }),
-				{ completedBefore: true, completionUnearned: true },
-			),
+			checklist(contextWith(COMPLETE), { completedBefore: true, completionUnearned: true }),
 		);
 
 		const container = doc.querySelector("[data-test-onboarding]");
@@ -409,10 +491,7 @@ describe("OnboardingChecklist", () => {
 
 	it("still congratulates a reader who finished the last outstanding step", () => {
 		const doc = parse(
-			OnboardingChecklist(
-				contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES }),
-				{ completedBefore: true, completionUnearned: false },
-			),
+			checklist(contextWith(COMPLETE), { completedBefore: true, completionUnearned: false }),
 		);
 
 		const container = doc.querySelector("[data-test-onboarding]");
@@ -422,36 +501,31 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("keeps an unearned flag harmless while a step is still outstanding", () => {
-		const doc = parse(
-			OnboardingChecklist(contextWith({ installed: true }), { completionUnearned: true }),
-		);
+		const doc = parse(checklist(contextWith({ installed: true }), { completionUnearned: true }));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
 		assert(container.classList.contains("onboarding--visible"));
 	});
 
-	it("reaches success from the iPhone steps when both are complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone", savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
+	it("reaches success from the iPhone steps when every step is complete", () => {
+		const doc = parse(checklist(contextWith({ ...COMPLETE, platform: "iphone" })));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
 		assert(container.classList.contains("onboarding--complete"));
-
 		const success = doc.querySelector("[data-test-onboarding-success]");
 		assert(success, "success section must be rendered for iPhone too");
 		assert.match(success.querySelector(".onboarding__success-title")?.textContent ?? "", /You did it!/);
 	});
 
 	it("does not show steps list when all complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true, savedCount: NEXT_READ_MINIMUM_SAVES })));
-
-		const steps = doc.querySelector("[data-test-onboarding-steps]");
-		assert.equal(steps, null);
+		const doc = parse(checklist(contextWith(COMPLETE)));
+		assert.equal(doc.querySelector("[data-test-onboarding-steps]"), null);
 	});
 
 	it("renders the container hidden when dismissed", () => {
-		const doc = parse(OnboardingChecklist(contextWith(), { dismissed: true }));
+		const doc = parse(checklist(contextWith(), { dismissed: true }));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must still be rendered when dismissed");
@@ -461,21 +535,20 @@ describe("OnboardingChecklist", () => {
 
 	describe("no installable client", () => {
 		it("renders the no-client card instead of the step checklist", () => {
-			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT));
+			const doc = parse(checklist(NO_CLIENT_CONTEXT));
 
 			const noClient = doc.querySelector("[data-test-onboarding-no-client]");
 			assert(noClient, "no-client card must be rendered");
-
-			const steps = doc.querySelector("[data-test-onboarding-steps]");
-			assert.equal(steps, null, "the step checklist must not render on a no-client device");
-
-			const heading = noClient.querySelector(".onboarding__title");
-			assert(heading);
-			assert.match(heading.textContent ?? "", /Fayner Brack/);
+			assert.equal(
+				doc.querySelector("[data-test-onboarding-steps]"),
+				null,
+				"the step checklist must not render on a no-client device",
+			);
+			assert.match(noClient.querySelector(".onboarding__title")?.textContent ?? "", /Fayner Brack/);
 		});
 
 		it("keeps the container visible by default", () => {
-			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT));
+			const doc = parse(checklist(NO_CLIENT_CONTEXT));
 
 			const container = doc.querySelector("[data-test-onboarding]");
 			assert(container, "onboarding container must be rendered");
@@ -483,38 +556,51 @@ describe("OnboardingChecklist", () => {
 			assert(!container.classList.contains("onboarding--hidden"));
 		});
 
-		it("offers a 'See install options' action linking to /install", () => {
-			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT));
+		it("offers a See install options action as a GET form to /install", () => {
+			const doc = parse(checklist(NO_CLIENT_CONTEXT));
 
-			const action = doc.querySelector("[data-test-onboarding-no-client] [data-test-onboarding-action]");
-			assert(action, "install-options link must be rendered");
-			assert.equal(action.textContent, "See install options");
-			assert.equal(action.getAttribute("href"), "/install");
+			const noClient = doc.querySelector("[data-test-onboarding-no-client]");
+			assert(noClient, "no-client card must be rendered");
+			assert.deepEqual(actionKeys(noClient), ["see-install-options"]);
+			const form = actionForm(noClient, "see-install-options");
+			assert.equal(form.getAttribute("method"), "GET");
+			assert.equal(form.getAttribute("action"), "/install");
 		});
 
 		it("offers a Dismiss button that POSTs to the dismiss route", () => {
-			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT));
+			const doc = parse(checklist(NO_CLIENT_CONTEXT));
 
 			const dismiss = doc.querySelector("[data-test-onboarding-dismiss]");
 			assert(dismiss, "Dismiss button must be rendered");
 			assert.equal(dismiss.textContent, "Dismiss");
-
 			const form = dismiss.closest("form");
 			assert(form, "Dismiss button must live inside a form");
 			assert.equal(form.getAttribute("method"), "POST");
 			assert.equal(form.getAttribute("action"), "/queue/dismiss-onboarding");
 		});
 
+		it("stamps the return query onto the no-client dismiss form", () => {
+			const doc = parse(checklist(NO_CLIENT_CONTEXT, { returnQuery: "?tab=done" }));
+
+			const dismiss = doc.querySelector("[data-test-onboarding-dismiss]");
+			assert(dismiss, "Dismiss button must be rendered");
+			assert.equal(
+				dismiss.closest("form")?.getAttribute("action"),
+				"/queue/dismiss-onboarding?tab=done",
+			);
+		});
+
 		it("renders the no-client card hidden when dismissed", () => {
-			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT, { dismissed: true }));
+			const doc = parse(checklist(NO_CLIENT_CONTEXT, { dismissed: true }));
 
 			const container = doc.querySelector("[data-test-onboarding]");
 			assert(container, "onboarding container must still be rendered when dismissed");
 			assert(container.classList.contains("onboarding--hidden"));
 			assert(!container.classList.contains("onboarding--visible"));
-
-			const noClient = doc.querySelector("[data-test-onboarding-no-client]");
-			assert(noClient, "no-client card markup must still be present, just hidden via the state class");
+			assert(
+				doc.querySelector("[data-test-onboarding-no-client]"),
+				"no-client card markup must still be present, just hidden via the state class",
+			);
 		});
 	});
 });

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { NEXT_READ_MINIMUM_SAVES } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
 import type { CountArticlesQuery } from "@packages/provider-contracts/article-store";
+import type { OnboardingSignalsBundle } from "@packages/web-test-harness";
 import { JSDOM } from "jsdom";
 import {
 	ALIVE_COOKIE_NAME,
@@ -59,6 +61,31 @@ function fixtureCrossingMilestone(): {
 			},
 		},
 	};
+}
+
+async function loggedInUserId(harness: TestAppHarness): Promise<UserId> {
+	const user = await harness.auth.findUserByEmail("test@example.com");
+	assert(user, "logged-in user must exist");
+	return user.userId;
+}
+
+async function tickEmailStep(
+	fixture: { onboardingSignals: OnboardingSignalsBundle },
+	harness: TestAppHarness,
+): Promise<void> {
+	await fixture.onboardingSignals.recordInboxArticleQueued({
+		userId: await loggedInUserId(harness),
+	});
+}
+
+async function markSeenOutstanding(
+	fixture: { onboardingSignals: OnboardingSignalsBundle },
+	harness: TestAppHarness,
+): Promise<void> {
+	await fixture.onboardingSignals.recordOnboardingOutstandingVersion({
+		userId: await loggedInUserId(harness),
+		version: ONBOARDING_VERSION,
+	});
 }
 
 /** Desktop Chrome — a platform with an installable client, so these requests
@@ -151,6 +178,7 @@ describe("Readlist onboarding", () => {
 		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", cookies);
 		crossing.reachMilestone();
+		await tickEmailStep(crossing.fixture, harness);
 
 		const response = await agent
 			.get("/queue")
@@ -205,6 +233,7 @@ describe("Readlist onboarding", () => {
 		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", cookies);
 		crossing.reachMilestone();
+		await tickEmailStep(crossing.fixture, harness);
 
 		const response = await agent
 			.get("/queue?status=read")
@@ -298,8 +327,11 @@ describe("Readlist onboarding", () => {
 		const ALL_COMPLETE_COOKIES = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 
 		it("welcomes a first-time completion with the full message", async () => {
-			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
+			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
+			await tickEmailStep(fixture, harness);
+			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
 				.get("/queue")
@@ -312,8 +344,11 @@ describe("Readlist onboarding", () => {
 		});
 
 		it("greets a re-onboarded user with just the title once a past dismissal shows they finished before", async () => {
-			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
+			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
+			await tickEmailStep(fixture, harness);
+			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
 				.get("/queue")
@@ -328,8 +363,11 @@ describe("Readlist onboarding", () => {
 		});
 
 		it("still welcomes in full when the only past dismissal was the no-client escape card", async () => {
-			const harness = useApp(fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES));
+			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
+			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
+			await tickEmailStep(fixture, harness);
+			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
 				.get("/queue")
@@ -393,11 +431,12 @@ describe("Readlist onboarding — iPhone", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		expect(installTitle(response.text)).toBe("Install the Readplace iPhone app");
-		expect(
-			doc
-				.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]')
-				?.getAttribute("href"),
-		).toBe("/install?client=iphone");
+		const installForm = doc
+			.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action="install"]')
+			?.closest("form");
+		assert(installForm, "install action must render as a form");
+		expect(installForm.getAttribute("action")).toBe("/install");
+		expect(installForm.querySelector('input[name="client"]')?.getAttribute("value")).toBe("iphone");
 		expect(
 			doc
 				.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title')
@@ -427,6 +466,7 @@ describe("Readlist onboarding — iPhone", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await agent.get("/queue").set("User-Agent", IPHONE_UA);
 		crossing.reachMilestone();
+		await tickEmailStep(crossing.fixture, harness);
 		const token = await bearerForLoggedInUser(harness);
 
 		// A share-sheet save (Bearer-authed, client header) records both signals at once.

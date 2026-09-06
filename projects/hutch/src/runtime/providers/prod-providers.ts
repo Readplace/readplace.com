@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
-import { initOnboardingSignals } from "./onboarding-signals/dynamodb-onboarding-signals";
+import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initDynamoDbReadlistDefinitions, initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -421,7 +421,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
-		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
+		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion: onboardingSignals.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged:
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,

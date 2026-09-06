@@ -76,11 +76,12 @@ import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth"
 import type {
 	GetOnboardingSignals,
 	RecordDeleteArticleAcknowledged,
+	RecordEmailStepMarkedDone,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
 import type {
 	AllocateSavedAt,
@@ -399,7 +400,8 @@ interface AppDependencies {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
-	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	adminEmails: readonly string[];
@@ -1238,7 +1240,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: deps.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
-		recordNextReadStepOutstanding: deps.recordNextReadStepOutstanding,
+		recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion: deps.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged: deps.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: deps.recordDeleteArticleAcknowledged,
 		dualAuth: dualAuthMiddleware,
