@@ -5,8 +5,6 @@ slug: "dark-mode-that-travels-with-your-account"
 date: "2026-09-04"
 author: "Fayner Brack"
 keywords: "dark mode reading app, read it later dark mode, dark theme article reader, override system dark mode, dark mode without the flash, theme flash on page load, account dark mode setting, pocket alternative dark mode, readplace"
-tags: ["changelog"]
-banner: "I taught dark mode to follow your account"
 ---
 
 <details class="blog-tldr">
