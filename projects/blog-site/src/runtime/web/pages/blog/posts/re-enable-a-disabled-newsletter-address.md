@@ -18,7 +18,7 @@ Switching a newsletter address off in Readplace used to be a one-way door. There
 
 Every Readplace forwarding address ends in six random characters. That tail is the reason a disabled one used to be gone for good.
 
-A forwarding address is how a newsletter reaches your readlist. You name it after the source, so a subscription to TLDR becomes something like tldr-a7b2c9@read.place, and the issues sent there [turn into saved articles instead of inbox clutter](/blog/save-newsletter-links-to-your-readlist). The six characters on the end are what keep the address yours. Two readers can both pick the name my-newsletter, and the random tail is the only thing telling their addresses apart.
+A forwarding address is how a newsletter reaches your readlist. You name it after the source, so a subscription to TLDR becomes something like tldr-a7b2c9@read.place, and the issues sent there [turn into saved articles instead of inbox clutter](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-re-enable-a-disabled-newsletter-address&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist). The six characters on the end are what keep the address yours. Two readers can both pick the name my-newsletter, and the random tail is the only thing telling their addresses apart.
 
 Disabling one is a single click. A list you stopped reading, or a source that got sold and started arriving twice a week. You switch it off and the mail stops.
 
@@ -36,7 +36,7 @@ So why not delete a disabled address and free the name outright? Because a forwa
 
 The address is a private handle onto one person's mail. Delete it, mint the same string later for someone else, and a newsletter that never heard about the change forwards the first reader's issues into a stranger's readlist. So Readplace never deletes an address. Disabling stamps the row with a marker and leaves it exactly where it is. Off, but still yours, still pointing at you and nobody else.
 
-A per-newsletter address is [disposable](/view/en.wikipedia.org/wiki/Disposable_email_address) on purpose, so you can cut a noisy source without touching your real inbox. What was missing is that disposing of one read as final. The row survived, and that survival is the whole reason bringing an address back is possible at all.
+A per-newsletter address is [disposable](/view/en.wikipedia.org/wiki/Disposable_email_address?utm_source=blog-re-enable-a-disabled-newsletter-address&utm_medium=internal&utm_content=read-en-wikipedia-org) on purpose, so you can cut a noisy source without touching your real inbox. What was missing is that disposing of one read as final. The row survived, and that survival is the whole reason bringing an address back is possible at all.
 
 ## The button in the collapsed list
 
@@ -52,4 +52,4 @@ The second limit is ownership. Enabling confirms the address is yours before it 
 
 Disabling a forwarding address and deleting it look the same from where you stand. The mail stops either way. The difference is whether the switch keeps a way back, and now it does.
 
-If a newsletter you cut still has a disabled address waiting in that collapsed list, open [your inbox addresses](/inbox/addresses) and turn it on. If you've never handed a newsletter an address of its own, [readplace.com](/) is where you make the first one.
+If a newsletter you cut still has a disabled address waiting in that collapsed list, open [your inbox addresses](/inbox/addresses?utm_source=blog-re-enable-a-disabled-newsletter-address&utm_medium=internal&utm_content=inbox-addresses) and turn it on. If you've never handed a newsletter an address of its own, [readplace.com](/?utm_source=blog-re-enable-a-disabled-newsletter-address&utm_medium=internal&utm_content=home) is where you make the first one.

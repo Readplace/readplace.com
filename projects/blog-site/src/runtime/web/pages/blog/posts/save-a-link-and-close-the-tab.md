@@ -18,7 +18,7 @@ Clicking save in the browser extension used to read the whole rendered page, upl
 
 Saving a link and uploading its page are two different jobs. The browser extension used to run them as one. A click on save, and the button sat on "Saving" while it read the whole rendered page, uploaded the bytes, and waited for the server to answer. Only then did it say Saved.
 
-None of that work decides whether the link is in your readlist. The save is finished the instant the server writes the row and answers [201](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/201). Capturing the page and uploading it are a separate errand, and the old popup made you stand in line for it before it would admit the first job was done.
+None of that work decides whether the link is in your readlist. The save is finished the instant the server writes the row and answers [201](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/201?utm_source=blog-save-a-link-and-close-the-tab&utm_medium=internal&utm_content=read-developer-mozilla-org). Capturing the page and uploading it are a separate errand, and the old popup made you stand in line for it before it would admit the first job was done.
 
 > **A save should tell you the link is in your readlist, not make you wait for the page to arrive.**
 
@@ -32,13 +32,13 @@ That pre-flight check is worth a word, because dropping it changed a behaviour. 
 
 Capture and upload didn't vanish. They moved to a readlist that keeps running after the popup is gone. A background wake nudges it, it walks the pending jobs oldest first, and it writes down each job before the capture starts.
 
-That last part is the one that matters when things go wrong. A background page in an extension is disposable. The browser can decide the worker is idle and reclaim it, and if that lands in the middle of a capture, the job is already recorded, so the next wake finds it and starts over. The captured bytes wait their turn in the browser's own on-disk store, [IndexedDB](/view/developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), so a page you saved before you shut the laptop is still there to upload when it opens.
+That last part is the one that matters when things go wrong. A background page in an extension is disposable. The browser can decide the worker is idle and reclaim it, and if that lands in the middle of a capture, the job is already recorded, so the next wake finds it and starts over. The captured bytes wait their turn in the browser's own on-disk store, [IndexedDB](/view/developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API?utm_source=blog-save-a-link-and-close-the-tab&utm_medium=internal&utm_content=read-developer-mozilla-org), so a page you saved before you shut the laptop is still there to upload when it opens.
 
 > **The link is saved in one round trip. The page catches up on its own time.**
 
 ## The URL the bytes belong to
 
-There's a detail here that had to be exact, or the whole thing saves the wrong article without telling you. The upload is keyed to the byte-identical address the save used, character for character. The old pre-capture path substituted the page's canonical URL instead. On a page that declares a canonical different from the one in your address bar, that substitution would land the captured bytes on a neighbouring article, the one the page claims to be rather than the one you were reading. This is the same reason Readplace [saves the article, not the redirect it arrived through](/blog/save-the-article-not-the-redirect). The save you watched turn green and the page that uploads behind it now name the same URL.
+There's a detail here that had to be exact, or the whole thing saves the wrong article without telling you. The upload is keyed to the byte-identical address the save used, character for character. The old pre-capture path substituted the page's canonical URL instead. On a page that declares a canonical different from the one in your address bar, that substitution would land the captured bytes on a neighbouring article, the one the page claims to be rather than the one you were reading. This is the same reason Readplace [saves the article, not the redirect it arrived through](/blog/save-the-article-not-the-redirect?utm_source=blog-save-a-link-and-close-the-tab&utm_medium=internal&utm_content=post-save-the-article-not-the-redirect). The save you watched turn green and the page that uploads behind it now name the same URL.
 
 ## The token that used to sign you out
 
@@ -52,6 +52,6 @@ The refresh step is a required dependency now, not an optional one, so a build o
 
 Chrome shipped this first. Firefox followed the same week on the same shared code, so both extensions save the link before they touch the page, and everything that only existed to bridge the two behaviours went with it.
 
-Save the next thing you meant to get to later with [the browser extension](https://readplace.com/install) and watch the button turn green before the page it's sitting on has finished loading. What you saved is waiting at [readplace.com](/) when the evening is quieter than the afternoon.
+Save the next thing you meant to get to later with [the browser extension](https://readplace.com/install) and watch the button turn green before the page it's sitting on has finished loading. What you saved is waiting at [readplace.com](/?utm_source=blog-save-a-link-and-close-the-tab&utm_medium=internal&utm_content=home) when the evening is quieter than the afternoon.
 
 Waiting for the upload told you the page had arrived. Turning green at the save tells you the one thing you clicked to find out: the link is yours to read later.

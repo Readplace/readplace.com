@@ -62,12 +62,12 @@ This sits next to how the reader already handles pictures and text, where it kee
 
 The callout travels with the article.
 
-Open something from your readlist and it is there. Paste a fresh link at [readplace.com/view](/view) and it shows up in that clean reader too. Share a view link with a friend, and they read the same tidy version, video link included, with no account needed.
+Open something from your readlist and it is there. Paste a fresh link at [readplace.com/view](/view?utm_source=blog-embedded-videos-stop-breaking-your-reader&utm_medium=internal&utm_content=view) and it shows up in that clean reader too. Share a view link with a friend, and they read the same tidy version, video link included, with no account needed.
 
 The 3 saves that first tripped me up were a tutorial, a recipe, and a product review, and those are the kinds of pages where this shows up most, since they lean on embedded clips to carry a point the text could make on its own. The words still hold. Now the clip sits one tap behind a link instead of blocking the page.
 
 ## Try it
 
-Find an article you saved that had a video in it, or paste a fresh link at [readplace.com/view](/view). For a quick example, try [web.dev's guide to video and source tags](/view/web.dev/articles/video-and-source-tags). Read it clean, and tap through to the video only if you want it. Start at [readplace.com](/).
+Find an article you saved that had a video in it, or paste a fresh link at [readplace.com/view](/view?utm_source=blog-embedded-videos-stop-breaking-your-reader&utm_medium=internal&utm_content=view). For a quick example, try [web.dev's guide to video and source tags](/view/web.dev/articles/video-and-source-tags?utm_source=blog-embedded-videos-stop-breaking-your-reader&utm_medium=internal&utm_content=read-web-dev). Read it clean, and tap through to the video only if you want it. Start at [readplace.com](/?utm_source=blog-embedded-videos-stop-breaking-your-reader&utm_medium=internal&utm_content=home).
 
 The lesson I took from this: when a feature you turned off elsewhere leaves an empty hole, do not leave the hole. Mark the spot and hand the reader a way to the real thing.

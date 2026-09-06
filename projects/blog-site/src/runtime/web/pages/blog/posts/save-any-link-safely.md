@@ -63,4 +63,4 @@ Your saved list is a record of what you read and what you mean to read, and you 
 
 None of this asks anything of you. You paste a link the way you did yesterday, the guards run on Readplace's side on every save, and you read what you saved.
 
-Save your first link and watch the clean reader build. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).
+Save your first link and watch the clean reader build. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/?utm_source=blog-save-any-link-safely&utm_medium=internal&utm_content=home).

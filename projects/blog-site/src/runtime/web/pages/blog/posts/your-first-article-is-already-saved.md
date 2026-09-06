@@ -48,7 +48,7 @@ The cookie is read and cleared in the same step. Consuming it that way means it 
 
 The held address runs through the same validator every save uses before it reaches the readlist. A cookie edited by hand to point somewhere it shouldn't fails that check and saves nothing. The auto-save can't reach a page a normal save couldn't.
 
-An explicit save wins over the read. If you tapped Save on an article before signing up, that piece is already riding through the signup in its own return path, [the flow that stopped sending new readers to a sign-in page](/blog/save-button-sent-new-readers-to-sign-in). The auto-save stands down in that case, so the article you meant to keep is saved once, not twice.
+An explicit save wins over the read. If you tapped Save on an article before signing up, that piece is already riding through the signup in its own return path, [the flow that stopped sending new readers to a sign-in page](/blog/save-button-sent-new-readers-to-sign-in?utm_source=blog-your-first-article-is-already-saved&utm_medium=internal&utm_content=post-save-button-sent-new-readers-to-sign-in). The auto-save stands down in that case, so the article you meant to keep is saved once, not twice.
 
 ```rp-figure
 kind: rule
@@ -71,7 +71,7 @@ The first minute inside a new account is where a reader decides whether the thin
 
 A readlist that opens on the article they were just reading answers the other way. The app has already done the thing it's for, on a piece they picked themselves, before they lifted a finger. Whether the rest earns a place is still theirs to judge, and now they're judging it with their own reading on the screen instead of a blank one.
 
-This only reaches a reader who came in through the reader itself, logged out, [where any article opens without an account](/blog/read-any-article-clean-reader). That's a common way in. A shared link is how a lot of people meet Readplace, and it catches them at the one moment they've already shown what they want to read.
+This only reaches a reader who came in through the reader itself, logged out, [where any article opens without an account](/blog/read-any-article-clean-reader?utm_source=blog-your-first-article-is-already-saved&utm_medium=internal&utm_content=post-read-any-article-clean-reader). That's a common way in. A shared link is how a lot of people meet Readplace, and it catches them at the one moment they've already shown what they want to read.
 
 > **A new account should open on something the reader chose, not on the work of finding something to save.**
 
@@ -79,4 +79,4 @@ This only reaches a reader who came in through the reader itself, logged out, [w
 
 To see it work, come in the way a new reader does. Open any article in the reader without signing in, read a little of it, then make an account with Google or Apple. The piece is waiting in the readlist when it loads.
 
-If you already have an account, open a shared reader link in a browser you're signed out of and watch it happen there. The article you read is [held past the day the live page moves on](/blog/saved-articles-outlast-the-original-page) either way, which is the reason to save it at all. Start a readlist at [readplace.com](/) or add [the browser extension](https://readplace.com/install), and the first thing you read logged out is the first thing it keeps.
+If you already have an account, open a shared reader link in a browser you're signed out of and watch it happen there. The article you read is [held past the day the live page moves on](/blog/saved-articles-outlast-the-original-page?utm_source=blog-your-first-article-is-already-saved&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page) either way, which is the reason to save it at all. Start a readlist at [readplace.com](/?utm_source=blog-your-first-article-is-already-saved&utm_medium=internal&utm_content=home) or add [the browser extension](https://readplace.com/install), and the first thing you read logged out is the first thing it keeps.

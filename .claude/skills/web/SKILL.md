@@ -161,17 +161,25 @@ both methods.
 click:** a destination on someone else's origin (an app store, a source
 repository, a saved article's own URL) — tagging it leaks our params to another
 site and records nothing; `mailto:` and `tel:`; a fragment-only href; a custom
-scheme a native app intercepts; the third-party HTML inside a saved article's
-reader body; and prose inside a blog post, which is authored content rather than
-product chrome. A CTA that a publisher pastes onto their own site is attributed
-by its own surface marker instead, not by an in-site medium it did not come from.
+scheme a native app intercepts; and the third-party HTML inside a saved article's
+reader body. A CTA that a publisher pastes onto their own site is attributed by
+its own surface marker instead, not by an in-site medium it did not come from.
+
+A **link in a blog post's own prose is not exempt** — it is a click like any
+other, and the whole reason to tag it is to learn which post sent the reader and
+where they went. Its `utm_source` names the post, so no two posts share one, and
+its `utm_content` names the destination: the page for a product link, the target
+slug for a link to a sibling post, the cited host for a reader link. Both come
+out of the markdown link itself, so a new post tags its links the same way
+without a decision to make.
 
 **This is enforced, not remembered.** Each deployable that serves pages has a
 route test that renders its surfaces and asserts no same-origin CTA is missing
 `utm_source` — grep the non-test sources for the shared checker's report helper
-to find it and its callers. A new page belongs in that test's path list; a new
-region of authored content belongs in its skip list. When it fails, it names the
-element and the destination: tag the CTA rather than widening the skip list.
+to find it and its callers. The blog's test enumerates every published post, so a
+post shipping an untagged link fails the build. A new page belongs in that test's
+path list. When it fails, it names the element and the destination: tag the CTA
+rather than widening the skip list.
 
 ## Server-Side Rendering with Progressive Enhancement
 

@@ -57,7 +57,7 @@ Between the 4 of them I got most of what I cared about back, and the rest I let 
 
 ## Importing into Readplace
 
-Once I had a Pocket export file in hand, the rest was quick. I signed in, opened my [reading list](/queue), and found the "Import from a file" picker sitting next to the save bar. I chose the file, clicked Upload, and Readplace listed every URL it found. I unticked the few I no longer wanted, clicked "Import N selected", and the cards showed up in my readlist right away. Titles and excerpts filled in over the next minute or two.
+Once I had a Pocket export file in hand, the rest was quick. I signed in, opened my [reading list](/queue?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=queue), and found the "Import from a file" picker sitting next to the save bar. I chose the file, clicked Upload, and Readplace listed every URL it found. I unticked the few I no longer wanted, clicked "Import N selected", and the cards showed up in my readlist right away. Titles and excerpts filled in over the next minute or two.
 
 The importer pulls in every URL the file holds.
 
@@ -65,9 +65,9 @@ Tags, highlights, and read/unread state do not come across. Pocket's export form
 
 One snag worth knowing about. If your file runs over 4.5 MB or holds more than 2,000 links, split it into smaller files and import them one at a time.
 
-After the import I opened my [reading list](/queue) again and spot-checked a handful of entries to confirm the titles and URLs lined up.
+After the import I opened my [reading list](/queue?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=queue) again and spot-checked a handful of entries to confirm the titles and URLs lined up.
 
-If you came out of the recovery step with a pile of loose URLs and no export file at all, you can still rebuild by hand. Install the Readplace browser extension for [Chrome](/install?client=chrome) or [Firefox](/install?client=firefox) and save the recovered articles one at a time. It is slower, but it works.
+If you came out of the recovery step with a pile of loose URLs and no export file at all, you can still rebuild by hand. Install the Readplace browser extension for [Chrome](/install?client=chrome&utm_source=blog-pocket-migration&utm_medium=internal&utm_content=install-chrome) or [Firefox](/install?client=firefox&utm_source=blog-pocket-migration&utm_medium=internal&utm_content=install-firefox) and save the recovered articles one at a time. It is slower, but it works.
 
 ## What you had in Pocket vs. what you get in Readplace
 
@@ -86,7 +86,7 @@ If you came out of the recovery step with a pile of loose URLs and no export fil
 
 Readplace is smaller than Pocket was. It has no tags, and its app covers iPhone and Mac.
 
-What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026).
+What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026).
 
 ## AI summaries for imported articles
 
@@ -110,6 +110,6 @@ Most read-it-later apps take the HTML export file that Pocket handed out. Readwi
 
 **I lost my Omnivore reading list too. Can Readplace help?**
 
-Yes. Omnivore shut down in November 2024. If you still have an Omnivore data export, send it to the same address. For the longer version of what happened there, see [Omnivore shut down: here's a read-it-later app that won't](/blog/omnivore-alternative).
+Yes. Omnivore shut down in November 2024. If you still have an Omnivore data export, send it to the same address. For the longer version of what happened there, see [Omnivore shut down: here's a read-it-later app that won't](/blog/omnivore-alternative?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-omnivore-alternative).
 
 The lesson I took from this is small and a little embarrassing. Export your data the day a service announces it is closing, and keep that file somewhere you control, because the recovery dance afterward only ever returns part of what you had.

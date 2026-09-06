@@ -24,8 +24,6 @@ const BROWSER_HEADERS: Record<string, string> = {
 	"Sec-Fetch-Dest": "document",
 };
 
-const POST_BODY_REGIONS = [".blog-post__content"];
-
 function makeApp() {
 	return createBlogApp(
 		{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted },
@@ -43,17 +41,19 @@ function makeApp() {
 }
 
 describe("every same-origin CTA carries its own utm_source", () => {
-	it("holds across the blog chrome, outside a post's own prose", async () => {
+	it("holds across the blog chrome and every published post's own prose", async () => {
 		const app = makeApp();
-		const paths = ["/blog", `/blog/${initBlogPosts().getAllPosts()[0].slug}`, "/blog/no-such-post"];
+		const slugs = initBlogPosts().getAllSlugs();
+		const paths = ["/blog", "/blog/no-such-post", ...slugs.map((slug) => `/blog/${slug}`)];
 
 		const untracked: string[] = [];
 		for (const path of paths) {
 			const response = await request(app).get(path).set(BROWSER_HEADERS);
-			const found = findUntrackedCtas(response.text, { skipSelectors: POST_BODY_REGIONS });
+			const found = findUntrackedCtas(response.text, { skipSelectors: [] });
 			for (const line of describeUntrackedCtas(found)) untracked.push(`${path}  ${line}`);
 		}
 
+		expect(slugs.length).toBeGreaterThan(0);
 		expect(untracked).toEqual([]);
 	});
 });

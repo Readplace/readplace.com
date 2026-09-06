@@ -44,4 +44,4 @@ A bar tied to the real save gives you something to act on. You watch the page ge
 
 This runs in both the Chrome and Firefox extensions, on every article you save from the toolbar.
 
-Install the extension, open an article, and click save, then watch the bar read the page, send it, and finish. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).
+Install the extension, open an article, and click save, then watch the bar read the page, send it, and finish. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/?utm_source=blog-watch-your-article-save-step-by-step&utm_medium=internal&utm_content=home).

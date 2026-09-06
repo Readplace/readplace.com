@@ -58,6 +58,6 @@ The workflow has 4 steps, and you stay in charge of every one.
 
 The summary does its work at step 3. It speeds up the decision, and the reading is still yours to do.
 
-For a closer look at how the TL;DR works under the hood, see [How AI TL;DR Actually Works in Readplace](/blog/how-ai-tldr-actually-works).
+For a closer look at how the TL;DR works under the hood, see [How AI TL;DR Actually Works in Readplace](/blog/how-ai-tldr-actually-works?utm_source=blog-ai-reading-assistant&utm_medium=internal&utm_content=post-how-ai-tldr-actually-works).
 
 If you want an AI reading assistant that helps you read more of the right things, [give Readplace a try](https://readplace.com/install).
