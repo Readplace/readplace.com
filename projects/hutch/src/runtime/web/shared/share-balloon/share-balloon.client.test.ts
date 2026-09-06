@@ -920,4 +920,38 @@ describe("initShareBalloon — a swap replaces the page it was on", () => {
 
 		expect(share).toHaveBeenCalledTimes(1);
 	});
+
+	it("attaches on a page with no balloon yet and adopts the one a later swap brings in", () => {
+		const { window, document } = createDom({ balloon: "absent", readerStatus: "ready" });
+		setScrollY(window, 0);
+		const swapListeners: (() => void)[] = [];
+		const ctrl = initShareBalloon({
+			window,
+			document,
+			storage: window.localStorage,
+			navigator: { share: jest.fn(() => Promise.resolve()) },
+			setTimeoutFn: setTimeout,
+			clearTimeoutFn: clearTimeout,
+			addSwapListener: (listener) => swapListeners.push(listener),
+			removeSwapListener: (listener) => {
+				const at = swapListeners.indexOf(listener);
+				assert(at >= 0, "removeSwapListener must be given a registered listener");
+				swapListeners.splice(at, 1);
+			},
+		});
+
+		ctrl.attach();
+		expect(document.documentElement.hasAttribute("data-share-balloon-owned")).toBe(true);
+
+		document.body.innerHTML = buildBody({ readerStatus: "ready", article: NEXT_ARTICLE });
+		setArticleHeight(document, 4000);
+		for (const listener of [...swapListeners]) listener();
+
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		expect(wrap.hidden).toBe(false);
+		setScrollY(window, 3000);
+		fireScroll(window);
+		jest.advanceTimersByTime(1000);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+	});
 });

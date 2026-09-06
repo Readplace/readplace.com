@@ -345,6 +345,30 @@ const BUNDLES = [
       "});",
     ].join("\n"),
   },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/shared/reader-open/reader-open.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "reader-open.client.js"),
+    globalName: "ReaderOpen",
+    footer: [
+      "ReaderOpen.initReaderOpen({",
+      "  document: window.document,",
+      "  history: window.history,",
+      "  currentHref: function () { return window.location.href; },",
+      "  currentPath: function () { return window.location.pathname + window.location.search; },",
+      "  navigate: function (href) { window.location.replace(href); },",
+      "  reload: function () { window.location.reload(); },",
+      "  scrollToTop: function () { window.scrollTo(0, 0); },",
+      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+      "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
+      "  parseHtml: function (html) { return new window.DOMParser().parseFromString(html, 'text/html'); },",
+      "  paintDelayMs: 150,",
+      "  addHtmxListener: function (name, cb) { window.document.body.addEventListener(name, cb); }",
+      "});",
+    ].join("\n"),
+  },
 ];
 
 const ALL_BUNDLES = [

@@ -198,6 +198,7 @@ import {
 import { computeReadlistCardEtag } from "./readlist-card/readlist-card.etag";
 import { computeArticleContentVersion } from "../../shared/article-content-version";
 import { readerCachePolicy } from "./reader-cache-policy";
+import { VIEW_BACK_LINK } from "./reader-skeleton/reader-skeleton.component";
 import { etagMatches } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
@@ -517,11 +518,6 @@ const SAVE_INTENT_PATH = {
 	saveArticles: saveIntentPath(SAVE_ROUTE.saveArticles),
 	save: saveIntentPath(SAVE_ROUTE.save),
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
-} as const;
-
-const VIEW_BACK_LINK = {
-	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
-	label: "Back to readlist",
 } as const;
 
 /** Resolves the one way this page can reach whichever native web view is hosting

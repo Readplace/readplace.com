@@ -5,6 +5,8 @@ import type { ProgressTick } from "@packages/domain/article";
 
 const TEMPLATE = readFileSync(join(__dirname, "progress-bar.template.html"), "utf-8");
 
+export const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
+
 export interface ProgressBarInput {
 	progress: ProgressTick | undefined;
 }

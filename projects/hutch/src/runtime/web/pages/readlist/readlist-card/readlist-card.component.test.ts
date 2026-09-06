@@ -147,6 +147,49 @@ describe("renderReadlistCard", () => {
 		]);
 	});
 
+	it("boosts the title, excerpt and thumbnail links into main and marks them as reader openers", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(makeViewModel({ imageUrl: "https://img.example/x.png" }), { isFirst: false }),
+			),
+		);
+		const openers = [
+			doc.querySelector("[data-test-article-title]"),
+			doc.querySelector("[data-test-article-excerpt]"),
+			doc.querySelector(".readlist-article__thumbnail-link"),
+		];
+		for (const opener of openers) {
+			assert(opener, "each reader-opening anchor must be present");
+			expect(opener.getAttribute("hx-boost")).toBe("true");
+			expect(opener.getAttribute("hx-push-url")).toBe("true");
+			expect(opener.getAttribute("hx-target")).toBe("main");
+			expect(opener.getAttribute("hx-select")).toBe("main");
+			expect(opener.getAttribute("hx-swap")).toBe("outerHTML show:none");
+			expect(opener.hasAttribute("data-opens-reader")).toBe(true);
+		}
+	});
+
+	it("keeps the reader links targeting main while the card polls its own root", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=2" }), { isFirst: false }),
+			),
+		);
+		expect(doc.querySelector(".readlist-article")?.getAttribute("hx-target")).toBe("this");
+		expect(doc.querySelector("[data-test-article-title]")?.getAttribute("hx-target")).toBe("main");
+	});
+
+	it("names the fields the reader skeleton copies from the card, and points the site field at the original URL", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel(), { isFirst: false })));
+		const fields = Array.from(doc.querySelectorAll("[data-reader-field]")).map((el) =>
+			el.getAttribute("data-reader-field"),
+		);
+		expect(fields).toEqual(["site", "read-time", "title"]);
+		expect(doc.querySelector('[data-reader-field="site"]')?.getAttribute("href")).toBe(
+			"https://example.com/article",
+		);
+	});
+
 	it("omits the excerpt link entirely when the excerpt is empty so no empty-name link is rendered", () => {
 		const html = renderReadlistCard(
 			display(makeViewModel({ excerpt: "", imageUrl: "https://img.example/x.png" }), {

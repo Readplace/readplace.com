@@ -486,7 +486,7 @@ test.describe.serial("screen response against the deployed staging stack", () =>
 		const paired = await collectOpenAndBack(browser);
 		await gate({
 			opId: "open-article",
-			navigation: "new-document",
+			navigation: "same-document",
 			warmups,
 			samples: paired.opens,
 			recollect: async () => (await collectOpenAndBack(browser)).opens,

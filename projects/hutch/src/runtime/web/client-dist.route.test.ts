@@ -31,3 +31,23 @@ describe("client-dist htmx bundle", () => {
 		expect(response.body.version).toBe(3);
 	});
 });
+
+describe("client-dist reader-open bundle", () => {
+	it("serves the reader-open client with its composition-root footer", async () => {
+		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
+
+		const response = await request(harness.server).get("/client-dist/reader-open.client.js");
+
+		expect(response.status).toBe(200);
+		expect(response.text).toContain("ReaderOpen.initReaderOpen({");
+	});
+
+	it("serves the reader-open source map so the devtools fetch is a 200", async () => {
+		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
+
+		const response = await request(harness.server).get("/client-dist/reader-open.client.js.map");
+
+		expect(response.status).toBe(200);
+		expect(response.body.version).toBe(3);
+	});
+});

@@ -14,6 +14,10 @@ import {
 import type { CspNonce, LocalTime, PageBody } from "@packages/web-shell";
 
 import { READLIST_STYLES } from "./readlist.styles";
+import {
+	READER_PAGE_SCRIPTS,
+	renderReaderSkeleton,
+} from "./reader-skeleton/reader-skeleton.component";
 import { renderReadlistCountsTrigger, renderStatusToast } from "./readlist-mutation-fragments";
 import { renderReadlistCard, toReadlistCardDisplayModel } from "./readlist-card/readlist-card.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
@@ -301,9 +305,18 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; knownUnreadCount?: number; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: PitchablePlatform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
 	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, knownUnreadCount: options.knownUnreadCount, installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
-	const content = render(READLIST_TEMPLATE, { ...displayModel, saveUrl });
+	const content = render(READLIST_TEMPLATE, {
+		...displayModel,
+		saveUrl,
+		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
+	});
 
-	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT, READLIST_RENAME_SCRIPT];
+	const scriptParts: string[] = [
+		NAV_HIDE_SCRIPT,
+		SAVE_TIP_SCRIPT,
+		READLIST_RENAME_SCRIPT,
+		READER_PAGE_SCRIPTS,
+	];
 	if (saveUrl) scriptParts.push(autoSubmitScript(options.cspNonce));
 
 	return {

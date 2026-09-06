@@ -390,10 +390,10 @@ export function createReadlistActions(
 				await page.evaluate(() => window.localStorage.removeItem('readplace.share-dismissed'))
 
 				await page.locator('[data-test-article-title]').first().click()
-				await page.waitForLoadState('domcontentloaded')
-
-				const onReader = await isOnPage(page, 'page-reader')
-				expect(onReader).toBe(true)
+				await expect(
+					page.locator('[data-test-reader-slot][data-reader-status="ready"]'),
+				).toHaveCount(1)
+				await expect(page.locator('body.page-reader')).toHaveCount(1)
 
 				// Trigger the share balloon, click Copy, then visit the produced
 				// /view link in a fresh anonymous browser context.

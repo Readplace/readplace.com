@@ -145,7 +145,7 @@ export function openArticleOp(input: { articleId: string }): ScreenResponseOp {
 			oneOf: [{ selector: READER_CONTENT, laidOut: true }],
 		},
 		expectedOneOf: READER_CONTENT,
-		navigation: "new-document",
+		navigation: "same-document",
 	};
 }
 

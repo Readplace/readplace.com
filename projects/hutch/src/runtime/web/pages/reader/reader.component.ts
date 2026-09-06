@@ -23,6 +23,9 @@ import {
 	renderMarkStatusConfirm,
 } from "../readlist/mark-status-confirm.component";
 import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
+import { PROGRESS_BAR_SCRIPT } from "../../shared/article-body/progress-bar.component";
+import { SUMMARY_TOGGLE_SCRIPT } from "../../shared/article-body/summary-slot/summary-slot.component";
+import { READER_OPEN_SCRIPT } from "../../shared/reader-open/reader-open-script";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
@@ -34,14 +37,14 @@ import {
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
 import { viewPathFor } from "../view/view-path";
-import { renderExitConfirm } from "./reader-exit-confirm.component";
+import {
+	READER_EXIT_CONFIRM_SCRIPT,
+	renderExitConfirm,
+} from "./reader-exit-confirm.component";
 import { READER_STYLES } from "./reader.styles";
 import { displayableReadTime } from "@packages/domain/article";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
-const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
-const SUMMARY_TOGGLE_SCRIPT = `<script src="/client-dist/summary-toggle.client.js" defer></script>`;
-const READER_EXIT_CONFIRM_SCRIPT = `<script src="/client-dist/reader-exit-confirm.client.js" defer></script>`;
 
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by reader
@@ -230,7 +233,8 @@ export function ReaderPage(
 				SUMMARY_TOGGLE_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
 				(options.readlistFiling.picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
-				(exitMarkReadConfirm ? READER_EXIT_CONFIRM_SCRIPT : ""),
+				(exitMarkReadConfirm ? READER_EXIT_CONFIRM_SCRIPT : "") +
+				READER_OPEN_SCRIPT,
 		}),
 	};
 }
