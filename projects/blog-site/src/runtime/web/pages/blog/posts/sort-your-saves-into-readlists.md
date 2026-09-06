@@ -46,7 +46,9 @@ That row shows before you own any list at all, which is the point: the first lis
 
 Type a name you have already used, in any casing, and the article files into that list rather than starting a second one with the same name. All is the one name a new list can't take, because that is where every save already lands.
 
-The row is a plain form, so it works with JavaScript switched off, and a create the server turns down puts you back on the article instead of on an error page. There is a cap on how many lists an account holds. At the cap the row leaves the menu and the lists already there keep filing.
+The row is a plain form, so it works with JavaScript switched off, and a create the server turns down puts you back on the article instead of on an error page.
+
+There is a cap on how many lists an account holds. At the cap the row leaves the menu and the lists already there keep filing.
 
 Filing is your decision today. The article and the names you picked are enough for a model to work out where a save belongs, so automatic placement into your readlists is what I'm building next.
 
