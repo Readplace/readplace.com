@@ -38,4 +38,4 @@ export type {
 	ValidateAccessToken,
 } from "./bundle.types";
 export type { RunningServer } from "./harness";
-export { buildHarness, loginAgent, useTestServer } from "./harness";
+export { BROWSER_USER_AGENT, buildHarness, loginAgent, useTestServer } from "./harness";

@@ -470,11 +470,15 @@ describe("Save routes", () => {
 			const intent = saveIntents(harness)[0];
 			assert(intent.pending_save_id, "the blocked save must mint a pending_save_id");
 
-			const signup = await agent.post("/signup").type("form").send({
-				email: "blocked-then-signed-up@example.com",
-				password: "password123",
-				loadedAt: String(Date.now() - 5000),
-			});
+			const signup = await agent
+				.post("/signup")
+				.set(BROWSER_REQUEST_HEADERS)
+				.type("form")
+				.send({
+					email: "blocked-then-signed-up@example.com",
+					password: "password123",
+					loadedAt: String(Date.now() - 5000),
+				});
 			expect(signup.status).toBe(303);
 
 			const conversion = harness.conversions.events.find((e) => e.event === "user_created");

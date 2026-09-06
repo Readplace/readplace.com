@@ -8,11 +8,10 @@ import {
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
 import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
-import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent } from "@packages/web-analytics";
+import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
@@ -436,7 +435,8 @@ interface ReadlistDependencies {
 	 * `buildBannerState` also performs and this shell has nowhere to render. */
 	getChangelogBanner: GetChangelogBanner;
 	logError: (message: string, error?: Error) => void;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 }
@@ -714,7 +714,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		surface: SaveSurface;
 		outcome: SaveOutcome;
 	}): void => {
-		deps.analytics.info(
+		deps.recordAnalyticsEvent(
+			params.req,
 			buildSaveIntentEvent({ now: deps.now, salt: deps.salt }, { ...params, client: saveClientOf(params.req) }),
 		);
 	};
@@ -1077,7 +1078,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.post(
 		SAVE_ROUTE.saveArticles,
 		initObserveSaveRefusal({
-			analytics: deps.analytics,
+			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
 			now: deps.now,
 			salt: deps.salt,
 			path: SAVE_INTENT_PATH.saveArticles,
@@ -2319,7 +2320,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			state: parsedState.data,
 			at: deps.now(),
 		});
-		deps.analytics.info({
+		deps.recordAnalyticsEvent(req, {
 			stream: STREAMS.analytics,
 			event: ANALYTICS_EVENTS.summaryToggled,
 			timestamp: deps.now().toISOString(),
@@ -2425,7 +2426,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				flashParams.push(["status_article", req.params.id]);
 			}
 			if (updated && parsedStatus.data === "read") {
-				deps.analytics.info({
+				deps.recordAnalyticsEvent(req, {
 					stream: STREAMS.analytics,
 					event: ANALYTICS_EVENTS.articleRead,
 					timestamp: deps.now().toISOString(),

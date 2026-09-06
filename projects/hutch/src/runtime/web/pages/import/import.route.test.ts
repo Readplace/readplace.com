@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ImportSessionIdSchema } from "@packages/domain/import-session";
 import { useTestServer, loginAgent } from "../../../test-app";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import type { ImportUploadedEvent, ImportCommittedEvent } from "@packages/web-analytics";
 import {
 	TEST_APP_ORIGIN,
@@ -38,6 +39,7 @@ function multipartBody(filename: string, content: Buffer): { body: Buffer; conte
 
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 describe("Import routes", () => {
 	describe("GET /import (unauthenticated)", () => {
@@ -1147,13 +1149,47 @@ describe("Import routes", () => {
 			const file = Buffer.from("https://example.com/post-1 https://example.com/post-2");
 			const { body, contentType } = multipartBody("urls.txt", file);
 
-			await request(harness.server).post("/import").set("Content-Type", contentType).send(body);
+			await request(harness.server)
+				.post("/import")
+				.set("Content-Type", contentType)
+				.set("User-Agent", BROWSER_USER_AGENT)
+				.send(body);
 
 			const uploaded = harness.analytics.events.filter(
 				(e): e is ImportUploadedEvent => e.event === "import_uploaded",
 			);
 			assert.equal(uploaded.length, 1, "exactly one import_uploaded event");
 			assert.equal(uploaded[0].is_authenticated, 0);
+		});
+
+		it("counts an anonymous upload from a browser but not the identical one from a crawler, so the logged-out top of the import funnel measures people rather than bots", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const file = Buffer.from("https://example.com/post-1 https://example.com/post-2");
+			const { body, contentType } = multipartBody("urls.txt", file);
+
+			await request(harness.server)
+				.post("/import")
+				.set("Content-Type", contentType)
+				.set("User-Agent", GOOGLEBOT)
+				.send(body);
+
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_uploaded").length,
+				0,
+				"no import_uploaded event for a crawler upload",
+			);
+
+			await request(harness.server)
+				.post("/import")
+				.set("Content-Type", contentType)
+				.set("User-Agent", BROWSER_USER_AGENT)
+				.send(body);
+
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_uploaded").length,
+				1,
+				"exactly one import_uploaded event, from the browser upload alone",
+			);
 		});
 
 		it("emits import_committed event with correct counts after a successful commit", async () => {
@@ -1179,6 +1215,46 @@ describe("Import routes", () => {
 			assert.equal(committed[0].utm_medium, "form");
 			assert.equal(committed[0].utm_campaign, "submit");
 			assert.equal(committed[0].is_authenticated, 1);
+		});
+
+		it("commits the crawler's session but records no import_committed, so the imports counter the dashboard cannot filter stays a count of people", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/crawler-a https://example.com/crawler-b"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			await agent.post(`${create.headers.location}/commit`).set("User-Agent", GOOGLEBOT);
+
+			assert.ok(
+				await harness.articleStore.findArticleByUrl("https://example.com/crawler-a"),
+				"only the measurement is gated — the commit still saves the articles",
+			);
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_committed").length,
+				0,
+				"a crawler's commit is not an import_committed",
+			);
+		});
+
+		it("records exactly one import_committed for the identical commit from a browser, so the bot gate cannot silence a real import", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/browser-a https://example.com/browser-b"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			await agent.post(`${create.headers.location}/commit`).set("User-Agent", BROWSER_USER_AGENT);
+
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_committed").length,
+				1,
+				"a browser's commit records exactly one import_committed",
+			);
 		});
 
 		it("does not emit analytics events on error paths (tooLarge, noUrls, sessionNotFound)", async () => {

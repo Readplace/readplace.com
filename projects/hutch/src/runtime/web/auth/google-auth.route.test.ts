@@ -12,8 +12,11 @@ import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
+
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 const TEST_CLIENT_ID = "test-google-client-id";
 const TEST_CLIENT_SECRET = "test-google-client-secret";
@@ -285,7 +288,8 @@ describe("Google auth routes", () => {
 
 				const response = await request(harness.server)
 					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`);
+					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`)
+					.set("User-Agent", BROWSER_USER_AGENT);
 
 				expect(response.status).toBe(303);
 				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
@@ -313,7 +317,8 @@ describe("Google auth routes", () => {
 
 				const response = await request(harness.server)
 					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`);
+					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`)
+					.set("User-Agent", BROWSER_USER_AGENT);
 
 				expect(response.status).toBe(303);
 				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
@@ -329,7 +334,8 @@ describe("Google auth routes", () => {
 
 				const response = await request(harness.server)
 					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`);
+					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`)
+					.set("User-Agent", BROWSER_USER_AGENT);
 
 				expect(response.status).toBe(303);
 				expect(response.headers.location).toBe("/oauth/authorize?client_id=test");
@@ -500,7 +506,8 @@ describe("Google auth routes", () => {
 
 			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`)
+				.set("User-Agent", BROWSER_USER_AGENT);
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue");
@@ -546,7 +553,8 @@ describe("Google auth routes", () => {
 
 			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`)
+				.set("User-Agent", BROWSER_USER_AGENT);
 
 			expect(response.status).toBe(303);
 			const event = harness.conversions.events.find((e) => e.method === "google");
@@ -554,6 +562,56 @@ describe("Google auth routes", () => {
 			expect(event.tier).toBe("free");
 			expect(event.oauth_client_id).toBe("hutch-chrome-extension");
 			expect(JSON.stringify(event)).not.toContain("xyz");
+		});
+
+		it("still creates the account but records no user_created conversion when a crawler follows the callback URL, while the same callback from a browser counts exactly one signup", async () => {
+			const crawlerHarness = useApp({
+				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "crawler-google@example.com" }),
+					clientId: TEST_CLIENT_ID,
+					clientSecret: TEST_CLIENT_SECRET,
+				},
+			});
+			const crawlerState = signState(freshState());
+
+			const crawlerResponse = await request(crawlerHarness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(crawlerState)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(crawlerState)}`)
+				.set("User-Agent", GOOGLEBOT);
+
+			expect(crawlerResponse.status).toBe(303);
+			assert(
+				await crawlerHarness.auth.findUserByEmail("crawler-google@example.com"),
+				"the account is still created for a crawler-followed callback — only the measurement is gated",
+			);
+			assert.equal(
+				crawlerHarness.conversions.events.filter((e) => e.event === "user_created").length,
+				0,
+				"a crawler following the callback must not count as a signup",
+			);
+
+			const browserHarness = useApp({
+				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "browser-google@example.com" }),
+					clientId: TEST_CLIENT_ID,
+					clientSecret: TEST_CLIENT_SECRET,
+				},
+			});
+			const browserState = signState(freshState());
+
+			const browserResponse = await request(browserHarness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(browserState)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(browserState)}`)
+				.set("User-Agent", BROWSER_USER_AGENT);
+
+			expect(browserResponse.status).toBe(303);
+			assert.equal(
+				browserHarness.conversions.events.filter((e) => e.event === "user_created").length,
+				1,
+				"the same callback from a browser counts exactly one signup",
+			);
 		});
 
 		it("carries the OAuth client id onto the Google trial branch's conversion too, once the founding allocation is exhausted", async () => {
@@ -579,7 +637,8 @@ describe("Google auth routes", () => {
 
 			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`)
+				.set("User-Agent", BROWSER_USER_AGENT);
 
 			expect(response.status).toBe(303);
 			const event = harness.conversions.events.find((e) => e.method === "google" && e.tier === "trial");

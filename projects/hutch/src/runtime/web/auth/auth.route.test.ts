@@ -18,8 +18,10 @@ import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session"
 import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { LAST_AUTH_PROVIDER_COOKIE_NAME } from "../last-auth-provider";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 function sessionCookie(response: request.Response): string | undefined {
 	const setCookie = response.headers["set-cookie"];
@@ -510,7 +512,7 @@ describe("Auth routes", () => {
 			}
 
 			const before = Date.now();
-			const response = await request(harness.server).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "trial@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -645,7 +647,7 @@ describe("Auth routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { conversions } = harness;
 
-			const response = await request(harness.server).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "convert-free@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -672,6 +674,7 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server)
 				.post(`/signup?return=${encodeURIComponent(returnUrl)}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.type("form")
 				.send({
 					email: "consent-signup@example.com",
@@ -698,6 +701,7 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server)
 				.post(`/signup?return=${encodeURIComponent(returnUrl)}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.type("form")
 				.send({
 					email: "consent-trial@example.com",
@@ -719,7 +723,7 @@ describe("Auth routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { conversions } = harness;
 
-			const response = await request(harness.server).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "organic-conversion@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -745,6 +749,7 @@ describe("Auth routes", () => {
 			const response = await request(harness.server)
 				.post("/signup")
 				.set("Cookie", `hutch_click=${encodeURIComponent(JSON.stringify(attribution))}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.type("form")
 				.send({
 					email: "attributed@example.com",
@@ -778,6 +783,7 @@ describe("Auth routes", () => {
 			const response = await request(harness.server)
 				.post("/signup")
 				.set("Cookie", `hutch_click=${encodeURIComponent(JSON.stringify(attribution))}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.type("form")
 				.send({
 					email: "attributed-trial@example.com",
@@ -1062,6 +1068,31 @@ describe("Auth routes", () => {
 			expect(response.headers.location).toBe("/queue");
 		});
 
+		it("still creates the account for a crawler-submitted signup but emits no user_created conversion, so the acquisition count a launch is judged on only ever moves for a real client", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, conversions } = harness;
+
+			const crawled = await request(harness.server).post("/signup").set("User-Agent", GOOGLEBOT).type("form").send({
+				email: "crawler-signup@example.com",
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(crawled.status).toBe(303);
+			assert(await auth.findUserByEmail("crawler-signup@example.com"), "only the measurement is gated — the account is still created");
+			assert.equal(conversions.events.length, 0, "no user_created conversion for a crawler user-agent");
+
+			const human = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
+				email: "browser-signup@example.com",
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(human.status).toBe(303);
+			assert.equal(conversions.events.length, 1, "exactly one user_created conversion, from the browser signup");
+			expect(conversions.events[0]).toMatchObject({ event: "user_created", method: "email" });
+		}, 30000);
+
 	});
 
 	describe("POST /signup — signup_attempted analytics", () => {
@@ -1072,7 +1103,7 @@ describe("Auth routes", () => {
 		it("emits a single outcome=created event on a successful free signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			await request(harness.server).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "attempt-free@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -1096,7 +1127,7 @@ describe("Auth routes", () => {
 				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
-			await request(harness.server).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "attempt-trial@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -1111,7 +1142,7 @@ describe("Auth routes", () => {
 		it("emits outcome=disposable_email when a disposable domain is rejected — the deliberate friction whose signup cost was previously invisible", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			await request(harness.server).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "user@slmail.me",
 				password: "password123",
 				confirmPassword: "password123",
@@ -1124,7 +1155,7 @@ describe("Auth routes", () => {
 		it("emits outcome=invalid_input for a generic validation failure (password too short)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			await request(harness.server).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "shortpw@gmail.com",
 				password: "short",
 				confirmPassword: "short",
@@ -1138,7 +1169,7 @@ describe("Auth routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			await harness.auth.createUser({ email: "dupe@gmail.com", password: "password123" });
 
-			await request(harness.server).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "dupe@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -1166,7 +1197,7 @@ describe("Auth routes", () => {
 			});
 			await fixture.auth.createUser({ email: "race-free@gmail.com", password: "existing" });
 
-			const response = await request(harness.server).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "race-free@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -1198,7 +1229,7 @@ describe("Auth routes", () => {
 			}
 			await fixture.auth.createUser({ email: "race-trial@gmail.com", password: "existing" });
 
-			const response = await request(harness.server).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "race-trial@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -1209,10 +1240,10 @@ describe("Auth routes", () => {
 			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
 		}, 30000);
 
-		it("emits outcome=too_fast when a submit inside the bot window is rejected — the visitor is shown the form again, so the rejection belongs in the signup funnel and not only on the bot-defense stream", async () => {
+		it("emits outcome=too_fast when a browser's submit inside the bot window is rejected — that visitor is shown the form again, so their rejection belongs in the signup funnel and not only on the bot-defense stream", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(harness.server).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "autofill@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -1226,7 +1257,7 @@ describe("Auth routes", () => {
 		it("emits outcome=disposable_email when the submission is both disposable and otherwise invalid — the disposable gate takes precedence, so the outcome buckets are not mutually exclusive by input", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			await request(harness.server).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "user@slmail.me",
 				password: "short",
 				confirmPassword: "short",
@@ -1239,7 +1270,7 @@ describe("Auth routes", () => {
 		it("does not emit signup_attempted for a honeypot trip — the visitor is silently fake-succeeded rather than shown a rejection, so it is counted on the bot-defense stream only", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			await request(harness.server).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "bot@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -1253,13 +1284,36 @@ describe("Auth routes", () => {
 		it("does not emit signup_attempted for a missing-timestamp trip — likewise fake-succeeded, so only the human-visible too-fast rejection reaches the signup funnel", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			await request(harness.server).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "bot@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
 			});
 
 			assert.equal(signupAttempts(harness).length, 0, "missing-timestamp trips are not signup_attempted events");
+		});
+
+		it("counts a browser's rejected submit but not a crawler's, so the funnel's outcome mix stays a measure of people hitting friction rather than of scripted POSTs", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").set("User-Agent", GOOGLEBOT).type("form").send({
+				email: "crawler-attempt@gmail.com",
+				password: "short",
+				confirmPassword: "short",
+				loadedAt: freshLoadedAt(),
+			});
+
+			assert.equal(signupAttempts(harness).length, 0, "no signup_attempted for a crawler user-agent");
+
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
+				email: "browser-attempt@gmail.com",
+				password: "short",
+				confirmPassword: "short",
+				loadedAt: freshLoadedAt(),
+			});
+
+			assert.equal(signupAttempts(harness).length, 1, "exactly one signup_attempted, from the browser submit");
+			expect(signupAttempts(harness)[0]).toMatchObject({ outcome: "invalid_input" });
 		});
 	});
 
@@ -1295,7 +1349,7 @@ describe("Auth routes", () => {
 
 		it("emits a single discrete first_article_autosaved event carrying the new user and article host", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = request.agent(harness.server);
+			const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
 			await agent.get(VIEW_PATH);
 
 			await agent.post("/signup").type("form").send({
@@ -1321,7 +1375,7 @@ describe("Auth routes", () => {
 
 		it("lets an explicit ?return= win over the autosave even when the cookie is present", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = request.agent(harness.server);
+			const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
 			await agent.get(VIEW_PATH);
 
 			const response = await agent.post("/signup?return=%2Foauth%2Fauthorize").type("form").send({
@@ -1387,6 +1441,45 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
+		}, 30000);
+
+		it("still auto-saves for a crawler-submitted signup but emits no first_article_autosaved, so the event stays a count of readers the autosave actually rescued", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const lastViewCookie = `hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`;
+			const autosaves = () =>
+				harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved);
+
+			const crawled = await request(harness.server)
+				.post("/signup")
+				.set("User-Agent", GOOGLEBOT)
+				.set("Cookie", lastViewCookie)
+				.type("form")
+				.send({
+					email: "autosave-crawler@example.com",
+					password: "password123",
+					confirmPassword: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(crawled.status).toBe(303);
+			expect(crawled.headers.location).toBe(AUTOSAVE_LOCATION);
+			assert.equal(autosaves().length, 0, "no first_article_autosaved for a crawler user-agent");
+
+			const human = await request(harness.server)
+				.post("/signup")
+				.set("User-Agent", BROWSER_USER_AGENT)
+				.set("Cookie", lastViewCookie)
+				.type("form")
+				.send({
+					email: "autosave-browser@example.com",
+					password: "password123",
+					confirmPassword: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(human.headers.location).toBe(AUTOSAVE_LOCATION);
+			assert.equal(autosaves().length, 1, "exactly one first_article_autosaved, from the browser signup");
+			expect(autosaves()[0]).toMatchObject({ article_host: "example.com" });
 		}, 30000);
 	});
 

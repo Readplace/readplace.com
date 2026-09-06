@@ -28,8 +28,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
+import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
@@ -90,7 +89,7 @@ interface ViewDependencies {
 	viewCrawlRateLimit: RateLimitRule;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 }
 
@@ -342,7 +341,7 @@ function handleViewArticle(
 
 		if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
 			assert(req.visitorId, "visitor-id middleware must run before the /view router");
-			deps.analytics.info({
+			deps.recordAnalyticsEvent(req, {
 				stream: STREAMS.analytics,
 				event: ANALYTICS_EVENTS.viewOpened,
 				timestamp: deps.now().toISOString(),

@@ -1,8 +1,7 @@
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import { buildPageDepthEvent, PAGE_EXIT_KINDS } from "@packages/web-analytics";
-import type { AnalyticsEvent } from "@packages/web-analytics";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
 
 import { PAGE_DEPTH_EVENT_PATH, PAGE_DEPTH_FIELDS } from "./page-depth-tracking";
 
@@ -28,7 +27,7 @@ const PageDepthQuerySchema = z.object({
  * reads must not turn a malformed report into an error page in the logs.
  */
 export function initPageDepthRoute(deps: {
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	now: () => Date;
 	salt: string;
 }): Router {
@@ -37,7 +36,8 @@ export function initPageDepthRoute(deps: {
 	router.post(PAGE_DEPTH_EVENT_PATH, (req: Request, res: Response) => {
 		const parsed = PageDepthQuerySchema.safeParse(req.query);
 		if (parsed.success) {
-			deps.analytics.info(
+			deps.recordAnalyticsEvent(
+				req,
 				buildPageDepthEvent(
 					{ now: deps.now, salt: deps.salt },
 					{

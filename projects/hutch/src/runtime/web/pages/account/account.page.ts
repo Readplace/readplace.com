@@ -61,7 +61,12 @@ import {
 import { type TrialSchedulerPort, startTrial } from "../../../domain/trial/start-trial";
 import { initLoadNextCharge } from "../../../domain/subscription/next-charge";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
-import type { EmitSubscriptionEvent } from "../../../observability/subscription-events";
+import type { RecordAudienceEvent } from "@packages/web-analytics";
+import {
+	buildCheckoutStartedEvent,
+	buildResubscribeCompletedEvent,
+	type SubscriptionLogEvent,
+} from "../../../observability/subscription-events";
 import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/native-app-links";
@@ -129,7 +134,7 @@ interface AccountDependencies {
 	logger: HutchLogger;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
-	emitSubscriptionEvent: Pick<EmitSubscriptionEvent, "checkoutStarted" | "resubscribeCompleted">;
+	recordSubscriptionEvent: RecordAudienceEvent<SubscriptionLogEvent>;
 }
 
 type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
@@ -632,12 +637,18 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			createdAt: deps.now().getTime(),
 		});
 
-		deps.emitSubscriptionEvent.checkoutStarted({
-			userId,
-			variant: params.variant,
-			checkoutSessionId: checkout.id,
-			plan: params.plan,
-		});
+		deps.recordSubscriptionEvent(
+			req,
+			buildCheckoutStartedEvent(
+				{ now: deps.now },
+				{
+					userId,
+					variant: params.variant,
+					checkoutSessionId: checkout.id,
+					plan: params.plan,
+				},
+			),
+		);
 
 		return checkout;
 	}
@@ -728,7 +739,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				customerId: row.customerId,
 				plan,
 			});
-			deps.emitSubscriptionEvent.resubscribeCompleted({ userId, subscriptionId, plan });
+			deps.recordSubscriptionEvent(req, buildResubscribeCompletedEvent({ now: deps.now }, { userId, subscriptionId, plan }));
 			res.redirect(303, buildAccountUrl());
 		},
 		noop: async (_req, res) => {

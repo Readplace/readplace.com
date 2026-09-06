@@ -9,6 +9,8 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
+
 const useApp = useTestServer();
 
 describe("Readlist routes", () => {
@@ -535,6 +537,47 @@ describe("Readlist routes", () => {
 				assert.equal(reads.length, 1);
 				assert.equal(reads[0].device_class, "mobile_ios");
 			});
+
+			it("keeps article_read a count of people: a crawler posting the mark-as-read form emits nothing, while the same post from a browser emits one", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const agent = await loginAgent(harness.server, harness.auth);
+
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/crawled" });
+				const crawled = await harness.articleStore.findArticleByUrl("https://example.com/crawled");
+				assert.ok(crawled, "the crawler's target must be saved before it is marked read");
+
+				const crawlerResponse = await agent
+					.post(`/queue/${crawled.id.value}/status`)
+					.set("User-Agent", GOOGLEBOT)
+					.type("form")
+					.send({ status: "read" });
+
+				assert.equal(
+					crawlerResponse.headers.location,
+					`/queue?status_changed=read&status_article=${crawled.id.value}`,
+					"the row still moves to read — only the measurement is dropped",
+				);
+				assert.equal(
+					harness.analytics.events.filter((e) => e.event === "article_read").length,
+					0,
+					"a bot user-agent marking an article read emits no article_read",
+				);
+
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/read-by-hand" });
+				const readByHand = await harness.articleStore.findArticleByUrl("https://example.com/read-by-hand");
+				assert.ok(readByHand, "the reader's target must be saved before it is marked read");
+
+				await agent
+					.post(`/queue/${readByHand.id.value}/status`)
+					.type("form")
+					.send({ status: "read" });
+
+				assert.equal(
+					harness.analytics.events.filter((e) => e.event === "article_read").length,
+					1,
+					"the identical post from a browser user-agent still emits exactly one article_read",
+				);
+			});
 		});
 	});
 
@@ -594,6 +637,33 @@ describe("Readlist routes", () => {
 			const toggles = harness.analytics.events.filter((e) => e.event === "summary_toggled");
 			assert.equal(toggles.length, 1);
 			assert.equal(toggles[0].state, "closed");
+		});
+
+		it("keeps summary_toggled a measure of people: the beacon emits nothing from a crawler user-agent, while the identical beacon from a browser emits one", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			const articleId = await saveAndGetArticleId(agent);
+
+			const botResponse = await agent
+				.post(`/queue/${articleId}/summary-toggle?state=open`)
+				.set("User-Agent", GOOGLEBOT);
+
+			expect(botResponse.status).toBe(204);
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "summary_toggled").length,
+				0,
+				"a bot user-agent opening the summary emits no summary_toggled",
+			);
+
+			const browserResponse = await agent.post(`/queue/${articleId}/summary-toggle?state=open`);
+
+			expect(browserResponse.status).toBe(204);
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "summary_toggled").length,
+				1,
+				"the identical beacon from a browser user-agent still emits exactly one summary_toggled",
+			);
 		});
 
 		it("answers 204 with no event and no row write when state is absent or invalid (a beacon must never error)", async () => {

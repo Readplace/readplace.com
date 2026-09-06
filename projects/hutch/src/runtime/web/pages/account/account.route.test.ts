@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -35,6 +36,7 @@ function cardActionKeys(row: Element): string[] {
 
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 async function loginUser(
 	harness: ReturnType<ReturnType<typeof useTestServer>>,
@@ -44,7 +46,7 @@ async function loginUser(
 	await auth.createUser({ email, password: "password123" });
 	const lookup = await auth.findUserByEmail(email);
 	assert(lookup, "test user should exist");
-	const agent = request.agent(harness.server);
+	const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
 	await agent.post("/login").type("form").send({ email, password: "password123" });
 	return { agent, userId: lookup.userId };
 }
@@ -1508,6 +1510,89 @@ describe("POST /account/subscribe", () => {
 		// No NEW subscription created — the user still has the existing one
 		// with cancel-at-period-end set; Reactivate is the only un-cancel path.
 		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(0);
+	});
+
+	it("charges the crawler's saved card but records no resubscribe_completed, so the one-click resubscribe path is gated like the checkout beside it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "crawler-one-click@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.post("/account/subscribe").set("User-Agent", GOOGLEBOT);
+
+		expect(response.status).toBe(303);
+		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(1);
+		assert.equal(
+			harness.subscriptionEvents.events.filter((e) => e.event === "resubscribe_completed").length,
+			0,
+			"only the measurement is gated — the crawler's subscription is still created",
+		);
+	});
+
+	it("records exactly one resubscribe_completed for the identical one-click resubscribe from a browser", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "browser-one-click@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.post("/account/subscribe").set("User-Agent", BROWSER_USER_AGENT);
+
+		expect(response.status).toBe(303);
+		assert.equal(
+			harness.subscriptionEvents.events.filter((e) => e.event === "resubscribe_completed").length,
+			1,
+			"a browser resubscribe records exactly one resubscribe_completed",
+		);
+	});
+
+	it("emits no subscription event when a crawler submits the Subscribe form, so paid-conversion reporting counts readers and not bots", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "crawler-subscribe@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe").set("User-Agent", GOOGLEBOT);
+
+		expect(response.status).toBe(303);
+		assert.equal(
+			harness.subscriptionEvents.events.length,
+			0,
+			"a crawler-driven checkout must leave no subscription event behind",
+		);
+	});
+
+	it("emits exactly one checkout_started for the identical request from a browser, so the bot gate cannot silence a paying reader", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "browser-subscribe@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent
+			.post("/account/subscribe")
+			.set("User-Agent", BROWSER_USER_AGENT);
+
+		expect(response.status).toBe(303);
+		assert.equal(
+			harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started").length,
+			1,
+			"a browser checkout must record exactly one checkout_started",
+		);
 	});
 });
 

@@ -25,8 +25,7 @@ import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { sendComponent } from "@packages/web-shell";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { AnalyticsEvent } from "@packages/web-analytics";
+import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics";
 import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
 import { initObserveTokenOutcome } from "./token-refusal";
 
@@ -154,7 +153,7 @@ interface OAuthRouteDeps {
 	consumeRateLimit: ConsumeRateLimit;
 	registerRateLimitRule: RateLimitRule;
 	tokenRateLimitRule: RateLimitRule;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	now: () => Date;
 	salt: string;
 }
@@ -370,7 +369,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 	router.post(
 		"/token",
-		initObserveTokenOutcome({ analytics: deps.analytics, now: deps.now, salt: deps.salt }),
+		initObserveTokenOutcome({ recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent, now: deps.now, salt: deps.salt }),
 		createRateLimitMiddleware({
 			consumeRateLimit: deps.consumeRateLimit,
 			bucket: "oauth-token",

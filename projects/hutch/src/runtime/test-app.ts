@@ -73,6 +73,7 @@ export type {
 
 export const TEST_EDGE_SECRET = "test-edge-secret";
 export { loginAgent } from "@packages/web-test-harness";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 
 export interface AnalyticsBundle {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -297,13 +298,8 @@ function flattenFixtureToAppDependencies(
 	};
 }
 
-/** Supertest sends no User-Agent, Accept-Language or fetch-metadata headers, but
- * the analytics middleware only counts a request that carries the header set a
- * real browser navigation always sends. A route test asserting on a counted
- * pageview or click has to `.set(BROWSER_REQUEST_HEADERS)` or it will assert
- * against an empty event list. */
 export const BROWSER_REQUEST_HEADERS: Record<string, string> = {
-	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+	"User-Agent": BROWSER_USER_AGENT,
 	"Accept-Language": "en-US,en;q=0.9",
 	"Sec-CH-UA": '"Chromium";v="145", "Google Chrome";v="145", "Not?A_Brand";v="24"',
 	"Sec-Fetch-Mode": "navigate",
