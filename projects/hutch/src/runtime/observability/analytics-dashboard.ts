@@ -3,7 +3,7 @@ import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
-import { type ExcludedIdentities, excludeInternalVisitorsClauses } from "./excluded-identities";
+import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -154,7 +154,7 @@ function logWidget(params: {
 
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {
 	const { region, hutchLogGroupName, analyticsLogGroupName, errorsLogGroupName } = deps;
-	const exclude = excludeInternalVisitorsClauses(deps);
+	const exclude = excludeNonAudienceClauses(deps);
 	const widgets: DashboardWidget[] = [];
 
 	/** Every analytics widget reads the single never-expire destination group. The
@@ -336,7 +336,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		x: 0, y: 48, width: 6, height: 4,
 		properties: {
 			region,
-			title: "Imports completed (lifetime)",
+			title: "Imports completed (CloudWatch metric since 2026-05-18)",
 			metrics: [[METRICS.importsCompleted.namespace, METRICS.importsCompleted.name, { stat: "Sum" }]],
 			period: 86400,
 			stat: "Sum",
@@ -621,8 +621,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// visitor, not just the small authenticated-reader cohort article_read
 	// carries a device_class for. ispresent(device_class) excludes pageviews
 	// logged before the field shipped; device_class != "other" drops the
-	// no-User-Agent bucket (classifyDeviceClass's no-signal fallback, reachable
-	// because isbot(undefined) is false) so the mix reads as real devices, not a
+	// no-User-Agent bucket so the mix reads as real devices, not a
 	// phantom "other" slice. Caveat: an iPad in Safari's default desktop mode
 	// sends a Mac User-Agent and counts as desktop — a UA-only limitation that
 	// undercounts tablets.

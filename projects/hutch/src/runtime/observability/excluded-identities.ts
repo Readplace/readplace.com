@@ -1,4 +1,7 @@
 import assert from "node:assert";
+import type { DeviceClass } from "@packages/web-analytics";
+
+const BOT_DEVICE_CLASS = "bot" satisfies DeviceClass;
 
 const VISITOR_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const USER_ID_SHAPE = /^[0-9a-f]{32}$/;
@@ -32,9 +35,14 @@ function absentOrNotInClause(field: string, values: readonly string[]): string[]
 	return [`| filter (not ispresent(${field})) or (${field} not in [${list}])`];
 }
 
-export function excludeInternalVisitorsClauses(identities: ExcludedIdentities): string[] {
+function absentOrNotEqualClause(clause: { field: string; value: DeviceClass }): string {
+	return `| filter (not ispresent(${clause.field})) or (${clause.field} != "${clause.value}")`;
+}
+
+export function excludeNonAudienceClauses(identities: ExcludedIdentities): string[] {
 	return [
 		...absentOrNotInClause("visitor_id", identities.excludedVisitorIds),
 		...absentOrNotInClause("user_id", identities.excludedUserIds),
+		absentOrNotEqualClause({ field: "device_class", value: BOT_DEVICE_CLASS }),
 	];
 }

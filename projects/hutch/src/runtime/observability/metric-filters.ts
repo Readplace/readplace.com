@@ -14,19 +14,19 @@ export const ANALYTICS_METRIC_FILTERS = {
 		stream: STREAMS.analytics,
 		event: ANALYTICS_EVENTS.pageview,
 		metricName: "Pageviews",
-		widgetTitle: "Pageviews (lifetime metric, internal traffic included)",
+		widgetTitle: "Pageviews (CloudWatch metric since 2026-08-24, internal traffic included)",
 	},
 	viewSaveIntent: {
 		stream: STREAMS.analytics,
 		event: ANALYTICS_EVENTS.viewSaveIntent,
 		metricName: "ViewSaveIntent",
-		widgetTitle: "Save intents (lifetime metric, internal traffic included)",
+		widgetTitle: "Save intents (CloudWatch metric since 2026-08-24, internal traffic included)",
 	},
 	userCreated: {
 		stream: STREAMS.conversions,
 		event: CONVERSION_EVENTS.userCreated,
 		metricName: "UsersCreated",
-		widgetTitle: "Signups (lifetime metric, internal traffic included)",
+		widgetTitle: "Signups (CloudWatch metric since 2026-08-24, internal traffic included)",
 	},
 } as const satisfies Record<string, AnalyticsMetricFilter>;
 
