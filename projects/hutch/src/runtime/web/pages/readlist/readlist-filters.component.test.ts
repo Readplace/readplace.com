@@ -163,4 +163,15 @@ describe("buildReadlistFilters", () => {
 		expect(label.hasAttribute("hx-preserve")).toBe(true);
 		expect(label.textContent).toBe("To Read");
 	});
+
+	it("should name the strip, the pressed tab and the listing as where a tab switch paints its in-flight state", () => {
+		const nav = renderTabs({ activeTab: "queue" }).querySelector("nav[data-test-filters]");
+		assert(nav, "the filters nav must be rendered");
+
+		expect(nav.getAttribute("hx-boost")).toBe("true");
+		expect(nav.getAttribute("hx-target")).toBe("main");
+		expect(nav.getAttribute("hx-indicator")).toBe(
+			"closest .readlist__filters, closest .readlist__filter-link, .readlist__listing",
+		);
+	});
 });

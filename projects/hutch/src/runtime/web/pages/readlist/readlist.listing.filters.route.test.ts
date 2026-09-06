@@ -183,6 +183,69 @@ describe("Readlist routes", () => {
 		});
 	});
 
+	describe("Status tab switch in-flight targets", () => {
+		function inFlightTargets(doc: Document, tab: Element): Element[] {
+			const nav = tab.closest("[data-test-filters]");
+			assert(nav, "the pressed tab must sit inside the filters nav");
+			const indicator = nav.getAttribute("hx-indicator");
+			assert(indicator, "the filters nav must name where a tab switch paints its in-flight state");
+
+			return indicator.split(",").flatMap((part) => {
+				const selector = part.trim();
+				if (selector.startsWith("closest ")) {
+					const resolved = tab.closest(selector.slice("closest ".length));
+					assert(resolved, `the pressed tab must resolve its "${selector}" in-flight target`);
+					return [resolved];
+				}
+				return Array.from(doc.querySelectorAll(selector));
+			});
+		}
+
+		it("should resolve the tabs' in-flight marker to the strip, the pressed tab and the page's only listing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/1" });
+
+			for (const { path, pressed, content } of [
+				{ path: "/queue", pressed: "read", content: "[data-test-article]" },
+				{ path: "/queue?tab=done", pressed: "unread", content: "[data-test-empty-readlist]" },
+			]) {
+				const doc = new JSDOM((await agent.get(path)).text).window.document;
+				const tab = doc.querySelector(`[data-test-filter="${pressed}"]`);
+				assert(tab, `the ${pressed} tab must be rendered on ${path}`);
+
+				const targets = inFlightTargets(doc, tab);
+				expect(targets.map((el) => el.classList[0])).toEqual([
+					"readlist__filters",
+					"readlist__filter-link",
+					"readlist__listing",
+				]);
+				expect(targets[1]).toBe(tab);
+				expect(doc.querySelectorAll(".readlist__listing")).toHaveLength(1);
+
+				const listing = targets[2];
+				assert(listing, "the listing must be one of the in-flight targets");
+				const shown = doc.querySelector(content);
+				assert(shown, `${path} must render ${content} for the veil to cover`);
+				expect(listing.contains(shown)).toBe(true);
+			}
+		});
+
+		it("should make the status tabs' nav the only carrier of an in-flight marker", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/1" });
+
+			for (const path of ["/queue", "/queue?tab=done"]) {
+				const doc = new JSDOM((await agent.get(path)).text).window.document;
+				const carriers = Array.from(doc.querySelectorAll("[hx-indicator]")).map((el) =>
+					el.getAttribute("aria-label"),
+				);
+				expect(carriers).toEqual(["Article filters"]);
+			}
+		});
+	});
+
 	describe("CORS for browser extensions", () => {
 		it("should allow requests from browser extensions", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

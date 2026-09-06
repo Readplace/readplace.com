@@ -41,6 +41,17 @@ const OPEN_FILTER_TAB = "main.readlist .readlist__filter-link--active";
 const UNREAD_FILTER_TAB = 'main.readlist [data-test-filter="unread"]';
 const UNREAD_FILTER_LABEL = 'main.readlist [data-test-filter="unread"] span[id]';
 const READ_FILTER_TAB = 'main.readlist [data-test-filter="read"]';
+const IN_FLIGHT_LISTING = "main.readlist .readlist__listing.htmx-request";
+const CURRENT_FILTER_TAB = 'main.readlist [data-test-filter][aria-current="page"]';
+const SORT_LINK = "main.readlist [data-test-sort]";
+const ARTICLE_HEADER = "main.readlist .readlist-article__header";
+const ARTICLE_TITLE = "main.readlist [data-test-article-title]";
+const EMPTY_TITLE = "main.readlist [data-test-empty-readlist] .readlist__empty-title";
+const FILTER_TAB = { queue: UNREAD_FILTER_TAB, done: READ_FILTER_TAB };
+type TabId = keyof typeof FILTER_TAB;
+const OUTGOING_TAB = { queue: READ_FILTER_TAB, done: UNREAD_FILTER_TAB } satisfies Record<TabId, string>;
+const OUTGOING_CONTENT = { queue: EMPTY_TITLE, done: ARTICLE_TITLE } satisfies Record<TabId, string>;
+const LANDED_CONTENT = { queue: ARTICLE_TITLE, done: READLIST_EMPTY } satisfies Record<TabId, string>;
 
 /* A name at the 24-character cap with nothing to break at — the hardest case
  * the rail has to render in full, so it exercises the wrap and the cap at once. */
@@ -482,29 +493,25 @@ async function madeReadlistSettled(page: Page): Promise<void> {
 	});
 }
 
-async function madeReadlistGeometry(page: Page): Promise<void> {
-	await expect(page.locator(READLIST_SAVE_FORM)).toBeHidden();
+async function pageFitsTheClip(page: Page, clipTarget: string): Promise<void> {
 	const overflows = await page.evaluate(pageOverflowsSideways);
 	assert.equal(overflows, false, "the readlist page must never scroll sideways");
 	const viewport = page.viewportSize();
 	assert.ok(viewport, "a whole-page capture needs a fixed viewport to size its clip");
-	const listing = await measuredBox(page, READLIST_LISTING);
+	const target = await measuredBox(page, clipTarget);
 	assert.ok(
-		listing.y + listing.height <= viewport.height,
-		`the whole-page clip runs to ${Math.ceil(listing.y + listing.height)}px, past the ${viewport.height}px viewport a clip can reach`,
+		target.y + target.height <= viewport.height,
+		`the whole-page clip runs to ${Math.ceil(target.y + target.height)}px, past the ${viewport.height}px viewport a clip can reach`,
 	);
 }
 
+async function madeReadlistGeometry(page: Page): Promise<void> {
+	await expect(page.locator(READLIST_SAVE_FORM)).toBeHidden();
+	await pageFitsTheClip(page, READLIST_LISTING);
+}
+
 async function wholeReadlistGeometry(page: Page): Promise<void> {
-	const overflows = await page.evaluate(pageOverflowsSideways);
-	assert.equal(overflows, false, "the readlist page must never scroll sideways");
-	const viewport = page.viewportSize();
-	assert.ok(viewport, "a whole-page capture needs a fixed viewport to size its clip");
-	const listing = await measuredBox(page, READLIST_LIST);
-	assert.ok(
-		listing.y + listing.height <= viewport.height,
-		`the whole-page clip runs to ${Math.ceil(listing.y + listing.height)}px, past the ${viewport.height}px viewport a clip can reach`,
-	);
+	await pageFitsTheClip(page, READLIST_LIST);
 }
 
 async function tabsJoinTheListing(page: Page): Promise<void> {
@@ -533,6 +540,131 @@ async function tabsJoinTheListing(page: Page): Promise<void> {
 		`a status tab must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
 	);
 }
+
+async function holdListing(page: Page): Promise<() => Promise<void>> {
+	const resolvers: Array<() => void> = [];
+	const released = new Promise<void>((resolve) => {
+		resolvers.push(resolve);
+	});
+	const release = resolvers[0];
+	assert.ok(release, "a promise executor runs synchronously, so its resolver must be captured");
+	let held = 0;
+	await page.route(
+		(url) => url.pathname === "/queue",
+		async (route) => {
+			held += 1;
+			await released;
+			await route.continue();
+		},
+	);
+	return async () => {
+		await expect
+			.poll(() => held, {
+				message: "the listing request must be waiting on the veil before it is released",
+			})
+			.toBe(1);
+		release();
+	};
+}
+
+async function veilShown(page: Page, tab: TabId): Promise<void> {
+	await expect(page.locator(IN_FLIGHT_LISTING)).toHaveCount(1);
+	await expect(page.locator(FILTER_TAB[tab])).toHaveClass(/htmx-request/);
+	await expect(page.locator(OUTGOING_CONTENT[tab]).first()).toHaveCSS("visibility", "hidden");
+	await expect(page.locator(CURRENT_FILTER_TAB)).toHaveCount(1);
+	await expect(page.locator(OUTGOING_TAB[tab])).toHaveAttribute("aria-current", "page");
+	const [panelFill] = await page.evaluate(measureBackgrounds, [READLIST_LISTING]);
+	await expect
+		.poll(() => page.evaluate(measureBackgrounds, [FILTER_TAB[tab]]), {
+			message: "the pressed tab must take the panel's fill the moment it is pressed",
+		})
+		.toEqual([panelFill]);
+}
+
+async function openSkeleton(page: Page, tab: TabId): Promise<() => Promise<void>> {
+	await waitForBrandFonts(page, ["Inter"]);
+	const before = await measuredBox(page, READLIST_LISTING);
+	const release = await holdListing(page);
+	await page.locator(FILTER_TAB[tab]).click();
+	await veilShown(page, tab);
+	const during = await measuredBox(page, READLIST_LISTING);
+	assert.deepEqual(
+		{ width: during.width, height: during.height },
+		{ width: before.width, height: before.height },
+		`the veil must keep the listing at the size it had before the press, measured ${JSON.stringify(before)} then ${JSON.stringify(during)}`,
+	);
+	return release;
+}
+
+async function listingLanded(page: Page, tab: TabId): Promise<void> {
+	await expect(page.locator(FILTER_TAB[tab])).toHaveAttribute("aria-current", "page");
+	await expect(page.locator(READLIST_LISTING)).toHaveClass("readlist__listing");
+	await expect(page.locator(LANDED_CONTENT[tab]).first()).toBeVisible();
+}
+
+async function openVeiledReadTab(page: Page, email: string): Promise<() => Promise<void>> {
+	await createVerifiedUserWithReadlist(page, email);
+	await loginAs(page, email);
+	await wholeReadlistSettled(page);
+	return openSkeleton(page, "done");
+}
+
+async function veiledReadTabSettled(page: Page): Promise<void> {
+	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
+	await veilShown(page, "done");
+}
+
+async function pressedTabJoinsTheListing(page: Page): Promise<void> {
+	const [pressed, listing] = await measurePair(page, [READ_FILTER_TAB, READLIST_LISTING]);
+	assert.equal(
+		pressed.y + pressed.height - listing.y,
+		TAB_PANEL_JOIN_PX,
+		"the pressed tab's base must sit on the listing's border while the veil is up, the way the open tab does",
+	);
+	assert.ok(
+		pressed.height >= MINIMUM_TOUCH_TARGET,
+		`a status tab must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
+	);
+}
+
+async function skeletonBesideTheRail(page: Page): Promise<void> {
+	await railBesideTheListing(page);
+	await pressedTabJoinsTheListing(page);
+	await pageFitsTheClip(page, READLIST_LISTING);
+}
+
+async function skeletonUnderTheRow(page: Page): Promise<void> {
+	await stacksAboveTheListing(page);
+	await pressedTabJoinsTheListing(page);
+	await pageFitsTheClip(page, READLIST_LISTING);
+}
+
+const TAB_SKELETON_DESKTOP_LIGHT: VisualCheckpoint = {
+	name: "readlist-tab-skeleton-desktop-light",
+	settled: veiledReadTabSettled,
+	geometry: skeletonBesideTheRail,
+	target: READLIST_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const TAB_SKELETON_DESKTOP_DARK: VisualCheckpoint = {
+	name: "readlist-tab-skeleton-desktop-dark",
+	settled: veiledReadTabSettled,
+	geometry: skeletonBesideTheRail,
+	target: READLIST_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const TAB_SKELETON_MOBILE_LIGHT: VisualCheckpoint = {
+	name: "readlist-tab-skeleton-mobile-light",
+	settled: veiledReadTabSettled,
+	geometry: skeletonUnderTheRow,
+	target: READLIST_LISTING,
+	capture: "page-from-top",
+	pinnedText: [],
+};
 
 const WHOLE_READLIST_DESKTOP_LIGHT: VisualCheckpoint = {
 	name: "readlist-page-desktop-light",
@@ -1224,6 +1356,102 @@ test.describe("Readlist status tabs", () => {
 			counted.width,
 			`the reserve must cover "${widestLabel}", measured ${widest.width} against ${counted.width}`,
 		);
+	});
+
+	test("veils the rows the instant a status tab is pressed, and only until that tab's listing lands", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-tab-veil-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithReadlist(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+		await waitForBrandFonts(page, ["Inter"]);
+
+		const [unreadFill, readFill] = await page.evaluate(measureBackgrounds, [
+			UNREAD_FILTER_TAB,
+			READ_FILTER_TAB,
+		]);
+
+		const releaseRead = await openSkeleton(page, "done");
+		await expect
+			.poll(() => page.evaluate(measureBackgrounds, [UNREAD_FILTER_TAB, READ_FILTER_TAB]), {
+				message: "the pressed tab must take the open tab's fill and the tab being left must give it up",
+			})
+			.toEqual([readFill, unreadFill]);
+		await expect(page.locator(UNREAD_FILTER_TAB)).toHaveClass(
+			"readlist__filter-link readlist__filter-link--active",
+		);
+		await releaseRead();
+		await listingLanded(page, "done");
+
+		const emptyBefore = await measuredBox(page, READLIST_EMPTY);
+		const releaseUnread = await openSkeleton(page, "queue");
+		const emptyDuring = await measuredBox(page, READLIST_EMPTY);
+		assert.deepEqual(
+			{ width: emptyDuring.width, height: emptyDuring.height },
+			{ width: emptyBefore.width, height: emptyBefore.height },
+			"the veil must keep the empty state at the size it had before the press",
+		);
+		await expect(page.locator(READ_FILTER_TAB)).toHaveClass(
+			"readlist__filter-link readlist__filter-link--active",
+		);
+		await releaseUnread();
+		await listingLanded(page, "queue");
+		await expect(page.locator("[data-test-article]")).toHaveCount(SEEDED_ARTICLES.length);
+	});
+
+	test("keeps the rows in view while a sort request is in flight", async ({ page }, testInfo) => {
+		const email = `readlist-tab-sort-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithReadlist(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+
+		const release = await holdListing(page);
+		await page.locator(SORT_LINK).click();
+		await expect(page.locator(`${SORT_LINK}.htmx-request`)).toHaveCount(1);
+		await expect(page.locator(READLIST_LISTING)).toHaveClass("readlist__listing");
+		await expect(page.locator(ARTICLE_HEADER).first()).toBeVisible();
+		await release();
+		await expect(page.locator(SORT_LINK)).toHaveText(/Oldest first/);
+	});
+});
+
+test.describe("Readlist status tabs, veiled", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
+
+	test("paints the veil over the rows the Read tab is leaving (light)", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-tab-skeleton-desktop-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const release = await openVeiledReadTab(page, email);
+		await captureCheckpoint(page, TAB_SKELETON_DESKTOP_LIGHT);
+		await release();
+		await listingLanded(page, "done");
+	});
+
+	test("paints the veil over the rows the Read tab is leaving (dark)", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		const email = `readlist-tab-skeleton-desktop-dark-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const release = await openVeiledReadTab(page, email);
+		await captureCheckpoint(page, TAB_SKELETON_DESKTOP_DARK);
+		await release();
+		await listingLanded(page, "done");
+	});
+});
+
+test.describe("Readlist status tabs, veiled (mobile)", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE_TALL });
+
+	test("paints the veil over the rows the Read tab is leaving", async ({ page }, testInfo) => {
+		const email = `readlist-tab-skeleton-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const release = await openVeiledReadTab(page, email);
+		await captureCheckpoint(page, TAB_SKELETON_MOBILE_LIGHT);
+		await release();
+		await listingLanded(page, "done");
 	});
 });
 

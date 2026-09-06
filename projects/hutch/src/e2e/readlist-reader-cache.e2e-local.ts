@@ -64,7 +64,7 @@ test.describe("Reader view browser cache", () => {
 		const userId = await createOwner(page, email);
 		await seedSettledArticle(page, { url, userId });
 		await loginAs(page, email);
-		await page.context().unrouteAll();
+		await page.context().unrouteAll({ behavior: "ignoreErrors" });
 
 		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 		const href = await page.locator("[data-test-article-title]").first().getAttribute("href");
