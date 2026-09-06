@@ -20,7 +20,7 @@ const INBOX_ADDRESS = "in-3f9a2c@read.place";
 const RECEIVED_AT_MESSAGE_ID = "2026-06-04T08:00:00.000Z#<news@example.com>";
 
 const EXPECTED_INBOX_URL =
-	"https://readplace.com/inbox?highlight=2026-06-04T08%3A00%3A00.000Z%23%3Cnews%40example.com%3E&utm_source=first-inbox-email&utm_medium=email&utm_campaign=inbox-first-arrival";
+	"https://readplace.com/inbox?highlight=2026-06-04T08%3A00%3A00.000Z%23%3Cnews%40example.com%3E&utm_source=first-inbox-email&utm_medium=email&utm_campaign=inbox-first-arrival&utm_content=open-inbox";
 
 const EXPECTED_TEXT = [
 	"The first email to your Readplace inbox at in-3f9a2c@read.place just came through.",

@@ -16,7 +16,7 @@ The reason to save a Stack Overflow thread is rarely 1 answer. 1 answer was all 
 </div>
 </details>
 
-Stack Overflow's [most upvoted question](/view/stackoverflow.com/q/11227809) asks why a sorted array is faster to process than an unsorted one. The copy Readplace had stored of it ran 1,196 words and held neither the question nor the code sample the whole thread argues about. What it held was 1 answer, the block an extractor scored highest on a page it could barely reach.
+Stack Overflow's [most upvoted question](/view/stackoverflow.com/q/11227809?utm_source=blog-save-a-stack-overflow-question-keep-every-answer&utm_medium=internal&utm_content=read-stackoverflow-com) asks why a sorted array is faster to process than an unsorted one. The copy Readplace had stored of it ran 1,196 words and held neither the question nor the code sample the whole thread argues about. What it held was 1 answer, the block an extractor scored highest on a page it could barely reach.
 
 ## The wall in front of the page
 
@@ -58,4 +58,4 @@ A smaller repair rides along. The saved URL for that question still carries its 
 
 A Stack Overflow tab is the kind that stays open for a week, because the accepted answer solved the immediate problem and the 4 answers below it looked worth a slower read that hasn't happened yet. That slower read is what a readlist is for, and it only works if the save holds the part you were coming back for.
 
-It does now. When a search strands you halfway down a thread, [the browser extension](https://readplace.com/install) puts the whole of it, question and answers, in [your readlist](/) to finish on your own time.
+It does now. When a search strands you halfway down a thread, [the browser extension](https://readplace.com/install) puts the whole of it, question and answers, in [your readlist](/?utm_source=blog-save-a-stack-overflow-question-keep-every-answer&utm_medium=internal&utm_content=home) to finish on your own time.

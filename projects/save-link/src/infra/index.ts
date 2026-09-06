@@ -76,6 +76,8 @@ const userArticlesTableArn = config.require("userArticlesTableArn");
 // for per-IP throttles and the global paid-crawl budget share one TTL'd table.
 const rateLimitsTableName = config.require("rateLimitsTableName");
 const rateLimitsTableArn = config.require("rateLimitsTableArn");
+const onboardingTableName = config.require("onboardingTableName");
+const onboardingTableArn = config.require("onboardingTableArn");
 // "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
@@ -435,6 +437,11 @@ const submitLinkUserArticlesDynamodb = new HutchDynamoDBAccess(
 	},
 );
 
+const submitLinkOnboardingDynamodb = new HutchDynamoDBAccess("submit-link-onboarding-dynamodb", {
+	tables: [{ arn: onboardingTableArn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
 const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	entryPoint: "./src/runtime/submit-link.main.ts",
 	outputDir: ".lib/submit-link",
@@ -446,6 +453,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
@@ -454,6 +462,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	policies: [
 		...submitLinkArticlesDynamodb.policies,
 		...submitLinkUserArticlesDynamodb.policies,
+		...submitLinkOnboardingDynamodb.policies,
 		...contentBucket.readPolicies("submit-link-content-read"),
 		...contentBucket.writePolicies("submit-link-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "submit-link"),

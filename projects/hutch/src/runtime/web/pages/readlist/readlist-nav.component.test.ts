@@ -134,7 +134,7 @@ describe("buildReadlistNav", () => {
 			label: control.textContent,
 		}).toEqual({
 			method: "POST",
-			action: "/queue/queues",
+			action: "/queue/queues?utm_source=queue-nav&utm_medium=internal&utm_content=new-readlist",
 			type: "submit",
 			label: "New readlist",
 		});
@@ -160,7 +160,7 @@ describe("buildReadlistNav", () => {
 			readlist: hrefParts(tab).params.get("queue"),
 		}).toEqual({
 			tagName: "A",
-			action: "/queue/queues/work/rename",
+			action: "/queue/queues/work/rename?utm_source=queue-nav&utm_medium=internal&utm_content=rename-readlist",
 			field: "label",
 			max: String(READLIST_LABEL_MAX_LENGTH),
 			current: "page",
@@ -227,8 +227,8 @@ describe("buildReadlistNav", () => {
 		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
 
 		expect(deleteFallbackActions(doc)).toEqual([
-			"/queue/queues/work/delete?queue=work",
-			"/queue/queues/personal/delete?queue=work",
+			"/queue/queues/work/delete?queue=work&utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
+			"/queue/queues/personal/delete?queue=work&utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
 		]);
 	});
 
@@ -239,8 +239,8 @@ describe("buildReadlistNav", () => {
 		});
 
 		expect(deleteFallbackActions(doc)).toEqual([
-			"/queue/queues/work/delete",
-			"/queue/queues/personal/delete",
+			"/queue/queues/work/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
+			"/queue/queues/personal/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
 		]);
 	});
 

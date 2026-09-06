@@ -20,13 +20,13 @@ Installing the app used to take two apps and an invitation. You installed TestFl
 
 Apple approved the app for the App Store. It installs the way an app installs. Search for Readplace, tap Get, open it, sign in.
 
-None of the saving changed, and the saving was always the point. The app exists because [the share sheet is already where your thumb goes](/blog/read-it-later-iphone-app) when you want a page somewhere other than the tab you are in.
+None of the saving changed, and the saving was always the point. The app exists because [the share sheet is already where your thumb goes](/blog/read-it-later-iphone-app?utm_source=blog-readplace-iphone-app-on-the-app-store&utm_medium=internal&utm_content=post-read-it-later-iphone-app) when you want a page somewhere other than the tab you are in.
 
 ## What it does on the phone
 
-Open a page in Safari, Chrome, or whatever browser you use, tap Share, and pick Readplace. The link lands in your readlist and renders in the background, so you stay on the page you were reading. [A PDF goes the same way](/blog/save-pdf-from-iphone-share-sheet), and the app uploads the bytes the share sheet handed it rather than asking the site for the file a second time, which is what gets a PDF behind a login into your readlist at all.
+Open a page in Safari, Chrome, or whatever browser you use, tap Share, and pick Readplace. The link lands in your readlist and renders in the background, so you stay on the page you were reading. [A PDF goes the same way](/blog/save-pdf-from-iphone-share-sheet?utm_source=blog-readplace-iphone-app-on-the-app-store&utm_medium=internal&utm_content=post-save-pdf-from-iphone-share-sheet), and the app uploads the bytes the share sheet handed it rather than asking the site for the file a second time, which is what gets a PDF behind a login into your readlist at all.
 
-Your readlist is in the app. Pull down to refresh, scroll for more, and swipe a row to mark an article read. Tap one and [the clean reader opens inside the app](/blog/read-saved-articles-in-the-iphone-app) with the TL;DR above the text, off the copy on Readplace's servers rather than the live page. View original is one tap away for the times you want the source.
+Your readlist is in the app. Pull down to refresh, scroll for more, and swipe a row to mark an article read. Tap one and [the clean reader opens inside the app](/blog/read-saved-articles-in-the-iphone-app?utm_source=blog-readplace-iphone-app-on-the-app-store&utm_medium=internal&utm_content=post-read-saved-articles-in-the-iphone-app) with the TL;DR above the text, off the copy on Readplace's servers rather than the live page. View original is one tap away for the times you want the source.
 
 That is the whole app. Save fast, glance at the list, read what you saved.
 
@@ -34,7 +34,7 @@ That is the whole app. Save fast, glance at the list, read what you saved.
 
 The part that took the longest was not saving. It was signing in.
 
-The build I submitted first sent you out to the default browser to log in and waited for iOS to hand you back. It worked. [App Store review](/view/developer.apple.com/app-store/review/guidelines/) rejected it anyway, because a sign-in that leaves the app is a sign-in the app cannot account for.
+The build I submitted first sent you out to the default browser to log in and waited for iOS to hand you back. It worked. [App Store review](/view/developer.apple.com/app-store/review/guidelines/?utm_source=blog-readplace-iphone-app-on-the-app-store&utm_medium=internal&utm_content=read-developer-apple-com) rejected it anyway, because a sign-in that leaves the app is a sign-in the app cannot account for.
 
 > **Review did not care that the browser login worked. It cared that the app left to do it.**
 
@@ -56,4 +56,4 @@ It needs iOS 16 or later, and it needs a Readplace account. The download is free
 
 If you were in the TestFlight beta, the App Store build is the one to keep. Your readlist lives on the server, so there is nothing of yours inside the app to lose.
 
-Install it, then share the next thing you were going to get to later from whatever browser you already have open, and read it back in the app when the evening is quieter than the afternoon was. Both are covered on [the install page](/install?client=iphone), and everything starts at [readplace.com](/).
+Install it, then share the next thing you were going to get to later from whatever browser you already have open, and read it back in the app when the evening is quieter than the afternoon was. Both are covered on [the install page](/install?client=iphone&utm_source=blog-readplace-iphone-app-on-the-app-store&utm_medium=internal&utm_content=install-iphone), and everything starts at [readplace.com](/?utm_source=blog-readplace-iphone-app-on-the-app-store&utm_medium=internal&utm_content=home).

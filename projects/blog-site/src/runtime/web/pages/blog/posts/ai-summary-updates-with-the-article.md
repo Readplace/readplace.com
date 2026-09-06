@@ -36,7 +36,7 @@ I traced the swap first.
 
 When a re-crawl lands a better copy, the row already records it. A new content grade counts as a change, and so does a real edit to the text. The piece I was missing was a signal that said, this link has a better copy now, go look at the summary again.
 
-So I added one. A separate worker listens for that signal, checks that the clean copy is actually readable, clears the stale TL;DR, and asks for a fresh one. The same DeepSeek step that wrote the first summary runs again, this time against the better copy. If you want the full picture of that step, read [how AI TL;DR actually works in Readplace](/blog/how-ai-tldr-actually-works).
+So I added one. A separate worker listens for that signal, checks that the clean copy is actually readable, clears the stale TL;DR, and asks for a fresh one. The same DeepSeek step that wrote the first summary runs again, this time against the better copy. If you want the full picture of that step, read [how AI TL;DR actually works in Readplace](/blog/how-ai-tldr-actually-works?utm_source=blog-ai-summary-updates-with-the-article&utm_medium=internal&utm_content=post-how-ai-tldr-actually-works).
 
 Readplace caches one summary per link, shared across anyone who saves it, so the rebuilt TL;DR lands for the next reader who opens that link too.
 
@@ -52,7 +52,7 @@ You glance at a two-line TL;DR, decide the piece is light, and skip something wo
 
 I built the TL;DR as a triage tool, there to help you pick what to read and when, and that job only works if the summary describes the article in front of you rather than a stale copy the crawler happened to catch on a bad morning.
 
-This rides on top of the re-read system that was already there. Readplace asks a site whether a page changed before pulling it again, which keeps your list current and spares the publisher the traffic. Read more on that in [how Readplace saves a page without getting blocked](/blog/save-pages-without-getting-blocked).
+This rides on top of the re-read system that was already there. Readplace asks a site whether a page changed before pulling it again, which keeps your list current and spares the publisher the traffic. Read more on that in [how Readplace saves a page without getting blocked](/blog/save-pages-without-getting-blocked?utm_source=blog-ai-summary-updates-with-the-article&utm_medium=internal&utm_content=post-save-pages-without-getting-blocked).
 
 ## Try it on a stubborn save
 

@@ -44,6 +44,7 @@ test.describe('Readlist management flow (local)', () => {
 		const onboardingProgress: OnboardingProgress = {
 			installedExtension: false,
 			savedFirstArticle: false,
+			markedEmailDone: false,
 		}
 
 		const savePermalinkProgress: SavePermalinkProgress = {

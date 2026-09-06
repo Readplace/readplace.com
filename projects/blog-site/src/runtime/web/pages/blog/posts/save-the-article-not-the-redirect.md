@@ -22,9 +22,9 @@ Readplace saves the article, not the address you pasted. So the fetch has to wal
 
 ## Three fetchers, and none of them chase
 
-When you save a link, Readplace fetches the page the way a browser would. A plain request gets the article back most of the time. Some sites hand a real browser the page and a bare script a 403. So Readplace keeps [fetchers that pose as a browser](/blog/save-articles-from-sites-that-block-bots) for the pages a plain request bounces off.
+When you save a link, Readplace fetches the page the way a browser would. A plain request gets the article back most of the time. Some sites hand a real browser the page and a bare script a 403. So Readplace keeps [fetchers that pose as a browser](/blog/save-articles-from-sites-that-block-bots?utm_source=blog-save-the-article-not-the-redirect&utm_medium=internal&utm_content=post-save-articles-from-sites-that-block-bots) for the pages a plain request bounces off.
 
-There are 3 of them. One runs [curl-impersonate](/view/github.com/lexiforest/curl-impersonate) as a subprocess, copying a browser's TLS handshake. One speaks HTTP/2 through Node's own client, for sites that read the older protocol as a bot. One builds the TLS request by hand to fetch a missing intermediate certificate when a site serves an incomplete chain.
+There are 3 of them. One runs [curl-impersonate](/view/github.com/lexiforest/curl-impersonate?utm_source=blog-save-the-article-not-the-redirect&utm_medium=internal&utm_content=read-github-com) as a subprocess, copying a browser's TLS handshake. One speaks HTTP/2 through Node's own client, for sites that read the older protocol as a bot. One builds the TLS request by hand to fetch a missing intermediate certificate when a site serves an incomplete chain.
 
 None of the three can hand redirect-following to the thing underneath it. The curl subprocess runs with its own redirect chasing turned off, on purpose. Readplace has to re-check every hop against the guard that keeps a save from reaching an internal address. The other two don't follow redirects on their own either. So the code above them walks the chain itself.
 
@@ -54,7 +54,7 @@ row: Hop cap | stops after 5>>stops after 5 | ?not stated>>stops after 5 | !its 
 
 ## One loop that owns the hop
 
-The three copies are one function now. It takes the entry address and a way to make a single request. It owns every decision about where the redirect points: the relative Location resolved against the current hop, the cap at 5, and the http-and-https-only rule. Credential headers get dropped on a cross-origin hop, and stay dropped for the rest of the chain. A 3xx with no Location comes back as the final response, [the way fetch defines it](/view/fetch.spec.whatwg.org/), instead of throwing.
+The three copies are one function now. It takes the entry address and a way to make a single request. It owns every decision about where the redirect points: the relative Location resolved against the current hop, the cap at 5, and the http-and-https-only rule. Credential headers get dropped on a cross-origin hop, and stay dropped for the rest of the chain. A 3xx with no Location comes back as the final response, [the way fetch defines it](/view/fetch.spec.whatwg.org/?utm_source=blog-save-the-article-not-the-redirect&utm_medium=internal&utm_content=read-fetch-spec-whatwg-org), instead of throwing.
 
 Each fetcher still passes in its own way of making the request. The curl path re-checks every hop against the internal-address guard. The HTTP/2 path opens a fresh connection per hop. The TLS path carries its certificate work through. What changed is that the choice of redirect target left the three of them and moved into one place they all call.
 
@@ -64,8 +64,8 @@ One more thing moved with it. The curl path builds a single timeout budget when 
 
 ## What a redirected link brings back
 
-Paste a shortener, a Google News URL, or a newsletter link that buries the article behind a tracker, and the save resolves the chain to the real page and stops there. It stops the same way whether the fetch went out over curl, HTTP/2, or the hand-built request, because all three ask the same loop where to go next. The copy that lands in your readlist is [the article, held at the moment it was fetched](/blog/saved-articles-outlast-the-original-page), and not the hop in front of it.
+Paste a shortener, a Google News URL, or a newsletter link that buries the article behind a tracker, and the save resolves the chain to the real page and stops there. It stops the same way whether the fetch went out over curl, HTTP/2, or the hand-built request, because all three ask the same loop where to go next. The copy that lands in your readlist is [the article, held at the moment it was fetched](/blog/saved-articles-outlast-the-original-page?utm_source=blog-save-the-article-not-the-redirect&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page), and not the hop in front of it.
 
 None of this shows on the page you read. A save that followed 3 redirects looks exactly like one that needed none. That is the point of it. The reader pastes an address and gets the article, and the hops it took to get there stay where they belong, out of the way.
 
-Point Readplace at a link that hops before it lands, a newsletter tracker or a shortened URL from a site that turns away a bare fetch. Send it from [the browser extension](https://readplace.com/install) or [readplace.com](/), and see whether the copy that comes back is the article or the hop standing in front of it.
+Point Readplace at a link that hops before it lands, a newsletter tracker or a shortened URL from a site that turns away a bare fetch. Send it from [the browser extension](https://readplace.com/install) or [readplace.com](/?utm_source=blog-save-the-article-not-the-redirect&utm_medium=internal&utm_content=home), and see whether the copy that comes back is the article or the hop standing in front of it.

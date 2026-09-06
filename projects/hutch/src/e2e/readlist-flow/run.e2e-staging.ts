@@ -87,6 +87,7 @@ test.describe('Readlist management flow (staging)', () => {
 		const onboardingProgress: OnboardingProgress = {
 			installedExtension: true,
 			savedFirstArticle: true,
+			markedEmailDone: true,
 		}
 
 		const seedProgress: SeedProgress = {

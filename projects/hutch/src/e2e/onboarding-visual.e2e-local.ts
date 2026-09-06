@@ -32,6 +32,10 @@ const OUTSTANDING_STEP =
 	'main.readlist [data-test-onboarding-step="save-first-article-via-extension"]';
 const SUCCESS_TITLE = "main.readlist .onboarding__success-title";
 const SUCCESS_MESSAGE = "main.readlist .onboarding__success-message";
+const EMAIL_STEP = 'main.readlist [data-test-onboarding-step="receive-articles-by-email"]';
+const NEXT_READ_STEP = 'main.readlist [data-test-onboarding-step="save-enough-for-next-read"]';
+const EMAIL_CTA = `${EMAIL_STEP} [data-test-onboarding-action="see-inbox-address"]`;
+const EMAIL_MARK_DONE = `${EMAIL_STEP} [data-test-onboarding-action="email-mark-done"]`;
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
@@ -63,6 +67,21 @@ async function seedSavesReachingMilestone(page: Page, userId: string): Promise<v
 	for (const response of await Promise.all(seeds)) {
 		assert.equal(response.status(), 201, "the seed endpoint must create each article");
 	}
+}
+
+async function seedInboxArticleQueued(page: Page, userId: string): Promise<void> {
+	const response = await page.request.post(`${BASE_URL}/e2e/seed-inbox-article-queued`, {
+		data: { userId },
+	});
+	assert.equal(response.status(), 201, "the inbox-article seed endpoint must answer 201");
+}
+
+async function visibleStepIds(page: Page): Promise<string[]> {
+	return page
+		.locator(`${ANY_STEP}:visible`)
+		.evaluateAll((els) =>
+			els.map((el) => el.getAttribute("data-test-onboarding-step") ?? ""),
+		);
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
@@ -136,10 +155,93 @@ async function welcomeLineStaysHidden(page: Page): Promise<void> {
 	);
 }
 
+async function emailStepOutstandingSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
+	await expect(page.locator(EMAIL_STEP)).toBeVisible();
+	await expect(page.locator(EMAIL_CTA)).toBeVisible();
+	await expect(page.locator(EMAIL_MARK_DONE)).toBeVisible();
+}
+
+async function emailRowLeadsTheList(page: Page): Promise<void> {
+	assert.deepEqual(
+		await visibleStepIds(page),
+		["receive-articles-by-email", "save-enough-for-next-read"],
+		"the email row must lead the outstanding list, with Next Read below it",
+	);
+	const list = await measuredBox(page, STEPS_LIST);
+	const email = await measuredBox(page, EMAIL_STEP);
+	const nextRead = await measuredBox(page, NEXT_READ_STEP);
+	assert.equal(email.y, list.y, "the email row must start where the list starts");
+	assert.ok(nextRead.y >= email.y + email.height, "Next Read must sit below the email row");
+
+	const row = await measuredBox(page, EMAIL_STEP);
+	const cta = await measuredBox(page, EMAIL_CTA);
+	const markDone = await measuredBox(page, EMAIL_MARK_DONE);
+	for (const control of [cta, markDone]) {
+		assert.ok(
+			control.x >= row.x &&
+				control.x + control.width <= row.x + row.width &&
+				control.y >= row.y &&
+				control.y + control.height <= row.y + row.height,
+			"the CTA and mark-done control must sit inside the email row",
+		);
+	}
+	assert.ok(cta.x < markDone.x, "the inbox CTA must lead the mark-done control");
+}
+
+async function nextReadIsTheOnlyVisibleRow(page: Page): Promise<void> {
+	const email = page.locator(EMAIL_STEP);
+	await expect(email).toBeAttached();
+	await expect(email).toBeHidden();
+	assert.equal(
+		await page.locator(EMAIL_STEP).boundingBox(),
+		null,
+		"a checked-off email row must have no box at all",
+	);
+	assert.deepEqual(
+		await visibleStepIds(page),
+		["save-enough-for-next-read"],
+		"only the Next Read row may remain visible",
+	);
+	const list = await measuredBox(page, STEPS_LIST);
+	const nextRead = await measuredBox(page, NEXT_READ_STEP);
+	assert.equal(nextRead.y, list.y, "Next Read must start where the list starts");
+}
+
+async function autoTickedRowTakesNoSpace(page: Page): Promise<void> {
+	await expect(page.locator(EMAIL_STEP)).toHaveAttribute("data-test-onboarding-complete", "true");
+	await nextReadIsTheOnlyVisibleRow(page);
+}
+
+async function nextReadRowSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
+	await expect(page.locator(NEXT_READ_STEP)).toBeVisible();
+}
+
 const CHECKLIST_STEP_HIDDEN: VisualCheckpoint = {
 	name: "onboarding-completed-step-hidden",
 	settled: checklistSettled,
 	geometry: completedRowTakesNoSpace,
+	target: ONBOARDING_CARD,
+	capture: "element",
+	pinnedText: [],
+};
+
+const EMAIL_STEP_OUTSTANDING: VisualCheckpoint = {
+	name: "onboarding-email-step-outstanding",
+	settled: emailStepOutstandingSettled,
+	geometry: emailRowLeadsTheList,
+	target: ONBOARDING_CARD,
+	capture: "element",
+	pinnedText: [],
+};
+
+const EMAIL_STEP_AUTO_TICKED: VisualCheckpoint = {
+	name: "onboarding-email-step-auto-ticked",
+	settled: nextReadRowSettled,
+	geometry: autoTickedRowTakesNoSpace,
 	target: ONBOARDING_CARD,
 	capture: "element",
 	pinnedText: [],
@@ -168,6 +270,38 @@ test.describe("Onboarding card", () => {
 		await captureCheckpoint(page, CHECKLIST_STEP_HIDDEN);
 	});
 
+	test("the email step leads the outstanding list with its CTA and mark-done control", async ({ page }, testInfo) => {
+		const email = `onboarding-email-outstanding-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+		await reloadReadlistWithOnboardingCookies(page, [
+			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
+			{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },
+		]);
+
+		await captureCheckpoint(page, EMAIL_STEP_OUTSTANDING);
+	});
+
+	test("an auto-ticked email step takes no space", async ({ page }, testInfo) => {
+		const email = `onboarding-email-ticked-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedInboxArticleQueued(page, userId);
+		await loginAs(page, email);
+		await reloadReadlistWithOnboardingCookies(page, [
+			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
+			{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },
+		]);
+
+		await captureCheckpoint(page, EMAIL_STEP_AUTO_TICKED);
+	});
+
+	test("the inbox-article seed endpoint rejects a body with no user", async ({ page }) => {
+		const response = await page.request.post(`${BASE_URL}/e2e/seed-inbox-article-queued`, {
+			data: {},
+		});
+		assert.equal(response.status(), 400, "a body without a userId must be rejected");
+	});
+
 	test("a returning user's success card carries only the title", async ({ page }, testInfo) => {
 		const email = `onboarding-success-returning-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
@@ -176,6 +310,7 @@ test.describe("Onboarding card", () => {
 		// readlist seeded deep enough before that would earn no card at all.
 		await loginAs(page, email);
 		await seedSavesReachingMilestone(page, userId);
+		await seedInboxArticleQueued(page, userId);
 		await reloadReadlistWithOnboardingCookies(page, [
 			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
 			{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },

@@ -1,16 +1,16 @@
 {
-	"name": "android",
-	"projectType": "application",
-	"targets": {
-		"compile": {
-			"command": "make apk",
-			"options": { "cwd": "{projectRoot}" },
-			"cache": false
-		},
-		"compile-dev": {
-			"command": "make apk-staging",
-			"options": { "cwd": "{projectRoot}" },
-			"cache": false
-		}
-	}
+  "name": "android",
+  "projectType": "application",
+  "targets": {
+    "compile": {
+      "command": "make apk",
+      "options": { "cwd": "{projectRoot}" },
+      "cache": false
+    },
+    "compile-dev": {
+      "command": "make apk-staging",
+      "options": { "cwd": "{projectRoot}" },
+      "cache": false
+    }
+  }
 }

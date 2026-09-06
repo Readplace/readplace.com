@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
-import { initOnboardingSignals } from "./onboarding-signals/dynamodb-onboarding-signals";
+import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initDynamoDbReadlistDefinitions, initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -301,6 +301,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 			});
 			return entry.address;
 		},
+		findInboxAddress: inboxAddressStore.findByAddress,
 		mintSenderAddress: async ({ senderEmail, userId }: {
 			userId: UserId;
 			senderEmail: ForwardableSender;
@@ -315,7 +316,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		},
 		publishRewriteGmailFilter: async (detail: {
 			userId: UserId;
-			reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+			reason: "forwarding-confirmed" | "sender-added" | "sender-removed";
 		}) => {
 			await publishEvent(RewriteGmailFilterCommand, detail);
 		},
@@ -333,6 +334,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	// stack config via the Lambda environment.
 	const rateLimitRules: RateLimitRules = {
 		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
+		articleDownload: parseRateLimitRule(requireEnv("RATE_LIMIT_ARTICLE_DOWNLOAD")),
 		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
 		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
@@ -421,7 +423,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
-		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
+		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion: onboardingSignals.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged:
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,

@@ -1,3 +1,4 @@
+import { withInternalTracking } from "@packages/web-shell";
 import type {
 	GmailConnection,
 	GmailConnectionState,
@@ -12,7 +13,6 @@ import {
 	GMAIL_SENDER_MAP_PATH,
 	GMAIL_SENDER_REMOVE_PATH,
 	GMAIL_SETTINGS_URL,
-	GMAIL_VERIFY_PATH,
 	type GmailPageError,
 	type GmailPageNotice,
 } from "./gmail.url";
@@ -43,7 +43,6 @@ export interface GmailPageViewModel {
 	integrationsPath: string;
 	gatewayAddress: string;
 	settingsUrl: string;
-	verifyAction: string;
 	addSenderAction: string;
 	disconnectAction: string;
 	reconnectAction: string;
@@ -63,6 +62,12 @@ export interface GmailPollViewModel {
 	message: string;
 }
 
+const GMAIL_SOURCE = "integrations-gmail";
+
+function track(href: string, content: string): string {
+	return withInternalTracking(href, { source: GMAIL_SOURCE, content });
+}
+
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	disconnected: "Not connected",
 	revoked: "Reconnect needed",
@@ -78,9 +83,11 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	sender_unknown: "I couldn't find that sender any more. Reload the page and try again.",
 };
 
+export const GMAIL_GATEWAY_DISABLED_MESSAGE =
+	"This forwarding address has been switched off, so Gmail can't deliver to it. Disconnect Gmail below, then connect again to get a working one.";
+
 export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	connected: "Gmail is connected.",
-	verifying: "Checking with Gmail. This page updates on its own once forwarding is confirmed.",
 	confirmed: "Forwarding confirmed.",
 	sender_added: "Added. Gmail will start forwarding that sender.",
 	sender_removed: "Removed. Gmail will stop forwarding that sender.",
@@ -116,6 +123,7 @@ export function toGmailPollViewModel(input: { pollCount: number }): GmailPollVie
 export function toGmailPageViewModel(input: {
 	connection: GmailConnection;
 	senders: readonly GmailSenderEntry[];
+	gatewayLive: boolean;
 	error?: string;
 	notice?: string;
 }): GmailPageViewModel {
@@ -127,39 +135,39 @@ export function toGmailPageViewModel(input: {
 		(sender) => sender.addedToFilterAt === undefined && sender.mappedAddress === undefined,
 	);
 	const alerts = [
+		...(input.gatewayLive
+			? []
+			: [{ key: "gateway_disabled", message: GMAIL_GATEWAY_DISABLED_MESSAGE }]),
 		...bannersFor(input.error, GMAIL_PAGE_ERRORS),
 		...(input.connection.lastFilterError === undefined
 			? []
 			: [{ key: "filter", message: input.connection.lastFilterError.message }]),
 	];
-	const notices = bannersFor(input.notice, GMAIL_PAGE_NOTICES).filter(
-		(banner) => banner.key !== "verifying" || awaiting,
-	);
+	const notices = bannersFor(input.notice, GMAIL_PAGE_NOTICES);
 
 	return {
 		state,
 		stateModifier: `gmail__status--${state}`,
 		statusLabel: STATUS_LABELS[state],
-		integrationsPath: INTEGRATIONS_PATH,
+		integrationsPath: track(INTEGRATIONS_PATH, "back-to-integrations"),
 		gatewayAddress: input.connection.gatewayAddress,
 		settingsUrl: GMAIL_SETTINGS_URL,
-		verifyAction: GMAIL_VERIFY_PATH,
-		addSenderAction: GMAIL_SENDER_ADD_PATH,
-		disconnectAction: GMAIL_DISCONNECT_PATH,
-		reconnectAction: GMAIL_CONNECT_PATH,
-		showStep: awaiting,
+		addSenderAction: track(GMAIL_SENDER_ADD_PATH, "add-sender"),
+		disconnectAction: track(GMAIL_DISCONNECT_PATH, "disconnect"),
+		reconnectAction: track(GMAIL_CONNECT_PATH, "reconnect"),
+		showStep: awaiting && input.gatewayLive,
 		showSenders: !awaiting && !revoked,
 		showReconnect: revoked,
 		senders: onFilter.map((sender) => ({
 			email: sender.senderEmail,
 			detail: senderDetail(sender),
 			mappedAddress: sender.mappedAddress,
-			removeAction: GMAIL_SENDER_REMOVE_PATH,
+			removeAction: track(GMAIL_SENDER_REMOVE_PATH, "remove-sender"),
 		})),
 		unsorted: unsorted.map((sender) => ({
 			email: sender.senderEmail,
 			detail: senderDetail(sender),
-			mapAction: GMAIL_SENDER_MAP_PATH,
+			mapAction: track(GMAIL_SENDER_MAP_PATH, "map-sender"),
 		})),
 		hasSenders: onFilter.length > 0,
 		hasUnsorted: unsorted.length > 0,

@@ -57,10 +57,10 @@ A disposable inbox is built to close that exact gap. You take an address, you us
 
 So the one signup I refuse is the one that argues against the thing the product is.
 
-There is an abuse side too. Throwaway addresses are how one person registers a hundred accounts, hammers a crawler, or farms a free tier. Asking for a real inbox raises that cost and asks nothing of the people who came to read. If you came over from a service that shut down, the reasons those readers moved are in [the Pocket recovery guide](/blog/pocket-migration) and [the Omnivore writeup](/blog/omnivore-alternative).
+There is an abuse side too. Throwaway addresses are how one person registers a hundred accounts, hammers a crawler, or farms a free tier. Asking for a real inbox raises that cost and asks nothing of the people who came to read. If you came over from a service that shut down, the reasons those readers moved are in [the Pocket recovery guide](/blog/pocket-migration?utm_source=blog-disposable-email-blocked-at-signup&utm_medium=internal&utm_content=post-pocket-migration) and [the Omnivore writeup](/blog/omnivore-alternative?utm_source=blog-disposable-email-blocked-at-signup&utm_medium=internal&utm_content=post-omnivore-alternative).
 
 ## Sign up with an inbox you keep
 
 Use the email you actually open, the one your other accounts already reach you at. The signup wants a real address and a password, and that is the whole gate.
 
-Make the account with the inbox you keep, and start a reading list built to outlast the day you opened it. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).
+Make the account with the inbox you keep, and start a reading list built to outlast the day you opened it. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/?utm_source=blog-disposable-email-blocked-at-signup&utm_medium=internal&utm_content=home).

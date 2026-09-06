@@ -96,7 +96,7 @@ describe("GET /integrations", () => {
 		const form = action.closest("form");
 		assert(form, "the finish-setup action navigates via a form");
 		expect(form.getAttribute("method")?.toLowerCase()).toBe("get");
-		expect(form.getAttribute("action")).toBe("/integrations/gmail");
+		expect(form.getAttribute("action")).toBe("/integrations/gmail?utm_source=integrations&utm_medium=internal&utm_content=finish-setup");
 	});
 
 	it("boosts the action form and loads the clipboard bundle so a boosted hop keeps copy working", async () => {

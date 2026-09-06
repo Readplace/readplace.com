@@ -132,7 +132,7 @@ describe("readlist counts fragment against the initial render", () => {
 			newReadlistAction: READLIST_CREATE_PATH,
 			canCreate: true,
 		};
-		const doc = parseFragment(ReadlistPage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", readlistHoldsArticles: false, rail, saveTip: { state: "due", html: "" } }).content.html);
+		const doc = parseFragment(ReadlistPage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", readlistHoldsArticles: false, rail, saveTip: { state: "due", html: "" }, onboarding: { context: { hasInstallableClient: false }, dismissed: false, completedBefore: false, completionUnearned: false } }).content.html);
 		const label = doc.querySelector('[data-test-filter="unread"] span[id]');
 		assert(label, "the readlist page must render the label the counts fragment refreshes");
 		return label;

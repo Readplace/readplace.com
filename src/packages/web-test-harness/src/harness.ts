@@ -51,12 +51,15 @@ export function useTestServer<Fixture, Result extends { app: Express }>(
 	};
 }
 
+export const BROWSER_USER_AGENT =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
+
 export async function loginAgent(
 	server: Server,
 	auth: { createUser: CreateUser },
 ) {
 	await auth.createUser({ email: "test@example.com", password: "password123" });
-	const agent = request.agent(server);
+	const agent = request.agent(server).set("User-Agent", BROWSER_USER_AGENT);
 	await agent
 		.post("/login")
 		.type("form")

@@ -2,8 +2,7 @@ import { EventEmitter } from "node:events";
 import assert from "node:assert/strict";
 import type { Request, Response } from "express";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { ANALYTICS_EVENTS, type AnalyticsEvent, SAVE_REFUSAL_CODES, type SaveRefusalCode, type SaveRefusedEvent } from "@packages/web-analytics";
+import { ANALYTICS_EVENTS, type AnalyticsEvent, type RecordUngatedEvent, SAVE_REFUSAL_CODES, type SaveRefusalCode, type SaveRefusedEvent } from "@packages/web-analytics";
 import { initObserveSaveRefusal, tagSaveRefusal } from "./save-refusal";
 
 function fakeReq(): Request {
@@ -21,17 +20,12 @@ function fakeReq(): Request {
 
 function observe(status: number, tag?: SaveRefusalCode): AnalyticsEvent[] {
 	const events: AnalyticsEvent[] = [];
-	const analytics: HutchLogger.Typed<AnalyticsEvent> = {
-		info: (e) => events.push(e),
-		error: () => {},
-		warn: () => {},
-		debug: () => {},
-	};
+	const recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent> = (e) => events.push(e);
 	const res = new EventEmitter() as Response & EventEmitter;
 	res.statusCode = status;
 	if (tag) tagSaveRefusal(res, tag);
 	const middleware = initObserveSaveRefusal({
-		analytics,
+		recordUngatedAnalyticsEvent,
 		now: () => new Date("2026-04-21T10:00:00.000Z"),
 		salt: "test-salt",
 		path: "/queue/save-articles",

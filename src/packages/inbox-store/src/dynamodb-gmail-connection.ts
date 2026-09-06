@@ -28,7 +28,7 @@ const GmailConnectionRow = z.object({
 	filterUpdatedAt: dynamoField(z.string()),
 	lastFilterError: dynamoField(GmailFilterErrorRow),
 	revokedAt: dynamoField(z.string()),
-	revokedReason: dynamoField(z.enum(["invalid-grant", "scope-not-granted", "user-disconnected"])),
+	revokedReason: dynamoField(z.enum(["invalid-grant", "scope-not-granted"])),
 	connected: dynamoField(z.string()),
 });
 

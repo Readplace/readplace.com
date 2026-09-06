@@ -11,6 +11,7 @@ export type AuthActionKey =
 export type OnboardingActionKey =
 	| 'onboarding-install-extension-incomplete'
 	| 'onboarding-save-first-article'
+	| 'onboarding-mark-email-done'
 
 export type CleanupActionKey = 'cleanup-previous-articles'
 
@@ -97,6 +98,7 @@ type AssertExhaustive<U, Tuple extends readonly U[]> =
 export const ONBOARDING_ACTION_KEYS = [
 	'onboarding-install-extension-incomplete',
 	'onboarding-save-first-article',
+	'onboarding-mark-email-done',
 ] as const satisfies AssertExhaustive<OnboardingActionKey, readonly OnboardingActionKey[]>
 
 export const PASSWORD_RESET_ACTION_KEYS = [

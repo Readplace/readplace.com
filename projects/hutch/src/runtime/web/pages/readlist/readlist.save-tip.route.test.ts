@@ -99,7 +99,8 @@ describe("Save tip — the readlist save bar", () => {
 
 		const response = await agent.post("/queue/save").type("form").send({ url: "not-a-url" });
 
-		expect(response.status).toBe(422);
-		expect(panelOf(response.text).getAttribute("id")).toBe("save-tip");
+		expect(response.status).toBe(303);
+		const landing = await agent.get(response.headers.location);
+		expect(panelOf(landing.text).getAttribute("id")).toBe("save-tip");
 	});
 });

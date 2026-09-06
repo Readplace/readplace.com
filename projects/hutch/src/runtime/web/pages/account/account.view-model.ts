@@ -35,6 +35,8 @@ import {
 	buildNextChargeViewModel,
 } from "./next-charge.view-model";
 
+const ACCOUNT_SOURCE = "account";
+
 export const ACCOUNT_CANCEL_MAX_POLLS = 20;
 
 /** Server-authoritative card cap. The web layer never trusts the client: every
@@ -168,7 +170,7 @@ function action(input: Omit<AccountAction, "isPending" | "buttonClass">): Accoun
 		...input,
 		isPending: false,
 		buttonClass: ACCOUNT_ACTION_BUTTON_CLASS[input.variant],
-		href: withInternalTracking(input.href, { source: "account", content: input.key }),
+		href: withInternalTracking(input.href, { source: ACCOUNT_SOURCE, content: input.key }),
 	};
 }
 
@@ -548,10 +550,13 @@ export function buildAppearanceSection(input: {
 	platform: NativeClientPlatform | undefined;
 }): AppearanceSectionViewModel {
 	return {
-		formAction: carryAppSurfaceHref(ACCOUNT_APPEARANCE_URL, {
-			appShell: input.appShell,
-			platform: input.platform,
-		}),
+		formAction: withInternalTracking(
+			carryAppSurfaceHref(ACCOUNT_APPEARANCE_URL, {
+				appShell: input.appShell,
+				platform: input.platform,
+			}),
+			{ source: ACCOUNT_SOURCE, content: "appearance" },
+		),
 		options: APPEARANCE_PREFERENCES.map((value) => {
 			const active = value === input.current;
 			return {

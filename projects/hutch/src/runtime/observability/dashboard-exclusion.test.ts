@@ -5,7 +5,7 @@ import {
 	type DashboardWidget,
 } from "./analytics-dashboard";
 import { ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, LOG_GROUPS } from "./events";
-import { type ExcludedIdentities, excludeInternalVisitorsClauses } from "./excluded-identities";
+import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "./related-past-reads-dashboard";
 
 const IDENTITIES: ExcludedIdentities = {
@@ -13,7 +13,7 @@ const IDENTITIES: ExcludedIdentities = {
 	excludedUserIds: ["22222222222222222222222222222222"],
 };
 
-const IDENTITY_CLAUSES = excludeInternalVisitorsClauses(IDENTITIES);
+const AUDIENCE_CLAUSES = excludeNonAudienceClauses(IDENTITIES);
 
 const AUDIENCE_DATA_PROPERTY = { log: "query", metric: "metrics" } as const;
 const STATIC_DATA_PROPERTY = { text: "markdown" } as const;
@@ -39,20 +39,20 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 			"Reads the errors funnel, not the analytics group. Membership of that group is already the filter, and an internal account's stack trace must stay visible: this is an operational fleet view, not an audience count.",
 	},
 	{
-		title: "Imports completed (lifetime)",
+		title: "Imports completed (CloudWatch metric since 2026-05-18)",
 		reason:
 			"Renders a CloudWatch metric, and a datapoint has no field a Logs Insights clause could filter on. The import_committed event feeding the metric filter carries neither visitor_id nor user_id either, so there is no identity anywhere in that chain to prune — the counter includes internal imports and no dashboard-layer change can alter that.",
 	},
 	{
-		title: "Pageviews (lifetime metric, internal traffic included)",
+		title: "Pageviews (CloudWatch metric since 2026-08-24, internal traffic included)",
 		reason: `${METRIC_COUNTER_REASON} Measured over the life of /readplace/analytics, the exclusion list removes 20.1% of pageview lines (12,119 of 60,208), so this counter reads about a quarter above the Logs Insights pageview widgets beside it — which is why the title says so on the widget's face.`,
 	},
 	{
-		title: "Save intents (lifetime metric, internal traffic included)",
+		title: "Save intents (CloudWatch metric since 2026-08-24, internal traffic included)",
 		reason: `${METRIC_COUNTER_REASON} Measured over the same window, the exclusion list removes 8.1% of view_save_intent lines (374 of 4,593).`,
 	},
 	{
-		title: "Signups (lifetime metric, internal traffic included)",
+		title: "Signups (CloudWatch metric since 2026-08-24, internal traffic included)",
 		reason: `${METRIC_COUNTER_REASON} No excluded identity has produced a user_created line so far (0 of 24), but that is an accident of who has signed up, not a property of the counter — an internal signup would land in it.`,
 	},
 	{
@@ -116,16 +116,16 @@ function audienceWidgets(body: DashboardBody): DashboardWidget[] {
 	return body.widgets.filter((widget) => AUDIENCE_DATA_TYPES.includes(widget.type));
 }
 
-describe.each(DASHBOARDS)("$name — internal identities", ({ body, unfiltered }) => {
+describe.each(DASHBOARDS)("$name — internal identities and bot-labelled lines", ({ body, unfiltered }) => {
 	const named = new Set(unfiltered.map((widget) => widget.title));
 
-	it("prunes the internal visitor and the internal user from every widget that shows audience data and is not a named exception, so a widget added without the clause fails here instead of quietly reporting internal traffic as customer traffic", () => {
+	it("prunes the internal visitor, the internal user and every bot-labelled line from every widget that shows audience data and is not a named exception, so a widget added without the clauses fails here instead of quietly reporting internal traffic or a crawler as customer traffic", () => {
 		const filterable = audienceWidgets(body).filter((widget) => !named.has(titleOf(widget)));
 		const missing = filterable
-			.filter((widget) => !IDENTITY_CLAUSES.every((clause) => queryOf(widget).includes(clause)))
+			.filter((widget) => !AUDIENCE_CLAUSES.every((clause) => queryOf(widget).includes(clause)))
 			.map(titleOf);
 
-		expect(IDENTITY_CLAUSES.length).toBeGreaterThan(0);
+		expect(AUDIENCE_CLAUSES.length).toBeGreaterThan(0);
 		expect(filterable.length).toBeGreaterThan(0);
 		expect(missing).toEqual([]);
 	});
@@ -139,7 +139,7 @@ describe.each(DASHBOARDS)("$name — internal identities", ({ body, unfiltered }
 	it("leaves every named exception genuinely unfiltered, so the list records a decision instead of describing a widget that already carries the clause", () => {
 		const contradicted = audienceWidgets(body)
 			.filter((widget) => named.has(titleOf(widget)))
-			.filter((widget) => IDENTITY_CLAUSES.some((clause) => queryOf(widget).includes(clause)))
+			.filter((widget) => AUDIENCE_CLAUSES.some((clause) => queryOf(widget).includes(clause)))
 			.map(titleOf);
 
 		expect(contradicted).toEqual([]);

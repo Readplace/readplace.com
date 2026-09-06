@@ -24,7 +24,7 @@ Readplace moved that form to the end. The upload, the review, and the picking no
 
 ## What you do before the account
 
-Say your links live in a Pocket export, the file that service handed you on the way out. Or they sit on one page, a column of bookmarks you saved years ago. You open [readplace.com/import](/import) and give it the file, or paste the link.
+Say your links live in a Pocket export, the file that service handed you on the way out. Or they sit on one page, a column of bookmarks you saved years ago. You open [readplace.com/import](/import?utm_source=blog-import-links-before-signing-up&utm_medium=internal&utm_content=import) and give it the file, or paste the link.
 
 Readplace reads what you give it as text. It finds every `http` and `https` address inside and lays them out as a list, each one checked by default. You page through and untick what you do not want. The list saves each choice on the server as you make it, so a long export does not lose your place.
 
@@ -50,8 +50,8 @@ Two limits sit on the edge of this. A file over 4.5 MB, or an import past 2,000 
 
 Readers who closed Pocket or Omnivore and went looking for a new home did not want a leap of faith. They wanted to see their own list, whole, in the new place, before trusting it with anything. A signup form in front of the importer asks for that trust up front, before the app has shown them one thing. Plenty turn around right there.
 
-I put the list before the form for that reason. Your links come back ticked and ready, and the account is what you do once you have decided to keep them. The order matches how the choice gets made. If you came from a service that shut down, the [Pocket recovery guide](/blog/pocket-migration) and the [Omnivore writeup](/blog/omnivore-alternative) cover what moved those readers.
+I put the list before the form for that reason. Your links come back ticked and ready, and the account is what you do once you have decided to keep them. The order matches how the choice gets made. If you came from a service that shut down, the [Pocket recovery guide](/blog/pocket-migration?utm_source=blog-import-links-before-signing-up&utm_medium=internal&utm_content=post-pocket-migration) and the [Omnivore writeup](/blog/omnivore-alternative?utm_source=blog-import-links-before-signing-up&utm_medium=internal&utm_content=post-omnivore-alternative) cover what moved those readers.
 
 A signup wall in front of the importer keeps strangers out. A signup wall at the commit step lets a stranger turn into a reader.
 
-If your old list is sitting in an export file, or spread across a page of links, open [the importer](/import) and watch it come back before you decide to keep it.
+If your old list is sitting in an export file, or spread across a page of links, open [the importer](/import?utm_source=blog-import-links-before-signing-up&utm_medium=internal&utm_content=import) and watch it come back before you decide to keep it.

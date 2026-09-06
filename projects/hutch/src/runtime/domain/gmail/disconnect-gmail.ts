@@ -51,7 +51,7 @@ export function initDisconnectGmail(deps: {
 		}
 
 		await credentials.deleteCredentials(userId);
-		await connections.markRevoked({ userId, reason: "user-disconnected" });
+		await connections.deleteConnection(userId);
 		return { ok: true, filterRemoved, grantRevoked };
 	};
 }

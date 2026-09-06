@@ -30,8 +30,73 @@
   flex: 1;
 }
 
+.view__cta-item--downloads-hidden {
+  display: none;
+}
+
 .view__cta-btn {
   width: 100%;
+}
+
+.view__downloads {
+  position: relative;
+  width: 100%;
+}
+
+.view__downloads-slot--hidden {
+  display: none;
+}
+
+.view__downloads-trigger {
+  width: 100%;
+  gap: 4px;
+  list-style: none;
+}
+
+.view__downloads-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.view__downloads-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.view__downloads-trigger svg {
+  width: 0.875em;
+  height: 0.875em;
+}
+
+.view__downloads-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 13;
+  min-width: max-content;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.view__downloads-option {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--button-padding-sm);
+  font-size: 0.875rem;
+  text-align: left;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.view__downloads-option:hover {
+  background: var(--color-surface);
 }
 
 .view__cta-label-short {
@@ -39,7 +104,8 @@
 }
 
 @media (max-width: 599px) {
-  .view__cta-label {
+  .view__cta-label,
+  .view__downloads-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -65,4 +131,3 @@
   margin-top: 1.5rem;
   pointer-events: none;
 }
-

@@ -179,6 +179,12 @@ export function isBotUserAgent(userAgent: string | undefined): boolean {
 	return isbot(userAgent);
 }
 
+export function isBotRequest(req: Request): boolean {
+	const userAgent = req.get("user-agent");
+	if (!userAgent) return true;
+	return isBotUserAgent(userAgent);
+}
+
 /**
  * Derives a `DeviceClass` from the request User-Agent. Only the class is ever
  * returned or logged — the raw UA is discarded here, preserving the no-raw-UA /
@@ -443,7 +449,7 @@ function declaresChromium(userAgent: string): boolean {
 
 function isBrowserClient(req: Request): boolean {
 	const userAgent = req.get("user-agent");
-	if (!userAgent) return false;
+	assert(userAgent, "isBrowserClient runs after isBotRequest, which drops a request with no User-Agent");
 	if (!req.get("accept-language")) return false;
 	if (declaresChromium(userAgent) && !req.get("sec-ch-ua")) return false;
 	return true;
@@ -471,7 +477,7 @@ function isTopLevelNavigation(req: Request): boolean {
  * stay countable, which is what keeps genuine acquisition traffic measurable.
  */
 export function isCountableBrowserRequest(params: { req: Request; ownHost: string }): boolean {
-	if (isBotUserAgent(params.req.get("user-agent"))) return false;
+	if (isBotRequest(params.req)) return false;
 	if (isPrefetch(params.req)) return false;
 	if (extractReferrerHost(params.req) === params.ownHost) return false;
 	return isBrowserClient(params.req);

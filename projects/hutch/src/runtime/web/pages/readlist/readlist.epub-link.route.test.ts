@@ -25,7 +25,7 @@ const ARTICLE_HTML = `
 
 const useApp = useTestServer();
 
-async function openReader(opts: { ready: boolean; query?: string }): Promise<Document> {
+async function openReaderHarness(opts: { ready: boolean; query?: string }) {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], logError: createNoopLogError() });
@@ -63,44 +63,131 @@ async function openReader(opts: { ready: boolean; query?: string }): Promise<Doc
 		.get(`/queue/${articleId}/view${opts.query ?? ""}`)
 		.set("Cookie", sessionCookie);
 	expect(response.status).toBe(200);
-	return new JSDOM(response.text).window.document;
+	return { document: new JSDOM(response.text).window.document, harness, fixture, sessionCookie, articleId };
 }
 
-function epubSlot(doc: Document): Element {
-	const slot = doc.querySelector("[data-test-download-epub-slot]");
-	assert(slot, "the download-epub slot must render");
+async function openReader(opts: { ready: boolean; query?: string }): Promise<Document> {
+	return (await openReaderHarness(opts)).document;
+}
+
+function downloadsSlot(doc: Document): Element {
+	const slot = doc.querySelector("[data-test-downloads-slot]");
+	assert(slot, "the downloads slot must render");
 	return slot;
 }
 
-describe("GET /queue/:id/view download-epub link", () => {
-	it("links to the public EPUB URL when the article is ready and the feature is revealed", async () => {
+describe("GET /queue/:id/view Download", () => {
+	it.each(["", "?feature=other", "?platform=ios", "?platform=android"])("hides ready downloads without the EPUB feature: %s", async (query) => {
+		const doc = await openReader({ ready: true, query });
+
+		expect(downloadsSlot(doc).classList.contains("article-body__downloads-slot--hidden")).toBe(true);
+	});
+
+	it("links to public EPUB and AZW3 URLs when the article is ready", async () => {
 		const doc = await openReader({ ready: true, query: "?feature=epub" });
 
-		expect(epubSlot(doc).classList.contains("article-body__download-epub-slot--visible")).toBe(true);
-		const link = doc.querySelector("[data-test-download-epub]");
-		assert(link, "the download-epub link must render when ready");
-		const href = new URL(link.getAttribute("href") ?? "", TEST_APP_ORIGIN);
-		expect(href.pathname).toBe("/view/example.com/shareable");
-		expect(href.searchParams.get("format")).toBe("epub");
-		expect(href.searchParams.get("utm_source")).toBe("reader");
-		expect(href.searchParams.get("utm_medium")).toBe("internal");
+		expect(downloadsSlot(doc).classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		const links = Array.from(doc.querySelectorAll("[data-test-download]"), (link) => {
+			const href = new URL(link.getAttribute("href") ?? "", TEST_APP_ORIGIN);
+			return {
+				format: link.getAttribute("data-test-download"),
+				pathname: href.pathname,
+				utmSource: href.searchParams.get("utm_source"),
+				utmMedium: href.searchParams.get("utm_medium"),
+				utmContent: href.searchParams.get("utm_content"),
+			};
+		});
+		expect(links).toEqual([
+			{
+				format: "epub",
+				pathname: "/view/example.com/shareable",
+				utmSource: "reader",
+				utmMedium: "internal",
+				utmContent: "download-epub",
+			},
+			{
+				format: "azw3",
+				pathname: "/view/example.com/shareable",
+				utmSource: "reader",
+				utmMedium: "internal",
+				utmContent: "download-azw3",
+			},
+		]);
 	});
 
-	it("hides the download-epub slot when the feature is not revealed", async () => {
-		const doc = await openReader({ ready: true });
-
-		expect(epubSlot(doc).classList.contains("article-body__download-epub-slot--hidden")).toBe(true);
-	});
-
-	it("hides the download-epub slot while the article is pending", async () => {
+	it("keeps its Download slot hidden while the article is pending", async () => {
 		const doc = await openReader({ ready: false, query: "?feature=epub" });
 
-		expect(epubSlot(doc).classList.contains("article-body__download-epub-slot--hidden")).toBe(true);
+		expect(downloadsSlot(doc).classList.contains("article-body__downloads-slot--hidden")).toBe(true);
 	});
 
-	it("hides the download-epub slot in the iOS chromeless reader", async () => {
+	it("offers Download in the iOS chromeless reader", async () => {
 		const doc = await openReader({ ready: true, query: "?platform=ios&feature=epub" });
 
-		expect(epubSlot(doc).classList.contains("article-body__download-epub-slot--hidden")).toBe(true);
+		expect(downloadsSlot(doc).classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		expect(Array.from(doc.querySelectorAll("[data-test-download]"), (link) => link.textContent)).toEqual([
+			"EPUB",
+			"AZW3",
+		]);
+	});
+
+	it("offers Download in the Android chromeless reader", async () => {
+		const doc = await openReader({ ready: true, query: "?platform=android&feature=epub" });
+
+		expect(downloadsSlot(doc).classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		expect(Array.from(doc.querySelectorAll("[data-test-download]"), (link) => link.textContent)).toEqual([
+			"EPUB",
+			"AZW3",
+		]);
+	});
+
+	it.each(["reader", "summary"])("reveals Download when the %s poll receives ready content", async (poll) => {
+		const { document, harness, fixture, sessionCookie, articleId } = await openReaderHarness({ ready: false, query: "?feature=epub" });
+		const initialSlot = downloadsSlot(document);
+		expect(initialSlot.id).toBe("reader-downloads-slot");
+		expect(initialSlot.classList.contains("article-body__downloads-slot--hidden")).toBe(true);
+		const initialPollUrls = Array.from(document.querySelectorAll("#article-body-reader-slot[hx-get], #article-body-summary-slot[hx-get]"), (element) => new URL(element.getAttribute("hx-get") ?? "", TEST_APP_ORIGIN));
+		expect(initialPollUrls.map((url) => url.searchParams.get("feature"))).toEqual(["epub", "epub"]);
+
+		await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>The article is ready.</p>" });
+		await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+		const response = await request(harness.server)
+			.get(`/queue/${articleId}/${poll}?poll=1&feature=epub`)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		const slot = downloadsSlot(new JSDOM(response.text).window.document);
+		expect(slot.id).toBe(initialSlot.id);
+		expect(slot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		expect(Array.from(slot.querySelectorAll("[data-test-download]"), (link) => ({
+			format: link.getAttribute("data-test-download"),
+			href: link.getAttribute("href"),
+		}))).toEqual([
+			{
+				format: "epub",
+				href: "/view/example.com/shareable?format=epub&utm_source=reader&utm_medium=internal&utm_content=download-epub",
+			},
+			{
+				format: "azw3",
+				href: "/view/example.com/shareable?format=azw3&utm_source=reader&utm_medium=internal&utm_content=download-azw3",
+			},
+		]);
+	});
+
+	it.each(["reader", "summary"])("keeps the default %s poll scoped to the reader without downloads", async (poll) => {
+		const { harness, sessionCookie, articleId } = await openReaderHarness({ ready: true });
+		const response = await request(harness.server)
+			.get(`/queue/${articleId}/${poll}?poll=1`)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		const document = new JSDOM(response.text).window.document;
+		expect(Array.from(document.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
+			poll === "reader" ? "article-body-summary-slot" : "article-body-reader-slot",
+			"article-body-progress",
+			"article-header",
+			"document-title",
+		]);
 	});
 });

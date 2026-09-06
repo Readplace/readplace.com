@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
 import { OAUTH_TOKEN_GRANT_TYPES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1236,6 +1236,40 @@ describe("isCountableBrowserRequest", () => {
 	it("still drops a prefetch and an own-host referral from the native client, which the exemption must not outrank", () => {
 		expect(run({ headers: { "user-agent": NATIVE_APP_USER_AGENT, "sec-purpose": "prefetch" } })).toBe(false);
 		expect(run({ headers: { "user-agent": NATIVE_APP_USER_AGENT, referer: `https://${OWN_HOST}/queue` } })).toBe(false);
+	});
+});
+
+describe("isBotRequest", () => {
+	function botFor(userAgent: string | undefined): boolean {
+		return isBotRequest(createReq({ headers: { "user-agent": userAgent } }) as Request);
+	}
+
+	it("treats a request that sends no User-Agent as a bot, which is the one place this predicate parts company with isBotUserAgent", () => {
+		expect(botFor(undefined)).toBe(true);
+	});
+
+	it("treats an empty User-Agent as a bot, since a header present but blank carries no more signal than an absent one", () => {
+		expect(botFor("")).toBe(true);
+	});
+
+	it("reports a crawler as a bot", () => {
+		expect(botFor("Googlebot/2.1 (+http://www.google.com/bot.html)")).toBe(true);
+	});
+
+	it("does not report a real browser as a bot", () => {
+		expect(
+			botFor(
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+			),
+		).toBe(false);
+	});
+
+	it.each([
+		["the iPhone app", NATIVE_APP_USER_AGENT],
+		["the share extension", SHARE_EXTENSION_USER_AGENT],
+		["the Android app", ANDROID_APP_USER_AGENT],
+	])("does not report %s as a bot, so a native save still records an audience event", (_name, userAgent) => {
+		expect(botFor(userAgent)).toBe(false);
 	});
 });
 

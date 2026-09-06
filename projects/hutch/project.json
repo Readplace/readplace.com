@@ -13,7 +13,12 @@
     "deploy-infra": {
       "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes) $([ \"$CI\" = true ] && [ \"$PULUMI_STACK\" = staging ] && echo --skip-preview)",
       "options": { "cwd": "{projectRoot}" },
-      "dependsOn": ["compile"]
+      "dependsOn": ["compile", "build-boko-layer"]
+    },
+    "build-boko-layer": {
+      "command": "node scripts/build-boko-layer.mjs",
+      "options": { "cwd": "{projectRoot}" },
+      "cache": false
     },
     "post-deploy": {
       "command": "bash scripts/post-deploy.sh",

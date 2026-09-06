@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { IconName } from "@packages/ui-icons";
 import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
-import type { PitchablePlatform } from "../../onboarding/extension-install";
+import type { OnboardingContext } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "@packages/web-analytics";
 import {
 	render,
@@ -14,8 +14,16 @@ import {
 import type { CspNonce, LocalTime, PageBody } from "@packages/web-shell";
 
 import { READLIST_STYLES } from "./readlist.styles";
+import {
+	READER_PAGE_SCRIPTS,
+	renderReaderSkeleton,
+} from "./reader-skeleton/reader-skeleton.component";
 import { renderReadlistCountsTrigger, renderStatusToast } from "./readlist-mutation-fragments";
 import { renderReadlistCard, toReadlistCardDisplayModel } from "./readlist-card/readlist-card.component";
+import {
+	renderReadlistSaveSkeleton,
+	toReadlistSaveSkeletonDisplayModel,
+} from "./readlist-save-skeleton.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { buildReadlistFilters, renderReadlistFilters } from "./readlist-filters.component";
@@ -35,7 +43,6 @@ import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.co
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { ReadlistViewModel, SubscriptionBannerState } from "./readlist.viewmodel";
 import {
-	READLIST_DISMISS_ONBOARDING_PATH,
 	READLIST_SAVE_PATH,
 	buildReadlistUrl,
 	readlistDeletePath,
@@ -101,6 +108,7 @@ interface ReadlistDisplayModel {
 	cancellationEffectiveAt?: LocalTime;
 	accessIsReadOnly: boolean;
 	saveFormClass: string;
+	saveSkeletonHtml: string;
 	saveBarHidden: boolean;
 	defaultReadlistUrl: string;
 	defaultReadlistLabel: string;
@@ -135,7 +143,14 @@ function readlistDeleteConfirmPanels(rail: ReadlistRailViewModel): string {
 		.join("\n");
 }
 
-function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; knownUnreadCount?: number; installed: boolean; savedArticle: boolean; savedCount: number; platform: PitchablePlatform; hasInstallableClient: boolean; onboardingDismissed: boolean; onboardingCompletedBefore: boolean; onboardingCompletionUnearned: boolean; deviceClass: DeviceClass; rail: ReadlistRailViewModel; saveTip: SaveTip }): ReadlistDisplayModel {
+interface ReadlistOnboarding {
+	context: OnboardingContext;
+	dismissed: boolean;
+	completedBefore: boolean;
+	completionUnearned: boolean;
+}
+
+function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; knownUnreadCount?: number; onboarding: ReadlistOnboarding; deviceClass: DeviceClass; rail: ReadlistRailViewModel; saveTip: SaveTip }): ReadlistDisplayModel {
 	const activeTab = vm.filters.tab;
 	const saveBarHidden = vm.filters.readlist !== DEFAULT_READLIST.slug;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
@@ -153,23 +168,12 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 		},
 	);
 
-	const onboardingHtml = OnboardingChecklist(
-		options.hasInstallableClient
-			? {
-				hasInstallableClient: true,
-				installed: options.installed,
-				savedArticle: options.savedArticle,
-				savedCount: options.savedCount,
-				platform: options.platform,
-			}
-			: { hasInstallableClient: false },
-		{
-			dismissed: options.onboardingDismissed,
-			completedBefore: options.onboardingCompletedBefore,
-			completionUnearned: options.onboardingCompletionUnearned,
-			dismissAction: `${READLIST_DISMISS_ONBOARDING_PATH}${readlistReturnQuery(vm.filters)}`,
-		},
-	);
+	const onboardingHtml = OnboardingChecklist(options.onboarding.context, {
+		dismissed: options.onboarding.dismissed,
+		completedBefore: options.onboarding.completedBefore,
+		completionUnearned: options.onboarding.completionUnearned,
+		returnQuery: readlistReturnQuery(vm.filters),
+	});
 
 	const banner: SubscriptionBannerState = vm.subscriptionBanner;
 	const bannerIsTrialCountdown = banner.state === "trial-countdown";
@@ -271,6 +275,12 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			saveBarHidden ? "readlist__save-form--hidden" : "readlist__save-form--visible",
 			...(vm.accessIsReadOnly ? ["readlist__save-form--disabled"] : []),
 		].join(" "),
+		saveSkeletonHtml: renderReadlistSaveSkeleton(
+			toReadlistSaveSkeletonDisplayModel({
+				filters: vm.filters,
+				accessIsReadOnly: vm.accessIsReadOnly,
+			}),
+		),
 		saveBarHidden,
 		defaultReadlistUrl: buildReadlistUrl({}),
 		defaultReadlistLabel: DEFAULT_READLIST.label,
@@ -298,12 +308,21 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; knownUnreadCount?: number; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; installed?: boolean; savedArticle?: boolean; savedCount?: number; platform?: PitchablePlatform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; onboardingCompletedBefore?: boolean; onboardingCompletionUnearned?: boolean; statusCode?: number }): PageBody {
+export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; knownUnreadCount?: number; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; onboarding: ReadlistOnboarding }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, knownUnreadCount: options.knownUnreadCount, installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, savedCount: options.savedCount ?? 0, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, onboardingCompletedBefore: options.onboardingCompletedBefore ?? false, onboardingCompletionUnearned: options.onboardingCompletionUnearned ?? false, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
-	const content = render(READLIST_TEMPLATE, { ...displayModel, saveUrl });
+	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, knownUnreadCount: options.knownUnreadCount, onboarding: options.onboarding, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
+	const content = render(READLIST_TEMPLATE, {
+		...displayModel,
+		saveUrl,
+		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
+	});
 
-	const scriptParts: string[] = [NAV_HIDE_SCRIPT, SAVE_TIP_SCRIPT, READLIST_RENAME_SCRIPT];
+	const scriptParts: string[] = [
+		NAV_HIDE_SCRIPT,
+		SAVE_TIP_SCRIPT,
+		READLIST_RENAME_SCRIPT,
+		READER_PAGE_SCRIPTS,
+	];
 	if (saveUrl) scriptParts.push(autoSubmitScript(options.cspNonce));
 
 	return {
@@ -317,6 +336,5 @@ export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonc
 		bodyClass: "page-readlist",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),
-		statusCode: options.statusCode,
 	};
 }

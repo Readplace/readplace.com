@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import {
 	captureCheckpoint,
+	expect,
 	measuredBox,
 	test,
 	type VisualCheckpoint,
@@ -23,7 +24,8 @@ const BAR = `${TOOLBAR} .article-body__actions--top`;
 const BACK = "[data-test-back-link]";
 const PICKER = "[data-test-readlists-trigger]";
 const MARK_READ = "[data-test-mark-read-btn]";
-const EPUB = "[data-test-download-epub]";
+const DOWNLOADS = "[data-test-downloads-trigger]";
+const DOWNLOADS_MENU = "[data-test-downloads-menu]";
 
 const VOLATILE_CHROME = [
 	".trial-countdown",
@@ -90,7 +92,7 @@ interface MeasuredBox {
 
 async function visibleControls(page: Page): Promise<{ selector: string; box: MeasuredBox }[]> {
 	const present = await Promise.all(
-		[BACK, PICKER, MARK_READ, EPUB].map(async (selector) => ({
+		[BACK, PICKER, MARK_READ, DOWNLOADS].map(async (selector) => ({
 			selector,
 			count: await page.locator(selector).count(),
 		})),
@@ -159,6 +161,11 @@ async function phoneGeometry(page: Page): Promise<void> {
 
 async function desktopGeometry(page: Page): Promise<void> {
 	await everyControlOnOneRow(page);
+	assert.equal(
+		(await page.locator(`${DOWNLOADS} .article-body__action-label`).textContent())?.trim(),
+		"Download",
+		"the reader's visible download control must use singular copy",
+	);
 	const shortForms = await page
 		.locator(`${BAR} .article-body__action-label-short`)
 		.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).display));
@@ -190,28 +197,84 @@ function checkpoint(name: string, geometry: (page: Page) => Promise<void>): Visu
 	};
 }
 
+async function downloadsMenuSettled(page: Page): Promise<void> {
+	await toolbarSettled(page);
+	await page.waitForSelector("#reader-downloads[open]");
+	await page.waitForSelector(DOWNLOADS_MENU);
+}
+
+async function downloadsMenuGeometry(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "the reader Download popup must run with an explicit viewport");
+	const bar = await measuredBox(page, BAR);
+	const menu = await measuredBox(page, DOWNLOADS_MENU);
+	assert.ok(menu.y >= bar.y + bar.height + 3, "the reader Download popup must open below the toolbar");
+	assert.ok(
+		Math.abs(menu.x + menu.width - (bar.x + bar.width)) <= 1,
+		"the phone Download popup must anchor to the toolbar's right edge",
+	);
+	assert.ok(
+		menu.x >= 0 && menu.x + menu.width <= viewport.width && menu.y + menu.height <= viewport.height,
+		"the open Download popup must stay inside the viewport",
+	);
+	const options = await page.locator(`${DOWNLOADS_MENU} [data-test-download]`).evaluateAll((elements) =>
+		elements.map((element) => {
+			const box = element.getBoundingClientRect();
+			return { label: element.textContent, width: box.width, height: box.height };
+		}),
+	);
+	assert.deepEqual(options.map((option) => option.label), ["EPUB", "AZW3"], "the popup must list EPUB then AZW3");
+	for (const option of options) {
+		assert.ok(
+			option.width >= 44 && option.height >= 44,
+			`the ${option.label} option must remain a 44px touch target`,
+		);
+	}
+	assert.equal(
+		await page.evaluate(() => document.documentElement.scrollWidth),
+		viewport.width,
+		"the open Download popup must not widen the page",
+	);
+}
+
+function downloadsMenuCheckpoint(name: string): VisualCheckpoint {
+	return {
+		name,
+		settled: downloadsMenuSettled,
+		geometry: downloadsMenuGeometry,
+		target: DOWNLOADS_MENU,
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
 test.describe("Reader toolbar on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE });
 
-	test("back, the picker and mark-read share one row", async ({ page }, testInfo) => {
+	test("back, the picker and mark-read share one row while Download stays hidden by default", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openOwnerReader(page, {
 			stamp: `phone-${testInfo.workerIndex}-${Date.now()}`,
 			query: "",
 		});
+		await expect(page.locator("#reader-downloads-slot")).toHaveClass(
+			"article-body__downloads-slot article-body__downloads-slot--hidden",
+		);
 		await captureCheckpoint(page, checkpoint("reader-toolbar-phone", phoneGeometry));
 	});
 
-	test("the EPUB download joins that row rather than opening a second one", async ({
+	test("Download opens an EPUB and AZW3 popup below the reader toolbar", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openOwnerReader(page, {
-			stamp: `phone-epub-${testInfo.workerIndex}-${Date.now()}`,
+			stamp: `phone-downloads-${testInfo.workerIndex}-${Date.now()}`,
 			query: "?feature=epub",
 		});
-		await page.waitForSelector(EPUB);
+		await page.waitForSelector(DOWNLOADS);
 		await captureCheckpoint(page, checkpoint("reader-toolbar-phone-epub", phoneGeometry));
+		await page.locator(DOWNLOADS).click();
+		await captureCheckpoint(page, downloadsMenuCheckpoint("reader-download-menu-open-phone"));
 	});
 
 	test("the chromeless reader pins the same single row to the top of the native sheet", async ({
@@ -223,7 +286,16 @@ test.describe("Reader toolbar on a phone", () => {
 			query: "?shell=app",
 		});
 		await page.waitForSelector("body.page-reader--chromeless");
+		await expect(page.locator("#reader-downloads-slot")).toHaveClass(
+			"article-body__downloads-slot article-body__downloads-slot--hidden",
+		);
 		await captureCheckpoint(page, checkpoint("reader-toolbar-chromeless-phone", phoneGeometry));
+		const enabledReaderUrl = new URL(page.url());
+		enabledReaderUrl.searchParams.set("feature", "epub");
+		await page.goto(enabledReaderUrl.toString(), { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-reader--chromeless");
+		await page.locator(DOWNLOADS).click();
+		await captureCheckpoint(page, downloadsMenuCheckpoint("reader-download-menu-open-chromeless-phone"));
 	});
 });
 
@@ -236,7 +308,7 @@ test.describe("Reader toolbar above the breakpoint", () => {
 			stamp: `desktop-${testInfo.workerIndex}-${Date.now()}`,
 			query: "?feature=epub",
 		});
-		await page.waitForSelector(EPUB);
+		await page.waitForSelector(DOWNLOADS);
 		await captureCheckpoint(page, checkpoint("reader-toolbar-desktop", desktopGeometry));
 	});
 });

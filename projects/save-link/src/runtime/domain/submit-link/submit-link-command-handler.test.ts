@@ -99,6 +99,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		validateSaveableUrl,
 		saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
 		allocateSavedAt: jest.fn().mockResolvedValue(allocatedSavedAt),
+		recordInboxArticleQueued: jest.fn().mockResolvedValue(undefined),
 		updateArticleStatus: jest.fn().mockResolvedValue(true),
 		markCrawlPending: jest.fn().mockResolvedValue(undefined),
 		markSummaryPending: jest.fn().mockResolvedValue(undefined),
@@ -461,5 +462,92 @@ describe("initSubmitLinkCommandHandler", () => {
 
 		const queued = publishEvent.mock.calls.find((call) => call[0].detailType === "LinkQueued");
 		expect(queued?.[1]).toEqual({ url: exampleUrl, userId });
+	});
+
+	it("stamps the reader's first inbox article once for an email-provenance save", async () => {
+		const recordInboxArticleQueued = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ recordInboxArticleQueued });
+
+		const response = await run(
+			handler,
+			createSqsEvent([
+				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" } },
+			]),
+		);
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(recordInboxArticleQueued).toHaveBeenCalledTimes(1);
+		expect(recordInboxArticleQueued).toHaveBeenCalledWith({ userId });
+	});
+
+	it.each([
+		{ kind: "web" },
+		{ kind: "client", clientName: "chrome" },
+		{ kind: "import" },
+		{ kind: "mcp", registeredName: "claude" },
+	])("leaves the inbox stamp untouched for a $kind save", async (provenance) => {
+		const recordInboxArticleQueued = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ recordInboxArticleQueued });
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance }]));
+
+		expect(recordInboxArticleQueued).not.toHaveBeenCalled();
+	});
+
+	it("stamps after the queue write and before the tier-1 crawl", async () => {
+		const order: string[] = [];
+		const handler = createHandler({
+			saveArticle: jest.fn().mockImplementation(async () => {
+				order.push("saveArticle");
+				return { saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true };
+			}),
+			recordInboxArticleQueued: jest.fn().mockImplementation(async () => {
+				order.push("stamp");
+			}),
+			crawlAndFinalizeArticle: (async () => {
+				order.push("crawl");
+				return fetchedResult;
+			}) as CrawlAndFinalizeArticle,
+		});
+
+		await run(
+			handler,
+			createSqsEvent([
+				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" } },
+			]),
+		);
+
+		expect(order).toEqual(["saveArticle", "stamp", "crawl"]);
+	});
+
+	it("logs a warning, keeps the accepted save and still crawls when the inbox stamp throws", async () => {
+		const crawlAndFinalizeArticle = jest.fn().mockResolvedValue(fetchedResult);
+		const warnings: unknown[] = [];
+		const handler = createHandler({
+			recordInboxArticleQueued: jest.fn().mockRejectedValue(new Error("DDB throttled")),
+			crawlAndFinalizeArticle: crawlAndFinalizeArticle as unknown as CrawlAndFinalizeArticle,
+			logger: {
+				...noopLogger,
+				warn: (message, context) => {
+					warnings.push([message, context]);
+				},
+			},
+		});
+
+		const response = await run(
+			handler,
+			createSqsEvent([
+				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" } },
+			]),
+		);
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(crawlAndFinalizeArticle).toHaveBeenCalled();
+		expect(warnings).toEqual([
+			[
+				"[SubmitLinkCommand] inbox onboarding stamp failed — continuing",
+				{ url: exampleUrl, error: "Error: DDB throttled" },
+			],
+		]);
 	});
 });

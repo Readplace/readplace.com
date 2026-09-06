@@ -568,7 +568,7 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 		// shell rather than dropping the reader into the full web shell mid-sheet.
 		const form = banner.querySelector("form.changelog-banner__dismiss");
 		assert(form, "the close control must be a real form so it works with no JS and stays inside the app sheet");
-		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss");
+		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss");
 		expect(form.querySelector('input[name="version"]')?.getAttribute("value")).toBe(CHANGELOG_VERSION);
 		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
 			`/queue/${articleId}/view?platform=ios`,
@@ -581,7 +581,7 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 		const firstArticle = await saveAndGetArticleId(agent, "https://example.com/app-first");
 
 		const dismiss = await agent
-			.post("/banner/changelog/dismiss")
+			.post("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss")
 			.type("form")
 			.send({ version: CHANGELOG_VERSION, returnTo: `/queue/${firstArticle}/view?platform=ios` });
 
@@ -610,7 +610,7 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 		const stalerVersion = "00000000";
 		assert(isChangelogVersion(stalerVersion));
 		await agent
-			.post("/banner/changelog/dismiss")
+			.post("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss")
 			.type("form")
 			.send({ version: stalerVersion, returnTo: `/queue/${articleId}/view?platform=ios` });
 

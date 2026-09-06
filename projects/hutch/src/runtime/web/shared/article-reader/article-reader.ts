@@ -67,6 +67,7 @@ interface PollResponseBodyInput {
 	progress: ProgressTick | undefined;
 	metadataOob: string;
 	readerViewFailedOob: string;
+	downloadsOob: string;
 	appOrigin: string;
 	readerNotice: ReaderFailedVariant | undefined;
 }
@@ -100,7 +101,8 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 			summarySlot +
 			progressBarOob +
 			input.metadataOob +
-			input.readerViewFailedOob
+			input.readerViewFailedOob +
+			input.downloadsOob
 		);
 	}
 	return (
@@ -108,7 +110,8 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		readerSlot +
 		progressBarOob +
 		input.metadataOob +
-		input.readerViewFailedOob
+		input.readerViewFailedOob +
+		input.downloadsOob
 	);
 }
 
@@ -370,6 +373,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 						readlistTags: undefined,
 					}) + renderDocumentTitleOob(deps.formatDocumentTitle(hostname)),
 				readerViewFailedOob: "",
+				downloadsOob: "",
 				appOrigin: deps.appOrigin,
 				readerNotice: NOT_AN_ARTICLE,
 			}),
@@ -433,6 +437,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.readlistTags),
+			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({
 				crawl,
 				summary,
@@ -473,6 +478,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.readlistTags),
+			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({
 				crawl,
 				summary,

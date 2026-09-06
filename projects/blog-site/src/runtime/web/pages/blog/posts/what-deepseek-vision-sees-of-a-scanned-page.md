@@ -24,7 +24,7 @@ The question was whether to point a vision model at Readplace's scanned PDFs.
 
 ## What the pipeline does now
 
-A scanned PDF has no text layer, so the pixels are all there is. [Readplace renders each page and runs Tesseract on it](/blog/readplace-now-reads-scans-in-15-languages) inside a Lambda container, then layers 3 DeepSeek text calls on top for error cleanup, cross-page diff review, and semantic HTML.
+A scanned PDF has no text layer, so the pixels are all there is. [Readplace renders each page and runs Tesseract on it](/blog/readplace-now-reads-scans-in-15-languages?utm_source=blog-what-deepseek-vision-sees-of-a-scanned-page&utm_medium=internal&utm_content=post-readplace-now-reads-scans-in-15-languages) inside a Lambda container, then layers 3 DeepSeek text calls on top for error cleanup, cross-page diff review, and semantic HTML.
 
 Pages render at 300 dots per inch. That number is not decoration. An A/B on the same 31-page scan moved the render from 150 to 300, and word recovery went from 21,335 to 23,719.
 
@@ -34,7 +34,7 @@ So the first thing worth checking about a model that accepts images was how many
 
 ## The number the prose gives you
 
-The [vision guide](/view/api-docs.deepseek.com/guides/vision/) says every image is resized so the total pixel count lands near that of an 800 by 800 image, with a ceiling of 384 tokens per image. It also offers a `detail` field whose `original` setting "keeps the original image", which reads like an escape hatch.
+The [vision guide](/view/api-docs.deepseek.com/guides/vision/?utm_source=blog-what-deepseek-vision-sees-of-a-scanned-page&utm_medium=internal&utm_content=read-api-docs-deepseek-com) says every image is resized so the total pixel count lands near that of an 800 by 800 image, with a ceiling of 384 tokens per image. It also offers a `detail` field whose `original` setting "keeps the original image", which reads like an escape hatch.
 
 Both statements cannot be doing what they appear to do. I worked the arithmetic from the prose, got roughly 703 by 910 pixels for a Letter page, and called it 83 dots per inch. Close enough to be useful, wrong enough to matter.
 
@@ -94,4 +94,4 @@ I had been pricing a way to buy layout at 76 dots per inch, while the same page 
 
 Nothing about scanned PDFs changed this week. Tesseract still does the reading and the 3 text stages still run on top.
 
-What changed is that the upgrade came off the table for a reason I can point at, and the next thing to try is a flag on a command line rather than a new vendor. Save a scanned PDF to [your readlist](/) and it takes the path it took last month. I just know what the alternative would have cost, down to the pixel.
+What changed is that the upgrade came off the table for a reason I can point at, and the next thing to try is a flag on a command line rather than a new vendor. Save a scanned PDF to [your readlist](/?utm_source=blog-what-deepseek-vision-sees-of-a-scanned-page&utm_medium=internal&utm_content=home) and it takes the path it took last month. I just know what the alternative would have cost, down to the pixel.

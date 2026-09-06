@@ -200,6 +200,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 			 * Only applicable to zip-packaged Lambdas (ignored for container images).
 			 */
 			layers?: pulumi.Input<string>[];
+			architectures?: pulumi.Input<string>[];
 			/**
 			 * When set, the Lambda is provisioned as a container image instead of
 			 * a zip. The image must already be pushed to ECR — typically by a
@@ -303,6 +304,9 @@ export class HutchLambda extends pulumi.ComponentResource {
 		const environmentArg = hasEnvironment ? { environment: { variables: args.environment } } : {};
 
 		const layersArg = args.layers?.length ? { layers: args.layers } : {};
+		const architecturesArg = args.architectures?.length
+			? { architectures: args.architectures }
+			: {};
 
 		const ephemeralStorageArg = args.ephemeralStorageSize
 			? { ephemeralStorage: { size: args.ephemeralStorageSize } }
@@ -318,6 +322,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 				timeout: args.timeout,
 				...ephemeralStorageArg,
 				...environmentArg,
+				...architecturesArg,
 			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });
 		} else {
 			assert(args.entryPoint, "HutchLambda zip packaging requires 'entryPoint'");
@@ -364,6 +369,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 				...ephemeralStorageArg,
 				...environmentArg,
 				...layersArg,
+				...architecturesArg,
 			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });
 		}
 

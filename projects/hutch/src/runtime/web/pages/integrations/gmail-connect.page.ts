@@ -10,7 +10,7 @@ import type {
 	GmailCredentialsStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
-import type { InboxAddress } from "@packages/domain/inbox";
+import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
@@ -34,13 +34,14 @@ export interface GmailIntegrationDependencies {
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
+	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
 	mintSenderAddress: (input: {
 		userId: UserId;
 		senderEmail: ForwardableSender;
 	}) => Promise<InboxAddress>;
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
-		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "requested";
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed";
 	}) => Promise<void>;
 	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
 }

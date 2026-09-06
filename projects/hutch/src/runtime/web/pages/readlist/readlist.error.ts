@@ -1,3 +1,4 @@
+import { SaveableUrlErrorCodeSchema, type SaveableUrlErrorCode } from "@packages/domain/article";
 import {
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
@@ -53,6 +54,13 @@ export const httpErrorMessageMapping: HttpErrorMessageMapping = (query) => {
 	const errorCode = typeof query.error_code === "string" ? query.error_code : undefined;
 	return errorCode ? SAVE_ERROR_MESSAGES[errorCode] : undefined;
 };
+
+export function saveableUrlErrorCodeMapping(
+	query: Record<string, unknown>,
+): SaveableUrlErrorCode | undefined {
+	const parsed = SaveableUrlErrorCodeSchema.safeParse(query.error_code);
+	return parsed.success ? parsed.data : undefined;
+}
 
 export interface StatusFlash {
 	message: string;

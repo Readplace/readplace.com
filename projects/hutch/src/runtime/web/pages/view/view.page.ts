@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
+import { z } from "zod";
 import type {
 	ArticleMetadata,
 	Minutes,
@@ -28,8 +29,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
+import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
@@ -58,10 +58,25 @@ import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
 import { parseViewPath, viewPathFor } from "./view-path";
-import { epubFilename, initBuildArticleEpub } from "../../shared/epub/article-epub";
-import { epubDownloadHref, revealsEpubDownload } from "../../shared/epub/epub-link";
+import {
+	type BuildArticleEpub,
+	epubFilename,
+	initBuildArticleEpub,
+} from "../../shared/epub/article-epub";
+import {
+	azw3Filename,
+	type ConvertEpubToAzw3,
+	initBuildArticleAzw3,
+} from "../../shared/epub/article-azw3";
+import {
+	ARTICLE_DOWNLOAD_FORMATS,
+	articleDownloadLinks,
+	revealsEpubDownload,
+	type ArticleDownloadFormat,
+} from "../../shared/epub/epub-link";
 import {
 	ViewPage,
+	renderViewDownloadsOob,
 	formatViewDocumentTitle,
 	renderViewCtaActionOob,
 	type ViewAction,
@@ -77,6 +92,7 @@ interface ViewDependencies {
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
 	readArticleImage: ReadArticleImage;
+	convertEpubToAzw3: ConvertEpubToAzw3;
 	logError: (message: string, error?: Error) => void;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
@@ -88,9 +104,10 @@ interface ViewDependencies {
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	consumeRateLimit: ConsumeRateLimit;
 	viewCrawlRateLimit: RateLimitRule;
+	articleDownloadRateLimit: RateLimitRule;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 }
 
@@ -100,13 +117,14 @@ async function renderError(deps: ViewDependencies, req: Request, res: Response):
 	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
 }
 
-function pollUrlBuilderFor(articleUrl: string, utmParams: [string, string][]): PollUrlBuilder {
+function pollUrlBuilderFor(req: Request, articleUrl: string, utmParams: [string, string][]): PollUrlBuilder {
+	const feature = revealsEpubDownload(req.query.feature) ? "&feature=epub" : "";
 	const utmSuffix = utmParams
 		.map(([key, value]) => `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
 		.join("");
 	return {
-		summary: (n) => `/view/summary?url=${encodeURIComponent(articleUrl)}&poll=${n}${utmSuffix}`,
-		reader: (n) => `/view/reader?url=${encodeURIComponent(articleUrl)}&poll=${n}${utmSuffix}`,
+		summary: (n) => `/view/summary?url=${encodeURIComponent(articleUrl)}&poll=${n}${utmSuffix}${feature}`,
+		reader: (n) => `/view/reader?url=${encodeURIComponent(articleUrl)}&poll=${n}${utmSuffix}${feature}`,
 	};
 }
 
@@ -134,6 +152,21 @@ const PASTE_ANOTHER_ACTION: ViewAction = {
 	href: "/?utm_source=view-article&utm_medium=internal&utm_content=paste-another-link",
 	variant: "secondary",
 };
+
+const ArticleDownloadFormatSchema = z.enum(ARTICLE_DOWNLOAD_FORMATS);
+
+interface ArticleDownload {
+	contentType: string;
+	filename: (params: { title: string; articleUrl: string }) => string;
+	build: BuildArticleEpub;
+}
+
+type ArticleDownloads = Record<ArticleDownloadFormat, ArticleDownload>;
+
+function requestedArticleDownloadFormat(value: unknown): ArticleDownloadFormat | undefined {
+	const parsed = ArticleDownloadFormatSchema.safeParse(value);
+	return parsed.success ? parsed.data : undefined;
+}
 
 function viewReaderViewFailedOob(input: {
 	req: Request;
@@ -207,7 +240,7 @@ function handleViewRoot(deps: ViewDependencies) {
 function handleViewArticle(
 	deps: ViewDependencies,
 	reader: ReturnType<typeof initArticleReader>,
-	buildArticleEpub: ReturnType<typeof initBuildArticleEpub>,
+	downloads: ArticleDownloads,
 ) {
 	return async (
 		req: Request<{ splat: string[] }>,
@@ -245,25 +278,45 @@ function handleViewArticle(
 			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 			return;
 		}
-		if (req.query.format === "epub") {
+		const downloadFormat = requestedArticleDownloadFormat(req.query.format);
+		if (downloadFormat !== undefined) {
+			if (isPrefetch(req)) {
+				res.status(204).end();
+				return;
+			}
+			if (!existing) {
+				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+				return;
+			}
+			if (downloadFormat === "azw3") {
+				const decision = await deps.consumeRateLimit({
+					bucket: "article-download",
+					key: rateLimitKeyFromRequest(req),
+					rule: deps.articleDownloadRateLimit,
+				});
+				if (!decision.allowed) {
+					sendRateLimited(res, decision.retryAfterSeconds);
+					return;
+				}
+			}
 			const content = await deps.readArticleContent(articleUrl);
 			if (content === undefined) {
 				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 				return;
 			}
-			assert(existing, "a ready article must have a saved row");
 			const title = existing.metadata.title;
-			const epubBytes = await buildArticleEpub({ articleUrl, title, contentHtml: content });
+			const download = downloads[downloadFormat];
+			const bytes = await download.build({ articleUrl, title, contentHtml: content });
 			res
 				.status(200)
 				.set({
-					"Content-Type": "application/epub+zip",
-					"Content-Disposition": `attachment; filename="${epubFilename({ title, articleUrl })}"`,
+					"Content-Type": download.contentType,
+					"Content-Disposition": `attachment; filename="${download.filename({ title, articleUrl })}"`,
 					"Cache-Control": "private, no-cache",
 					"X-Robots-Tag": "noindex",
 					"Content-Signal": "search=no, ai-input=no, ai-train=no",
 				})
-				.send(Buffer.from(epubBytes));
+				.send(Buffer.from(bytes));
 			return;
 		}
 		const hostname = articleHostFrom(articleUrl);
@@ -322,7 +375,7 @@ function handleViewArticle(
 		const estimatedReadTime: Minutes = snapshot.estimatedReadTime;
 
 		const utmParams = collectUtmParams(req.query);
-		const pollUrlBuilder = pollUrlBuilderFor(articleUrl, utmParams);
+		const pollUrlBuilder = pollUrlBuilderFor(req, articleUrl, utmParams);
 		const state = await reader.resolveReaderState({
 			article: { url: articleUrl, metadata, estimatedReadTime },
 			pollUrlBuilder,
@@ -342,7 +395,7 @@ function handleViewArticle(
 
 		if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
 			assert(req.visitorId, "visitor-id middleware must run before the /view router");
-			deps.analytics.info({
+			deps.recordAnalyticsEvent(req, {
 				stream: STREAMS.analytics,
 				event: ANALYTICS_EVENTS.viewOpened,
 				timestamp: deps.now().toISOString(),
@@ -370,15 +423,6 @@ function handleViewArticle(
 			}),
 			PASTE_ANOTHER_ACTION,
 		];
-		if (state.content !== undefined && revealsEpubDownload(req.query.feature)) {
-			actions.push({
-				key: "download-epub",
-				name: "Download EPUB",
-				shortName: "EPUB",
-				href: epubDownloadHref({ articleUrl, utmSource: "view-article" }),
-				variant: "secondary",
-			});
-		}
 
 		const showExtensionSuggestionBanner =
 			state.readerViewFailed && canOfferExtensionInstall(req);
@@ -399,6 +443,10 @@ function handleViewArticle(
 					summaryPollUrl: state.summaryPollUrl,
 					progress: state.progress,
 					actions,
+					downloads:
+						state.content === undefined || !revealsEpubDownload(req.query.feature)
+							? undefined
+							: articleDownloadLinks({ articleUrl, utmSource: "view-article" }),
 					saveTip,
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
 					crawlVersions: state.crawlVersions,
@@ -433,13 +481,14 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
+			pollUrlBuilder: pollUrlBuilderFor(req, articleUrl, utmParams),
 			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readlistTags: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
+			renderDownloadsOob: revealsEpubDownload(req.query.feature) ? renderViewDownloadsOob : undefined,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};
@@ -463,13 +512,14 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 		const component = await reader.handleReaderPoll({
 			articleUrl,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
+			pollUrlBuilder: pollUrlBuilderFor(req, articleUrl, utmParams),
 			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readlistTags: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
+			renderDownloadsOob: revealsEpubDownload(req.query.feature) ? renderViewDownloadsOob : undefined,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};
@@ -492,13 +542,31 @@ export function initViewRoutes(deps: ViewDependencies): Router {
 		logError: deps.logError,
 		now: deps.now,
 	});
+	const buildArticleAzw3 = initBuildArticleAzw3({
+		readArticleImage: deps.readArticleImage,
+		logError: deps.logError,
+		now: deps.now,
+		convertEpubToAzw3: deps.convertEpubToAzw3,
+	});
+	const downloads = {
+		epub: {
+			contentType: "application/epub+zip",
+			filename: epubFilename,
+			build: buildArticleEpub,
+		},
+		azw3: {
+			contentType: "application/vnd.amazon.mobi8-ebook",
+			filename: azw3Filename,
+			build: buildArticleAzw3,
+		},
+	} satisfies ArticleDownloads;
 
 	router.use(redirectMixedCaseMount);
 
 	router.get("/", handleViewRoot(deps));
 	router.get("/summary", handleViewSummary(deps, reader));
 	router.get("/reader", handleViewReader(deps, reader));
-	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader, buildArticleEpub));
+	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader, downloads));
 
 	return router;
 }

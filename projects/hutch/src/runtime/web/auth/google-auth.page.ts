@@ -3,7 +3,6 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -32,14 +31,14 @@ import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "@packages/web-analytics";
-import type { AnalyticsEvent } from "@packages/web-analytics";
+import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
 import { consumeLastViewUrl } from "../last-view";
 import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider";
 import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
-import { emitUserCreated } from "../../conversions";
+import { buildUserCreatedEvent } from "../../conversions";
 import { signState, verifyState } from "./oauth-state";
 import { viewerOf } from "@packages/viewer-identity";
 
@@ -75,8 +74,8 @@ interface GoogleAuthDependencies {
 	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
-	conversionLogger: HutchLogger.Typed<ConversionEvent>;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 }
@@ -224,24 +223,27 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 			signIn(res, sessionId);
 			sendWelcomeEmail(tokenResult.email);
-			emitUserCreated(
-				{ logger: deps.conversionLogger, now: deps.now },
-				{
-					userId: created.userId,
-					email: tokenResult.email,
-					method: "google",
-					tier: "free",
-					attribution,
-					visitorId: req.visitorId,
-					pendingSaveId: consumePendingSaveId({ req, res }),
-					oauthClientId: oauthClientIdFrom(safeReturnUrl),
-				},
+			deps.recordConversionEvent(
+				req,
+				buildUserCreatedEvent(
+					{ now: deps.now },
+					{
+						userId: created.userId,
+						email: tokenResult.email,
+						method: "google",
+						tier: "free",
+						attribution,
+						visitorId: req.visitorId,
+						pendingSaveId: consumePendingSaveId({ req, res }),
+						oauthClientId: oauthClientIdFrom(safeReturnUrl),
+					},
+				),
 			);
 			const lastViewUrl = consumeLastViewUrl({ req, res });
 			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl });
 			emitFirstArticleAutosaved(
-				{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
+				{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
+				{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
 			);
 			res.redirect(303, redirect.location);
 			return;
@@ -280,24 +282,27 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		signIn(res, sessionId);
 		sendWelcomeEmail(tokenResult.email);
-		emitUserCreated(
-			{ logger: deps.conversionLogger, now: deps.now },
-			{
-				userId: created.userId,
-				email: tokenResult.email,
-				method: "google",
-				tier: "trial",
-				attribution: readClickAttribution(req),
-				visitorId: req.visitorId,
-				pendingSaveId: consumePendingSaveId({ req, res }),
-				oauthClientId: oauthClientIdFrom(safeReturnUrl),
-			},
+		deps.recordConversionEvent(
+			req,
+			buildUserCreatedEvent(
+				{ now: deps.now },
+				{
+					userId: created.userId,
+					email: tokenResult.email,
+					method: "google",
+					tier: "trial",
+					attribution: readClickAttribution(req),
+					visitorId: req.visitorId,
+					pendingSaveId: consumePendingSaveId({ req, res }),
+					oauthClientId: oauthClientIdFrom(safeReturnUrl),
+				},
+			),
 		);
 		const lastViewUrl = consumeLastViewUrl({ req, res });
 		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl });
 		emitFirstArticleAutosaved(
-			{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
+			{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
+			{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
 		);
 		res.redirect(303, redirect.location);
 	});

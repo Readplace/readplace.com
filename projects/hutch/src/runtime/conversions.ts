@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import type { HutchLogger } from "@packages/hutch-logger";
 import type { UserId } from "@packages/domain/user";
 import type { ConversionEvent } from "@packages/provider-contracts/auth";
 import type { ClickAttribution } from "@packages/web-analytics";
@@ -15,9 +14,8 @@ function hashEmail(email: string): string {
  * Attribution is device-scoped — a signup completed in a different browser from
  * the one that drove the click will carry no attribution on the event.
  */
-export function emitUserCreated(
+export function buildUserCreatedEvent(
 	deps: {
-		logger: HutchLogger.Typed<ConversionEvent>;
 		now: () => Date;
 	},
 	params: {
@@ -30,8 +28,8 @@ export function emitUserCreated(
 		pendingSaveId?: string;
 		oauthClientId: string | undefined;
 	},
-): void {
-	const event: ConversionEvent = {
+): ConversionEvent {
+	return {
 		stream: STREAMS.conversions,
 		event: CONVERSION_EVENTS.userCreated,
 		timestamp: deps.now().toISOString(),
@@ -44,5 +42,4 @@ export function emitUserCreated(
 		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
 		...(params.oauthClientId ? { oauth_client_id: params.oauthClientId } : {}),
 	};
-	deps.logger.info(event);
 }

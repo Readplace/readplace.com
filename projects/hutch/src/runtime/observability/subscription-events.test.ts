@@ -1,7 +1,14 @@
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { CHECKOUT_RETURN_FAILURE_REASONS, CHECKOUT_VARIANTS } from "./events";
-import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "./subscription-events";
+import {
+	buildCheckoutCompletedEvent,
+	buildCheckoutReturnFailedEvent,
+	buildCheckoutStartedEvent,
+	buildResubscribeCompletedEvent,
+	initEmitSubscriptionEvent,
+	type SubscriptionLogEvent,
+} from "./subscription-events";
 
 function createCapturingLogger(): {
 	logger: HutchLogger.Typed<SubscriptionLogEvent>;
@@ -85,19 +92,16 @@ describe("initEmitSubscriptionEvent", () => {
 			reason: "user_initiated_trial",
 		});
 	});
+});
 
-	it("emits a checkout_started event carrying the variant and checkout session id so the funnel can attribute the click", () => {
-		const { logger, captured } = createCapturingLogger();
-		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
-
-		emit.checkoutStarted({
+describe("buildCheckoutStartedEvent", () => {
+	it("carries the variant and checkout session id so the funnel can attribute the click", () => {
+		expect(buildCheckoutStartedEvent({ now: NOW }, {
 			userId: USER_ID,
 			variant: CHECKOUT_VARIANTS.trialCheckout,
 			checkoutSessionId: "cs_test_1",
 			plan: "triennial",
-		});
-
-		expect(captured).toEqual([{
+		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_started",
 			timestamp: "2026-05-25T10:00:00.000Z",
@@ -105,21 +109,18 @@ describe("initEmitSubscriptionEvent", () => {
 			variant: "trial_checkout",
 			checkout_session_id: "cs_test_1",
 			plan: "triennial",
-		}]);
+		});
 	});
+});
 
-	it("emits a checkout_completed event carrying paid_now:true when Stripe collected a real charge", () => {
-		const { logger, captured } = createCapturingLogger();
-		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
-
-		emit.checkoutCompleted({
+describe("buildCheckoutCompletedEvent", () => {
+	it("carries paid_now:true when Stripe collected a real charge", () => {
+		expect(buildCheckoutCompletedEvent({ now: NOW }, {
 			userId: USER_ID,
 			subscriptionId: "sub_123",
 			checkoutSessionId: "cs_test_1",
 			paidNow: true,
-		});
-
-		expect(captured).toEqual([{
+		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
 			timestamp: "2026-05-25T10:00:00.000Z",
@@ -127,21 +128,16 @@ describe("initEmitSubscriptionEvent", () => {
 			subscription_id: "sub_123",
 			checkout_session_id: "cs_test_1",
 			paid_now: true,
-		}]);
+		});
 	});
 
-	it("emits a checkout_completed event carrying paid_now:false for a $0 trial-preserving checkout (card captured, no charge)", () => {
-		const { logger, captured } = createCapturingLogger();
-		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
-
-		emit.checkoutCompleted({
+	it("carries paid_now:false for a $0 trial-preserving checkout (card captured, no charge)", () => {
+		expect(buildCheckoutCompletedEvent({ now: NOW }, {
 			userId: USER_ID,
 			subscriptionId: "sub_123",
 			checkoutSessionId: "cs_test_1",
 			paidNow: false,
-		});
-
-		expect(captured).toEqual([{
+		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
 			timestamp: "2026-05-25T10:00:00.000Z",
@@ -149,22 +145,17 @@ describe("initEmitSubscriptionEvent", () => {
 			subscription_id: "sub_123",
 			checkout_session_id: "cs_test_1",
 			paid_now: false,
-		}]);
+		});
 	});
 
-	it("carries the originating variant on checkout_completed so completions split by entry path without a self-join back to checkout_started", () => {
-		const { logger, captured } = createCapturingLogger();
-		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
-
-		emit.checkoutCompleted({
+	it("carries the originating variant so completions split by entry path without a self-join back to checkout_started", () => {
+		expect(buildCheckoutCompletedEvent({ now: NOW }, {
 			userId: USER_ID,
 			subscriptionId: "sub_123",
 			checkoutSessionId: "cs_test_1",
 			paidNow: true,
 			variant: CHECKOUT_VARIANTS.cancelledResubscribe,
-		});
-
-		expect(captured).toEqual([{
+		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
 			timestamp: "2026-05-25T10:00:00.000Z",
@@ -173,20 +164,17 @@ describe("initEmitSubscriptionEvent", () => {
 			checkout_session_id: "cs_test_1",
 			paid_now: true,
 			variant: "cancelled_resubscribe",
-		}]);
+		});
 	});
+});
 
-	it("emits resubscribe_completed with paid_now:true — a saved-card resubscribe charges immediately and never passes through Stripe Checkout", () => {
-		const { logger, captured } = createCapturingLogger();
-		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
-
-		emit.resubscribeCompleted({
+describe("buildResubscribeCompletedEvent", () => {
+	it("carries paid_now:true — a saved-card resubscribe charges immediately and never passes through Stripe Checkout", () => {
+		expect(buildResubscribeCompletedEvent({ now: NOW }, {
 			userId: USER_ID,
 			subscriptionId: "sub_resub",
 			plan: "monthly",
-		});
-
-		expect(captured).toEqual([{
+		})).toEqual({
 			stream: "subscriptions",
 			event: "resubscribe_completed",
 			timestamp: "2026-05-25T10:00:00.000Z",
@@ -194,36 +182,30 @@ describe("initEmitSubscriptionEvent", () => {
 			subscription_id: "sub_resub",
 			paid_now: true,
 			plan: "monthly",
-		}]);
+		});
 	});
+});
 
-	it("emits a checkout_return_failed event with user_id and checkout_session_id when both are known", () => {
-		const { logger, captured } = createCapturingLogger();
-		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
-
-		emit.checkoutReturnFailed({
+describe("buildCheckoutReturnFailedEvent", () => {
+	it("carries user_id and checkout_session_id when both are known", () => {
+		expect(buildCheckoutReturnFailedEvent({ now: NOW }, {
 			reason: CHECKOUT_RETURN_FAILURE_REASONS.notPaid,
 			userId: USER_ID,
 			checkoutSessionId: "cs_test_1",
-		});
-
-		expect(captured).toEqual([{
+		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_return_failed",
 			timestamp: "2026-05-25T10:00:00.000Z",
 			reason: "not_paid",
 			user_id: USER_ID,
 			checkout_session_id: "cs_test_1",
-		}]);
+		});
 	});
 
-	it("omits user_id and checkout_session_id from checkout_return_failed when neither is known (anonymous return with no parseable session)", () => {
-		const { logger, captured } = createCapturingLogger();
-		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
-
-		emit.checkoutReturnFailed({ reason: CHECKOUT_RETURN_FAILURE_REASONS.invalidQuery });
-
-		expect(captured[0]).toEqual({
+	it("omits user_id and checkout_session_id when neither is known (anonymous return with no parseable session)", () => {
+		expect(buildCheckoutReturnFailedEvent({ now: NOW }, {
+			reason: CHECKOUT_RETURN_FAILURE_REASONS.invalidQuery,
+		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_return_failed",
 			timestamp: "2026-05-25T10:00:00.000Z",

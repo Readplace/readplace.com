@@ -1,8 +1,8 @@
 import type { RequestHandler, Response } from "express";
-import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	type AnalyticsEvent,
 	buildSaveRefusedEvent,
+	type RecordUngatedEvent,
 	SAVE_REFUSAL_CODES,
 	type SaveRefusalCode,
 } from "@packages/web-analytics";
@@ -24,7 +24,7 @@ function refusalCodeOf(input: { status: number; tagged: SaveRefusalCode | undefi
 }
 
 export function initObserveSaveRefusal(deps: {
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	now: () => Date;
 	salt: string;
 	path: string;
@@ -32,7 +32,7 @@ export function initObserveSaveRefusal(deps: {
 	return (req, res, next) => {
 		res.on("finish", () => {
 			if (res.statusCode < 400) return;
-			deps.analytics.info(
+			deps.recordUngatedAnalyticsEvent(
 				buildSaveRefusedEvent(
 					{ now: deps.now, salt: deps.salt },
 					{

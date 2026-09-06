@@ -29,7 +29,7 @@ Nothing about Omnivore's intentions was wrong. The team built a product people r
 
 Plenty of Omnivore users landed on [Readwise Reader](https://readwise.io/read) at $119.88/year, while others went self-hosted with Karakeep or Wallabag. Each path costs you something. Readwise has the most features but the highest price, and the self-hosted tools are free right up until you remember that you are now the one running a server and applying the updates when they break.
 
-I built Readplace to sit between those two. It is hosted, so you do not run anything, and the money comes from one place only: subscriptions pay for the servers and the work, and there is no investor in the background waiting for a sale. If you want the side-by-side on every option, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026).
+I built Readplace to sit between those two. It is hosted, so you do not run anything, and the money comes from one place only: subscriptions pay for the servers and the work, and there is no investor in the background waiting for a sale. If you want the side-by-side on every option, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026).
 
 ## Built by one developer who actually reads
 

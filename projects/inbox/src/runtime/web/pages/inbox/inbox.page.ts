@@ -12,6 +12,7 @@ import {
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
 	isLiveAddress,
+	isUserAlias,
 	normalizeAliasName,
 	userAliasCapReached,
 	INBOX_ADDRESSES_PATH,
@@ -686,7 +687,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// Confirm ownership before disabling so a forged address for someone
 			// else's row never reaches the (also ownership-guarded) store write.
 			const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
-			if (owned.some((entry) => entry.address === parsed.data.address)) {
+			const target = owned.find((entry) => entry.address === parsed.data.address);
+			if (target !== undefined && isUserAlias(target)) {
 				await deps.inboxAddressStore.disableAddress({ userId, address: parsed.data.address });
 			}
 		}
@@ -704,7 +706,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			if (parsed.success) {
 				const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
 				const target = owned.find((entry) => entry.address === parsed.data.address);
-				if (target !== undefined && !isLiveAddress(target)) {
+				if (target !== undefined && isUserAlias(target) && !isLiveAddress(target)) {
 					if (userAliasCapReached({ purpose: target.purpose, owned })) {
 						res.redirect(303, `${addressesPath}?error=limit`);
 						return;

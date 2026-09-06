@@ -1,9 +1,9 @@
-import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	type AnalyticsEvent,
 	buildMcpSaveIntentEvent,
 	buildMcpToolCalledEvent,
 	MCP_TOOL_OUTCOMES,
+	type RecordUngatedEvent,
 	SAVE_OUTCOMES,
 } from "@packages/web-analytics";
 import type { RecordMcpToolCall } from "./mcp-server";
@@ -12,11 +12,11 @@ import { SAVE_LINK_TOOL } from "./tool-definitions";
 const MCP_SAVE_INTENT_PATH = "/mcp";
 
 export function initRecordMcpToolCall(deps: {
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	now: () => Date;
 }): RecordMcpToolCall {
 	return (record) => {
-		deps.analytics.info(
+		deps.recordUngatedAnalyticsEvent(
 			buildMcpToolCalledEvent(
 				{ now: deps.now },
 				{
@@ -37,7 +37,7 @@ export function initRecordMcpToolCall(deps: {
 		if (record.tool !== SAVE_LINK_TOOL.name) return;
 		if (record.submittedUrl === undefined) return;
 
-		deps.analytics.info(
+		deps.recordUngatedAnalyticsEvent(
 			buildMcpSaveIntentEvent(
 				{ now: deps.now },
 				{

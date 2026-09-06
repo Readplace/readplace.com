@@ -15,7 +15,7 @@ export type SendWelcomeEmail = (email: string) => void;
 
 export function initSendWelcomeEmail(deps: SendWelcomeEmailDeps): SendWelcomeEmail {
 	return (email: string): void => {
-		const installUrl = `${deps.baseUrl}/install`;
+		const installUrl = `${deps.baseUrl}/install?utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=install`;
 		const avatarUrl = `${deps.staticBaseUrl}/fayner-brack.jpg`;
 		deps.sendEmail({
 			from: WELCOME_EMAIL_FROM,

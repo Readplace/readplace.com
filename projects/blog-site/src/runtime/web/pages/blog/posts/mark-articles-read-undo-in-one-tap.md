@@ -48,4 +48,4 @@ Small friction adds up. A readlist that hides where you stand makes you re-read 
 
 Clear labels and a working Undo keep that from happening, so the time you spend with the readlist goes to reading rather than checking.
 
-Open your readlist and try it. Mark something read, watch the label change, then hit Undo and watch it come back. Start at [readplace.com](/).
+Open your readlist and try it. Mark something read, watch the label change, then hit Undo and watch it come back. Start at [readplace.com](/?utm_source=blog-mark-articles-read-undo-in-one-tap&utm_medium=internal&utm_content=home).

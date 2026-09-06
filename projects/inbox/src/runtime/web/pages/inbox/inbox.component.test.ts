@@ -195,11 +195,11 @@ describe("InboxPage", () => {
 		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "" }).content.html);
 		assert.equal(
 			doc.querySelector(".inbox__create")?.getAttribute("action"),
-			"/inbox/create",
+			"/inbox/create?utm_source=inbox-addresses&utm_medium=internal&utm_content=create-address",
 		);
 		assert.equal(
 			doc.querySelector(".inbox__disable")?.getAttribute("action"),
-			"/inbox/disable",
+			"/inbox/disable?utm_source=inbox-addresses&utm_medium=internal&utm_content=disable-address",
 		);
 	});
 

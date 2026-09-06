@@ -50,11 +50,5 @@
   {{else}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--hidden" data-test-mark-read-slot></div>
   {{/if}}
-  {{#if epubDownload}}
-  <div class="article-body__download-epub-slot article-body__download-epub-slot--visible" data-test-download-epub-slot>
-    <a class="btn btn--secondary btn--compact article-body__download-epub" href="{{epubDownload.href}}" data-test-download-epub><span class="article-body__action-icon">{{icon "download"}}</span><span class="article-body__action-label">Download EPUB</span><span class="article-body__action-label-short" aria-hidden="true">EPUB</span></a>
-  </div>
-  {{else}}
-  <div class="article-body__download-epub-slot article-body__download-epub-slot--hidden" data-test-download-epub-slot></div>
-  {{/if}}
+  {{{downloadsHtml}}}
 </div>

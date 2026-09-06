@@ -73,7 +73,7 @@ describe("Import page SEO", () => {
 			);
 		}
 		const pocketLink = doc.querySelector(
-			'[data-test-section="import-sources"] a[href="/blog/pocket-migration"]',
+			'[data-test-section="import-sources"] a[href^="/blog/pocket-migration?utm_source=import-acquire"]',
 		);
 		assert(pocketLink, "sources must link to the Pocket recovery guide");
 	});
@@ -117,7 +117,7 @@ describe("Import page SEO", () => {
 		);
 
 		const create = await request(harness.server)
-			.post("/import")
+			.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
 			.set("Content-Type", contentType)
 			.send(body);
 		expect(create.status).toBe(303);

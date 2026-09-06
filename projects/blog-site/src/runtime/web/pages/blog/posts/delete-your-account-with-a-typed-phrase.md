@@ -52,10 +52,10 @@ The guard that counts is on the server. The delete route reads the field again a
 
 The same release made deletion self-serve. Removing an account used to mean sending an email and waiting on someone to act on it. The control sits on your own account page now, and it runs on its own. It ends your sessions, revokes the tokens behind a Google or Apple sign-in, and clears your data with no person in the loop.
 
-Apple's [App Store rules](/view/developer.apple.com/app-store/review/guidelines/) ask an app that lets you make an account to let you delete it too, and one route answers both the web and the iPhone app. On the app, a rejected phrase re-renders the account page without any of its subscribe controls, so a mistyped word does not bounce you into a screen asking for money.
+Apple's [App Store rules](/view/developer.apple.com/app-store/review/guidelines/?utm_source=blog-delete-your-account-with-a-typed-phrase&utm_medium=internal&utm_content=read-developer-apple-com) ask an app that lets you make an account to let you delete it too, and one route answers both the web and the iPhone app. On the app, a rejected phrase re-renders the account page without any of its subscribe controls, so a mistyped word does not bounce you into a screen asking for money.
 
-Being able to leave on your own terms is part of trusting a place with your reading. The archive earns its keep by [outlasting the pages it copied](/blog/saved-articles-outlast-the-original-page). That holds only if the way out is yours to take, and if taking it is a thing you do on purpose rather than by a stray tap.
+Being able to leave on your own terms is part of trusting a place with your reading. The archive earns its keep by [outlasting the pages it copied](/blog/saved-articles-outlast-the-original-page?utm_source=blog-delete-your-account-with-a-typed-phrase&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page). That holds only if the way out is yours to take, and if taking it is a thing you do on purpose rather than by a stray tap.
 
 ## Where the phrase waits
 
-The delete control sits at the bottom of your account page, under a heading marked Danger zone, four typed words from the end of the account. If you don't have a readlist to guard yet, one starts at [readplace.com](/) or with [the browser extension](https://readplace.com/install).
+The delete control sits at the bottom of your account page, under a heading marked Danger zone, four typed words from the end of the account. If you don't have a readlist to guard yet, one starts at [readplace.com](/?utm_source=blog-delete-your-account-with-a-typed-phrase&utm_medium=internal&utm_content=home) or with [the browser extension](https://readplace.com/install).

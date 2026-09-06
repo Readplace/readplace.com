@@ -156,6 +156,73 @@ describe("ViewPage", () => {
 		expect(links[1]?.getAttribute("href")).toBe("/?utm_source=view-article");
 	});
 
+	it("renders Download after the actions as a disclosure with EPUB then AZW3 links", () => {
+		const doc = render({
+			...baseInput,
+			actions: [
+				{
+					key: "save",
+					name: "Save to My Readlist",
+					shortName: "Save",
+					href: "/save?url=x",
+					variant: "primary",
+				},
+				{
+					key: "paste-another-link",
+					name: "Paste another link",
+					shortName: "Paste",
+					href: "/?utm_source=view-article",
+					variant: "secondary",
+				},
+			],
+			downloads: {
+				epubHref: "/view/example.com/a?format=epub",
+				azw3Href: "/view/example.com/a?format=azw3",
+			},
+		});
+
+		const downloads = doc.querySelector("[data-test-view-downloads]");
+		assert(downloads, "the public Download disclosure must render");
+		expect(downloads.id).toBe("view-cta-downloads");
+		expect(downloads.tagName).toBe("DETAILS");
+		expect(
+			Array.from(doc.querySelectorAll(".view__cta-item"), (item) => {
+				const action = item.querySelector("[data-test-view-cta-action]");
+				const menu = item.querySelector("[data-test-view-downloads]");
+				return action?.id ?? menu?.id;
+			}),
+		).toEqual(["view-cta-save", "view-cta-paste-another-link", "view-cta-downloads"]);
+		const trigger = doc.querySelector("[data-test-view-downloads-trigger]");
+		assert(trigger, "the public Download trigger must render");
+		expect(trigger.querySelector(".view__downloads-label")?.textContent).toBe("Download");
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-view-download]"), (link) => ({
+				format: link.getAttribute("data-test-view-download"),
+				href: link.getAttribute("href"),
+				label: link.textContent,
+			})),
+		).toEqual([
+			{
+				format: "epub",
+				href: "/view/example.com/a?format=epub",
+				label: "EPUB",
+			},
+			{
+				format: "azw3",
+				href: "/view/example.com/a?format=azw3",
+				label: "AZW3",
+			},
+		]);
+	});
+
+	it("keeps the Download slot hidden when downloads are unavailable", () => {
+		const doc = render();
+
+		const slot = doc.querySelector("[data-test-view-downloads-slot]");
+		assert(slot, "the public Download slot must render");
+		expect(slot.classList.contains("view__downloads-slot--hidden")).toBe(true);
+	});
+
 	describe("save-tip gating attribute", () => {
 		const SAVE_ACTION: ViewAction = {
 			key: "save",

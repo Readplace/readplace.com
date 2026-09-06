@@ -10,6 +10,8 @@ config:
   save-link:userArticlesTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-user-articles-8226beb
   save-link:rateLimitsTableName: hutch-rate-limits-prod
   save-link:rateLimitsTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-rate-limits-prod
+  save-link:onboardingTableName: hutch-onboarding-prod
+  save-link:onboardingTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-onboarding-prod
   save-link:paidCrawlBudget: 50/3600
   save-link:contentBucketName: hutch-article-content-prod
   save-link:pendingHtmlBucketName: hutch-pending-html-prod

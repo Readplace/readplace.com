@@ -136,28 +136,55 @@ describe("readlist picker", () => {
 	});
 });
 
-describe("epub download", () => {
-	it("renders the download link in a visible slot when a href is offered", () => {
+describe("downloads", () => {
+	it("renders EPUB then AZW3 links in a visible Download disclosure when both hrefs are offered", () => {
 		const { top } = StickyReader({
-			actionBtns: { ...ACTION_BTNS, epubDownload: { href: "/view/example.com/a?format=epub" } },
+			actionBtns: {
+				...ACTION_BTNS,
+				downloads: {
+					epubHref: "/view/example.com/a?format=epub",
+					azw3Href: "/view/example.com/a?format=azw3",
+				},
+			},
 		});
 		const doc = parse(top.to("text/html").body);
 
-		const slot = doc.querySelector("[data-test-download-epub-slot]");
-		assert(slot, "the download-epub slot must render");
-		expect(slot.classList.contains("article-body__download-epub-slot--visible")).toBe(true);
-		const link = doc.querySelector("[data-test-download-epub]");
-		assert(link, "the download-epub link must render");
-		expect(link.getAttribute("href")).toBe("/view/example.com/a?format=epub");
+		const slot = doc.querySelector("[data-test-downloads-slot]");
+		assert(slot, "the downloads slot must render");
+		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		const downloads = doc.querySelector(".article-body__downloads");
+		assert(downloads, "the downloads control must render");
+		expect(downloads.tagName).toBe("DETAILS");
+		const trigger = doc.querySelector("[data-test-downloads-trigger]");
+		assert(trigger, "the downloads trigger must render");
+		expect(trigger.querySelector(".article-body__action-label")?.textContent).toBe("Download");
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-download]"), (link) => ({
+				format: link.getAttribute("data-test-download"),
+				href: link.getAttribute("href"),
+				label: link.textContent,
+			})),
+		).toEqual([
+			{
+				format: "epub",
+				href: "/view/example.com/a?format=epub",
+				label: "EPUB",
+			},
+			{
+				format: "azw3",
+				href: "/view/example.com/a?format=azw3",
+				label: "AZW3",
+			},
+		]);
 	});
 
-	it("keeps the slot in the bar, hidden, when no href is offered", () => {
+	it("keeps the slot in the bar, hidden, when no downloads are offered", () => {
 		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
 		const doc = parse(top.to("text/html").body);
 
-		const slot = doc.querySelector("[data-test-download-epub-slot]");
-		assert(slot, "the download-epub slot must render");
-		expect(slot.classList.contains("article-body__download-epub-slot--hidden")).toBe(true);
+		const slot = doc.querySelector("[data-test-downloads-slot]");
+		assert(slot, "the downloads slot must render");
+		expect(slot.classList.contains("article-body__downloads-slot--hidden")).toBe(true);
 	});
 });
 
@@ -170,7 +197,10 @@ describe("narrow-viewport labels", () => {
 			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
 			create: undefined,
 		},
-		epubDownload: { href: "/view/example.com/a?format=epub" },
+		downloads: {
+			epubHref: "/view/example.com/a?format=epub",
+			azw3Href: "/view/example.com/a?format=azw3",
+		},
 	};
 
 	function topBarOf(actionBtns: ActionButtons): Document {
@@ -184,22 +214,22 @@ describe("narrow-viewport labels", () => {
 			"[data-test-back-link]",
 			"[data-test-readlists-trigger]",
 			"[data-test-mark-read-btn]",
-			"[data-test-download-epub]",
+			"[data-test-downloads-trigger]",
 		];
 		expect(
 			labelled.map(
 				(selector) =>
 					doc.querySelector(`${selector} .article-body__action-label`)?.textContent ?? null,
 			),
-		).toEqual(["Back to readlist", "Add to readlist", "Mark as read", "Download EPUB"]);
+		).toEqual(["Back to readlist", "Add to readlist", "Mark as read", "Download"]);
 	});
 
-	it("offers a short, aria-hidden twin for every control the arrow cannot stand in for", () => {
+	it("keeps the needed short labels hidden from assistive technology", () => {
 		const doc = topBarOf(NARROW_ACTION_BTNS);
 
 		const shorts = Array.from(doc.querySelectorAll(".article-body__action-label-short"));
-		expect(shorts.map((el) => el.textContent)).toEqual(["Add", "Read", "EPUB"]);
-		expect(shorts.map((el) => el.getAttribute("aria-hidden"))).toEqual(["true", "true", "true"]);
+		expect(shorts.map((el) => el.textContent)).toEqual(["Add", "Read"]);
+		expect(shorts.map((el) => el.getAttribute("aria-hidden"))).toEqual(["true", "true"]);
 		expect(
 			doc.querySelectorAll("[data-test-back-link] .article-body__action-label-short"),
 		).toHaveLength(0);

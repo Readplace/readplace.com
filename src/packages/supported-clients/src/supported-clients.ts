@@ -39,7 +39,7 @@ export type InstallSource =
 			readonly serverUrl: string;
 			readonly guidePath: string;
 			readonly directInstallUrl: string | null;
-	  };
+	};
 
 /** The storefront-less form. A region-prefixed link (`/au/`) shows a "not
  * available in your storefront" interstitial to everyone outside that region,

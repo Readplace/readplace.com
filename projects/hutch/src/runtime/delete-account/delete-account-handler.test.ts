@@ -312,7 +312,9 @@ async function seedAccount(
 
 	await s.onboarding.recordNativeAppSavedArticle({ userId, platform: "ios" });
 	await s.onboarding.recordNextReadMinimumReached({ userId });
-	await s.onboarding.recordNextReadStepOutstanding({ userId });
+	await s.onboarding.recordInboxArticleQueued({ userId });
+	await s.onboarding.recordEmailStepMarkedDone({ userId });
+	await s.onboarding.recordOnboardingOutstandingVersion({ userId, version: "seeded-version" });
 
 	if (subscription === "active") {
 		await s.subs.upsertActive({ userId, subscriptionId, customerId });
@@ -442,7 +444,9 @@ describe("delete-account handler", () => {
 				android: { installed: false, savedArticle: false },
 			},
 			nextReadMinimumReachedAt: undefined,
-			nextReadStepOutstandingAt: undefined,
+			firstInboxArticleQueuedAt: undefined,
+			emailStepMarkedDoneAt: undefined,
+			onboardingOutstandingVersion: undefined,
 			markReadAcrossQueuesAckedAt: undefined,
 			deleteArticleAckedAt: undefined,
 		});
@@ -527,7 +531,9 @@ describe("delete-account handler", () => {
 				android: { installed: false, savedArticle: false },
 			},
 			nextReadMinimumReachedAt: SEED_NOW,
-			nextReadStepOutstandingAt: SEED_NOW,
+			firstInboxArticleQueuedAt: SEED_NOW,
+			emailStepMarkedDoneAt: SEED_NOW,
+			onboardingOutstandingVersion: "seeded-version",
 			markReadAcrossQueuesAckedAt: undefined,
 			deleteArticleAckedAt: undefined,
 		});

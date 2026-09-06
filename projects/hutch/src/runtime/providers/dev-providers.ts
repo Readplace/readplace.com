@@ -185,6 +185,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 						});
 						return entry.address;
 					},
+					findInboxAddress: inboxAddressStore.findByAddress,
 					mintSenderAddress: async ({
 						userId,
 						senderEmail,
@@ -384,6 +385,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const { consumeRateLimit } = initInMemoryRateLimit({ now: () => new Date() });
 	const rateLimitRules: RateLimitRules = {
 		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
+		articleDownload: parseRateLimitRule(requireEnv("RATE_LIMIT_ARTICLE_DOWNLOAD")),
 		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
 		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
@@ -472,7 +474,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
-		recordNextReadStepOutstanding: onboardingSignals.recordNextReadStepOutstanding,
+		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion: onboardingSignals.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged:
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,

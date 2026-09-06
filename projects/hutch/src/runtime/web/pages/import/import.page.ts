@@ -13,7 +13,6 @@ import {
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import type { HutchLogger } from "@packages/hutch-logger";
 import type { AllocateSavedAtSequence } from "@packages/provider-contracts/article-store";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
@@ -22,7 +21,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
-import { type AnalyticsEvent, hashIp } from "@packages/web-analytics";
+import { type AnalyticsEvent, hashIp, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {
@@ -44,7 +43,7 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	logError: (message: string, error?: Error) => void;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
@@ -153,7 +152,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			truncated,
 			totalFound,
 		});
-		deps.analytics.info({
+		deps.recordAnalyticsEvent(req, {
 			stream: STREAMS.analytics,
 			event: ANALYTICS_EVENTS.importUploaded,
 			timestamp: deps.now().toISOString(),
@@ -207,7 +206,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			truncated,
 			totalFound,
 		});
-		deps.analytics.info({
+		deps.recordAnalyticsEvent(req, {
 			stream: STREAMS.analytics,
 			event: ANALYTICS_EVENTS.importFromUrlAcquired,
 			timestamp: deps.now().toISOString(),
@@ -379,7 +378,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			});
 		}
 
-		deps.analytics.info({
+		deps.recordAnalyticsEvent(req, {
 			stream: STREAMS.analytics,
 			event: ANALYTICS_EVENTS.importCommitted,
 			timestamp: deps.now().toISOString(),

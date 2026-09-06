@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import {
 	captureCheckpoint,
+	expect,
 	measuredBox,
 	test,
 	type VisualCheckpoint,
@@ -16,7 +17,11 @@ const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 900 };
 
 const CTA = "[data-test-view-cta]";
-const CTA_BUTTON = ".view__cta-btn";
+const CTA_BUTTON = ".view__cta-btn, .view__downloads-trigger";
+const CTA_LABEL = `${CTA} .view__cta-label, ${CTA} .view__downloads-label`;
+const DOWNLOADS = "[data-test-view-downloads]";
+const DOWNLOADS_TRIGGER = "[data-test-view-downloads-trigger]";
+const DOWNLOADS_MENU = "[data-test-view-downloads-menu]";
 
 const VOLATILE_CHROME = [
 	".trial-countdown",
@@ -92,7 +97,7 @@ async function everyLabelOnOneLine(page: Page): Promise<void> {
 
 async function phoneGeometry(page: Page): Promise<void> {
 	await everyLabelOnOneLine(page);
-	const clipped = await page.locator(`${CTA_BUTTON} .view__cta-label`).evaluateAll((elements) =>
+	const clipped = await page.locator(CTA_LABEL).evaluateAll((elements) =>
 		elements.map((element) => ({
 			text: element.textContent ?? "",
 			display: getComputedStyle(element).display,
@@ -107,8 +112,13 @@ async function phoneGeometry(page: Page): Promise<void> {
 
 async function desktopGeometry(page: Page): Promise<void> {
 	await everyLabelOnOneLine(page);
+	assert.equal(
+		(await page.locator(`${DOWNLOADS_TRIGGER} .view__downloads-label`).textContent())?.trim(),
+		"Download",
+		"the public download control must use singular copy",
+	);
 	const shown = await page
-		.locator(`${CTA_BUTTON} .view__cta-label`)
+		.locator(CTA_LABEL)
 		.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().width));
 	for (const width of shown) {
 		assert.ok(width > 1, "the full label is the visible text above the breakpoint");
@@ -126,25 +136,103 @@ function checkpoint(name: string, geometry: (page: Page) => Promise<void>): Visu
 	};
 }
 
+async function downloadsMenuOpen(page: Page): Promise<void> {
+	await page.waitForSelector(`${DOWNLOADS}[open]`);
+	await page.waitForSelector(DOWNLOADS_MENU);
+	await ctaSettled(page);
+}
+
+async function downloadsMenuGeometry(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "the Download popup checkpoint must run with an explicit viewport");
+
+	const trigger = await measuredBox(page, DOWNLOADS_TRIGGER);
+	const menu = await measuredBox(page, DOWNLOADS_MENU);
+	assert.ok(
+		menu.y + menu.height <= trigger.y - 3,
+		"the public Download popup must open above its sticky CTA trigger",
+	);
+	assert.ok(menu.x >= 0 && menu.x + menu.width <= viewport.width, "the popup must stay inside the viewport");
+	assert.deepEqual(
+		await page.locator(`${DOWNLOADS_MENU} [data-test-view-download]`).allTextContents(),
+		["EPUB", "AZW3"],
+		"the popup must preserve the EPUB then AZW3 order",
+	);
+	assert.equal(
+		await page.evaluate(() => document.documentElement.scrollWidth),
+		viewport.width,
+		"an open Download popup must not widen the page",
+	);
+}
+
+const DOWNLOADS_MENU_OPEN_PHONE: VisualCheckpoint = {
+	name: "view-download-menu-open-phone",
+	settled: downloadsMenuOpen,
+	geometry: downloadsMenuGeometry,
+	target: DOWNLOADS_MENU,
+	capture: "element",
+	pinnedText: [],
+};
+
 test.describe("Public view CTA row on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE });
 
-	test("save and paste read on one line each", async ({ page }, testInfo) => {
+	test("save and paste share one row while Download stays hidden by default", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPublicView(page, { stamp: `phone-${testInfo.workerIndex}-${Date.now()}`, query: "" });
+		await expect(page.locator("[data-test-view-downloads-slot]")).toHaveClass(
+			"view__downloads-slot view__downloads-slot--hidden",
+		);
 		await captureCheckpoint(page, checkpoint("view-cta-phone", phoneGeometry));
 	});
 
-	test("the EPUB download joins them without squeezing the row to three lines", async ({
+	test("Download remains in the row without squeezing it to three lines", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPublicView(page, {
-			stamp: `phone-epub-${testInfo.workerIndex}-${Date.now()}`,
+			stamp: `phone-downloads-${testInfo.workerIndex}-${Date.now()}`,
 			query: "?feature=epub",
 		});
-		await page.waitForSelector("#view-cta-download-epub");
+		await page.waitForSelector("#view-cta-downloads");
 		await captureCheckpoint(page, checkpoint("view-cta-phone-epub", phoneGeometry));
+	});
+
+	test("Download opens an EPUB and AZW3 popup above the CTA", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openPublicView(page, {
+			stamp: `phone-download-open-${testInfo.workerIndex}-${Date.now()}`,
+			query: "?feature=epub",
+		});
+		await page.locator(DOWNLOADS_TRIGGER).click();
+		await captureCheckpoint(page, DOWNLOADS_MENU_OPEN_PHONE);
+	});
+
+	test("Download appears when content arrives and stays open as the summary settles", async ({ page }, testInfo) => {
+		const slug = `download-pending-${testInfo.workerIndex}-${Date.now()}`;
+		const article = {
+			url: `https://example.com/${slug}`,
+			title: "An article that finishes while its reader is open",
+			content: "<p>The downloaded article is ready.</p>",
+			contentFetchedAt: CONTENT_FETCHED_AT,
+		};
+		await page.setExtraHTTPHeaders({ purpose: "prefetch" });
+		await page.goto(`${BASE_URL}/view/example.com/${slug}?feature=epub`, { waitUntil: "domcontentloaded" });
+		await page.setExtraHTTPHeaders({});
+		await expect(page.locator("#view-cta-downloads-slot")).toBeHidden();
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, { data: article });
+		assert.equal(seeded.status(), 201, "the article must become ready after the initial page render");
+		await expect(page.locator(DOWNLOADS_TRIGGER)).toBeVisible();
+		await page.locator(DOWNLOADS_TRIGGER).click();
+		await expect(page.locator(DOWNLOADS)).toHaveAttribute("open", "");
+
+		const summarized = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: { ...article, generatedSummary: { summary: "A settled summary.", excerpt: "A settled summary." } },
+		});
+		assert.equal(summarized.status(), 201, "the summary must settle after the menu opens");
+		await expect(page.locator("[data-test-reader-summary]")).toHaveAttribute("data-summary-status", "ready");
+		await expect(page.locator(DOWNLOADS)).toHaveAttribute("open", "");
+		await downloadsMenuGeometry(page);
 	});
 });
 
@@ -157,7 +245,7 @@ test.describe("Public view CTA row above the breakpoint", () => {
 			stamp: `desktop-${testInfo.workerIndex}-${Date.now()}`,
 			query: "?feature=epub",
 		});
-		await page.waitForSelector("#view-cta-download-epub");
+		await page.waitForSelector("#view-cta-downloads");
 		await captureCheckpoint(page, checkpoint("view-cta-desktop", desktopGeometry));
 	});
 });

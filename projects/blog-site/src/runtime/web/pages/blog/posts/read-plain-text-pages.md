@@ -56,4 +56,4 @@ For you that means fewer dead ends like this one.
 
 Open Project Gutenberg, pick a book, and copy its plain text link. Paste it into your Readplace readlist.
 
-It reads like any other saved article, summary and all. Start at [readplace.com](/).
+It reads like any other saved article, summary and all. Start at [readplace.com](/?utm_source=blog-read-plain-text-pages&utm_medium=internal&utm_content=home).

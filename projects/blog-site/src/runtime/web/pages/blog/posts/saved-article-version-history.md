@@ -46,7 +46,7 @@ Neither version wrote over the other. The page you followed in January is still 
 
 Each date on the bookmark points at a stored snapshot of the article as it read at that minute. Those snapshots are not pruned. The log they hang off is append-only and has no ceiling, so a page you re-save across a year builds a version for each time its text changed, and every one stays.
 
-The bookmark draws the newest 10. That is a display limit, not a storage one. This is close to what [the Internet Archive does for a public page](/view/web.archive.org), with one difference: it keeps versions of the page for everyone, and Readplace keeps versions of the copy tied to your readlist, [the copy built to outlast the original](/blog/saved-articles-outlast-the-original-page).
+The bookmark draws the newest 10. That is a display limit, not a storage one. This is close to what [the Internet Archive does for a public page](/view/web.archive.org?utm_source=blog-saved-article-version-history&utm_medium=internal&utm_content=read-web-archive-org), with one difference: it keeps versions of the page for everyone, and Readplace keeps versions of the copy tied to your readlist, [the copy built to outlast the original](/blog/saved-articles-outlast-the-original-page?utm_source=blog-saved-article-version-history&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page).
 
 > **Nothing past the tenth version is thrown away. The bookmark just stops drawing it.**
 
@@ -70,6 +70,6 @@ So today the feature is a log, not a way back. It tells you how many times your 
 
 ## Where the dates show up
 
-Open an article you saved a while back and look to the right edge of the reader. If the page has changed since, and Readplace has fetched it again, more than one date sits there, the best one badged on top. If it hasn't, a single date holds, [the way it has since the bookmark first showed a capture time](/blog/saved-article-shows-when-it-was-captured).
+Open an article you saved a while back and look to the right edge of the reader. If the page has changed since, and Readplace has fetched it again, more than one date sits there, the best one badged on top. If it hasn't, a single date holds, [the way it has since the bookmark first showed a capture time](/blog/saved-article-shows-when-it-was-captured?utm_source=blog-saved-article-version-history&utm_medium=internal&utm_content=post-saved-article-shows-when-it-was-captured).
 
-To watch a second version land, save a page that updates often, then save the same address again once it changes, or [follow a save as it retries](/blog/watch-your-article-save-step-by-step) and comes back with different text. The bookmark grows a row. Start a readlist that keeps its own versions at [readplace.com](/), or add [the browser extension](https://readplace.com/install) and save the first page you want to hold on to.
+To watch a second version land, save a page that updates often, then save the same address again once it changes, or [follow a save as it retries](/blog/watch-your-article-save-step-by-step?utm_source=blog-saved-article-version-history&utm_medium=internal&utm_content=post-watch-your-article-save-step-by-step) and comes back with different text. The bookmark grows a row. Start a readlist that keeps its own versions at [readplace.com](/?utm_source=blog-saved-article-version-history&utm_medium=internal&utm_content=home), or add [the browser extension](https://readplace.com/install) and save the first page you want to hold on to.

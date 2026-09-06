@@ -210,7 +210,7 @@ describe("renderChangelogBannerShell", () => {
 		const form = doc.querySelector(".changelog-banner__dismiss");
 		assert(form, "the dismiss form must render");
 		expect(form.getAttribute("method")).toBe("POST");
-		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss");
+		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss");
 		const version = form.querySelector('input[name="version"]');
 		assert(version, "the dismiss form must post the version");
 		expect(version.getAttribute("value")).toBe("a1b2c3d4");

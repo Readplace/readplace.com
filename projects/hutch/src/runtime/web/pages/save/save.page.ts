@@ -2,12 +2,11 @@ import assert from "node:assert";
 import type { Router } from "express";
 import express from "express";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "@packages/web-shell";
+import { sendComponent, withInternalTracking } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
-import { buildSaveIntentEvent, deriveSaveSurface, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
+import { buildSaveIntentEvent, deriveSaveSurface, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { SAVE_OUTCOMES } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
 import { setPendingSaveId } from "../../pending-save";
@@ -23,7 +22,7 @@ function parseUrl(raw: unknown): string | undefined {
 
 export function initSaveRoutes(deps: {
 	buildBannerState: BuildBannerState;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 	secureCookies: boolean;
@@ -36,7 +35,10 @@ export function initSaveRoutes(deps: {
 		const url = parseUrl(typeof req.query.url === "string" ? req.query.url : undefined);
 
 		if (!url) {
-			const redirectUrl = req.userId ? "/queue" : "/";
+			const redirectUrl = withInternalTracking(req.userId ? "/queue" : "/", {
+				source: "save-error",
+				content: req.userId ? "back-to-queue" : "home",
+			});
 			const linkLabel = req.userId ? "Go to your readlist" : "Go to homepage";
 			sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
 			return;
@@ -51,7 +53,8 @@ export function initSaveRoutes(deps: {
 				// survives a client the analytics gate rejects; only the measurement is
 				// gated, and the 303 below is unconditional either way.
 				if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
-					deps.analytics.info(
+					deps.recordAnalyticsEvent(
+						req,
 						buildSaveIntentEvent(
 							{ now: deps.now, salt: deps.salt },
 							{

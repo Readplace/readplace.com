@@ -57,6 +57,8 @@ export function EmbedPage(input: EmbedPageInput): PageBody {
 		bytesB: byteLength(sourceB),
 		bytesC: byteLength(sourceC),
 		appOrigin: input.appOrigin,
+		appHomeHref: `${input.appOrigin}/?utm_source=embed-footer&utm_medium=internal&utm_content=home`,
+		appPrivacyHref: `${input.appOrigin}/privacy?utm_source=embed-footer&utm_medium=internal&utm_content=privacy`,
 	});
 
 	return {

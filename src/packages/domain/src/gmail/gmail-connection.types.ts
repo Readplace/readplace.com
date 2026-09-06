@@ -1,10 +1,7 @@
 import type { InboxAddress } from "../inbox/inbox-address.schema";
 import type { UserId } from "../user";
 
-export type GmailRevokedReason =
-	| "invalid-grant"
-	| "scope-not-granted"
-	| "user-disconnected";
+export type GmailRevokedReason = "invalid-grant" | "scope-not-granted";
 
 export interface GmailFilterError {
 	code: GmailFilterErrorCode;

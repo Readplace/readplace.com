@@ -263,10 +263,21 @@ async function resolveDigestItem(
 		email: {
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
-			readerUrl: `${deps.appOrigin}${buildOwnerReaderPath(article.id)}`,
+			readerUrl: digestReaderUrl({
+				appOrigin: deps.appOrigin,
+				path: buildOwnerReaderPath(article.id),
+			}),
 			preview: buildDigestPreview(summary),
 		},
 	};
+}
+
+function digestReaderUrl(input: { appOrigin: string; path: string }): string {
+	const url = new URL(input.path, input.appOrigin);
+	url.searchParams.set("utm_source", "reader-ready-email");
+	url.searchParams.set("utm_medium", "email");
+	url.searchParams.set("utm_content", "article");
+	return url.toString();
 }
 
 /** Best-effort removal of digest-queue rows: TTL is the backstop, so a failed

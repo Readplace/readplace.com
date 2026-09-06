@@ -61,4 +61,4 @@ Tap a saved article and the clean Readplace reader opens in the app, the summary
 
 A tester sent two sentences about how he wanted to read. They turned into two gestures, a tap that opens your own copy and a swipe that files it away, with a credential trade and an injected listener underneath holding both up.
 
-If you are already on [the iPhone app](/blog/read-it-later-iphone-app), the reader you tap into now shows your saved copy, the same clean text and summary the web reader serves. The app is on the App Store, and the install page has it at [readplace.com/install](https://readplace.com/install?client=iphone).
+If you are already on [the iPhone app](/blog/read-it-later-iphone-app?utm_source=blog-read-saved-articles-in-the-iphone-app&utm_medium=internal&utm_content=post-read-it-later-iphone-app), the reader you tap into now shows your saved copy, the same clean text and summary the web reader serves. The app is on the App Store, and the install page has it at [readplace.com/install](https://readplace.com/install?client=iphone).

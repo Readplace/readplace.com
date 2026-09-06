@@ -1,24 +1,18 @@
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { AnalyticsEvent } from "@packages/web-analytics";
+import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics";
 import { initRecordMcpToolCall } from "./mcp-analytics";
 import type { McpToolCallRecord } from "./mcp-server";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
 function capture(): {
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	captured: AnalyticsEvent[];
 } {
 	const captured: AnalyticsEvent[] = [];
 	return {
-		analytics: {
-			info: (data) => {
-				captured.push(data);
-			},
-			error: () => {},
-			warn: () => {},
-			debug: () => {},
+		recordUngatedAnalyticsEvent: (data) => {
+			captured.push(data);
 		},
 		captured,
 	};
@@ -35,9 +29,9 @@ function record(overrides: Partial<McpToolCallRecord> = {}): McpToolCallRecord {
 }
 
 function run(overrides: Partial<McpToolCallRecord> = {}): AnalyticsEvent[] {
-	const { analytics, captured } = capture();
+	const { recordUngatedAnalyticsEvent, captured } = capture();
 	initRecordMcpToolCall({
-		analytics,
+		recordUngatedAnalyticsEvent,
 		now: () => new Date("2026-08-18T00:00:00.000Z"),
 	})(record(overrides));
 	return captured;

@@ -209,23 +209,6 @@ describe("Readlist routes", () => {
 			expect(unreadArticle?.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status")).toBe("unread");
 		});
 
-		it("should not include htmx attributes on article title links", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "https://example.com/article" });
-
-			const response = await agent.get("/queue");
-			const doc = new JSDOM(response.text).window.document;
-			const titleLink = doc.querySelector(".readlist-article__title");
-			expect(titleLink?.getAttribute("hx-post")).toBeNull();
-			expect(titleLink?.getAttribute("hx-vals")).toBeNull();
-			expect(titleLink?.getAttribute("hx-swap")).toBeNull();
-		});
 	});
 
 	describe("Article URL link", () => {

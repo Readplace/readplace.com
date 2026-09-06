@@ -48,10 +48,10 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.title).toBe("");
 		expect(vm.hasTitle).toBe(false);
 		expect(vm.actions.map((action) => [action.key, action.href])).toEqual([
-			["save", `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save`],
+			["save", `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save?utm_source=inbox-link-card&utm_medium=internal&utm_content=save-link`],
 			[
 				"feedback-exclude",
-				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback`,
+				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?utm_source=inbox-link-card&utm_medium=internal&utm_content=feedback-exclude`,
 			],
 		]);
 	});
@@ -421,7 +421,7 @@ describe("toInboxLinkCardViewModel", () => {
 					saveState: "saving",
 					iconName: undefined,
 					buttonId: "inbox-card-0002-save",
-					href: `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save`,
+					href: `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save?utm_source=inbox-link-card&utm_medium=internal&utm_content=save-link`,
 					method: "POST",
 					hiddenParams: { shown: "20" },
 					inPlaceTargetId: "inbox-card-0002",
@@ -431,7 +431,7 @@ describe("toInboxLinkCardViewModel", () => {
 					label: "Not an article (report)",
 					ariaLabel: "Not an article (report): https://example.com/post",
 					buttonId: "inbox-card-0002-feedback-exclude",
-					href: `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback`,
+					href: `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?utm_source=inbox-link-card&utm_medium=internal&utm_content=feedback-exclude`,
 					method: "POST",
 					hiddenParams: { shown: "20", verdict: "should-be-excluded" },
 				},

@@ -12,11 +12,13 @@ import type {
 	MarkFirstInboxEmailNoticeSent,
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
+	RecordEmailStepMarkedDone,
+	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
-	RecordNextReadStepOutstanding,
+	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
 
 const OnboardingRow = z.object({
@@ -32,9 +34,9 @@ const OnboardingRow = z.object({
 	/* ISO instant the account's save count first reached the Next Read
 	 * minimum; absent until then. */
 	nextReadMinimumReachedAt: dynamoField(z.string()),
-	/* ISO instant the reader was first shown the Next Read step with saves
-	 * still to go; absent until then. */
-	nextReadStepOutstandingAt: dynamoField(z.string()),
+	firstInboxArticleQueuedAt: dynamoField(z.string()),
+	emailStepMarkedDoneAt: dynamoField(z.string()),
+	onboardingOutstandingVersion: dynamoField(z.string()),
 	markReadAcrossQueuesAckedAt: dynamoField(z.string()),
 	deleteArticleAckedAt: dynamoField(z.string()),
 	firstInboxEmailNoticeSentAt: dynamoField(z.string()),
@@ -62,7 +64,9 @@ export function initOnboardingSignals(deps: {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
-	recordNextReadStepOutstanding: RecordNextReadStepOutstanding;
+	recordInboxArticleQueued: RecordInboxArticleQueued;
+	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	markFirstInboxEmailNoticeSent: MarkFirstInboxEmailNoticeSent;
@@ -108,14 +112,32 @@ export function initOnboardingSignals(deps: {
 		});
 	};
 
-	const recordNextReadStepOutstanding: RecordNextReadStepOutstanding = async ({
-		userId,
-	}) => {
+	const recordInboxArticleQueued: RecordInboxArticleQueued = async ({ userId }) => {
 		await onboarding.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET nextReadStepOutstandingAt = if_not_exists(nextReadStepOutstandingAt, :now)",
+				"SET firstInboxArticleQueuedAt = if_not_exists(firstInboxArticleQueuedAt, :now)",
 			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
+	const recordEmailStepMarkedDone: RecordEmailStepMarkedDone = async ({ userId }) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET emailStepMarkedDoneAt = if_not_exists(emailStepMarkedDoneAt, :now)",
+			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
+	const recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion = async ({
+		userId,
+		version,
+	}) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression: "SET onboardingOutstandingVersion = :version",
+			ExpressionAttributeValues: { ":version": version },
 		});
 	};
 
@@ -159,7 +181,8 @@ export function initOnboardingSignals(deps: {
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {
 		const row = await onboarding.get({ userId });
 		const reachedAt = row?.nextReadMinimumReachedAt;
-		const outstandingAt = row?.nextReadStepOutstandingAt;
+		const queuedAt = row?.firstInboxArticleQueuedAt;
+		const markedDoneAt = row?.emailStepMarkedDoneAt;
 		const ackedAt = row?.markReadAcrossQueuesAckedAt;
 		const deleteAckedAt = row?.deleteArticleAckedAt;
 		return {
@@ -171,7 +194,9 @@ export function initOnboardingSignals(deps: {
 				},
 			},
 			nextReadMinimumReachedAt: reachedAt ? new Date(reachedAt) : undefined,
-			nextReadStepOutstandingAt: outstandingAt ? new Date(outstandingAt) : undefined,
+			firstInboxArticleQueuedAt: queuedAt ? new Date(queuedAt) : undefined,
+			emailStepMarkedDoneAt: markedDoneAt ? new Date(markedDoneAt) : undefined,
+			onboardingOutstandingVersion: row?.onboardingOutstandingVersion,
 			markReadAcrossQueuesAckedAt: ackedAt ? new Date(ackedAt) : undefined,
 			deleteArticleAckedAt: deleteAckedAt ? new Date(deleteAckedAt) : undefined,
 		};
@@ -185,7 +210,9 @@ export function initOnboardingSignals(deps: {
 		recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle,
 		recordNextReadMinimumReached,
-		recordNextReadStepOutstanding,
+		recordInboxArticleQueued,
+		recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged,
 		markFirstInboxEmailNoticeSent,

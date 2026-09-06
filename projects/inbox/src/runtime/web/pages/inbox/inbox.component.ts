@@ -1,7 +1,7 @@
 import { INBOX_ADDRESSES_PATH, INBOX_PATH } from "@packages/domain/inbox";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
@@ -12,6 +12,12 @@ import { toInboxAddressesViewModel, toInboxAlerts } from "./inbox.viewmodel";
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
 
 const INBOX_SCRIPT = `<script src="/client-dist/inbox.client.js" defer></script>`;
+
+const INBOX_ADDRESSES_SOURCE = "inbox-addresses";
+
+function trackAddresses(href: string, content: string): string {
+	return withInternalTracking(href, { source: INBOX_ADDRESSES_SOURCE, content });
+}
 
 export function InboxPage(params: {
 	addresses: InboxAddressEntry[];
@@ -42,9 +48,9 @@ export function InboxPage(params: {
 		// target, so aria-describedby can never point at an id that is not there.
 		nameError: alerts.some((alert) => alert.id !== undefined),
 		submittedName: params.submittedName,
-		createAction: `${INBOX_PATH}/create`,
-		disableAction: `${INBOX_PATH}/disable`,
-		enableAction: `${INBOX_PATH}/enable`,
+		createAction: trackAddresses(`${INBOX_PATH}/create`, "create-address"),
+		disableAction: trackAddresses(`${INBOX_PATH}/disable`, "disable-address"),
+		enableAction: trackAddresses(`${INBOX_PATH}/enable`, "enable-address"),
 	});
 
 	return {

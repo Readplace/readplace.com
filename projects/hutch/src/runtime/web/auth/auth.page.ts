@@ -67,13 +67,13 @@ import { createBotDefenseEvent } from "./bot-defense-event";
 import { initValidateSignup } from "./validate-signup";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { readClickAttribution } from "@packages/web-analytics";
-import type { AnalyticsEvent } from "@packages/web-analytics";
+import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
 import { consumeLastViewUrl, LAST_VIEW_COOKIE_NAME } from "../last-view";
 import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
-import { emitUserCreated } from "../../conversions";
+import { buildUserCreatedEvent } from "../../conversions";
 import { buildSignupAttemptedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { SIGNUP_OUTCOMES, type SignupOutcome } from "../../observability/events";
@@ -81,7 +81,11 @@ import {
 	CHECKOUT_RETURN_FAILURE_REASONS,
 	type CheckoutReturnFailureReason,
 } from "../../observability/events";
-import type { EmitSubscriptionEvent } from "../../observability/subscription-events";
+import {
+	buildCheckoutCompletedEvent,
+	buildCheckoutReturnFailedEvent,
+	type SubscriptionLogEvent,
+} from "../../observability/subscription-events";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 
 const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
@@ -122,13 +126,10 @@ interface AuthDependencies {
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
-	conversionLogger: HutchLogger.Typed<ConversionEvent>;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
-	emitSubscriptionEvent: Pick<
-		EmitSubscriptionEvent,
-		"checkoutCompleted" | "checkoutReturnFailed"
-	>;
+	recordSubscriptionEvent: RecordAudienceEvent<SubscriptionLogEvent>;
 	foundingAllocation: FoundingAllocation;
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
@@ -278,7 +279,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const body = (req.body ?? {}) as Record<string, unknown>;
 
 		const logSignupAttempt = (outcome: SignupOutcome) =>
-			deps.analytics.info(
+			deps.recordAnalyticsEvent(
+				req,
 				buildSignupAttemptedEvent({ now: deps.now, salt: deps.salt }, { req, outcome }),
 			);
 
@@ -360,24 +362,27 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			sendVerificationEmail(created.userId, email);
 			logSignupAttempt(SIGNUP_OUTCOMES.created);
-			emitUserCreated(
-				{ logger: deps.conversionLogger, now: deps.now },
-				{
-					userId: created.userId,
-					email,
-					method: "email",
-					tier: "free",
-					attribution,
-					visitorId: req.visitorId,
-					pendingSaveId: consumePendingSaveId({ req, res }),
-					oauthClientId: oauthClientIdFrom(returnUrl),
-				},
+			deps.recordConversionEvent(
+				req,
+				buildUserCreatedEvent(
+					{ now: deps.now },
+					{
+						userId: created.userId,
+						email,
+						method: "email",
+						tier: "free",
+						attribution,
+						visitorId: req.visitorId,
+						pendingSaveId: consumePendingSaveId({ req, res }),
+						oauthClientId: oauthClientIdFrom(returnUrl),
+					},
+				),
 			);
 			const lastViewUrl = consumeLastViewUrl({ req, res });
 			const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
 			emitFirstArticleAutosaved(
-				{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
+				{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
+				{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
 			);
 			res.redirect(303, redirect.location);
 			return;
@@ -404,24 +409,27 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		sendVerificationEmail(created.userId, email);
 		logSignupAttempt(SIGNUP_OUTCOMES.created);
-		emitUserCreated(
-			{ logger: deps.conversionLogger, now: deps.now },
-			{
-				userId: created.userId,
-				email,
-				method: "email",
-				tier: "trial",
-				attribution,
-				visitorId: req.visitorId,
-				pendingSaveId: consumePendingSaveId({ req, res }),
-				oauthClientId: oauthClientIdFrom(returnUrl),
-			},
+		deps.recordConversionEvent(
+			req,
+			buildUserCreatedEvent(
+				{ now: deps.now },
+				{
+					userId: created.userId,
+					email,
+					method: "email",
+					tier: "trial",
+					attribution,
+					visitorId: req.visitorId,
+					pendingSaveId: consumePendingSaveId({ req, res }),
+					oauthClientId: oauthClientIdFrom(returnUrl),
+				},
+			),
 		);
 		const lastViewUrl = consumeLastViewUrl({ req, res });
 		const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
 		emitFirstArticleAutosaved(
-			{ logger: deps.analytics, now: deps.now, salt: deps.salt },
-			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
+			{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
+			{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
 		);
 		res.redirect(303, redirect.location);
 	});
@@ -433,11 +441,17 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			reason: CheckoutReturnFailureReason;
 			checkoutSessionId?: CheckoutSessionId;
 		}) => {
-			deps.emitSubscriptionEvent.checkoutReturnFailed({
-				reason: params.reason,
-				userId: req.userId,
-				checkoutSessionId: params.checkoutSessionId,
-			});
+			deps.recordSubscriptionEvent(
+				req,
+				buildCheckoutReturnFailedEvent(
+					{ now: deps.now },
+					{
+						reason: params.reason,
+						userId: req.userId,
+						checkoutSessionId: params.checkoutSessionId,
+					},
+				),
+			);
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
@@ -502,13 +516,19 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		// paid_now separates a real charge from a $0 trial capture: Stripe reports
 		// no_payment_required for a trial-preserving checkout, which still counts as
 		// a completed checkout but not revenue.
-		deps.emitSubscriptionEvent.checkoutCompleted({
-			userId: pending.userId,
-			subscriptionId,
-			checkoutSessionId,
-			paidNow: session.paymentStatus === "paid",
-			variant: pending.variant,
-		});
+		deps.recordSubscriptionEvent(
+			req,
+			buildCheckoutCompletedEvent(
+				{ now: deps.now },
+				{
+					userId: pending.userId,
+					subscriptionId,
+					checkoutSessionId,
+					paidNow: session.paymentStatus === "paid",
+					variant: pending.variant,
+				},
+			),
+		);
 		try {
 			await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
 			await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });

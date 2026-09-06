@@ -86,18 +86,45 @@ test.describe("The readlist is whole without client JavaScript", () => {
 			.getAttribute("href");
 		assert(readerHref, "a saved card must link to its own reader");
 		const readerUrl = new URL(readerHref, BASE_URL);
+		await page.goto(readerUrl.toString(), { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-reader-content]")).toBeVisible({ timeout: SETTLE_MS });
+		await expect(page.locator("#reader-downloads-slot")).toHaveClass(
+			"article-body__downloads-slot article-body__downloads-slot--hidden",
+		);
+
 		readerUrl.searchParams.set("feature", "epub");
 		await page.goto(readerUrl.toString(), { waitUntil: "domcontentloaded" });
 		await expect(page.locator("[data-test-reader-content]")).toBeVisible({ timeout: SETTLE_MS });
-
-		await expect(page.locator("[data-test-download-epub]")).toBeVisible({ timeout: SETTLE_MS });
-		const epubHref = await page.locator("[data-test-download-epub]").getAttribute("href");
+		await expect(page.locator("[data-test-downloads-trigger]")).toBeVisible({ timeout: SETTLE_MS });
+		await page.locator("[data-test-downloads-trigger]").click();
+		await expect(page.locator('[data-test-download="epub"]')).toBeVisible({ timeout: SETTLE_MS });
+		await expect(page.locator('[data-test-download="azw3"]')).toBeVisible({ timeout: SETTLE_MS });
+		const epubHref = await page.locator('[data-test-download="epub"]').getAttribute("href");
 		assert(epubHref, "a ready reader must offer an EPUB download link");
 		const epubResponse = await page.request.get(new URL(epubHref, BASE_URL).toString());
 		assert.equal(epubResponse.status(), 200, "the EPUB download must serve a file with no script");
 		assert.ok(
 			(epubResponse.headers()["content-type"] ?? "").includes("application/epub+zip"),
 			"the EPUB download must be served as application/epub+zip",
+		);
+		const azw3Href = await page.locator('[data-test-download="azw3"]').getAttribute("href");
+		assert(azw3Href, "a ready reader must offer an AZW3 download link");
+		const azw3Response = await page.request.get(new URL(azw3Href, BASE_URL).toString());
+		assert.equal(azw3Response.status(), 200, "the AZW3 download must serve a file with no script");
+		assert.ok(
+			(azw3Response.headers()["content-type"] ?? "").includes("application/vnd.amazon.mobi8-ebook"),
+			"the AZW3 download must be served as application/vnd.amazon.mobi8-ebook",
+		);
+		const azw3Body = await azw3Response.body();
+		assert.notDeepEqual(
+			azw3Body.subarray(0, 4),
+			Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+			"the AZW3 download must not be an EPUB body relabelled as AZW3",
+		);
+		assert.deepEqual(
+			azw3Body.subarray(60, 68),
+			Buffer.from("BOOKMOBI"),
+			"the AZW3 download must carry the Kindle MOBI container marker",
 		);
 
 		await page.locator('[data-test-mark-read-form] button[type="submit"]').click();

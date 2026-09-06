@@ -142,4 +142,5 @@ export interface HandlePollParams {
 	provenance: SaveProvenance | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
 	readerViewFailedOob: ReaderViewFailedOob;
+	renderDownloadsOob: ((articleUrl: string) => string) | undefined;
 }

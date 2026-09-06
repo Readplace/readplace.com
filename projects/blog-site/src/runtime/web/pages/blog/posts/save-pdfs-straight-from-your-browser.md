@@ -56,4 +56,4 @@ So the same PDF that blocks a crawler opens for you, and Readplace borrows that 
 
 Find the PDF your old app gave up on. Open it in your browser, then click save in the Readplace extension, and watch it land in your readlist with the text pulled out for search and reading.
 
-[Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).
+[Install the browser extension](https://readplace.com/install) or start at [readplace.com](/?utm_source=blog-save-pdfs-straight-from-your-browser&utm_medium=internal&utm_content=home).

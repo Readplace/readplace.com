@@ -64,4 +64,4 @@ You do not have to take my word for any of this.
 
 Open your browser's developer tools, load readplace.com, and read the network and cookie tabs. Count what loads, and count what gets set.
 
-Then start a readlist and watch how little it costs you to do that. Save your first article at [readplace.com](/).
+Then start a readlist and watch how little it costs you to do that. Save your first article at [readplace.com](/?utm_source=blog-no-third-party-trackers&utm_medium=internal&utm_content=home).

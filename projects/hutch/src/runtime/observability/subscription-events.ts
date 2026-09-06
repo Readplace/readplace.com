@@ -75,32 +75,88 @@ export interface EmitSubscriptionEvent {
 	chargeSucceeded: (params: { userId: UserId; subscriptionId: string }) => void;
 	chargeFailed: (params: { userId: UserId; reason: string }) => void;
 	cancelled: (params: { userId: UserId; reason: string; subscriptionId?: string }) => void;
-	checkoutStarted: (params: {
+}
+
+export function buildCheckoutStartedEvent(
+	deps: { now: () => Date },
+	params: {
 		userId: UserId;
 		variant: CheckoutVariant;
 		checkoutSessionId: string;
 		plan: BillingPlan;
-	}) => void;
-	checkoutCompleted: (params: {
+	},
+): SubscriptionLogEvent {
+	return {
+		stream: STREAMS.subscriptions,
+		event: SUBSCRIPTION_EVENTS.checkoutStarted,
+		timestamp: deps.now().toISOString(),
+		user_id: params.userId,
+		variant: params.variant,
+		checkout_session_id: params.checkoutSessionId,
+		plan: params.plan,
+	};
+}
+
+export function buildCheckoutCompletedEvent(
+	deps: { now: () => Date },
+	params: {
 		userId: UserId;
 		subscriptionId: string;
 		checkoutSessionId: string;
 		paidNow: boolean;
 		variant?: CheckoutVariant;
-	}) => void;
-	checkoutReturnFailed: (params: {
+	},
+): SubscriptionLogEvent {
+	return {
+		stream: STREAMS.subscriptions,
+		event: SUBSCRIPTION_EVENTS.checkoutCompleted,
+		timestamp: deps.now().toISOString(),
+		user_id: params.userId,
+		subscription_id: params.subscriptionId,
+		checkout_session_id: params.checkoutSessionId,
+		paid_now: params.paidNow,
+		...(params.variant ? { variant: params.variant } : {}),
+	};
+}
+
+export function buildCheckoutReturnFailedEvent(
+	deps: { now: () => Date },
+	params: {
 		reason: CheckoutReturnFailureReason;
 		userId?: UserId;
 		checkoutSessionId?: string;
-	}) => void;
-	/** A cancelled subscriber resubscribed with a saved card: Stripe charges
-	 * immediately, so this never passes through Stripe Checkout and has no
-	 * checkout_started to pair with. Always revenue. */
-	resubscribeCompleted: (params: {
+	},
+): SubscriptionLogEvent {
+	return {
+		stream: STREAMS.subscriptions,
+		event: SUBSCRIPTION_EVENTS.checkoutReturnFailed,
+		timestamp: deps.now().toISOString(),
+		reason: params.reason,
+		...(params.userId ? { user_id: params.userId } : {}),
+		...(params.checkoutSessionId ? { checkout_session_id: params.checkoutSessionId } : {}),
+	};
+}
+
+/** A cancelled subscriber resubscribed with a saved card: Stripe charges
+ * immediately, so this never passes through Stripe Checkout and has no
+ * checkout_started to pair with. Always revenue. */
+export function buildResubscribeCompletedEvent(
+	deps: { now: () => Date },
+	params: {
 		userId: UserId;
 		subscriptionId: string;
 		plan: BillingPlan;
-	}) => void;
+	},
+): SubscriptionLogEvent {
+	return {
+		stream: STREAMS.subscriptions,
+		event: SUBSCRIPTION_EVENTS.resubscribeCompleted,
+		timestamp: deps.now().toISOString(),
+		user_id: params.userId,
+		subscription_id: params.subscriptionId,
+		paid_now: true,
+		plan: params.plan,
+	};
 }
 
 export function initEmitSubscriptionEvent(deps: {
@@ -134,50 +190,6 @@ export function initEmitSubscriptionEvent(deps: {
 				user_id: userId,
 				reason,
 				...(subscriptionId ? { subscription_id: subscriptionId } : {}),
-			});
-		},
-		checkoutStarted: ({ userId, variant, checkoutSessionId, plan }) => {
-			deps.logger.info({
-				stream: STREAMS.subscriptions,
-				event: SUBSCRIPTION_EVENTS.checkoutStarted,
-				timestamp: deps.now().toISOString(),
-				user_id: userId,
-				variant,
-				checkout_session_id: checkoutSessionId,
-				plan,
-			});
-		},
-		checkoutCompleted: ({ userId, subscriptionId, checkoutSessionId, paidNow, variant }) => {
-			deps.logger.info({
-				stream: STREAMS.subscriptions,
-				event: SUBSCRIPTION_EVENTS.checkoutCompleted,
-				timestamp: deps.now().toISOString(),
-				user_id: userId,
-				subscription_id: subscriptionId,
-				checkout_session_id: checkoutSessionId,
-				paid_now: paidNow,
-				...(variant ? { variant } : {}),
-			});
-		},
-		resubscribeCompleted: ({ userId, subscriptionId, plan }) => {
-			deps.logger.info({
-				stream: STREAMS.subscriptions,
-				event: SUBSCRIPTION_EVENTS.resubscribeCompleted,
-				timestamp: deps.now().toISOString(),
-				user_id: userId,
-				subscription_id: subscriptionId,
-				paid_now: true,
-				plan,
-			});
-		},
-		checkoutReturnFailed: ({ reason, userId, checkoutSessionId }) => {
-			deps.logger.info({
-				stream: STREAMS.subscriptions,
-				event: SUBSCRIPTION_EVENTS.checkoutReturnFailed,
-				timestamp: deps.now().toISOString(),
-				reason,
-				...(userId ? { user_id: userId } : {}),
-				...(checkoutSessionId ? { checkout_session_id: checkoutSessionId } : {}),
 			});
 		},
 	};

@@ -29,7 +29,7 @@ test.describe("Queue listing browser cache", () => {
 		const email = `queue-listing-cache-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUser(page, email);
 		await loginAs(page, email);
-		await page.context().unrouteAll();
+		await page.context().unrouteAll({ behavior: "ignoreErrors" });
 
 		const listing = `${BASE_URL}/queue`;
 

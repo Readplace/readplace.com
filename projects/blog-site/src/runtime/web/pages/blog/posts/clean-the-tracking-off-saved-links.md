@@ -18,11 +18,11 @@ A link a newsletter sends you carries a tail the sender bolted on to count the c
 </div>
 </details>
 
-Look at the end of a link a newsletter sent you. Past the real address sits a tail the sender added: [`utm_source`, `utm_medium`, `utm_campaign`](/view/en.wikipedia.org/wiki/UTM_parameters), sometimes a run of 5 or 6. None of it points at a page. It's there to count the click and name the campaign that paid for it.
+Look at the end of a link a newsletter sent you. Past the real address sits a tail the sender added: [`utm_source`, `utm_medium`, `utm_campaign`](/view/en.wikipedia.org/wiki/UTM_parameters?utm_source=blog-clean-the-tracking-off-saved-links&utm_medium=internal&utm_content=read-en-wikipedia-org), sometimes a run of 5 or 6. None of it points at a page. It's there to count the click and name the campaign that paid for it.
 
 The obvious thing to do with that tail is cut it off. A trimmed link reads like the same link with the noise gone. Cut the wrong piece, though, or cut it too soon, and the address stops opening.
 
-Readplace [saves the article links out of a newsletter into your readlist](/blog/save-newsletter-links-to-your-readlist). Until this week it carried the utm tags in with them. The Extracted Articles tab showed the tracking spelled out in the URL, and a saved copy kept it in the address. Those tags come off now: the link on the card, the URL you read under it, and the copy that lands in your readlist.
+Readplace [saves the article links out of a newsletter into your readlist](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-clean-the-tracking-off-saved-links&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist). Until this week it carried the utm tags in with them. The Extracted Articles tab showed the tracking spelled out in the URL, and a saved copy kept it in the address. Those tags come off now: the link on the card, the URL you read under it, and the copy that lands in your readlist.
 
 ## The parameter that was doing the work
 
@@ -36,7 +36,7 @@ The removal is careful even about how it rebuilds the address. It edits the raw 
 
 ## Late enough to be safe
 
-The cleanup waits for the crawl. A link straight out of an email is often not the destination at all. It's [the email provider's redirect](/blog/save-the-article-not-the-redirect), a tracking wrapper whose real target sits inside a path token, sometimes with a signature laid over its own query. Rewrite one of those before it resolves and you don't get a cleaner link. You get a 403.
+The cleanup waits for the crawl. A link straight out of an email is often not the destination at all. It's [the email provider's redirect](/blog/save-the-article-not-the-redirect?utm_source=blog-clean-the-tracking-off-saved-links&utm_medium=internal&utm_content=post-save-the-article-not-the-redirect), a tracking wrapper whose real target sits inside a path token, sometimes with a signature laid over its own query. Rewrite one of those before it resolves and you don't get a cleaner link. You get a 403.
 
 So Readplace keeps the link byte for byte while that matters. It stores the address as the newsletter wrote it and crawls that, following the wrapper all the way to the page it stands for. Only after the crawl has landed on a real destination does it clear the utm tail. A link still in flight keeps every character it came with.
 
@@ -48,4 +48,4 @@ The tags being gone shows up most when a link leaves your readlist. Copy a saved
 
 Stripping every tracking tag off a link is the fast idea of clean. Stripping only the tags you can show do nothing, after the link has resolved to a page, is the one that still opens when you tap it.
 
-Forward the next issue you get to [a Readplace address](/blog/save-newsletter-links-to-your-readlist). Once the crawl catches up, open the saved article and read the link sitting at the top, the utm tail gone and the page still loading behind it. The first address is yours to set up at [readplace.com](/).
+Forward the next issue you get to [a Readplace address](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-clean-the-tracking-off-saved-links&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist). Once the crawl catches up, open the saved article and read the link sitting at the top, the utm tail gone and the page still loading behind it. The first address is yours to set up at [readplace.com](/?utm_source=blog-clean-the-tracking-off-saved-links&utm_medium=internal&utm_content=home).

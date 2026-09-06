@@ -16,7 +16,7 @@ Save a link to a page its site has since deleted, and the explanation under it u
 </div>
 </details>
 
-Sites delete pages and leave the addresses behind. Follow one of those addresses today and the answer is a [404](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/404), or a [410](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/410) from a site tidy enough to admit the page is gone for good. 22 of the crawls that failed in Readplace last week ended at a 404.
+Sites delete pages and leave the addresses behind. Follow one of those addresses today and the answer is a [404](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/404?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=read-developer-mozilla-org), or a [410](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/410?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=read-developer-mozilla-org) from a site tidy enough to admit the page is gone for good. 22 of the crawls that failed in Readplace last week ended at a 404.
 
 The trouble was the story the reader told about them.
 
@@ -54,8 +54,8 @@ The change is that the offer now appears only where it can deliver. A pitch that
 
 ## The links that were already gone
 
-A link saved from this morning's newsletter rarely dies before the crawl reaches it. The 404s pool in older addresses: a bookmark that rode in with [a Pocket export](/blog/pocket-migration), or a reference at the bottom of a piece filed 2 years ago and finally opened this week.
+A link saved from this morning's newsletter rarely dies before the crawl reaches it. The 404s pool in older addresses: a bookmark that rode in with [a Pocket export](/blog/pocket-migration?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=post-pocket-migration), or a reference at the bottom of a piece filed 2 years ago and finally opened this week.
 
-Readplace can't bring back what a site deleted before the save existed. What it does now is say so in the notice, and keep [the clean copy](/blog/read-any-article-clean-reader) of every page the crawl reached while that page was still standing.
+Readplace can't bring back what a site deleted before the save existed. What it does now is say so in the notice, and keep [the clean copy](/blog/read-any-article-clean-reader?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=post-read-any-article-clean-reader) of every page the crawl reached while that page was still standing.
 
-Both kinds of link sit in the readlist at [readplace.com](/) today. They just stopped sharing an explanation.
+Both kinds of link sit in the readlist at [readplace.com](/?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=home) today. They just stopped sharing an explanation.

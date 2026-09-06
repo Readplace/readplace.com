@@ -1,4 +1,4 @@
-import { type LocalTime, toRelativeOrDate } from "@packages/web-shell";
+import { type LocalTime, toRelativeOrDate, withInternalTracking } from "@packages/web-shell";
 import {
 	INBOX_ADDRESSES_PATH,
 	type InboxEmailEntry,
@@ -8,6 +8,10 @@ import {
 import { buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { buildInboxEmailsUrl } from "./inbox-emails.url";
+
+const INBOX_EMAILS_SOURCE = "inbox-emails";
+const INBOX_EMPTY_SOURCE = "inbox-empty";
+const INBOX_PAGINATION_SOURCE = "inbox-pagination";
 
 export interface InboxEmailRowViewModel {
 	href: string;
@@ -68,7 +72,13 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-address": {
 		key: "no-address",
 		text: "No forwarded emails yet — you don't have an inbox email address to send them to.",
-		cta: { href: INBOX_ADDRESSES_PATH, label: "Create my first inbox address" },
+		cta: {
+			href: withInternalTracking(INBOX_ADDRESSES_PATH, {
+				source: INBOX_EMPTY_SOURCE,
+				content: "create-first-address",
+			}),
+			label: "Create my first inbox address",
+		},
 		addresses: [],
 	},
 	"no-mail": {
@@ -108,12 +118,15 @@ function buildPaginationLinks(
 			label: "Newer",
 			iconName: "arrow-left",
 			iconLeading: true,
-			href: buildInboxEmailsUrl({
-				cursor: {
-					direction: "newer",
-					receivedAtMessageId: result.emails[0].receivedAtMessageId,
-				},
-			}),
+			href: withInternalTracking(
+				buildInboxEmailsUrl({
+					cursor: {
+						direction: "newer",
+						receivedAtMessageId: result.emails[0].receivedAtMessageId,
+					},
+				}),
+				{ source: INBOX_PAGINATION_SOURCE, content: "newer" },
+			),
 		});
 	}
 	if (result.hasOlder) {
@@ -122,12 +135,15 @@ function buildPaginationLinks(
 			label: "Older",
 			iconName: "arrow-right",
 			iconLeading: false,
-			href: buildInboxEmailsUrl({
-				cursor: {
-					direction: "older",
-					receivedAtMessageId: result.emails[result.emails.length - 1].receivedAtMessageId,
-				},
-			}),
+			href: withInternalTracking(
+				buildInboxEmailsUrl({
+					cursor: {
+						direction: "older",
+						receivedAtMessageId: result.emails[result.emails.length - 1].receivedAtMessageId,
+					},
+				}),
+				{ source: INBOX_PAGINATION_SOURCE, content: "older" },
+			),
 		});
 	}
 	return links;
@@ -156,7 +172,10 @@ export function toInboxEmailsViewModel(
 		showPagination: paginationLinks.length > 0,
 		paginationLinks,
 		rows: result.emails.map((entry) => ({
-			href: buildInboxEmailDetailUrl({ emailId: entry.receivedAtMessageId, tab: "view" }),
+			href: withInternalTracking(
+				buildInboxEmailDetailUrl({ emailId: entry.receivedAtMessageId, tab: "view" }),
+				{ source: INBOX_EMAILS_SOURCE, content: "open-email" },
+			),
 			sender: entry.senderEmail === "" ? "(unknown sender)" : entry.senderEmail,
 			subject: entry.subject === "" ? "(no subject)" : entry.subject,
 			received: toRelativeOrDate({ iso: entry.receivedAt, now: options.now }),

@@ -271,11 +271,11 @@ export function initShareBalloon(
 		if (!canShare && !canCopy) return;
 		const root = deps.document.documentElement;
 		if (root.hasAttribute(OWNED_ATTR)) return;
-		const wrap = pickElement(deps.document, "[data-share-balloon-wrap]");
 		root.setAttribute(OWNED_ATTR, "");
 		attached = true;
 		deps.addSwapListener(onSwap);
-		adopt(wrap);
+		const wrap = findWrap();
+		if (wrap !== null) adopt(wrap);
 	}
 
 	function detach(): void {

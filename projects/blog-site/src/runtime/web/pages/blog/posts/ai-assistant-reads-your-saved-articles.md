@@ -25,7 +25,7 @@ Reading the article was the whole of this when I first shipped it, and marking r
 
 ## What the assistant can read now
 
-Until now a connected assistant had two tools, the [save-and-list pair I wrote about before](/blog/save-articles-with-your-ai-assistant). One saved a page to your readlist. The other listed what you had saved, by title and not much more.
+Until now a connected assistant had two tools, the [save-and-list pair I wrote about before](/blog/save-articles-with-your-ai-assistant?utm_source=blog-ai-assistant-reads-your-saved-articles&utm_medium=internal&utm_content=post-save-articles-with-your-ai-assistant). One saved a page to your readlist. The other listed what you had saved, by title and not much more.
 
 Listing is not reading. The assistant could tell that you saved a piece on, say, interest rates, but it could not open it. To use the article it had to go back to the live page, meet the same paywall or pop-up you saved the page to avoid, and read whatever the site served the second time.
 
@@ -51,7 +51,7 @@ Readplace is a place to read the web. Reading a piece and asking an assistant to
 
 That worry was about an assistant marking things off its own bat. It was never about you asking for it. Refusing the tool did nothing about the first. An assistant inclined to tick a box it shouldn't is not held back by a note telling it to open the app. And it did stop the second, which is the ordinary case: you finish the piece, you are already in the conversation about it, and the app is one more trip.
 
-So marking read is a normal write now. `mark_as_read` sets the mark, `mark_as_unread` clears it and the read date with it, and a mark you did not want costs one sentence to undo, the same [one-tap undo](/blog/mark-articles-read-undo-in-one-tap) the readlist already gives you. What is left of the old caution now lives in what the tool tells the assistant rather than in a refusal: the description says plainly that a summary it produced is not the same as you having read the piece, and that the mark is for when you have read it or when you ask. That is guidance, and I would rather call it guidance than keep a refusal that was only ever stopping the honest case.
+So marking read is a normal write now. `mark_as_read` sets the mark, `mark_as_unread` clears it and the read date with it, and a mark you did not want costs one sentence to undo, the same [one-tap undo](/blog/mark-articles-read-undo-in-one-tap?utm_source=blog-ai-assistant-reads-your-saved-articles&utm_medium=internal&utm_content=post-mark-articles-read-undo-in-one-tap) the readlist already gives you. What is left of the old caution now lives in what the tool tells the assistant rather than in a refusal: the description says plainly that a summary it produced is not the same as you having read the piece, and that the mark is for when you have read it or when you ask. That is guidance, and I would rather call it guidance than keep a refusal that was only ever stopping the honest case.
 
 ## Why advertise a tool that refuses
 
@@ -71,4 +71,4 @@ A reading list pays off in the stretch between saving an article and getting to 
 
 Reading your saved articles, and moving them along as you get through them, is the half I gave the assistant. Emptying the list is the half I kept.
 
-The setup is the same one page for every client, at [readplace.com/mcp](https://readplace.com/mcp), and it still asks for [no API key](/blog/connect-ai-assistant-without-an-api-key), only a sign-in you approve. Connect once, then ask your assistant to read back something you saved.
+The setup is the same one page for every client, at [readplace.com/mcp](https://readplace.com/mcp), and it still asks for [no API key](/blog/connect-ai-assistant-without-an-api-key?utm_source=blog-ai-assistant-reads-your-saved-articles&utm_medium=internal&utm_content=post-connect-ai-assistant-without-an-api-key), only a sign-in you approve. Connect once, then ask your assistant to read back something you saved.

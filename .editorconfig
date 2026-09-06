@@ -1,5 +1,5 @@
-; Editor defaults, enforced in CI by editorconfig-checker (see each project's
-; `lint` script). Indent styles below record what the repository already does —
+; Editor defaults, enforced in CI by editorconfig-checker (see the root `check`
+; script). Indent styles below record what the repository already does —
 ; they are descriptive, not aspirational, so adopting them cost almost no diff.
 root = true
 
@@ -15,6 +15,12 @@ indent_style = tab
 
 [*.{js,mjs,json,yml,yaml,sh}]
 indent_style = space
+
+[*.{js,json}__tmpl__]
+indent_style = space
+
+[*.ts__tmpl__]
+indent_style = tab
 
 ; Markdown carries fenced code blocks in other languages — TypeScript examples
 ; indent with tabs, mermaid diagrams with tabs — so a single indent style cannot

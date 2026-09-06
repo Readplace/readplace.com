@@ -5,6 +5,18 @@ import { buildEpub } from "./epub-package";
 
 const MAX_EPUB_IMAGE_BYTES = 3_500_000;
 
+export type BuildArticleEpub = (params: {
+	articleUrl: string;
+	title: string;
+	contentHtml: string;
+}) => Promise<Uint8Array>;
+
+type BuildArticleEpubDependencies = {
+	readArticleImage: ReadArticleImage;
+	logError: (message: string, error?: Error) => void;
+	now: () => Date;
+};
+
 function slugify(value: string): string {
 	return value
 		.toLowerCase()
@@ -13,17 +25,27 @@ function slugify(value: string): string {
 		.slice(0, 80);
 }
 
-export function epubFilename(params: { title: string; articleUrl: string }): string {
+export function articleDownloadFilename(params: {
+	title: string;
+	articleUrl: string;
+	extension: string;
+}): string {
 	const titleSlug = slugify(params.title);
-	if (titleSlug) return `${titleSlug}.epub`;
-	return `${slugify(articleHostFrom(params.articleUrl))}.epub`;
+	if (titleSlug) return `${titleSlug}.${params.extension}`;
+	return `${slugify(articleHostFrom(params.articleUrl))}.${params.extension}`;
 }
 
-export function initBuildArticleEpub(deps: {
-	readArticleImage: ReadArticleImage;
-	logError: (message: string, error?: Error) => void;
-	now: () => Date;
-}) {
+export function epubFilename(params: { title: string; articleUrl: string }): string {
+	return articleDownloadFilename({ ...params, extension: "epub" });
+}
+
+export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildArticleEpub {
+	return initBuildArticleEpubWithImageFilter({ ...deps, canEmbedImage: () => true });
+}
+
+export function initBuildArticleEpubWithImageFilter(
+	deps: BuildArticleEpubDependencies & { canEmbedImage: (filename: string) => boolean },
+): BuildArticleEpub {
 	const { readArticleImage, logError, now } = deps;
 
 	return async (params: {
@@ -39,6 +61,7 @@ export function initBuildArticleEpub(deps: {
 		const images: { filename: string; body: Uint8Array }[] = [];
 		let usedBytes = 0;
 		for (const candidate of candidates) {
+			if (!deps.canEmbedImage(candidate.filename)) continue;
 			const bytes = await readArticleImage({ url: params.articleUrl, filename: candidate.filename });
 			if (!bytes) {
 				logError(`[ArticleEpub] image ${candidate.filename} missing from store; skipping`);

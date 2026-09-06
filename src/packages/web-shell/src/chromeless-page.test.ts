@@ -224,7 +224,7 @@ describe("ChromelessPage", () => {
 		const form = doc.querySelector("form.changelog-banner__dismiss");
 		assert(form, "the close control must be a real form so it works with no JS and stays inside the app sheet");
 		expect(form.getAttribute("method")).toBe("POST");
-		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss");
+		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss");
 		expect(form.querySelector('input[name="version"]')?.getAttribute("value")).toBe(CHANGELOG_VERSION);
 		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
 			"/queue/abc/view?platform=ios",

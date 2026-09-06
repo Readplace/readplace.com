@@ -100,6 +100,7 @@ const tableNames = {
  * strict. Parsed and enforced by the runtime's DynamoDB-backed limiter. */
 const rateLimitRules = {
 	viewCrawl: config.require("rateLimitViewCrawl"),
+	articleDownload: config.require("rateLimitArticleDownload"),
 	login: config.require("rateLimitLogin"),
 	loginAccount: config.require("rateLimitLoginAccount"),
 	signup: config.require("rateLimitSignup"),
@@ -323,6 +324,15 @@ const userDataJobsSchedulerManagePolicy = {
 	policy: trialSchedulerManagePolicyDoc,
 };
 
+const bokoLayer = new aws.lambda.LayerVersion("hutch-boko", {
+	layerName: "hutch-boko",
+	compatibleArchitectures: ["x86_64"],
+	compatibleRuntimes: [aws.lambda.Runtime.NodeJS22dX],
+	code: new pulumi.asset.FileArchive(".lib/boko-layer.zip"),
+	description: "boko EPUB to AZW3 converter",
+	licenseInfo: "GPL-3.0-or-later",
+});
+
 const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	priorLogGroupLogicalName: "hutch-log-analytics",
 	entryPoint: "./src/runtime/lambda.main.ts",
@@ -330,7 +340,8 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	assetDir: "./src/runtime",
 	memorySize: 1769,
 	timeout: WEB_LAMBDA_TIMEOUT_SECONDS,
-	layers: [curlImpersonateLayerArn],
+	architectures: ["x86_64"],
+	layers: [curlImpersonateLayerArn, bokoLayer.arn],
 	environment: {
 		NODE_ENV: config.require("nodeEnv"),
 		PERSISTENCE: "prod",
@@ -357,6 +368,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
 		DYNAMODB_RATE_LIMITS_TABLE: storage.rateLimitsTable.name,
 		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
+		RATE_LIMIT_ARTICLE_DOWNLOAD: rateLimitRules.articleDownload,
 		RATE_LIMIT_LOGIN: rateLimitRules.login,
 		RATE_LIMIT_LOGIN_ACCOUNT: rateLimitRules.loginAccount,
 		RATE_LIMIT_SIGNUP: rateLimitRules.signup,

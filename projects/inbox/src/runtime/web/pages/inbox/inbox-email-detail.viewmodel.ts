@@ -1,5 +1,5 @@
 import { INBOX_PATH } from "@packages/domain/inbox";
-import { type LocalTime, toAbsoluteDateTime } from "@packages/web-shell";
+import { type LocalTime, toAbsoluteDateTime, withInternalTracking } from "@packages/web-shell";
 import type {
 	InboxEmailEntry,
 	InboxEmailLinkCounts,
@@ -155,11 +155,14 @@ function buildArticleCardsPage(input: {
 	return {
 		cards,
 		showMore: {
-			detailHref: buildInboxEmailDetailUrl({
-				emailId: input.emailId,
-				tab: "articles",
-				shown: next,
-			}),
+			detailHref: withInternalTracking(
+				buildInboxEmailDetailUrl({
+					emailId: input.emailId,
+					tab: "articles",
+					shown: next,
+				}),
+				{ source: "inbox-email-detail", content: "show-more-articles" },
+			),
 			moreUrl: buildInboxArticlesMoreUrl({ emailId: input.emailId, shown: next }),
 			count: Math.min(ARTICLES_PAGE_SIZE, remaining),
 		},
@@ -279,7 +282,10 @@ export function toInboxEmailDetailViewModel(input: {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
 		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
-		backHref: INBOX_PATH,
+		backHref: withInternalTracking(INBOX_PATH, {
+			source: "inbox-email-detail",
+			content: "back-to-inbox",
+		}),
 		activeTab: input.activeTab,
 		statusToastMessage,
 		// Counts come from every kept/skipped link, not the page of cards on

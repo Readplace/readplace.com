@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
-import type { SuperTest, Test } from "supertest";
 import request from "supertest";
 import type {
 	CheckoutSessionId,
 	CheckoutVariant,
 } from "@packages/provider-contracts/hosted-checkout";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import type { AuthBundle, PendingSignupBundle } from "../../../test-app";
 
 interface HostedCheckoutLike {
@@ -39,7 +39,7 @@ export async function completeCheckoutSignup(params: {
 	trialEndsAt?: string;
 	variant?: CheckoutVariant;
 	plan?: BillingPlan;
-	agent?: SuperTest<Test>;
+	agent?: ReturnType<typeof request.agent>;
 }): Promise<{
 	successResponse: import("supertest").Response;
 	checkoutSessionId: CheckoutSessionId;
@@ -71,7 +71,8 @@ export async function completeCheckoutSignup(params: {
 	});
 	params.hostedCheckout.markPaid(checkout.id);
 
-	const agent = params.agent ?? request.agent(params.server);
+	const agent =
+		params.agent ?? request.agent(params.server).set("User-Agent", BROWSER_USER_AGENT);
 	const successResponse = await agent.get(
 		`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 	);

@@ -1,3 +1,4 @@
+import { withInternalTracking } from "@packages/web-shell";
 import type { IconName } from "@packages/ui-icons";
 import type { GmailConnection, GmailConnectionState } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
@@ -10,6 +11,24 @@ export interface IntegrationActionViewModel {
 	href: string;
 	label: string;
 	variant: "primary" | "secondary";
+	trackSource: string;
+	trackContent: string;
+}
+
+const INTEGRATIONS_SOURCE = "integrations";
+
+function trackedAction(
+	action: Omit<IntegrationActionViewModel, "trackSource" | "trackContent">,
+): IntegrationActionViewModel {
+	return {
+		...action,
+		href: withInternalTracking(action.href, {
+			source: INTEGRATIONS_SOURCE,
+			content: action.key,
+		}),
+		trackSource: INTEGRATIONS_SOURCE,
+		trackContent: action.key,
+	};
 }
 
 export interface IntegrationRowViewModel {
@@ -42,7 +61,10 @@ const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	filtering: "Connected",
 };
 
-const GMAIL_ACTIONS: Record<GmailConnectionState, IntegrationActionViewModel> = {
+const GMAIL_ACTIONS: Record<
+	GmailConnectionState,
+	Omit<IntegrationActionViewModel, "trackSource" | "trackContent">
+> = {
 	disconnected: {
 		key: "connect",
 		method: "POST",
@@ -119,7 +141,7 @@ export function toIntegrationsIndexViewModel(input: {
 				statusKey: state,
 				statusLabel: STATUS_LABELS[state],
 				statusModifier: `integrations__status--${state}`,
-				actions: [GMAIL_ACTIONS[state]],
+				actions: [trackedAction(GMAIL_ACTIONS[state])],
 			},
 		],
 		alerts,

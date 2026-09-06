@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import request from "supertest";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
@@ -5,6 +6,12 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 const useApp = useTestServer();
 
 const PATH = "/page-depth/event";
+
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
+
+function depthEvents(harness: { analytics: { events: Array<{ event: string }> } }): Array<{ event: string }> {
+	return harness.analytics.events.filter((e) => e.event === "page_depth");
+}
 
 function depthQuery(overrides: Record<string, string> = {}): string {
 	const params = new URLSearchParams({
@@ -99,5 +106,27 @@ describe("POST /page-depth/event", () => {
 			.set(BROWSER_REQUEST_HEADERS);
 
 		expect(harness.analytics.events).toEqual([]);
+	});
+
+	it("records nothing for a beacon carrying a crawler's user-agent, so a bot that walks the page cannot skew how far real readers scroll", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server)
+			.post(depthQuery())
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": GOOGLEBOT });
+
+		expect(response.status).toBe(204);
+		assert.equal(depthEvents(harness).length, 0, "a crawler's depth report must never reach the sink");
+	});
+
+	it("records the very same beacon once when a browser sends it, proving the drop above is the user-agent gate and not a beacon the route silently stopped accepting", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server)
+			.post(depthQuery())
+			.set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(204);
+		assert.equal(depthEvents(harness).length, 1, "a real reader's depth report is recorded exactly once");
 	});
 });

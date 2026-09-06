@@ -20,7 +20,7 @@ A newsletter issue arrives as one email, but only a few of its links are the art
 
 As of this week, tldr-a7b2c9@read.place is where I send one newsletter. Not my inbox and not a folder, just an address that belongs to TLDR and nothing else.
 
-I wrote about [newsletter overload](/blog/newsletter-overload) a few months back and said I was building the fix. The plan then was a Gmail connection: hand Readplace your inbox, let it read your issues, pull the links out. What shipped doesn't reach into your inbox at all. Each newsletter gets an address of its own, and the issues come straight to Readplace instead of through your mail.
+I wrote about [newsletter overload](/blog/newsletter-overload?utm_source=blog-save-newsletter-links-to-your-readlist&utm_medium=internal&utm_content=post-newsletter-overload) a few months back and said I was building the fix. The plan then was a Gmail connection: hand Readplace your inbox, let it read your issues, pull the links out. What shipped doesn't reach into your inbox at all. Each newsletter gets an address of its own, and the issues come straight to Readplace instead of through your mail.
 
 The address earns its place because a newsletter is mostly not the thing I subscribed for.
 
@@ -82,4 +82,4 @@ Naming each address after its source earns its keep here too. When mail turns up
 
 It's live now, so you can set the first one up today. Pick the newsletter you open the least and trust the most, the one whose links you keep meaning to get to. Make an address for it, subscribe with that address, and let the next issue sort itself into your readlist while the sponsor blocks and the unsubscribe footer stay behind.
 
-Start at [readplace.com](/) to set up the first address, or bring an issue you already have by forwarding it in. The next newsletter you read can be 3 links waiting in a readlist instead of 14 sitting in an email.
+Start at [readplace.com](/?utm_source=blog-save-newsletter-links-to-your-readlist&utm_medium=internal&utm_content=home) to set up the first address, or bring an issue you already have by forwarding it in. The next newsletter you read can be 3 links waiting in a readlist instead of 14 sitting in an email.

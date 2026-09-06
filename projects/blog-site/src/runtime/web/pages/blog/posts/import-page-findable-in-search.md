@@ -18,7 +18,7 @@ The page that imports your old reading list used to carry a noindex tag, so sear
 
 Readplace's import page did its job. It also told search engines to skip it.
 
-The page has been open to anyone, no login required. Upload a file or paste a link, and it reads out every web address inside and lays them in a checkable list. The account waits until the end, the moment you save the selection to your readlist. [I moved the signup to the commit step for a reason](/blog/import-links-before-signing-up), and none of that reason survives if no reader can reach the page.
+The page has been open to anyone, no login required. Upload a file or paste a link, and it reads out every web address inside and lays them in a checkable list. The account waits until the end, the moment you save the selection to your readlist. [I moved the signup to the commit step for a reason](/blog/import-links-before-signing-up?utm_source=blog-import-page-findable-in-search&utm_medium=internal&utm_content=post-import-links-before-signing-up), and none of that reason survives if no reader can reach the page.
 
 A reader leaves Pocket, or Omnivore, or whatever shut down this month, and goes looking for somewhere to put the list they kept. They open a search, or they ask an assistant where to move a reading list. The page built to catch them was carrying a `noindex, nofollow` tag, so neither one could see it.
 
@@ -38,7 +38,7 @@ The questions are the ones a reader types, or puts to an assistant, right when t
 
 Do I need an account to import? No, not until you save the selection. What files work? Any text-shaped file, because it scans for `http` addresses and the format around them does not matter. Is there a Pocket import? Yes, the HTML file Pocket handed you on the way out. How many links at once? Up to 2,000, from a file up to 4.5 MB, and anything larger goes to a slower path by email.
 
-Those answers sit on the page as text a reader can see. They also sit in the markup as [FAQPage structured data](/view/schema.org/FAQPage), the format a search engine reads to show a question and its answer inside the results.
+Those answers sit on the page as text a reader can see. They also sit in the markup as [FAQPage structured data](/view/schema.org/FAQPage?utm_source=blog-import-page-findable-in-search&utm_medium=internal&utm_content=read-schema-org), the format a search engine reads to show a question and its answer inside the results.
 
 That second copy is the one that reaches an AI assistant. Ask Claude or ChatGPT how to move a Pocket export into a new reader, and the answer is built from pages the assistant can fetch and parse. A page marked noindex, with no structured answers on it, gives it little to work with. The same five questions, laid out where a machine can read them, give it a page to point at.
 
@@ -58,4 +58,4 @@ Findable is part of the feature, not a coat of paint on top of it. A page that a
 
 A page that works is a fair goal. A page the right reader can find is the one that pays off.
 
-If you are moving a reading list off something that shut down, the page is at [readplace.com/import](/import) now, paste box open. The [pre-signup writeup](/blog/import-links-before-signing-up) covers what carries across the account step, and the [Pocket guide](/blog/pocket-migration) covers that move on its own.
+If you are moving a reading list off something that shut down, the page is at [readplace.com/import](/import?utm_source=blog-import-page-findable-in-search&utm_medium=internal&utm_content=import) now, paste box open. The [pre-signup writeup](/blog/import-links-before-signing-up?utm_source=blog-import-page-findable-in-search&utm_medium=internal&utm_content=post-import-links-before-signing-up) covers what carries across the account step, and the [Pocket guide](/blog/pocket-migration?utm_source=blog-import-page-findable-in-search&utm_medium=internal&utm_content=post-pocket-migration) covers that move on its own.

@@ -59,4 +59,4 @@ Open the install page on your iPhone and pick the iPhone tab. Save a handful of 
 
 The app is built around saving fast so the link is there when you finally have time to read it.
 
-[Get the iPhone app](https://readplace.com/install?client=iphone) or start at [readplace.com](/).
+[Get the iPhone app](https://readplace.com/install?client=iphone) or start at [readplace.com](/?utm_source=blog-read-it-later-iphone-app&utm_medium=internal&utm_content=home).

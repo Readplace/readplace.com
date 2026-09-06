@@ -20,7 +20,7 @@ Nothing sits behind the card at the end of a finished article except the same ac
 
 A suggestion surface usually has a warehouse behind it. The shop recommends its own stock, and the streaming service works through a catalogue it has already paid for.
 
-Past the last paragraph of an article in [the Readplace reader](/blog/read-any-article-clean-reader) sits a card with no warehouse behind it at all. It offers one article out of one pile, and that pile is a single account's own saves.
+Past the last paragraph of an article in [the Readplace reader](/blog/read-any-article-clean-reader?utm_source=blog-a-suggestion-with-no-warehouse-behind-it&utm_medium=internal&utm_content=post-read-any-article-clean-reader) sits a card with no warehouse behind it at all. It offers one article out of one pile, and that pile is a single account's own saves.
 
 One account's pile is deeper than it sounds. A save costs one click, taken at the moment interest is hottest. The reading it commits you to has to come out of an evening you have not had yet, which is why the pile grows faster than it empties and why the bottom of it goes unvisited for months.
 
@@ -34,7 +34,7 @@ I started from that limit rather than arriving at it.
 
 The choosing happens when a link is saved, not when one is read. A save hands the new article to a small language model, told in the first line of its instructions that it is a librarian for a read-it-later app, along with up to 1,000 of the same account's earlier saves. Unread saves go in first, and past reads top the list up with whatever room is left over.
 
-Each candidate arrives as 3 short lines, Title, Site and About, each cut at 300 characters. The About line is [the article's own stored summary](/blog/how-ai-tldr-actually-works) where Readplace wrote one. So the librarian works from titles and summaries rather than from the full text of 1,000 articles.
+Each candidate arrives as 3 short lines, Title, Site and About, each cut at 300 characters. The About line is [the article's own stored summary](/blog/how-ai-tldr-actually-works?utm_source=blog-a-suggestion-with-no-warehouse-behind-it&utm_medium=internal&utm_content=post-how-ai-tldr-actually-works) where Readplace wrote one. So the librarian works from titles and summaries rather than from the full text of 1,000 articles.
 
 The prompt asks one question per candidate, and it is the load-bearing sentence in the file: "can you name, in under ten words, one specific subject both pieces are about?" A named language, tool, machine, event, discipline or debate counts. A quality does not, and the prompt says why. Ingenuity, craft and curiosity "describe almost every saved article and relate none of them".
 
@@ -52,11 +52,11 @@ Reach the end and it rises 8 pixels into the corner of the reading column, at mo
 
 It shows one pick at a time, the first of the 3 still unread. A line reading Next read sits above the title, then the site, then that one sentence. The last row opens with a badge reading Unread, and beside the badge sits the part I'd point at first. You saved this 2 months ago.
 
-A save date answers a different question than a feed does. The collaborative half of a [recommender system](/view/en.wikipedia.org/wiki/Recommender_system) reports what people with tastes like yours opened today. The card reports what you set aside for yourself in June, and how long it has been waiting since.
+A save date answers a different question than a feed does. The collaborative half of a [recommender system](/view/en.wikipedia.org/wiki/Recommender_system?utm_source=blog-a-suggestion-with-no-warehouse-behind-it&utm_medium=internal&utm_content=read-en-wikipedia-org) reports what people with tastes like yours opened today. The card reports what you set aside for yourself in June, and how long it has been waiting since.
 
 Following the card means leaving the article underneath, and that is the article a readlist most often gets wrong. A reader reaches the last line, moves on, and the article sits in the list as unread. So the web reader asks on the way out.
 
-A panel names the article being left and asks "Did you read it?". The 2 buttons spell out both outcomes, "Yes, Mark as Read" [files it](/blog/mark-articles-read-undo-in-one-tap) and "No, Continue and Keep Unread" leaves it waiting. Closing the panel cancels the exit.
+A panel names the article being left and asks "Did you read it?". The 2 buttons spell out both outcomes, "Yes, Mark as Read" [files it](/blog/mark-articles-read-undo-in-one-tap?utm_source=blog-a-suggestion-with-no-warehouse-behind-it&utm_medium=internal&utm_content=post-mark-articles-read-undo-in-one-tap) and "No, Continue and Keep Unread" leaves it waiting. Closing the panel cancels the exit.
 
 ## A page on the shelf cannot lobby for itself
 
@@ -78,9 +78,9 @@ Unread comes first while there is unread to come first, and the prompt is blunt 
 
 A feed in that position restocks. What is left on this shelf is something already crossed off, handed back with the label changed to say so.
 
-Silence is the other answer, and the prompt asks for it outright. An empty list, in its own words, "is a correct and common answer". The first version of those instructions said the opposite, that a merely-plausible pick beat an empty one, and the model duly filled every slot it was given. [Grading 544 of its own suggestions](/blog/the-next-read-under-your-article-stopped-guessing) is what turned that sentence around, and it is the part of the feature I would defend hardest.
+Silence is the other answer, and the prompt asks for it outright. An empty list, in its own words, "is a correct and common answer". The first version of those instructions said the opposite, that a merely-plausible pick beat an empty one, and the model duly filled every slot it was given. [Grading 544 of its own suggestions](/blog/the-next-read-under-your-article-stopped-guessing?utm_source=blog-a-suggestion-with-no-warehouse-behind-it&utm_medium=internal&utm_content=post-the-next-read-under-your-article-stopped-guessing) is what turned that sentence around, and it is the part of the feature I would defend hardest.
 
-There is a floor under all of it, and it counts the whole account rather than the subject anyone is stacking up. Readplace adds unread saves and past reads together and declines to run below 50 of them, which is why the onboarding checklist carries a step titled "Save 50 articles so Next Read can start". Under that line there is no card, because a shelf that short cannot support a claim about what relates to what. An imported backlog clears the floor on [its first day](/blog/pocket-migration).
+There is a floor under all of it, and it counts the whole account rather than the subject anyone is stacking up. Readplace adds unread saves and past reads together and declines to run below 50 of them, which is why the onboarding checklist carries a step titled "Save 50 articles so Next Read can start". Under that line there is no card, because a shelf that short cannot support a claim about what relates to what. An imported backlog clears the floor on [its first day](/blog/pocket-migration?utm_source=blog-a-suggestion-with-no-warehouse-behind-it&utm_medium=internal&utm_content=post-pocket-migration).
 
 ## As far as it goes
 
@@ -90,4 +90,4 @@ So the card is easy to refuse. The dismiss button in its corner posts to the acc
 
 Neither of the 2 things that have to be true is mine to arrange. A reader filled the account over months, then read tonight's article down to its last line, both for reasons of their own. The librarian only sorts what that left behind.
 
-Somewhere in [your readlist](/) is a save you have stopped thinking about, waiting on a different article entirely, whichever one you finish next.
+Somewhere in [your readlist](/?utm_source=blog-a-suggestion-with-no-warehouse-behind-it&utm_medium=internal&utm_content=home) is a save you have stopped thinking about, waiting on a different article entirely, whichever one you finish next.

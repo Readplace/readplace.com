@@ -20,7 +20,7 @@ Most articles you want to read come wrapped in noise. There are popups, a cookie
 
 You opened the page for 800 words of writing and instead you have to fight your way to them.
 
-Readplace has a page that skips that. Go to [readplace.com/view](/view), paste a link, and the article opens in a clean reader with just the title, the text, the pictures, and a short summary at the top. You don't need an account to read it.
+Readplace has a page that skips that. Go to [readplace.com/view](/view?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=view), paste a link, and the article opens in a clean reader with just the title, the text, the pictures, and a short summary at the top. You don't need an account to read it.
 
 ## Read first, decide later
 
@@ -52,6 +52,6 @@ Ask Readplace for an article as markdown and it hands back the same clean text w
 
 ## Try it
 
-Find an article you keep meaning to read. Copy the link, open [readplace.com/view](/view), and paste it. Read it clean, then save it if it earns a spot.
+Find an article you keep meaning to read. Copy the link, open [readplace.com/view](/view?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=view), and paste it. Read it clean, then save it if it earns a spot.
 
-Reading an article without an account is fine. Reading it without the clutter, and keeping the clean copy, is better. Start at [readplace.com](/).
+Reading an article without an account is fine. Reading it without the clutter, and keeping the clean copy, is better. Start at [readplace.com](/?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=home).

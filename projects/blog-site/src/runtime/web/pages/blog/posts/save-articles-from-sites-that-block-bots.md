@@ -32,9 +32,9 @@ Headers were the next guess. The crawler sent a normal Chrome user-agent and the
 
 ## A fingerprint that aged out
 
-The block keyed on the TLS handshake. Before any HTTP header is sent, the client and the server negotiate encryption, and the exact shape of that negotiation, the cipher list and the extensions and the order they arrive in, is specific enough to name the software making the request. The fingerprint of that handshake has a name, [JA3](/view/github.com/salesforce/ja3). Anti-bot services like Fastly read it, compare it against the handshakes that current browsers produce, and drop the ones that do not match.
+The block keyed on the TLS handshake. Before any HTTP header is sent, the client and the server negotiate encryption, and the exact shape of that negotiation, the cipher list and the extensions and the order they arrive in, is specific enough to name the software making the request. The fingerprint of that handshake has a name, [JA3](/view/github.com/salesforce/ja3?utm_source=blog-save-articles-from-sites-that-block-bots&utm_medium=internal&utm_content=read-github-com). Anti-bot services like Fastly read it, compare it against the handshakes that current browsers produce, and drop the ones that do not match.
 
-The crawler used [curl-impersonate](/view/github.com/lexiforest/curl-impersonate), a build of curl that copies a real browser's handshake so a server sees a browser and not a script. It was pinned to a persona of Chrome 116. Chrome 116 shipped in 2023. Three years on, an edge that gates on current-browser fingerprints reads a Chrome 116 handshake as one no shipping browser produces, which is to say a bot.
+The crawler used [curl-impersonate](/view/github.com/lexiforest/curl-impersonate?utm_source=blog-save-articles-from-sites-that-block-bots&utm_medium=internal&utm_content=read-github-com), a build of curl that copies a real browser's handshake so a server sees a browser and not a script. It was pinned to a persona of Chrome 116. Chrome 116 shipped in 2023. Three years on, an edge that gates on current-browser fingerprints reads a Chrome 116 handshake as one no shipping browser produces, which is to say a bot.
 
 > **Chrome 116 shipped in 2023. To a 2026 anti-bot edge, a client that still fingerprints as Chrome 116 reads as a bot.**
 
@@ -67,4 +67,4 @@ A read-it-later tool is only as good as the saves it completes. The sites most w
 
 Fingerprints age. A browser persona that clears every edge today reads as stale a year or two on, which is why the canary now sweeps the fingerprint across every source and trips CI before a reader ever meets the empty version.
 
-Point it at a link a plain download would bounce off: [install the browser extension](https://readplace.com/install), or paste the link at [readplace.com](/), and see whether it comes back as clean reading.
+Point it at a link a plain download would bounce off: [install the browser extension](https://readplace.com/install), or paste the link at [readplace.com](/?utm_source=blog-save-articles-from-sites-that-block-bots&utm_medium=internal&utm_content=home), and see whether it comes back as clean reading.

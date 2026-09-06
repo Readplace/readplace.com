@@ -3,6 +3,7 @@ import request from "supertest";
 import type { Token, Client } from "@node-oauth/oauth2-server";
 import type { UserId } from "@packages/domain/user";
 import { useTestServer, loginAgent, type TestAppHarness, type TestAppResult } from "../../../test-app";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import type { ViewSaveIntentEvent } from "@packages/web-analytics";
 import {
 	TEST_APP_ORIGIN,
@@ -13,6 +14,9 @@ import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 
 const TEST_USER_ID = "test-user-save-intent" as UserId;
+
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
+const READPLACE_IOS = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 
 function createTestToken(): Token {
 	return {
@@ -99,13 +103,14 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(saveIntents(harness)[0]).toMatchObject({ surface: "queue_save_bar", outcome: "error", is_authenticated: 1 });
 		});
 
-		it("emits queue_save_bar / error with a null host when the URL is malformed (422)", async () => {
+		it("emits queue_save_bar / error with a null host when the URL is malformed", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.post("/queue/save").type("form").send({ url: "not-a-url" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?error_code=malformed_url");
 			const intents = saveIntents(harness);
 			assert.equal(intents.length, 1, "exactly one view_save_intent");
 			expect(intents[0]).toMatchObject({
@@ -124,13 +129,48 @@ describe("view_save_intent — authenticated save surfaces", () => {
 
 			const response = await agent.post("/queue/save").type("form").send({ url: "http://localhost/x" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?error_code=private_network");
 			expect(saveIntents(harness)[0]).toMatchObject({
 				surface: "queue_save_bar",
 				outcome: "error",
 				article_host: "localhost",
 				content_class: "third_party",
 			});
+		});
+
+		it("saves the article but emits no view_save_intent when a crawler posts the save bar, so the funnel counts only saves a reader chose", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent
+				.post("/queue/save")
+				.set("User-Agent", GOOGLEBOT)
+				.type("form")
+				.send({ url: "https://example.com/article" });
+
+			expect(response.status).toBe(303);
+			assert.ok(
+				await harness.articleStore.findArticleByUrl("https://example.com/article"),
+				"only the measurement is gated — the crawler's article is still saved",
+			);
+			assert.equal(saveIntents(harness).length, 0, "a crawler's save bar POST is not a save intent");
+		});
+
+		it("emits exactly one view_save_intent for that same save bar POST from a real browser, which is what shows the bot gate has not silenced the surface", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent
+				.post("/queue/save")
+				.set("User-Agent", BROWSER_USER_AGENT)
+				.type("form")
+				.send({ url: "https://example.com/article" });
+
+			expect(response.status).toBe(303);
+			const intents = saveIntents(harness);
+			assert.equal(intents.length, 1, "exactly one view_save_intent");
+			expect(intents[0]).toMatchObject({ surface: "queue_save_bar", outcome: "saved", client: "web" });
 		});
 	});
 
@@ -143,6 +183,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.send({ url: "https://example.com/article" });
 
 			expect(response.status).toBe(201);
@@ -164,11 +205,29 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.set(NATIVE_CLIENT_HEADER, "ios")
 				.send({ url: "https://example.com/article" });
 
 			expect(response.status).toBe(201);
 			expect(saveIntents(harness)[0]).toMatchObject({ surface: "extension", client: "ios_app" });
+		});
+
+		it("counts a save carrying only the iPhone app's own User-Agent as exactly one ios_app save intent, since isbot() reads that CFNetwork agent as a crawler and would otherwise drop the app's whole funnel", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", READPLACE_IOS)
+				.send({ url: "https://example.com/article" });
+
+			expect(response.status).toBe(201);
+			const intents = saveIntents(harness);
+			assert.equal(intents.length, 1, "exactly one view_save_intent");
+			expect(intents[0]).toMatchObject({ surface: "extension", outcome: "saved", client: "ios_app" });
 		});
 
 		it("emits extension / error when the save throws", async () => {
@@ -179,6 +238,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.send({ url: "https://example.com/article" });
 
 			expect(response.status).toBe(500);
@@ -193,6 +253,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.send({ url: "not-a-url" });
 
 			expect(response.status).toBe(422);
@@ -211,6 +272,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-content")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("url", "https://example.com/article")
 				.field("mediaType", "text/html")
 				.attach("content", Buffer.from("<html>captured</html>"), "content");
@@ -227,6 +289,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-content")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("url", "https://example.com/article")
 				.field("mediaType", "text/html")
 				.attach("content", Buffer.from("<html>captured</html>"), "content");
@@ -243,6 +306,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-content")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("url", "not-a-url")
 				.field("mediaType", "text/html")
 				.attach("content", Buffer.from("<html>captured</html>"), "content");
@@ -259,6 +323,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-content")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("url", "https://example.com/article")
 				.field("mediaType", "text/html");
 
@@ -274,6 +339,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-content")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("url", "https://example.com/article")
 				.attach("content", Buffer.from("<html>captured</html>"), "content");
 
@@ -289,6 +355,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-content")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("url", "https://example.com/article")
 				.field("mediaType", "application/xml")
 				.attach("content", Buffer.from("<note>hi</note>"), "content");
@@ -305,6 +372,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-content")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("url", "https://example.com/article")
 				.field("mediaType", "application/pdf")
 				.attach("content", Buffer.from("<html>not a pdf</html>"), "content");
@@ -323,6 +391,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-articles")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("manifest", JSON.stringify([
 					{ url: "https://example.com/a" },
 					{ url: "https://fagnerbrack.com/b" },
@@ -344,6 +413,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-articles")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
+				.set("User-Agent", BROWSER_USER_AGENT)
 				.field("manifest", JSON.stringify([{ url: "https://example.com/a" }]));
 
 			expect(response.status).toBe(200);

@@ -132,7 +132,7 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		expect(control.getAttribute("hx-get")).toBe(`${morePath}?shown=60`);
 		expect(control.getAttribute("hx-swap")).toBe("outerHTML");
 		expect(control.getAttribute("href")).toBe(
-			`/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
 		);
 	});
 

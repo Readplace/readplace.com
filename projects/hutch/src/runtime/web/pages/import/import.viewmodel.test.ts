@@ -31,8 +31,8 @@ describe("toImportViewModel", () => {
 			{ index: 1, url: "https://example.com/b", checked: true },
 		]);
 		expect(vm.totalSelected).toBe(2);
-		expect(vm.commitUrl).toBe(`/import/${session.id}/commit`);
-		expect(vm.toggleUrl).toBe(`/import/${session.id}/toggle`);
+		expect(vm.commitUrl).toBe(`/import/${session.id}/commit?utm_source=import-review&utm_medium=internal&utm_content=commit`);
+		expect(vm.toggleUrl).toBe(`/import/${session.id}/toggle?utm_source=import-review&utm_medium=internal&utm_content=toggle-link`);
 	});
 
 	it("marks deselected indexes as unchecked", () => {
@@ -61,10 +61,10 @@ describe("toImportViewModel", () => {
 
 		expect(page1.totalPages).toBe(3);
 		expect(page1.prevUrl).toBeUndefined();
-		expect(page1.nextUrl).toBe(`/import/${session.id}?page=2`);
-		expect(page2.prevUrl).toBe(`/import/${session.id}`);
-		expect(page2.nextUrl).toBe(`/import/${session.id}?page=3`);
-		expect(page3.prevUrl).toBe(`/import/${session.id}?page=2`);
+		expect(page1.nextUrl).toBe(`/import/${session.id}?page=2&utm_source=import-review&utm_medium=internal&utm_content=next`);
+		expect(page2.prevUrl).toBe(`/import/${session.id}?utm_source=import-review&utm_medium=internal&utm_content=prev`);
+		expect(page2.nextUrl).toBe(`/import/${session.id}?page=3&utm_source=import-review&utm_medium=internal&utm_content=next`);
+		expect(page3.prevUrl).toBe(`/import/${session.id}?page=2&utm_source=import-review&utm_medium=internal&utm_content=prev`);
 		expect(page3.nextUrl).toBeUndefined();
 	});
 
@@ -95,7 +95,7 @@ describe("toImportViewModel", () => {
 		expect(vm.allSelected).toBe(true);
 		expect(vm.noneSelected).toBe(false);
 		expect(vm.someSelected).toBe(false);
-		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all`);
+		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all?utm_source=import-review&utm_medium=internal&utm_content=toggle-all`);
 	});
 
 	it("flags the master checkbox as fully deselected when every row is deselected", () => {
@@ -132,8 +132,8 @@ describe("toImportViewModel", () => {
 			120,
 		);
 
-		expect(vm.toggleUrl).toBe(`/import/${session.id}/toggle`);
-		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all`);
+		expect(vm.toggleUrl).toBe(`/import/${session.id}/toggle?utm_source=import-review&utm_medium=internal&utm_content=toggle-link`);
+		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all?utm_source=import-review&utm_medium=internal&utm_content=toggle-all`);
 	});
 
 	it("carries the current page in toggle URLs when viewing a later page", () => {
@@ -144,8 +144,8 @@ describe("toImportViewModel", () => {
 			200,
 		);
 
-		expect(vm.toggleUrl).toBe(`/import/${session.id}/toggle?page=3`);
-		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all?page=3`);
+		expect(vm.toggleUrl).toBe(`/import/${session.id}/toggle?page=3&utm_source=import-review&utm_medium=internal&utm_content=toggle-link`);
+		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all?page=3&utm_source=import-review&utm_medium=internal&utm_content=toggle-all`);
 	});
 
 	it("propagates the truncated flag and totalFound from the session header", () => {
@@ -165,8 +165,8 @@ describe("toImportAcquireViewModel", () => {
 	it("defaults the mode to from-url when no mode is provided", () => {
 		const vm = toImportAcquireViewModel({});
 		expect(vm.mode).toBe("from-url");
-		expect(vm.uploadAction).toBe("/import");
-		expect(vm.fromUrlAction).toBe("/import/from-url");
+		expect(vm.uploadAction).toBe("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
+		expect(vm.fromUrlAction).toBe("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links");
 	});
 
 	it("sets mode to upload when mode=upload", () => {
@@ -198,9 +198,9 @@ describe("toImportAcquireViewModel", () => {
 		const vm = toImportAcquireViewModel({});
 		expect(vm.tabs.map((t) => t.key)).toEqual(["from-url", "upload"]);
 		expect(vm.tabs[0].isActive).toBe(true);
-		expect(vm.tabs[0].href).toBe("/import");
+		expect(vm.tabs[0].href).toBe("/import?utm_source=import-tabs&utm_medium=internal&utm_content=from-url");
 		expect(vm.tabs[1].isActive).toBe(false);
-		expect(vm.tabs[1].href).toBe("/import?mode=upload");
+		expect(vm.tabs[1].href).toBe("/import?mode=upload&utm_source=import-tabs&utm_medium=internal&utm_content=upload");
 	});
 
 	it("marks the upload tab active when mode=upload", () => {

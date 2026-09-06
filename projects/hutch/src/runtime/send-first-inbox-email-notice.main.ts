@@ -2,7 +2,7 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
-import { initOnboardingSignals } from "./providers/onboarding-signals/dynamodb-onboarding-signals";
+import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initSendFirstInboxEmailNoticeHandler } from "./send-first-inbox-email-notice/send-first-inbox-email-notice-handler";

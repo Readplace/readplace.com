@@ -32,13 +32,13 @@ describe("buildMailTabs", () => {
 		expect(tabs[2].ariaCurrent).toBe("page");
 	});
 
-	it("links every tab to its own URL", () => {
+	it("links every tab to its own URL, tagged so each tab press is attributable", () => {
 		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "view", counts: NO_COUNTS });
 
 		expect(tabs.map((tab) => tab.href)).toEqual([
-			`/inbox/${ENCODED_EMAIL_ID}`,
-			`/inbox/${ENCODED_EMAIL_ID}?tab=articles`,
-			`/inbox/${ENCODED_EMAIL_ID}?tab=excluded`,
+			`/inbox/${ENCODED_EMAIL_ID}?utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=view`,
+			`/inbox/${ENCODED_EMAIL_ID}?tab=articles&utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=articles`,
+			`/inbox/${ENCODED_EMAIL_ID}?tab=excluded&utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=excluded`,
 		]);
 	});
 

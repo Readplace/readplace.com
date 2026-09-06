@@ -13,6 +13,8 @@ const COLLAPSED_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+export const SUMMARY_TOGGLE_SCRIPT = `<script src="/client-dist/summary-toggle.client.js" defer></script>`;
+
 export interface SummarySlotInput {
 	crawl?: ArticleCrawl;
 	summary: GeneratedSummary | undefined;

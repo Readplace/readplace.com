@@ -249,6 +249,7 @@ function handleSummaryPoll(reader: ReturnType<typeof initArticleReader>) {
 			provenance: undefined,
 			readlistTags: undefined,
 			readerViewFailedOob: NO_READER_VIEW_FAILED_OOB,
+			renderDownloadsOob: undefined,
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);
@@ -274,6 +275,7 @@ function handleReaderPoll(reader: ReturnType<typeof initArticleReader>) {
 			provenance: undefined,
 			readlistTags: undefined,
 			readerViewFailedOob: NO_READER_VIEW_FAILED_OOB,
+			renderDownloadsOob: undefined,
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);

@@ -110,8 +110,8 @@ export function createBannerOnReaderActions(
 					page.locator('[data-test-article-title]').first(),
 				)
 
-				const onReader = await isOnPage(page, 'page-reader')
-				assert.ok(onReader, 'clicking the saved article must navigate to the owner reader')
+				await expect(page.locator('[data-test-reader-slot][data-reader-status]')).toHaveCount(1)
+				await expect(page.locator('body.page-reader')).toHaveCount(1)
 
 				// Same body-direct-child anchor as verify-banner-on-public-view —
 				// the saved article's reader slot replays the chrome wrapper too.

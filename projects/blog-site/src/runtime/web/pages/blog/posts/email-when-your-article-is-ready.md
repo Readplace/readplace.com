@@ -77,4 +77,4 @@ People who save long reads tend to save them in a hurry. A research paper, a dee
 
 The email picks that exact case up and hands it back to you when it is ready.
 
-Save a long article today, peek at it, then close the tab. Check your inbox in a couple of minutes. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).
+Save a long article today, peek at it, then close the tab. Check your inbox in a couple of minutes. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/?utm_source=blog-email-when-your-article-is-ready&utm_medium=internal&utm_content=home).

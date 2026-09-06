@@ -1,0 +1,15 @@
+.reader-skeleton__paragraph {
+  margin: 0 0 1.25rem;
+}
+
+.reader-skeleton__line {
+  display: block;
+  height: 0.875rem;
+  margin-block: 0.6rem;
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+}
+
+.reader-skeleton__line--short {
+  width: 60%;
+}

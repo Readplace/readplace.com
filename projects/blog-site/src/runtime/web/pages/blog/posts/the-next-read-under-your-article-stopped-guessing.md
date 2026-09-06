@@ -18,7 +18,7 @@ Under each article you finish in Readplace sits a small card offering one more s
 
 "PostgreSQL 14 release notes expand on partitioning and performance improvements."
 
-Readplace wrote that line under a [research post about poisoning language models](/view/www.anthropic.com/research/small-samples-poison). It was the reason a reader should open the Postgres notes next. The 2 pages share nothing, and the sentence does not even pretend they do. It describes the wrong article.
+Readplace wrote that line under a [research post about poisoning language models](/view/www.anthropic.com/research/small-samples-poison?utm_source=blog-the-next-read-under-your-article-stopped-guessing&utm_medium=internal&utm_content=read-www-anthropic-com). It was the reason a reader should open the Postgres notes next. The 2 pages share nothing, and the sentence does not even pretend they do. It describes the wrong article.
 
 The card that produced it exists to shorten your pile. Finish something, and Readplace offers one related save from your own readlist, unread saves first, because the point of a reading list is to get through it. A past read only takes the slot when nothing unread relates.
 
@@ -88,4 +88,4 @@ The model still overreaches about once in 30 picks, TBH, and one leftover class 
 
 ## Save 3 things on the same subject
 
-3 saves on one topic are enough to watch it work. Keep them in [your readlist](/), read one tonight, and the card underneath will hand you the second with a reason you can check against your own memory of saving it. The [browser extension](https://readplace.com/install) makes the 3 saves the fast part.
+3 saves on one topic are enough to watch it work. Keep them in [your readlist](/?utm_source=blog-the-next-read-under-your-article-stopped-guessing&utm_medium=internal&utm_content=home), read one tonight, and the card underneath will hand you the second with a reason you can check against your own memory of saving it. The [browser extension](https://readplace.com/install) makes the 3 saves the fast part.

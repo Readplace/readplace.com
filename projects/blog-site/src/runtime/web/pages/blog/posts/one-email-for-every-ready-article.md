@@ -20,7 +20,7 @@ Save several heavy pages, open each while it is still building, then close the t
 
 Nothing stops a read-it-later app from emailing you the moment each saved article finishes loading. Readplace stopped itself.
 
-Here is the setup. Readplace emails you when a saved article you were waiting on turns readable. You save a heavy page, glance at it while the clean reader view is still building, and close the tab. When the text and the summary are done, an email brings you back. [The first version of this](/blog/email-when-your-article-is-ready) sent one email per article and capped those emails at one every 6 hours, so an inbox would not fill up.
+Here is the setup. Readplace emails you when a saved article you were waiting on turns readable. You save a heavy page, glance at it while the clean reader view is still building, and close the tab. When the text and the summary are done, an email brings you back. [The first version of this](/blog/email-when-your-article-is-ready?utm_source=blog-one-email-for-every-ready-article&utm_medium=internal&utm_content=post-email-when-your-article-is-ready) sent one email per article and capped those emails at one every 6 hours, so an inbox would not fill up.
 
 The calm had a price, and the price was the other articles.
 
@@ -62,4 +62,4 @@ None of this asks anything of your machine. The timing lives on Readplace's serv
 
 A rate limit that drops the news keeps your inbox quiet by keeping you in the dark. One that batches the news keeps it quiet and still names every article that is ready.
 
-Save a slow page from [the browser extension](https://readplace.com/install) or from [readplace.com](/), glance at it before it settles, then close the tab and let the next digest bring it back.
+Save a slow page from [the browser extension](https://readplace.com/install) or from [readplace.com](/?utm_source=blog-one-email-for-every-ready-article&utm_medium=internal&utm_content=home), glance at it before it settles, then close the tab and let the next digest bring it back.

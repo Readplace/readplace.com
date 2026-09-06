@@ -181,10 +181,10 @@ describe("Inbox email detail View tab", () => {
 		expect(articlesTab.getAttribute("aria-current")).toBeNull();
 		expect(excludedTab.getAttribute("aria-current")).toBeNull();
 		expect(articlesTab.getAttribute("href")).toBe(
-			`/inbox/${encodeURIComponent(SK)}?tab=articles`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=articles`,
 		);
 		expect(excludedTab.getAttribute("href")).toBe(
-			`/inbox/${encodeURIComponent(SK)}?tab=excluded`,
+			`/inbox/${encodeURIComponent(SK)}?tab=excluded&utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=excluded`,
 		);
 		expect(renderedPanels(doc)).toEqual(["view"]);
 
@@ -420,7 +420,9 @@ describe("Inbox email detail Articles tab", () => {
 		assert(viewTab, "View tab must render");
 		expect(articlesTab.getAttribute("aria-current")).toBe("page");
 		expect(viewTab.getAttribute("aria-current")).toBeNull();
-		expect(viewTab.getAttribute("href")).toBe(`/inbox/${encodeURIComponent(SK)}`);
+		expect(viewTab.getAttribute("href")).toBe(
+			`/inbox/${encodeURIComponent(SK)}?utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=view`,
+		);
 	});
 
 	it("keeps only the kept links on the Articles tab, with an exclude-feedback form", async () => {
@@ -551,7 +553,9 @@ describe("Inbox email detail Articles tab", () => {
 		const control = doc.querySelector("[data-test-articles-show-more]");
 		assert(control, "the Show more control must offer the remaining cards");
 		expect(control.textContent).toBe("Show 5 more");
-		expect(control.getAttribute("href")).toBe(`${detailPath}?tab=articles&shown=40`);
+		expect(control.getAttribute("href")).toBe(
+			`${detailPath}?tab=articles&shown=40&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
+		);
 		expect(control.closest("[data-test-inbox-articles]")).not.toBeNull();
 	});
 
@@ -689,7 +693,7 @@ describe("Inbox email detail Skipped tab", () => {
 		assert(saveForm, "save must submit as a form");
 		expect(saveForm.getAttribute("method")).toBe("POST");
 		expect(saveForm.getAttribute("action")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0001/save`,
+			`/inbox/${encodeURIComponent(SK)}/links/0001/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 		);
 
 		expect(bodyReads).toBe(0);
@@ -731,7 +735,7 @@ describe("Inbox email detail Skipped tab", () => {
 		const saveForm = saveButton.closest("form");
 		assert(saveForm, "a saved skipped row still submits the same save form");
 		expect(saveForm.getAttribute("action")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
+			`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 		);
 	});
 

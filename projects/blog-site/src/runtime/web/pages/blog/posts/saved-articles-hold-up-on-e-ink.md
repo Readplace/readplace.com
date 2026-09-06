@@ -18,7 +18,7 @@ An e-reader's built-in browser keeps 16 shades of grey, fires no hover, and ofte
 </div>
 </details>
 
-Amber is the colour Readplace signs itself with, and it was painting the links in an article fainter than the prose around them. Against white that amber lands at 3.62:1, under the 4.5:1 [WCAG floor](/view/www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html) for body-size text, and it was serving as link ink across [the reader](/blog/read-any-article-clean-reader) and the readlist. I only found this because I stopped trusting my own screen: this month I walked every rendered element on both pages, in both themes, and measured each pair of ink and background against its floor. 11 pairs came back under it. 8 were that one amber.
+Amber is the colour Readplace signs itself with, and it was painting the links in an article fainter than the prose around them. Against white that amber lands at 3.62:1, under the 4.5:1 [WCAG floor](/view/www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html?utm_source=blog-saved-articles-hold-up-on-e-ink&utm_medium=internal&utm_content=read-www-w3-org) for body-size text, and it was serving as link ink across [the reader](/blog/read-any-article-clean-reader?utm_source=blog-saved-articles-hold-up-on-e-ink&utm_medium=internal&utm_content=post-read-any-article-clean-reader) and the readlist. I only found this because I stopped trusting my own screen: this month I walked every rendered element on both pages, in both themes, and measured each pair of ink and background against its floor. 11 pairs came back under it. 8 were that one amber.
 
 > **A link that renders fainter than the words around it inverts what a link is for.**
 
@@ -32,7 +32,7 @@ The 2 filled amber buttons were in worse shape. Mark as read in the reader measu
 
 An e-ink panel keeps 16 greys and drops the hue on arrival. A colour that differs from its background mostly in hue reads fine on a laptop and fades out on the panel, so the audit's second pass measured with the colour stripped.
 
-The stripping is where it got strange. CSS [`grayscale(1)`](/view/developer.mozilla.org/en-US/docs/Web/CSS/filter-function/grayscale) works on the gamma-encoded channels, while WCAG's luminance formula works on the linearised ones, and the 2 disagree by as much as 0.7:1 in either direction. The readlist's delete glyph is one of the casualties: 3.93:1 in colour, 3.49:1 once the hue is gone. A pass in one lens, a failure in the other. The audit now asserts each measured pair through both, and 4 of the shipped fixes were only ever visible to the second.
+The stripping is where it got strange. CSS [`grayscale(1)`](/view/developer.mozilla.org/en-US/docs/Web/CSS/filter-function/grayscale?utm_source=blog-saved-articles-hold-up-on-e-ink&utm_medium=internal&utm_content=read-developer-mozilla-org) works on the gamma-encoded channels, while WCAG's luminance formula works on the linearised ones, and the 2 disagree by as much as 0.7:1 in either direction. The readlist's delete glyph is one of the casualties: 3.93:1 in colour, 3.49:1 once the hue is gone. A pass in one lens, a failure in the other. The audit now asserts each measured pair through both, and 4 of the shipped fixes were only ever visible to the second.
 
 ## White on amber, unmeasured
 
@@ -56,4 +56,4 @@ Each check ran against the unfixed code before it was kept, because a gate that 
 
 Not every fix got a tripwire. The auth page's link underline and the active filter tab ride with no gate of their own, because the default screenshot tolerance barely counts an amber shift as a changed pixel, and tightening it under 61 layout baselines is a separate piece of work.
 
-The next time the nearest screen is an e-reader's built-in browser, [your readlist](/) reads there the way it reads on this one, and the clean copy of each save is waiting behind its card.
+The next time the nearest screen is an e-reader's built-in browser, [your readlist](/?utm_source=blog-saved-articles-hold-up-on-e-ink&utm_medium=internal&utm_content=home) reads there the way it reads on this one, and the clean copy of each save is waiting behind its card.

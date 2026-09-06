@@ -25,6 +25,7 @@ import type {
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { createApp } from "./server";
+import type { ConvertEpubToAzw3 } from "./web/shared/epub/article-azw3";
 import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
@@ -73,6 +74,14 @@ export type {
 
 export const TEST_EDGE_SECRET = "test-edge-secret";
 export { loginAgent } from "@packages/web-test-harness";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+
+interface TestAppOverrides {
+	getChangelogBanner?: GetChangelogBanner;
+	getSessionUserId?: GetSessionUserId;
+	resolveCanonicalIdentity?: (url: string) => Promise<string>;
+	convertEpubToAzw3?: ConvertEpubToAzw3;
+}
 
 export interface AnalyticsBundle {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -179,6 +188,7 @@ function flattenFixtureToAppDependencies(
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,
 		readArticleImage: fixture.articleStore.readArticleImage,
+		convertEpubToAzw3: async () => new Uint8Array([0x41, 0x5a, 0x57, 0x33]),
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(fixture.articleCrawl.findArticleCrawlStatus),
 		markCrawlPending: fixture.articleCrawl.markCrawlPending,
@@ -226,7 +236,8 @@ function flattenFixtureToAppDependencies(
 		recordNativeAppAnyActivity: fixture.onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: fixture.onboardingSignals.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: fixture.onboardingSignals.recordNextReadMinimumReached,
-		recordNextReadStepOutstanding: fixture.onboardingSignals.recordNextReadStepOutstanding,
+		recordEmailStepMarkedDone: fixture.onboardingSignals.recordEmailStepMarkedDone,
+		recordOnboardingOutstandingVersion: fixture.onboardingSignals.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged:
 			fixture.onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: fixture.onboardingSignals.recordDeleteArticleAcknowledged,
@@ -296,13 +307,8 @@ function flattenFixtureToAppDependencies(
 	};
 }
 
-/** Supertest sends no User-Agent, Accept-Language or fetch-metadata headers, but
- * the analytics middleware only counts a request that carries the header set a
- * real browser navigation always sends. A route test asserting on a counted
- * pageview or click has to `.set(BROWSER_REQUEST_HEADERS)` or it will assert
- * against an empty event list. */
 export const BROWSER_REQUEST_HEADERS: Record<string, string> = {
-	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+	"User-Agent": BROWSER_USER_AGENT,
 	"Accept-Language": "en-US,en;q=0.9",
 	"Sec-CH-UA": '"Chromium";v="145", "Google Chrome";v="145", "Not?A_Brand";v="24"',
 	"Sec-Fetch-Mode": "navigate",
@@ -317,11 +323,7 @@ export const BROWSER_REQUEST_HEADERS: Record<string, string> = {
  * needs a real alias fold has to say so). */
 export function createTestApp(
 	fixture: TestAppFixture,
-	overrides?: {
-		getChangelogBanner?: GetChangelogBanner;
-		getSessionUserId?: GetSessionUserId;
-		resolveCanonicalIdentity?: (url: string) => Promise<string>;
-	},
+	overrides?: TestAppOverrides,
 ): TestAppResult {
 	const analyticsEvents: AnalyticsEvent[] = [];
 	const captureAnalytics = (data: AnalyticsEvent) => { analyticsEvents.push(data); };
@@ -372,10 +374,6 @@ export function createTestApp(
 
 export interface TestAppHarness extends TestAppResult, RunningServer {}
 
-export function useTestServer(overrides?: {
-	getChangelogBanner?: GetChangelogBanner;
-	getSessionUserId?: GetSessionUserId;
-	resolveCanonicalIdentity?: (url: string) => Promise<string>;
-}): (fixture: TestAppFixture) => TestAppHarness {
+export function useTestServer(overrides?: TestAppOverrides): (fixture: TestAppFixture) => TestAppHarness {
 	return useServerForFixture((fixture) => createTestApp(fixture, overrides));
 }

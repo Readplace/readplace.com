@@ -11,6 +11,7 @@ import {
 import { AppleIdSchema } from "@packages/test-fixtures/providers/apple-auth";
 import type { ExchangeAppleCode } from "@packages/test-fixtures/providers/apple-auth";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { MAX_APPLE_STATE_COOKIE_BYTES } from "./apple-state";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
@@ -20,6 +21,8 @@ const TEST_STATE_SECRET = "test-apple-state-secret";
 
 const TEST_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
 const TEST_PENDING_SAVE_ID = "22222222-2222-4222-8222-222222222222";
+
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 function signState(payload: object, secret: string = TEST_STATE_SECRET): string {
 	const raw = JSON.stringify(payload);
@@ -76,9 +79,18 @@ function freshState(overrides?: {
 
 function postCallback(
 	server: Parameters<typeof request>[0],
-	opts: { state: string; cookie?: string; code?: string; extra?: Record<string, string> },
+	opts: {
+		state: string;
+		cookie?: string;
+		code?: string;
+		extra?: Record<string, string>;
+		userAgent?: string;
+	},
 ) {
-	const req = request(server).post("/auth/apple/callback").type("form");
+	const req = request(server)
+		.post("/auth/apple/callback")
+		.type("form")
+		.set("User-Agent", opts.userAgent ?? BROWSER_USER_AGENT);
 	if (opts.cookie !== undefined) {
 		req.set("Cookie", opts.cookie);
 	}
@@ -262,6 +274,44 @@ describe("Apple auth routes", () => {
 			assert(conversionEvent, "Apple signup must emit a user_created conversion event");
 			expect(conversionEvent.method).toBe("apple");
 			expect(conversionEvent.tier).toBe("free");
+		});
+
+		it("counts no user_created conversion when a crawler replays the Apple callback, so signup totals measure people rather than bots", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "crawled-apple@example.com" })) });
+			const state = signState(freshState());
+
+			const response = await postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				userAgent: GOOGLEBOT,
+			});
+
+			expect(response.status).toBe(303);
+			assert.equal(
+				harness.conversions.events.filter((e) => e.method === "apple").length,
+				0,
+				"a crawler-driven Apple callback must emit no user_created conversion",
+			);
+		});
+
+		it("counts exactly one user_created conversion when the same Apple callback arrives from a browser, so the bot gate never swallows a real signup", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "browser-apple@example.com" })) });
+			const state = signState(freshState());
+
+			const response = await postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				userAgent: BROWSER_USER_AGENT,
+			});
+
+			expect(response.status).toBe(303);
+			assert.equal(
+				harness.conversions.events.filter((e) => e.method === "apple").length,
+				1,
+				"a browser-driven Apple callback must emit exactly one user_created conversion",
+			);
 		});
 
 		it("logs in the existing user when a race condition causes createAppleUser to fail during free signup", async () => {

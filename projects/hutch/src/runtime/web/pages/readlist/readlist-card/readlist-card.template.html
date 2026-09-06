@@ -2,8 +2,8 @@
   <div class="readlist-article__header">
     <div class="readlist-article__meta">
       {{#if isUnread}}<span class="readlist-article__status readlist-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="readlist-article__status readlist-article__status--read" data-test-read-status="read">{{icon "check"}}<span class="sr-only">Read</span></span>{{/if}}
-      <a class="readlist-article__url{{siteSepClass}}{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>
-      <span class="readlist-article__read-time{{readTimeSepClass}}{{readTimeEmptyClass}}" data-test-read-time>{{readTimeLabel}}</span>
+      <a class="readlist-article__url{{siteSepClass}}{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url data-reader-field="site">{{siteName}}</a>
+      <span class="readlist-article__read-time{{readTimeSepClass}}{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{readTimeLabel}}</span>
       <time class="readlist-article__time{{savedSepClass}}" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time>
     </div>
     <div class="readlist-article__actions">
@@ -20,12 +20,12 @@
   </div>
   <div class="readlist-article__body">
     <div class="readlist-article__content">
-      <a class="readlist-article__title" href="{{titleLinkUrl}}" data-test-article-title>{{title}}</a>
-      {{#if excerpt}}<a class="readlist-article__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt>{{excerpt}}</a>{{/if}}
+      <a class="readlist-article__title" href="{{titleLinkUrl}}" data-test-article-title hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader data-reader-field="title">{{title}}</a>
+      {{#if excerpt}}<a class="readlist-article__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader>{{excerpt}}</a>{{/if}}
       <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>Processing…</p>
       {{#if isStalePending}}<p class="readlist-article__stale-pending" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
     </div>
     {{!-- The img reserves its box via width + aspect-ratio, so the card height is decided once and never jumps when the bitmap arrives or when a pending card self-swaps. When there is no thumbnail the content flexes to full width. onerror is the safety net for rows whose imageUrl points at an external host that can rot: a broken image removes its container instead of showing a placeholder. --}}
-    {{#if imageUrl}}<a href="{{thumbnailLinkUrl}}" class="readlist-article__thumbnail-link" tabindex="-1" aria-hidden="true"><img class="readlist-article__thumbnail" src="{{imageUrl}}" alt="" onerror="this.parentElement.remove()"></a>{{/if}}
+    {{#if imageUrl}}<a href="{{thumbnailLinkUrl}}" class="readlist-article__thumbnail-link" tabindex="-1" aria-hidden="true" hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader><img class="readlist-article__thumbnail" src="{{imageUrl}}" alt="" onerror="this.parentElement.remove()"></a>{{/if}}
   </div>
 </div>

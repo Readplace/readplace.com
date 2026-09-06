@@ -1,6 +1,6 @@
-import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { READLIST_SHOT, FOUNDER_LINE, PLAN_CHOICES, TRIAL_TERMS, START_TRIAL } from "./landing-pages.copy";
+import { READLIST_SHOT, founderLine, PLAN_CHOICES, TRIAL_TERMS, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const AI_READING_LIST_CONTENT: LandingPageContent = {
@@ -44,7 +44,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 			caption:
 				"A link saved mid-conversation lands in the same readlist you read from in the browser and on your phone.",
 		},
-		founderLine: FOUNDER_LINE,
+		founderLine: founderLine("ai-reading-list"),
 	},
 	mechanismTitle: "Eight tools that act, one that refuses",
 	mechanismLede: "The refusal is the design, not a gap in it.",
@@ -109,5 +109,5 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 	closeTitle: "Connect it in about a minute",
 	closeSecondaryAction: START_TRIAL,
 	closeNote:
-		'The <a href="/mcp">setup guide</a> has the steps for Claude, ChatGPT and Gemini.',
+		`The <a href="${withInternalTracking("/mcp", { source: "lp-ai-reading-list-body", content: "mcp-guide" })}">setup guide</a> has the steps for Claude, ChatGPT and Gemini.`,
 };

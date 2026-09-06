@@ -657,6 +657,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -682,6 +683,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -707,6 +709,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -734,6 +737,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -763,6 +767,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -789,6 +794,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -816,6 +822,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -840,6 +847,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -869,6 +877,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -896,6 +905,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -921,6 +931,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -946,6 +957,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -971,6 +983,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -994,6 +1007,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1027,6 +1041,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1064,6 +1079,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1094,6 +1110,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1121,6 +1138,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1152,6 +1170,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1179,6 +1198,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1219,6 +1239,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1254,6 +1275,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1290,6 +1312,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1318,6 +1341,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1350,6 +1374,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1378,6 +1403,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1406,6 +1432,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1440,6 +1467,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1474,6 +1502,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1499,6 +1528,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1525,6 +1555,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1550,6 +1581,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1618,6 +1650,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
+				renderDownloadsOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([
@@ -1644,6 +1677,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
+				renderDownloadsOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([
@@ -1670,6 +1704,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
+				renderDownloadsOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
@@ -1692,6 +1727,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
+				renderDownloadsOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual(SUMMARY_POLL_BASELINE);
@@ -1714,6 +1750,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
+				renderDownloadsOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
@@ -1737,6 +1774,7 @@ describe("initArticleReader", () => {
 				provenance: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
+				renderDownloadsOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
@@ -1809,6 +1847,7 @@ describe("initArticleReader", () => {
 						provenance: undefined,
 						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
+						renderDownloadsOob: undefined,
 					}),
 				),
 			);
@@ -1842,6 +1881,7 @@ describe("initArticleReader", () => {
 						provenance: undefined,
 						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
+						renderDownloadsOob: undefined,
 					}),
 				),
 			);
@@ -1871,6 +1911,7 @@ describe("initArticleReader", () => {
 						provenance: undefined,
 						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
+						renderDownloadsOob: undefined,
 					}),
 				),
 			);

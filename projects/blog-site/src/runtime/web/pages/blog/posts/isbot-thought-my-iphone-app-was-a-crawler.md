@@ -16,7 +16,7 @@ An app whose User-Agent opens with the word "read" walks straight into a bot-det
 </div>
 </details>
 
-There are 183 patterns in [isbot](/view/github.com/omrilotan/isbot), the library that tells Readplace's [vendor-free analytics](/blog/analytics-without-a-vendor) which requests come from crawlers. One of them is `^read`. A User-Agent that opens with those 4 letters gets called a bot and asked nothing further. I named this product Readplace.
+There are 183 patterns in [isbot](/view/github.com/omrilotan/isbot?utm_source=blog-isbot-thought-my-iphone-app-was-a-crawler&utm_medium=internal&utm_content=read-github-com), the library that tells Readplace's [vendor-free analytics](/blog/analytics-without-a-vendor?utm_source=blog-isbot-thought-my-iphone-app-was-a-crawler&utm_medium=internal&utm_content=post-analytics-without-a-vendor) which requests come from crawlers. One of them is `^read`. A User-Agent that opens with those 4 letters gets called a bot and asked nothing further. I named this product Readplace.
 
 The iPhone app introduces itself to the server as `Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0`. The first 4 letters settled it.
 
@@ -60,8 +60,8 @@ The homepage experiment stayed bare too. The app gets redirected before the home
 
 Mark-as-read events from the app land as mobile_ios now. The share extension's saves stopped padding the desktop column. What the bot column holds is bots.
 
-What gets kept did not change. The classifier reads the raw User-Agent, writes down the class, and drops the string, so the stream still holds no User-Agent for anyone. That is the standing trade of [running analytics with no third-party trackers](/blog/no-third-party-trackers): fewer columns, and each one I can read out loud.
+What gets kept did not change. The classifier reads the raw User-Agent, writes down the class, and drops the string, so the stream still holds no User-Agent for anyone. That is the standing trade of [running analytics with no third-party trackers](/blog/no-third-party-trackers?utm_source=blog-isbot-thought-my-iphone-app-was-a-crawler&utm_medium=internal&utm_content=post-no-third-party-trackers): fewer columns, and each one I can read out loud.
 
 TBH the 11% wasn't the part that stung. A wrong label costs no error and no failed request, so nothing complains... it sits in the data until a person finds a number odd. This one sat for 90 days in a pipeline one person reads.
 
-The row for the next article you finish in [the iPhone app](/blog/readplace-iphone-app-on-the-app-store) lands in the right column, and the readlist it belongs to starts at [readplace.com](/).
+The row for the next article you finish in [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-isbot-thought-my-iphone-app-was-a-crawler&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store) lands in the right column, and the readlist it belongs to starts at [readplace.com](/?utm_source=blog-isbot-thought-my-iphone-app-was-a-crawler&utm_medium=internal&utm_content=home).

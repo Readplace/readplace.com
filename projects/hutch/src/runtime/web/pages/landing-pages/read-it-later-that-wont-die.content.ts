@@ -1,6 +1,6 @@
 import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { FOUNDER_LINE, PLAN_CHOICES, READ_ONLY_CLOSE } from "./landing-pages.copy";
+import { founderLine, PLAN_CHOICES, READ_ONLY_CLOSE } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
@@ -43,7 +43,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	],
 	proof: {
 		title: "Who you are trusting with it",
-		founderLine: FOUNDER_LINE,
+		founderLine: founderLine("read-it-later-that-wont-die"),
 	},
 	mechanismTitle: "Why this is in the code rather than on a promise page",
 	mechanismLede: "A sentence about always letting you export does not survive an acquisition.",
