@@ -20,6 +20,10 @@ import {
 } from "./reader-skeleton/reader-skeleton.component";
 import { renderReadlistCountsTrigger, renderStatusToast } from "./readlist-mutation-fragments";
 import { renderReadlistCard, toReadlistCardDisplayModel } from "./readlist-card/readlist-card.component";
+import {
+	renderReadlistSaveSkeleton,
+	toReadlistSaveSkeletonDisplayModel,
+} from "./readlist-save-skeleton.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { buildReadlistFilters, renderReadlistFilters } from "./readlist-filters.component";
@@ -104,6 +108,7 @@ interface ReadlistDisplayModel {
 	cancellationEffectiveAt?: LocalTime;
 	accessIsReadOnly: boolean;
 	saveFormClass: string;
+	saveSkeletonHtml: string;
 	saveBarHidden: boolean;
 	defaultReadlistUrl: string;
 	defaultReadlistLabel: string;
@@ -270,6 +275,12 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 			saveBarHidden ? "readlist__save-form--hidden" : "readlist__save-form--visible",
 			...(vm.accessIsReadOnly ? ["readlist__save-form--disabled"] : []),
 		].join(" "),
+		saveSkeletonHtml: renderReadlistSaveSkeleton(
+			toReadlistSaveSkeletonDisplayModel({
+				filters: vm.filters,
+				accessIsReadOnly: vm.accessIsReadOnly,
+			}),
+		),
 		saveBarHidden,
 		defaultReadlistUrl: buildReadlistUrl({}),
 		defaultReadlistLabel: DEFAULT_READLIST.label,
@@ -297,7 +308,7 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; knownUnreadCount?: number; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; onboarding: ReadlistOnboarding; statusCode?: number }): PageBody {
+export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; knownUnreadCount?: number; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; onboarding: ReadlistOnboarding }): PageBody {
 	const saveUrl = options.saveUrl;
 	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, knownUnreadCount: options.knownUnreadCount, onboarding: options.onboarding, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
 	const content = render(READLIST_TEMPLATE, {
@@ -325,6 +336,5 @@ export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonc
 		bodyClass: "page-readlist",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),
-		statusCode: options.statusCode,
 	};
 }

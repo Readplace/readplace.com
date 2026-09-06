@@ -166,7 +166,6 @@ import {
 	generateReadlistSlug,
 	readlistAfterDelete,
 } from "@packages/domain/readlist";
-import { DEFAULT_READLIST } from "./readlist.nav";
 import {
 	type ReaderReadlistFiling,
 	buildReaderReadlistFiling,
@@ -179,7 +178,7 @@ import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./readlist.error";
-import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, readlistErrorFlashMapping, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, readlistErrorFlashMapping, saveableUrlErrorCodeMapping, statusFlashMapping, statusFlashFor } from "./readlist.error";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -1255,11 +1254,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			context: ReadlistContext;
 			result: FindArticlesResult;
 			saveError?: string;
+			saveErrorCode?: SaveableUrlErrorCode;
 			importFlash?: string;
 			statusFlash?: StatusFlash;
 			importSkipped?: ImportSkippedViewModel;
 			saveUrl?: string;
-			statusCode?: number;
 		},
 	): Promise<void> => {
 		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, signals] =
@@ -1282,6 +1281,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const vm = toReadlistViewModel(input.result, input.context.state, {
 			errors: input.saveError ? [{ message: input.saveError }] : undefined,
+			saveErrorCode: input.saveErrorCode,
 			importFlash: input.importFlash,
 			statusFlash: input.statusFlash,
 			importSkipped: input.importSkipped,
@@ -1307,7 +1307,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			req, res,
 			FreshForComponent(
 				Base(
-					ReadlistPage(vm, { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, statusCode: input.statusCode, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
+					ReadlistPage(vm, { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
 					await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 				),
 				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: "private, max-age=5" },
@@ -1489,7 +1489,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			}
 		}
 
-		const saveError = deps.httpErrorMessageMapping(req.query);
+		const saveErrorCode = saveableUrlErrorCodeMapping(req.query);
+		const saveError = saveErrorCode
+			? saveableUrlErrorMessage(saveErrorCode)
+			: deps.httpErrorMessageMapping(req.query);
+		if (saveError) res.set("HX-Reswap", "outerHTML show:none");
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
@@ -1498,6 +1502,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			context,
 			result,
 			saveError,
+			saveErrorCode,
 			importFlash,
 			statusFlash,
 			importSkipped,
@@ -2006,31 +2011,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateSaveableUrl(submittedUrl);
-
-		const context = await resolveReadlistContext(req, userId);
-		const saveContext: ReadlistContext = {
-			...context,
-			state: parseReadlistUrl({}),
-			activeReadlist: DEFAULT_READLIST,
-		};
+		const saveState = parseReadlistUrl({});
 
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			const result = await deps.findArticlesByUser({ userId, excludeContent: true });
-			const [summaryByUrl, crawlByUrl, readlistHoldsArticles] = await Promise.all([
-				loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
-				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
-				readlistHoldsAnyArticle({ userId, readlist: saveContext.state.readlist, result }),
-			]);
-			const { onboarding, deleteArticleAckedAt } = await resolveOnboardingSignals(req, userId);
-			const vm = toReadlistViewModel(result, saveContext.state, {
-				errors: [{ message: validation.error.message }],
-				saveErrorCode: validation.error.code,
-				summaryByUrl,
-				crawlByUrl,
-				deleteAcknowledged: deleteArticleAckedAt !== undefined,
-			});
-			sendComponent(req, res, Base(ReadlistPage(vm, { onboarding, cspNonce: requireCspNonce(req), readlistHoldsArticles, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, saveContext, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }), await deps.buildBannerState(req)));
+			res.redirect(303, buildReadlistUrl(saveState, [["error_code", validation.error.code]]));
 			return;
 		}
 
@@ -2043,11 +2028,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				provenance: resolveSaveProvenance(req.oauthClientId),
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
-			res.redirect(303, `${buildReadlistUrl(saveContext.state)}#latest-saved`);
+			res.redirect(303, `${buildReadlistUrl(saveState)}#latest-saved`);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, buildReadlistUrl(saveContext.state, [["error_code", "save_failed"]]));
+			res.redirect(303, buildReadlistUrl(saveState, [["error_code", "save_failed"]]));
 		}
 	});
 

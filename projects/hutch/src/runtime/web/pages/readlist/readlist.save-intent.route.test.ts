@@ -99,13 +99,14 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(saveIntents(harness)[0]).toMatchObject({ surface: "queue_save_bar", outcome: "error", is_authenticated: 1 });
 		});
 
-		it("emits queue_save_bar / error with a null host when the URL is malformed (422)", async () => {
+		it("emits queue_save_bar / error with a null host when the URL is malformed", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.post("/queue/save").type("form").send({ url: "not-a-url" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?error_code=malformed_url");
 			const intents = saveIntents(harness);
 			assert.equal(intents.length, 1, "exactly one view_save_intent");
 			expect(intents[0]).toMatchObject({
@@ -124,7 +125,8 @@ describe("view_save_intent — authenticated save surfaces", () => {
 
 			const response = await agent.post("/queue/save").type("form").send({ url: "http://localhost/x" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?error_code=private_network");
 			expect(saveIntents(harness)[0]).toMatchObject({
 				surface: "queue_save_bar",
 				outcome: "error",

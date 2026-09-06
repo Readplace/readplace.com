@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import request from "supertest";
 import { JSDOM } from "jsdom";
-import { MinutesSchema } from "@packages/domain/article";
+import { MinutesSchema, saveableUrlErrorMessage, type SaveableUrlErrorCode } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
 import type { ArticleReadEvent } from "@packages/web-analytics";
-import type { FindArticlesQuery } from "@packages/provider-contracts/article-store";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -60,104 +59,9 @@ describe("Readlist routes", () => {
 			]);
 		});
 
-		it("should show error for invalid URL", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "not-a-url" });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toBe("Please enter a valid URL");
-		});
-
-		it("skips the article body when re-rendering the readlist after an invalid save", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const recorded: FindArticlesQuery[] = [];
-			const harness = useApp({
-				...fixture,
-				articleStore: {
-					...fixture.articleStore,
-					findArticlesByUser: async (query: FindArticlesQuery) => {
-						recorded.push(query);
-						return fixture.articleStore.findArticlesByUser(query);
-					},
-				},
-			});
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "not-a-url" });
-
-			expect(response.status).toBe(422);
-			expect(recorded).toHaveLength(1);
-			expect(recorded[0]).toMatchObject({ excludeContent: true });
-		});
-
-		it("rejects a chrome:// URL with an unsupported-scheme message and never saves", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, articleStore } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "chrome://extensions/" });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/http/);
-
-			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
-			assert.ok(userId);
-			const stored = await articleStore.findArticlesByUser({ userId });
-			expect(stored.articles).toHaveLength(0);
-		});
-
-		it("rejects a localhost URL with a private-network message and never saves", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, articleStore } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "http://localhost:3000/queue" });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/[Pp]rivate-network/);
-
-			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
-			assert.ok(userId);
-			const stored = await articleStore.findArticlesByUser({ userId });
-			expect(stored.articles).toHaveLength(0);
-		});
-
-		it("rejects a .home.arpa URL with a private-network message", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "http://router.home.arpa/" });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/[Pp]rivate-network/);
-		});
-
-		describe("form-level URL-validation regression (canary-historical inputs)", () => {
-			const cases: Array<{ url: string; code: "unsupported_scheme" | "private_network" | "malformed_url" }> = [
+		describe("invalid URLs redirect so htmx swaps the error pill in (canary-historical inputs)", () => {
+			const cases: Array<{ url: string; code: SaveableUrlErrorCode }> = [
+				{ url: "not-a-url",                  code: "malformed_url" },
 				{ url: "chrome://extensions/",       code: "unsupported_scheme" },
 				{ url: "about:blank",                code: "unsupported_scheme" },
 				{ url: "https://cd.home.arpa/x",     code: "private_network" },
@@ -169,7 +73,7 @@ describe("Readlist routes", () => {
 			];
 
 			for (const { url, code } of cases) {
-				it(`rejects ${JSON.stringify(url)} with ${code} and never saves`, async () => {
+				it(`redirects ${JSON.stringify(url)} to /queue with ${code} and never saves`, async () => {
 					const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 					const { auth, articleStore } = harness;
 					const agent = await loginAgent(harness.server, auth);
@@ -179,10 +83,14 @@ describe("Readlist routes", () => {
 						.type("form")
 						.send({ url });
 
-					expect(response.status).toBe(422);
-					const doc = new JSDOM(response.text).window.document;
-					const pill = doc.querySelector("[data-test-save-error]");
-					assert.ok(pill, "error pill should render");
+					expect(response.status).toBe(303);
+					expect(response.headers.location).toBe(`/queue?error_code=${code}`);
+
+					const landing = await agent.get(response.headers.location);
+					expect(landing.status).toBe(200);
+					const pill = new JSDOM(landing.text).window.document.querySelector("[data-test-save-error]");
+					assert.ok(pill, "the page the redirect lands on must render the error pill");
+					expect(pill.textContent).toBe(saveableUrlErrorMessage(code));
 					expect(pill.getAttribute("data-test-saveable-url-code")).toBe(code);
 
 					const userId = (await auth.findUserByEmail("test@example.com"))?.userId;

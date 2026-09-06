@@ -2,10 +2,12 @@ import { isIP, isIPv6 } from "node:net";
 import { z } from "zod";
 import { isPrivateIPv4, isPrivateIPv6, unwrapIpv6 } from "./blocked-address";
 
-export type SaveableUrlErrorCode =
-	| "unsupported_scheme"
-	| "private_network"
-	| "malformed_url";
+export const SaveableUrlErrorCodeSchema = z.enum([
+	"unsupported_scheme",
+	"private_network", /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
+	"malformed_url",
+]);
+export type SaveableUrlErrorCode = z.infer<typeof SaveableUrlErrorCodeSchema>;
 
 export interface SaveableUrlError {
 	readonly code: SaveableUrlErrorCode;
@@ -128,11 +130,7 @@ export const SaveableUrlSchema = z.string().transform((value, ctx) => {
 });
 
 const SaveableUrlIssueParamsSchema = z.object({
-	saveableUrlCode: z.enum([
-		"unsupported_scheme",
-		"private_network", /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-		"malformed_url",
-	]),
+	saveableUrlCode: SaveableUrlErrorCodeSchema,
 });
 
 export function saveableUrlCodeFromIssues(

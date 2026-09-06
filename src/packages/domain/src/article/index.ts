@@ -33,6 +33,7 @@ export {
 export {
 	MAX_SAVEABLE_URL_LENGTH,
 	SaveableUrlSchema,
+	SaveableUrlErrorCodeSchema,
 	validateSaveableUrl,
 	saveableUrlCodeFromIssues,
 	saveableUrlErrorMessage,

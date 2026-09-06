@@ -231,17 +231,25 @@ describe("Readlist routes", () => {
 			}
 		});
 
-		it("should make the status tabs' nav the only carrier of an in-flight marker", async () => {
+		it("should keep every in-flight marker to its own surface, so only the status tabs raise the veil", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/1" });
 
 			for (const path of ["/queue", "/queue?tab=done"]) {
 				const doc = new JSDOM((await agent.get(path)).text).window.document;
-				const carriers = Array.from(doc.querySelectorAll("[hx-indicator]")).map((el) =>
-					el.getAttribute("aria-label"),
-				);
-				expect(carriers).toEqual(["Article filters"]);
+				const carriers = Array.from(doc.querySelectorAll("[hx-indicator]")).map((el) => ({
+					surface: el.getAttribute("aria-label") ?? el.getAttribute("data-test-form"),
+					targets: el.getAttribute("hx-indicator"),
+				}));
+				expect(carriers).toEqual([
+					{ surface: "save-article", targets: "closest form, .readlist-save-skeleton" },
+					{
+						surface: "Article filters",
+						targets:
+							"closest .readlist__filters, closest .readlist__filter-link, .readlist__listing",
+					},
+				]);
 			}
 		});
 	});

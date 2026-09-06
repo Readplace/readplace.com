@@ -245,7 +245,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		assert.deepEqual(stamping.versionWrites, [{ userId, version: ONBOARDING_VERSION }]);
 	});
 
-	it("writes the version stamp from the save-bar re-render too", async () => {
+	it("writes the version stamp once from the page a rejected save lands on", async () => {
 		const stamping = versionStampingFixture(0);
 		const harness = useApp(stamping.fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -256,8 +256,10 @@ describe("Readlist onboarding — Get articles from email", () => {
 			.set("User-Agent", CHROME_UA)
 			.type("form")
 			.send({ url: "not-a-url" });
-		assert.equal(rejected.status, 422);
+		assert.equal(rejected.status, 303);
+		assert.deepEqual(stamping.versionWrites, []);
 
+		await agent.get(rejected.headers.location).set("User-Agent", CHROME_UA);
 		assert.deepEqual(stamping.versionWrites, [{ userId, version: ONBOARDING_VERSION }]);
 
 		await agent.get("/queue").set("User-Agent", CHROME_UA);
