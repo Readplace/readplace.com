@@ -48,7 +48,7 @@ Sign into a new browser and the theme is there before any settings page is opene
 
 ## The pages that stay light
 
-Not every page follows the pick. Logged-out pages hold their light pin, because a preference stored on an account can't apply before anyone signs in.
+Not every page follows the pick. A preference stored on an account can't apply before anyone signs in: the logged-out pages around the product keep their light pin, and a shared article opened without an account keeps following the device.
 
 The dark palette itself didn't move either. Its body text already measures 14.73:1 against its background, well past the contrast gates [the e-ink audit](/blog/saved-articles-hold-up-on-e-ink) left running on each build, so this week changed who decides when that palette is used, not what it looks like.
 
