@@ -21,6 +21,7 @@ The client's job is to interpret the Siren format and follow what the server say
 - Collection emission: the server module that assembles the collection entity — the one that stamps it with `class` `collection`/`articles` and fills `properties.pages` and `properties.tabs`; grep the server for `"collection", "articles"` — the non-test hit
 - Entity emission: the server module that builds an article sub-entity with its `update-status` action — the only non-test server hit for `"update-status"`
 - Status tab list: the builder that turns the status set into `tabs` entries, choosing `rel` `current` or `tab` — grep the server for `"current" : "tab"`
+- Readlist list: the builder that turns the reader's readlists into `readlists` entries, choosing `rel` `current` or `readlist` — grep the server for `"current" : "readlist"`
 - Content negotiation: the Siren content-negotiation predicate — the one call to Express's `req.accepts(...)` made with the Siren media type; grep the server for `.accepts(`
 - Client implementations: see [Per-Client Implementations](#per-client-implementations)
 
@@ -189,6 +190,29 @@ This is a **published interface**: `tabs`, `label`, `rel`, and `href` are the co
 - **A tab's contents arrive only by following its `href`.** An entry describes a tab, not its items.
 - **Entity mutation hrefs carry the tab.** Each embedded item's `update-status` `href` is built with the collection's own status (and order) baked in, so the `303` the mutation answers with lands the client back on the tab it acted from — a client stays on *Read* after toggling an item unread there, without ever knowing how the server encodes a tab. The href is opaque, so this is non-breaking for every shipped client; the save response's entity (no collection context) keeps the bare href.
 - **Presentation is the client's.** A segmented control, a tab bar, or a menu is a layout decision; `rel` is never used as a style token.
+
+## Readlists Are Server-Owned — `properties.readlists`
+
+A reader's queue is partitioned again, into readlists: the default one every account has, plus the ones the reader created. Which readlists exist, what each is called, and where each one lives are **server policy**, for the same reason as `pages` and `tabs` — so they ride collection `properties`, where an unknown key is inert on every shipped client:
+
+```jsonc
+"properties": {
+  "readlists": [
+    { "label": "All",  "rel": "current",  "href": "/queue" },
+    { "label": "Work", "rel": "readlist", "href": "/queue?queue=3f9a…" }
+  ]
+}
+```
+
+This is a **published interface**: `readlists`, `label`, `rel`, and `href` are the contract, and renaming any of them is a breaking change. The default readlist comes first, then the reader's own in the order they were created; entries carry no counts.
+
+- **`rel` is `current` for the readlist the response lists and `readlist` for every other**, and **exactly one** entry is `current`. A request naming a readlist the reader does not own is answered by the default readlist's collection, so a current entry is always there to point at — unlike `pages` and `tabs`, which can legitimately carry none.
+- **`label` is the server's display string**, rendered verbatim and never parsed. It is text the reader typed, so wherever it reaches server-authored HTML copy the server escapes it; a client never escapes or unescapes it itself.
+- **`href` is opaque and server-built** — an entry's href is that readlist's default view, carrying no tab, order, or page. A client follows the href it was given, never assembles `?queue=`, and never stores, parses, or compares the slug or label inside one.
+- **The addressed readlist rides every href the collection builds** — `self`, `prev`, `next`, every `pages` and `tabs` entry, each item's `read` link and `update-status` href, the collection's `save-article` href, and the `collection` link on a save response. A client therefore holds **one** pointer, the href it last followed, and stays inside a readlist across paging, tab switches and mutations without knowing how a readlist is encoded. The default readlist adds nothing to a query, so a bare collection URL and one naming the default are the same representation — which is what keeps this additive for clients that never learned about readlists.
+- **A save through a readlist's collection lands in that readlist** as well as in the reader's whole queue, and the confirmation message names it — `Saved to '<label>'` — whenever the reader keeps more than one readlist. A reader with only the default one keeps the unqualified copy. The wording is server-authored like every other message, so no client composes it and no client decides where a save went.
+- **Some affordances are deliberately readlist-agnostic**: `root`, `account`, `add-links-help`, `create-session`, `save-articles`, `save-content`, and `search`. A GET action's fields *replace* the href's query when a client submits it, so a readlist baked into `search` would vanish on submit; and no action carries a readlist field, because a shipped client posts only the fields it already knows and would silently drop one it does not.
+- **Presentation is the client's.** A menu, a sidebar, or a segmented control is a layout decision; `rel` is never used as a style token.
 
 ## Entity-Level vs Collection-Level Actions
 
