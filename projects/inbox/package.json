@@ -9,7 +9,8 @@
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "compile": "rm -rf dist && tsc && node scripts/build-client-bundles.js && node scripts/copy-static-assets.js",
     "dev": "node scripts/build-client-bundles.js && tsx watch src/runtime/server.main.ts",
-    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
+    "check-unused-css": "node scripts/check-unused-css.js",
     "start": "node dist/runtime/server.main.js",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
@@ -46,6 +47,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@packages/check-unused-css": "workspace:*",
     "@packages/e2e-harness": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",

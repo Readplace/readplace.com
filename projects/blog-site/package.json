@@ -9,7 +9,8 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
-    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\"",
+    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
+    "check-unused-css": "node scripts/check-unused-css.js",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "check": "nx run blog-site:check"
   },
@@ -35,6 +36,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@packages/check-unused-css": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@pulumi/aws": "7.32.0",

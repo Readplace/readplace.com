@@ -12,6 +12,7 @@ export default {
 		// script — knip can't follow those references, so list the convention here.
 		"src/runtime/*.main.ts",
 	],
+	ignore: [...(baseConfig.ignore || []), "purgecss.config.js"],
 	ignoreDependencies: [
 		...(baseConfig.ignoreDependencies || []),
 		// knip doesn't resolve workspace subpath for @packages/* imports

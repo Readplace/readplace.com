@@ -10,7 +10,8 @@
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "test:e2e": "pnpm compile && E2E_PORT=3700 playwright test --config playwright.config.local-dev.ts",
     "update-visual-baselines": "node scripts/update-visual-baselines.js",
-    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\"",
+    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
+    "check-unused-css": "node scripts/check-unused-css.js",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "check": "nx run web-embed:check"
   },
@@ -26,6 +27,7 @@
     "serverless-http": "4.0.0"
   },
   "devDependencies": {
+    "@packages/check-unused-css": "workspace:*",
     "@packages/e2e-harness": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/test-fixtures": "workspace:*",

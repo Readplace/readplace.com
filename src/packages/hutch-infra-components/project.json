@@ -2,7 +2,7 @@
   "name": "@packages/hutch-infra-components",
   "targets": {
     "check": {
-      "command": "pnpm lint",
+      "command": "pnpm lint && pnpm test",
       "options": { "cwd": "{projectRoot}" },
       "dependsOn": ["compile"]
     }

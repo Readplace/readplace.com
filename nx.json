@@ -14,6 +14,8 @@
       "sharedGlobals"
     ],
     "sharedGlobals": [
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/pnpm-lock.yaml",
       "{workspaceRoot}/*.config.base.*",
       "{workspaceRoot}/jest.setup.base.js",
       "{workspaceRoot}/pnpm-workspace.yaml",

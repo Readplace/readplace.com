@@ -4,13 +4,24 @@
   "targets": {
     "compile": {
       "command": "make apk",
-      "options": { "cwd": "{projectRoot}" },
+      "options": {
+        "cwd": "{projectRoot}"
+      },
       "cache": false
     },
     "compile-dev": {
       "command": "make apk-staging",
-      "options": { "cwd": "{projectRoot}" },
+      "options": {
+        "cwd": "{projectRoot}"
+      },
       "cache": false
+    },
+    "check": {
+      "command": "make test",
+      "options": {
+        "cwd": "{projectRoot}"
+      },
+      "dependsOn": []
     }
   }
 }

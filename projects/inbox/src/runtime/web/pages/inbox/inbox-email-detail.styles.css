@@ -164,6 +164,7 @@
   margin-top: 2px;
 }
 
+/* purgecss-ignore-start: the state modifier is composed at runtime from the view model's state union, so purgecss cannot see the complete class name */
 .inbox-article-card__status--working,
 .inbox-article-card__status--stalled {
   color: var(--muted-foreground);
@@ -176,6 +177,7 @@
 .inbox-article-card__status--none {
   display: none;
 }
+/* purgecss-ignore-end */
 
 .inbox-article-card__actions {
   display: flex;

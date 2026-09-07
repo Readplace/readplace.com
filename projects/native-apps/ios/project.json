@@ -4,7 +4,9 @@
   "targets": {
     "generate": {
       "command": "bash scripts/generate-project.sh",
-      "options": { "cwd": "{projectRoot}" },
+      "options": {
+        "cwd": "{projectRoot}"
+      },
       "inputs": [
         "{projectRoot}/App/**/*",
         "{projectRoot}/Shared/**/*",
@@ -16,17 +18,36 @@
     },
     "compile": {
       "command": "READPLACE_ENV=production bash scripts/build-unsigned-ipa.sh",
-      "options": { "cwd": "{projectRoot}" },
-      "outputs": ["{projectRoot}/build/Readplace-unsigned.ipa"],
+      "options": {
+        "cwd": "{projectRoot}"
+      },
+      "outputs": [
+        "{projectRoot}/build/Readplace-unsigned.ipa"
+      ],
       "cache": false,
-      "dependsOn": ["generate"]
+      "dependsOn": [
+        "generate"
+      ]
     },
     "compile-dev": {
       "command": "READPLACE_ENV=staging bash scripts/build-unsigned-ipa.sh",
-      "options": { "cwd": "{projectRoot}" },
-      "outputs": ["{projectRoot}/build/Readplace-staging-unsigned.ipa"],
+      "options": {
+        "cwd": "{projectRoot}"
+      },
+      "outputs": [
+        "{projectRoot}/build/Readplace-staging-unsigned.ipa"
+      ],
       "cache": false,
-      "dependsOn": ["generate"]
+      "dependsOn": [
+        "generate"
+      ]
+    },
+    "check": {
+      "command": "make test",
+      "options": {
+        "cwd": "{projectRoot}"
+      },
+      "dependsOn": []
     }
   }
 }

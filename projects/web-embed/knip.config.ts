@@ -12,7 +12,7 @@ export default {
 		// (future) production deployment — knip can't follow those references.
 		"src/runtime/*.main.ts",
 	],
-	ignore: [...(baseConfig.ignore || [])],
+	ignore: [...(baseConfig.ignore || []), "purgecss.config.js"],
 	ignoreDependencies: [
 		// Required by Pulumi to resolve the AWS provider at deploy time, but not
 		// imported directly

@@ -5,10 +5,14 @@
   "main": "index.js",
   "private": true,
   "scripts": {
-    "check": "echo 'No testable logic — thin PurgeCSS wrapper'",
+    "test": "jest",
+    "check": "nx run @packages/check-unused-css:check",
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {
     "purgecss": "8.0.0"
+  },
+  "devDependencies": {
+    "jest": "30.4.2"
   }
 }

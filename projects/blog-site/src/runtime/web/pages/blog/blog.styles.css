@@ -793,8 +793,10 @@
   min-height: 2px;
 }
 
+/* purgecss-ignore-start: the bar modifier is composed at runtime from the figure's variant, so purgecss cannot see the complete class name */
 .rpf-budget__bar--old { background: var(--color-text-muted); }
 .rpf-budget__bar--new { background: var(--color-brand); }
+/* purgecss-ignore-end */
 
 .rpf-budget__axis {
   display: flex;

@@ -1,0 +1,11 @@
+{
+  "name": "@packages/check-unused-css",
+  "targets": {
+    "check": {
+      "command": "pnpm test",
+      "options": {
+        "cwd": "{projectRoot}"
+      }
+    }
+  }
+}

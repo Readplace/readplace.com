@@ -1,31 +1,5 @@
-export const NOT_FOUND_STYLES = `
-.not-found {
-	padding: 120px 20px;
-	text-align: center;
-}
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-.not-found__container {
-	max-width: 480px;
-	margin: 0 auto;
-}
-
-.not-found__title {
-	font-family: var(--font-serif);
-	font-size: 2rem;
-	font-weight: 700;
-	margin-bottom: 12px;
-	color: var(--foreground);
-}
-
-.not-found__text {
-	font-size: 1rem;
-	line-height: 1.7;
-	color: var(--muted-foreground);
-	margin-bottom: 24px;
-}
-
-.not-found__link {
-	color: var(--primary-text);
-	text-decoration: underline;
-}
-`;
+const stylesPath = join(__dirname, "not-found.styles.css");
+export const NOT_FOUND_STYLES = readFileSync(stylesPath, "utf-8");
