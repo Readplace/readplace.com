@@ -293,6 +293,19 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// land. Stored as `exhausted-retries` because a 530 is neither a block nor a
 	// 404, which makes an origin outage read as a crawler defect.
 	/^https:\/\/jkm\.dev\/posts\/how-2004-runescape-fit-a-multiplayer-rpg-into-56k-dialup\/$/i,
+	// (l) Product pages g2.com renamed out from under a save (issue #1112).
+	// `convertkit` is now `convertkit-kit` and `mailchimp-all-in-one-marketing-
+	// platform` is now `intuit-mailchimp-all-in-one-marketing-platform`; both
+	// renamed rows exist and carry content. The destination pin would normally
+	// alias the old URL onto the new one, but g2 fronts Cloudflare over DataDome
+	// and answers 403 with no `Location` to every leg — both personas, all three
+	// direct transports, and both residential-proxy attempts, which the unlocker
+	// itself reports as `dd_hardblock`. A redirect we are never shown cannot be
+	// adopted, so these two keep their own rows, which hold nothing but the
+	// import stub. Anchored exact: the renamed pages and every other g2 product
+	// still surface.
+	/^https:\/\/www\.g2\.com\/products\/convertkit\/reviews$/i,
+	/^https:\/\/www\.g2\.com\/products\/mailchimp-all-in-one-marketing-platform\/reviews$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

@@ -937,3 +937,19 @@ describe("EXCLUDE_PATTERNS — unreachable origins drained from issue #1073", ()
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — g2.com products renamed out from under a save (issue #1112)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://www.g2.com/products/convertkit/reviews", excluded: true, label: "pre-rename convertkit" },
+		{ url: "https://www.g2.com/products/mailchimp-all-in-one-marketing-platform/reviews", excluded: true, label: "pre-rename mailchimp" },
+		{ url: "https://www.g2.com/products/convertkit-kit/reviews", excluded: false, label: "the renamed convertkit page that holds the content — must NOT be hidden" },
+		{ url: "https://www.g2.com/products/intuit-mailchimp-all-in-one-marketing-platform/reviews", excluded: false, label: "the renamed mailchimp page that holds the content — must NOT be hidden" },
+		{ url: "https://www.g2.com/products/beehiiv/reviews", excluded: false, label: "another g2 product — must still surface" },
+		{ url: "https://www.g2.com/products/convertkit/pricing", excluded: false, label: "a different path on the same product — must still surface" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
