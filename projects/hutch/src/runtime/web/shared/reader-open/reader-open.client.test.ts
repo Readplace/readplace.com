@@ -6,6 +6,8 @@ import type { ReadlistArticleViewModel } from "../../pages/readlist/readlist.vie
 import { renderReaderSkeleton } from "../../pages/readlist/reader-skeleton/reader-skeleton.component";
 import { type HtmxHistoryEventName, initReaderOpen, type ReaderOpenDeps } from "./reader-open.client";
 
+const INJECTED_PAINT_DELAY_MS = 275;
+
 const READER_HREF = "/queue/abc123/view?v=token";
 const QUEUE_HREF = "https://readplace.test/queue";
 const BANNER_SELECTOR = "#extension-suggestion-banner";
@@ -84,7 +86,7 @@ function setup(bodyHtml: string, options?: { bodyClass?: string; currentHref?: s
 			},
 			clearTimeoutFn: (id) => cleared.push(id),
 			parseHtml: (html) => new dom.window.DOMParser().parseFromString(html, "text/html"),
-			paintDelayMs: 150,
+			paintDelayMs: INJECTED_PAINT_DELAY_MS,
 			addHtmxListener: (name, listener) => {
 				registrations += 1;
 				listeners.set(name, listener);
@@ -187,7 +189,7 @@ describe("initReaderOpen", () => {
 		]);
 		expect(app.main()?.getAttribute("hx-history")).toBe("false");
 		expect(app.timers).toHaveLength(1);
-		expect(app.timers[0]?.ms).toBe(150);
+		expect(app.timers[0]?.ms).toBe(INJECTED_PAINT_DELAY_MS);
 		expect(app.main()?.className).toBe("readlist");
 		expect(app.body.classList.contains("page-readlist")).toBe(true);
 		expect(app.scrolls()).toBe(0);
