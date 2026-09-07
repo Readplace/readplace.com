@@ -159,7 +159,7 @@ export type DeviceClass =
  */
 const NATIVE_CLIENT_USER_AGENTS = {
 	ios: /^(?:Readplace|ShareExtension)\/\d+ CFNetwork\/[\d.]+ Darwin\/[\d.]+$/,
-	android: /^Readplace\/\d+ Android\/[\d.]+$/,
+	android: /^Readplace\/\d+ Android\/[\w.]+$/,
 } as const;
 
 /** Which native app sent this User-Agent, or undefined for anything else. */

@@ -579,6 +579,15 @@ describe("classifyDeviceClass", () => {
 		expect(classifyDeviceClass(ANDROID_APP_USER_AGENT)).toBe("mobile_android");
 	});
 
+	it("returns 'mobile_android' for our own Android app on a codename OS release, which is what Build.VERSION.RELEASE reports before a version number is assigned", () => {
+		expect(classifyDeviceClass("Readplace/1 Android/Baklava")).toBe("mobile_android");
+	});
+
+	it("returns 'mobile_android' for our own Android app on the letter-suffixed releases that shipped, 12L and Wear's 4.4W", () => {
+		expect(classifyDeviceClass("Readplace/1 Android/12L")).toBe("mobile_android");
+		expect(classifyDeviceClass("Readplace/1 Android/4.4W")).toBe("mobile_android");
+	});
+
 	it("returns 'bot', not 'mobile_android', for a crawler that merely mentions our Android token, since that match is anchored too", () => {
 		expect(classifyDeviceClass("Googlebot/2.1 (+http://www.google.com/bot.html) Readplace/1 Android/17")).toBe("bot");
 	});
@@ -1308,6 +1317,14 @@ describe("isBotUserAgent", () => {
 
 	it("still reports a build segment that is not the integer CFBundleVersion carries as a bot", () => {
 		expect(isBotUserAgent("Readplace/beta CFNetwork/1.0 Darwin/1.0")).toBe(true);
+	});
+
+	it("does not report our own Android app on a codename OS release as a bot, which isbot() reads as a crawler off its ^read rule", () => {
+		expect(isBotUserAgent("Readplace/1 Android/Baklava")).toBe(false);
+	});
+
+	it("still reports an Android User-Agent whose app version is not the integer versionCode carries as a bot", () => {
+		expect(isBotUserAgent("Readplace/beta Android/16")).toBe(true);
 	});
 });
 
