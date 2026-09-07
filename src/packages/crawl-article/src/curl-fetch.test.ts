@@ -122,6 +122,22 @@ describe("fetchCurl response parsing", () => {
 		expect(response.status).toBe(502);
 		expect(await response.text()).toBe("");
 	});
+
+	it("rejects a 2xx that carries a body with no content-type header", async () => {
+		const fake = makeFakeExec({ stdout: "HTTP/2 200 \r\nserver: AkamaiGHost\r\n\r\n<!-- edge -->" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
+		await expect(fetchCurl("https://example.com/doc.pdf", { signal: live() })).rejects.toThrow(
+			"fetchCurl failed for https://example.com/doc.pdf: origin answered 200 with 13 bytes and no content-type",
+		);
+	});
+
+	it("rejects a 2xx whose content-type header is present but empty", async () => {
+		const fake = makeFakeExec({ stdout: "HTTP/2 200 \r\ncontent-type: \r\n\r\n<!-- edge -->" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
+		await expect(fetchCurl("https://example.com/doc.pdf", { signal: live() })).rejects.toThrow(
+			"fetchCurl failed for https://example.com/doc.pdf: origin answered 200 with 13 bytes and no content-type",
+		);
+	});
 });
 
 describe("fetchCurl argument construction", () => {
@@ -291,7 +307,7 @@ describe("fetchCurl abort signal handling", () => {
 	});
 
 	it("removes the abort listener once the child closes so a later abort is a no-op", async () => {
-		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\nbody" });
+		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\r\nbody" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
 		const controller = new AbortController();
 		const response = await fetchCurl("https://example.com", { signal: controller.signal });
@@ -334,7 +350,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 	it("resolves a relative Location against the current url before following", async () => {
 		const seq = makeSequencedExec([
 			"HTTP/1.1 302 Found\r\nlocation: /moved\r\n\r\n",
-			"HTTP/1.1 200 OK\r\n\r\nok",
+			"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\r\nok",
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
@@ -348,7 +364,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 	it("re-pins a cross-host redirect target through --resolve for the new host", async () => {
 		const seq = makeSequencedExec([
 			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://other.example/dest\r\n\r\n",
-			"HTTP/1.1 200 OK\r\n\r\nok",
+			"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\r\nok",
 		]);
 		const resolveSpy = jest.fn(async ({ hostname }: { hostname: string }) =>
 			hostname === "other.example" ? "203.0.113.9" : "93.184.216.34",
@@ -401,7 +417,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 
 	it("does not follow a non-redirect status even if a Location header is present", async () => {
 		const seq = makeSequencedExec([
-			"HTTP/1.1 200 OK\r\nlocation: https://example.com/elsewhere\r\n\r\nbody",
+			"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nlocation: https://example.com/elsewhere\r\n\r\nbody",
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
@@ -427,7 +443,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 	it("drops cookie/authorization/proxy-authorization when a redirect crosses origins", async () => {
 		const seq = makeSequencedExec([
 			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://other.example/dest\r\n\r\n",
-			"HTTP/1.1 200 OK\r\n\r\nok",
+			"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\r\nok",
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
@@ -453,7 +469,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 	it("keeps sensitive headers when a redirect stays on the same origin", async () => {
 		const seq = makeSequencedExec([
 			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://example.com/dest\r\n\r\n",
-			"HTTP/1.1 200 OK\r\n\r\nok",
+			"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\r\nok",
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 

@@ -122,7 +122,16 @@ export function createCurlFetch(deps: {
 					return;
 				}
 				const { status, headers, body } = parseCurlOutput(stdout);
-				resolve(new Response(body.length === 0 ? null : body, { status, headers }));
+				const response = new Response(body.length === 0 ? null : body, { status, headers });
+				if (isSuccessWithoutContentType(response)) {
+					reject(
+						new Error(
+							`fetchCurl failed for ${url}: origin answered ${status} with ${body.length} bytes and no content-type`,
+						),
+					);
+					return;
+				}
+				resolve(response);
 			});
 			const { signal } = init;
 			if (signal.aborted) {
@@ -261,6 +270,10 @@ function parseCurlOutput(raw: Buffer): ParsedCurlOutput {
 	}
 
 	return { status, headers, body };
+}
+
+function isSuccessWithoutContentType(response: Response): boolean {
+	return response.ok && response.body !== null && !response.headers.get("content-type");
 }
 
 /**
