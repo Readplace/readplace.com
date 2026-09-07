@@ -7,7 +7,13 @@ import { initOnboardingSignals } from "./dynamodb-onboarding-signals";
 
 interface CapturedCommand {
 	name: string;
-	input: Record<string, unknown>;
+	input: {
+		Key?: Record<string, unknown>;
+		UpdateExpression?: string;
+		ConditionExpression?: string;
+		ExpressionAttributeNames?: Record<string, string>;
+		ExpressionAttributeValues?: Record<string, unknown>;
+	};
 }
 
 /** Records commands and replays a single fetched row (or none) for GetCommand. */
@@ -17,7 +23,7 @@ function createFakeClient(opts: { row?: Record<string, unknown>; updateError?: E
 } {
 	const commands: CapturedCommand[] = [];
 	const client = {
-		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+		send: (async (command: { constructor: { name: string }; input: CapturedCommand["input"] }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			if (name === "GetCommand") {
@@ -56,9 +62,7 @@ describe("initOnboardingSignals", () => {
 				"SET #activated = if_not_exists(#activated, :now)",
 			);
 			expect(update?.input.ExpressionAttributeNames).toEqual({ "#activated": "iosAppActivatedAt" });
-			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
-				NOW.toISOString(),
-			);
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
 		});
 	});
 
@@ -102,9 +106,7 @@ describe("initOnboardingSignals", () => {
 			expect(update?.input.UpdateExpression).toBe(
 				"SET nextReadMinimumReachedAt = if_not_exists(nextReadMinimumReachedAt, :now)",
 			);
-			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
-				NOW.toISOString(),
-			);
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
 		});
 	});
 
@@ -119,9 +121,7 @@ describe("initOnboardingSignals", () => {
 			expect(update?.input.UpdateExpression).toBe(
 				"SET firstInboxArticleQueuedAt = if_not_exists(firstInboxArticleQueuedAt, :now)",
 			);
-			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
-				NOW.toISOString(),
-			);
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
 		});
 	});
 
@@ -136,9 +136,7 @@ describe("initOnboardingSignals", () => {
 			expect(update?.input.UpdateExpression).toBe(
 				"SET emailStepMarkedDoneAt = if_not_exists(emailStepMarkedDoneAt, :now)",
 			);
-			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
-				NOW.toISOString(),
-			);
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
 		});
 	});
 
@@ -154,9 +152,7 @@ describe("initOnboardingSignals", () => {
 			const update = updateOf(commands);
 			expect(update?.input.Key).toEqual({ userId: "user-1" });
 			expect(update?.input.UpdateExpression).toBe("SET onboardingOutstandingVersion = :version");
-			expect(
-				(update?.input.ExpressionAttributeValues as Record<string, unknown>)[":version"],
-			).toBe("0badf00d");
+			expect(update?.input.ExpressionAttributeValues?.[":version"]).toBe("0badf00d");
 		});
 	});
 
@@ -171,9 +167,7 @@ describe("initOnboardingSignals", () => {
 			expect(update?.input.UpdateExpression).toBe(
 				"SET markReadAcrossQueuesAckedAt = if_not_exists(markReadAcrossQueuesAckedAt, :now)",
 			);
-			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
-				NOW.toISOString(),
-			);
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
 		});
 	});
 
@@ -188,9 +182,7 @@ describe("initOnboardingSignals", () => {
 			expect(update?.input.UpdateExpression).toBe(
 				"SET deleteArticleAckedAt = if_not_exists(deleteArticleAckedAt, :now)",
 			);
-			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":now"]).toBe(
-				NOW.toISOString(),
-			);
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
 		});
 	});
 
@@ -382,9 +374,9 @@ describe("initOnboardingSignals", () => {
 			expect(update?.input.ConditionExpression).toContain(
 				"attribute_not_exists(firstInboxEmailNoticeSentAt)",
 			);
-			expect(
-				(update?.input.ExpressionAttributeValues as Record<string, unknown>)[":sentAt"],
-			).toBe("2026-09-03T10:00:00.000Z");
+			expect(update?.input.ExpressionAttributeValues?.[":sentAt"]).toBe(
+				"2026-09-03T10:00:00.000Z",
+			);
 		});
 
 		it("reports already-sent when a concurrent delivery took the marker first", async () => {

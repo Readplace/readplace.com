@@ -12,13 +12,22 @@ const URL = "https://example.com/post";
 const CRAWLED_AT = "2026-07-10T09:41:32.123Z";
 const MINUTE_ID = "2026-07-10T09:41Z";
 
-interface Captured {
-	input: Record<string, unknown>;
+interface CapturedCopy {
+	Bucket?: string;
+	Key?: string;
+	CopySource?: string;
+	MetadataDirective?: string;
 }
 
-function createFakeS3(capture: (input: Record<string, unknown>) => void): Partial<S3Client> {
+interface CapturedUpdate {
+	UpdateExpression?: string;
+	ConditionExpression?: string;
+	ExpressionAttributeValues?: Record<string, unknown>;
+}
+
+function createFakeS3(capture: (input: CapturedCopy) => void): Partial<S3Client> {
 	return {
-		send: (async (command: Captured) => {
+		send: (async (command: { input: CapturedCopy }) => {
 			capture(command.input);
 			return {};
 		}) as unknown as S3Send,
@@ -27,10 +36,10 @@ function createFakeS3(capture: (input: Record<string, unknown>) => void): Partia
 
 function createFakeDynamo(opts: {
 	getItem?: Record<string, unknown>;
-	captureUpdate?: (input: Record<string, unknown>) => void;
+	captureUpdate?: (input: CapturedUpdate) => void;
 }): Partial<DynamoDBDocumentClient> {
 	return {
-		send: (async (command: Captured) => {
+		send: (async (command: { input: CapturedUpdate }) => {
 			if (command.input.UpdateExpression !== undefined) {
 				opts.captureUpdate?.(command.input);
 				return {};
@@ -42,7 +51,7 @@ function createFakeDynamo(opts: {
 
 describe("initRecordCrawlVersion", () => {
 	it("snapshots the winning tier source into the per-minute version folder", async () => {
-		let copy: Record<string, unknown> | undefined;
+		let copy: CapturedCopy | undefined;
 		const { recordCrawlVersion } = initRecordCrawlVersion({
 			s3Client: createFakeS3((input) => {
 				copy = input;
@@ -64,7 +73,7 @@ describe("initRecordCrawlVersion", () => {
 	});
 
 	it("prepends the new entry to a legacy string log with a compare-and-swap on the raw stored value", async () => {
-		let update: Record<string, unknown> | undefined;
+		let update: CapturedUpdate | undefined;
 		const { recordCrawlVersion } = initRecordCrawlVersion({
 			s3Client: createFakeS3(() => {}) as S3Client,
 			dynamoClient: createFakeDynamo({
@@ -83,13 +92,13 @@ describe("initRecordCrawlVersion", () => {
 		expect(update.UpdateExpression).toContain("SET crawlVersions = :next");
 		expect(update.ConditionExpression).toContain("attribute_not_exists(crawlVersions)");
 		expect(update.ConditionExpression).toContain("crawlVersions = :old");
-		const values = update.ExpressionAttributeValues as Record<string, unknown>;
-		expect(values[":next"]).toEqual([{ minuteId: MINUTE_ID }, "2026-07-09T08:00Z"]);
-		expect(values[":old"]).toEqual(["2026-07-09T08:00Z"]);
+		const values = update.ExpressionAttributeValues;
+		expect(values?.[":next"]).toEqual([{ minuteId: MINUTE_ID }, "2026-07-09T08:00Z"]);
+		expect(values?.[":old"]).toEqual(["2026-07-09T08:00Z"]);
 	});
 
 	it("stamps the capture author onto the new log entry", async () => {
-		let update: Record<string, unknown> | undefined;
+		let update: CapturedUpdate | undefined;
 		const { recordCrawlVersion } = initRecordCrawlVersion({
 			s3Client: createFakeS3(() => {}) as S3Client,
 			dynamoClient: createFakeDynamo({
@@ -110,16 +119,16 @@ describe("initRecordCrawlVersion", () => {
 		});
 
 		assert(update, "the CAS update must be issued");
-		const values = update.ExpressionAttributeValues as Record<string, unknown>;
-		expect(values[":next"]).toEqual([
+		const values = update.ExpressionAttributeValues;
+		expect(values?.[":next"]).toEqual([
 			{ minuteId: MINUTE_ID, authorUserId: "user-1" },
 			{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" },
 		]);
-		expect(values[":old"]).toEqual([{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" }]);
+		expect(values?.[":old"]).toEqual([{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" }]);
 	});
 
 	it("records the first version on a row whose log attribute is absent", async () => {
-		let update: Record<string, unknown> | undefined;
+		let update: CapturedUpdate | undefined;
 		const { recordCrawlVersion } = initRecordCrawlVersion({
 			s3Client: createFakeS3(() => {}) as S3Client,
 			dynamoClient: createFakeDynamo({
@@ -135,13 +144,13 @@ describe("initRecordCrawlVersion", () => {
 		await recordCrawlVersion({ url: URL, tier: "tier-0", crawledAt: CRAWLED_AT });
 
 		assert(update, "the CAS update must be issued");
-		const values = update.ExpressionAttributeValues as Record<string, unknown>;
-		expect(values[":next"]).toEqual([{ minuteId: MINUTE_ID }]);
-		expect(values[":old"]).toEqual([]);
+		const values = update.ExpressionAttributeValues;
+		expect(values?.[":next"]).toEqual([{ minuteId: MINUTE_ID }]);
+		expect(values?.[":old"]).toEqual([]);
 	});
 
 	it("records the first version when the row does not exist yet", async () => {
-		let update: Record<string, unknown> | undefined;
+		let update: CapturedUpdate | undefined;
 		const { recordCrawlVersion } = initRecordCrawlVersion({
 			s3Client: createFakeS3(() => {}) as S3Client,
 			dynamoClient: createFakeDynamo({
@@ -157,8 +166,8 @@ describe("initRecordCrawlVersion", () => {
 		await recordCrawlVersion({ url: URL, tier: "tier-1", crawledAt: CRAWLED_AT });
 
 		assert(update, "the CAS update must be issued for a brand-new row");
-		const values = update.ExpressionAttributeValues as Record<string, unknown>;
-		expect(values[":next"]).toEqual([{ minuteId: MINUTE_ID }]);
+		const values = update.ExpressionAttributeValues;
+		expect(values?.[":next"]).toEqual([{ minuteId: MINUTE_ID }]);
 	});
 
 	it("still snapshots but skips the log update when the minute is already recorded", async () => {

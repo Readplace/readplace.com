@@ -18,7 +18,23 @@ const provenance: SaveProvenance = { kind: "client", clientName: "chrome" };
 
 interface CapturedCommand {
 	name: string;
-	input: Record<string, unknown>;
+	input: {
+		ConditionExpression?: string;
+		ConsistentRead?: boolean;
+		ExclusiveStartKey?: Record<string, unknown>;
+		ExpressionAttributeValues?: Record<string, unknown>;
+		FilterExpression?: string;
+		IndexName?: string;
+		Item?: Record<string, unknown>;
+		Key?: Record<string, unknown>;
+		KeyConditionExpression?: string;
+		Limit?: number;
+		RequestItems?: Record<string, { Keys?: Record<string, unknown>[]; ProjectionExpression?: string }>;
+		ReturnValues?: string;
+		ScanIndexForward?: boolean;
+		Select?: string;
+		UpdateExpression?: string;
+	};
 }
 
 type CommandResponse = Record<string, unknown> | (() => Record<string, unknown>);
@@ -40,7 +56,7 @@ function createFakeClient(
 	const resolve = (value: CommandResponse): Record<string, unknown> =>
 		typeof value === "function" ? value() : value;
 	const client = {
-		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+		send: (async (command: { constructor: { name: string }; input: CapturedCommand["input"] }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			const readlist = readlists.get(name);
@@ -118,9 +134,7 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toContain("SET viewedAt = :at");
 		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
-		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
-			"2026-05-30T10:00:00.000Z",
-		);
+		expect(update?.input.ExpressionAttributeValues?.[":at"]).toBe("2026-05-30T10:00:00.000Z");
 	});
 
 	it("markSummaryToggled with state=open overwrites lastSummaryOpenedAt (last-write-wins) on a still-saved row", async () => {
@@ -130,9 +144,7 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toBe("SET lastSummaryOpenedAt = :at");
 		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
-		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
-			"2026-05-30T10:00:00.000Z",
-		);
+		expect(update?.input.ExpressionAttributeValues?.[":at"]).toBe("2026-05-30T10:00:00.000Z");
 	});
 
 	it("markSummaryToggled with state=closed overwrites lastSummaryClosedAt", async () => {
@@ -425,9 +437,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(userRowUpdate?.input.UpdateExpression).toBe(
 			"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
 		);
-		expect(
-			(userRowUpdate?.input.ExpressionAttributeValues as Record<string, unknown>)[":provenance"],
-		).toEqual(provenance);
+		expect(userRowUpdate?.input.ExpressionAttributeValues?.[":provenance"]).toEqual(provenance);
 		expect(saved.provenance).toEqual(provenance);
 	});
 
@@ -537,14 +547,14 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 
 		const globalPut = commands.find((c) => c.name === "PutCommand");
 		assert(globalPut, "the store must put the global article row");
-		expect((globalPut.input.Item as Record<string, unknown>).savedAt).toBe(STORE_NOW.toISOString());
+		expect(globalPut.input.Item?.savedAt).toBe(STORE_NOW.toISOString());
 		const userRowUpdate = commands.find(
 			(c) => c.name === "UpdateCommand" && c.input.ReturnValues === "ALL_OLD",
 		);
 		assert(userRowUpdate, "the store must update the user row");
-		expect(
-			(userRowUpdate.input.ExpressionAttributeValues as Record<string, unknown>)[":savedAt"],
-		).toBe(OPERATION_SAVED_AT.toISOString());
+		expect(userRowUpdate.input.ExpressionAttributeValues?.[":savedAt"]).toBe(
+			OPERATION_SAVED_AT.toISOString(),
+		);
 	});
 
 	it("saveArticle only overwrites a user row whose savedAt is older, so a slow save cannot demote a newer one", async () => {
@@ -1033,7 +1043,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 		const pageQuery = commands.find((c) => c.name === "QueryCommand");
 		expect(pageQuery?.input.IndexName).toBe("userId-readAt-index");
 		expect(pageQuery?.input.FilterExpression).toBe("#status = :status");
-		expect((pageQuery?.input.ExpressionAttributeValues as Record<string, unknown>)[":status"]).toBe("read");
+		expect(pageQuery?.input.ExpressionAttributeValues?.[":status"]).toBe("read");
 		expect(pageQuery?.input.ScanIndexForward).toBe(true);
 		expect(result.articles[0]?.readAt).toEqual(new Date("2026-05-30T11:00:00.000Z"));
 	});
@@ -1049,8 +1059,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 		await initStore(client).findArticlesByUser({ userId: USER, excludeContent: true });
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
-		const requestItems = batch?.input.RequestItems as Record<string, { ProjectionExpression?: string }>;
-		expect(requestItems.articles.ProjectionExpression).toBe(
+		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
 			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt, #readerAvailableAt, #contentFetchedAt",
 		);
 	});
@@ -1340,7 +1349,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		expect(queries).toHaveLength(3);
 		expect(queries[0]?.input.IndexName).toBe("userId-savedAt-index");
 		expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
-		expect((queries[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(USER);
+		expect(queries[0]?.input.ExpressionAttributeValues?.[":userId"]).toBe(USER);
 		expect(queries[1]?.input.ExclusiveStartKey).toEqual({ userId: USER, url: "a" });
 		expect(queries[2]?.input.KeyConditionExpression).toBe(
 			"userId = :userId AND begins_with(#url, :prefix)",
@@ -1393,8 +1402,7 @@ describe("initDynamoDbSavedArticleStore listUserArticleUrls", () => {
 		const query = commands.find((c) => c.name === "QueryCommand");
 		expect(query?.input.IndexName).toBe("userId-savedAt-index");
 		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
-		const requested = (batchGet?.input.RequestItems as Record<string, { Keys: { url: string }[] }>)
-			.articles.Keys;
+		const requested = batchGet?.input.RequestItems?.articles.Keys;
 		expect(requested).toEqual([{ url: "example.com/one" }, { url: "example.com/two" }]);
 	});
 
@@ -1905,9 +1913,7 @@ describe("initDynamoDbSavedArticleStore readlist-scoped reads", () => {
 
 		const query = commands.find((c) => c.name === "QueryCommand");
 		expect(query?.input.IndexName).toBe("userId-savedAt-index");
-		expect((query?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(
-			WORK_PARTITION,
-		);
+		expect(query?.input.ExpressionAttributeValues?.[":userId"]).toBe(WORK_PARTITION);
 		expect(result.articles.map((a) => a.userId)).toEqual([USER]);
 	});
 
@@ -1917,11 +1923,9 @@ describe("initDynamoDbSavedArticleStore readlist-scoped reads", () => {
 		});
 
 		expect(await initStore(client).countReadlistArticles({ userId: USER, readlist: WORK })).toBe(4);
-		expect(
-			(countQueries(commands)[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[
-				":userId"
-			],
-		).toBe(WORK_PARTITION);
+		expect(countQueries(commands)[0]?.input.ExpressionAttributeValues?.[":userId"]).toBe(
+			WORK_PARTITION,
+		);
 	});
 
 	it("findReadlistArticleById reads the copy's row and reports the base user id", async () => {
@@ -2212,11 +2216,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 
 		expect(saves).toEqual([{}, { readlist: "work" }]);
 		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
-		expect(
-			(batchGet?.input.RequestItems as Record<string, { Keys: Record<string, string>[] }>)[
-				"user-articles"
-			]?.Keys,
-		).toEqual([
+		expect(batchGet?.input.RequestItems?.["user-articles"]?.Keys).toEqual([
 			{ userId: USER, url: RESOURCE_ID },
 			{ userId: WORK_PARTITION, url: RESOURCE_ID },
 		]);
@@ -2246,11 +2246,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 		expect(saves.get(URL)).toEqual([{}, { readlist: "work" }]);
 		expect(saves.get(otherUrl)).toEqual([]);
 		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
-		expect(
-			(batchGet?.input.RequestItems as Record<string, { Keys: Record<string, string>[] }>)[
-				"user-articles"
-			]?.Keys,
-		).toEqual([
+		expect(batchGet?.input.RequestItems?.["user-articles"]?.Keys).toEqual([
 			{ userId: USER, url: RESOURCE_ID },
 			{ userId: WORK_PARTITION, url: RESOURCE_ID },
 			{ userId: USER, url: "example.com/other" },

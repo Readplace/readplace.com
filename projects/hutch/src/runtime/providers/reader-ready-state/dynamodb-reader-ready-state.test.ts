@@ -7,7 +7,13 @@ import { initDynamoDbReaderReadyState } from "./dynamodb-reader-ready-state";
 
 interface CapturedCommand {
 	name: string;
-	input: Record<string, unknown>;
+	input: {
+		Key?: Record<string, unknown>;
+		ConsistentRead?: boolean;
+		UpdateExpression?: string;
+		ConditionExpression?: string;
+		ExpressionAttributeValues?: Record<string, unknown>;
+	};
 }
 
 type SendFn = DynamoDBDocumentClient["send"];
@@ -21,7 +27,7 @@ function createFakeClient(opts: {
 }): { client: Partial<DynamoDBDocumentClient>; commands: CapturedCommand[] } {
 	const commands: CapturedCommand[] = [];
 	const client: Partial<DynamoDBDocumentClient> = {
-		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+		send: (async (command: { constructor: { name: string }; input: CapturedCommand["input"] }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			if (name === "UpdateCommand" && opts.updateError) throw opts.updateError;
@@ -65,10 +71,9 @@ describe("initDynamoDbReaderReadyState", () => {
 			expect(update?.input.ConditionExpression).toBe(
 				"attribute_not_exists(lastReaderReadyEmailAt) OR lastReaderReadyEmailAt < :cutoff",
 			);
-			const values = update?.input.ExpressionAttributeValues as Record<string, unknown>;
-			expect(values[":cutoff"]).toBe("2026-05-30T04:00:00.000Z");
-			expect(values[":now"]).toBe("2026-05-30T10:00:00.000Z");
-			expect(values[":messageId"]).toBe(MESSAGE);
+			expect(update?.input.ExpressionAttributeValues?.[":cutoff"]).toBe("2026-05-30T04:00:00.000Z");
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe("2026-05-30T10:00:00.000Z");
+			expect(update?.input.ExpressionAttributeValues?.[":messageId"]).toBe(MESSAGE);
 			// A won claim is decided by the write alone — no follow-up read.
 			expect(commands.filter((c) => c.name === "GetCommand")).toHaveLength(0);
 		});
@@ -185,9 +190,8 @@ describe("initDynamoDbReaderReadyState", () => {
 			expect(update?.input.ConditionExpression).toBe(
 				"lastReaderReadyEmailAt = :claimedAt AND lastReaderReadyEmailMessageId = :messageId",
 			);
-			const values = update?.input.ExpressionAttributeValues as Record<string, unknown>;
-			expect(values[":claimedAt"]).toBe("2026-05-30T10:00:00.000Z");
-			expect(values[":messageId"]).toBe(MESSAGE);
+			expect(update?.input.ExpressionAttributeValues?.[":claimedAt"]).toBe("2026-05-30T10:00:00.000Z");
+			expect(update?.input.ExpressionAttributeValues?.[":messageId"]).toBe(MESSAGE);
 		});
 
 		it("is a no-op when a concurrent claim already overwrote the slot (condition fails)", async () => {

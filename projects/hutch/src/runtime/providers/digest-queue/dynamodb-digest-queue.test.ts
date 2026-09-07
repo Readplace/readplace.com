@@ -4,7 +4,13 @@ import { initDynamoDbDigestQueue } from "./dynamodb-digest-queue";
 
 interface CapturedCommand {
 	name: string;
-	input: Record<string, unknown>;
+	input: {
+		Item?: Record<string, unknown>;
+		Key?: Record<string, unknown>;
+		KeyConditionExpression?: string;
+		ExpressionAttributeValues?: Record<string, unknown>;
+		ExclusiveStartKey?: Record<string, unknown>;
+	};
 }
 
 type SendFn = DynamoDBDocumentClient["send"];
@@ -19,7 +25,7 @@ function createFakeClient(opts: {
 	const queryPages = [...(opts.queryPages ?? [])];
 	const scanPages = [...(opts.scanPages ?? [])];
 	const client: Partial<DynamoDBDocumentClient> = {
-		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+		send: (async (command: { constructor: { name: string }; input: CapturedCommand["input"] }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			if (name === "QueryCommand") return queryPages.shift() ?? { Items: [] };
@@ -53,14 +59,14 @@ describe("initDynamoDbDigestQueue", () => {
 			});
 
 			const put = commands.find((c) => c.name === "PutCommand");
-			const item = put?.input.Item as Record<string, unknown>;
-			expect(item.userId).toBe(USER);
+			const item = put?.input.Item;
+			expect(item?.userId).toBe(USER);
 			// Canonical sort key: schemeless + tracking params stripped.
-			expect(item.url).toBe("example.com/article");
-			expect(item.originalUrl).toBe("https://example.com/article?utm_source=x");
-			expect(item.enqueuedAt).toBe("2026-06-01T00:00:00.000Z");
+			expect(item?.url).toBe("example.com/article");
+			expect(item?.originalUrl).toBe("https://example.com/article?utm_source=x");
+			expect(item?.enqueuedAt).toBe("2026-06-01T00:00:00.000Z");
 			// 2026-06-01T00:00:00Z is 1780272000s; + 30 days (2592000s).
-			expect(item.expiresAt).toBe(1780272000 + 2592000);
+			expect(item?.expiresAt).toBe(1780272000 + 2592000);
 		});
 	});
 
@@ -91,7 +97,7 @@ describe("initDynamoDbDigestQueue", () => {
 			const queries = commands.filter((c) => c.name === "QueryCommand");
 			expect(queries).toHaveLength(2);
 			expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
-			expect((queries[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(USER);
+			expect(queries[0]?.input.ExpressionAttributeValues?.[":userId"]).toBe(USER);
 			expect(queries[1]?.input.ExclusiveStartKey).toEqual({ userId: USER, url: "example.com/a" });
 		});
 	});
@@ -130,7 +136,7 @@ describe("initDynamoDbDigestQueue", () => {
 			const queries = commands.filter((c) => c.name === "QueryCommand");
 			expect(queries).toHaveLength(2);
 			expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
-			expect((queries[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(USER);
+			expect(queries[0]?.input.ExpressionAttributeValues?.[":userId"]).toBe(USER);
 			expect(queries[1]?.input.ExclusiveStartKey).toEqual({ userId: USER, url: "example.com/a" });
 
 			const deletes = commands.filter((c) => c.name === "DeleteCommand");
