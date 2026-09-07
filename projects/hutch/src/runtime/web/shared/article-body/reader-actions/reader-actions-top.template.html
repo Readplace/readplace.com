@@ -44,7 +44,7 @@
       {{#each markRead.fields}}
       <input type="hidden" name="{{name}}" value="{{value}}">
       {{/each}}
-      <button class="btn btn--secondary btn--compact article-body__mark-read" type="submit" aria-label="{{markRead.label}}" data-test-mark-read-btn data-test-action="{{markRead.testAction}}"><span class="article-body__action-icon article-body__mark-read-icon">{{icon markRead.iconName}}</span><span class="article-body__mark-read-label article-body__action-label">{{markRead.label}}</span><span class="article-body__mark-read-label article-body__action-label-short" aria-hidden="true">{{markRead.shortLabel}}</span><span class="article-body__mark-read-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
+      <button class="btn btn--secondary btn--compact article-body__mark-read" type="submit" aria-label="{{markRead.label}}" data-test-mark-read-btn data-test-action="{{markRead.testAction}}"><span class="article-body__action-icon article-body__mark-read-icon">{{icon markRead.iconName}}</span><span class="article-body__mark-read-label article-body__action-label">{{markRead.label}}</span><span class="article-body__mark-read-label article-body__action-label-short" aria-hidden="true">{{markRead.shortLabel}}</span>{{{markRead.loaderHtml}}}</button>
     </form>
   </div>
   {{else}}

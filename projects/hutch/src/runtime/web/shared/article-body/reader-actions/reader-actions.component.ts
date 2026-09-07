@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { IconName } from "@packages/ui-icons";
-import { type Component, HtmlPage, render } from "@packages/web-shell";
+import { type Component, HtmlPage, render, renderInFlightDots } from "@packages/web-shell";
 import { articleDownloadLinks, type ArticleDownloadFormat, type ArticleDownloadLinks } from "../../epub/epub-link";
 
 export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker.client.js" defer></script>`;
@@ -10,6 +10,7 @@ export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker
 const TOP_TEMPLATE = readFileSync(join(__dirname, "reader-actions-top.template.html"), "utf-8");
 const BOTTOM_TEMPLATE = readFileSync(join(__dirname, "reader-actions-bottom.template.html"), "utf-8");
 const DOWNLOADS_TEMPLATE = readFileSync(join(__dirname, "reader-downloads.template.html"), "utf-8");
+const MARK_READ_LOADER = renderInFlightDots("article-body__mark-read-loader in-flight-dots");
 
 export interface MarkReadAction {
 	position: "top" | "bottom";
@@ -48,6 +49,7 @@ function markReadFields(action: MarkReadAction | undefined) {
 	if (action === undefined) return undefined;
 	const confirmPopoverId = action.confirmPopoverId;
 	return {
+		loaderHtml: MARK_READ_LOADER,
 		postUrl: action.postUrl,
 		label: action.label,
 		shortLabel: action.shortLabel,

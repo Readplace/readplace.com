@@ -87,6 +87,7 @@ export type {
 	RenderChromelessPage,
 } from "./chromeless-page";
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";
+export { renderInFlightDots } from "./shared/in-flight-dots/in-flight-dots.component";
 export { renderToast } from "./shared/toast/toast.component";
 export type { ToastAction, ToastViewModel } from "./shared/toast/toast.component";
 export { renderExtensionSuggestionBannerOob } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";

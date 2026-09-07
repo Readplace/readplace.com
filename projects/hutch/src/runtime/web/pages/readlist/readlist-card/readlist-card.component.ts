@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, renderInFlightDots, withInternalTracking } from "@packages/web-shell";
 
 import type { DeviceClass } from "@packages/web-analytics";
 import type { IconName } from "@packages/ui-icons";
@@ -16,6 +16,7 @@ export interface ActionDisplayModel extends ArticleAction {
 	formClass: string;
 	disabled: boolean;
 	affordance: "with-loader" | "bare";
+	loaderHtml: string;
 	/** Stable id on the status button so the shared toast focus script
 	 * (toast.client.ts) can restore keyboard focus after a card-scoped status
 	 * swap removes it: finding the recorded id gone, it lands focus on the
@@ -70,15 +71,22 @@ const ACTION_VARIANTS = {
 		buttonClass: "readlist-article__action-btn readlist-article__action-btn--status",
 		fallbackClass: "readlist-article__status-fallback",
 		affordance: "with-loader",
+		loaderHtml: renderInFlightDots("readlist-article__action-btn-loader in-flight-dots"),
 	},
 	delete: {
 		buttonClass: "readlist-article__action-btn readlist-article__action-btn--delete",
 		fallbackClass: "readlist-article__delete-fallback",
 		affordance: "bare",
+		loaderHtml: "",
 	},
 } as const satisfies Record<
 	string,
-	{ buttonClass: string; fallbackClass: string; affordance: ActionDisplayModel["affordance"] }
+	{
+		buttonClass: string;
+		fallbackClass: string;
+		affordance: ActionDisplayModel["affordance"];
+		loaderHtml: string;
+	}
 >;
 
 function variantOf(action: ArticleAction) {
@@ -102,6 +110,7 @@ export function toActionDisplayModel(
 			: "readlist-article__action-form",
 		disabled: options.isProcessing && showsLoader,
 		affordance: variant.affordance,
+		loaderHtml: variant.loaderHtml,
 		buttonId: showsLoader ? `readlist-status-${options.articleId}` : undefined,
 	};
 }

@@ -10,7 +10,7 @@
       {{#each actions}}
       <form method="{{method}}" action="{{url}}" class="{{formClass}}" hx-boost="true"{{#if (eq affordance "with-loader")}} hx-target="closest .readlist-article" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button"{{else}} hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{/if}}>
         {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-        <button class="{{buttonClass}}" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{#if iconName}}{{icon iconName}}<span class="sr-only">{{text}}</span>{{else}}<span class="readlist-article__action-btn-label">{{text}}</span>{{/if}}{{#if (eq affordance "with-loader")}}<span class="readlist-article__action-btn-loader" aria-hidden="true"><span></span><span></span><span></span></span>{{/if}}</button>
+        <button class="{{buttonClass}}" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{#if iconName}}{{icon iconName}}<span class="sr-only">{{text}}</span>{{else}}<span class="readlist-article__action-btn-label">{{text}}</span>{{/if}}{{{loaderHtml}}}</button>
       </form>
       {{/each}}
       {{#each confirmTriggers}}
