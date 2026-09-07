@@ -54,6 +54,6 @@ Renaming a list, deleting one, and the rail itself stay on the saved-links page.
 
 Both share answers belong to the account rather than the phone. Signing out clears them, so the next account on the device is asked for its own, and a session that expires on its own keeps them for when you sign back in.
 
-## Where your next share lands
+## After the first Done
 
 The question is already waiting in the share sheet of [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store). Tick the lists that keep coming up, press Done, and the links you share after that file themselves. The lists to tick start at [readplace.com](/?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=home).
