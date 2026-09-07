@@ -211,6 +211,7 @@ describe("initOnboardingSignals", () => {
 				emailStepMarkedDoneAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
+				deleteArticleAckedAt: undefined,
 			});
 		});
 
@@ -231,6 +232,7 @@ describe("initOnboardingSignals", () => {
 				emailStepMarkedDoneAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
+				deleteArticleAckedAt: undefined,
 			});
 		});
 
@@ -255,6 +257,7 @@ describe("initOnboardingSignals", () => {
 				emailStepMarkedDoneAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
+				deleteArticleAckedAt: undefined,
 			});
 		});
 
@@ -312,8 +315,18 @@ describe("initOnboardingSignals", () => {
 
 			const signals = await initSignal(client).getOnboardingSignals({ userId: USER });
 
-			expect(signals.firstInboxArticleQueuedAt).toBeUndefined();
-			expect(signals.onboardingOutstandingVersion).toBeUndefined();
+			expect(signals).toEqual({
+				nativeApp: {
+					ios: { installed: false, savedArticle: false },
+					android: { installed: false, savedArticle: false },
+				},
+				nextReadMinimumReachedAt: undefined,
+				firstInboxArticleQueuedAt: undefined,
+				emailStepMarkedDoneAt: undefined,
+				onboardingOutstandingVersion: undefined,
+				markReadAcrossQueuesAckedAt: undefined,
+				deleteArticleAckedAt: undefined,
+			});
 		});
 
 		it("surfaces the mark-read acknowledgement once the row carries it", async () => {

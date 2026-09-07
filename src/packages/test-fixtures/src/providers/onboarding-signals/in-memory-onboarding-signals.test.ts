@@ -15,6 +15,7 @@ const NOTHING_RECORDED = {
 	emailStepMarkedDoneAt: undefined,
 	onboardingOutstandingVersion: undefined,
 	markReadAcrossQueuesAckedAt: undefined,
+	deleteArticleAckedAt: undefined,
 };
 
 function storeAt(...instants: Date[]) {
