@@ -277,6 +277,8 @@ describe("toArticleEntity", () => {
 
 const ALL = { slug: DEFAULT_READLIST_SLUG, label: "All" };
 const WORK = { slug: ReadlistSlugSchema.parse("work"), label: "Work" };
+const RECIPES = { slug: ReadlistSlugSchema.parse("recipes"), label: "Recipes" };
+const WEEKEND = { slug: ReadlistSlugSchema.parse("weekend"), label: "Weekend" };
 
 function messageBodies(entity: ReturnType<typeof toSavedArticleEntity>): unknown {
 	return entity.properties?.messages;
@@ -288,7 +290,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
-			destination: { readlist: ALL, readlists: [ALL] },
+			destination: { filedInto: [ALL], readlists: [ALL] },
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -302,7 +304,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
-			destination: { readlist: WORK, readlists: [ALL, WORK] },
+			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -311,12 +313,46 @@ describe("toSavedArticleEntity", () => {
 		]);
 	});
 
+	it("joins two readlists the save landed in with 'and'", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: { filedInto: [WORK, RECIPES], readlists: [ALL, WORK, RECIPES] },
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to 'Work' and 'Recipes'" } },
+		]);
+	});
+
+	it("comma-separates three readlists the save landed in and keeps 'and' before the last", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: {
+				filedInto: [WORK, RECIPES, WEEKEND],
+				readlists: [ALL, WORK, RECIPES, WEEKEND],
+			},
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{
+				type: "success",
+				content: { type: "text/html", body: "Saved to 'Work', 'Recipes' and 'Weekend'" },
+			},
+		]);
+	});
+
 	it("names the default readlist too, so a multi-readlist reader always learns where the save landed", () => {
 		const entity = toSavedArticleEntity({
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
-			destination: { readlist: ALL, readlists: [ALL, WORK] },
+			destination: { filedInto: [ALL], readlists: [ALL, WORK] },
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -331,7 +367,7 @@ describe("toSavedArticleEntity", () => {
 			createdUserArticle: true,
 			wroteUserArticle: true,
 			destination: {
-				readlist: { slug: ReadlistSlugSchema.parse("risky"), label: "<b>&'x" },
+				filedInto: [{ slug: ReadlistSlugSchema.parse("risky"), label: "<b>&'x" }],
 				readlists: [ALL, WORK],
 			},
 		});
@@ -345,12 +381,35 @@ describe("toSavedArticleEntity", () => {
 		]);
 	});
 
+	it("escapes every label it names, not only the first", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: {
+				filedInto: [
+					{ slug: ReadlistSlugSchema.parse("risky"), label: "<b>" },
+					{ slug: ReadlistSlugSchema.parse("riskier"), label: "&'x" },
+				],
+				readlists: [ALL, WORK],
+			},
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{
+				type: "success",
+				content: { type: "text/html", body: "Saved to '&lt;b&gt;' and '&amp;&#x27;x'" },
+			},
+		]);
+	});
+
 	it("keeps the re-save copy readlist-agnostic, since nothing new was filed anywhere", () => {
 		const entity = toSavedArticleEntity({
 			article: makeArticle(),
 			createdUserArticle: false,
 			wroteUserArticle: true,
-			destination: { readlist: WORK, readlists: [ALL, WORK] },
+			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -367,13 +426,13 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
-			destination: { readlist: WORK, readlists: [ALL, WORK] },
+			destination: { filedInto: [WORK, RECIPES], readlists: [ALL, WORK, RECIPES] },
 		});
 		const intoAll = toSavedArticleEntity({
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
-			destination: { readlist: ALL, readlists: [ALL, WORK] },
+			destination: { filedInto: [ALL], readlists: [ALL, WORK] },
 		});
 		const collectionHref = (entity: ReturnType<typeof toSavedArticleEntity>) =>
 			entity.links?.find((link) => link.rel.includes("collection"));

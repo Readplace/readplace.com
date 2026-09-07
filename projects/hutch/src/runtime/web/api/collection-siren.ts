@@ -2,7 +2,7 @@ import assert from "node:assert";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
@@ -10,6 +10,7 @@ import type { SirenEntity, SirenLink } from "./siren";
 import { buildPageList } from "./page-list";
 import { buildTabList, type StatusTab } from "./tab-list";
 import { buildReadlistList, type ReadlistOption } from "./readlist-list";
+import { readlistHref } from "./readlist-href";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
@@ -90,7 +91,7 @@ export function toArticleCollectionEntity(
 	properties.readlists = buildReadlistList({
 		readlists: options.readlists,
 		currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
-		hrefForReadlist: (readlist) => `/queue${buildQueryString({ readlist })}`,
+		hrefForReadlist: readlistHref,
 	});
 	if (options.appearance) properties.appearance = options.appearance;
 	if (options.warning) properties.warning = options.warning;
@@ -117,7 +118,10 @@ export function toArticleCollectionEntity(
 				href: `/queue${buildQueryString({ readlist: queryParams.readlist })}`,
 				method: "POST",
 				type: "application/json",
-				fields: [{ name: "url", type: "url" }],
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "queues", type: "text", maxItems: READLIST_MAX_PER_USER },
+				],
 			},
 			{
 				name: "save-articles",

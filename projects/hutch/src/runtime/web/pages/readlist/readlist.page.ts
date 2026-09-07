@@ -133,6 +133,7 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toSavedArticleEntity } from "../../api/article-siren";
+import { readlistsAtHrefs } from "../../api/readlist-href";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
 import {
 	parseReadlistUrl,
@@ -330,6 +331,8 @@ function bytesToMb(bytes: number): number {
 const CrawlVersionMinuteIdSchema = z
 	.string()
 	.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/);
+
+const SaveArticleQueuesSchema = z.array(z.string()).optional().catch(undefined);
 
 interface ReadlistDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -1642,16 +1645,33 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				}
 				return filed;
 			};
-			const filedInto = readlistToFileInto(context);
-			const outcome = filedInto ? await fileInto(filedInto) : result;
+			const addressedFiling = readlistToFileInto(context);
+			const ticked = readlistsAtHrefs({
+				hrefs: SaveArticleQueuesSchema.parse(req.body?.queues) ?? [],
+				readlists: context.readlists,
+			});
+			const destinations = [
+				...(addressedFiling ? [context.activeReadlist] : []),
+				...ticked.filter(
+					(readlist) =>
+						readlist.slug !== DEFAULT_READLIST_SLUG && readlist.slug !== addressedFiling,
+				),
+			];
+			const filings: { createdUserArticle: boolean; wroteUserArticle: boolean }[] = [result];
+			for (const destination of destinations) {
+				filings.push(await fileInto(destination.slug));
+			}
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(
 				toSavedArticleEntity({
 					article: result.saved,
-					createdUserArticle: outcome.createdUserArticle,
-					wroteUserArticle: outcome.wroteUserArticle,
-					destination: { readlist: context.activeReadlist, readlists: context.readlists },
+					createdUserArticle: filings.some((filing) => filing.createdUserArticle),
+					wroteUserArticle: filings.some((filing) => filing.wroteUserArticle),
+					destination: {
+						filedInto: destinations.length > 0 ? destinations : [context.activeReadlist],
+						readlists: context.readlists,
+					},
 				}),
 			);
 		} catch (error) {
@@ -1960,7 +1980,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						article: result.saved,
 						createdUserArticle: result.createdUserArticle,
 						wroteUserArticle: result.wroteUserArticle,
-						destination: { readlist: DEFAULT_READLIST, readlists: context.readlists },
+						destination: { filedInto: [DEFAULT_READLIST], readlists: context.readlists },
 					}),
 				);
 			};

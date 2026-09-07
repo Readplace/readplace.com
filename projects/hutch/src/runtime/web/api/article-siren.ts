@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
 import { displayableReadTime, type SavedArticle } from "@packages/domain/article";
@@ -5,6 +6,7 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import type { ReadlistOption } from "./readlist-list";
+import { readlistHref } from "./readlist-href";
 
 function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 	if (crawl?.status !== "failed") return false;
@@ -69,13 +71,22 @@ export function toArticleEntity(article: SavedArticle): SirenEntity {
 }
 
 export interface SaveDestination {
-	readlist: ReadlistOption;
+	filedInto: readonly ReadlistOption[];
 	readlists: readonly ReadlistOption[];
+}
+
+function quotedLabels(readlists: readonly ReadlistOption[]): string {
+	const quoted = readlists.map(
+		(readlist) => `'${Handlebars.Utils.escapeExpression(readlist.label)}'`,
+	);
+	const last = quoted[quoted.length - 1];
+	const preceding = quoted.slice(0, -1);
+	return preceding.length === 0 ? last : `${preceding.join(", ")} and ${last}`;
 }
 
 function savedIntoBody(destination: SaveDestination): string {
 	return destination.readlists.length > 1
-		? `Saved to '${Handlebars.Utils.escapeExpression(destination.readlist.label)}'`
+		? `Saved to ${quotedLabels(destination.filedInto)}`
 		: "Saved to your reading list";
 }
 
@@ -90,6 +101,8 @@ export function toSavedArticleEntity(params: {
 	wroteUserArticle: boolean;
 	destination: SaveDestination;
 }): SirenEntity {
+	const [collectionReadlist] = params.destination.filedInto;
+	assert(collectionReadlist, "a save always lands in at least one readlist");
 	const entity = toArticleEntity(params.article);
 	const messages: SirenMessage[] = params.createdUserArticle
 		? [
@@ -114,7 +127,7 @@ export function toSavedArticleEntity(params: {
 			{
 				rel: ["collection"],
 				title: "View Readlist",
-				href: `/queue${buildQueryString({ readlist: params.destination.readlist.slug })}`,
+				href: readlistHref(collectionReadlist.slug),
 			},
 		],
 	};
