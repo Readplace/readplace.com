@@ -48,6 +48,17 @@ final class ShareStatusPresentationTests: XCTestCase {
 		XCTAssertEqual(status.subtitle, "Content will be uploaded when you open the Readplace app")
 	}
 
+	func testSavedNamesTheReadlistTheServerFiledTheLinkInto() {
+		let status = present(.saved([
+			message(type: "success", body: "Article saved"),
+			message(type: "success", body: "Saved to &#x27;Work&#x27;"),
+		]))
+		XCTAssertEqual(
+			status.message, "Article saved\nSaved to 'Work'",
+			"the server escapes the reader's own label on the wire, so the card must show the apostrophe it typed"
+		)
+	}
+
 	func testSavedConfirmationIsShownAsTextNeverMarkup() {
 		let status = present(.saved([
 			message(type: "success", body: "<strong>Article</strong> saved"),

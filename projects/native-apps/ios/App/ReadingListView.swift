@@ -22,10 +22,16 @@ struct ReadingListView: View {
 		self.session = session
 		self.onSignedOut = onSignedOut
 		let api = session.makeAPI()
+		let group = TokenStore.resolvedAppGroupId
+		guard let defaults = UserDefaults(suiteName: group) else {
+			preconditionFailure("App Group \(group) is required for the reading list's readlist preferences")
+		}
 		_viewModel = StateObject(wrappedValue: ReadingListViewModel(
 			api: api,
-			jobs: UploadJobStore.inSharedContainer(appGroupId: TokenStore.resolvedAppGroupId),
-			unseenSave: UnseenSave.inSharedContainer(appGroupId: TokenStore.resolvedAppGroupId),
+			jobs: UploadJobStore.inSharedContainer(appGroupId: group),
+			unseenSave: UnseenSave.inSharedContainer(appGroupId: group),
+			shareTarget: ShareTarget(defaults: defaults),
+			lastViewed: LastViewedReadlist(defaults: defaults),
 			onSessionExpired: { [weak session] in session?.forceLogout() }
 		))
 	}
@@ -33,6 +39,16 @@ struct ReadingListView: View {
 	var body: some View {
 		NavigationStack {
 			VStack(spacing: 0) {
+				if let readlist = viewModel.currentReadlistLabel {
+					HStack {
+						Text(readlist)
+							.font(.subheadline)
+							.foregroundStyle(Color.brandTextSecondary)
+						Spacer(minLength: 0)
+					}
+					.padding(.horizontal)
+					.padding(.bottom, 10)
+				}
 				if !viewModel.tabs.isEmpty {
 					Picker("Filter", selection: tabSelection) {
 						ForEach(viewModel.tabs) { tab in
@@ -43,6 +59,9 @@ struct ReadingListView: View {
 					.padding(.horizontal)
 					.padding(.bottom, 8)
 				}
+				if viewModel.offersSharedArticlesDropChoice {
+					sharedArticlesDropRow
+				}
 				content
 			}
 				.background(Color.brandSurface.ignoresSafeArea())
@@ -52,6 +71,19 @@ struct ReadingListView: View {
 						Button("Sign out") { Task { await signOut() } }
 					}
 					ToolbarItemGroup(placement: .navigationBarTrailing) {
+						if viewModel.offersReadlistSwitching {
+							Menu {
+								Picker("Readlist", selection: readlistSelection) {
+									ForEach(viewModel.readlistMenu) { item in
+										Label(item.label, systemImage: item.badgeSystemImage)
+											.tag(Optional(item.href))
+									}
+								}
+							} label: {
+								Image(systemName: "line.3.horizontal")
+							}
+							.accessibilityLabel("Readlists")
+						}
 						ForEach(viewModel.collectionAffordances) { affordance in
 							Button {
 								dispatch(affordance)
@@ -146,6 +178,47 @@ struct ReadingListView: View {
 			get: { viewModel.selectedTabHref },
 			set: { if let href = $0 { Task { await viewModel.select(tabHref: href) } } }
 		)
+	}
+
+	private var readlistSelection: Binding<String?> {
+		Binding(
+			get: { viewModel.selectedReadlistHref },
+			set: { if let href = $0 { Task { await viewModel.select(readlistHref: href) } } }
+		)
+	}
+
+	private var sharedArticlesDropRow: some View {
+		let isOn = viewModel.sharedArticlesDropHere
+		return Button {
+			viewModel.toggleSharedArticlesDropHere()
+		} label: {
+			HStack(spacing: 10) {
+				Image(systemName: SharedArticlesDropPresentation.boxSystemImage(isOn: isOn))
+					.font(.system(size: 18, weight: .regular))
+					.foregroundStyle(SharedArticlesDropPresentation.boxTint(isOn: isOn))
+				Text(SharedArticlesDropPresentation.title(isOn: isOn))
+					.font(.footnote)
+					.foregroundStyle(SharedArticlesDropPresentation.titleTint(isOn: isOn))
+				Spacer(minLength: 0)
+			}
+			.padding(.horizontal, 12)
+			.padding(.vertical, 10)
+			.frame(maxWidth: .infinity)
+			.background(
+				RoundedRectangle(cornerRadius: 10, style: .continuous)
+					.fill(Color.brandSurfaceSubtle)
+			)
+			.overlay(
+				RoundedRectangle(cornerRadius: 10, style: .continuous)
+					.stroke(SharedArticlesDropPresentation.boxTint(isOn: isOn).opacity(isOn ? 1 : 0.35), lineWidth: 1)
+			)
+			.contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+		}
+		.buttonStyle(.plain)
+		.padding(.horizontal)
+		.padding(.bottom, 8)
+		.accessibilityLabel(SharedArticlesDropPresentation.title(isOn: isOn))
+		.accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
 	}
 
 	@MainActor

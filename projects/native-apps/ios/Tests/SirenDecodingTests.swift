@@ -565,6 +565,44 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertNil(page.currentTabHref)
 	}
 
+	func testCollectionReadlistsDecodeLabelRelAndHrefWithTheCurrentOneMarked() throws {
+		let json = Fixtures.collection(
+			entitiesJSON: [Fixtures.article()],
+			readlistsJSON: Fixtures.readlists(current: "/queue?queue=work")
+		)
+		let page = ReadlistPage(collection: try decodeCollection(json))
+		XCTAssertEqual(page.readlists.map(\.label), ["All", "Work"], "labels are the server's, in wire order")
+		XCTAssertEqual(page.readlists.map(\.href), ["/queue", "/queue?queue=work"])
+		XCTAssertEqual(page.readlists.map(\.isCurrent), [false, true], "only the entry whose rel is current is marked")
+		XCTAssertEqual(
+			page.readlists.map(\.id), page.readlists.map(\.href),
+			"a readlist's identity is its href — the value a selection control's tag must equal"
+		)
+		XCTAssertEqual(page.currentReadlistHref, "/queue?queue=work", "the addressed readlist is the one rel'd current")
+	}
+
+	func testCollectionDropsAMalformedReadlistButKeepsTheValidOne() throws {
+		let hrefless = "{ \"label\": \"All\", \"rel\": \"readlist\" }"
+		let valid = "{ \"label\": \"Work\", \"rel\": \"current\", \"href\": \"/queue?queue=work\" }"
+		let json = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a1")],
+			readlistsJSON: "\(hrefless), \(valid)"
+		)
+		let page = ReadlistPage(collection: try decodeCollection(json))
+		XCTAssertEqual(page.readlists.map(\.label), ["Work"], "the hrefless readlist is dropped; the valid one survives")
+		XCTAssertEqual(page.currentReadlistHref, "/queue?queue=work")
+		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
+	}
+
+	func testCollectionWithoutReadlistsExposesNoneAndNoCurrentReadlist() throws {
+		let page = ReadlistPage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [Fixtures.article()])))
+		XCTAssertEqual(
+			page.readlists, [],
+			"a server that advertises no readlists yields an empty set, not a failed decode"
+		)
+		XCTAssertNil(page.currentReadlistHref)
+	}
+
 	func testSirenDateParsesWithAndWithoutFractionalSeconds() throws {
 		let base = SirenDecodingTests.utc(2026, 5, 30, 10, 0, 0)
 		XCTAssertEqual(try XCTUnwrap(SirenDate.parse("2026-05-30T10:00:00Z")), base)

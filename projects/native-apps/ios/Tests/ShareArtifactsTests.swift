@@ -44,6 +44,27 @@ final class ShareArtifactsTests: XCTestCase {
 		XCTAssertFalse(FileManager.default.fileExists(atPath: entry.path))
 	}
 
+	func testTakesTheShareTargetAndTheLastViewedReadlistWithTheSession() throws {
+		let group = TokenStore.resolvedAppGroupId
+		let defaults = try XCTUnwrap(
+			UserDefaults(suiteName: group),
+			"the App Group this build is entitled to must resolve to a defaults suite"
+		)
+		ShareTarget(defaults: defaults).record(href: "/queue?queue=work")
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
+
+		ShareArtifacts.purge(appGroupId: group)
+
+		XCTAssertNil(
+			ShareTarget(defaults: defaults).href,
+			"the next account on the device is prompted for its own share target rather than inheriting this one"
+		)
+		XCTAssertNil(
+			LastViewedReadlist(defaults: defaults).href,
+			"and opens on its own readlist rather than one it cannot see"
+		)
+	}
+
 	func testLeavesTheEntitledContainerAloneForAnAppGroupThisBuildCannotReach() async throws {
 		let jobs = UploadJobStore(containerURL: try entitledContainer())
 		let queued = job(id: UUID().uuidString)

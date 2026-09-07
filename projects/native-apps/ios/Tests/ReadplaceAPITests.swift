@@ -74,6 +74,28 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
+	func testRediscoverReadlistAtAPathRereadsThatCollectionAloneBypassingTheCache() async throws {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/queue"
+				? .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "w1")]))
+				: .json(404, "{}")
+		}
+
+		let page = try await makeAPI(store: store).rediscoverReadlist(path: "/queue?queue=work")
+
+		XCTAssertEqual(page.articles.map(\.id), ["w1"])
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.url?.absoluteString },
+			["\(AppConfig.serverBaseURL)/queue?queue=work"],
+			"the addressed collection is re-read on its own href — no hop back through the entry point"
+		)
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData],
+			"and it bypasses the cache, so a save through it never reads the copy cached before the save"
+		)
+	}
+
 	func testLoadReadlistFollowsEntryPointRedirectAndPreservesAuthHeader() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		StubURLProtocol.setHandler { request, _ in

@@ -26,6 +26,11 @@ protocol HTMLCapturing {
 	func capture(url: URL) async -> CapturedPage
 }
 
+@MainActor
+protocol ReadlistChoosing {
+	func choose(among readlists: [Readlist]) async -> Readlist
+}
+
 /// The share-sheet save journey, lifted out of `ShareViewController` so the full
 /// decision tree runs against the real API and token types under test — only the
 /// UIKit shell and the WKWebView are left behind in the extension target.
@@ -40,6 +45,8 @@ struct SaveSharedPage {
 	/// Nil for the same no-container reason as `jobs`, which costs only the app's
 	/// automatic list refresh on return.
 	let unseenSave: UnseenSave?
+	let shareTarget: ShareTarget
+	let readlistChooser: ReadlistChoosing
 	var stillSavingAfter: TimeInterval = 4
 
 	/// `sharedPdf` lazily loads the bytes of a PDF the share sheet delivered as a
@@ -73,14 +80,15 @@ struct SaveSharedPage {
 		defer { content.cancel() }
 
 		do {
-			var page = try await api.loadReadlist()
+			let discovery = try await discoverSaveCollection()
+			var page = discovery.page
 			onNotice(page.noticeMessages)
 			guard let action = page.action(named: "save-article") else { return .noSaveAction }
 			let confirmation: ReadplaceAPI.SaveConfirmation
 			do {
 				confirmation = try await api.saveArticle(action: action, url: url.absoluteString)
 			} catch let error where !APIError.isRefusalOrAuthFailure(error) {
-				page = try await api.rediscoverReadlist()
+				page = try await api.rediscoverReadlist(path: discovery.path)
 				guard let rediscovered = page.action(named: "save-article") else { return .noSaveAction }
 				confirmation = try await api.saveArticle(action: rediscovered, url: url.absoluteString)
 			}
@@ -102,6 +110,23 @@ struct SaveSharedPage {
 			let message = (error as? LocalizedError)?.errorDescription ?? "Save failed."
 			return .failed(message)
 		}
+	}
+
+	private struct Discovery {
+		let page: ReadlistPage
+		let path: String?
+	}
+
+	private func discoverSaveCollection() async throws -> Discovery {
+		if let recorded = shareTarget.href {
+			return Discovery(page: try await api.loadReadlist(path: recorded), path: recorded)
+		}
+		let entry = try await api.loadReadlist()
+		guard !shareTarget.isDecided, entry.readlists.count > 1 else { return Discovery(page: entry, path: nil) }
+		let chosen = await readlistChooser.choose(among: entry.readlists)
+		shareTarget.record(href: chosen.href)
+		guard chosen.href != entry.currentReadlistHref else { return Discovery(page: entry, path: nil) }
+		return Discovery(page: try await api.loadReadlist(path: chosen.href), path: chosen.href)
 	}
 
 	private static let pdfMagic = Data("%PDF-".utf8)

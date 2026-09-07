@@ -12,6 +12,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		store: TokenStore,
 		jobs: UploadJobStore? = nil,
 		unseenSave: UnseenSave? = nil,
+		defaults: UserDefaults = TestSupport.ephemeralDefaults(),
 		onSessionExpired: @escaping () -> Void = {}
 	) -> ReadingListViewModel {
 		let api = ReadplaceAPI(
@@ -19,7 +20,14 @@ final class ReadingListViewModelTests: XCTestCase {
 			store: store,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
-		return ReadingListViewModel(api: api, jobs: jobs, unseenSave: unseenSave, onSessionExpired: onSessionExpired)
+		return ReadingListViewModel(
+			api: api,
+			jobs: jobs,
+			unseenSave: unseenSave,
+			shareTarget: ShareTarget(defaults: defaults),
+			lastViewed: LastViewedReadlist(defaults: defaults),
+			onSessionExpired: onSessionExpired
+		)
 	}
 
 	// MARK: - Add-links help (client-side)
@@ -845,6 +853,668 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(
 			viewModel.selectedTabHref, "/queue?status=read",
 			"with no current tab in the response, the selection the user made is kept"
+		)
+	}
+
+	private func workArticle(id: String) -> String {
+		"""
+		{ "class": ["article"], "rel": ["item"],
+			"properties": { "id": "\(id)", "url": "https://example.com/\(id)", "status": "unread" },
+			"links": [{ "rel": ["read"], "href": "/queue/\(id)/view?queue=work" }],
+			"actions": [
+				{ "name": "update-status", "title": "Mark as read", "href": "/queue/\(id)/status?queue=work", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "read" }] }
+			] }
+		"""
+	}
+
+	private func addressesWork(_ request: URLRequest) -> Bool {
+		(request.url?.query ?? "").contains("queue=work")
+	}
+
+	private func requestedHrefs() -> [String] {
+		StubURLProtocol.records.compactMap { record -> String? in
+			guard let url = record.request.url else { return nil }
+			return url.query.map { "\(url.path)?\($0)" } ?? url.path
+		}
+	}
+
+	private func readlistedHandler(
+		workAfterStatusPost: [String]? = nil,
+		workTabsJSON: String = Fixtures.tabs(current: "unread", queue: "work")
+	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		var statusPosted = false
+		return { request, _ in
+			let url = request.url
+			if url?.path.hasSuffix("/status") == true {
+				statusPosted = true
+				return .redirect(to: self.addressesWork(request) ? "/queue?queue=work" : "/queue")
+			}
+			switch (url?.path, self.addressesWork(request)) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", true):
+				let entities = statusPosted ? (workAfterStatusPost ?? [self.workArticle(id: "w1")]) : [self.workArticle(id: "w1")]
+				return .json(200, Fixtures.collection(
+					entitiesJSON: entities, total: entities.count,
+					tabsJSON: workTabsJSON, readlistsJSON: Fixtures.readlists(current: "/queue?queue=work")
+				))
+			case ("/queue", false):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], total: 2,
+					tabsJSON: Fixtures.tabs(current: "unread"), readlistsJSON: Fixtures.readlists(current: "/queue")
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	private func holdingWork(
+		_ handler: @escaping (URLRequest, Data) -> StubURLProtocol.Stub,
+		on gate: DispatchSemaphore
+	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		return { request, body in
+			let stub = handler(request, body)
+			return self.addressesWork(request) ? stub.held(until: gate) : stub
+		}
+	}
+
+	func testRefreshExposesTheServersReadlistsAndSelectsTheCurrentOne() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		XCTAssertEqual(viewModel.readlists, [], "no readlists before a collection has loaded")
+		XCTAssertNil(viewModel.selectedReadlistHref)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(
+			viewModel.readlists.map(\.label), ["All", "Work"],
+			"the readlist set and its labels are the server's, verbatim"
+		)
+		XCTAssertEqual(
+			viewModel.selectedReadlistHref, "/queue",
+			"the entry point's collection decides which readlist is shown"
+		)
+		XCTAssertEqual(
+			viewModel.readlistMenu.map(\.isSelected), [true, false],
+			"so the menu checkmarks the readlist the list is showing"
+		)
+		XCTAssertTrue(viewModel.offersReadlistSwitching, "two readlists earn the switcher")
+	}
+
+	func testSelectReadlistFollowsItsHrefAndReplacesTheListAndItsTabs() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"], "precondition: All is shown")
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		let switched = StubURLProtocol.records.last?.request.url
+		XCTAssertEqual(switched?.path, "/queue")
+		XCTAssertEqual(
+			switched?.query, "queue=work",
+			"the readlist's server-built href is followed as-is; the client builds no queue query"
+		)
+		XCTAssertEqual(viewModel.articles.map(\.id), ["w1"], "the readlist's collection replaces the list")
+		XCTAssertEqual(viewModel.selectedReadlistHref, "/queue?queue=work")
+		XCTAssertEqual(
+			viewModel.selectedTabHref, "/queue?queue=work&status=unread",
+			"and the tab strip that comes back is the readlist's own"
+		)
+
+		await viewModel.select(tabHref: "/queue?queue=work&status=read")
+
+		XCTAssertEqual(
+			StubURLProtocol.records.last?.request.url?.query, "queue=work&status=read",
+			"a tab tapped inside the readlist stays inside it"
+		)
+	}
+
+	func testSelectingTheReadlistAlreadyShownIsANoOp() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let requestsAfterLoad = StubURLProtocol.records.count
+
+		await viewModel.select(readlistHref: "/queue")
+
+		XCTAssertEqual(
+			StubURLProtocol.records.count, requestsAfterLoad,
+			"re-selecting the readlist already shown issues no request"
+		)
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"], "and leaves the list in place")
+	}
+
+	func testTheReadlistSelectionFollowsTheTapBeforeItsCollectionLands() async {
+		let gate = DispatchSemaphore(value: 0)
+		StubURLProtocol.setHandler(holdingWork(readlistedHandler(), on: gate))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let requestsBefore = StubURLProtocol.records.count
+
+		let switching = Task { await viewModel.select(readlistHref: "/queue?queue=work") }
+		await awaitRecordedRequests(requestsBefore + 1)
+
+		XCTAssertEqual(
+			viewModel.selectedReadlistHref, "/queue?queue=work",
+			"the menu follows the tap immediately, so the user is never shown a selection they did not make"
+		)
+		await viewModel.select(readlistHref: "/queue?queue=work")
+		XCTAssertEqual(
+			StubURLProtocol.records.count, requestsBefore + 1,
+			"a second tap on the readlist already being loaded issues no second request"
+		)
+
+		gate.signal()
+		await switching.value
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["w1"], "the held collection lands under the selection it was asked for")
+	}
+
+	func testSelectingAnotherReadlistWhileASwitchIsStillInFlightFollowsTheLatestChoice() async {
+		let gate = DispatchSemaphore(value: 0)
+		StubURLProtocol.setHandler(holdingWork(readlistedHandler(), on: gate))
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		await viewModel.refresh()
+		let requestsBefore = StubURLProtocol.records.count
+
+		let switching = Task { await viewModel.select(readlistHref: "/queue?queue=work") }
+		await awaitRecordedRequests(requestsBefore + 1)
+		await viewModel.select(readlistHref: "/queue")
+		gate.signal()
+		await switching.value
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2"],
+			"the readlist chosen last owns the list; the Work collection lands too late to replace it"
+		)
+		XCTAssertEqual(viewModel.selectedReadlistHref, "/queue", "and the menu is left on the change of mind, not the abandoned tap")
+		XCTAssertEqual(
+			LastViewedReadlist(defaults: defaults).href, "/queue",
+			"the launch preference follows the readlist actually shown"
+		)
+	}
+
+	func testTheTabStripIsWithdrawnDuringAReadlistSwitch() async {
+		let gate = DispatchSemaphore(value: 0)
+		StubURLProtocol.setHandler(holdingWork(readlistedHandler(), on: gate))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.tabs.map(\.label), ["To Read", "Read"], "precondition: All's tab strip is shown")
+		let requestsBefore = StubURLProtocol.records.count
+
+		let switching = Task { await viewModel.select(readlistHref: "/queue?queue=work") }
+		await awaitRecordedRequests(requestsBefore + 1)
+
+		XCTAssertEqual(
+			viewModel.tabs, [],
+			"the readlist being left takes its tab strip with it, so no tab tap can land under the readlist arriving"
+		)
+		XCTAssertNil(viewModel.selectedTabHref, "and nothing is left selected in it")
+
+		gate.signal()
+		await switching.value
+
+		XCTAssertEqual(
+			viewModel.tabs.map(\.href),
+			["/queue?queue=work&status=unread", "/queue?queue=work&status=read"],
+			"the strip returns as the arriving readlist's own"
+		)
+		XCTAssertEqual(
+			Array(requestedHrefs().dropFirst(requestsBefore)), ["/queue?queue=work"],
+			"every request the switch issued addresses the readlist being opened"
+		)
+	}
+
+	func testAReadlistWhoseLoadFailedKeepsTheMenuOnItAndCanBeLeftAgain() async {
+		let readlisted = readlistedHandler()
+		StubURLProtocol.setHandler { request, body in
+			self.addressesWork(request) ? .json(500, "{}") : readlisted(request, body)
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertEqual(viewModel.errorText, "Server error 500.", "the failed readlist reports its own failure")
+		XCTAssertEqual(
+			viewModel.selectedReadlistHref, "/queue?queue=work",
+			"the menu stays on the readlist the user asked for, so the failure is attributable to it"
+		)
+		let requestsBefore = StubURLProtocol.records.count
+
+		await viewModel.select(readlistHref: "/queue")
+
+		XCTAssertEqual(
+			StubURLProtocol.records.count, requestsBefore + 1,
+			"a readlist whose load failed can still be left — the selection guard reads the tap, not the load"
+		)
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
+		XCTAssertEqual(viewModel.errorText, nil, "and the collection that lands clears the banner")
+	}
+
+	func testInvokeUpdateStatusOnAReadlistStaysOnIt() async throws {
+		StubURLProtocol.setHandler(readlistedHandler(workAfterStatusPost: [workArticle(id: "w2")]))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.select(readlistHref: "/queue?queue=work")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["w1"], "precondition: the Work readlist is shown")
+
+		let target = viewModel.articles[0]
+		await viewModel.invoke(try updateStatusAction(of: target))
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["w2"],
+			"the collection the mutation redirected to is adopted — the readlist's, not the entry point's"
+		)
+		XCTAssertEqual(
+			viewModel.selectedReadlistHref, "/queue?queue=work",
+			"the selection follows the adopted collection's current readlist, so the app stays on Work"
+		)
+		XCTAssertEqual(StubURLProtocol.records.last?.request.url?.query, "queue=work")
+		XCTAssertEqual(viewModel.errorText, nil)
+	}
+
+	private func reReadAfterSelectingTheWorkReadlist(
+		_ reconcile: (ReadingListViewModel) async -> Void
+	) async -> (path: String?, query: String?) {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.select(readlistHref: "/queue?queue=work")
+		let requestsBefore = StubURLProtocol.records.count
+
+		await reconcile(viewModel)
+
+		XCTAssertEqual(StubURLProtocol.records.count, requestsBefore + 1, "the reconciliation is exactly one re-read")
+		XCTAssertEqual(viewModel.selectedReadlistHref, "/queue?queue=work", "the readlist survives the re-read")
+		let url = StubURLProtocol.records.last?.request.url
+		return (url?.path, url?.query)
+	}
+
+	func testReaderStatusChangedReReadsTheSelectedReadlist() async {
+		let reRead = await reReadAfterSelectingTheWorkReadlist { await $0.readerStatusChanged() }
+		XCTAssertEqual(reRead.path, "/queue")
+		XCTAssertEqual(
+			reRead.query, "queue=work&status=unread",
+			"the reader's status change re-reads inside the selected readlist, not the entry point"
+		)
+	}
+
+	func testHandleForegroundReReadsTheSelectedReadlist() async {
+		let reRead = await reReadAfterSelectingTheWorkReadlist { await $0.handleForeground() }
+		XCTAssertEqual(reRead.path, "/queue")
+		XCTAssertEqual(
+			reRead.query, "queue=work&status=unread",
+			"the foreground converge re-reads inside the selected readlist, not the entry point"
+		)
+	}
+
+	func testWebSheetDismissalReReadsTheSelectedReadlist() async {
+		let reRead = await reReadAfterSelectingTheWorkReadlist { await $0.handleWebSheetDismissal() }
+		XCTAssertEqual(reRead.path, "/queue")
+		XCTAssertEqual(
+			reRead.query, "queue=work&status=unread",
+			"the dismissal probe re-reads inside the selected readlist, not the entry point"
+		)
+	}
+
+	func testTheViewedReadlistIsRememberedOnceItsCollectionLands() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		XCTAssertNil(LastViewedReadlist(defaults: defaults).href, "nothing is remembered before a collection lands")
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(
+			LastViewedReadlist(defaults: defaults).href, "/queue",
+			"the collection names its own readlist, so even the entry point's is remembered"
+		)
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertEqual(
+			LastViewedReadlist(defaults: defaults).href, "/queue?queue=work",
+			"the readlist the user switched to is what the next launch opens on"
+		)
+
+		await viewModel.select(readlistHref: "/queue")
+
+		XCTAssertEqual(LastViewedReadlist(defaults: defaults).href, "/queue", "switching back moves the preference back")
+	}
+
+	func testLaunchOpensTheRememberedReadlistWithoutTouchingTheEntryPoint() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(
+			requestedHrefs(), ["/queue?queue=work"],
+			"the remembered readlist is loaded directly, so the list never flashes the entry point's first"
+		)
+		XCTAssertEqual(viewModel.articles.map(\.id), ["w1"])
+		XCTAssertEqual(viewModel.selectedReadlistHref, "/queue?queue=work")
+	}
+
+	private func assertLaunchFallsBackToTheEntryPoint(
+		whenTheRememberedReadlistAnswers failure: @escaping () throws -> StubURLProtocol.Stub,
+		file: StaticString = #filePath,
+		line: UInt = #line
+	) async {
+		StubURLProtocol.reset()
+		let readlisted = readlistedHandler()
+		StubURLProtocol.setHandler { request, body in
+			self.addressesWork(request) ? try failure() : readlisted(request, body)
+		}
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(
+			requestedHrefs(), ["/queue?queue=work", "/", "/queue"],
+			"the failed readlist falls back to the entry point exactly once, re-discovering where the client starts",
+			file: file, line: line
+		)
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2"],
+			"so the reader is shown a list rather than an empty screen",
+			file: file, line: line
+		)
+		XCTAssertEqual(viewModel.errorText, nil, "the recovered launch shows no banner", file: file, line: line)
+		XCTAssertEqual(
+			LastViewedReadlist(defaults: defaults).href, "/queue",
+			"the failure forgets nothing — the collection that landed is what re-remembers itself",
+			file: file, line: line
+		)
+	}
+
+	func testLaunchShowsTheEntryPointListWhenTheRememberedReadlistFails() async {
+		await assertLaunchFallsBackToTheEntryPoint(whenTheRememberedReadlistAnswers: { .json(500, "{}") })
+		await assertLaunchFallsBackToTheEntryPoint(whenTheRememberedReadlistAnswers: {
+			throw URLError(.notConnectedToInternet)
+		})
+	}
+
+	func testLaunchKeepsTheRememberedReadlistWhenTheEntryPointFallbackFailsToo() async {
+		StubURLProtocol.setHandler { _, _ in .json(500, "{}") }
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.errorText, "Server error 500.", "the fallback's own failure is what the reader sees")
+		XCTAssertEqual(
+			LastViewedReadlist(defaults: defaults).href, "/queue?queue=work",
+			"a dead radio or a 5xx is not a stale readlist, so the next launch still opens on it"
+		)
+	}
+
+	func testLaunchFunnelsAnAuthFailureOnTheRememberedReadlistIntoSignOut() async {
+		StubURLProtocol.setHandler { _, _ in .json(401, "{}") }
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
+		var expired = 0
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(), defaults: defaults, onSessionExpired: { expired += 1 }
+		)
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(expired, 1, "an expired session signs the reader out instead of retrying at the entry point")
+		XCTAssertEqual(
+			requestedHrefs(), ["/queue?queue=work", "/oauth/token"],
+			"the single token refresh is the only other call: no entry-point hop under a dead session"
+		)
+		XCTAssertEqual(viewModel.errorText, nil, "a session-expiry logout is not shown as an error banner")
+	}
+
+	func testLaunchStaysPointedAtTheRememberedReadlistWhenItsCollectionCarriesNoCurrentTab() async {
+		let uncurrent = """
+		{ "label": "To Read", "rel": "tab", "href": "/queue?queue=work&status=unread" },
+		{ "label": "Read", "rel": "tab", "href": "/queue?queue=work&status=read" }
+		"""
+		StubURLProtocol.setHandler(readlistedHandler(workTabsJSON: uncurrent))
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		await viewModel.loadIfNeeded()
+		XCTAssertEqual(viewModel.tabs.map(\.isCurrent), [false, false], "precondition: the collection names no current tab")
+
+		await viewModel.handleForeground()
+
+		XCTAssertEqual(
+			requestedHrefs(), ["/queue?queue=work", "/queue?queue=work"],
+			"the remembered href is what the list re-reads, so a tab-less collection still converges inside its readlist"
+		)
+	}
+
+	func testShareTargetIsReadAtLaunchAndAgainOnForeground() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		ShareTarget(defaults: defaults).record(href: "/queue")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		XCTAssertEqual(viewModel.shareTargetHref, "/queue", "the recorded choice is read as the app comes up")
+		await viewModel.refresh()
+
+		ShareTarget(defaults: defaults).record(href: "/queue?queue=work")
+		await viewModel.handleForeground()
+
+		XCTAssertEqual(
+			viewModel.shareTargetHref, "/queue?queue=work",
+			"a choice the share sheet recorded while the app was suspended reaches the row on the next foreground"
+		)
+	}
+
+	func testEveryReadlistStartsUntickedUntilTheReaderTicksOne() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+
+		await viewModel.refresh()
+
+		XCTAssertFalse(viewModel.sharedArticlesDropHere, "All is on screen and nothing has been ticked")
+		XCTAssertEqual(
+			viewModel.readlistMenu.map(\.isShareTarget), [false, false],
+			"and no readlist is badged as the one shared articles drop into"
+		)
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertFalse(viewModel.sharedArticlesDropHere, "switching readlists ticks nothing either")
+	}
+
+	func testTickingTheBoxDropsSharedArticlesIntoTheReadlistOnScreen() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		await viewModel.refresh()
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		viewModel.toggleSharedArticlesDropHere()
+
+		XCTAssertTrue(viewModel.sharedArticlesDropHere, "the box on screen is now ticked")
+		XCTAssertEqual(
+			ShareTarget(defaults: defaults).href, "/queue?queue=work",
+			"the extension is a separate process, so the choice is written to the shared suite"
+		)
+		XCTAssertEqual(
+			viewModel.readlistMenu.map(\.badgeSystemImage), ["list.bullet", "square.and.arrow.up"],
+			"and the menu badges the readlist shared articles drop into"
+		)
+
+		await viewModel.select(readlistHref: "/queue")
+
+		XCTAssertFalse(
+			viewModel.sharedArticlesDropHere,
+			"All is on screen while shares drop into Work, so All's box reads unticked"
+		)
+	}
+
+	func testUntickingTheBoxStopsSharedArticlesDroppingIntoAnyReadlist() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		await viewModel.refresh()
+		await viewModel.select(readlistHref: "/queue?queue=work")
+		viewModel.toggleSharedArticlesDropHere()
+
+		viewModel.toggleSharedArticlesDropHere()
+
+		XCTAssertFalse(viewModel.sharedArticlesDropHere, "the box is unticked again")
+		XCTAssertNil(
+			ShareTarget(defaults: defaults).href,
+			"no readlist claims shared articles, so the server files them where it files an unaddressed save"
+		)
+		XCTAssertTrue(
+			ShareTarget(defaults: defaults).isDecided,
+			"the reader has answered the question, so the share sheet must not ask it again"
+		)
+	}
+
+	func testTickingAnotherReadlistMovesTheDropTargetRatherThanAddingASecond() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		await viewModel.refresh()
+		viewModel.toggleSharedArticlesDropHere()
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+		viewModel.toggleSharedArticlesDropHere()
+
+		XCTAssertEqual(
+			ShareTarget(defaults: defaults).href, "/queue?queue=work",
+			"one readlist at a time takes shared articles"
+		)
+		XCTAssertEqual(
+			viewModel.readlistMenu.map(\.isShareTarget), [false, true],
+			"and only the readlist ticked last is badged"
+		)
+	}
+
+	func testTheBoxCannotBeTickedBeforeACollectionNamesItsReadlist() {
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+
+		viewModel.toggleSharedArticlesDropHere()
+
+		XCTAssertNil(ShareTarget(defaults: defaults).href, "there is no readlist on screen to drop shares into yet")
+		XCTAssertFalse(ShareTarget(defaults: defaults).isDecided, "and nothing was decided on the reader's behalf")
+	}
+
+	func testTheBoxReadsUntickedWhenTheDropTargetIsNoLongerAdvertised() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		ShareTarget(defaults: defaults).record(href: "/queue?queue=deleted")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(
+			viewModel.readlistMenu.map(\.isShareTarget), [false, false],
+			"a target the server no longer advertises badges nothing"
+		)
+		XCTAssertFalse(viewModel.sharedArticlesDropHere, "and the box on screen reads unticked")
+	}
+
+	func testReadlistSwitchingIsOfferedOnlyWhenMoreThanOneReadlistIsAdvertised() async {
+		let onlyAll = """
+		{ "label": "All", "rel": "current", "href": "/queue" }
+		"""
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/"
+				? .redirect(to: "/queue")
+				: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], readlistsJSON: onlyAll))
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.readlists.map(\.label), ["All"], "precondition: the reader owns one readlist")
+		XCTAssertFalse(
+			viewModel.offersReadlistSwitching,
+			"a reader with one readlist is shown no switcher"
+		)
+		XCTAssertFalse(
+			viewModel.offersSharedArticlesDropChoice,
+			"and no drop checkbox, because there is nowhere else shares could drop"
+		)
+	}
+
+	func testTheSubtitleNamesTheReadlistOnScreen() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		XCTAssertNil(viewModel.currentReadlistLabel, "there is no readlist to name before a collection lands")
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.currentReadlistLabel, "All", "the server's label, verbatim")
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertEqual(viewModel.currentReadlistLabel, "Work", "and it follows the readlist the reader switched to")
+	}
+
+	func testTheSubtitleNamesWhicheverReadlistTheServerAnsweredWith() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=deleted")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(
+			viewModel.currentReadlistLabel, "All",
+			"a readlist the reader no longer owns is answered by the mainline collection, and the subtitle names what landed rather than what was asked for"
+		)
+	}
+
+	func testTheDropCheckboxIsOfferedOnTheTabAReadlistOpensOn() async {
+		StubURLProtocol.setHandler(readlistedHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		XCTAssertFalse(
+			viewModel.offersSharedArticlesDropChoice,
+			"before a collection lands there is no tab to judge the checkbox against"
+		)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(
+			viewModel.selectedTabHref, viewModel.tabs.first?.href,
+			"precondition: a readlist opens on the tab its own href resolves to"
+		)
+		XCTAssertTrue(
+			viewModel.offersSharedArticlesDropChoice,
+			"a shared article arrives unread, so the checkbox belongs on the tab it would arrive in"
+		)
+	}
+
+	func testTheDropCheckboxIsHiddenOnEveryOtherTab() async {
+		StubURLProtocol.setHandler(readlistedHandler(workTabsJSON: Fixtures.tabs(current: "read", queue: "work")))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertEqual(
+			viewModel.tabs.map(\.isCurrent), [false, true],
+			"precondition: the collection that landed lists a tab other than the one a readlist opens on"
+		)
+		XCTAssertFalse(
+			viewModel.offersSharedArticlesDropChoice,
+			"a shared article never arrives already read, so the checkbox would be a promise this tab cannot keep"
+		)
+		XCTAssertTrue(
+			viewModel.offersReadlistSwitching,
+			"the readlist switcher stays, because switching readlists is not tab-bound"
 		)
 	}
 
@@ -2242,7 +2912,15 @@ final class ReadingListViewModelTests: XCTestCase {
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
 		var expired = false
-		let viewModel = ReadingListViewModel(api: api, jobs: nil, unseenSave: nil, onSessionExpired: { expired = true })
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = ReadingListViewModel(
+			api: api,
+			jobs: nil,
+			unseenSave: nil,
+			shareTarget: ShareTarget(defaults: defaults),
+			lastViewed: LastViewedReadlist(defaults: defaults),
+			onSessionExpired: { expired = true }
+		)
 		// 401 everywhere: the entry-point load 401s, the single refresh 401s, and
 		// the load surfaces .unauthorized.
 		StubURLProtocol.setHandler { _, _ in .json(401, "{}") }

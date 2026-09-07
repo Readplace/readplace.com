@@ -39,7 +39,9 @@ final class SaveSharedPageTests: XCTestCase {
 		store: TokenStore,
 		captor: HTMLCapturing,
 		container: URL,
-		stillSavingAfter: TimeInterval = 4
+		stillSavingAfter: TimeInterval = 4,
+		shareTarget: ShareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults()),
+		readlistChooser: ReadlistChoosing = FakeReadlistChooser { $0[0] }
 	) -> SaveSharedPage {
 		SaveSharedPage(
 			store: store,
@@ -47,6 +49,8 @@ final class SaveSharedPageTests: XCTestCase {
 			captor: captor,
 			jobs: UploadJobStore(containerURL: container),
 			unseenSave: UnseenSave(containerURL: container),
+			shareTarget: shareTarget,
+			readlistChooser: readlistChooser,
 			stillSavingAfter: stillSavingAfter
 		)
 	}
@@ -462,7 +466,9 @@ final class SaveSharedPageTests: XCTestCase {
 			api: makeAPI(store: store),
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
 			jobs: nil,
-			unseenSave: nil
+			unseenSave: nil,
+			shareTarget: ShareTarget(defaults: TestSupport.ephemeralDefaults()),
+			readlistChooser: FakeReadlistChooser { $0[0] }
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
 
@@ -558,6 +564,21 @@ final class SaveSharedPageTests: XCTestCase {
 
 	private nonisolated func discoveryReads() -> [StubURLProtocol.Record] {
 		StubURLProtocol.records.filter { $0.request.httpMethod == "GET" }
+	}
+
+	private static func pathAndQuery(_ url: URL?) -> String {
+		guard let url else { return "" }
+		return url.query.map { "\(url.path)?\($0)" } ?? url.path
+	}
+
+	private func readPaths() -> [String] {
+		discoveryReads().map { Self.pathAndQuery($0.request.url) }
+	}
+
+	private func savePaths() -> [String] {
+		StubURLProtocol.records
+			.filter { $0.request.httpMethod == "POST" }
+			.map { Self.pathAndQuery($0.request.url) }
 	}
 
 	func testReDiscoversPastTheCacheAndRetriesOnceWhenTheSaveActionHasMoved() async throws {
@@ -894,6 +915,439 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertEqual(callbackCount, 1, "the callback fires exactly once per save")
 		XCTAssertTrue(lastMessages.isEmpty, "with no server notice, the callback carries no messages")
 		assertUploadedNothing()
+	}
+
+	private static func readlistCollection(current: String, saveHref: String, articleId: String) -> String {
+		Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: articleId)],
+			actionsJSON: saveArticleActionJSON(href: saveHref),
+			readlistsJSON: Fixtures.readlists(current: current)
+		)
+	}
+
+	private static func savedArticle(confirmation: String) -> String {
+		"""
+		{
+			"class": ["article"],
+			"properties": {
+				"id": "url-saved",
+				"url": "https://example.com/post",
+				"status": "unread",
+				"savedAt": "2026-05-30T10:00:00.000Z",
+				"messages": [
+					{ "type": "success", "content": { "type": "text/html", "body": "Article saved" } },
+					{ "type": "success", "content": { "type": "text/html", "body": "\(confirmation)" } }
+				]
+			}
+		}
+		"""
+	}
+
+	private func serveTwoReadlists() {
+		StubURLProtocol.setHandler { request, _ in
+			let addressesWork = request.url?.query == "queue=work"
+			switch (request.url?.path, request.httpMethod) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "POST"):
+				return .json(201, Self.savedArticle(confirmation: addressesWork ? "Saved to &#x27;Work&#x27;" : "Saved to &#x27;All&#x27;"))
+			case ("/queue", _):
+				return .json(200, Self.readlistCollection(
+					current: addressesWork ? "/queue?queue=work" : "/queue",
+					saveHref: addressesWork ? "/queue?queue=work" : "/queue",
+					articleId: addressesWork ? "w1" : "a1"
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	private func urlOnlySaver(
+		store: TokenStore,
+		container: URL,
+		shareTarget: ShareTarget,
+		readlistChooser: ReadlistChoosing
+	) -> SaveSharedPage {
+		makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			container: container,
+			shareTarget: shareTarget,
+			readlistChooser: readlistChooser
+		)
+	}
+
+	func testAsksOnceWhichReadlistToSaveIntoAndSavesThroughTheChosenCollection() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let chooser = FakeReadlistChooser { $0[1] }
+		serveTwoReadlists()
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(
+			chooser.offered.map { $0.map(\.label) }, [["All", "Work"]],
+			"the reader is asked once, with the server's readlists in the order it advertised them"
+		)
+		XCTAssertEqual(
+			shareTarget.href, "/queue?queue=work",
+			"the choice is recorded so no later share asks again"
+		)
+		XCTAssertEqual(
+			readPaths(), ["/", "/queue", "/queue?queue=work"],
+			"discovery starts at the entry point, then follows the chosen readlist's own href"
+		)
+		XCTAssertEqual(savePaths(), ["/queue?queue=work"], "the link is saved through the chosen readlist's collection")
+		XCTAssertEqual(
+			reported.map(\.plainText), ["Article saved", "Saved to 'Work'"],
+			"the server names the readlist it filed the link into, escaped on the wire and shown as text"
+		)
+		XCTAssertEqual(outcome, .saved(reported), "the outcome carries the same server confirmation the sheet painted")
+	}
+
+	func testChoosingTheReadlistTheEntryPointAlreadyAnsweredWithCostsNoSecondRead() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		serveTwoReadlists()
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: FakeReadlistChooser { $0[0] }
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(
+			readPaths(), ["/", "/queue"],
+			"the entry point already answered as the chosen readlist, so it is saved through without re-reading it"
+		)
+		XCTAssertEqual(savePaths(), ["/queue"])
+		XCTAssertEqual(shareTarget.href, "/queue", "picking the default readlist is itself a choice, and a recorded one")
+		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'All'"])
+		XCTAssertEqual(outcome, .saved(reported))
+	}
+
+	func testDoesNotAskAReaderWhoOwnsOneReadlist() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let chooser = FakeReadlistChooser { $0[0] }
+		let onlyAll = "{ \"label\": \"All\", \"rel\": \"current\", \"href\": \"/queue\" }"
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return request.httpMethod == "POST"
+					? .json(201, Fixtures.article(id: "url-saved"))
+					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], readlistsJSON: onlyAll))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			container: container,
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .savedAwaitingUpload([]))
+		XCTAssertEqual(chooser.offered, [], "a reader with one readlist has nothing to choose between")
+		XCTAssertNil(shareTarget.href, "nothing was chosen, so nothing is recorded to skip a later prompt with")
+		XCTAssertEqual(readPaths(), ["/", "/queue"])
+	}
+
+	func testDoesNotAskWhenTheServerAdvertisesNoReadlists() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let chooser = FakeReadlistChooser { $0[0] }
+		serveReadlistAndSave()
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .savedAwaitingUpload([]))
+		XCTAssertEqual(chooser.offered, [], "a server that predates the readlist channel must never make the sheet ask")
+		XCTAssertNil(shareTarget.href)
+	}
+
+	func testDoesNotAskAReaderWhoUntickedEveryReadlist() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		shareTarget.record(href: "/queue?queue=work")
+		shareTarget.clear()
+		let chooser = FakeReadlistChooser { $0[1] }
+		serveTwoReadlists()
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(
+			chooser.offered, [],
+			"unticking every box is an answer, so the sheet asks nothing on the shares that follow"
+		)
+		XCTAssertEqual(savePaths(), ["/queue"], "and the save goes wherever the server files an unaddressed one")
+		XCTAssertNil(shareTarget.href, "the share leaves the reader's answer as they left it")
+		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'All'"])
+		XCTAssertEqual(outcome, .saved(reported))
+	}
+
+	func testLoadsTheRecordedReadlistDirectlyWithoutAskingOrTouchingTheEntryPoint() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		shareTarget.record(href: "/queue?queue=work")
+		let chooser = FakeReadlistChooser { $0[0] }
+		serveTwoReadlists()
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(chooser.offered, [], "a recorded choice is never re-asked")
+		XCTAssertEqual(
+			readPaths(), ["/queue?queue=work"],
+			"the recorded href is the one URL this share needs, so the entry point is never read"
+		)
+		XCTAssertEqual(savePaths(), ["/queue?queue=work"])
+		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'Work'"])
+		XCTAssertEqual(outcome, .saved(reported))
+	}
+
+	func testHonoursARecordedChoiceOfTheDefaultReadlist() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		shareTarget.record(href: "/queue")
+		let chooser = FakeReadlistChooser { $0[0] }
+		serveTwoReadlists()
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(
+			chooser.offered, [],
+			"a choice the app recorded as the default readlist is still a choice, so the sheet must not ask again"
+		)
+		XCTAssertEqual(readPaths(), ["/queue"])
+		XCTAssertEqual(savePaths(), ["/queue"])
+		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'All'"])
+		XCTAssertEqual(outcome, .saved(reported))
+	}
+
+	func testSavesWhereTheServerFilesItWhenTheRecordedReadlistIsGone() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		shareTarget.record(href: "/queue?queue=gone")
+		let chooser = FakeReadlistChooser { $0[0] }
+		serveTwoReadlists()
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(readPaths(), ["/queue?queue=gone"], "the stored href is loaded as-is; the client never inspects it")
+		XCTAssertEqual(savePaths(), ["/queue"], "the collection the server answered with says where the save goes")
+		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'All'"])
+		XCTAssertEqual(chooser.offered, [], "a deleted readlist is not a reason to ask again")
+		XCTAssertEqual(
+			shareTarget.href, "/queue?queue=gone",
+			"only sign-out clears the choice: a readlist that stopped existing must not re-record it"
+		)
+		XCTAssertEqual(outcome, .saved(reported))
+	}
+
+	func testAsksAgainOnceTheRecordedChoiceIsForgotten() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		shareTarget.record(href: "/queue?queue=work")
+		shareTarget.forget()
+		let chooser = FakeReadlistChooser { $0[1] }
+		serveTwoReadlists()
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(
+			chooser.offered.map { $0.map(\.label) }, [["All", "Work"]],
+			"sign-out forgets the choice, so the next account on the device is asked rather than inheriting it"
+		)
+		XCTAssertEqual(shareTarget.href, "/queue?queue=work")
+		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'Work'"])
+		XCTAssertEqual(outcome, .saved(reported))
+	}
+
+	func testReDiscoversTheAddressedReadlistPastTheCacheWhenTheSaveActionHasMoved() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		shareTarget.record(href: "/queue?queue=work")
+		var reads = 0
+		StubURLProtocol.setHandler { request, _ in
+			switch (request.url?.path, request.httpMethod) {
+			case ("/queue", "GET"):
+				reads += 1
+				return .json(200, Self.readlistCollection(
+					current: "/queue?queue=work",
+					saveHref: reads == 1 ? "/queue/save-v1?queue=work" : "/queue?queue=work",
+					articleId: "w1"
+				))
+			case ("/queue/save-v1", "POST"):
+				return .json(410, "{}")
+			case ("/queue", "POST"):
+				return .json(201, Self.savedArticle(confirmation: "Saved to &#x27;Work&#x27;"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: FakeReadlistChooser { $0[0] }
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(
+			readPaths(), ["/queue?queue=work", "/queue?queue=work"],
+			"the re-discovery re-reads the collection this share was addressed through, not the entry point"
+		)
+		XCTAssertEqual(
+			discoveryReads().map { $0.request.cachePolicy },
+			[.useProtocolCachePolicy, .reloadIgnoringLocalCacheData],
+			"and bypasses the discovery cache, so the moved href is never re-read from the stale copy"
+		)
+		XCTAssertEqual(savePaths(), ["/queue/save-v1?queue=work", "/queue?queue=work"])
+		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'Work'"])
+		XCTAssertEqual(outcome, .saved(reported))
+	}
+
+	func testRecordsTheChoiceBeforeTheSaveSoAFailedShareStillRemembersIt() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let chooser = FakeReadlistChooser { $0[1] }
+		StubURLProtocol.setHandler { request, _ in
+			let addressesWork = request.url?.query == "queue=work"
+			switch (request.url?.path, request.httpMethod) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "POST"):
+				return .json(500, "{}")
+			case ("/queue", _):
+				return .json(200, Self.readlistCollection(
+					current: addressesWork ? "/queue?queue=work" : "/queue",
+					saveHref: addressesWork ? "/queue?queue=work" : "/queue",
+					articleId: addressesWork ? "w1" : "a1"
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .failed("Server error 500."))
+		XCTAssertEqual(
+			shareTarget.href, "/queue?queue=work",
+			"the choice is recorded before the save, so a share the server refuses still remembers where the reader wanted it"
+		)
+		XCTAssertEqual(
+			chooser.offered.map { $0.map(\.label) }, [["All", "Work"]],
+			"the reader is asked once for the whole journey, not again for the retry"
+		)
 	}
 }
 

@@ -44,7 +44,9 @@ final class ShareExtensionKeychainDiagnosticsTests: XCTestCase {
 			),
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil)),
 			jobs: UploadJobStore(containerURL: TestSupport.temporaryContainer()),
-			unseenSave: nil
+			unseenSave: nil,
+			shareTarget: ShareTarget(defaults: TestSupport.ephemeralDefaults()),
+			readlistChooser: FakeReadlistChooser { $0[0] }
 		)
 
 		let outcome = await saver.run(

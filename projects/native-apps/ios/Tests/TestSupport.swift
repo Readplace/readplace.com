@@ -247,17 +247,19 @@ enum Fixtures {
 		actionsJSON: String = collectionActions,
 		messagesJSON: String? = nil,
 		tabsJSON: String? = nil,
+		readlistsJSON: String? = nil,
 		appearanceJSON: String? = nil
 	) -> String {
 		// Injected into `properties` only when set, so a caller that doesn't opt in
 		// models a server that emits no collection-level notices.
 		let messages = messagesJSON.map { ", \"messages\": [\($0)]" } ?? ""
 		let tabs = tabsJSON.map { ", \"tabs\": [\($0)]" } ?? ""
+		let readlists = readlistsJSON.map { ", \"readlists\": [\($0)]" } ?? ""
 		let appearance = appearanceJSON.map { ", \"appearance\": \($0)" } ?? ""
 		return """
 		{
 			"class": ["collection", "articles"],
-			"properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages)\(tabs)\(appearance) },
+			"properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages)\(tabs)\(readlists)\(appearance) },
 			"entities": [\(entitiesJSON.joined(separator: ",\n"))],
 			"links": [
 				{ "rel": ["self"], "href": "/queue?page=\(page)" },
@@ -268,11 +270,20 @@ enum Fixtures {
 		"""
 	}
 
-	static func tabs(current: String) -> String {
+	static func tabs(current: String, queue: String? = nil) -> String {
 		func rel(_ status: String) -> String { status == current ? "current" : "tab" }
+		let addressed = queue.map { "queue=\($0)&" } ?? ""
 		return """
-		{ "label": "To Read", "rel": "\(rel("unread"))", "href": "/queue?status=unread" },
-		{ "label": "Read", "rel": "\(rel("read"))", "href": "/queue?status=read" }
+		{ "label": "To Read", "rel": "\(rel("unread"))", "href": "/queue?\(addressed)status=unread" },
+		{ "label": "Read", "rel": "\(rel("read"))", "href": "/queue?\(addressed)status=read" }
+		"""
+	}
+
+	static func readlists(current href: String) -> String {
+		func rel(_ entry: String) -> String { entry == href ? "current" : "readlist" }
+		return """
+		{ "label": "All", "rel": "\(rel("/queue"))", "href": "/queue" },
+		{ "label": "Work", "rel": "\(rel("/queue?queue=work"))", "href": "/queue?queue=work" }
 		"""
 	}
 

@@ -30,6 +30,9 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var collectionAffordances: [Affordance] = [ReadingListViewModel.addLinksHelp]
 	@Published private(set) var tabs: [ReadlistTab] = []
 	@Published private(set) var selectedTabHref: String?
+	@Published private(set) var readlists: [Readlist] = []
+	@Published private(set) var selectedReadlistHref: String?
+	@Published private(set) var shareTargetHref: String?
 	@Published private(set) var appearance: String?
 
 	private var nextHref: String?
@@ -54,6 +57,8 @@ final class ReadingListViewModel: ObservableObject {
 	private let api: ReadplaceAPI
 	private let jobs: UploadJobStore?
 	private let unseenSave: UnseenSave?
+	private let shareTarget: ShareTarget
+	private let lastViewed: LastViewedReadlist
 	private let onSessionExpired: () -> Void
 
 	/// The reading list's client-side add (+) control: a navigable `add-links-help`
@@ -70,11 +75,21 @@ final class ReadingListViewModel: ObservableObject {
 		return affordance
 	}()
 
-	init(api: ReadplaceAPI, jobs: UploadJobStore?, unseenSave: UnseenSave?, onSessionExpired: @escaping () -> Void) {
+	init(
+		api: ReadplaceAPI,
+		jobs: UploadJobStore?,
+		unseenSave: UnseenSave?,
+		shareTarget: ShareTarget,
+		lastViewed: LastViewedReadlist,
+		onSessionExpired: @escaping () -> Void
+	) {
 		self.api = api
 		self.jobs = jobs
 		self.unseenSave = unseenSave
+		self.shareTarget = shareTarget
+		self.lastViewed = lastViewed
 		self.onSessionExpired = onSessionExpired
+		shareTargetHref = shareTarget.href
 		// Append the same app-shell marker `open(link:)` puts on the account href, so
 		// the help page is served chromeless with a deep-link back to the native list.
 		// A URL that can't take the marker resolves to nil — the + control then shows
@@ -85,7 +100,7 @@ final class ReadingListViewModel: ObservableObject {
 
 	func loadIfNeeded() async {
 		guard articles.isEmpty else { return }
-		await fetchFirstPage()
+		await openRememberedReadlist()
 	}
 
 	func refresh() async {
@@ -94,15 +109,84 @@ final class ReadingListViewModel: ObservableObject {
 
 	func select(tabHref: String) async {
 		guard tabHref != currentTabHref else { return }
-		tabGeneration += 1
-		currentTabHref = tabHref
+		restart(at: tabHref)
 		selectedTabHref = tabHref
+		await fetchFirstPage()
+	}
+
+	func select(readlistHref: String) async {
+		guard readlistHref != selectedReadlistHref else { return }
+		selectedReadlistHref = readlistHref
+		tabs = []
+		selectedTabHref = nil
+		restart(at: readlistHref)
+		await fetchFirstPage()
+	}
+
+	func toggleSharedArticlesDropHere() {
+		guard let href = selectedReadlistHref else { return }
+		if href == shareTargetHref {
+			shareTarget.clear()
+			shareTargetHref = nil
+		} else {
+			shareTarget.record(href: href)
+			shareTargetHref = href
+		}
+	}
+
+	var offersReadlistSwitching: Bool { readlists.count > 1 }
+
+	var currentReadlistLabel: String? {
+		readlists.first { $0.href == selectedReadlistHref }?.label
+	}
+
+	var offersSharedArticlesDropChoice: Bool {
+		guard offersReadlistSwitching, let landing = tabs.first?.href else { return false }
+		return landing == selectedTabHref
+	}
+
+	var sharedArticlesDropHere: Bool { selectedReadlistHref != nil && selectedReadlistHref == shareTargetHref }
+
+	var readlistMenu: [ReadlistMenuItem] {
+		ReadlistMenuItem.items(
+			readlists: readlists,
+			selectedHref: selectedReadlistHref,
+			shareTargetHref: shareTargetHref
+		)
+	}
+
+	private func restart(at href: String) {
+		tabGeneration += 1
+		currentTabHref = href
 		articles = []
 		nextHref = nil
 		hasMore = false
 		pagesHeld = 0
 		isLoadingMore = false
-		await fetchFirstPage()
+	}
+
+	private func openRememberedReadlist() async {
+		guard let href = lastViewed.href else { return await fetchFirstPage() }
+		selectedReadlistHref = href
+		restart(at: href)
+		let generation = tabGeneration
+		let read = beginRead()
+		defer { endRead() }
+		do {
+			let page = try await api.loadReadlist(path: href)
+			guard tabUnchanged(since: generation) else { return }
+			replace(with: page, deeperPages: [], read: read)
+		} catch {
+			guard tabUnchanged(since: generation) else { return }
+			switch error {
+			case APIError.unauthorized, APIError.noToken:
+				handle(error)
+			default:
+				currentTabHref = nil
+				selectedReadlistHref = nil
+				await fetchFirstPage()
+			}
+		}
 	}
 
 	private func tabUnchanged(since generation: Int) -> Bool {
@@ -193,6 +277,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// yank) a pull-to-refresh performs; every other deep-scrolled return stays
 	/// zero-network and holds the reader's position.
 	func handleForeground() async {
+		shareTargetHref = shareTarget.href
 		guard hasLoadedOnce, !isLoading else { return }
 		if pagesHeld > 1 {
 			guard unseenSave?.exists == true, !isLoadingMore else { return }
@@ -368,10 +453,15 @@ final class ReadingListViewModel: ObservableObject {
 			applyToolbar(page)
 			sessionAction = page.action(named: "create-session")
 			tabs = page.tabs
+			readlists = page.readlists
 			appearance = page.appearance
 			if let current = page.currentTabHref {
 				currentTabHref = current
 				selectedTabHref = current
+			}
+			if let current = page.currentReadlistHref {
+				selectedReadlistHref = current
+				lastViewed.remember(href: current)
 			}
 		}
 		warningText = page.warning?.message

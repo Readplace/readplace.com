@@ -65,6 +65,7 @@ struct ReadlistPage {
 	/// without re-checking. Empty when the server offered none.
 	let noticeMessages: [ServerMessage]
 	let tabs: [ReadlistTab]
+	let readlists: [Readlist]
 	let appearance: String?
 
 	init(collection: SirenCollection) {
@@ -77,10 +78,13 @@ struct ReadlistPage {
 		warning = collection.properties?.warning
 		noticeMessages = (collection.properties?.messages ?? []).filter(\.isRenderable)
 		tabs = (collection.properties?.tabs ?? []).map(ReadlistTab.init(tab:))
+		readlists = (collection.properties?.readlists ?? []).map(Readlist.init(entry:))
 		appearance = collection.properties?.appearance
 	}
 
 	var currentTabHref: String? { tabs.first(where: \.isCurrent)?.href }
+
+	var currentReadlistHref: String? { readlists.first(where: \.isCurrent)?.href }
 
 	/// The advertised action with this name, when present and invokable. The
 	/// share-sheet save journey needs a specific action to build its bespoke body
@@ -155,8 +159,8 @@ final class ReadplaceAPI {
 		try await loadReadlist(path: path, cachePolicy: .useProtocolCachePolicy)
 	}
 
-	func rediscoverReadlist() async throws -> ReadlistPage {
-		try await loadReadlist(path: nil, cachePolicy: .reloadIgnoringLocalCacheData)
+	func rediscoverReadlist(path: String? = nil) async throws -> ReadlistPage {
+		try await loadReadlist(path: path, cachePolicy: .reloadIgnoringLocalCacheData)
 	}
 
 	private func loadReadlist(path: String?, cachePolicy: URLRequest.CachePolicy) async throws -> ReadlistPage {

@@ -10,12 +10,9 @@ final class ShareViewController: UIViewController {
 	private let spinner = UIActivityIndicatorView(style: .large)
 	private let statusLabel = UILabel()
 	private let noticeLabel = UILabel()
-	/// Tapping outside the card dismisses. Disabled until the server has confirmed
-	/// the save, because until then a dismissal would abandon a save in flight.
+	private let titleGroup = UIStackView()
 	private let backdropTap = UITapGestureRecognizer()
-	/// Called by the backdrop tap to end the sheet's wait early; nil until the
-	/// wait is running.
-	private var dismissNow: (() -> Void)?
+	private let hold = ShareSheetHold(holdSeconds: 3)
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -29,8 +26,12 @@ final class ShareViewController: UIViewController {
 		let shared = await ShareURLExtractor.extract(from: extensionContext)
 
 		let captor = LazyHTMLCaptor { [weak self] webView in self?.attachHidden(webView) }
+		let group = TokenStore.resolvedAppGroupId
+		guard let defaults = UserDefaults(suiteName: group) else {
+			preconditionFailure("App Group \(group) is required to read the share target")
+		}
 		let containerURL = FileManager.default.containerURL(
-			forSecurityApplicationGroupIdentifier: TokenStore.resolvedAppGroupId
+			forSecurityApplicationGroupIdentifier: group
 		)
 		let saver = SaveSharedPage(
 			store: store,
@@ -41,7 +42,9 @@ final class ShareViewController: UIViewController {
 			),
 			captor: captor,
 			jobs: containerURL.map(UploadJobStore.init(containerURL:)),
-			unseenSave: containerURL.map(UnseenSave.init(containerURL:))
+			unseenSave: containerURL.map(UnseenSave.init(containerURL:)),
+			shareTarget: ShareTarget(defaults: defaults),
+			readlistChooser: self
 		)
 		let sharedPdf: (() async -> Data?)? = shared?.pdfProvider.map { provider in
 			{ await ShareURLExtractor.loadPDFData(provider) }
@@ -68,25 +71,12 @@ final class ShareViewController: UIViewController {
 			)
 			self?.paint(outcome)
 		}
-		await endOfSheet(settled)
+		await hold.untilSettledAndRead(settled)
 		extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
 	}
 
-	/// Returns once the journey has settled, or as soon as the reader taps outside
-	/// the card — whichever lands first.
-	private func endOfSheet(_ settled: Task<Void, Never>) async {
-		let claim = FirstClaim()
-		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-			dismissNow = { if claim.take() { continuation.resume() } }
-			Task { @MainActor in
-				await settled.value
-				if claim.take() { continuation.resume() }
-			}
-		}
-	}
-
 	@objc private func backdropTapped() {
-		dismissNow?()
+		hold.end()
 	}
 
 	private func uiColor(for tone: ShareStatusTone) -> UIColor {
@@ -137,7 +127,8 @@ final class ShareViewController: UIViewController {
 
 		// The title and its caption sit as a tight pair (a 4pt gap), set apart from
 		// the icon and spinner by the main stack's larger spacing.
-		let titleGroup = UIStackView(arrangedSubviews: [statusLabel, noticeLabel])
+		titleGroup.addArrangedSubview(statusLabel)
+		titleGroup.addArrangedSubview(noticeLabel)
 		titleGroup.translatesAutoresizingMaskIntoConstraints = false
 		titleGroup.axis = .vertical
 		titleGroup.alignment = .center
@@ -176,6 +167,7 @@ final class ShareViewController: UIViewController {
 	private func setStatus(_ text: String) {
 		statusLabel.text = text
 		iconView.isHidden = true
+		spinner.isHidden = false
 		spinner.startAnimating()
 	}
 
@@ -189,10 +181,47 @@ final class ShareViewController: UIViewController {
 		statusLabel.text = status.message
 		noticeLabel.text = status.subtitle
 		noticeLabel.isHidden = status.subtitle == nil
+		backdropTap.isEnabled = true
 
 		switch outcome {
 		case .saved, .savedAwaitingUpload: haptics.notificationOccurred(.success)
 		default: break
+		}
+	}
+}
+
+extension ShareViewController: ReadlistChoosing {
+	func choose(among readlists: [Readlist]) async -> Readlist {
+		spinner.stopAnimating()
+		spinner.isHidden = true
+		statusLabel.text = "Save to which readlist?"
+		noticeLabel.text = "You can change this later in the Readplace app"
+		noticeLabel.isHidden = false
+
+		let choices = UIStackView()
+		choices.translatesAutoresizingMaskIntoConstraints = false
+		choices.axis = .vertical
+		choices.alignment = .fill
+		choices.spacing = 8
+
+		return await withCheckedContinuation { (continuation: CheckedContinuation<Readlist, Never>) in
+			for readlist in readlists {
+				var configuration = UIButton.Configuration.filled()
+				configuration.title = readlist.label
+				configuration.baseBackgroundColor = BrandColor.amber
+				configuration.cornerStyle = .medium
+				let button = UIButton(configuration: configuration)
+				button.addAction(
+					UIAction { [weak self] _ in
+						choices.removeFromSuperview()
+						self?.setStatus("Saving…")
+						continuation.resume(returning: readlist)
+					},
+					for: .touchUpInside
+				)
+				choices.addArrangedSubview(button)
+			}
+			titleGroup.insertArrangedSubview(choices, at: 1)
 		}
 	}
 }
