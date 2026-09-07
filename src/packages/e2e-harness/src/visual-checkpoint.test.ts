@@ -229,6 +229,34 @@ describe("captureCheckpoint", () => {
 		expect(screenshots[0].options).toBeUndefined();
 	});
 
+	it("tightens an element capture to the pixel budget the checkpoint asks for", async () => {
+		const card = fakeElement({ rect: { x: 0, y: 48, width: 320, height: 96 } });
+		const { page, calls } = createCheckpointPage({
+			locators: {
+				"[data-test-card]": { count: 1, boxes: [{ x: 0, y: 48, width: 320, height: 96 }] },
+			},
+			viewport: { width: 1280, height: 720 },
+			scroll: { x: 0, y: 0 },
+			pinned: new Map(),
+			elements: new Map([["[data-test-card]", card]]),
+		});
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+		const checkpoint: VisualCheckpoint = {
+			name: "queue-card",
+			settled: async () => {},
+			geometry: async () => {},
+			target: "[data-test-card]",
+			capture: "element",
+			pinnedText: [],
+			maxDiffPixelRatio: 0,
+		};
+
+		await initCaptureCheckpoint({ expect: expectFake })(page, checkpoint);
+
+		expect(screenshots).toHaveLength(1);
+		expect(screenshots[0].options).toEqual({ maxDiffPixelRatio: 0 });
+	});
+
 	it("clips a page-from-top capture to the viewport width and the target's lower edge", async () => {
 		const { page, calls } = createCheckpointPage({
 			locators: {
@@ -261,6 +289,41 @@ describe("captureCheckpoint", () => {
 		expect(screenshots[0].target).toBe(page);
 		expect(screenshots[0].options).toEqual({
 			clip: { x: 0, y: 0, width: 1280, height: 41 },
+		});
+	});
+
+	it("tightens a page-from-top capture to the pixel budget the checkpoint asks for", async () => {
+		const { page, calls } = createCheckpointPage({
+			locators: {
+				"[data-test-panel]": {
+					count: 1,
+					boxes: [{ x: 0, y: 10.2, width: 900, height: 30.4 }],
+				},
+			},
+			viewport: { width: 1280, height: 720 },
+			scroll: { x: 0, y: 0 },
+			pinned: new Map(),
+			elements: new Map([
+				["[data-test-panel]", fakeElement({ rect: { x: 0, y: 10, width: 900, height: 30 } })],
+			]),
+		});
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+		const checkpoint: VisualCheckpoint = {
+			name: "queue-top",
+			settled: async () => {},
+			geometry: async () => {},
+			target: "[data-test-panel]",
+			capture: "page-from-top",
+			pinnedText: [],
+			maxDiffPixelRatio: 0,
+		};
+
+		await initCaptureCheckpoint({ expect: expectFake })(page, checkpoint);
+
+		expect(screenshots).toHaveLength(1);
+		expect(screenshots[0].options).toEqual({
+			clip: { x: 0, y: 0, width: 1280, height: 41 },
+			maxDiffPixelRatio: 0,
 		});
 	});
 

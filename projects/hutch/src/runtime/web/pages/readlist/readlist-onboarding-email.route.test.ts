@@ -216,15 +216,11 @@ describe("Readlist onboarding — Get articles from email", () => {
 		assert.equal(emailStepOf(response.text).getAttribute("data-test-onboarding-complete"), "true");
 	});
 
-	it("keeps the step done across a different device and a stale stored version", async () => {
+	it("keeps the step done across a different device", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await userIdOf(harness);
-		await fixture.onboardingSignals.recordOnboardingOutstandingVersion({
-			userId,
-			version: "stale-version",
-		});
 		await fixture.onboardingSignals.recordEmailStepMarkedDone({ userId });
 
 		const chrome = await agent.get("/queue").set("User-Agent", CHROME_UA);

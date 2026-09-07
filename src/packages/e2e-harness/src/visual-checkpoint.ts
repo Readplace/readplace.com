@@ -11,6 +11,7 @@ export interface VisualCheckpoint {
 	target: string;
 	capture: CaptureMode;
 	pinnedText: readonly { selector: string; text: string }[];
+	maxDiffPixelRatio?: number;
 }
 
 export async function measuredBox(
@@ -71,6 +72,10 @@ export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "sof
 			.toBe(true);
 		await checkpoint.geometry(page);
 		await snapToWholePixels(page, checkpoint.target);
+		const budgetArgs: [budget?: { maxDiffPixelRatio: number }] =
+			checkpoint.maxDiffPixelRatio === undefined
+				? []
+				: [{ maxDiffPixelRatio: checkpoint.maxDiffPixelRatio }];
 		if (checkpoint.capture === "page-from-top") {
 			const viewport = page.viewportSize();
 			assert.ok(
@@ -80,9 +85,10 @@ export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "sof
 			const box = await measuredBox(page, checkpoint.target);
 			await deps.expect.soft(page).toHaveScreenshot(`${checkpoint.name}.png`, {
 				clip: { x: 0, y: 0, width: viewport.width, height: Math.ceil(box.y + box.height) },
+				...budgetArgs[0],
 			});
 		} else {
-			await deps.expect.soft(target).toHaveScreenshot(`${checkpoint.name}.png`);
+			await deps.expect.soft(target).toHaveScreenshot(`${checkpoint.name}.png`, ...budgetArgs);
 		}
 		await page.evaluate((scroll) => {
 			window.scrollTo(scroll.x, scroll.y);
