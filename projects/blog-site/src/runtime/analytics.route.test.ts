@@ -205,6 +205,14 @@ describe("blog analytics instrumentation", () => {
 		expect(parseClickCookie(setCookieHeaders(sameHost)).referrer_host).toBeUndefined();
 	});
 
+	it("serves /blog and records nothing for a signed-in request that sends no User-Agent — the header-less path the bot gate no longer owns must still resolve inside res.on(\"finish\"), where a throw would escape Express", async () => {
+		const res = await request(makeApp(authedResolver)).get("/blog").set("Cookie", "hutch_sid=valid");
+
+		expect(res.status).toBe(200);
+		expect(res.text).toContain("<html lang=");
+		expect(events).toHaveLength(0);
+	});
+
 	it("stamps is_authenticated=1 when the session resolves to a user and 0 for a guest", async () => {
 		const authed = await browserGet(authedResolver, "/blog").set("Cookie", "hutch_sid=valid");
 		expect(authed.status).toBe(200);

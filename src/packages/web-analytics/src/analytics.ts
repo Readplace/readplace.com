@@ -60,9 +60,8 @@ export interface AnalyticsPageview {
 	experiment_variant?: string;
 	sort_order?: "asc" | "desc";
 	/**
-	 * Bots are already dropped by `shouldLog`, so a logged pageview never
-	 * classifies as `bot` — that is what makes the pageview stream a human-device
-	 * signal for the audience's device mix, not just article_read's reader cohort.
+	 * The pageview stream is a device signal for the audience's device mix, not
+	 * just article_read's reader cohort.
 	 */
 	device_class: DeviceClass;
 	browser: BrowserFamily;
@@ -180,6 +179,7 @@ export function isBotUserAgent(userAgent: string | undefined): boolean {
 }
 
 export function isBotRequest(req: Request): boolean {
+	if (req.userId) return false;
 	const userAgent = req.get("user-agent");
 	if (!userAgent) return true;
 	return isBotUserAgent(userAgent);
@@ -226,9 +226,8 @@ export type BrowserFamily =
  * then Chrome, then Safari last — otherwise Edge/Opera/Samsung would read as
  * Chrome and every Chromium browser as Safari. iOS wrappers (CriOS/FxiOS/EdgiOS/
  * OPiOS) map to their family, not Safari. The `isbot` guard mirrors
- * classifyDeviceClass: a bot never reaches the pageview log, but Googlebot's
- * smartphone UA embeds a real `Chrome/` token, so the guard stops any future
- * caller from miscounting it.
+ * classifyDeviceClass: Googlebot's smartphone UA embeds a real `Chrome/` token,
+ * so the guard stops any future caller from miscounting it.
  */
 export function classifyBrowser(userAgent: string | undefined): BrowserFamily {
 	if (!userAgent) return "other";
@@ -449,7 +448,7 @@ function declaresChromium(userAgent: string): boolean {
 
 function isBrowserClient(req: Request): boolean {
 	const userAgent = req.get("user-agent");
-	assert(userAgent, "isBrowserClient runs after isBotRequest, which drops a request with no User-Agent");
+	if (!userAgent) return false;
 	if (!req.get("accept-language")) return false;
 	if (declaresChromium(userAgent) && !req.get("sec-ch-ua")) return false;
 	return true;

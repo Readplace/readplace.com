@@ -1217,7 +1217,7 @@ describe("Import routes", () => {
 			assert.equal(committed[0].is_authenticated, 1);
 		});
 
-		it("commits the crawler's session but records no import_committed, so the imports counter the dashboard cannot filter stays a count of people", async () => {
+		it("records the import_committed for a signed-in commit carrying a crawler User-Agent, because the session already proved a person is importing", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody(
@@ -1230,12 +1230,12 @@ describe("Import routes", () => {
 
 			assert.ok(
 				await harness.articleStore.findArticleByUrl("https://example.com/crawler-a"),
-				"only the measurement is gated — the commit still saves the articles",
+				"the commit still saves the articles, and now records the import beside them",
 			);
 			assert.equal(
 				harness.analytics.events.filter((e) => e.event === "import_committed").length,
-				0,
-				"a crawler's commit is not an import_committed",
+				1,
+				"an authenticated commit is an import_committed whatever its User-Agent claims",
 			);
 		});
 

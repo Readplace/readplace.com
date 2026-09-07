@@ -616,13 +616,11 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 
 	// --- Audience device mix ---
 	// Which devices the audience actually uses. Driven by device_class on the
-	// pageview event, which the analytics middleware only logs after shouldLog
-	// drops bot user-agents — so this is a human-device signal spanning every
-	// visitor, not just the small authenticated-reader cohort article_read
-	// carries a device_class for. ispresent(device_class) excludes pageviews
-	// logged before the field shipped; device_class != "other" drops the
-	// no-User-Agent bucket so the mix reads as real devices, not a
-	// phantom "other" slice. Caveat: an iPad in Safari's default desktop mode
+	// pageview event, which spans every visitor, not just the small
+	// authenticated-reader cohort article_read carries a device_class for.
+	// ispresent(device_class) excludes pageviews logged before the field
+	// shipped; device_class != "other" drops the no-User-Agent bucket so the
+	// mix reads as real devices, not a phantom "other" slice. Caveat: an iPad in Safari's default desktop mode
 	// sends a Mac User-Agent and counts as desktop — a UA-only limitation that
 	// undercounts tablets.
 	// The pie's slices are the composite device_class / browser key (mirroring the

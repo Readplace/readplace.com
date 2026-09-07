@@ -139,7 +139,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			});
 		});
 
-		it("saves the article but emits no view_save_intent when a crawler posts the save bar, so the funnel counts only saves a reader chose", async () => {
+		it("emits the view_save_intent for a signed-in save bar POST carrying a crawler User-Agent, because a proven principal outranks the sniff", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
@@ -152,9 +152,13 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(response.status).toBe(303);
 			assert.ok(
 				await harness.articleStore.findArticleByUrl("https://example.com/article"),
-				"only the measurement is gated — the crawler's article is still saved",
+				"the article is saved, and the save intent beside it is no longer discarded",
 			);
-			assert.equal(saveIntents(harness).length, 0, "a crawler's save bar POST is not a save intent");
+			assert.equal(
+				saveIntents(harness).length,
+				1,
+				"the session proved who is saving, so the User-Agent no longer decides",
+			);
 		});
 
 		it("emits exactly one view_save_intent for that same save bar POST from a real browser, which is what shows the bot gate has not silenced the surface", async () => {

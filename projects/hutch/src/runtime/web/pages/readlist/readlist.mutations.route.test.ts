@@ -538,7 +538,7 @@ describe("Readlist routes", () => {
 				assert.equal(reads[0].device_class, "mobile_ios");
 			});
 
-			it("keeps article_read a count of people: a crawler posting the mark-as-read form emits nothing, while the same post from a browser emits one", async () => {
+			it("counts the mark-as-read of a signed-in reader whatever the User-Agent claims, so a crawler agent and a browser agent each add one article_read", async () => {
 				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 				const agent = await loginAgent(harness.server, harness.auth);
 
@@ -559,8 +559,8 @@ describe("Readlist routes", () => {
 				);
 				assert.equal(
 					harness.analytics.events.filter((e) => e.event === "article_read").length,
-					0,
-					"a bot user-agent marking an article read emits no article_read",
+					1,
+					"the reader is signed in, so a bot user-agent no longer deletes their read",
 				);
 
 				await agent.post("/queue/save").type("form").send({ url: "https://example.com/read-by-hand" });
@@ -574,8 +574,8 @@ describe("Readlist routes", () => {
 
 				assert.equal(
 					harness.analytics.events.filter((e) => e.event === "article_read").length,
-					1,
-					"the identical post from a browser user-agent still emits exactly one article_read",
+					2,
+					"the identical post from a browser user-agent adds the second article_read",
 				);
 			});
 		});
@@ -639,7 +639,7 @@ describe("Readlist routes", () => {
 			assert.equal(toggles[0].state, "closed");
 		});
 
-		it("keeps summary_toggled a measure of people: the beacon emits nothing from a crawler user-agent, while the identical beacon from a browser emits one", async () => {
+		it("counts the summary beacon of a signed-in reader whatever the User-Agent claims, so a crawler agent and a browser agent each add one summary_toggled", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -652,8 +652,8 @@ describe("Readlist routes", () => {
 			expect(botResponse.status).toBe(204);
 			assert.equal(
 				harness.analytics.events.filter((e) => e.event === "summary_toggled").length,
-				0,
-				"a bot user-agent opening the summary emits no summary_toggled",
+				1,
+				"the reader is signed in, so a bot user-agent no longer deletes their toggle",
 			);
 
 			const browserResponse = await agent.post(`/queue/${articleId}/summary-toggle?state=open`);
@@ -661,8 +661,8 @@ describe("Readlist routes", () => {
 			expect(browserResponse.status).toBe(204);
 			assert.equal(
 				harness.analytics.events.filter((e) => e.event === "summary_toggled").length,
-				1,
-				"the identical beacon from a browser user-agent still emits exactly one summary_toggled",
+				2,
+				"the identical beacon from a browser user-agent adds the second summary_toggled",
 			);
 		});
 

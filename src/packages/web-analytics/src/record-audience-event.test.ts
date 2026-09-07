@@ -24,17 +24,24 @@ function createCapturingLogger(): {
 	return { logger, captured };
 }
 
-function reqWith(userAgent: string | undefined): Request {
+function reqWith(params: { userAgent: string | undefined; userId?: string }): Request {
 	return {
+		userId: params.userId,
 		get(name: string): string | undefined {
-			return name.toLowerCase() === "user-agent" ? userAgent : undefined;
+			return name.toLowerCase() === "user-agent" ? params.userAgent : undefined;
 		},
 	} as Request;
 }
 
 function recordedFor(userAgent: string | undefined): RecordedEvent[] {
 	const { logger, captured } = createCapturingLogger();
-	initRecordAudienceEvent({ logger })(reqWith(userAgent), { event: "article_read" });
+	initRecordAudienceEvent({ logger })(reqWith({ userAgent }), { event: "article_read" });
+	return captured;
+}
+
+function recordedForSignedIn(userAgent: string | undefined): RecordedEvent[] {
+	const { logger, captured } = createCapturingLogger();
+	initRecordAudienceEvent({ logger })(reqWith({ userAgent, userId: "user-1" }), { event: "article_read" });
 	return captured;
 }
 
@@ -53,5 +60,13 @@ describe("initRecordAudienceEvent", () => {
 
 	it("drops the event a request with no User-Agent produced, so a scripted call cannot inflate an audience widget", () => {
 		expect(recordedFor(undefined)).toEqual([]);
+	});
+
+	it("logs the event a signed-in reader produced through a User-Agent isbot flags, because discarding a proven person is the costlier mistake", () => {
+		expect(recordedForSignedIn("Mozilla/5.0")).toEqual([{ event: "article_read" }]);
+	});
+
+	it("logs the event a signed-in reader produced with no User-Agent at all, which a proxy or MDM can strip without unproving the session", () => {
+		expect(recordedForSignedIn(undefined)).toEqual([{ event: "article_read" }]);
 	});
 });

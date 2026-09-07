@@ -1512,7 +1512,7 @@ describe("POST /account/subscribe", () => {
 		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(0);
 	});
 
-	it("charges the crawler's saved card but records no resubscribe_completed, so the one-click resubscribe path is gated like the checkout beside it", async () => {
+	it("records the resubscribe_completed of a signed-in card charge carrying a crawler User-Agent, since only an authenticated account has a card to charge", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "crawler-one-click@example.com");
@@ -1529,8 +1529,8 @@ describe("POST /account/subscribe", () => {
 		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(1);
 		assert.equal(
 			harness.subscriptionEvents.events.filter((e) => e.event === "resubscribe_completed").length,
-			0,
-			"only the measurement is gated — the crawler's subscription is still created",
+			1,
+			"the account that paid is proof enough of a person; the User-Agent is not consulted",
 		);
 	});
 
@@ -1555,7 +1555,7 @@ describe("POST /account/subscribe", () => {
 		);
 	});
 
-	it("emits no subscription event when a crawler submits the Subscribe form, so paid-conversion reporting counts readers and not bots", async () => {
+	it("emits the checkout_started when a signed-in account submits the Subscribe form under a crawler User-Agent, so paid-conversion reporting keeps the reader it can identify", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "crawler-subscribe@example.com");
@@ -1569,8 +1569,8 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		assert.equal(
 			harness.subscriptionEvents.events.length,
-			0,
-			"a crawler-driven checkout must leave no subscription event behind",
+			1,
+			"an identified checkout leaves its subscription event behind whatever the User-Agent says",
 		);
 	});
 

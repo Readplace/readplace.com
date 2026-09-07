@@ -1190,6 +1190,10 @@ describe("isCountableBrowserRequest", () => {
 		expect(run({ headers: { "user-agent": undefined } })).toBe(false);
 	});
 
+	it("drops a signed-in request with no User-Agent, because isBrowserClient — not the bot sniff the principal now outranks — is what a header-less request fails", () => {
+		expect(run({ userId: "user-1", headers: { "user-agent": undefined } })).toBe(false);
+	});
+
 	it("drops a request with no Accept-Language, which every real browser sends", () => {
 		expect(run({ headers: { "accept-language": undefined } })).toBe(false);
 	});
@@ -1253,6 +1257,12 @@ describe("isBotRequest", () => {
 		return isBotRequest(createReq({ headers: { "user-agent": userAgent } }) as Request);
 	}
 
+	function botForSignedIn(userAgent: string | undefined): boolean {
+		return isBotRequest(
+			createReq({ userId: "user-1", headers: { "user-agent": userAgent } }) as Request,
+		);
+	}
+
 	it("treats a request that sends no User-Agent as a bot, which is the one place this predicate parts company with isBotUserAgent", () => {
 		expect(botFor(undefined)).toBe(true);
 	});
@@ -1263,6 +1273,18 @@ describe("isBotRequest", () => {
 
 	it("reports a crawler as a bot", () => {
 		expect(botFor("Googlebot/2.1 (+http://www.google.com/bot.html)")).toBe(true);
+	});
+
+	it("does not report a request carrying a validated principal as a bot, even when it declares a crawler User-Agent — a proven identity outranks the sniff", () => {
+		expect(botForSignedIn("Googlebot/2.1 (+http://www.google.com/bot.html)")).toBe(false);
+	});
+
+	it("does not report a signed-in request that sends no User-Agent as a bot, since a proxy stripping the header cannot unprove the session", () => {
+		expect(botForSignedIn(undefined)).toBe(false);
+	});
+
+	it("still reports an anonymous request with an empty principal as a bot, which is why this reads truthiness and not just a set property", () => {
+		expect(isBotRequest(createReq({ userId: "", headers: { "user-agent": undefined } }) as Request)).toBe(true);
 	});
 
 	it("does not report a real browser as a bot", () => {
