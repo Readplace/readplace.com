@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { DOMParser } from "linkedom";
 import { strFromU8, unzipSync } from "fflate";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
@@ -15,6 +17,14 @@ function readerFor(store: Record<string, Uint8Array>): ReadArticleImage {
 	return async ({ filename }) => store[filename];
 }
 
+function contentOutline(epub: Uint8Array): [string, string][] {
+	const xhtml = strFromU8(unzipSync(epub)["OEBPS/content.xhtml"]);
+	const document = new DOMParser().parseFromString(xhtml, "text/xml");
+	const body = document.querySelector("body");
+	assert(body, "content.xhtml must carry a body");
+	return Array.from(body.children, (element) => [element.localName, element.textContent]);
+}
+
 describe("initBuildArticleEpub", () => {
 	it("embeds an available hosted image", async () => {
 		const filename = "abcdef0123456789.jpg";
@@ -28,6 +38,9 @@ describe("initBuildArticleEpub", () => {
 		const bytes = await build({
 			articleUrl: ARTICLE_URL,
 			title: "The Article",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
 			contentHtml: `<p><img src="${embeddedSrc(filename)}"></p>`,
 		});
 
@@ -54,6 +67,9 @@ describe("initBuildArticleEpub", () => {
 		const bytes = await build({
 			articleUrl: ARTICLE_URL,
 			title: "The Article",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
 			contentHtml: `<img src="${embeddedSrc(webp)}"><img src="${embeddedSrc(avif)}"><img src="${embeddedSrc(svg)}">`,
 		});
 
@@ -80,6 +96,9 @@ describe("initBuildArticleEpub", () => {
 		const bytes = await build({
 			articleUrl: ARTICLE_URL,
 			title: "t",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
 			contentHtml: `<p><img src="${embeddedSrc(fits)}"></p><p><img src="${embeddedSrc(over)}"></p>`,
 		});
 
@@ -101,6 +120,9 @@ describe("initBuildArticleEpub", () => {
 		const bytes = await build({
 			articleUrl: ARTICLE_URL,
 			title: "t",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
 			contentHtml: `<p><img src="${embeddedSrc(filename)}"></p>`,
 		});
 
@@ -121,9 +143,47 @@ describe("initBuildArticleEpub", () => {
 			build({
 				articleUrl: ARTICLE_URL,
 				title: "t",
+				siteName: "example.com",
+				excerpt: "",
+				summary: undefined,
 				contentHtml: `<p><img src="${embeddedSrc("4444444444444444.jpg")}"></p>`,
 			}),
 		).rejects.toThrow("s3 down");
+	});
+
+	it("opens the article with its title, site name, excerpt and summary before the body copy", async () => {
+		const build = initBuildArticleEpub({
+			readArticleImage: readerFor({}),
+			logError: jest.fn(),
+			now: NOW,
+		});
+
+		const bytes = await build({
+			articleUrl: ARTICLE_URL,
+			title: "The Article",
+			siteName: "example.com",
+			excerpt: "Parsed blurb.",
+			summary: {
+				status: "ready",
+				summary: "First point.\n\nSecond point.",
+				excerpt: "Generated blurb.",
+			},
+			contentHtml: "<p>Body copy.</p>",
+		});
+
+		expect(contentOutline(bytes)).toEqual([
+			["h1", "The Article"],
+			["p", "example.com"],
+			["p", "Generated blurb."],
+			["h2", "Summary (TL;DR)"],
+			["p", "First point."],
+			["p", "Second point."],
+			["hr", ""],
+			["p", "Body copy."],
+		]);
+		const files = unzipSync(bytes);
+		expect(strFromU8(files["OEBPS/content.xhtml"])).toContain("<title>The Article</title>");
+		expect(strFromU8(files["OEBPS/content.opf"])).toContain("<dc:title>The Article</dc:title>");
 	});
 });
 

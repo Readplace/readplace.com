@@ -306,7 +306,15 @@ function handleViewArticle(
 			}
 			const title = existing.metadata.title;
 			const download = downloads[downloadFormat];
-			const bytes = await download.build({ articleUrl, title, contentHtml: content });
+			const summary = await deps.findGeneratedSummary(articleUrl);
+			const bytes = await download.build({
+				articleUrl,
+				title,
+				siteName: existing.metadata.siteName,
+				excerpt: existing.metadata.excerpt,
+				summary,
+				contentHtml: content,
+			});
 			res
 				.status(200)
 				.set({

@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { DOMParser } from "linkedom";
 import request from "supertest";
 import { strFromU8, unzipSync } from "fflate";
 import type { ParseArticle } from "@packages/article-parser";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { calculateReadTime, type Minutes } from "@packages/domain/article";
 import { useTestServer, BROWSER_REQUEST_HEADERS } from "../../../test-app";
-import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import {
+	TEST_APP_ORIGIN,
+	createDefaultTestAppFixture,
+	createFakeSummaryProvider,
+} from "@packages/test-fixtures";
 
 const ARTICLE_URL = "https://example.com/post";
 const CANONICAL_PATH = "example.com/post";
@@ -34,11 +39,19 @@ const useFailingAzw3App = useTestServer({
 		throw new Error("boko failed");
 	},
 });
+const convertedEpubs: Uint8Array[] = [];
+const useCapturingAzw3App = useTestServer({
+	convertEpubToAzw3: async (epub) => {
+		convertedEpubs.push(epub);
+		return new Uint8Array([0x41, 0x5a, 0x57, 0x33]);
+	},
+});
 
 function buildDownloadHarness(params?: {
 	conversionFails?: boolean;
 	countAzw3Conversions?: boolean;
 	useDefaultAzw3Converter?: boolean;
+	captureConvertedEpubs?: boolean;
 	articleDownloadRule?: { limit: number; windowSeconds: number };
 }) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -60,9 +73,13 @@ function buildDownloadHarness(params?: {
 			? useCountingAzw3App
 			: params?.useDefaultAzw3Converter
 				? useDefaultAzw3App
+				: params?.captureConvertedEpubs
+					? useCapturingAzw3App
 			: useApp;
+	const summary = createFakeSummaryProvider();
 	const harness = mountApp({
 		...fixture,
+		summary,
 		parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
 		events: {
 			...fixture.events,
@@ -74,7 +91,7 @@ function buildDownloadHarness(params?: {
 			},
 		},
 	});
-	return { harness, fixture, staleChecks };
+	return { harness, fixture, staleChecks, summary };
 }
 
 async function seedReadyArticle(fixture: ReturnType<typeof createDefaultTestAppFixture>) {
@@ -99,6 +116,14 @@ async function seedReadyArticle(fixture: ReturnType<typeof createDefaultTestAppF
 function lastViewCookie(response: request.Response): string | undefined {
 	const setCookie = response.headers["set-cookie"];
 	return (Array.isArray(setCookie) ? setCookie : []).find((c) => c.startsWith("hutch_lastview="));
+}
+
+function contentOutline(epub: Uint8Array): [string, string][] {
+	const xhtml = strFromU8(unzipSync(epub)["OEBPS/content.xhtml"]);
+	const document = new DOMParser().parseFromString(xhtml, "text/xml");
+	const body = document.querySelector("body");
+	assert(body, "content.xhtml must carry a body");
+	return Array.from(body.children, (element) => [element.localName, element.textContent]);
 }
 
 function binaryParser(res: unknown, callback: (err: Error | null, body: Buffer) => void): void {
@@ -139,6 +164,104 @@ describe("GET /view/<url>?format=<download>", () => {
 		expect(staleChecks).toEqual([]);
 		expect(harness.analytics.events.filter((e) => e.event === "view_opened")).toEqual([]);
 		expect(lastViewCookie(response)).toBeUndefined();
+	});
+
+	it("opens the EPUB with the title, site name and parsed excerpt while the summary is pending", async () => {
+		const { harness, fixture, summary } = buildDownloadHarness();
+		await seedReadyArticle(fixture);
+		await summary.markSummaryPending({ url: ARTICLE_URL });
+
+		const response = await request(harness.server)
+			.get(EPUB_PATH)
+			.set(BROWSER_REQUEST_HEADERS)
+			.buffer()
+			.parse(binaryParser);
+
+		expect(response.status).toBe(200);
+		expect(contentOutline(new Uint8Array(response.body))).toEqual([
+			["h1", "Hello World"],
+			["p", "example.com"],
+			["p", "x"],
+			["hr", ""],
+			["p", "Body copy."],
+			["p", ""],
+		]);
+	});
+
+	it("adds the generated excerpt and the summary to a download taken after the summary lands", async () => {
+		const { harness, fixture, summary } = buildDownloadHarness();
+		await seedReadyArticle(fixture);
+		await summary.markSummaryPending({ url: ARTICLE_URL });
+
+		const beforeSummary = await request(harness.server)
+			.get(EPUB_PATH)
+			.set(BROWSER_REQUEST_HEADERS)
+			.buffer()
+			.parse(binaryParser);
+		summary.markSummaryReady({
+			url: ARTICLE_URL,
+			summary: "First point.\n\nSecond point.",
+			excerpt: "Generated blurb.",
+		});
+		const afterSummary = await request(harness.server)
+			.get(EPUB_PATH)
+			.set(BROWSER_REQUEST_HEADERS)
+			.buffer()
+			.parse(binaryParser);
+
+		expect(contentOutline(new Uint8Array(beforeSummary.body))).toEqual([
+			["h1", "Hello World"],
+			["p", "example.com"],
+			["p", "x"],
+			["hr", ""],
+			["p", "Body copy."],
+			["p", ""],
+		]);
+		expect(contentOutline(new Uint8Array(afterSummary.body))).toEqual([
+			["h1", "Hello World"],
+			["p", "example.com"],
+			["p", "Generated blurb."],
+			["h2", "Summary (TL;DR)"],
+			["p", "First point."],
+			["p", "Second point."],
+			["hr", ""],
+			["p", "Body copy."],
+			["p", ""],
+		]);
+	});
+
+	it("converts the AZW3 from an EPUB carrying the same front matter and summary", async () => {
+		convertedEpubs.length = 0;
+		const { harness, fixture, summary } = buildDownloadHarness({ captureConvertedEpubs: true });
+		await seedReadyArticle(fixture);
+		summary.markSummaryReady({
+			url: ARTICLE_URL,
+			summary: "First point.\n\nSecond point.",
+			excerpt: "Generated blurb.",
+		});
+
+		const response = await request(harness.server)
+			.get(AZW3_PATH)
+			.set(BROWSER_REQUEST_HEADERS)
+			.buffer()
+			.parse(binaryParser);
+
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual(Buffer.from([0x41, 0x5a, 0x57, 0x33]));
+		expect(convertedEpubs).toHaveLength(1);
+		const epub = convertedEpubs[0];
+		assert(epub, "the converter must receive one EPUB");
+		expect(contentOutline(epub)).toEqual([
+			["h1", "Hello World"],
+			["p", "example.com"],
+			["p", "Generated blurb."],
+			["h2", "Summary (TL;DR)"],
+			["p", "First point."],
+			["p", "Second point."],
+			["hr", ""],
+			["p", "Body copy."],
+			["p", ""],
+		]);
 	});
 
 	it("serves a ready article as an AZW3 file with the matching download headers", async () => {

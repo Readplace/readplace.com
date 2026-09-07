@@ -1,15 +1,14 @@
 import { articleHostFrom } from "@packages/web-analytics";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 import { articleEpubXhtml, collectArticleImages } from "./epub-xhtml";
+import { type ArticleFrontMatter, articleFrontMatterXhtml } from "./article-front-matter";
 import { buildEpub } from "./epub-package";
 
 const MAX_EPUB_IMAGE_BYTES = 3_500_000;
 
-export type BuildArticleEpub = (params: {
-	articleUrl: string;
-	title: string;
-	contentHtml: string;
-}) => Promise<Uint8Array>;
+export type BuildArticleEpub = (
+	params: ArticleFrontMatter & { articleUrl: string; contentHtml: string },
+) => Promise<Uint8Array>;
 
 type BuildArticleEpubDependencies = {
 	readArticleImage: ReadArticleImage;
@@ -48,11 +47,7 @@ export function initBuildArticleEpubWithImageFilter(
 ): BuildArticleEpub {
 	const { readArticleImage, logError, now } = deps;
 
-	return async (params: {
-		articleUrl: string;
-		title: string;
-		contentHtml: string;
-	}): Promise<Uint8Array> => {
+	return async (params): Promise<Uint8Array> => {
 		const candidates = collectArticleImages({
 			contentHtml: params.contentHtml,
 			articleUrl: params.articleUrl,
@@ -75,8 +70,15 @@ export function initBuildArticleEpubWithImageFilter(
 			images.push({ filename: candidate.filename, body: bytes });
 		}
 
+		const frontMatter = articleFrontMatterXhtml({
+			title: params.title,
+			siteName: params.siteName,
+			excerpt: params.excerpt,
+			summary: params.summary,
+		});
+
 		const xhtml = articleEpubXhtml({
-			contentHtml: params.contentHtml,
+			contentHtml: frontMatter + params.contentHtml,
 			title: params.title,
 			articleUrl: params.articleUrl,
 			embeddedFilenames: images.map((image) => image.filename),

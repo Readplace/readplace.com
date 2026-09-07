@@ -59,6 +59,9 @@ describe("initBuildArticleAzw3", () => {
 		const output = await build({
 			articleUrl: ARTICLE_URL,
 			title: "The Article",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
 			contentHtml: [jpg, jpeg, png, gif, webp, avif, svg, extensionless]
 				.map((filename) => `<img src="${embeddedSrc(filename)}">`)
 				.join(""),
@@ -90,6 +93,49 @@ describe("initBuildArticleAzw3", () => {
 		]);
 	});
 
+	it("hands the converter an EPUB that already carries the front matter", async () => {
+		const convertedEpubs: Uint8Array[] = [];
+		const build = initBuildArticleAzw3({
+			readArticleImage: readerFor({ store: {}, readFilenames: [] }),
+			logError: () => undefined,
+			now: NOW,
+			convertEpubToAzw3: async (epub) => {
+				convertedEpubs.push(epub);
+				return new Uint8Array([65, 90, 87, 51]);
+			},
+		});
+
+		await build({
+			articleUrl: ARTICLE_URL,
+			title: "The Article",
+			siteName: "example.com",
+			excerpt: "",
+			summary: { status: "ready", summary: "Gist.", excerpt: "Blurb." },
+			contentHtml: "<p>Text</p>",
+		});
+
+		expect(convertedEpubs).toHaveLength(1);
+		const epub = convertedEpubs[0];
+		assert(epub, "the converter must receive one EPUB");
+		const document = new DOMParser().parseFromString(
+			strFromU8(unzipSync(epub)["OEBPS/content.xhtml"]),
+			"text/xml",
+		);
+		const body = document.querySelector("body");
+		assert(body, "content.xhtml must carry a body");
+		expect(
+			Array.from(body.children, (element) => [element.localName, element.textContent]),
+		).toEqual([
+			["h1", "The Article"],
+			["p", "example.com"],
+			["p", "Blurb."],
+			["h2", "Summary (TL;DR)"],
+			["p", "Gist."],
+			["hr", ""],
+			["p", "Text"],
+		]);
+	});
+
 	it("propagates a conversion failure", async () => {
 		const build = initBuildArticleAzw3({
 			readArticleImage: readerFor({ store: {}, readFilenames: [] }),
@@ -101,7 +147,14 @@ describe("initBuildArticleAzw3", () => {
 		});
 
 		await expect(
-			build({ articleUrl: ARTICLE_URL, title: "The Article", contentHtml: "<p>Text</p>" }),
+			build({
+				articleUrl: ARTICLE_URL,
+				title: "The Article",
+				siteName: "example.com",
+				excerpt: "",
+				summary: undefined,
+				contentHtml: "<p>Text</p>",
+			}),
 		).rejects.toThrow("boko failed");
 	});
 
@@ -120,7 +173,14 @@ describe("initBuildArticleAzw3", () => {
 		});
 
 		await expect(
-			build({ articleUrl: ARTICLE_URL, title: "The Article", contentHtml: "12345" }),
+			build({
+				articleUrl: ARTICLE_URL,
+				title: "The Article",
+				siteName: "example.com",
+				excerpt: "",
+				summary: undefined,
+				contentHtml: "12345",
+			}),
 		).rejects.toThrow("AZW3 article content exceeds 4 bytes");
 		expect(readFilenames).toEqual([]);
 		expect(conversionCount).toBe(0);
