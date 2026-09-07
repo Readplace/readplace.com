@@ -94,7 +94,7 @@ jobs:
           firefox --version 2>/dev/null || echo "firefox: not on PATH"
           geckodriver --version 2>/dev/null | head -1 || echo "geckodriver: not on PATH"
 
-      - run: . ./.envrc && editorconfig-checker && pnpm nx run-many --target=check --all --exclude=ios,android
+      - run: pnpm check --exclude=ios,android
 
   # Save-latency gate for both browser extensions: a save must paint the saved
   # view in under the measured budget on average.
