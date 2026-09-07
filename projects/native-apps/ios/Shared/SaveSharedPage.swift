@@ -28,7 +28,7 @@ protocol HTMLCapturing {
 
 @MainActor
 protocol ReadlistChoosing {
-	func choose(among readlists: [Readlist]) async -> Readlist
+	func choose(among readlists: [Readlist]) async -> Set<Readlist>
 }
 
 /// The share-sheet save journey, lifted out of `ShareViewController` so the full
@@ -80,17 +80,17 @@ struct SaveSharedPage {
 		defer { content.cancel() }
 
 		do {
-			let discovery = try await discoverSaveCollection()
-			var page = discovery.page
+			var page = try await api.loadReadlist()
+			let queues = await tickedReadlists(on: page)
 			onNotice(page.noticeMessages)
 			guard let action = page.action(named: "save-article") else { return .noSaveAction }
 			let confirmation: ReadplaceAPI.SaveConfirmation
 			do {
-				confirmation = try await api.saveArticle(action: action, url: url.absoluteString)
+				confirmation = try await api.saveArticle(action: action, url: url.absoluteString, queues: queues)
 			} catch let error where !APIError.isRefusalOrAuthFailure(error) {
-				page = try await api.rediscoverReadlist(path: discovery.path)
+				page = try await api.rediscoverReadlist()
 				guard let rediscovered = page.action(named: "save-article") else { return .noSaveAction }
-				confirmation = try await api.saveArticle(action: rediscovered, url: url.absoluteString)
+				confirmation = try await api.saveArticle(action: rediscovered, url: url.absoluteString, queues: queues)
 			}
 			unseenSave?.record()
 			let admitted = await admit(page: page, url: url, title: fallbackTitle)
@@ -112,21 +112,12 @@ struct SaveSharedPage {
 		}
 	}
 
-	private struct Discovery {
-		let page: ReadlistPage
-		let path: String?
-	}
-
-	private func discoverSaveCollection() async throws -> Discovery {
-		if let recorded = shareTarget.href {
-			return Discovery(page: try await api.loadReadlist(path: recorded), path: recorded)
-		}
-		let entry = try await api.loadReadlist()
-		guard !shareTarget.isDecided, entry.readlists.count > 1 else { return Discovery(page: entry, path: nil) }
-		let chosen = await readlistChooser.choose(among: entry.readlists)
-		shareTarget.record(href: chosen.href)
-		guard chosen.href != entry.currentReadlistHref else { return Discovery(page: entry, path: nil) }
-		return Discovery(page: try await api.loadReadlist(path: chosen.href), path: chosen.href)
+	private func tickedReadlists(on page: ReadlistPage) async -> Set<String> {
+		let choices = page.readlists.filter { $0.href != page.rootHref }
+		guard !shareTarget.isDecided, !choices.isEmpty else { return shareTarget.hrefs }
+		let chosen = await readlistChooser.choose(among: choices)
+		shareTarget.record(hrefs: Set(chosen.map(\.href)))
+		return shareTarget.hrefs
 	}
 
 	private static let pdfMagic = Data("%PDF-".utf8)

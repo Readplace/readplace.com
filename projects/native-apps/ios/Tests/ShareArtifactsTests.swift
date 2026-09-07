@@ -44,25 +44,46 @@ final class ShareArtifactsTests: XCTestCase {
 		XCTAssertFalse(FileManager.default.fileExists(atPath: entry.path))
 	}
 
-	func testTakesTheShareTargetAndTheLastViewedReadlistWithTheSession() throws {
-		let group = TokenStore.resolvedAppGroupId
+	func testForgettingReaderChoicesTakesTheShareTargetAndTheLastViewedReadlist() throws {
+		let group = "test.\(UUID().uuidString)"
 		let defaults = try XCTUnwrap(
 			UserDefaults(suiteName: group),
-			"the App Group this build is entitled to must resolve to a defaults suite"
+			"the App Group a sign-out clears must resolve to a defaults suite"
 		)
-		ShareTarget(defaults: defaults).record(href: "/queue?queue=work")
+		defer { defaults.removePersistentDomain(forName: group) }
+		ShareTarget(defaults: defaults).record(hrefs: ["/queue?queue=work"])
 		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
 
-		ShareArtifacts.purge(appGroupId: group)
+		ShareArtifacts.forgetReaderChoices(appGroupId: group)
 
-		XCTAssertNil(
-			ShareTarget(defaults: defaults).href,
+		XCTAssertEqual(
+			ShareTarget(defaults: defaults).hrefs, [],
 			"the next account on the device is prompted for its own share target rather than inheriting this one"
 		)
 		XCTAssertNil(
 			LastViewedReadlist(defaults: defaults).href,
 			"and opens on its own readlist rather than one it cannot see"
 		)
+	}
+
+	func testPurgingSessionArtifactsLeavesTheReadersChoicesAlone() throws {
+		let group = TokenStore.resolvedAppGroupId
+		let defaults = try XCTUnwrap(UserDefaults(suiteName: group))
+		ShareArtifacts.forgetReaderChoices(appGroupId: group)
+		ShareTarget(defaults: defaults).record(hrefs: ["/queue?queue=work"])
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
+
+		ShareArtifacts.purge(appGroupId: group)
+
+		XCTAssertEqual(
+			ShareTarget(defaults: defaults).hrefs, ["/queue?queue=work"],
+			"a session that expired on its own is the same reader coming back, so where their shares drop must survive it"
+		)
+		XCTAssertEqual(
+			LastViewedReadlist(defaults: defaults).href, "/queue?queue=work",
+			"and the readlist they were reading is still theirs"
+		)
+		ShareArtifacts.forgetReaderChoices(appGroupId: group)
 	}
 
 	func testLeavesTheEntitledContainerAloneForAnAppGroupThisBuildCannotReach() async throws {

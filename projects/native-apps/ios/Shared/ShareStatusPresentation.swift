@@ -20,20 +20,20 @@ struct ShareStatusPresentation: Equatable {
 	let symbol: String
 	let tone: ShareStatusTone
 
+	private static func footnote(messages: [ServerMessage]) -> String? {
+		messages.isEmpty ? nil : messages.map(\.plainText).joined(separator: "\n")
+	}
+
 	init(outcome: SaveSharedOutcome) {
 		switch outcome {
 		case .saved(let messages):
-			/// The server's confirmation when it sent one, so the sheet's copy can
-			/// change without an App Store release; the client's own word otherwise.
-			let serverCopy = messages.map(\.plainText).joined(separator: "\n")
-			message = serverCopy.isEmpty ? "Saved" : serverCopy
-			subtitle = nil
+			message = "Saved"
+			subtitle = ShareStatusPresentation.footnote(messages: messages)
 			symbol = "checkmark.circle.fill"
 			tone = .success
 		case .savedAwaitingUpload(let messages):
-			let serverCopy = messages.map(\.plainText).joined(separator: "\n")
-			message = serverCopy.isEmpty ? "Saved url" : serverCopy
-			subtitle = "Content will be uploaded when you open the Readplace app"
+			message = "Saved"
+			subtitle = ShareStatusPresentation.footnote(messages: messages)
 			symbol = "checkmark.circle.fill"
 			tone = .success
 		case .notLoggedIn:

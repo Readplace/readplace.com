@@ -191,10 +191,10 @@ final class ShareViewController: UIViewController {
 }
 
 extension ShareViewController: ReadlistChoosing {
-	func choose(among readlists: [Readlist]) async -> Readlist {
+	func choose(among readlists: [Readlist]) async -> Set<Readlist> {
 		spinner.stopAnimating()
 		spinner.isHidden = true
-		statusLabel.text = "Save to which readlist?"
+		statusLabel.text = "Save to which readlists?"
 		noticeLabel.text = "You can change this later in the Readplace app"
 		noticeLabel.isHidden = false
 
@@ -204,25 +204,51 @@ extension ShareViewController: ReadlistChoosing {
 		choices.alignment = .fill
 		choices.spacing = 8
 
-		return await withCheckedContinuation { (continuation: CheckedContinuation<Readlist, Never>) in
+		return await withCheckedContinuation { (continuation: CheckedContinuation<Set<Readlist>, Never>) in
+			var ticks: [UIButton] = []
 			for readlist in readlists {
-				var configuration = UIButton.Configuration.filled()
-				configuration.title = readlist.label
-				configuration.baseBackgroundColor = BrandColor.amber
-				configuration.cornerStyle = .medium
-				let button = UIButton(configuration: configuration)
+				let button = UIButton(configuration: Self.tickConfiguration(title: readlist.label, isTicked: false))
 				button.addAction(
-					UIAction { [weak self] _ in
-						choices.removeFromSuperview()
-						self?.setStatus("Saving…")
-						continuation.resume(returning: readlist)
+					UIAction { [weak button] _ in
+						guard let button else { return }
+						button.isSelected.toggle()
+						button.configuration = Self.tickConfiguration(title: readlist.label, isTicked: button.isSelected)
 					},
 					for: .touchUpInside
 				)
+				ticks.append(button)
 				choices.addArrangedSubview(button)
 			}
+			let done = UIButton(configuration: Self.doneConfiguration())
+			done.addAction(
+				UIAction { [weak self] _ in
+					choices.removeFromSuperview()
+					self?.setStatus("Saving…")
+					continuation.resume(returning: Set(zip(readlists, ticks).filter { $0.1.isSelected }.map(\.0)))
+				},
+				for: .touchUpInside
+			)
+			choices.addArrangedSubview(done)
 			titleGroup.insertArrangedSubview(choices, at: 1)
 		}
+	}
+
+	private static func tickConfiguration(title: String, isTicked: Bool) -> UIButton.Configuration {
+		var configuration = isTicked ? UIButton.Configuration.filled() : UIButton.Configuration.tinted()
+		configuration.title = title
+		configuration.image = UIImage(systemName: isTicked ? "checkmark.square.fill" : "square")
+		configuration.imagePadding = 8
+		configuration.baseBackgroundColor = BrandColor.amber
+		configuration.cornerStyle = .medium
+		return configuration
+	}
+
+	private static func doneConfiguration() -> UIButton.Configuration {
+		var configuration = UIButton.Configuration.filled()
+		configuration.title = "Done"
+		configuration.baseBackgroundColor = BrandColor.amber
+		configuration.cornerStyle = .medium
+		return configuration
 	}
 }
 

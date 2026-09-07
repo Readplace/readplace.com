@@ -46,7 +46,7 @@ final class ShareExtensionKeychainDiagnosticsTests: XCTestCase {
 			jobs: UploadJobStore(containerURL: TestSupport.temporaryContainer()),
 			unseenSave: nil,
 			shareTarget: ShareTarget(defaults: TestSupport.ephemeralDefaults()),
-			readlistChooser: FakeReadlistChooser { $0[0] }
+			readlistChooser: FakeReadlistChooser { [$0[0]] }
 		)
 
 		let outcome = await saver.run(

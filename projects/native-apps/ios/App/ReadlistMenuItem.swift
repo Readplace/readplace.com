@@ -14,14 +14,14 @@ struct ReadlistMenuItem: Identifiable, Equatable {
 	static func items(
 		readlists: [Readlist],
 		selectedHref: String?,
-		shareTargetHref: String?
+		shareTargetHrefs: Set<String>
 	) -> [ReadlistMenuItem] {
 		readlists.map { readlist in
 			ReadlistMenuItem(
 				label: readlist.label,
 				href: readlist.href,
 				isSelected: readlist.href == selectedHref,
-				isShareTarget: readlist.href == shareTargetHref
+				isShareTarget: shareTargetHrefs.contains(readlist.href)
 			)
 		}
 	}

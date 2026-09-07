@@ -21,31 +21,34 @@ final class ShareStatusPresentationTests: XCTestCase {
 		XCTAssertEqual(status.tone, .success)
 	}
 
-	func testSavedSpeaksTheServersConfirmationWhenItSentOne() {
+	func testSavedSpeaksTheServersConfirmationInTheFootnote() {
 		let status = present(.saved([
 			message(type: "success", body: "Article saved"),
 			message(type: "success", body: "Saved to your reading list"),
 		]))
-		XCTAssertEqual(status.message, "Article saved\nSaved to your reading list")
-		XCTAssertNil(status.subtitle)
+		XCTAssertEqual(status.message, "Saved", "the title stays one word however much the server says")
+		XCTAssertEqual(status.subtitle, "Article saved\nSaved to your reading list")
 		XCTAssertEqual(status.tone, .success)
 	}
 
-	func testSavedAwaitingUploadSaysWhoWillCarryTheContent() {
+	func testSavedAwaitingUploadReadsTheSameAsAnySave() {
 		let status = present(.savedAwaitingUpload([]))
-		XCTAssertEqual(status.message, "Saved url")
-		XCTAssertEqual(status.subtitle, "Content will be uploaded when you open the Readplace app")
+		XCTAssertEqual(status.message, "Saved")
+		XCTAssertNil(status.subtitle, "the reader is told the link is saved; the upload behind it is not their errand")
 		XCTAssertEqual(status.symbol, "checkmark.circle.fill")
 		XCTAssertEqual(status.tone, .success)
 	}
 
-	func testSavedAwaitingUploadKeepsTheServersConfirmationAsItsTitle() {
+	func testSavedAwaitingUploadKeepsTheServersConfirmationInTheFootnote() {
 		let status = present(.savedAwaitingUpload([
 			message(type: "success", body: "Article saved"),
 			message(type: "success", body: "Saved to your reading list"),
 		]))
-		XCTAssertEqual(status.message, "Article saved\nSaved to your reading list")
-		XCTAssertEqual(status.subtitle, "Content will be uploaded when you open the Readplace app")
+		XCTAssertEqual(status.message, "Saved")
+		XCTAssertEqual(
+			status.subtitle, "Article saved\nSaved to your reading list",
+			"what the server chose to say stays, under a title short enough to read at a glance"
+		)
 	}
 
 	func testSavedNamesTheReadlistTheServerFiledTheLinkInto() {
@@ -54,7 +57,7 @@ final class ShareStatusPresentationTests: XCTestCase {
 			message(type: "success", body: "Saved to &#x27;Work&#x27;"),
 		]))
 		XCTAssertEqual(
-			status.message, "Article saved\nSaved to 'Work'",
+			status.subtitle, "Article saved\nSaved to 'Work'",
 			"the server escapes the reader's own label on the wire, so the card must show the apostrophe it typed"
 		)
 	}
@@ -63,7 +66,7 @@ final class ShareStatusPresentationTests: XCTestCase {
 		let status = present(.saved([
 			message(type: "success", body: "<strong>Article</strong> saved"),
 		]))
-		XCTAssertEqual(status.message, "Article saved")
+		XCTAssertEqual(status.subtitle, "Article saved")
 	}
 
 	func testNotLoggedInIsWarning() {

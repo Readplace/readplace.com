@@ -3,14 +3,14 @@ import Foundation
 
 @MainActor
 final class FakeReadlistChooser: ReadlistChoosing {
-	private let pick: ([Readlist]) -> Readlist
+	private let pick: ([Readlist]) -> Set<Readlist>
 	private(set) var offered: [[Readlist]] = []
 
-	nonisolated init(pick: @escaping ([Readlist]) -> Readlist) {
+	nonisolated init(pick: @escaping ([Readlist]) -> Set<Readlist>) {
 		self.pick = pick
 	}
 
-	func choose(among readlists: [Readlist]) async -> Readlist {
+	func choose(among readlists: [Readlist]) async -> Set<Readlist> {
 		offered.append(readlists)
 		return pick(readlists)
 	}

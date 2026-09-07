@@ -47,6 +47,7 @@ extension APIError {
 struct ReadlistPage {
 	let articles: [Article]
 	let nextHref: String?
+	let rootHref: String?
 	/// Every collection-level action and navigable link the server advertised, in
 	/// wire order — the complete set, so the share-sheet save journey can still find
 	/// its bespoke action by name (`action(named:)`, below). The toolbar does not
@@ -72,6 +73,7 @@ struct ReadlistPage {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
 		let links = collection.links ?? []
 		nextHref = links.first { $0.rel.contains("next") }?.href
+		rootHref = links.first { $0.rel.contains("root") }?.href
 		let actionAffordances = (collection.actions ?? []).compactMap(Affordance.init(action:))
 		let linkAffordances = links.compactMap(Affordance.init(link:))
 		affordances = actionAffordances + linkAffordances
@@ -350,9 +352,11 @@ final class ReadplaceAPI {
 		let messages: [ServerMessage]
 	}
 
-	func saveArticle(action: SirenAction, url: String) async throws -> SaveConfirmation {
+	func saveArticle(action: SirenAction, url: String, queues: Set<String>) async throws -> SaveConfirmation {
+		var body: [String: Any] = ["url": url]
+		if !queues.isEmpty { body["queues"] = queues.sorted() }
 		var request = jsonRequest(try absoluteURL(action.href), method: action.method,
-			contentType: action.type ?? "application/json", body: ["url": url])
+			contentType: action.type ?? "application/json", body: body)
 		request.setValue("return=representation", forHTTPHeaderField: "Prefer")
 		let (data, http) = try await send(request)
 		guard http.statusCode == 201 || http.statusCode == 200 else {
@@ -404,7 +408,7 @@ final class ReadplaceAPI {
 		_ url: URL,
 		method: String,
 		contentType: String,
-		body: [String: String]
+		body: [String: Any]
 	) -> URLRequest {
 		var request = URLRequest(url: url)
 		request.httpMethod = method

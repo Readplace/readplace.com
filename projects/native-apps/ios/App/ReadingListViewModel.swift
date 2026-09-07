@@ -32,10 +32,11 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var selectedTabHref: String?
 	@Published private(set) var readlists: [Readlist] = []
 	@Published private(set) var selectedReadlistHref: String?
-	@Published private(set) var shareTargetHref: String?
+	@Published private(set) var shareTargetHrefs: Set<String> = []
 	@Published private(set) var appearance: String?
 
 	private var nextHref: String?
+	private var rootHref: String?
 	private var currentTabHref: String?
 	private var tabGeneration = 0
 	private var readsStarted = 0
@@ -89,7 +90,7 @@ final class ReadingListViewModel: ObservableObject {
 		self.shareTarget = shareTarget
 		self.lastViewed = lastViewed
 		self.onSessionExpired = onSessionExpired
-		shareTargetHref = shareTarget.href
+		shareTargetHrefs = shareTarget.hrefs
 		// Append the same app-shell marker `open(link:)` puts on the account href, so
 		// the help page is served chromeless with a deep-link back to the native list.
 		// A URL that can't take the marker resolves to nil — the + control then shows
@@ -125,13 +126,12 @@ final class ReadingListViewModel: ObservableObject {
 
 	func toggleSharedArticlesDropHere() {
 		guard let href = selectedReadlistHref else { return }
-		if href == shareTargetHref {
-			shareTarget.clear()
-			shareTargetHref = nil
+		if shareTargetHrefs.contains(href) {
+			shareTarget.remove(href: href)
 		} else {
-			shareTarget.record(href: href)
-			shareTargetHref = href
+			shareTarget.add(href: href)
 		}
+		shareTargetHrefs = shareTarget.hrefs
 	}
 
 	var offersReadlistSwitching: Bool { readlists.count > 1 }
@@ -141,17 +141,21 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	var offersSharedArticlesDropChoice: Bool {
-		guard offersReadlistSwitching, let landing = tabs.first?.href else { return false }
-		return landing == selectedTabHref
+		guard offersReadlistSwitching, let landing = tabs.first?.href, landing == selectedTabHref else { return false }
+		guard let selected = selectedReadlistHref, let mainline = rootHref else { return false }
+		return selected != mainline
 	}
 
-	var sharedArticlesDropHere: Bool { selectedReadlistHref != nil && selectedReadlistHref == shareTargetHref }
+	var sharedArticlesDropHere: Bool {
+		guard let href = selectedReadlistHref else { return false }
+		return shareTargetHrefs.contains(href)
+	}
 
 	var readlistMenu: [ReadlistMenuItem] {
 		ReadlistMenuItem.items(
 			readlists: readlists,
 			selectedHref: selectedReadlistHref,
-			shareTargetHref: shareTargetHref
+			shareTargetHrefs: shareTargetHrefs
 		)
 	}
 
@@ -277,7 +281,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// yank) a pull-to-refresh performs; every other deep-scrolled return stays
 	/// zero-network and holds the reader's position.
 	func handleForeground() async {
-		shareTargetHref = shareTarget.href
+		shareTargetHrefs = shareTarget.hrefs
 		guard hasLoadedOnce, !isLoading else { return }
 		if pagesHeld > 1 {
 			guard unseenSave?.exists == true, !isLoadingMore else { return }
@@ -452,6 +456,7 @@ final class ReadingListViewModel: ObservableObject {
 		if replacing {
 			applyToolbar(page)
 			sessionAction = page.action(named: "create-session")
+			rootHref = page.rootHref
 			tabs = page.tabs
 			readlists = page.readlists
 			appearance = page.appearance

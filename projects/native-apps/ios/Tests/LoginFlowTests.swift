@@ -177,6 +177,33 @@ final class LoginFlowTests: XCTestCase {
 		await readerWipe.value
 	}
 
+	func testLogoutForgetsTheReadersChoicesButAnExpiredSessionKeepsThem() async {
+		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
+		var forgets = 0
+		func session() -> AppSession {
+			AppSession(
+				store: TestSupport.loggedInStore(),
+				sessionConfiguration: TestSupport.stubbedConfiguration(),
+				wipeReaderWebStore: {},
+				purgeShareArtifacts: {},
+				forgetReaderChoices: { forgets += 1 }
+			)
+		}
+
+		await session().logout()
+		XCTAssertEqual(
+			forgets, 1,
+			"signing out deliberately is the account-switch signal, so the next reader is asked where their shares go"
+		)
+
+		let readerWipe = session().forceLogout()
+		XCTAssertEqual(
+			forgets, 1,
+			"but a session that merely expired must not silently discard where this reader said their shares drop"
+		)
+		await readerWipe.value
+	}
+
 	func testSignOutWipesTheSessionCookieRegardlessOfItsName() async {
 		// A4: sign-out scrubs the API session by clearing every cookie in the app's
 		// isolated jar, not one matched by a hard-coded `hutch_sid`. Seed the cookie

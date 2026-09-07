@@ -29,6 +29,7 @@ final class AppSession: ObservableObject {
 	private let sessionConfiguration: URLSessionConfiguration
 	private let wipeReaderWebStore: () async -> Void
 	private let purgeShareArtifacts: () -> Void
+	private let forgetReaderChoices: () -> Void
 
 	// Defaults to an ephemeral configuration so the API/OAuth sessions keep their
 	// cookie jar in an isolated, in-memory store rather than process-wide
@@ -41,12 +42,14 @@ final class AppSession: ObservableObject {
 		store: TokenStore = TokenStore(),
 		sessionConfiguration: URLSessionConfiguration = AppSession.uncachedEphemeralConfiguration(),
 		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData,
-		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts
+		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts,
+		forgetReaderChoices: @escaping () -> Void = AppSession.removeReaderChoices
 	) {
 		self.store = store
 		self.sessionConfiguration = sessionConfiguration
 		self.wipeReaderWebStore = wipeReaderWebStore
 		self.purgeShareArtifacts = purgeShareArtifacts
+		self.forgetReaderChoices = forgetReaderChoices
 		self.isLoggedIn = store.isLoggedIn
 	}
 
@@ -88,6 +91,7 @@ final class AppSession: ObservableObject {
 		await makeOAuth().revoke()
 		clearSessionCookie()
 		purgeShareArtifacts()
+		forgetReaderChoices()
 		await readerWipe.value
 		isLoggedIn = false
 	}
@@ -136,6 +140,10 @@ final class AppSession: ObservableObject {
 
 	private static func removeShareArtifacts() {
 		ShareArtifacts.purge(appGroupId: TokenStore.resolvedAppGroupId)
+	}
+
+	private static func removeReaderChoices() {
+		ShareArtifacts.forgetReaderChoices(appGroupId: TokenStore.resolvedAppGroupId)
 	}
 
 	nonisolated static func uncachedEphemeralConfiguration() -> URLSessionConfiguration {
