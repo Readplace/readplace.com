@@ -179,6 +179,7 @@ function flattenFixtureToAppDependencies(
 		listUserSavesForUrl: fixture.articleStore.listUserSavesForUrl,
 		listUserSavesForUrls: fixture.articleStore.listUserSavesForUrls,
 		assignSavedArticleToReadlist: fixture.articleStore.assignSavedArticleToReadlist,
+		saveReadlistArticle: fixture.articleStore.saveReadlistArticle,
 		moveReadlistArticles: fixture.articleStore.moveReadlistArticles,
 		listReadlistDefinitions: fixture.articleStore.listReadlistDefinitions,
 		renameReadlistDefinition: fixture.articleStore.renameReadlistDefinition,

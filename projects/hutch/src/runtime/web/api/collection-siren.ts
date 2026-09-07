@@ -2,12 +2,14 @@ import assert from "node:assert";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
 import type { SirenEntity, SirenLink } from "./siren";
 import { buildPageList } from "./page-list";
 import { buildTabList, type StatusTab } from "./tab-list";
+import { buildReadlistList, type ReadlistOption } from "./readlist-list";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
@@ -22,6 +24,7 @@ export function toArticleCollectionEntity(
 	queryParams: CollectionQueryParams,
 	options: {
 		tabs: readonly StatusTab[];
+		readlists: readonly ReadlistOption[];
 		warning?: CollectionWarning;
 		surfacePlatform?: NativeClientPlatform;
 		showSaveInProgressNotice?: boolean;
@@ -81,9 +84,14 @@ export function toArticleCollectionEntity(
 		tabs: buildTabList({
 			tabs: options.tabs,
 			currentStatus: queryParams.status,
-			hrefForStatus: (status) => `/queue${buildQueryString({ status, order: queryParams.order })}`,
+			hrefForStatus: (status) => `/queue${buildQueryString({ readlist: queryParams.readlist, status, order: queryParams.order })}`,
 		}),
 	};
+	properties.readlists = buildReadlistList({
+		readlists: options.readlists,
+		currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
+		hrefForReadlist: (readlist) => `/queue${buildQueryString({ readlist })}`,
+	});
 	if (options.appearance) properties.appearance = options.appearance;
 	if (options.warning) properties.warning = options.warning;
 	// Offered only to a native app's own requests (header-gated, never `?platform=`),
@@ -98,7 +106,7 @@ export function toArticleCollectionEntity(
 		entities: articles.map((article) =>
 			toArticleSubEntity(article, {
 				crawl: options.crawlByUrl?.get(article.url),
-				collectionQuery: { status: queryParams.status, order: queryParams.order },
+				collectionQuery: { readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },
 			}),
 		),
 		links,
@@ -106,7 +114,7 @@ export function toArticleCollectionEntity(
 			{
 				name: "save-article",
 				title: "Save a link",
-				href: "/queue",
+				href: `/queue${buildQueryString({ readlist: queryParams.readlist })}`,
 				method: "POST",
 				type: "application/json",
 				fields: [{ name: "url", type: "url" }],

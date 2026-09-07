@@ -4,9 +4,10 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
-import { toArticleSubEntity, toArticleEntity } from "./article-siren";
+import { toArticleSubEntity, toArticleEntity, toSavedArticleEntity } from "./article-siren";
 
 const ARTICLE_URL = "https://example.com/article";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL).value;
@@ -271,5 +272,115 @@ describe("toArticleEntity", () => {
 		expect(entity.properties).toEqual(subEntity.properties);
 		expect(entity.links).toEqual(subEntity.links);
 		expect(entity.actions).toEqual(subEntity.actions);
+	});
+});
+
+const ALL = { slug: DEFAULT_READLIST_SLUG, label: "All" };
+const WORK = { slug: ReadlistSlugSchema.parse("work"), label: "Work" };
+
+function messageBodies(entity: ReturnType<typeof toSavedArticleEntity>): unknown {
+	return entity.properties?.messages;
+}
+
+describe("toSavedArticleEntity", () => {
+	it("tells a reader who keeps one readlist that the article went to their reading list, naming no readlist", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: { readlist: ALL, readlists: [ALL] },
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to your reading list" } },
+		]);
+	});
+
+	it("names the readlist the save was filed into once the reader keeps more than one", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: { readlist: WORK, readlists: [ALL, WORK] },
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to 'Work'" } },
+		]);
+	});
+
+	it("names the default readlist too, so a multi-readlist reader always learns where the save landed", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: { readlist: ALL, readlists: [ALL, WORK] },
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to 'All'" } },
+		]);
+	});
+
+	it("escapes the reader's own label, because the confirmation is trusted HTML on every client", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: {
+				readlist: { slug: ReadlistSlugSchema.parse("risky"), label: "<b>&'x" },
+				readlists: [ALL, WORK],
+			},
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{
+				type: "success",
+				content: { type: "text/html", body: "Saved to '&lt;b&gt;&amp;&#x27;x'" },
+			},
+		]);
+	});
+
+	it("keeps the re-save copy readlist-agnostic, since nothing new was filed anywhere", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: false,
+			wroteUserArticle: true,
+			destination: { readlist: WORK, readlists: [ALL, WORK] },
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Already in your readlist" } },
+			{
+				type: "success",
+				content: { type: "text/html", body: "Moved back to the top of your reading list" },
+			},
+		]);
+	});
+
+	it("points the onward collection link at the readlist the save was filed into", () => {
+		const intoWork = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: { readlist: WORK, readlists: [ALL, WORK] },
+		});
+		const intoAll = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			destination: { readlist: ALL, readlists: [ALL, WORK] },
+		});
+		const collectionHref = (entity: ReturnType<typeof toSavedArticleEntity>) =>
+			entity.links?.find((link) => link.rel.includes("collection"));
+
+		expect([collectionHref(intoWork), collectionHref(intoAll)]).toEqual([
+			{ rel: ["collection"], title: "View Readlist", href: "/queue?queue=work" },
+			{ rel: ["collection"], title: "View Readlist", href: "/queue" },
+		]);
 	});
 });

@@ -54,6 +54,7 @@ import type {
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
+	SaveReadlistArticle,
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
@@ -144,7 +145,9 @@ import {
 	initResolveReadlistContext,
 	mainlineReadlistContext,
 	readerReadlists,
+	readlistToFileInto,
 } from "./readlist-context";
+import { DEFAULT_READLIST } from "./readlist.nav";
 import { readlistScopedStore } from "./readlist-scoped-store";
 import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
 import { DELETE_ACK_NEVER } from "./readlist-card/delete-confirm.component";
@@ -352,6 +355,7 @@ interface ReadlistDependencies {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
+	saveReadlistArticle: SaveReadlistArticle;
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	createReadlistDefinition: CreateReadlistDefinition;
@@ -1412,9 +1416,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			);
 		}
 		const siren = wantsSiren(req);
-		const context = siren
-			? mainlineReadlistContext(req.query)
-			: await resolveReadlistContext(req, userId);
+		const context = await resolveReadlistContext(req, userId);
 		const urlState = context.state;
 		const store = storeFor(urlState.readlist);
 		const tab = tabQuery(urlState.tab);
@@ -1452,6 +1454,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				toArticleCollectionEntity(
 					filtered,
 					{
+						readlist: urlState.readlist,
 						status: tab.status,
 						order: urlState.order,
 						page: urlState.page,
@@ -1459,6 +1462,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					},
 					{
 						tabs: READLIST_TAB_STATUSES,
+						readlists: context.readlists,
 						surfacePlatform: nativeSurfaceOf(req),
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
 						appearance,
@@ -1565,6 +1569,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+		const context = await resolveReadlistContext(req, userId);
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateSaveableUrl(submittedUrl);
 
@@ -1599,6 +1604,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					{ page: collection.page },
 					{
 						tabs: READLIST_TAB_STATUSES,
+						readlists: context.readlists,
 						warning: { code: validation.error.code, message: validation.error.message },
 						surfacePlatform: nativeSurfaceOf(req),
 						crawlByUrl,
@@ -1616,9 +1622,38 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
 			});
+			const fileInto = async (readlist: ReadlistSlug) => {
+				const filed = await deps.saveReadlistArticle({
+					userId,
+					readlist,
+					url: result.saved.url,
+					metadata: result.saved.metadata,
+					estimatedReadTime: result.saved.estimatedReadTime,
+					provenance: resolveSaveProvenance(req.oauthClientId),
+					savedAt: await deps.allocateSavedAt({ userId }),
+				});
+				if (filed.wroteUserArticle && filed.saved.status === "read") {
+					await deps.updateArticleStatusAcrossReadlists({
+						id: result.saved.id,
+						userId,
+						addressed: readlist,
+						status: "unread",
+					});
+				}
+				return filed;
+			};
+			const filedInto = readlistToFileInto(context);
+			const outcome = filedInto ? await fileInto(filedInto) : result;
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-			res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity({ article: result.saved, createdUserArticle: result.createdUserArticle, wroteUserArticle: result.wroteUserArticle }));
+			res.status(201).type(SIREN_MEDIA_TYPE).json(
+				toSavedArticleEntity({
+					article: result.saved,
+					createdUserArticle: outcome.createdUserArticle,
+					wroteUserArticle: outcome.wroteUserArticle,
+					destination: { readlist: context.activeReadlist, readlists: context.readlists },
+				}),
+			);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
@@ -1917,9 +1952,17 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					provenance: resolveSaveProvenance(req.oauthClientId),
 					savedAt: await deps.allocateSavedAt({ userId }),
 				});
+				const context = await resolveReadlistContext(req, userId);
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-				res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity({ article: result.saved, createdUserArticle: result.createdUserArticle, wroteUserArticle: result.wroteUserArticle }));
+				res.status(201).type(SIREN_MEDIA_TYPE).json(
+					toSavedArticleEntity({
+						article: result.saved,
+						createdUserArticle: result.createdUserArticle,
+						wroteUserArticle: result.wroteUserArticle,
+						destination: { readlist: DEFAULT_READLIST, readlists: context.readlists },
+					}),
+				);
 			};
 
 			try {

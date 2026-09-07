@@ -103,6 +103,7 @@ import type {
 	DeleteReadlistArticle,
 	MarkReadlistArticleViewed,
 	AssignSavedArticleToReadlist,
+	SaveReadlistArticle,
 	MoveReadlistArticles,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -343,6 +344,7 @@ interface AppDependencies {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
+	saveReadlistArticle: SaveReadlistArticle;
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
@@ -1202,6 +1204,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		listUserSavesForUrl: deps.listUserSavesForUrl,
 		listUserSavesForUrls: deps.listUserSavesForUrls,
 		assignSavedArticleToReadlist: deps.assignSavedArticleToReadlist,
+		saveReadlistArticle: deps.saveReadlistArticle,
 		moveReadlistArticles: deps.moveReadlistArticles,
 		listReadlistDefinitions: deps.listReadlistDefinitions,
 		renameReadlistDefinition: deps.renameReadlistDefinition,

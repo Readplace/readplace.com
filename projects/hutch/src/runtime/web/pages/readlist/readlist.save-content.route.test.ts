@@ -9,6 +9,7 @@ import type {
 } from "@packages/test-fixtures/providers/events";
 import type { UserId } from "@packages/domain/user";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES, MinutesSchema } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { MAX_HTML_BYTES, MAX_PDF_BYTES } from "@packages/crawl-article";
 import { useTestServer, type TestAppHarness, type TestAppResult } from "../../../test-app";
 import {
@@ -282,6 +283,32 @@ describe("POST /queue/save-content with HTML", () => {
 		expect(testApp.pendingHtml.readPendingHtml("https://example.com/article")).toBe(
 			"<html><body>Hello world</body></html>",
 		);
+	});
+
+	it("names the mainline readlist in the confirmation when the capturing reader keeps more than one", async () => {
+		const { testApp } = setup();
+		const accessToken = await createAccessToken(testApp);
+		await testApp.articleStore.createReadlistDefinition({
+			userId: TEST_USER_ID,
+			slug: ReadlistSlugSchema.parse("work"),
+			label: "Work",
+			createdAt: new Date("2026-03-04T10:00:00.000Z"),
+		});
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/captured-into-all")
+			.field("mediaType", "text/html")
+			.attach("content", VALID_HTML, "content.html");
+
+		expect(response.status).toBe(201);
+		expect(
+			response.body.properties.messages.map(
+				(message: { content: { body: string } }) => message.content.body,
+			),
+		).toEqual(["Article saved", "Saved to 'All'"]);
 	});
 
 	it("returns 201 and dispatches to the HTML pipeline when mediaType is text/html;charset=utf-8", async () => {

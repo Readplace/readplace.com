@@ -1,8 +1,10 @@
+import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
 import { displayableReadTime, type SavedArticle } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
+import type { ReadlistOption } from "./readlist-list";
 
 function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 	if (crawl?.status !== "failed") return false;
@@ -17,7 +19,7 @@ export function toArticleSubEntity(
 ): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
-		{ rel: ["read"], title: "Read", href: `/queue/${id}/view` },
+		{ rel: ["read"], title: "Read", href: `/queue/${id}/view${buildQueryString({ readlist: options.collectionQuery?.readlist })}` },
 	];
 
 	const isRead = article.status === "read";
@@ -66,6 +68,17 @@ export function toArticleEntity(article: SavedArticle): SirenEntity {
 	return entity;
 }
 
+export interface SaveDestination {
+	readlist: ReadlistOption;
+	readlists: readonly ReadlistOption[];
+}
+
+function savedIntoBody(destination: SaveDestination): string {
+	return destination.readlists.length > 1
+		? `Saved to '${Handlebars.Utils.escapeExpression(destination.readlist.label)}'`
+		: "Saved to your reading list";
+}
+
 /** The article a save just accepted, carrying what the client should tell the
  * reader and where it may send them next. The confirmation copy and the
  * onward affordance are server-authored so a client renders the outcome from
@@ -75,6 +88,7 @@ export function toSavedArticleEntity(params: {
 	article: SavedArticle;
 	createdUserArticle: boolean;
 	wroteUserArticle: boolean;
+	destination: SaveDestination;
 }): SirenEntity {
 	const entity = toArticleEntity(params.article);
 	const messages: SirenMessage[] = params.createdUserArticle
@@ -82,7 +96,7 @@ export function toSavedArticleEntity(params: {
 				{ type: "success", content: { type: "text/html", body: "Article saved" } },
 				{
 					type: "success",
-					content: { type: "text/html", body: "Saved to your reading list" },
+					content: { type: "text/html", body: savedIntoBody(params.destination) },
 				},
 			]
 		: [{ type: "success", content: { type: "text/html", body: "Already in your readlist" } }];
@@ -97,7 +111,11 @@ export function toSavedArticleEntity(params: {
 		properties: { ...entity.properties, messages },
 		links: [
 			...(entity.links ?? []),
-			{ rel: ["collection"], title: "View Readlist", href: "/queue" },
+			{
+				rel: ["collection"],
+				title: "View Readlist",
+				href: `/queue${buildQueryString({ readlist: params.destination.readlist.slug })}`,
+			},
 		],
 	};
 }

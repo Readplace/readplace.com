@@ -11,6 +11,8 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
+import { MinutesSchema } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 
 import { SIREN_MEDIA_TYPE } from "./siren";
 import { parseReadlistUrl } from "../pages/readlist/readlist.url";
@@ -1182,5 +1184,360 @@ describe("Content negotiation", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.type).toContain("application/vnd.siren+json");
+	});
+});
+
+describe("Siren readlists", () => {
+	const WORK_LABEL = "Work";
+	const SEED_METADATA = { title: "Seeded", siteName: "example.com", excerpt: "", wordCount: 0 };
+
+	async function readerWithReadlist(
+		harness: ReturnType<typeof useApp>,
+		params: { email: string; label: string },
+	) {
+		await harness.auth.createUser({ email: params.email, password: "password123" });
+		const agent = request.agent(harness.server);
+		await agent.post("/login").type("form").send({ email: params.email, password: "password123" });
+		const loginResult = await harness.auth.verifyCredentials({
+			email: params.email,
+			password: "password123",
+		});
+		assert(loginResult.ok);
+		const userId = loginResult.userId;
+		const readlist = ReadlistSlugSchema.parse("work");
+		await harness.articleStore.createReadlistDefinition({
+			userId,
+			slug: readlist,
+			label: params.label,
+			createdAt: new Date("2026-03-04T10:00:00.000Z"),
+		});
+		return {
+			agent,
+			userId,
+			readlist,
+			accessToken: await saveAccessTokenForUser(harness, userId),
+		};
+	}
+
+	function readCollection(
+		harness: ReturnType<typeof useApp>,
+		params: { accessToken: string; path: string },
+	) {
+		return request(harness.server)
+			.get(params.path)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${params.accessToken}`);
+	}
+
+	function saveThrough(
+		harness: ReturnType<typeof useApp>,
+		params: { accessToken: string; path: string; url: string },
+	) {
+		return request(harness.server)
+			.post(params.path)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${params.accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: params.url });
+	}
+
+	function articleUrls(body: { entities?: { properties: { url: string } }[] }): string[] {
+		return (body.entities ?? []).map((entity) => entity.properties.url);
+	}
+
+	function messageBodies(body: { properties: { messages: { content: { body: string } }[] } }): string[] {
+		return body.properties.messages.map((message) => message.content.body);
+	}
+
+	it("advertises every readlist the reader owns on the default listing, with the mainline current", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-listing@example.com",
+			label: WORK_LABEL,
+		});
+
+		const response = await readCollection(harness, { accessToken, path: "/queue" });
+
+		expect(response.body.properties.readlists).toEqual([
+			{ label: "All", rel: "current", href: "/queue" },
+			{ label: WORK_LABEL, rel: "readlist", href: `/queue?queue=${readlist}` },
+		]);
+	});
+
+	it("lists only the addressed readlist's saves and carries it on every href the collection builds", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { userId, readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-scoped@example.com",
+			label: WORK_LABEL,
+		});
+		await saveThrough(harness, { accessToken, path: "/queue", url: "https://example.com/in-all" });
+		await harness.articleStore.saveReadlistArticle({
+			userId,
+			readlist,
+			url: "https://example.com/in-work",
+			metadata: SEED_METADATA,
+			estimatedReadTime: MinutesSchema.parse(0),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-03-05T10:00:00.000Z"),
+		});
+
+		const response = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+		});
+		const article = response.body.entities[0];
+
+		expect({
+			urls: articleUrls(response.body),
+			readlists: response.body.properties.readlists,
+			self: response.body.links.find((link: { rel: string[] }) => link.rel.includes("self")).href,
+			tabs: response.body.properties.tabs.map((tab: { href: string }) => tab.href),
+			read: article.links.find((link: { rel: string[] }) => link.rel.includes("read")).href,
+			updateStatus: article.actions.find((action: { name: string }) => action.name === "update-status")
+				.href,
+			saveArticle: response.body.actions.find(
+				(action: { name: string }) => action.name === "save-article",
+			).href,
+		}).toEqual({
+			urls: ["https://example.com/in-work"],
+			readlists: [
+				{ label: "All", rel: "readlist", href: "/queue" },
+				{ label: WORK_LABEL, rel: "current", href: `/queue?queue=${readlist}` },
+			],
+			self: `/queue?queue=${readlist}&status=unread&page=1`,
+			tabs: [`/queue?queue=${readlist}&status=unread`, `/queue?queue=${readlist}&status=read`],
+			read: `/queue/${article.properties.id}/view?queue=${readlist}`,
+			updateStatus: `/queue/${article.properties.id}/status?queue=${readlist}&status=unread`,
+			saveArticle: `/queue?queue=${readlist}`,
+		});
+	});
+
+	it("answers a readlist the reader does not own with the byte-identical mainline collection", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-unowned@example.com",
+			label: WORK_LABEL,
+		});
+		await saveThrough(harness, { accessToken, path: "/queue", url: "https://example.com/in-all" });
+
+		const mainline = await readCollection(harness, { accessToken, path: "/queue" });
+		const unowned = await readCollection(harness, { accessToken, path: "/queue?queue=nobodys" });
+
+		expect(unowned.status).toBe(200);
+		expect(unowned.body).toEqual(mainline.body);
+	});
+
+	it("sends a client that toggles an item inside a readlist back to that readlist's Read tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-toggle@example.com",
+			label: WORK_LABEL,
+		});
+		const saved = await saveThrough(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+			url: "https://example.com/toggle-in-work",
+		});
+		await request(harness.server)
+			.post(`/queue/${saved.body.properties.id}/status?queue=${readlist}`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.type("form")
+			.send({ status: "read" });
+		const onRead = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}&status=read`,
+		});
+		const updateStatus = onRead.body.entities[0].actions.find(
+			(action: { name: string }) => action.name === "update-status",
+		);
+
+		const mutation = await request(harness.server)
+			.post(updateStatus.href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.type("form")
+			.send(
+				Object.fromEntries(
+					updateStatus.fields.map((field: { name: string; value: string }) => [
+						field.name,
+						field.value,
+					]),
+				),
+			)
+			.redirects(0);
+
+		expect(mutation.status).toBe(303);
+		const location = new URL(mutation.headers.location, TEST_APP_ORIGIN);
+		expect(parseReadlistUrl(Object.fromEntries(location.searchParams))).toEqual({
+			readlist,
+			tab: "done",
+			order: undefined,
+			page: 1,
+		});
+	});
+
+	it("opens the owner reader through the read link of an article that lives only in a readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId, readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-reader@example.com",
+			label: WORK_LABEL,
+		});
+		await harness.articleStore.saveReadlistArticle({
+			userId,
+			readlist,
+			url: "https://example.com/only-in-work",
+			metadata: SEED_METADATA,
+			estimatedReadTime: MinutesSchema.parse(0),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-03-05T10:00:00.000Z"),
+		});
+		const collection = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+		});
+		const readHref = collection.body.entities[0].links.find((link: { rel: string[] }) =>
+			link.rel.includes("read"),
+		).href;
+
+		const reader = await agent.get(readHref);
+
+		expect(reader.status).toBe(200);
+	});
+
+	it("files a save through a readlist's collection into that readlist and names it in the confirmation", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-save@example.com",
+			label: WORK_LABEL,
+		});
+
+		const saved = await saveThrough(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+			url: "https://example.com/filed-into-work",
+		});
+
+		expect(saved.status).toBe(201);
+		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
+		expect(
+			saved.body.links.find((link: { rel: string[] }) => link.rel.includes("collection")).href,
+		).toBe(`/queue?queue=${readlist}`);
+		const inAll = await readCollection(harness, { accessToken, path: "/queue" });
+		const inWork = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+		});
+		expect([articleUrls(inAll.body), articleUrls(inWork.body)]).toEqual([
+			["https://example.com/filed-into-work"],
+			["https://example.com/filed-into-work"],
+		]);
+	});
+
+	it("names the mainline readlist when a reader who owns several saves through the bare collection", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-save-all@example.com",
+			label: WORK_LABEL,
+		});
+
+		const saved = await saveThrough(harness, {
+			accessToken,
+			path: "/queue",
+			url: "https://example.com/filed-into-all",
+		});
+
+		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'All'"]);
+		const inWork = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+		});
+		expect(articleUrls(inWork.body)).toEqual([]);
+	});
+
+	it("files into the mainline readlist when the save names one the reader does not own", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-save-unowned@example.com",
+			label: WORK_LABEL,
+		});
+
+		const saved = await saveThrough(harness, {
+			accessToken,
+			path: "/queue?queue=nobodys",
+			url: "https://example.com/filed-nowhere",
+		});
+
+		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'All'"]);
+		expect(
+			saved.body.links.find((link: { rel: string[] }) => link.rel.includes("collection")).href,
+		).toBe("/queue");
+	});
+
+	it("treats a URL already in the mainline as a fresh save when a readlist's collection addresses it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-save-again-elsewhere@example.com",
+			label: WORK_LABEL,
+		});
+		await saveThrough(harness, { accessToken, path: "/queue", url: "https://example.com/both" });
+
+		const saved = await saveThrough(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+			url: "https://example.com/both",
+		});
+
+		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
+	});
+
+	it("answers a re-save inside a readlist with the moved-back copy and puts the row first in that readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-resave@example.com",
+			label: WORK_LABEL,
+		});
+		const intoWork = { accessToken, path: `/queue?queue=${readlist}` };
+		await saveThrough(harness, { ...intoWork, url: "https://example.com/first" });
+		await saveThrough(harness, { ...intoWork, url: "https://example.com/second" });
+
+		const resaved = await saveThrough(harness, { ...intoWork, url: "https://example.com/first" });
+
+		expect(messageBodies(resaved.body)).toEqual([
+			"Already in your readlist",
+			"Moved back to the top of your reading list",
+		]);
+		const inWork = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+		});
+		expect(articleUrls(inWork.body)).toEqual([
+			"https://example.com/first",
+			"https://example.com/second",
+		]);
+	});
+
+	it("clears the read status inside the addressed readlist when a read article is saved there again", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-resave-read@example.com",
+			label: WORK_LABEL,
+		});
+		const intoWork = { accessToken, path: `/queue?queue=${readlist}` };
+		const saved = await saveThrough(harness, { ...intoWork, url: "https://example.com/read-again" });
+		await request(harness.server)
+			.post(`/queue/${saved.body.properties.id}/status?queue=${readlist}`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.type("form")
+			.send({ status: "read" });
+
+		await saveThrough(harness, { ...intoWork, url: "https://example.com/read-again" });
+
+		const unread = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}&status=unread`,
+		});
+		expect(articleUrls(unread.body)).toEqual(["https://example.com/read-again"]);
 	});
 });

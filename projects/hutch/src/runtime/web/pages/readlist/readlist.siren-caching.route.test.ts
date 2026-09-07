@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import request from "supertest";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { UserIdSchema } from "@packages/domain/user";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -45,6 +47,35 @@ describe("Siren discovery caching (GET /queue)", () => {
 		const etag = response.headers.etag;
 		assert(etag, "the collection must carry an ETag so a stale copy can revalidate");
 		expect(etag.startsWith('W/"')).toBe(true);
+	});
+
+	it("caches an addressed readlist on the same terms as the mainline, under an ETag of its own", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const readlist = ReadlistSlugSchema.parse("work");
+		await harness.articleStore.createReadlistDefinition({
+			userId: UserIdSchema.parse("test-user-123"),
+			slug: readlist,
+			label: "Work",
+			createdAt: new Date("2026-03-04T10:00:00.000Z"),
+		});
+		const readCollection = (path: string) =>
+			request(harness.server)
+				.get(path)
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.set(NATIVE_CLIENT_HEADER, "ios");
+
+		const mainline = await readCollection("/queue");
+		const scoped = await readCollection(`/queue?queue=${readlist}`);
+
+		expect(scoped.status).toBe(200);
+		expect(scoped.headers["cache-control"]).toBe(mainline.headers["cache-control"]);
+		expect(varyFields(scoped.headers.vary)).toEqual(varyFields(mainline.headers.vary));
+		const etag = scoped.headers.etag;
+		assert(etag, "the readlist collection must carry an ETag so a stale copy can revalidate");
+		expect(etag.startsWith('W/"')).toBe(true);
+		expect(new Set([mainline.headers.etag, etag]).size).toBe(2);
 	});
 
 	it("makes every other Siren client revalidate, so only the app trades freshness for the one-round-trip save", async () => {
