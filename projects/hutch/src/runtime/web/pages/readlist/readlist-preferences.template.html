@@ -1,0 +1,20 @@
+    <main class="readlist">
+      <div class="readlist__body">
+        {{{readlistNavHtml}}}
+        <div class="readlist__content">
+          {{#if readlistErrorFlash}}<p class="readlist__error-flash" role="alert" data-test-readlist-error>{{readlistErrorFlash}}</p>{{/if}}
+          <div id="status-toast"></div>
+          {{{filtersHtml}}}
+          <section class="readlist__listing {{panelClass}}" aria-labelledby="readlist-preferences-title" data-test-readlist-preferences data-test-preferences-state="{{state}}">
+            <h2 class="sr-only" id="readlist-preferences-title">Preferences for {{readlistLabel}}</h2>
+            <button class="btn btn--primary readlist-preferences__setup readlist-preferences__trigger" type="button" popovertarget="{{wizardPopoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-setup">{{setupLabel}}</button>
+            <button class="readlist-preferences__purpose readlist-preferences__trigger" type="button" popovertarget="{{wizardPopoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-edit"><span class="readlist-preferences__purpose-text" data-test-preferences-purpose>{{purposeText}}</span>{{icon "pencil"}}<span class="sr-only">Edit purpose</span></button>
+            <div class="readlist-preferences__fallback">
+              {{{wizardInlineHtml}}}
+            </div>
+          </section>
+        </div>
+      </div>
+      {{{readlistDeleteConfirmHtml}}}
+      {{{wizardPopoverHtml}}}
+    </main>

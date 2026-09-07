@@ -10,10 +10,19 @@ import {
 import { READLIST_TABS } from "./readlist.tabs";
 
 function renderTabs(
-	input: Omit<Parameters<typeof buildReadlistFilters>[0], "readlist"> & { readlist?: ReadlistSlug },
+	input: Omit<Parameters<typeof buildReadlistFilters>[0], "readlist" | "preferencesEnabled"> & {
+		readlist?: ReadlistSlug;
+		preferencesEnabled?: boolean;
+	},
 ): Document {
 	return new JSDOM(
-		`<main>${renderReadlistFilters(buildReadlistFilters({ readlist: DEFAULT_READLIST_SLUG, ...input }))}</main>`,
+		`<main>${renderReadlistFilters(
+			buildReadlistFilters({
+				readlist: DEFAULT_READLIST_SLUG,
+				preferencesEnabled: false,
+				...input,
+			}),
+		)}</main>`,
 	).window.document;
 }
 
@@ -108,6 +117,62 @@ describe("buildReadlistFilters", () => {
 
 		expect(hrefParts(tabLink(doc, "unread")).params.get("order")).toBe("asc");
 		expect(hrefParts(tabLink(doc, "read")).params.get("order")).toBe("asc");
+	});
+
+	it("should keep the preferences tab out of the strip until the feature is asked for", () => {
+		const doc = renderTabs({
+			activeTab: "queue",
+			readlist: ReadlistSlugSchema.parse("work"),
+		});
+
+		const rendered = Array.from(doc.querySelectorAll("[data-test-filter]")).map((el) =>
+			el.getAttribute("data-test-filter"),
+		);
+		expect(rendered).toEqual(["unread", "read"]);
+	});
+
+	it("should offer the preferences tab on a reader-made readlist once the feature is asked for", () => {
+		const doc = renderTabs({
+			activeTab: "preferences",
+			readlist: ReadlistSlugSchema.parse("work"),
+			preferencesEnabled: true,
+		});
+
+		const rendered = Array.from(doc.querySelectorAll("[data-test-filter]")).map((el) =>
+			el.getAttribute("data-test-filter"),
+		);
+		expect(rendered).toEqual(["unread", "read", "preferences"]);
+		const preferences = tabLink(doc, "preferences");
+		expect(preferences.getAttribute("aria-current")).toBe("page");
+		expect(hrefParts(preferences).path).toBe("/queue/queues/work/preferences");
+		expect(hrefParts(preferences).params.get("feature")).toBe("pref");
+	});
+
+	it("should still hide the preferences tab on the built-in readlist with the feature on", () => {
+		const doc = renderTabs({ activeTab: "queue", preferencesEnabled: true });
+
+		const rendered = Array.from(doc.querySelectorAll("[data-test-filter]")).map((el) =>
+			el.getAttribute("data-test-filter"),
+		);
+		expect(rendered).toEqual(["unread", "read"]);
+	});
+
+	it("should carry the feature on the status tabs so the strip survives a hop between them", () => {
+		const doc = renderTabs({
+			activeTab: "queue",
+			readlist: ReadlistSlugSchema.parse("work"),
+			preferencesEnabled: true,
+		});
+
+		expect(hrefParts(tabLink(doc, "unread")).params.get("feature")).toBe("pref");
+		expect(hrefParts(tabLink(doc, "read")).params.get("feature")).toBe("pref");
+	});
+
+	it("should leave the status tabs untouched while the feature is off", () => {
+		const doc = renderTabs({ activeTab: "queue", readlist: ReadlistSlugSchema.parse("work") });
+
+		expect(hrefParts(tabLink(doc, "unread")).params.get("feature")).toBe(null);
+		expect(hrefParts(tabLink(doc, "read")).params.get("feature")).toBe(null);
 	});
 
 	it("should give only the counted tab a label the counts fragment can refresh", () => {

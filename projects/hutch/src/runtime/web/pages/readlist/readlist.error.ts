@@ -2,6 +2,7 @@ import { SaveableUrlErrorCodeSchema, type SaveableUrlErrorCode } from "@packages
 import {
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
+	READLIST_PURPOSE_MAX_LENGTH,
 	type ReadlistRenameRejection,
 } from "@packages/domain/readlist";
 import type { Request } from "express";
@@ -40,6 +41,8 @@ export const READLIST_RENAME_REJECTIONS: Record<
 			"You already have a readlist with that name, and it's too long to number. Try a shorter one.",
 	},
 };
+
+export const READLIST_PURPOSE_INVALID_MESSAGE = `Say what this readlist is for, in up to ${new Intl.NumberFormat("en-US").format(READLIST_PURPOSE_MAX_LENGTH)} characters.`;
 
 export type ReadlistErrorFlashMapping = (query: Record<string, unknown>) => string | undefined;
 

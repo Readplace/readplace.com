@@ -46,6 +46,7 @@ import type {
 	FindSavedUrls,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	SetReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
 	MarkArticleViewed,
@@ -136,7 +137,6 @@ import {
 	parseReadlistUrl,
 	buildReadlistUrl,
 	READLIST_PATH,
-	READLIST_CREATE_PATH,
 	canonicalReadlistPageRedirect,
 } from "./readlist.url";
 import {
@@ -166,15 +166,16 @@ import {
 	type ReaderReadlistFiling,
 	buildReaderReadlistFiling,
 } from "./reader-readlist-filing";
-import type { ReadlistRailViewModel } from "./readlist.component";
-import { readlistReturnQuery } from "./readlist.url";
+import { readlistPreferencesEnabled } from "./readlist-preferences-feature";
+import { initReadlistPreferencesRoutes } from "./readlist-preferences.page";
+import { buildReadlistRail } from "./readlist-rail";
 import { collectUtmParams } from "../../shared/utm";
 import { deriveKnownUnreadCount } from "./known-unread-count";
 import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./readlist.error";
-import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, readlistErrorFlashMapping, saveableUrlErrorCodeMapping, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, saveableUrlErrorCodeMapping, statusFlashMapping, statusFlashFor } from "./readlist.error";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -355,6 +356,7 @@ interface ReadlistDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	createReadlistDefinition: CreateReadlistDefinition;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
@@ -1092,6 +1094,15 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
+	router.use(
+		initReadlistPreferencesRoutes({
+			listReadlistDefinitions: deps.listReadlistDefinitions,
+			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+			getEffectiveAccess: deps.getEffectiveAccess,
+			buildBannerState: deps.buildBannerState,
+			requireWriteAccess: deps.requireWriteAccess,
+		}),
+	);
 
 	/** Resolves how far the account is toward the Next Read minimum, capped at it.
 	 * Once the milestone is stamped the answer is the cap and no count is issued,
@@ -1220,21 +1231,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		);
 	};
 
-	const buildReadlistRail = (
-		req: Request,
-		context: ReadlistContext,
-		accessIsReadOnly: boolean,
-	): ReadlistRailViewModel => {
-		const canCreate = !accessIsReadOnly;
-		return {
-			readlists: context.readlists,
-			activeReadlist: context.activeReadlist,
-			newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(context.state)}`,
-			canCreate,
-			errorFlash: readlistErrorFlashMapping(req.query),
-		};
-	};
-
 	const readlistHoldsAnyArticle = async (params: {
 		userId: UserId;
 		readlist: ReadlistSlug;
@@ -1313,7 +1309,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			req, res,
 			FreshForComponent(
 				Base(
-					ReadlistPage(vm, { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail(req, input.context, vm.accessIsReadOnly), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) }),
+					ReadlistPage(vm, { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), preferencesEnabled: readlistPreferencesEnabled(req.query) }),
 					await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 				),
 				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: "private, max-age=5" },

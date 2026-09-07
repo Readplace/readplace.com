@@ -249,6 +249,7 @@ export interface ReadlistDefinitionData {
 	slug: ReadlistSlug;
 	label: string;
 	createdAt: Date;
+	purpose?: string;
 }
 
 export type CreateReadlistDefinition = (params: {
@@ -265,6 +266,12 @@ export type RenameReadlistDefinition = (params: {
 	slug: ReadlistSlug;
 	label: string;
 }) => Promise<{ renamed: boolean }>;
+
+export type SetReadlistDefinitionPurpose = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+	purpose: string;
+}) => Promise<{ updated: boolean }>;
 
 export type DeleteReadlistDefinition = (params: {
 	userId: UserId;

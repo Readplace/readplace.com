@@ -67,14 +67,22 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const readerHref = new JSDOM(queue.text).window.document
 			.querySelector("[data-test-article-title]")
 			?.getAttribute("href");
+		const madeReadlist = new URL(
+			(await agent.post("/queue/queues")).headers.location,
+			TEST_APP_ORIGIN,
+		).searchParams.get("queue");
+		const readlistPaths = madeReadlist
+			? [`/queue/queues/${madeReadlist}/preferences?feature=pref`]
+			: [];
 
 		const untracked: string[] = [];
-		for (const path of [...MEMBER_PATHS, ...(readerHref ? [readerHref] : [])]) {
+		for (const path of [...MEMBER_PATHS, ...readlistPaths, ...(readerHref ? [readerHref] : [])]) {
 			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
 			untracked.push(...untrackedOn(path, response.text));
 		}
 
 		expect(readerHref).toContain("/view");
+		expect(readlistPaths.length).toBe(1);
 		expect(untracked).toEqual([]);
 	});
 });

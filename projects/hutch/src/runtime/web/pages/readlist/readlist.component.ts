@@ -127,7 +127,7 @@ export function emptyStateTitle(input: { tab: TabId; readlistHoldsArticles: bool
 	return input.readlistHoldsArticles ? EMPTY_STATE_TITLES[input.tab] : NOTHING_SAVED_TITLE;
 }
 
-function readlistDeleteConfirmPanels(rail: ReadlistRailViewModel): string {
+export function readlistDeleteConfirmPanels(rail: ReadlistRailViewModel): string {
 	if (!rail.canCreate) return "";
 	const owned = rail.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST.slug);
 	const returnQuery = readlistReturnQuery({ readlist: rail.activeReadlist.slug });
@@ -150,7 +150,7 @@ interface ReadlistOnboarding {
 	completionUnearned: boolean;
 }
 
-function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; knownUnreadCount?: number; onboarding: ReadlistOnboarding; deviceClass: DeviceClass; rail: ReadlistRailViewModel; saveTip: SaveTip }): ReadlistDisplayModel {
+function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsArticles: boolean; knownUnreadCount?: number; onboarding: ReadlistOnboarding; deviceClass: DeviceClass; rail: ReadlistRailViewModel; saveTip: SaveTip; preferencesEnabled: boolean }): ReadlistDisplayModel {
 	const activeTab = vm.filters.tab;
 	const saveBarHidden = vm.filters.readlist !== DEFAULT_READLIST.slug;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
@@ -240,6 +240,7 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 				order: vm.filters.order,
 				readlist: vm.filters.readlist,
 				knownUnreadCount: options.knownUnreadCount,
+				preferencesEnabled: options.preferencesEnabled,
 			}),
 		),
 		countsSpanHtml: renderReadlistCountsTrigger({ countsUrl: vm.countsUrl }),
@@ -292,6 +293,13 @@ function toReadlistDisplayModel(vm: ReadlistViewModel, options: { readlistHoldsA
 const READLIST_RENAME_SCRIPT =
 	'<script src="/client-dist/readlist-rename.client.js" defer></script>';
 
+export const READLIST_PAGE_SCRIPTS = [
+	NAV_HIDE_SCRIPT,
+	SAVE_TIP_SCRIPT,
+	READLIST_RENAME_SCRIPT,
+	READER_PAGE_SCRIPTS,
+].join("\n");
+
 const autoSubmitScript = (cspNonce: CspNonce) => `
 <script nonce="${cspNonce}">
 	(function () {
@@ -308,21 +316,16 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; knownUnreadCount?: number; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; onboarding: ReadlistOnboarding }): PageBody {
+export function ReadlistPage(vm: ReadlistViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; readlistHoldsArticles: boolean; knownUnreadCount?: number; rail: ReadlistRailViewModel; saveTip: SaveTip; saveUrl?: string; onboarding: ReadlistOnboarding; preferencesEnabled: boolean }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, knownUnreadCount: options.knownUnreadCount, onboarding: options.onboarding, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip });
+	const displayModel = toReadlistDisplayModel(vm, { readlistHoldsArticles: options.readlistHoldsArticles, knownUnreadCount: options.knownUnreadCount, onboarding: options.onboarding, deviceClass: options.deviceClass, rail: options.rail, saveTip: options.saveTip, preferencesEnabled: options.preferencesEnabled });
 	const content = render(READLIST_TEMPLATE, {
 		...displayModel,
 		saveUrl,
 		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
 	});
 
-	const scriptParts: string[] = [
-		NAV_HIDE_SCRIPT,
-		SAVE_TIP_SCRIPT,
-		READLIST_RENAME_SCRIPT,
-		READER_PAGE_SCRIPTS,
-	];
+	const scriptParts: string[] = [READLIST_PAGE_SCRIPTS];
 	if (saveUrl) scriptParts.push(autoSubmitScript(options.cspNonce));
 
 	return {

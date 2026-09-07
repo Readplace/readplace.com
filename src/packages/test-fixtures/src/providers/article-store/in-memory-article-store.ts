@@ -32,6 +32,7 @@ import type {
 	DeleteReadlistArticle,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	SetReadlistDefinitionPurpose,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -158,6 +159,7 @@ export function initInMemoryArticleStore(): {
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
@@ -190,7 +192,10 @@ export function initInMemoryArticleStore(): {
 	const articleImages = new Map<string, { body: Buffer; contentType: string }>();
 	const userArticles = new Map<string, UserArticle>();
 	const saveCursors = new Map<UserId, number>();
-	const readlistDefinitions = new Map<string, { userId: UserId; slug: ReadlistSlug; label: string; createdAt: Date }>();
+	const readlistDefinitions = new Map<
+		string,
+		{ userId: UserId; slug: ReadlistSlug; label: string; purpose?: string; createdAt: Date }
+	>();
 
 	const allocateSavedAtSequence: AllocateSavedAtSequence = async ({ userId, count }) => {
 		assert(count > 0, "a savedAt sequence allocates at least one instant");
@@ -588,6 +593,14 @@ export function initInMemoryArticleStore(): {
 		return { renamed: true };
 	};
 
+	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (!definition) return { updated: false };
+		definition.purpose = params.purpose;
+		return { updated: true };
+	};
+
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		return { deleted: readlistDefinitions.delete(readlistDefinitionKey(params.userId, params.slug)) };
@@ -596,7 +609,7 @@ export function initInMemoryArticleStore(): {
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
-			.map(({ slug, label, createdAt }) => ({ slug, label, createdAt }))
+			.map(({ slug, label, purpose, createdAt }) => ({ slug, label, purpose, createdAt }))
 			.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.slug.localeCompare(b.slug));
 
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
@@ -805,6 +818,7 @@ export function initInMemoryArticleStore(): {
 		deleteReadlistDefinition,
 		listReadlistDefinitions,
 		renameReadlistDefinition,
+		setReadlistDefinitionPurpose,
 		getSummaryToggleState,
 		readContent,
 		writeContent,

@@ -108,6 +108,7 @@ import type {
 	ListUserSavesForUrls,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	SetReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	MarkRelatedDismissed,
@@ -345,6 +346,7 @@ interface AppDependencies {
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	markSummaryToggled: MarkSummaryToggled;
@@ -1203,6 +1205,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		moveReadlistArticles: deps.moveReadlistArticles,
 		listReadlistDefinitions: deps.listReadlistDefinitions,
 		renameReadlistDefinition: deps.renameReadlistDefinition,
+		setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 		createReadlistDefinition: deps.createReadlistDefinition,
 		deleteReadlistDefinition: deps.deleteReadlistDefinition,
 		markSummaryToggled: deps.markSummaryToggled,

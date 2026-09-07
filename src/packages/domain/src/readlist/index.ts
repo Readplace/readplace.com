@@ -27,6 +27,16 @@ export {
 	type ReadlistMigrationRejection,
 } from "./readlist-migration";
 export {
+	READLIST_PURPOSE_MAX_LENGTH,
+	ReadlistPurposeSchema,
+	parseReadlistPurpose,
+} from "./readlist-purpose.schema";
+export {
+	decideReadlistPurpose,
+	type ReadlistPurposeDecision,
+	type ReadlistPurposeRejection,
+} from "./readlist-purpose";
+export {
 	decideReadlistRename,
 	type ReadlistRenameDecision,
 	type ReadlistRenameRejection,

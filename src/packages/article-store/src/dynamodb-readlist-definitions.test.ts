@@ -55,14 +55,27 @@ describe("listReadlistDefinitions", () => {
 	it("queries the user's partition by definition-key prefix and never scans", async () => {
 		const commands: { name: string; input: Record<string, unknown> }[] = [];
 		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{ Items: [definitionItem()], Count: 1 }], (c) => commands.push(c)),
+			client: createFakeDynamo(
+				[
+					{
+						Items: [definitionItem({ queuePurpose: "Essays on how teams actually ship." })],
+						Count: 1,
+					},
+				],
+				(c) => commands.push(c),
+			),
 			userArticlesTableName: TABLE,
 		});
 
 		const definitions = await listReadlistDefinitions(USER);
 
 		expect(definitions).toEqual([
-			{ slug: "work", label: "Work Reading", createdAt: new Date("2026-08-19T10:00:00.000Z") },
+			{
+				slug: "work",
+				label: "Work Reading",
+				purpose: "Essays on how teams actually ship.",
+				createdAt: new Date("2026-08-19T10:00:00.000Z"),
+			},
 		]);
 		expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
 		expect(commands[0]?.input).toMatchObject({
@@ -296,6 +309,68 @@ describe("renameReadlistDefinition", () => {
 
 		await expect(
 			renameReadlistDefinition({ userId: USER, slug: WORK, label: "Deep Work" }),
+		).rejects.toThrow("throttled");
+	});
+});
+
+describe("setReadlistDefinitionPurpose", () => {
+	it("writes only the purpose, on a row that must already exist", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{}], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(
+			await setReadlistDefinitionPurpose({
+				userId: USER,
+				slug: WORK,
+				purpose: "Essays on how teams actually ship.",
+			}),
+		).toEqual({ updated: true });
+		expect(commands[0].name).toBe("UpdateCommand");
+		expect(commands[0].input).toMatchObject({
+			TableName: TABLE,
+			Key: { userId: USER, url: "readplace:queue-def/work" },
+			ExpressionAttributeValues: { ":purpose": "Essays on how teams actually ship." },
+		});
+		expect(String(commands[0].input.UpdateExpression)).toContain("SET #purpose = :purpose");
+		expect(String(commands[0].input.ConditionExpression)).toContain("attribute_exists(#url)");
+	});
+
+	it("reports a readlist that no longer has a definition row", async () => {
+		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw conditionalCheckFailed();
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(
+			await setReadlistDefinitionPurpose({ userId: USER, slug: WORK, purpose: "Anything" }),
+		).toEqual({ updated: false });
+	});
+
+	it("lets an unexpected storage failure surface", async () => {
+		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw new Error("throttled");
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		await expect(
+			setReadlistDefinitionPurpose({ userId: USER, slug: WORK, purpose: "Anything" }),
 		).rejects.toThrow("throttled");
 	});
 });

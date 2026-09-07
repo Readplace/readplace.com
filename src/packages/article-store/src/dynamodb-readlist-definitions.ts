@@ -16,6 +16,7 @@ import type {
 	DeleteReadlistDefinition,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	SetReadlistDefinitionPurpose,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
 import { READLIST_DEFINITION_KEY_PREFIX, readlistDefinitionKey } from "./user-readlist-partition";
@@ -23,6 +24,7 @@ import { READLIST_DEFINITION_KEY_PREFIX, readlistDefinitionKey } from "./user-re
 const ReadlistDefinitionRow = z.object({
 	queueSlug: ReadlistSlugSchema,
 	queueLabel: z.string(),
+	queuePurpose: z.string().optional(),
 	createdAt: z.string(),
 });
 
@@ -34,6 +36,7 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 } {
 	const readlistDefinitions = defineDynamoTable({
 		client: deps.client,
@@ -62,6 +65,7 @@ export function initDynamoDbReadlistDefinitions(deps: {
 			.map((row) => ({
 				slug: row.queueSlug,
 				label: row.queueLabel,
+				purpose: row.queuePurpose,
 				createdAt: new Date(row.createdAt),
 			}))
 			.sort(
@@ -112,6 +116,23 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		}
 	};
 
+	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		try {
+			await readlistDefinitions.update({
+				Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+				UpdateExpression: "SET #purpose = :purpose",
+				ConditionExpression: "attribute_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
+				ExpressionAttributeValues: { ":purpose": params.purpose },
+			});
+			return { updated: true };
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return { updated: false };
+			throw error;
+		}
+	};
+
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		try {
@@ -127,5 +148,11 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		}
 	};
 
-	return { createReadlistDefinition, deleteReadlistDefinition, listReadlistDefinitions, renameReadlistDefinition };
+	return {
+		createReadlistDefinition,
+		deleteReadlistDefinition,
+		listReadlistDefinitions,
+		renameReadlistDefinition,
+		setReadlistDefinitionPurpose,
+	};
 }
