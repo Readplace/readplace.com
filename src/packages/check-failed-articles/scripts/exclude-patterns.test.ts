@@ -866,15 +866,35 @@ describe("EXCLUDE_PATTERNS — never-existed /view-minted paths (issue #1066)", 
 			label: "a longer slug starting with the excluded one — must NOT be hidden",
 		},
 		{
-			url: "https://blog.cloudboost.io/null",
-			excluded: true,
-			label: "Medium `/null` junk path on an unreachable host",
-		},
-		{
 			url: "https://blog.cloudboost.io/some-real-post-slug",
 			excluded: false,
 			label: "a genuine post on the same host — must NOT be hidden",
 		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
+describe("EXCLUDE_PATTERNS — crawler-minted `/null` paths (issue #1104)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://www.jwz.org/hacks/null", excluded: true, label: "nested directory" },
+		{ url: "https://www.jwz.org/null", excluded: true, label: "site root" },
+		{ url: "https://www.jwz.org/blog/tag/computers/null", excluded: true, label: "deep directory" },
+		{ url: "www.jwz.org/hacks/null", excluded: true, label: "schemeless legacy row" },
+		{ url: "https://blog.cloudboost.io/null", excluded: true, label: "the host-specific entry this rule replaces" },
+		{ url: "http://example.org/a/null", excluded: true, label: "http scheme" },
+		{ url: "https://nodejs.org/dist/latest-v6.x/docs/api/null/", excluded: true, label: "trailing slash" },
+		{ url: "https://example.org/a/null?utm_source=x", excluded: true, label: "query string after the segment" },
+		{ url: "https://example.org/a/null#frag", excluded: true, label: "fragment after the segment" },
+		{ url: "https://example.org/a/NULL", excluded: true, label: "uppercase segment" },
+		{ url: "https://example.org/a/nullify", excluded: false, label: "longer segment starting with null — must NOT be hidden" },
+		{ url: "https://example.org/null-and-void", excluded: false, label: "hyphenated slug — must NOT be hidden" },
+		{ url: "https://example.org/a/null/b", excluded: false, label: "null as an interior segment — must NOT be hidden" },
+		{ url: "https://null.test/a", excluded: false, label: "null as a hostname label — must NOT be hidden" },
+		{ url: "https://example.org/redirect?next=/null", excluded: false, label: "null only inside the query — must NOT be hidden" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {

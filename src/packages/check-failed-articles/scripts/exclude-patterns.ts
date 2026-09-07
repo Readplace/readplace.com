@@ -274,10 +274,20 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// and any future genuine block of them, still surface.
 	/^https:\/\/fagnerbrack\.com\/x$/i,
 	/^https:\/\/fagnerbrack\.com\/business-success$/i,
-	// Medium `/null` junk path (cf. fagnerbrack.com/null, issue #1066): the host
-	// blog.cloudboost.io no longer resolves, and `/null` was never a real page, so
-	// a recrawl can never land. Anchored exact so a genuine post still surfaces.
-	/^https:\/\/blog\.cloudboost\.io\/null$/i,
+	// Any path ending in `/null`, on any host (issue #1104, supersedes the
+	// host-specific blog.cloudboost.io entry this replaces). These are never
+	// saves: a rendering crawler reads a null-valued URL attribute out of a
+	// Readplace page, stringifies it to "null", resolves it against the page URL,
+	// and the resulting `/view/<host>/<dir>/null` GET makes the splat route
+	// materialise an article for a path that never existed at the origin. 80 such
+	// rows exist across 44 hosts; every ownerless one was minted this way. A
+	// recrawl can never drain them, and the origin's answer only decides whether
+	// the row fails loudly (jwz.org serves 403 to a trailing `null` segment) or
+	// silently stores a soft-404 as an article. The cost is that a real page at
+	// `/null` — `wikipedia.org/wiki/null`, `npmjs.com/package/null` — stops
+	// surfacing here too; those crawl fine today, and the mint itself is the
+	// thing to fix, not this report.
+	/^(?:https?:\/\/)?[^?#]*\/null\/?(?:[?#]|$)/i,
 	// (k) Origin unreachable behind its CDN: Cloudflare answers 530 for every
 	// request, from datacenter and residential egress alike, so no crawl can
 	// land. Stored as `exhausted-retries` because a 530 is neither a block nor a
