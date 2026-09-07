@@ -38,6 +38,29 @@ function createJwt({ issuer, secret }) {
   return `${header}.${payload}.${signature}`;
 }
 
+async function findLatestSignedVersion({ token }) {
+  const encodedId = encodeURIComponent(ADDON_ID);
+  let url = `${AMO_API_BASE}/addons/addon/${encodedId}/versions/?filter=all_with_unlisted&page_size=50`;
+
+  while (url) {
+    const response = await fetch(url, {
+      headers: { Authorization: `JWT ${token}` },
+    });
+
+    const amoBody = await response.text();
+    assert.ok(response.ok, `AMO API error: ${response.status} ${amoBody}`);
+
+    const data = JSON.parse(amoBody);
+    const signedVersion = data.results.find((v) => v.file?.status === "public");
+
+    if (signedVersion) {
+      return signedVersion;
+    }
+
+    url = data.next;
+  }
+}
+
 async function main() {
   const issuer = process.env.AMO_JWT_ISSUER;
   const secret = process.env.AMO_JWT_SECRET;
@@ -67,19 +90,7 @@ async function main() {
     }
   }
 
-  const encodedId = encodeURIComponent(ADDON_ID);
-  const response = await fetch(
-    `${AMO_API_BASE}/addons/addon/${encodedId}/versions/?filter=all_with_unlisted`,
-    { headers: { Authorization: `JWT ${token}` } },
-  );
-
-  const amoBody = await response.text();
-  assert.ok(response.ok, `AMO API error: ${response.status} ${amoBody}`);
-
-  const data = JSON.parse(amoBody);
-  const signedVersion = data.results?.find(
-    (v) => v.file?.status === "public",
-  );
+  const signedVersion = await findLatestSignedVersion({ token });
 
   if (!signedVersion) {
     logger.info("No signed version found on AMO. Nothing to sync.");
