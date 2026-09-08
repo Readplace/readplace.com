@@ -24,6 +24,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | Workflow | Purpose | Trigger |
 |----------|---------|---------|
 | `ci.yml` | Base CI pipeline | push/PR to main |
+| `browser-image.yml` | Builds the digest-pinned browser image every browser job consumes, validates the candidate by running both extension suites against it, and prints the digest to promote. Versions come from `.github/browser-image/image.env`; nothing else builds a browser | Manual |
 | `perf-soak.yml` | Re-derives the save-latency budgets `ci.yml`'s `perf-tests` job gates on: 20 independent github-hosted runs, each uploading its own distribution | Manual |
 | `screen-response-soak.yml` | Re-derives the budgets the hutch post-deploy screen-response ratchet gates on: N independent github-hosted runs against the deployed staging stack, one at a time, each uploading its own distribution | Manual |
 | `claude-listener.yml` | Central hub - ONLY workflow that runs Claude | `@claude` comments |
@@ -41,6 +42,9 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | `publish-ios-appstore-metadata.yml` | Push the App Store listing metadata (and optionally screenshots) from `fastlane/metadata` to App Store Connect as a draft via the fastlane `release` lane; a screenshot push is read back and fails the run unless the listing matches the committed files; the optional `build` input creates the `<major.minor>.<build>` version record; never uploads a binary or submits for review | Manual |
 | `publish-ios-appstore-resubmit.yml` | Submit (or resubmit after a rejection) a TestFlight build for App Store review via the fastlane `resubmit` lane: reconcile the version string, attach the build, push metadata, submit — reusing a rejection's still-open review submission. Dispatching it is the deliberate human "Submit for Review" act | Manual |
 | `publish-ios-testflight-notes.yml` | Set an already-uploaded build's TestFlight "What to Test" note via the fastlane `whats_new` lane, reading the text from the same `fastlane/metadata/en-US/release_notes.txt` the App Store listing uses; uploads no binary, joins no tester group and submits nothing | Manual |
+
+Shared step: `.github/actions/pinned-browsers` materialises that image onto a
+github-hosted runner, so a job runs the supplied binaries and downloads none.
 
 ## Prompt Files
 

@@ -1,0 +1,161 @@
+name: Browser image
+
+# Builds and validates the browser environment every CI browser job consumes,
+# then prints the digest to promote. Dispatch-only and deliberately separate
+# from ci.yml: a test run must never be able to change a browser.
+#
+# To move a browser: edit a version in .github/browser-image/image.env, dispatch
+# this, and land the CI_BROWSER_IMAGE line it prints as its own commit.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # Lowercase literal: GHCR rejects the capitalised owner that
+  # github.repository_owner carries.
+  IMAGE: ghcr.io/readplace/ci-browsers
+
+jobs:
+  # Native builds, one runner per architecture, joined into one index below.
+  # amd64 serves the hosted jobs; arm64 exists so the self-hosted runner image
+  # can COPY --from the same digest. QEMU would emulate apt and a 367MB browser
+  # unpack, which is the slow path.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Build and push by digest
+        run: |
+          set -euo pipefail
+          set -a
+          . .github/browser-image/image.env
+          set +a
+
+          docker buildx build \
+            --platform "${{ matrix.platform }}" \
+            --build-arg "PLAYWRIGHT_BASE_IMAGE=${PLAYWRIGHT_BASE_IMAGE}" \
+            --build-arg "CHROME_FOR_TESTING_VERSION=${CHROME_FOR_TESTING_VERSION}" \
+            --build-arg "FIREFOX_VERSION=${FIREFOX_VERSION}" \
+            --build-arg "GECKODRIVER_VERSION=${GECKODRIVER_VERSION}" \
+            --output "type=image,name=${IMAGE},push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file /tmp/metadata.json \
+            .github/browser-image
+
+          jq --raw-output '."containerimage.digest"' /tmp/metadata.json > /tmp/digest.txt
+          echo "Pushed ${{ matrix.arch }}: $(cat /tmp/digest.txt)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digest.txt
+
+  # One index digest over both architectures, so a single line in image.env
+  # serves the amd64 hosted consumers and the arm64 runner image.
+  merge:
+    needs: [build]
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.merge.outputs.image }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          path: /tmp/digests
+
+      - name: Create the manifest index
+        id: merge
+        run: |
+          set -euo pipefail
+          set -a
+          . .github/browser-image/image.env
+          set +a
+
+          tag="chrome-${CHROME_FOR_TESTING_VERSION}-firefox-${FIREFOX_VERSION}"
+          docker buildx imagetools create --tag "${IMAGE}:${tag}" \
+            $(find /tmp/digests -name digest.txt -exec cat {} \; | sed "s|^|${IMAGE}@|")
+
+          index=$(docker buildx imagetools inspect "${IMAGE}:${tag}" --format '{{json .Manifest.Digest}}' | tr --delete '"')
+          echo "image=${IMAGE}@${index}" >> "$GITHUB_OUTPUT"
+
+  # The gate on promotion: the suites that drive these browsers must pass
+  # against the candidate, materialised exactly as a consumer materialises it.
+  # Deliberately `check`, not `perf`: one wall-clock run decides nothing about a
+  # budget, which is why perf-soak.yml exists and runs twenty times.
+  validate:
+    needs: [merge]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      STATIC_BASE_URL: ''
+    steps:
+      - uses: actions/checkout@v6
+
+      # The candidate is not promoted yet, so write it where a consumer reads
+      # it. The action then has one source of truth and no override branch, and
+      # this job exercises the exact path ci.yml will take.
+      - name: Point the pin at the candidate
+        run: echo "CI_BROWSER_IMAGE=${{ needs.merge.outputs.image }}" >> .github/browser-image/image.env
+
+      # A GHCR package is private until a human makes it public, so the
+      # candidate cannot be pulled anonymously on its first build.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
+
+      - uses: ./.github/actions/pinned-browsers
+
+      # Sourced the way the root `check` script does: the suites read the
+      # workspace's development env from here, not from the job.
+      - run: . ./.envrc && pnpm nx run chrome-extension:check
+
+      - run: . ./.envrc && pnpm nx run firefox-extension:check
+
+      - name: Print the line to promote
+        run: |
+          {
+            echo '### Validated. Land this in `.github/browser-image/image.env`:'
+            echo
+            echo '```'
+            echo "CI_BROWSER_IMAGE=${{ needs.merge.outputs.image }}"
+            echo '```'
+            echo
+            echo 'First build of this package? Make it public before landing —'
+            echo 'every consumer pulls it anonymously.'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,10 @@
+name: Pinned browsers
+description: Materialise the digest-pinned browser image onto a github-hosted runner so the job runs supplied binaries and downloads none.
+
+runs:
+  using: composite
+  steps:
+    # The body lives in materialise.sh so claude-listener.yml, which cannot
+    # `uses:` a local action from an arbitrary PR checkout, runs the same code.
+    - shell: bash
+      run: bash .github/actions/pinned-browsers/materialise.sh
