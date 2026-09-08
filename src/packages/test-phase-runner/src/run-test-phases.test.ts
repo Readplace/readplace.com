@@ -1,10 +1,5 @@
 import type { ExecSyncOptions } from "node:child_process";
-import {
-	BROWSER_INSTALL_MAX_ATTEMPTS,
-	BROWSER_INSTALL_RETRY_DELAY_MS,
-	defaultDeps,
-	initTestPhaseRunner,
-} from "./run-test-phases";
+import { defaultDeps, initTestPhaseRunner } from "./run-test-phases";
 import type { ResolvedPhase, TestPhaseRunnerDeps } from "./run-test-phases";
 
 function createInMemoryDeps(overrides: Partial<TestPhaseRunnerDeps> = {}) {
@@ -21,8 +16,7 @@ function createInMemoryDeps(overrides: Partial<TestPhaseRunnerDeps> = {}) {
 		},
 		log: () => {},
 		shouldSkipE2E: () => false,
-		shouldInstallBrowserSystemDeps: () => false,
-		sleep: () => {},
+		shouldInstallBrowsers: () => true,
 		...overrides,
 	};
 
@@ -308,8 +302,8 @@ describe("script phase resolution", () => {
 });
 
 describe("playwright phase resolution", () => {
-	function resolveInstallCommand(shouldInstallBrowserSystemDeps: boolean, browsers: string[] = ["chromium"]) {
-		const { deps } = createInMemoryDeps({ shouldInstallBrowserSystemDeps: () => shouldInstallBrowserSystemDeps });
+	function resolveInstallCommand(browsers: string[] = ["chromium"]) {
+		const { deps } = createInMemoryDeps();
 		const plan = createRunner(deps).createTestPlan({
 			config: {
 				projectName: "Readplace",
@@ -327,28 +321,24 @@ describe("playwright phase resolution", () => {
 		return (plan.phases[0] as Extract<ResolvedPhase, { type: "playwright" }>).browserInstallCommand;
 	}
 
-	it("asks playwright to apt-get the OS libs when the runner can install them", () => {
-		expect(resolveInstallCommand(true)).toBe("node_modules/.bin/playwright install --with-deps chromium");
+	it("resolves the install command without --with-deps, so it never shells out to sudo", () => {
+		expect(resolveInstallCommand()).toBe("node_modules/.bin/playwright install chromium");
 	});
 
-	it("omits --with-deps when the runner cannot install OS libs, so the install does not shell out to sudo", () => {
-		expect(resolveInstallCommand(false)).toBe("node_modules/.bin/playwright install chromium");
-	});
-
-	it("reads the runner environment to decide whether the OS libs can be installed", () => {
-		const runnerEnvironment = process.env.RUNNER_ENVIRONMENT;
+	it("installs nothing when a runner has already supplied the browsers", () => {
+		const runnerSuppliedBrowsers = process.env.PLAYWRIGHT_BROWSERS_PATH;
 		try {
-			process.env.RUNNER_ENVIRONMENT = "github-hosted";
-			expect(defaultDeps.shouldInstallBrowserSystemDeps()).toBe(true);
+			process.env.PLAYWRIGHT_BROWSERS_PATH = "/ms-playwright";
+			expect(defaultDeps.shouldInstallBrowsers()).toBe(false);
 
-			process.env.RUNNER_ENVIRONMENT = "self-hosted";
-			expect(defaultDeps.shouldInstallBrowserSystemDeps()).toBe(false);
+			process.env.PLAYWRIGHT_BROWSERS_PATH = "";
+			expect(defaultDeps.shouldInstallBrowsers()).toBe(true);
 
-			delete process.env.RUNNER_ENVIRONMENT;
-			expect(defaultDeps.shouldInstallBrowserSystemDeps()).toBe(false);
+			delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+			expect(defaultDeps.shouldInstallBrowsers()).toBe(true);
 		} finally {
-			if (runnerEnvironment === undefined) delete process.env.RUNNER_ENVIRONMENT;
-			else process.env.RUNNER_ENVIRONMENT = runnerEnvironment;
+			if (runnerSuppliedBrowsers === undefined) delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+			else process.env.PLAYWRIGHT_BROWSERS_PATH = runnerSuppliedBrowsers;
 		}
 	});
 
@@ -374,10 +364,7 @@ describe("playwright phase resolution", () => {
 	});
 
 	it("supports multiple browsers", () => {
-		expect(resolveInstallCommand(true, ["chromium", "firefox"])).toBe(
-			"node_modules/.bin/playwright install --with-deps chromium firefox",
-		);
-		expect(resolveInstallCommand(false, ["chromium", "firefox"])).toBe(
+		expect(resolveInstallCommand(["chromium", "firefox"])).toBe(
 			"node_modules/.bin/playwright install chromium firefox",
 		);
 	});
@@ -508,6 +495,30 @@ describe("runAllPhases execution", () => {
 		expect(executedCommands[1].env).toEqual(expect.objectContaining({ HEADLESS: "true", E2E_PORT: "12345" }));
 	});
 
+	it("runs the tests without installing when the runner already supplied the browsers", async () => {
+		const { deps, executedCommands } = createInMemoryDeps({ shouldInstallBrowsers: () => false });
+		const runner = createRunner(deps);
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "Readplace",
+				phases: [
+					{
+						type: "playwright",
+						name: "E2E tests",
+						config: "playwright.config.local-dev.ts",
+						browsers: ["chromium"],
+					},
+				],
+			},
+			projectRoot: "/projects/hutch",
+		});
+
+		await plan.runAllPhases();
+
+		expect(executedCommands).toHaveLength(1);
+		expect(executedCommands[0].command).toContain("playwright test");
+	});
+
 	it("executes multiple phases in order", async () => {
 		const { deps, executedCommands } = createInMemoryDeps();
 		const runner = createRunner(deps);
@@ -593,137 +604,6 @@ describe("e2e command phase retry", () => {
 
 		await expect(plan.runAllPhases()).rejects.toThrow("unit failure");
 		expect(calls).toBe(1);
-	});
-});
-
-describe("playwright browser install retry", () => {
-	const playwrightPhase = {
-		type: "playwright" as const,
-		name: "E2E tests",
-		config: "playwright.config.local-dev.ts",
-		browsers: ["chromium"],
-	};
-
-	it("retries the browser install when it fails then succeeds", async () => {
-		let installCalls = 0;
-		const { deps } = createInMemoryDeps({
-			execSync: (command: string) => {
-				if (command.includes("playwright install")) {
-					installCalls += 1;
-					if (installCalls === 1) throw new Error("dpkg lock contention");
-				}
-				return Buffer.from("");
-			},
-		});
-		const runner = createRunner(deps);
-		const plan = runner.createTestPlan({
-			config: { projectName: "Readplace", phases: [playwrightPhase] },
-			projectRoot: "/projects/hutch",
-		});
-
-		await plan.runAllPhases();
-
-		expect(installCalls).toBe(2);
-	});
-
-	it("waits before retrying so it does not hammer the still-held dpkg lock", async () => {
-		const sleeps: number[] = [];
-		let installCalls = 0;
-		const { deps } = createInMemoryDeps({
-			execSync: (command: string) => {
-				if (command.includes("playwright install")) {
-					installCalls += 1;
-					if (installCalls === 1) throw new Error("dpkg lock contention");
-				}
-				return Buffer.from("");
-			},
-			sleep: (ms: number) => {
-				sleeps.push(ms);
-			},
-		});
-		const runner = createRunner(deps);
-		const plan = runner.createTestPlan({
-			config: { projectName: "Readplace", phases: [playwrightPhase] },
-			projectRoot: "/projects/hutch",
-		});
-
-		await plan.runAllPhases();
-
-		expect(sleeps).toEqual([BROWSER_INSTALL_RETRY_DELAY_MS]);
-	});
-
-	it("re-throws after exhausting every attempt, waiting between each", async () => {
-		const sleeps: number[] = [];
-		let installCalls = 0;
-		const { deps } = createInMemoryDeps({
-			execSync: (command: string) => {
-				if (command.includes("playwright install")) {
-					installCalls += 1;
-					throw new Error("persistent dpkg lock contention");
-				}
-				return Buffer.from("");
-			},
-			sleep: (ms: number) => {
-				sleeps.push(ms);
-			},
-		});
-		const runner = createRunner(deps);
-		const plan = runner.createTestPlan({
-			config: { projectName: "Readplace", phases: [playwrightPhase] },
-			projectRoot: "/projects/hutch",
-		});
-
-		await expect(plan.runAllPhases()).rejects.toThrow("persistent dpkg lock contention");
-		expect(installCalls).toBe(BROWSER_INSTALL_MAX_ATTEMPTS);
-		expect(sleeps).toEqual(Array(BROWSER_INSTALL_MAX_ATTEMPTS - 1).fill(BROWSER_INSTALL_RETRY_DELAY_MS));
-	});
-});
-
-describe("playwright browser install stdio", () => {
-	const originalCI = process.env.CI;
-	afterEach(() => {
-		if (originalCI === undefined) {
-			delete process.env.CI;
-		} else {
-			process.env.CI = originalCI;
-		}
-	});
-
-	function captureInstallStdio() {
-		const installStdio: Array<ExecSyncOptions["stdio"]> = [];
-		const { deps } = createInMemoryDeps({
-			execSync: (command: string, options: ExecSyncOptions) => {
-				if (command.includes("playwright install")) installStdio.push(options.stdio);
-				return Buffer.from("");
-			},
-		});
-		const runner = createRunner(deps);
-		const plan = runner.createTestPlan({
-			config: {
-				projectName: "Readplace",
-				phases: [{ type: "playwright", name: "E2E tests", config: "playwright.config.local-dev.ts", browsers: ["chromium"] }],
-			},
-			projectRoot: "/projects/hutch",
-		});
-		return { plan, installStdio };
-	}
-
-	it("suppresses browser-install stdout when CI=true", async () => {
-		process.env.CI = "true";
-		const { plan, installStdio } = captureInstallStdio();
-
-		await plan.runAllPhases();
-
-		expect(installStdio[0]).toEqual(["inherit", "ignore", "inherit"]);
-	});
-
-	it("inherits browser-install stdio when CI is unset", async () => {
-		delete process.env.CI;
-		const { plan, installStdio } = captureInstallStdio();
-
-		await plan.runAllPhases();
-
-		expect(installStdio[0]).toBe("inherit");
 	});
 });
 
@@ -846,16 +726,6 @@ describe("defaultDeps.shouldSkipE2E", () => {
 	it("returns false when CLAUDE_CODE_REMOTE has a different value", () => {
 		process.env.CLAUDE_CODE_REMOTE = "1";
 		expect(defaultDeps.shouldSkipE2E()).toBe(false);
-	});
-});
-
-describe("defaultDeps.sleep", () => {
-	it("blocks synchronously for the requested duration and returns", () => {
-		const before = process.hrtime.bigint();
-		defaultDeps.sleep(20);
-		const elapsedMs = Number(process.hrtime.bigint() - before) / 1e6;
-
-		expect(elapsedMs).toBeGreaterThanOrEqual(15);
 	});
 });
 

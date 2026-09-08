@@ -56,13 +56,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
 
-      - uses: actions/cache@v4
-        # self-hosted persists browsers in the ms-playwright volume; skip the WAN round-trip
+      # Self-hosted carries the same browsers in its own image, from this same
+      # digest, so it needs nothing here.
+      - uses: ./.github/actions/pinned-browsers
         if: runner.environment == 'github-hosted'
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: playwright-${{ runner.os }}-
 
       # The binary cache lives inside node_modules, which checkout's
       # `git clean -ffdx` wipes each job. Keep a copy on the persistent volume
@@ -114,11 +111,12 @@ jobs:
     # The suites bound themselves — 60s per UI wait and 5min per test for the
     # single-save ones, 5min and 15min for the bulk ones, 90s for the server,
     # then a hard failsafe each: 8min single-save, 20min bulk. Two paths escape
-    # all of that: the browser install and the extension builds run through
-    # spawnSync with no timeout, and the fixture-user POST runs before the
-    # failsafe is armed. A job ceiling is the only layer that covers them, and
-    # without one a hang holds a runner for the 6h default. Four browser suites
-    # all riding their failsafes would be ~56min, plus installs and builds.
+    # all of that: the extension builds run through spawnSync with no timeout,
+    # and the fixture-user POST runs before the failsafe is armed. A job ceiling
+    # is the only layer that covers them, and without one a hang holds a runner
+    # for the 6h default. Four browser suites all riding their failsafes would
+    # be ~56min, plus builds. The browser install used to escape too; it is now
+    # a digest-pinned image the pinned-browsers step materialises.
     timeout-minutes: 75
     env:
       STATIC_BASE_URL: ''
@@ -136,9 +134,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
 
-      # Same drift visibility as web-tests: the hosted-image Firefox bump
-      # (152.0.6 -> 153.0.3 in image 20260804.265.1) surfaced here first, as an
-      # apparent flake, because nothing logged which Firefox the job drew.
+      - uses: ./.github/actions/pinned-browsers
+
+      # Was drift visibility: the hosted-image Firefox bump (152.0.6 -> 153.0.3
+      # in image 20260804.265.1) surfaced here first, as an apparent flake,
+      # because nothing logged which Firefox the job drew. Now it resolves
+      # through PATH, so it proves the step above won over the hosted image's
+      # own Firefox rather than merely reporting which one turned up.
       - name: Show browser toolchain versions
         run: |
           firefox --version 2>/dev/null || echo "firefox: not on PATH"

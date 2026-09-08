@@ -2,6 +2,15 @@
 # Base: myoung34/github-runner. Entrypoint handles registration, the
 # ephemeral re-register loop, and token minting from a PAT.
 # Verified: ubuntu-noble tag ships an arm64 manifest.
+
+# Every browser this runner uses comes from the digest in
+# .github/browser-image/image.env -- the same one the hosted jobs materialise, so
+# both runner families test against identical browsers. rebuild.sh passes it;
+# there is no default, because a runner built from an unpinned browser is the
+# thing this removes.
+ARG BROWSER_IMAGE
+FROM ${BROWSER_IMAGE} AS browsers
+
 FROM myoung34/github-runner:ubuntu-noble
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -24,17 +33,15 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 RUN curl -fsSL https://get.pulumi.com | sh -s -- --install-root /usr/local/pulumi \
  && ln -s /usr/local/pulumi/bin/pulumi /usr/local/bin/pulumi
 
-# Playwright: OS libs baked into the image, browsers into /ms-playwright.
-# Compose mounts a named volume there; Docker copies the baked browsers
-# into the volume on first use, and any lockfile version drift self-heals
-# by downloading into the volume instead of forcing an image rebuild.
-# Pin to the repo's version at build time:
+# Playwright: OS libs from install-deps, browsers COPYed from the pinned image
+# below. No named volume any more -- one mounted at /ms-playwright would shadow
+# these with whatever a past job downloaded, which is exactly the runtime
+# replacement the pin exists to stop.
+# Keep PLAYWRIGHT_VERSION in step with the repo:
 #   --build-arg PLAYWRIGHT_VERSION=$(jq -r '.devDependencies["@playwright/test"]' projects/hutch/package.json)
 ARG PLAYWRIGHT_VERSION=1.60.0
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN mkdir -p /ms-playwright \
- && npx -y playwright@${PLAYWRIGHT_VERSION} install-deps \
- && npx -y playwright@${PLAYWRIGHT_VERSION} install chromium firefox webkit
+RUN npx -y playwright@${PLAYWRIGHT_VERSION} install-deps
 
 # Chrome-for-Testing ships only linux64 (x86-64); on this arm64 runner the
 # chrome-extension E2E runs it under OrbStack's Rosetta, which needs the amd64
@@ -55,32 +62,23 @@ RUN dpkg --add-architecture amd64 \
       libwayland-client0:amd64 libxshmfence1:amd64 libgtk-3-0t64:amd64 \
  && rm -rf /var/lib/apt/lists/*
 
-# Native arm64 Firefox + geckodriver for the selenium firefox-extension E2E.
-# Firefox (unlike Chrome-for-Testing) ships a linux-aarch64 build, so no
-# emulation; selenium needs both firefox and geckodriver on PATH.
-# geckodriver stays >=0.36.0: older ones reject the --allow-system-access flag the firefox suites pass.
-# Firefox is PINNED, not firefox-latest: an unpinned rebuild takes whatever
-# Mozilla ships that day — that is how a routine rebuild moved 152.0.6 -> 153.0.3
-# on 2026-08-09 and broke every firefox suite (Firefox 153's WebDriver scheme
-# allow-list) with no repo change to point at. Bump deliberately: edit the
-# version here, run rebuild.sh, and let the suites vet the new Firefox.
-RUN apt-get update && apt-get install -y wget bzip2 libdbus-glib-1-2 \
- && wget -qO /tmp/ff.tar.xz "https://download.mozilla.org/?product=firefox-153.0.3&os=linux64-aarch64&lang=en-US" \
- && tar -xJf /tmp/ff.tar.xz -C /opt \
- && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
- && wget -qO /tmp/gd.tar.gz "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-linux-aarch64.tar.gz" \
- && tar -xzf /tmp/gd.tar.gz -C /usr/local/bin \
- && rm -f /tmp/ff.tar.xz /tmp/gd.tar.gz && rm -rf /var/lib/apt/lists/*
-
-# Pre-bake Chrome-for-Testing + a matching chromedriver so the chrome-extension
-# E2E skips the per-job download. install-chrome-for-testing.js reuses
-# these via CFT_BAKED_DIR; it downloads normally when the env is unset.
-RUN mkdir -p /opt/cft \
- && CHROME_OUT=$(npx -y @puppeteer/browsers install chrome@stable --path /opt/cft) \
- && echo "$CHROME_OUT" | tail -1 | sed -E 's/^chrome@[^ ]+ //' > /opt/cft/binary-path \
- && CHROME_VER=$(echo "$CHROME_OUT" | tail -1 | sed -E 's/^chrome@([^ ]+).*/\1/') \
- && DRIVER_OUT=$(npx -y @puppeteer/browsers install "chromedriver@${CHROME_VER}" --path /opt/cft) \
- && echo "$DRIVER_OUT" | tail -1 | sed -E 's/^chromedriver@[^ ]+ //' > /opt/cft/driver-path
+# Every browser, from the one reviewed digest. Nothing here downloads a browser:
+# a routine rebuild used to take whatever Mozilla and Google shipped that day,
+# which is how 152.0.6 -> 153.0.3 landed on 2026-08-09 and broke every firefox
+# suite (Firefox 153's WebDriver scheme allow-list) with no repo change to point
+# at. A browser now moves only when image.env moves.
+# libdbus-glib-1-2 is Firefox's load-time dependency and is apt-installed, not
+# COPYed: COPY --from moves directories, never the packages a binary links to.
+# firefox and geckodriver need to be on PATH for selenium and for the
+# geckodriver preflight, which shells out to a bare `geckodriver`.
+RUN apt-get update && apt-get install -y libdbus-glib-1-2 \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=browsers --chown=runner:runner /ms-playwright /ms-playwright
+COPY --from=browsers /opt/firefox /opt/firefox
+COPY --from=browsers /opt/geckodriver /opt/geckodriver
+COPY --from=browsers /opt/cft /opt/cft
+RUN ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
+ && ln -sf /opt/geckodriver/geckodriver /usr/local/bin/geckodriver
 ENV CFT_BAKED_DIR=/opt/cft
 
 # We do NOT install docker-cli/buildx here (the base image already ships both).
@@ -107,9 +105,9 @@ RUN [ -d /usr/local/aws-cli ] || command -v aws >/dev/null 2>&1 || ( \
 # a job could `sudo cat /root/gh-pat.env` and take the repo-admin token. Nothing
 # on this runner needs it — /entrypoint.sh drops privileges with gosu, not sudo,
 # and the sole sudo caller (the `playwright install --with-deps` in
-# @packages/test-phase-runner) now skips --with-deps on self-hosted, where the OS
-# libs are already baked by `install-deps` above (run-test-phases.ts gates it on
-# RUNNER_ENVIRONMENT). Verified: a real E2E run executed all four suites on the
+# @packages/test-phase-runner) is gone entirely: the OS libs come from
+# `install-deps` above and the browsers from the pinned image, so no job installs
+# a browser at all. Verified: a real E2E run executed all four suites on the
 # sudo-less image with zero apt/sudo errors. runner-secret-audit.yml check 8
 # asserts this stays closed. With the docker socket now also removed (the OCR
 # build no longer runs here — see the docker note above), there is no known
@@ -122,8 +120,8 @@ RUN if id -nG runner | tr ' ' '\n' | grep -qx sudo; then gpasswd -d runner sudo;
 # the caches must be writable by it.
 COPY entrypoint-secure.sh /usr/local/bin/entrypoint-secure.sh
 RUN chmod 0755 /usr/local/bin/entrypoint-secure.sh \
- && mkdir -p /ms-playwright /opt/hostedtoolcache \
- && chown -R runner:runner /ms-playwright /opt/hostedtoolcache
+ && mkdir -p /opt/hostedtoolcache \
+ && chown -R runner:runner /opt/hostedtoolcache
 
 # Pin the machine-id so the nx cache survives an image rebuild. nx names its
 # DbCache metadata db "<machine-id>-v2.db" under NX_WORKSPACE_DATA_DIRECTORY (the
@@ -143,8 +141,8 @@ RUN chmod 0755 /usr/local/bin/entrypoint-secure.sh \
 # subsequent `apt-get install --reinstall dbus systemd`). Value is the id the
 # current /nx db is already named after, so shipping this costs no cold run.
 # Because the pin removes the accidental cache-busting the id churn used to give
-# the floating browser builds above (chrome@stable still floats; Firefox floated
-# as firefox-latest before it was pinned), the two extension projects declare
-# those browser versions as an explicit nx `runtime` input.
+# the browser builds above — which floated then, and are COPYed from a pinned
+# digest now — the two extension projects declare those browser versions as an
+# explicit nx `runtime` input.
 RUN mkdir -p /var/lib/dbus \
  && printf '%s\n' d8afc387deb149a1bdbfa08f1d8ff78e | tee /etc/machine-id > /var/lib/dbus/machine-id

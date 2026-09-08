@@ -6,17 +6,28 @@
 
 const assert = require("node:assert");
 const { execSync } = require("node:child_process");
-const { writeFileSync, mkdirSync, existsSync, copyFileSync } = require("node:fs");
+const { writeFileSync, mkdirSync, existsSync, copyFileSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 
 const projectRoot = join(__dirname, "..");
 const cacheDir = join(projectRoot, ".cache", "chrome");
 mkdirSync(cacheDir, { recursive: true });
 
-// The self-hosted runner image bakes Chrome-for-Testing + chromedriver (see the
-// .github/runner Dockerfile) so jobs skip the download. When that bake
-// is present, reuse it by copying the recorded paths into the workspace cache;
-// otherwise fall through to the normal download (hosted runners, local dev).
+// The version CI is pinned to, so a developer's Chrome matches the one the
+// suites are vetted against. Read from the pin rather than an env accessor: this
+// is a CJS script outside the workspace's TypeScript build.
+function pinnedChromeVersion() {
+  const pin = join(__dirname, "..", "..", "..", "..", ".github", "browser-image", "image.env");
+  const match = readFileSync(pin, "utf8").match(/^CHROME_FOR_TESTING_VERSION=(.+)$/m);
+  assert(match, `CHROME_FOR_TESTING_VERSION missing from ${pin}`);
+  return match[1].trim();
+}
+
+// Every CI runner is handed Chrome-for-Testing + chromedriver from the digest in
+// .github/browser-image/image.env — baked into the self-hosted image, copied in
+// by the pinned-browsers step on hosted. When that bake is present, reuse it by
+// copying the recorded paths into the workspace cache; the download below is the
+// developer-machine path, at the same pinned version.
 const bakedDir = process.env.CFT_BAKED_DIR;
 if (
   bakedDir &&
@@ -29,17 +40,20 @@ if (
   process.exit(0);
 }
 
+const chromeVersion = pinnedChromeVersion();
+
 const chromeOutput = execSync(
-  `npx @puppeteer/browsers install chrome@stable --path "${cacheDir}"`,
+  `npx @puppeteer/browsers install chrome@${chromeVersion} --path "${cacheDir}"`,
   { encoding: "utf8", timeout: 600_000, stdio: ["pipe", "pipe", "inherit"] },
 );
 
 // Output format: "chrome@{version} {path}" — path may contain spaces
 const chromeLastLine = chromeOutput.trim().split("\n").pop();
 const chromeBinaryPath = chromeLastLine.replace(/^chrome@\S+\s+/, "");
-const chromeMatch = chromeLastLine.match(/^chrome@(\S+)/);
-assert(chromeMatch, `Unexpected chrome install output: ${chromeLastLine}`);
-const chromeVersion = chromeMatch[1];
+assert(
+  chromeLastLine.startsWith(`chrome@${chromeVersion} `),
+  `Unexpected chrome install output: ${chromeLastLine}`,
+);
 
 writeFileSync(join(cacheDir, "binary-path"), chromeBinaryPath, "utf8");
 console.log(`Chrome for Testing: ${chromeBinaryPath}`);

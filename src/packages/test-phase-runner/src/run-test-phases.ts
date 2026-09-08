@@ -114,16 +114,14 @@ type ExecSyncFn = (command: string, options: ExecSyncOptions) => Buffer | string
 type GlobSyncFn = (pattern: string) => string[];
 type LogFn = (message: string) => void;
 type ShouldSkipE2EFn = () => boolean;
-type ShouldInstallBrowserSystemDepsFn = () => boolean;
-type SleepFn = (ms: number) => void;
+type ShouldInstallBrowsersFn = () => boolean;
 
 export interface TestPhaseRunnerDeps {
 	execSync: ExecSyncFn;
 	globSync: GlobSyncFn;
 	log: LogFn;
 	shouldSkipE2E: ShouldSkipE2EFn;
-	shouldInstallBrowserSystemDeps: ShouldInstallBrowserSystemDepsFn;
-	sleep: SleepFn;
+	shouldInstallBrowsers: ShouldInstallBrowsersFn;
 }
 
 /** Launches each shard in the background and fails if ANY shard fails. A bare
@@ -188,43 +186,29 @@ function resolveScriptPhase(phase: ScriptPhase): ResolvedScriptPhase {
 	return { type: "script", name: phase.name, command: phase.command, env: phase.env ?? {}, e2e: phase.e2e === true };
 }
 
-function resolvePlaywrightPhase(
-	phase: PlaywrightPhase,
-	installBrowserSystemDeps: boolean,
-): ResolvedPlaywrightPhase {
+function resolvePlaywrightPhase(phase: PlaywrightPhase): ResolvedPlaywrightPhase {
 	const browsers = phase.browsers.join(" ");
-	const withDeps = installBrowserSystemDeps ? " --with-deps" : "";
 	return {
 		type: "playwright",
 		name: phase.name,
-		browserInstallCommand: `node_modules/.bin/playwright install${withDeps} ${browsers}`,
+		browserInstallCommand: `node_modules/.bin/playwright install ${browsers}`,
 		testCommand: `node_modules/.bin/playwright test --config ${phase.config}`,
 		env: phase.env ?? {},
 		e2e: phase.e2e === true,
 	};
 }
 
-// The retry exists for the --with-deps path (github-hosted runners, incl. fork
-// PRs): `playwright install --with-deps` shells out to apt-get, whose dpkg
-// frontend lock is held for the entire duration of any other apt process (the
-// image's unattended-upgrades, or a sibling project's parallel browser install).
-// An immediate retry just races the still-held lock, so wait between attempts to
-// let it clear — four attempts with a 10s wait outlasts a sibling install while
-// still failing loudly on a genuinely stuck apt. On self-hosted the OS libs are
-// baked into the image, so --with-deps is omitted and no apt runs; the retry is
-// then a harmless no-op cushion (a bare `playwright install` rarely fails twice).
-export const BROWSER_INSTALL_MAX_ATTEMPTS = 4;
-export const BROWSER_INSTALL_RETRY_DELAY_MS = 10_000;
-
 export const defaultDeps: TestPhaseRunnerDeps = {
 	execSync: defaultExecSync as ExecSyncFn,
 	globSync: defaultGlobSync,
 	log: console.log,
 	shouldSkipE2E: () => getEnv("CLAUDE_CODE_REMOTE") === "true",
-	shouldInstallBrowserSystemDeps: () => getEnv("RUNNER_ENVIRONMENT") === "github-hosted",
-	sleep: (ms: number) => {
-		Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-	},
+	// Every CI runner is handed the browsers from the digest in
+	// .github/browser-image/image.env and must use those, not a download. A
+	// developer machine has no PLAYWRIGHT_BROWSERS_PATH and still installs its
+	// own — the only way a fresh clone works. Keyed on the path rather than CI
+	// because claude-listener.yml runs `CI=true pnpm check` on a bare runner.
+	shouldInstallBrowsers: () => (getEnv("PLAYWRIGHT_BROWSERS_PATH") ?? "") === "",
 };
 
 export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
@@ -255,33 +239,12 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 		}
 	}
 
-	function installBrowsers(
-		displayName: string,
-		phase: ResolvedPlaywrightPhase,
-		options: { cwd: string; stdio: ExecSyncOptions["stdio"] },
-		attempt = 1,
-	): void {
-		try {
-			deps.execSync(phase.browserInstallCommand, { cwd: options.cwd, stdio: options.stdio });
-		} catch (error) {
-			if (attempt >= BROWSER_INSTALL_MAX_ATTEMPTS) throw error;
-			deps.log(
-				`\n=== ${displayName} - browser install failed (attempt ${attempt}/${BROWSER_INSTALL_MAX_ATTEMPTS}), retrying after ${BROWSER_INSTALL_RETRY_DELAY_MS}ms ===\n`,
-			);
-			deps.sleep(BROWSER_INSTALL_RETRY_DELAY_MS);
-			installBrowsers(displayName, phase, options, attempt + 1);
-		}
-	}
-
 	function runPlaywrightPhase(displayName: string, phase: ResolvedPlaywrightPhase, projectRoot: string) {
 		deps.log(`\n=== ${displayName} ===\n`);
 
-		const isCI = getEnv("CI") === "true";
-		if (isCI) {
-			deps.log("Installing browsers (output suppressed in CI; errors still shown)...");
+		if (deps.shouldInstallBrowsers()) {
+			deps.execSync(phase.browserInstallCommand, { cwd: projectRoot, stdio: "inherit" });
 		}
-		const installStdio: ExecSyncOptions["stdio"] = isCI ? ["inherit", "ignore", "inherit"] : "inherit";
-		installBrowsers(displayName, phase, { cwd: projectRoot, stdio: installStdio });
 
 		deps.execSync(phase.testCommand, {
 			cwd: projectRoot,
@@ -299,7 +262,7 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 				if (phase.type === "jest") return resolveJestPhase(phase);
 				if (phase.type === "node-test") return resolveNodeTestPhase(phase, deps.globSync);
 				if (phase.type === "script") return resolveScriptPhase(phase);
-				return resolvePlaywrightPhase(phase, deps.shouldInstallBrowserSystemDeps());
+				return resolvePlaywrightPhase(phase);
 			});
 
 			return {

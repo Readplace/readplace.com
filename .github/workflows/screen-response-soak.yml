@@ -70,8 +70,7 @@ jobs:
 
       - run: pnpm nx run hutch:compile
 
-      - run: npx playwright install --with-deps chromium
-        working-directory: projects/hutch
+      - uses: ./.github/actions/pinned-browsers
 
       - name: Measure screen response
         working-directory: projects/hutch

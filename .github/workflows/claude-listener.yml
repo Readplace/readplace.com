@@ -102,6 +102,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # This job runs `pnpm check`, so it needs the same browsers CI uses.
+      # Runs the action's script directly rather than `uses:`-ing the action:
+      # this workflow always runs main's copy of itself but checks out an
+      # arbitrary PR head, and a local action path resolves from that checkout —
+      # so a branch cut before the action landed would fail with "Can't find
+      # 'action.yml'". An absent script means an older branch that still
+      # installs its own browsers, which is self-consistent; leave it alone.
+      - name: Use the pinned browsers
+        run: |
+          script=".github/actions/pinned-browsers/materialise.sh"
+          if [ ! -f "$script" ]; then
+            echo "No $script on this ref; leaving browser setup to the checked-out branch."
+            exit 0
+          fi
+          bash "$script"
+
       # Override the action's bundled CLI (v2.1.76) with a newer native binary. The action
       # stays pinned at v1.0.72 because its newer agent-SDK glue breaks Max-plan OAuth
       # (#1126/#1281); that auth resolves in the child CLI, so upgrading only the binary
