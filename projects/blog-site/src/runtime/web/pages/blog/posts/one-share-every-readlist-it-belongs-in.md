@@ -56,4 +56,4 @@ Both share answers belong to the account rather than the phone. Signing out clea
 
 ## After the first Done
 
-The question is already waiting in the share sheet of [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store). Tick the lists that keep coming up, press Done, and the links you share after that file themselves. The lists to tick start at [readplace.com](/?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=home).
+The question is already waiting in the share sheet of [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store). Tick the lists that keep coming up, press Done, and the links you share after that file themselves. If there is nothing to tick yet, a first list is 1 typed name away at [readplace.com](/?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=home).
