@@ -136,7 +136,7 @@ export function toIntegrationsIndexViewModel(input: {
 			{
 				key: "gmail",
 				name: "Gmail",
-				description: "Forward newsletters from Gmail into your Readplace inboxes.",
+				description: "Forward each newsletter from Gmail into your Readplace inboxes.",
 				iconName: "mail",
 				statusKey: state,
 				statusLabel: STATUS_LABELS[state],

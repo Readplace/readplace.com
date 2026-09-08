@@ -19,7 +19,7 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 	return {
 		seo: {
 			title: "Gmail — Readplace",
-			description: "Forward newsletters from Gmail into your Readplace inboxes.",
+			description: "Forward each newsletter from Gmail into your Readplace inboxes.",
 			canonicalUrl: "/integrations/gmail",
 			robots: "noindex, nofollow",
 		},
