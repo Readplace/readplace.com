@@ -10,37 +10,47 @@ enum CosmicHue: CaseIterable {
 	case cyan
 	case magenta
 
-	var uiColor: UIColor {
+	private var variants: (light: HueVariant, dark: HueVariant) {
 		switch self {
 		case .amberHighlight:
-			return dynamicColor(
+			return (
 				light: HueVariant(red: 200, green: 146, blue: 60, alpha: 0.20),
 				dark: HueVariant(red: 212, green: 160, blue: 74, alpha: 0.28)
 			)
 		case .deepAmber:
-			return dynamicColor(
+			return (
 				light: HueVariant(red: 200, green: 112, blue: 42, alpha: 0.18),
 				dark: HueVariant(red: 212, green: 131, blue: 58, alpha: 0.26)
 			)
 		case .violet:
-			return dynamicColor(
+			return (
 				light: HueVariant(red: 108, green: 66, blue: 158, alpha: 0.15),
 				dark: HueVariant(red: 168, green: 128, blue: 214, alpha: 0.22)
 			)
 		case .cyan:
-			return dynamicColor(
+			return (
 				light: HueVariant(red: 74, green: 127, blue: 181, alpha: 0.14),
 				dark: HueVariant(red: 122, green: 178, blue: 222, alpha: 0.20)
 			)
 		case .magenta:
-			return dynamicColor(
+			return (
 				light: HueVariant(red: 176, green: 68, blue: 122, alpha: 0.13),
 				dark: HueVariant(red: 222, green: 130, blue: 178, alpha: 0.18)
 			)
 		}
 	}
 
+	var uiColor: UIColor {
+		dynamicColor(light: variants.light, dark: variants.dark)
+	}
+
 	var color: Color { Color(uiColor: uiColor) }
+
+	var starUIColor: UIColor {
+		dynamicColor(light: variants.light.opaque, dark: variants.dark.opaque)
+	}
+
+	var starColor: Color { Color(uiColor: starUIColor) }
 }
 
 private struct HueVariant {
@@ -48,6 +58,10 @@ private struct HueVariant {
 	let green: Int
 	let blue: Int
 	let alpha: Double
+
+	var opaque: HueVariant {
+		HueVariant(red: red, green: green, blue: blue, alpha: 1)
+	}
 }
 
 private func dynamicColor(light: HueVariant, dark: HueVariant) -> UIColor {
@@ -151,13 +165,99 @@ struct WaveClock: Equatable {
 	}
 }
 
+enum StrokeTone: Equatable {
+	case veil
+	case star
+}
+
 struct FilamentStroke: Equatable {
 	let points: [CGPoint]
 	let hue: CosmicHue
 	let lane: Int
+	let tone: StrokeTone
 	let opacity: Double
 	let lineWidth: Double
 	let blurRadius: Double
+}
+
+extension FilamentStroke {
+	static let segmentCount = 8
+	static let pointsPerSegment = 10
+	static let sampleCount = segmentCount * pointsPerSegment + 1
+	private static let tailFalloff = 0.9
+	private static let tailMinThickness = 0.72
+	private static let glowOpacityFactor = 0.5
+	private static let coreLineWidth = 2.3
+	private static let glowLineWidth = 7.6
+	private static let coreBlurRadius = 0.0
+	private static let glowBlurRadius = 6.0
+
+	static func tapered(
+		along points: [CGPoint],
+		hue: CosmicHue,
+		lane: Int,
+		tone: StrokeTone,
+		coreOpacity: Double
+	) -> [FilamentStroke] {
+		assert(points.count == sampleCount, "a tapered polyline carries exactly \(sampleCount) samples")
+		return (0..<segmentCount).flatMap { segment -> [FilamentStroke] in
+			let start = segment * pointsPerSegment
+			let segmentPoints = Array(points[start...start + pointsPerSegment])
+			let alongTail = (Double(segment) + 0.5) / Double(segmentCount)
+			let brightness = pow(alongTail, tailFalloff)
+			let thickness = tailMinThickness + (1 - tailMinThickness) * alongTail
+			let core = coreOpacity * brightness
+			return [
+				FilamentStroke(
+					points: segmentPoints,
+					hue: hue,
+					lane: lane,
+					tone: tone,
+					opacity: glowOpacityFactor * core,
+					lineWidth: glowLineWidth * thickness,
+					blurRadius: glowBlurRadius
+				),
+				FilamentStroke(
+					points: segmentPoints,
+					hue: hue,
+					lane: lane,
+					tone: tone,
+					opacity: core,
+					lineWidth: coreLineWidth * thickness,
+					blurRadius: coreBlurRadius
+				),
+			]
+		}
+	}
+}
+
+struct StarVisit: Equatable {
+	let anchor: CGPoint
+	let bornAt: TimeInterval
+	let hue: CosmicHue
+	let ordinal: Int
+}
+
+fileprivate struct BoltShape {
+	let filament: Int
+	let generation: Int
+	let anchor: CGPoint
+	let hue: CosmicHue
+	let lane: Int
+}
+
+func smoothstep(_ x: Double) -> Double {
+	x * x * (3 - 2 * x)
+}
+
+func splitMix64Unit(_ seed: UInt64) -> Double {
+	var z = seed
+	z ^= z >> 30
+	z = z &* 0xBF58_476D_1CE4_E5B9
+	z ^= z >> 27
+	z = z &* 0x94D0_49BB_1331_11EB
+	z ^= z >> 31
+	return Double(z >> 40) / Double(1 << 24)
 }
 
 private struct Vector3 {
@@ -191,9 +291,7 @@ struct CosmicWaveField {
 	let seed: UInt64
 	let zone: CosmicZone
 
-	private static let samplesPerFilament = 81
-	private static let segmentCount = 8
-	private static let pointsPerSegment = 10
+	private static let samplesPerFilament = FilamentStroke.sampleCount
 	private static let drawSeconds = 0.32
 	private static let minKinks = 2
 	private static let maxKinks = 6
@@ -204,35 +302,57 @@ struct CosmicWaveField {
 	private static let tangentTiltRange = 0.30
 	private static let spanBase = 0.055
 	private static let spanJitter = 0.040
-	private static let tailFalloff = 0.9
-	private static let tailMinThickness = 0.72
-	private static let glowOpacityFactor = 0.5
 	private static let staticOpacityFactor = 0.7
-	private static let coreLineWidth = 2.3
-	private static let glowLineWidth = 7.6
-	private static let coreBlurRadius = 0.0
-	private static let glowBlurRadius = 6.0
 	private static let sphereScopeFilament = 1000
+	private static let visitFilamentBase = 100
+	private static let visitLaneBase = 100
+	private static let visitLifetimeSeconds = 2.4
+	private static let visitSettleSeconds = 0.6
 
-	func strokes(zoneFrame: CGRect, screenSize: CGSize, elapsed: TimeInterval) -> [FilamentStroke] {
+	func strokes(
+		zoneFrame: CGRect,
+		screenSize: CGSize,
+		elapsed: TimeInterval,
+		visits: [StarVisit]
+	) -> [FilamentStroke] {
 		guard zoneFrame.width > 0, zoneFrame.height > 0, screenSize.width > 0, screenSize.height > 0 else { return [] }
-		return zone.filaments.indices.flatMap { index in
+		let lanes = zone.filaments.indices.flatMap { index in
 			animatedStrokes(filament: index, zoneFrame: zoneFrame, screenSize: screenSize, elapsed: elapsed)
 		}
+		let guests = visits.flatMap { visit in
+			visitStrokes(visit, zoneFrame: zoneFrame, screenSize: screenSize, elapsed: elapsed)
+		}
+		return lanes + guests
 	}
 
 	func staticStrokes(zoneFrame: CGRect, screenSize: CGSize) -> [FilamentStroke] {
 		guard zoneFrame.width > 0, zoneFrame.height > 0, screenSize.width > 0, screenSize.height > 0 else { return [] }
 		return zone.filaments.indices.flatMap { index -> [FilamentStroke] in
 			segmentStrokes(
-				filament: index,
-				generation: 0,
+				bolt: laneBolt(filament: index, generation: 0, zoneFrame: zoneFrame),
 				zoneFrame: zoneFrame,
 				screenSize: screenSize,
 				sinceBirth: Self.drawSeconds,
-				coreOpacity: Self.staticOpacityFactor * zone.opacityScale
+				coreOpacity: Self.staticOpacityFactor * zone.opacityScale,
+				tone: .veil
 			)
 		}
+	}
+
+	func visitHead(_ visit: StarVisit, zoneFrame: CGRect, screenSize: CGSize) -> CGPoint {
+		let points = arcPoints(
+			bolt: visitBolt(visit),
+			zoneFrame: zoneFrame,
+			screenSize: screenSize,
+			sinceBirth: Self.drawSeconds
+		)
+		let visible = CGRect(origin: .zero, size: zoneFrame.size)
+		var tip = points[0]
+		for point in points.dropFirst() {
+			guard visible.contains(point) else { break }
+			tip = point
+		}
+		return CGPoint(x: tip.x + zoneFrame.minX, y: tip.y + zoneFrame.minY)
 	}
 
 	private func animatedStrokes(
@@ -248,73 +368,53 @@ struct CosmicWaveField {
 		let cyclePhase = localElapsed - Double(generation) * period
 		let sinceBirth = cyclePhase - gap(filament: index, generation: generation)
 		guard sinceBirth > 0 else { return [] }
-		let breath = 0.88 + 0.12 * sin(
-			2 * .pi * cyclePhase / Self.breathPeriodSeconds
-				+ 2 * .pi * unit(filament: index, generation: generation, slot: .breathPhase)
-		)
-		let opacity = breath * tailFade(cyclePhase: cyclePhase, period: period) * zone.opacityScale
+		let opacity = veilOpacity(filament: index, generation: generation, phase: cyclePhase, period: period)
 		return segmentStrokes(
-			filament: index,
-			generation: generation,
+			bolt: laneBolt(filament: index, generation: generation, zoneFrame: zoneFrame),
 			zoneFrame: zoneFrame,
 			screenSize: screenSize,
 			sinceBirth: sinceBirth,
-			coreOpacity: opacity
+			coreOpacity: opacity,
+			tone: .veil
 		)
 	}
 
-	private func segmentStrokes(
-		filament index: Int,
-		generation: Int,
+	private func visitStrokes(
+		_ visit: StarVisit,
 		zoneFrame: CGRect,
 		screenSize: CGSize,
-		sinceBirth: Double,
-		coreOpacity: Double
+		elapsed: TimeInterval
 	) -> [FilamentStroke] {
-		let projected = arcPoints(
-			filament: index,
-			generation: generation,
+		let sinceBirth = elapsed - visit.bornAt
+		guard sinceBirth > 0, sinceBirth < Self.visitLifetimeSeconds else { return [] }
+		let bolt = visitBolt(visit)
+		let opacity = veilOpacity(
+			filament: bolt.filament,
+			generation: bolt.generation,
+			phase: sinceBirth,
+			period: Self.visitLifetimeSeconds
+		)
+		let veil = segmentStrokes(
+			bolt: bolt,
 			zoneFrame: zoneFrame,
 			screenSize: screenSize,
-			sinceBirth: sinceBirth
+			sinceBirth: sinceBirth,
+			coreOpacity: opacity,
+			tone: .veil
 		)
-		let hue = zone.filaments[index].hue
-		return (0..<Self.segmentCount).flatMap { segment -> [FilamentStroke] in
-			let start = segment * Self.pointsPerSegment
-			let points = Array(projected[start...start + Self.pointsPerSegment])
-			let alongTail = (Double(segment) + 0.5) / Double(Self.segmentCount)
-			let brightness = pow(alongTail, Self.tailFalloff)
-			let thickness = Self.tailMinThickness + (1 - Self.tailMinThickness) * alongTail
-			let core = coreOpacity * brightness
-			return [
-				FilamentStroke(
-					points: points,
-					hue: hue,
-					lane: index,
-					opacity: Self.glowOpacityFactor * core,
-					lineWidth: Self.glowLineWidth * thickness,
-					blurRadius: Self.glowBlurRadius
-				),
-				FilamentStroke(
-					points: points,
-					hue: hue,
-					lane: index,
-					opacity: core,
-					lineWidth: Self.coreLineWidth * thickness,
-					blurRadius: Self.coreBlurRadius
-				),
-			]
-		}
+		let settling = 1 - smoothstep(min(1, sinceBirth / Self.visitSettleSeconds))
+		guard settling > 0 else { return veil }
+		return veil + segmentStrokes(
+			bolt: bolt,
+			zoneFrame: zoneFrame,
+			screenSize: screenSize,
+			sinceBirth: sinceBirth,
+			coreOpacity: opacity * settling,
+			tone: .star
+		)
 	}
 
-	private func arcPoints(
-		filament index: Int,
-		generation: Int,
-		zoneFrame: CGRect,
-		screenSize: CGSize,
-		sinceBirth: Double
-	) -> [CGPoint] {
-		let sphere = sphereGeometry(screenSize: screenSize)
+	private func laneBolt(filament index: Int, generation: Int, zoneFrame: CGRect) -> BoltShape {
 		let band = zone.filaments[index].band
 		let anchor = CGPoint(
 			x: zoneFrame.minX + (0.15 + 0.7 * unit(filament: index, generation: generation, slot: .anchorX)) * zoneFrame.width,
@@ -322,6 +422,46 @@ struct CosmicWaveField {
 				+ (band.lowerBound + unit(filament: index, generation: generation, slot: .anchorY) * (band.upperBound - band.lowerBound))
 				* zoneFrame.height
 		)
+		return BoltShape(filament: index, generation: generation, anchor: anchor, hue: zone.filaments[index].hue, lane: index)
+	}
+
+	private func visitBolt(_ visit: StarVisit) -> BoltShape {
+		BoltShape(
+			filament: Self.visitFilamentBase + visit.ordinal,
+			generation: 0,
+			anchor: visit.anchor,
+			hue: visit.hue,
+			lane: Self.visitLaneBase + visit.ordinal
+		)
+	}
+
+	private func segmentStrokes(
+		bolt: BoltShape,
+		zoneFrame: CGRect,
+		screenSize: CGSize,
+		sinceBirth: Double,
+		coreOpacity: Double,
+		tone: StrokeTone
+	) -> [FilamentStroke] {
+		FilamentStroke.tapered(
+			along: arcPoints(bolt: bolt, zoneFrame: zoneFrame, screenSize: screenSize, sinceBirth: sinceBirth),
+			hue: bolt.hue,
+			lane: bolt.lane,
+			tone: tone,
+			coreOpacity: coreOpacity
+		)
+	}
+
+	private func arcPoints(
+		bolt: BoltShape,
+		zoneFrame: CGRect,
+		screenSize: CGSize,
+		sinceBirth: Double
+	) -> [CGPoint] {
+		let index = bolt.filament
+		let generation = bolt.generation
+		let sphere = sphereGeometry(screenSize: screenSize)
+		let anchor = bolt.anchor
 		let focal = 2.4 * sphere.radius
 		let offsetX = anchor.x - sphere.center.x
 		let offsetY = anchor.y - sphere.center.y
@@ -397,6 +537,14 @@ struct CosmicWaveField {
 		0.12 + 0.5 * unit(filament: filament, generation: generation, slot: .gap)
 	}
 
+	private func veilOpacity(filament: Int, generation: Int, phase: Double, period: Double) -> Double {
+		let breath = 0.88 + 0.12 * sin(
+			2 * .pi * phase / Self.breathPeriodSeconds
+				+ 2 * .pi * unit(filament: filament, generation: generation, slot: .breathPhase)
+		)
+		return breath * tailFade(cyclePhase: phase, period: period) * zone.opacityScale
+	}
+
 	private func tailFade(cyclePhase: Double, period: Double) -> Double {
 		if cyclePhase < period - Self.fadeOutSeconds {
 			return 1
@@ -407,10 +555,6 @@ struct CosmicWaveField {
 
 	private func cyclePeriod(filament: Int) -> Double {
 		1.3 + 0.8 * unit(filament: filament, generation: 0, slot: .cyclePeriod)
-	}
-
-	private func smoothstep(_ x: Double) -> Double {
-		x * x * (3 - 2 * x)
 	}
 
 	private enum HashSlot {
@@ -453,12 +597,7 @@ struct CosmicWaveField {
 		var z = seed
 		z ^= UInt64(Self.sphereScopeFilament) &* 0xBF58_476D_1CE4_E5B9
 		z ^= slot.rawSlot
-		z ^= z >> 30
-		z = z &* 0xBF58_476D_1CE4_E5B9
-		z ^= z >> 27
-		z = z &* 0x94D0_49BB_1331_11EB
-		z ^= z >> 31
-		return Double(z >> 40) / Double(1 << 24)
+		return splitMix64Unit(z)
 	}
 
 	private func unit(filament: Int, generation: Int, slot: HashSlot) -> Double {
@@ -467,11 +606,6 @@ struct CosmicWaveField {
 		z ^= UInt64(filament) &* 0xBF58_476D_1CE4_E5B9
 		z ^= UInt64(generation) &* 0x94D0_49BB_1331_11EB
 		z ^= slot.rawSlot
-		z ^= z >> 30
-		z = z &* 0xBF58_476D_1CE4_E5B9
-		z ^= z >> 27
-		z = z &* 0x94D0_49BB_1331_11EB
-		z ^= z >> 31
-		return Double(z >> 40) / Double(1 << 24)
+		return splitMix64Unit(z)
 	}
 }

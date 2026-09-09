@@ -9,8 +9,16 @@ final class CosmicWaveFieldTests: XCTestCase {
 	private let bottomFrame = CGRect(x: 0, y: 600, width: 390, height: 150)
 	private let field = CosmicWaveField(seed: 42, zone: .aboveBrand)
 
+	private let visit = StarVisit(anchor: CGPoint(x: 180, y: 250), bornAt: 3, hue: .magenta, ordinal: 0)
+
 	private func strokes(_ elapsed: TimeInterval) -> [FilamentStroke] {
-		field.strokes(zoneFrame: topFrame, screenSize: screenSize, elapsed: elapsed)
+		field.strokes(zoneFrame: topFrame, screenSize: screenSize, elapsed: elapsed, visits: [])
+	}
+
+	private func guests(_ elapsed: TimeInterval) -> [FilamentStroke] {
+		let lanes = strokes(elapsed)
+		let all = field.strokes(zoneFrame: topFrame, screenSize: screenSize, elapsed: elapsed, visits: [visit])
+		return Array(all.dropFirst(lanes.count))
 	}
 
 	private func cores(_ elapsed: TimeInterval, hue: CosmicHue) -> [FilamentStroke] {
@@ -62,13 +70,13 @@ final class CosmicWaveFieldTests: XCTestCase {
 
 		XCTAssertNotEqual(
 			strokes(4).first?.points,
-			other.strokes(zoneFrame: topFrame, screenSize: screenSize, elapsed: 4).first?.points
+			other.strokes(zoneFrame: topFrame, screenSize: screenSize, elapsed: 4, visits: []).first?.points
 		)
 	}
 
 	func testDegenerateGeometryProducesNoStrokes() {
-		XCTAssertEqual(field.strokes(zoneFrame: .zero, screenSize: screenSize, elapsed: 6), [])
-		XCTAssertEqual(field.strokes(zoneFrame: topFrame, screenSize: .zero, elapsed: 6), [])
+		XCTAssertEqual(field.strokes(zoneFrame: .zero, screenSize: screenSize, elapsed: 6, visits: [visit]), [])
+		XCTAssertEqual(field.strokes(zoneFrame: topFrame, screenSize: .zero, elapsed: 6, visits: [visit]), [])
 		XCTAssertEqual(field.staticStrokes(zoneFrame: .zero, screenSize: screenSize), [])
 		XCTAssertEqual(field.staticStrokes(zoneFrame: topFrame, screenSize: .zero), [])
 	}
@@ -190,12 +198,14 @@ final class CosmicWaveFieldTests: XCTestCase {
 		let higher = field.strokes(
 			zoneFrame: CGRect(x: 0, y: 60, width: 390, height: 330),
 			screenSize: screenSize,
-			elapsed: 4
+			elapsed: 4,
+			visits: []
 		)
 		let lower = field.strokes(
 			zoneFrame: CGRect(x: 0, y: 400, width: 390, height: 330),
 			screenSize: screenSize,
-			elapsed: 4
+			elapsed: 4,
+			visits: []
 		)
 
 		XCTAssertNotEqual(higher.first?.points, lower.first?.points, "moving the zone must slide it over one fixed sphere")
@@ -205,12 +215,12 @@ final class CosmicWaveFieldTests: XCTestCase {
 		let below = CosmicWaveField(seed: 42, zone: .belowActions)
 		for elapsed in stride(from: 0.5, through: 40.0, by: 0.1) {
 			assertBandsStayApart(
-				field.strokes(zoneFrame: topFrame, screenSize: screenSize, elapsed: elapsed),
+				field.strokes(zoneFrame: topFrame, screenSize: screenSize, elapsed: elapsed, visits: []),
 				in: topFrame.size,
 				at: elapsed
 			)
 			assertBandsStayApart(
-				below.strokes(zoneFrame: bottomFrame, screenSize: screenSize, elapsed: elapsed),
+				below.strokes(zoneFrame: bottomFrame, screenSize: screenSize, elapsed: elapsed, visits: []),
 				in: bottomFrame.size,
 				at: elapsed
 			)
@@ -319,6 +329,115 @@ final class CosmicWaveFieldTests: XCTestCase {
 		XCTAssertEqual(CosmicZone.aboveBrand.verticalFade, EdgeFade(leadIn: 0.06, leadOut: 0.10))
 		XCTAssertEqual(CosmicZone.belowActions.horizontalFade, EdgeFade(leadIn: 0.10, leadOut: 0.10))
 		XCTAssertEqual(CosmicZone.belowActions.verticalFade, EdgeFade(leadIn: 0.12, leadOut: 0.12))
+	}
+
+	func testAVisitLeavesTheLanesUntouched() {
+		let lanes = strokes(3.5)
+		let hosting = field.strokes(zoneFrame: topFrame, screenSize: screenSize, elapsed: 3.5, visits: [visit])
+
+		XCTAssertEqual(Array(hosting.prefix(lanes.count)), lanes)
+		XCTAssertGreaterThan(hosting.count, lanes.count, "the visit adds its own bolt")
+	}
+
+	func testAVisitLivesOnlyBetweenItsBirthAndItsFade() {
+		XCTAssertEqual(guests(2.9), [])
+		XCTAssertEqual(guests(3.5).count, 32, "a fresh visit draws its strike over its veil")
+		XCTAssertEqual(guests(4.5).count, 16, "a settled visit is veil alone")
+		XCTAssertEqual(guests(5.4), [])
+	}
+
+	func testAVisitStrikesFromItsAnchorAtFullStrengthAndSettlesIntoTheVeil() throws {
+		let struck = guests(3.05)
+		let origin = try XCTUnwrap(struck.first?.points.first)
+		XCTAssertEqual(origin.x, visit.anchor.x - topFrame.minX, accuracy: 0.001)
+		XCTAssertEqual(origin.y, visit.anchor.y - topFrame.minY, accuracy: 0.001)
+		XCTAssertEqual(Set(struck.map(\.tone)), [.veil, .star])
+		XCTAssertEqual(Set(struck.map(\.hue)), [.magenta])
+
+		let earlyStrike = guests(3.1).filter { $0.tone == .star }.map(\.opacity).max() ?? 0
+		let laterStrike = guests(3.4).filter { $0.tone == .star }.map(\.opacity).max() ?? 0
+		XCTAssertGreaterThan(earlyStrike, laterStrike, "the strike dims as the bolt settles in")
+		XCTAssertEqual(Set(guests(3.7).map(\.tone)), [.veil], "once settled, the guest wears the lanes' veil")
+	}
+
+	func testAVisitDrawsItselfOutAndThenFadesAway() {
+		let justBorn = length(of: guests(3.05))
+		let drawn = length(of: guests(3.4))
+		let brightest = guests(4.0).map(\.opacity).max() ?? 0
+		let dying = guests(5.3).map(\.opacity).max() ?? 0
+
+		XCTAssertGreaterThan(justBorn, 0)
+		XCTAssertGreaterThan(drawn, justBorn * 2, "the strike draws itself out like any lane bolt")
+		XCTAssertGreaterThan(brightest, 0)
+		XCTAssertLessThan(dying, brightest * 0.35, "the guest leaves by fading")
+	}
+
+	func testTheVisitHeadIsTheFurthestPointOfTheBoltStillOnScreen() throws {
+		let drawn = guests(3.5).enumerated().filter { $0.offset < 16 && $0.offset % 2 == 1 }.flatMap(\.element.points)
+		let visible = CGRect(origin: .zero, size: topFrame.size)
+
+		let head = field.visitHead(visit, zoneFrame: topFrame, screenSize: screenSize)
+		let local = CGPoint(x: head.x - topFrame.minX, y: head.y - topFrame.minY)
+
+		XCTAssertTrue(visible.contains(local), "a star cannot leave from a point the reader never sees")
+		let index = try XCTUnwrap(
+			drawn.firstIndex { hypot($0.x - local.x, $0.y - local.y) < 0.001 },
+			"the head must sit on the bolt itself, not near it"
+		)
+		XCTAssertFalse(
+			drawn.dropFirst(index + 1).prefix(1).allSatisfy(visible.contains),
+			"the head is the LAST visible point: whatever the bolt draws next has left the zone"
+		)
+		XCTAssertGreaterThan(hypot(head.x - visit.anchor.x, head.y - visit.anchor.y), 40, "the guest is a bolt, not a dot")
+	}
+
+	func testTheVisitHeadNeverEscapesTheZoneItStruck() {
+		let zones = [
+			topFrame,
+			CGRect(x: 0, y: 100, width: 390, height: 60),
+			CGRect(x: 20, y: 80, width: 120, height: 200),
+		]
+		for ordinal in 0..<25 {
+			for zone in zones {
+				let landed = StarVisit(
+					anchor: CGPoint(x: zone.midX, y: zone.midY),
+					bornAt: 0,
+					hue: .cyan,
+					ordinal: ordinal
+				)
+
+				let head = field.visitHead(landed, zoneFrame: zone, screenSize: screenSize)
+
+				XCTAssertTrue(
+					zone.insetBy(dx: -0.5, dy: -0.5).contains(head),
+					"visit \(ordinal) in \(zone) launches its star from \(head), outside the panel"
+				)
+			}
+		}
+	}
+
+	func testTheStarToneIsTheHueAtFullStrength() {
+		for hue in CosmicHue.allCases {
+			for style in [UIUserInterfaceStyle.light, .dark] {
+				let star = resolve(hue.starUIColor, style)
+				XCTAssertEqual(star.hex, resolve(hue.uiColor, style).hex, "\(hue)")
+				XCTAssertEqual(star.alpha, 1, accuracy: 1e-9, "\(hue)")
+			}
+			let ambient = UITraitCollection.current
+			XCTAssertEqual(
+				components(UIColor(hue.starColor).resolvedColor(with: ambient)).hex,
+				components(hue.starUIColor.resolvedColor(with: ambient)).hex,
+				"\(hue)"
+			)
+		}
+	}
+
+	private func length(of strokes: [FilamentStroke]) -> Double {
+		strokes.enumerated().filter { $0.offset % 2 == 1 }.map(\.element).reduce(0) { total, stroke in
+			total + zip(stroke.points, stroke.points.dropFirst()).reduce(0) {
+				$0 + hypot($1.1.x - $1.0.x, $1.1.y - $1.0.y)
+			}
+		}
 	}
 
 	func testHuesResolveToTheirCosmicTokens() {

@@ -20,6 +20,12 @@ final class LoginViewTests: XCTestCase {
 		var published: [String] = []
 		let mutePreference: IntroMutePreference
 		let intro: LaunchIntroModel
+		let rotation = SloganRotation(
+			fallback: AppConfig.fallbackSlogan,
+			seed: 42,
+			intervalNanoseconds: 1_000_000,
+			startedAt: Date()
+		)
 
 		init() {
 			let defaults = TestSupport.ephemeralDefaults()
@@ -48,7 +54,8 @@ final class LoginViewTests: XCTestCase {
 				})
 			},
 			slogans: SloganSource(load: { captured.published }),
-			intro: captured.intro
+			intro: captured.intro,
+			rotation: captured.rotation
 		)
 	}
 
@@ -149,11 +156,10 @@ final class LoginViewTests: XCTestCase {
 		let captured = Captured()
 		captured.published = []
 
-		let view = makeView(captured)
-		await view.runSlogans()
+		await makeView(captured).runSlogans(reduceMotion: false)
 
 		XCTAssertEqual(
-			view.currentSlogan, AppConfig.fallbackSlogan,
+			captured.rotation.current, AppConfig.fallbackSlogan,
 			"sign-in is often the first network call, so a failed slogan fetch must still render a slogan"
 		)
 	}
@@ -161,14 +167,39 @@ final class LoginViewTests: XCTestCase {
 	func testTheScreenRendersWithPublishedSlogans() async {
 		let captured = Captured()
 		captured.published = ["Your #1 AI-Powered Reading List.", "Paste a link. Read it clean."]
-
 		let view = makeView(captured)
-		await view.runSlogans()
 
+		let cycling = Task { await view.runSlogans(reduceMotion: false) }
+		try? await Task.sleep(nanoseconds: 30_000_000)
+		cycling.cancel()
+		await cycling.value
+
+		XCTAssertEqual(captured.rotation.slogans, captured.published)
 		XCTAssertGreaterThan(
 			renderedViewCount(view), 1,
 			"the login screen must mount with a fetched slogan list"
 		)
+	}
+
+	func testAReaderWhoAskedForLessMotionGetsTheFirstSloganAndNoRotation() async {
+		let captured = Captured()
+		captured.published = ["Your #1 AI-Powered Reading List.", "Paste a link. Read it clean."]
+
+		await makeView(captured).runSlogans(reduceMotion: true)
+
+		XCTAssertEqual(captured.rotation.current, "Your #1 AI-Powered Reading List.")
+		XCTAssertEqual(captured.rotation.handoff, nil, "reduced motion must not hand a slogan over to a comet")
+	}
+
+	func testASloganHandoffMountsTheCometsOverTheScreen() {
+		let captured = Captured()
+		captured.rotation.publish(["Your #1 AI-Powered Reading List.", "Paste a link. Read it clean."])
+		captured.rotation.advance(at: Date())
+
+		let window = mountWindow(makeView(captured))
+		RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+
+		XCTAssertGreaterThan(viewCount(in: window), 1, "the login screen must mount while a slogan is handed over")
 	}
 
 	func testAFetchedSloganNeverMovesTheBrandMark() throws {

@@ -4,6 +4,8 @@ import UIKit
 struct CosmicWavesView: View {
 	let zone: CosmicZone
 	let seed: UInt64
+	@Binding var clock: WaveClock
+	let visits: [StarVisit]
 	@Environment(\.accessibilityReduceMotion) private var reduceMotion
 	@Environment(\.scenePhase) private var scenePhase
 
@@ -15,7 +17,9 @@ struct CosmicWavesView: View {
 				zoneFrame: geometry.frame(in: .global),
 				screenSize: UIScreen.main.bounds.size,
 				reduceMotion: reduceMotion,
-				paused: scenePhase != .active
+				paused: scenePhase != .active,
+				clock: $clock,
+				visits: visits
 			)
 		}
 	}
@@ -28,24 +32,8 @@ struct CosmicWavesLayer: View {
 	let screenSize: CGSize
 	let reduceMotion: Bool
 	let paused: Bool
-	@State private var clock: WaveClock
-
-	init(
-		zone: CosmicZone,
-		seed: UInt64,
-		zoneFrame: CGRect,
-		screenSize: CGSize,
-		reduceMotion: Bool,
-		paused: Bool
-	) {
-		self.zone = zone
-		self.seed = seed
-		self.zoneFrame = zoneFrame
-		self.screenSize = screenSize
-		self.reduceMotion = reduceMotion
-		self.paused = paused
-		_clock = State(initialValue: WaveClock(accumulated: 0, resumedAt: paused ? nil : Date()))
-	}
+	@Binding var clock: WaveClock
+	let visits: [StarVisit]
 
 	var body: some View {
 		filamentCanvas
@@ -64,37 +52,17 @@ struct CosmicWavesLayer: View {
 		let field = CosmicWaveField(seed: seed, zone: zone)
 		if reduceMotion {
 			Canvas { context, _ in
-				draw(
-					strokes: field.staticStrokes(zoneFrame: zoneFrame, screenSize: screenSize),
-					in: &context
-				)
+				drawFilaments(field.staticStrokes(zoneFrame: zoneFrame, screenSize: screenSize), in: &context)
 			}
 		} else {
 			TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: paused)) { timeline in
 				Canvas { context, _ in
 					let elapsed = clock.elapsed(at: timeline.date)
-					draw(
-						strokes: field.strokes(zoneFrame: zoneFrame, screenSize: screenSize, elapsed: elapsed),
+					drawFilaments(
+						field.strokes(zoneFrame: zoneFrame, screenSize: screenSize, elapsed: elapsed, visits: visits),
 						in: &context
 					)
 				}
-			}
-		}
-	}
-
-	private func draw(strokes: [FilamentStroke], in context: inout GraphicsContext) {
-		for stroke in strokes {
-			var path = Path()
-			path.addLines(stroke.points)
-			let shading = GraphicsContext.Shading.color(stroke.hue.color.opacity(stroke.opacity))
-			let style = StrokeStyle(lineWidth: stroke.lineWidth, lineCap: .butt, lineJoin: .round)
-			if stroke.blurRadius > 0 {
-				context.drawLayer { layer in
-					layer.addFilter(.blur(radius: stroke.blurRadius))
-					layer.stroke(path, with: shading, style: style)
-				}
-			} else {
-				context.stroke(path, with: shading, style: style)
 			}
 		}
 	}
@@ -110,5 +78,23 @@ struct CosmicWavesLayer: View {
 			startPoint: startPoint,
 			endPoint: endPoint
 		)
+	}
+}
+
+func drawFilaments(_ strokes: [FilamentStroke], in context: inout GraphicsContext) {
+	for stroke in strokes {
+		var path = Path()
+		path.addLines(stroke.points)
+		let color = stroke.tone == .star ? stroke.hue.starColor : stroke.hue.color
+		let shading = GraphicsContext.Shading.color(color.opacity(stroke.opacity))
+		let style = StrokeStyle(lineWidth: stroke.lineWidth, lineCap: .butt, lineJoin: .round)
+		if stroke.blurRadius > 0 {
+			context.drawLayer { layer in
+				layer.addFilter(.blur(radius: stroke.blurRadius))
+				layer.stroke(path, with: shading, style: style)
+			}
+		} else {
+			context.stroke(path, with: shading, style: style)
+		}
 	}
 }

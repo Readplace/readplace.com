@@ -13,11 +13,10 @@ struct LoginView: View {
 	/// live fetch and tests answer without a network.
 	let slogans: SloganSource
 	@ObservedObject var intro: LaunchIntroModel
-	@State private var cosmicSeed = UInt64.random(in: .min ... .max)
-	/// Seeded with the compiled-in slogan so the screen never renders blank, then
-	/// replaced by whatever the server publishes.
-	@State private var sloganList: [String] = [AppConfig.fallbackSlogan]
-	@State private var sloganIndex = 0
+	@ObservedObject var rotation: SloganRotation
+	@Environment(\.scenePhase) private var scenePhase
+	@Environment(\.accessibilityReduceMotion) private var reduceMotion
+	@State private var landmarks: [LoginLandmark: CGRect] = [:]
 	/// Disables both buttons while an auth sheet is up, so a second tap can't
 	/// start a competing session (whose `start()` would be refused and surface a
 	/// spurious error under the live sheet).
@@ -31,26 +30,32 @@ struct LoginView: View {
 						.contentShape(Rectangle())
 						.onTapGesture { toggleMute() }
 
+					SloganCometsView(
+						handoff: rotation.handoff,
+						clock: rotation.clock,
+						seed: rotation.seed,
+						landmarks: landmarks,
+						screenSize: UIScreen.main.bounds.size,
+						paused: paused,
+						reduceMotion: reduceMotion
+					)
+
 					VStack(spacing: 28) {
-						CosmicWavesView(zone: .aboveBrand, seed: cosmicSeed)
+						CosmicWavesView(
+							zone: .aboveBrand,
+							seed: rotation.seed,
+							clock: $rotation.clock,
+							visits: skyVisits(handoff: rotation.handoff, landmarks: landmarks)
+						)
 							.frame(height: topGap(geo))
+							.loginLandmark(.sky)
 
 						VStack(spacing: 10) {
 							brandMark
 							(Text("Read") + Text("place").foregroundColor(.brandHighlight))
 								.font(.largeTitle.bold())
 								.allowsHitTesting(false)
-							Text(currentSlogan)
-								.font(.subheadline)
-								.foregroundStyle(.secondary)
-								.multilineTextAlignment(.center)
-								/// One line, so a longer slogan swapping in cannot move the
-								/// brand mark the launch intro lands on.
-								.lineLimit(1)
-								.transition(.opacity)
-								.id(currentSlogan)
-								.animation(.easeInOut(duration: 0.3), value: currentSlogan)
-								.allowsHitTesting(false)
+							subtitle
 						}
 
 						VStack(spacing: 14) {
@@ -84,12 +89,13 @@ struct LoginView: View {
 								.allowsHitTesting(false)
 						}
 
-						CosmicWavesView(zone: .belowActions, seed: cosmicSeed)
+						CosmicWavesView(zone: .belowActions, seed: rotation.seed, clock: $rotation.clock, visits: [])
 
 						footer
 					}
 					.padding(24)
 				}
+				.onPreferenceChange(LoginLandmarksKey.self) { landmarks = $0 }
 				.overlay(alignment: .bottomTrailing) {
 					muteButton.padding(20)
 				}
@@ -97,33 +103,51 @@ struct LoginView: View {
 			}
 			.preferredColorScheme(.light)
 		}
-		.task { await runSlogans() }
+		.task(id: reduceMotion) { await runSlogans(reduceMotion: reduceMotion) }
 	}
 
-	var currentSlogan: String {
-		sloganList.isEmpty ? AppConfig.fallbackSlogan : sloganList[sloganIndex % sloganList.count]
-	}
+	private var paused: Bool { scenePhase != .active }
 
-	/// Loads the published slogans, then cycles them for as long as this screen is
-	/// up — `.task` cancels the sleep on disappear, and a signed-in user never sees
-	/// the screen again.
-	///
-	/// A reader who asked for reduced motion gets the first slogan and no cycling:
-	/// text swapping under them is exactly the motion that setting turns off.
-	func runSlogans() async {
-		let published = await slogans.load()
-		if !published.isEmpty {
-			sloganList = published
-			sloganIndex = 0
+	private var subtitle: some View {
+		Group {
+			if reduceMotion {
+				subtitleLines(rotation.settledSubtitle)
+			} else {
+				TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: paused)) { timeline in
+					subtitleLines(rotation.subtitle(at: timeline.date))
+				}
+			}
 		}
-		guard !UIAccessibility.isReduceMotionEnabled, sloganList.count > 1 else { return }
-		while !Task.isCancelled {
-			guard (try? await Task.sleep(nanoseconds: Self.sloganIntervalNanoseconds)) != nil else { return }
-			sloganIndex = (sloganIndex + 1) % sloganList.count
-		}
+		.loginLandmark(.subtitle)
 	}
 
-	private static let sloganIntervalNanoseconds: UInt64 = 12_000_000_000
+	private func subtitleLines(_ frame: SubtitleFrame) -> some View {
+		ZStack {
+			sloganLine(frame.outgoing)
+			sloganLine(frame.incoming)
+		}
+		.accessibilityElement(children: .ignore)
+		.accessibilityLabel(frame.incoming.text)
+	}
+
+	private func sloganLine(_ line: SloganLine) -> some View {
+		Text(line.text)
+			.font(.subheadline)
+			.foregroundStyle(.secondary)
+			.multilineTextAlignment(.center)
+			/// One line, so a longer slogan swapping in cannot move the
+			/// brand mark the launch intro lands on.
+			.lineLimit(1)
+			.minimumScaleFactor(0.85)
+			.opacity(line.pose.opacity)
+			.scaleEffect(line.pose.scale)
+			.blur(radius: line.pose.blur)
+			.allowsHitTesting(false)
+	}
+
+	func runSlogans(reduceMotion: Bool) async {
+		await rotation.run(reduceMotion: reduceMotion, load: slogans.load)
+	}
 
 	private func topGap(_ geo: GeometryProxy) -> CGFloat {
 		let markCenter = LaunchIntro.logoScreenFraction * UIScreen.main.bounds.height

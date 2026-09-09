@@ -19,6 +19,12 @@ struct RootView: View {
 	@State private var authErrorText: String?
 	@Environment(\.scenePhase) private var scenePhase
 	@StateObject private var intro = makeLaunchIntroModel(reduceMotion: UIAccessibility.isReduceMotionEnabled)
+	@StateObject private var sloganRotation = SloganRotation(
+		fallback: AppConfig.fallbackSlogan,
+		seed: UInt64.random(in: .min ... .max),
+		intervalNanoseconds: 12_000_000_000,
+		startedAt: Date()
+	)
 
 	var body: some View {
 		Group {
@@ -30,7 +36,8 @@ struct RootView: View {
 					authErrorText: $authErrorText,
 					makeFlow: makeWebAuthFlow(session:),
 					slogans: session.makeSloganSource(),
-					intro: intro
+					intro: intro,
+					rotation: sloganRotation
 				)
 			}
 		}
