@@ -1,4 +1,6 @@
 export { aliasNameForSender } from "./alias-name-for-sender";
+export { GmailAccountEmailSchema } from "./gmail-account-email.schema";
+export type { GmailAccountEmail } from "./gmail-account-email.schema";
 export {
 	GMAIL_FILTER_QUERY_MAX_LENGTH,
 	ForwardableSenderSchema,

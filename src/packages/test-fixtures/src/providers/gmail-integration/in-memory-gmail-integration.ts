@@ -1,9 +1,10 @@
-import type { ForwardableSender } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailAccountEmail } from "@packages/domain/gmail";
 import { aliasNameForSender } from "@packages/domain/gmail";
 import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { GmailIntegrationBundle } from "@packages/web-test-harness";
+import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryInboxAddress } from "../inbox-address";
 import { initInMemoryGmailConnection } from "../gmail-connection";
@@ -20,9 +21,14 @@ export interface InMemoryGmailIntegration {
 
 export function initInMemoryGmailIntegration(input: {
 	grant: GmailGrantResult;
+	accountEmail?: GmailApiResult<GmailAccountEmail>;
 	domain?: string;
 	now?: () => Date;
 }): InMemoryGmailIntegration {
+	const accountEmail: GmailApiResult<GmailAccountEmail> = input.accountEmail ?? {
+		ok: false,
+		reason: "reauth-required",
+	};
 	const now = input.now ?? (() => new Date());
 	const domain = input.domain ?? "read.place";
 	const addresses = initInMemoryInboxAddress({ now });
@@ -40,6 +46,7 @@ export function initInMemoryGmailIntegration(input: {
 				exchangedCodes.push(code);
 				return input.grant;
 			},
+			findGmailAccountEmail: async () => accountEmail,
 			clientId: "test-client-id",
 			stateSecret: "test-state-secret",
 			gmailCredentialsStore: initInMemoryGmailCredentials({ now }),

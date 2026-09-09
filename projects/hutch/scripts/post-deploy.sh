@@ -70,9 +70,6 @@ verify "/embed/icon.svg"
 finish_phase
 
 if [ "$STACK" = "staging" ]; then
-  start_phase "installing chromium and its apt system dependencies"
-  npx playwright install --with-deps chromium
-  finish_phase
   start_phase "running the staging E2E suite"
   STAGING_URL="$URL" pnpm test:e2e:staging
   finish_phase

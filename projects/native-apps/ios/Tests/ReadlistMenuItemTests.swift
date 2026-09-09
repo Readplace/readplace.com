@@ -1,5 +1,4 @@
 import XCTest
-import SwiftUI
 @testable import Readplace
 
 final class ReadlistMenuItemTests: XCTestCase {
@@ -13,7 +12,7 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testEachAdvertisedReadlistBecomesAnItemKeyedOnItsHref() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", shareTargetHrefs: ["/queue"]
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue"]
 		)
 
 		XCTAssertEqual(items.map(\.label), ["All", "Work"], "labels are the server's, in wire order")
@@ -26,21 +25,23 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testOnlyTheReadlistOnScreenIsSelected() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue?queue=work", shareTargetHrefs: []
+			readlists: advertised(), selectedHref: "/queue?queue=work", mainlineHref: nil, shareTargetHrefs: []
 		)
 
 		XCTAssertEqual(items.map(\.isSelected), [false, true], "the menu checkmarks the readlist the list is showing")
 	}
 
 	func testNothingIsSelectedBeforeACollectionHasNamedItsReadlist() {
-		let items = ReadlistMenuItem.items(readlists: advertised(), selectedHref: nil, shareTargetHrefs: [])
+		let items = ReadlistMenuItem.items(
+			readlists: advertised(), selectedHref: nil, mainlineHref: nil, shareTargetHrefs: []
+		)
 
 		XCTAssertEqual(items.map(\.isSelected), [false, false])
 	}
 
 	func testATickedReadlistCarriesTheShareGlyphAndTheRestTheListGlyph() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", shareTargetHrefs: ["/queue?queue=work"]
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue?queue=work"]
 		)
 
 		XCTAssertEqual(items.map(\.isShareTarget), [false, true], "the readlist shares land in is the badged one")
@@ -49,7 +50,7 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testEveryTickedReadlistIsBadged() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", shareTargetHrefs: ["/queue", "/queue?queue=work"]
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue", "/queue?queue=work"]
 		)
 
 		XCTAssertEqual(
@@ -61,7 +62,7 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testATickedReadlistTheServerNoLongerAdvertisesBadgesNothing() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", shareTargetHrefs: ["/queue?queue=deleted"]
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue?queue=deleted"]
 		)
 
 		XCTAssertEqual(items.map(\.isShareTarget), [false, false])
@@ -70,22 +71,23 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testAReaderWithNoReadlistsGetsNoMenu() {
 		XCTAssertEqual(
-			ReadlistMenuItem.items(readlists: [], selectedHref: "/queue", shareTargetHrefs: ["/queue"]), [],
+			ReadlistMenuItem.items(
+				readlists: [], selectedHref: "/queue", mainlineHref: "/queue", shareTargetHrefs: ["/queue"]
+			),
+			[],
 			"a collection that advertises no readlists offers nothing to switch between"
 		)
 	}
 
-	func testTheCheckboxSaysWhetherSharedArticlesDropIntoTheReadlistOnScreen() {
-		XCTAssertEqual(SharedArticlesDropPresentation.title(isOn: true), "Shared articles drop here")
-		XCTAssertEqual(SharedArticlesDropPresentation.title(isOn: false), "Want shared article to drop here?")
-	}
+	func testTheMainlineReadlistIsBadgedWithoutAnyoneTickingIt() {
+		let items = ReadlistMenuItem.items(
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: "/queue", shareTargetHrefs: []
+		)
 
-	func testAnEmptyBoxReadsAsUntickedAndATickedOneAsFilled() {
-		XCTAssertEqual(SharedArticlesDropPresentation.boxSystemImage(isOn: true), "checkmark.square.fill")
-		XCTAssertEqual(SharedArticlesDropPresentation.boxSystemImage(isOn: false), "square")
-		XCTAssertEqual(SharedArticlesDropPresentation.boxTint(isOn: true), Color.brandSuccessText)
-		XCTAssertEqual(SharedArticlesDropPresentation.boxTint(isOn: false), Color.brandTextSecondary)
-		XCTAssertEqual(SharedArticlesDropPresentation.titleTint(isOn: true), Color.brandTextPrimary)
-		XCTAssertEqual(SharedArticlesDropPresentation.titleTint(isOn: false), Color.brandTextSecondary)
+		XCTAssertEqual(
+			items.map(\.isShareTarget), [true, false],
+			"a shared article lands in the whole queue whatever else is ticked, so the menu says so"
+		)
+		XCTAssertEqual(items.map(\.badgeSystemImage), ["square.and.arrow.up", "list.bullet"])
 	}
 }

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
@@ -230,6 +230,36 @@ describe("GET /integrations/gmail", () => {
 			assert(button.hasAttribute("hidden"), "the copy button stays hidden until the script reveals it");
 		}
 		expect(response.text).toContain("/client-dist/integrations.client.js");
+	});
+
+	it("points Open Gmail settings at the connected mailbox", async () => {
+		const { agent, gmail, userId } = await connectedAgent({ confirmed: false });
+		await gmail.bundle.gmailConnectionStore.recordAccountEmail({
+			userId,
+			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+		});
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const link = doc.querySelector("[data-test-gmail-open-settings]");
+		assert(link, "step 2 offers a link into Gmail settings");
+		assert.equal(
+			link.getAttribute("href"),
+			"https://mail.google.com/mail/u/0/?authuser=reader%40gmail.com#settings/fwdandpop",
+		);
+	});
+
+	it("keeps the first-account settings link when no mailbox was captured", async () => {
+		const { agent } = await connectedAgent({ confirmed: false });
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const link = doc.querySelector("[data-test-gmail-open-settings]");
+		assert(link, "step 2 offers a link into Gmail settings");
+		assert.equal(
+			link.getAttribute("href"),
+			"https://mail.google.com/mail/u/0/#settings/fwdandpop",
+		);
 	});
 
 	it("serves only the awaiting content to a markdown reader while awaiting", async () => {

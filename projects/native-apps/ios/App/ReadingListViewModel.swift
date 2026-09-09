@@ -124,12 +124,11 @@ final class ReadingListViewModel: ObservableObject {
 		await fetchFirstPage()
 	}
 
-	func toggleSharedArticlesDropHere() {
-		guard let href = selectedReadlistHref else { return }
-		if shareTargetHrefs.contains(href) {
-			shareTarget.remove(href: href)
+	func toggleSharedArticlesDrop(into readlist: Readlist) {
+		if shareTargetHrefs.contains(readlist.href) {
+			shareTarget.remove(href: readlist.href)
 		} else {
-			shareTarget.add(href: href)
+			shareTarget.add(href: readlist.href)
 		}
 		shareTargetHrefs = shareTarget.hrefs
 	}
@@ -140,21 +139,18 @@ final class ReadingListViewModel: ObservableObject {
 		readlists.first { $0.href == selectedReadlistHref }?.label
 	}
 
-	var offersSharedArticlesDropChoice: Bool {
-		guard offersReadlistSwitching, let landing = tabs.first?.href, landing == selectedTabHref else { return false }
-		guard let selected = selectedReadlistHref, let mainline = rootHref else { return false }
-		return selected != mainline
-	}
-
-	var sharedArticlesDropHere: Bool {
-		guard let href = selectedReadlistHref else { return false }
-		return shareTargetHrefs.contains(href)
+	var sharedArticlesDrop: SharedArticlesDrop? {
+		guard offersReadlistSwitching, let landing = tabs.first?.href, landing == selectedTabHref,
+			let readlist = readlists.first(where: { $0.href == selectedReadlistHref })
+		else { return nil }
+		return SharedArticlesDrop(readlist: readlist, mainlineHref: rootHref, tickedHrefs: shareTargetHrefs)
 	}
 
 	var readlistMenu: [ReadlistMenuItem] {
 		ReadlistMenuItem.items(
 			readlists: readlists,
 			selectedHref: selectedReadlistHref,
+			mainlineHref: rootHref,
 			shareTargetHrefs: shareTargetHrefs
 		)
 	}

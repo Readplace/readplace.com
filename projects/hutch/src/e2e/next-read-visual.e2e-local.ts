@@ -35,6 +35,8 @@ const DISMISS = '[data-test-action="next-read-dismiss"]';
 const EYEBROW = ".next-read__eyebrow";
 const READ_STATE = "[data-test-read-status]";
 const OPEN_CARD = "[data-test-reader-related].next-read--open";
+const ARTICLE_BODY = "[data-article-body]";
+const ARTICLE_END_BELOW_FOLD_PX = 600;
 
 /** The saved-time phrase is wall-clock relative, so it is pinned to a fixed
  * string before every capture — otherwise the baseline rots a day after it is
@@ -354,6 +356,35 @@ test.describe("Next-read card (desktop)", () => {
 			markRelatedRead: false,
 		});
 		await captureCheckpoint(page, STACK_DESKTOP_LIGHT);
+	});
+
+	test("gets out of the way when the reader turns back into the article, and returns at its end", async ({
+		page,
+	}) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openRevealedCard(page, {
+			stamp: `scroll-back-desktop-${test.info().workerIndex}-${Date.now()}`,
+			suppressBalloon: true,
+			markRelatedRead: false,
+		});
+		await cardRevealed(page);
+
+		const viewport = page.viewportSize();
+		assert.ok(viewport, "the scroll-back checkpoint must run with an explicit viewport");
+		const body = await measuredBox(page, ARTICLE_BODY);
+		const endBelowFold = body.y + body.height - viewport.height;
+
+		await page.evaluate(
+			(by) => window.scrollBy(0, by),
+			endBelowFold - ARTICLE_END_BELOW_FOLD_PX,
+		);
+
+		await expect(page.locator(CARD)).toHaveCount(1);
+		await expect(page.locator(OPEN_CARD)).toHaveCount(0);
+
+		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+		await expect(page.locator(OPEN_CARD)).toHaveCount(1);
 	});
 
 	test("leaves the opened share balloon alone when the suggestion above it is dismissed", async ({

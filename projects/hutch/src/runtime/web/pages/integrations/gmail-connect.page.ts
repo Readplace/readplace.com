@@ -13,6 +13,7 @@ import type {
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
+import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 import { HxRedirectPage } from "../../hx-redirect-page";
@@ -28,6 +29,7 @@ const StatePayloadSchema = z.object({ nonce: z.string(), createdAt: z.number() }
 
 export interface GmailIntegrationDependencies {
 	exchangeGmailCode: ExchangeGmailCode;
+	findGmailAccountEmail: FindGmailAccountEmail;
 	clientId: string;
 	stateSecret: string;
 	gmailCredentialsStore: GmailCredentialsStore;
@@ -158,6 +160,13 @@ export function registerGmailConnectRoutes(
 			});
 		} else {
 			await gmail.gmailConnectionStore.clearRevoked({ userId });
+		}
+
+		const found = await gmail.findGmailAccountEmail({ userId });
+		if (found.ok) {
+			await gmail.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: found.value });
+		} else {
+			context.logError(`[gmail-connect] account email unavailable: ${found.reason}`);
 		}
 		res.redirect(303, buildGmailUrl({ notice: "connected" }));
 	});

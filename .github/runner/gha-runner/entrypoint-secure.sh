@@ -30,7 +30,10 @@ unset pat
 
 # The caches are named volumes created root-owned; non-root jobs need them. These
 # stay on the eager line: they are small enough to walk on every container start.
-chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner 2>/dev/null || true
+# /ms-playwright is not among them any more — it is image content the Dockerfile
+# COPYs with --chown, not a volume, so walking it here would cost tens of
+# thousands of stats per job start for nothing.
+chown -R runner:runner /opt/hostedtoolcache /home/runner 2>/dev/null || true
 
 # /nx (the nx cache volume) gets the same stat-guard as /persist below, for the
 # same reason: it is bounded at NX_MAX_CACHE_SIZE (5 GB) and already holds tens of

@@ -28,6 +28,19 @@ function installAction(platform: PitchablePlatform): OnboardingAction {
 	};
 }
 
+function downloadAction(client: {
+	platform: PitchablePlatform;
+	label: string;
+}): OnboardingAction {
+	return {
+		key: "download-client",
+		method: "GET",
+		href: buildExtensionInstallUrl(client.platform),
+		label: client.label,
+		variant: "primary",
+	};
+}
+
 const CHOOSE_BROWSER_ACTION: OnboardingAction = {
 	key: "choose-browser",
 	method: "GET",
@@ -38,6 +51,8 @@ const CHOOSE_BROWSER_ACTION: OnboardingAction = {
 
 const INSTALL_BROWSER_DESCRIPTION =
 	"Add Readplace to your browser and log-in so you can save any page with one click.";
+
+const SAVE_BROWSER_DESCRIPTION = "This way sites can't block the clean reader view.";
 
 const INSTALL_COPY: Record<PitchablePlatform, StepCopy> = {
 	firefox: {
@@ -66,23 +81,23 @@ const INSTALL_COPY: Record<PitchablePlatform, StepCopy> = {
 const SAVE_COPY: Record<PitchablePlatform, StepCopy> = {
 	firefox: {
 		title: "Save your first article using the browser extension",
-		description: "",
-		actions: [],
+		description: SAVE_BROWSER_DESCRIPTION,
+		actions: [downloadAction({ platform: "firefox", label: "Download Firefox extension" })],
 	},
 	chrome: {
 		title: "Save your first article using the browser extension",
-		description: "",
-		actions: [],
+		description: SAVE_BROWSER_DESCRIPTION,
+		actions: [downloadAction({ platform: "chrome", label: "Download Chrome extension" })],
 	},
 	iphone: {
 		title: "Save your first article using the iPhone app",
 		description:
 			"Open any page in Safari, tap Share, and choose Readplace to save it to your queue.",
-		actions: [],
+		actions: [downloadAction({ platform: "iphone", label: "Download the iPhone app" })],
 	},
 	other: {
 		title: "Save your first article using a browser extension",
-		description: "",
+		description: SAVE_BROWSER_DESCRIPTION,
 		actions: [CHOOSE_BROWSER_ACTION],
 	},
 };

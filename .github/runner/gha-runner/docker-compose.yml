@@ -8,8 +8,9 @@
 #   2. Write the token ALONE (no KEY= prefix) to gh-pat.env — it is mounted as a
 #      root-only docker secret, never as an env var, so it never reaches a job
 #      (the container's initial env is readable from /proc/1/environ).
-#   3. ./rebuild.sh — wraps `docker compose build && up -d` and prints the
-#      recreated container's toolchain; a bare `up -d` reuses the stale image.
+#   3. ./rebuild.sh — wraps `docker compose build && up -d`, passes the pinned
+#      browser image, and prints the recreated container's toolchain; a bare
+#      `up -d` reuses the stale image, and a bare `build` has no browsers.
 #   4. Verify: repo Settings -> Actions -> Runners shows the runner Idle.
 #
 # EPHEMERAL=true: runner takes exactly one job, exits, container restarts clean
@@ -80,9 +81,10 @@ services:
       # /run/secrets, which the runner user could still read even at 0400 root:root
       # (verified) — non-root jobs cannot traverse /root, so this is the boundary.
       - ./gh-pat.env:/root/gh-pat.env:ro
-      # Content-addressable caches: survive the ephemeral wipe, cheap to
-      # keep, expensive to redownload over starlink.
-      - playwright-browsers:/ms-playwright
+      # No playwright-browsers volume: the browsers are image content COPYed
+      # from the digest in .github/browser-image/image.env, and a volume mounted
+      # over /ms-playwright would shadow them with whatever a past job
+      # downloaded — the runtime replacement the pin exists to stop.
       # setup-node re-downloads Node into the toolcache on every ephemeral
       # container otherwise (~39s measured). Persisting it survives the wipe.
       - toolcache:/opt/hostedtoolcache
@@ -123,7 +125,6 @@ services:
       # asserts this socket stays unmounted — re-adding it reopens the escape.
 
 volumes:
-  playwright-browsers:
   toolcache:
   nx:
   persist:

@@ -191,7 +191,7 @@ final class ShareViewController: UIViewController {
 }
 
 extension ShareViewController: ReadlistChoosing {
-	func choose(among readlists: [Readlist]) async -> Set<Readlist> {
+	func choose(among drops: [SharedArticlesDrop]) async -> Set<Readlist> {
 		spinner.stopAnimating()
 		spinner.isHidden = true
 		statusLabel.text = "Save to which readlists?"
@@ -205,18 +205,25 @@ extension ShareViewController: ReadlistChoosing {
 		choices.spacing = 8
 
 		return await withCheckedContinuation { (continuation: CheckedContinuation<Set<Readlist>, Never>) in
-			var ticks: [UIButton] = []
-			for readlist in readlists {
-				let button = UIButton(configuration: Self.tickConfiguration(title: readlist.label, isTicked: false))
+			var rows: [(readlist: Readlist, button: UIButton)] = []
+			for drop in drops {
+				let button = UIButton(configuration: Self.tickConfiguration(for: drop))
+				guard let readlist = drop.choice else {
+					button.isUserInteractionEnabled = false
+					choices.addArrangedSubview(button)
+					continue
+				}
 				button.addAction(
 					UIAction { [weak button] _ in
 						guard let button else { return }
 						button.isSelected.toggle()
-						button.configuration = Self.tickConfiguration(title: readlist.label, isTicked: button.isSelected)
+						button.configuration = Self.tickConfiguration(
+							for: button.isSelected ? .ticked(readlist) : .unticked(readlist)
+						)
 					},
 					for: .touchUpInside
 				)
-				ticks.append(button)
+				rows.append((readlist: readlist, button: button))
 				choices.addArrangedSubview(button)
 			}
 			let done = UIButton(configuration: Self.doneConfiguration())
@@ -224,7 +231,7 @@ extension ShareViewController: ReadlistChoosing {
 				UIAction { [weak self] _ in
 					choices.removeFromSuperview()
 					self?.setStatus("Saving…")
-					continuation.resume(returning: Set(zip(readlists, ticks).filter { $0.1.isSelected }.map(\.0)))
+					continuation.resume(returning: Set(rows.filter { $0.button.isSelected }.map(\.readlist)))
 				},
 				for: .touchUpInside
 			)
@@ -233,14 +240,24 @@ extension ShareViewController: ReadlistChoosing {
 		}
 	}
 
-	private static func tickConfiguration(title: String, isTicked: Bool) -> UIButton.Configuration {
-		var configuration = isTicked ? UIButton.Configuration.filled() : UIButton.Configuration.tinted()
-		configuration.title = title
-		configuration.image = UIImage(systemName: isTicked ? "checkmark.square.fill" : "square")
+	private static func tickConfiguration(for drop: SharedArticlesDrop) -> UIButton.Configuration {
+		var configuration = drop.showsTick ? UIButton.Configuration.filled() : UIButton.Configuration.tinted()
+		configuration.attributedTitle = AttributedString(Self.tickTitle(for: drop))
+		configuration.image = UIImage(systemName: SharedArticlesDropPresentation.boxSystemImage(for: drop))
 		configuration.imagePadding = 8
 		configuration.baseBackgroundColor = BrandColor.amber
 		configuration.cornerStyle = .medium
 		return configuration
+	}
+
+	private static func tickTitle(for drop: SharedArticlesDrop) -> NSAttributedString {
+		let title = NSMutableAttributedString(string: drop.label)
+		guard let lock = SharedArticlesDropPresentation.lockSystemImage(for: drop),
+			let glyph = UIImage(systemName: lock)
+		else { return title }
+		title.append(NSAttributedString(string: " "))
+		title.append(NSAttributedString(attachment: NSTextAttachment(image: glyph)))
+		return title
 	}
 
 	private static func doneConfiguration() -> UIButton.Configuration {

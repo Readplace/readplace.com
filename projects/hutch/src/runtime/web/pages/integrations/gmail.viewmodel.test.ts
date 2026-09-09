@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { GmailConnection, GmailSenderEntry } from "@packages/domain/gmail";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_CONFIRM_MAX_POLLS } from "./gmail.url";
@@ -19,6 +19,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 	return {
 		userId: USER,
 		gatewayAddress: GATEWAY,
+		accountEmail: undefined,
 		connectedAt: "2026-08-27T00:00:00.000Z",
 		forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
 		filterId: undefined,
@@ -62,6 +63,25 @@ describe("toGmailPageViewModel", () => {
 		assert.equal(vm.showReconnect, false);
 		assert.equal(vm.gatewayAddress, GATEWAY);
 		assert.equal(vm.integrationsPath, "/integrations?utm_source=integrations-gmail&utm_medium=internal&utm_content=back-to-integrations");
+	});
+
+	it("points the settings link at the connected mailbox", () => {
+		const vm = toGmailPageViewModel({
+			gatewayLive: true,
+			connection: connection({ accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") }),
+			senders: [],
+		});
+
+		assert.equal(
+			vm.settingsUrl,
+			"https://mail.google.com/mail/u/0/?authuser=reader%40gmail.com#settings/fwdandpop",
+		);
+	});
+
+	it("falls back to the first signed-in account when no mailbox was captured", () => {
+		const vm = toGmailPageViewModel({ gatewayLive: true, connection: connection(), senders: [] });
+
+		assert.equal(vm.settingsUrl, "https://mail.google.com/mail/u/0/#settings/fwdandpop");
 	});
 
 	it("shows the sender list once the address is confirmed", () => {

@@ -1,4 +1,5 @@
 import type { CrawlArticle } from "@packages/crawl-article";
+import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 import type {
 	ForwardableSender,
@@ -508,6 +509,7 @@ export interface GoogleAuthBundle {
 
 export interface GmailIntegrationBundle {
 	exchangeGmailCode: ExchangeGmailCode;
+	findGmailAccountEmail: FindGmailAccountEmail;
 	clientId: string;
 	stateSecret: string;
 	gmailCredentialsStore: GmailCredentialsStore;

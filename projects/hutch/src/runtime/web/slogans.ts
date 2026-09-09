@@ -19,6 +19,7 @@ export const SLOGANS = [
 	"Your reading list, without the noise.",
 	"Your reading universe. Here.",
 	"Read what matters",
+	"It just works. - Matthew Motz",
 ] as const satisfies readonly string[];
 
 export const CANONICAL_SLOGAN = SLOGANS[0];

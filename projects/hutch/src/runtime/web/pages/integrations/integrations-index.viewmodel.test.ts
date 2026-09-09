@@ -13,6 +13,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 	return {
 		userId: USER,
 		gatewayAddress: GATEWAY,
+		accountEmail: undefined,
 		connectedAt: "2026-08-27T00:00:00.000Z",
 		forwardingConfirmedAt: undefined,
 		filterId: undefined,

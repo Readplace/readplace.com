@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbGmailConnection } from "./dynamodb-gmail-connection";
@@ -28,6 +29,7 @@ const TABLE = "test-gmail-connections";
 const USER = UserIdSchema.parse("user-1");
 const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 const NOW = new Date("2026-08-27T00:00:00.000Z");
+const ACCOUNT_EMAIL = GmailAccountEmailSchema.parse("reader@gmail.com");
 
 function harness(reply: (input: unknown) => unknown = () => ({})) {
 	const commands: CapturedCommand[] = [];
@@ -60,6 +62,7 @@ describe("initDynamoDbGmailConnection", () => {
 		assert.deepEqual(connection, {
 			userId: USER,
 			gatewayAddress: GATEWAY,
+			accountEmail: undefined,
 			connectedAt: NOW.toISOString(),
 			forwardingConfirmedAt: undefined,
 			filterId: undefined,
@@ -77,6 +80,7 @@ describe("initDynamoDbGmailConnection", () => {
 			Item: {
 				userId: USER,
 				gatewayAddress: GATEWAY,
+				accountEmail: ACCOUNT_EMAIL,
 				connectedAt: NOW.toISOString(),
 				forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
 				filterId: "filter-1",
@@ -93,6 +97,7 @@ describe("initDynamoDbGmailConnection", () => {
 		assert.deepEqual(connection, {
 			userId: USER,
 			gatewayAddress: GATEWAY,
+			accountEmail: ACCOUNT_EMAIL,
 			connectedAt: NOW.toISOString(),
 			forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
 			filterId: "filter-1",
@@ -152,6 +157,15 @@ describe("initDynamoDbGmailConnection", () => {
 			":n": 1,
 			":now": NOW.toISOString(),
 		});
+	});
+
+	it("writes the connected mailbox address onto the row", async () => {
+		const { store, commands } = harness();
+
+		await store.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT_EMAIL });
+
+		assert.match(String(commands[0].input.UpdateExpression), /SET accountEmail = :email/);
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":email": ACCOUNT_EMAIL });
 	});
 
 	it("records a filter failure so the page can surface it", async () => {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryGmailConnection } from "./in-memory-gmail-connection";
@@ -148,6 +149,16 @@ describe("initInMemoryGmailConnection", () => {
 		assert.equal(connection?.revokedAt, undefined);
 		assert.equal(connection?.revokedReason, undefined);
 		assert.equal(await store.countConnected(), 1);
+	});
+
+	it("records the connected mailbox address", async () => {
+		const { store, connect } = connectedStore();
+		await connect();
+		const accountEmail = GmailAccountEmailSchema.parse("reader@gmail.com");
+
+		await store.recordAccountEmail({ userId: owner, accountEmail });
+
+		assert.equal((await store.findConnectionByUserId(owner))?.accountEmail, accountEmail);
 	});
 
 	it("forgets the connection on disconnect", async () => {

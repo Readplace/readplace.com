@@ -11,6 +11,7 @@ struct ReadingListView: View {
 	/// `delete`) is irreversible, so it routes here for an explicit confirm before
 	/// the invoke fires, rather than acting on the tap.
 	@State private var pendingDestructive: PendingDestructive?
+	@State private var showingDropExplanation = false
 	@State private var captureAnchor = CaptureAnchor()
 
 	private struct PendingDestructive: Identifiable {
@@ -59,8 +60,8 @@ struct ReadingListView: View {
 					.padding(.horizontal)
 					.padding(.bottom, 8)
 				}
-				if viewModel.offersSharedArticlesDropChoice {
-					sharedArticlesDropRow
+				if let drop = viewModel.sharedArticlesDrop {
+					sharedArticlesDropRow(drop)
 				}
 				content
 			}
@@ -170,6 +171,15 @@ struct ReadingListView: View {
 				} message: { _ in
 					Text("This can't be undone.")
 				}
+				.alert(
+					"",
+					isPresented: $showingDropExplanation,
+					presenting: viewModel.sharedArticlesDrop.flatMap(SharedArticlesDropPresentation.explanation(for:))
+				) { _ in
+					Button("OK") {}
+				} message: { explanation in
+					Text(explanation)
+				}
 		}
 	}
 
@@ -187,19 +197,27 @@ struct ReadingListView: View {
 		)
 	}
 
-	private var sharedArticlesDropRow: some View {
-		let isOn = viewModel.sharedArticlesDropHere
-		return Button {
-			viewModel.toggleSharedArticlesDropHere()
+	private func sharedArticlesDropRow(_ drop: SharedArticlesDrop) -> some View {
+		Button {
+			if let readlist = drop.choice {
+				viewModel.toggleSharedArticlesDrop(into: readlist)
+			} else {
+				showingDropExplanation = true
+			}
 		} label: {
 			HStack(spacing: 10) {
-				Image(systemName: SharedArticlesDropPresentation.boxSystemImage(isOn: isOn))
+				Image(systemName: SharedArticlesDropPresentation.boxSystemImage(for: drop))
 					.font(.system(size: 18, weight: .regular))
-					.foregroundStyle(SharedArticlesDropPresentation.boxTint(isOn: isOn))
-				Text(SharedArticlesDropPresentation.title(isOn: isOn))
+					.foregroundStyle(SharedArticlesDropPresentation.boxTint(for: drop))
+				Text(SharedArticlesDropPresentation.title(for: drop))
 					.font(.footnote)
-					.foregroundStyle(SharedArticlesDropPresentation.titleTint(isOn: isOn))
+					.foregroundStyle(SharedArticlesDropPresentation.titleTint(for: drop))
 				Spacer(minLength: 0)
+				if let lock = SharedArticlesDropPresentation.lockSystemImage(for: drop) {
+					Image(systemName: lock)
+						.font(.system(size: 12, weight: .regular))
+						.foregroundStyle(SharedArticlesDropPresentation.titleTint(for: drop))
+				}
 			}
 			.padding(.horizontal, 12)
 			.padding(.vertical, 10)
@@ -210,15 +228,19 @@ struct ReadingListView: View {
 			)
 			.overlay(
 				RoundedRectangle(cornerRadius: 10, style: .continuous)
-					.stroke(SharedArticlesDropPresentation.boxTint(isOn: isOn).opacity(isOn ? 1 : 0.35), lineWidth: 1)
+					.stroke(
+						SharedArticlesDropPresentation.boxTint(for: drop)
+							.opacity(SharedArticlesDropPresentation.borderOpacity(for: drop)),
+						lineWidth: 1
+					)
 			)
 			.contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 		}
 		.buttonStyle(.plain)
 		.padding(.horizontal)
 		.padding(.bottom, 8)
-		.accessibilityLabel(SharedArticlesDropPresentation.title(isOn: isOn))
-		.accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+		.accessibilityLabel(SharedArticlesDropPresentation.title(for: drop))
+		.accessibilityAddTraits(SharedArticlesDropPresentation.accessibilityTraits(for: drop))
 	}
 
 	@MainActor

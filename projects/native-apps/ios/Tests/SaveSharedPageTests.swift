@@ -1009,8 +1009,8 @@ final class SaveSharedPageTests: XCTestCase {
 		)
 
 		XCTAssertEqual(
-			chooser.offered.map { $0.map(\.label) }, [["Work", "Home"]],
-			"the reader is asked once, and never about the mainline readlist every save already lands in"
+			chooser.offered.map { $0.map(\.label) }, [["All", "Work", "Home"]],
+			"the reader is asked once, and every readlist the server advertised is on the list"
 		)
 		XCTAssertEqual(
 			shareTarget.hrefs, ["/queue?queue=work", "/queue?queue=home"],
@@ -1050,7 +1050,7 @@ final class SaveSharedPageTests: XCTestCase {
 			onSaved: { reported = $0 }
 		)
 
-		XCTAssertEqual(chooser.offered.map { $0.map(\.label) }, [["Work", "Home"]])
+		XCTAssertEqual(chooser.offered.map { $0.map(\.label) }, [["All", "Work", "Home"]])
 		XCTAssertEqual(shareTarget.hrefs, [], "Done with nothing ticked leaves no readlist claiming shares")
 		XCTAssertTrue(
 			shareTarget.isDecided,
@@ -1100,6 +1100,78 @@ final class SaveSharedPageTests: XCTestCase {
 		)
 		XCTAssertEqual(shareTarget.hrefs, [], "nothing was ticked, so nothing is recorded")
 		XCTAssertEqual(readPaths(), ["/", "/queue"])
+	}
+
+	func testOffersTheMainlineReadlistLockedAndNeverRecordsIt() async throws {
+		let store = TestSupport.loggedInStore()
+		let defaults = TestSupport.ephemeralDefaults()
+		let shareTarget = ShareTarget(defaults: defaults)
+		let chooser = FakeReadlistChooser { Set($0) }
+		serveOwnReadlists(confirmation: "Saved to &#x27;Work&#x27; and &#x27;Home&#x27;")
+
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		_ = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		let offered = try XCTUnwrap(chooser.offered.first)
+		XCTAssertEqual(
+			offered.first, .always(label: "All"),
+			"the first-run list says out loud that a share lands in the whole queue whatever else is ticked"
+		)
+		XCTAssertEqual(
+			offered.compactMap(\.choice).map(\.label), ["Work", "Home"],
+			"but it names no readlist, so a reader who ticks every row on offer still cannot pick it"
+		)
+		XCTAssertEqual(
+			ShareTarget(defaults: defaults).hrefs, ["/queue?queue=work", "/queue?queue=home"],
+			"so the mainline href never reaches the answer the extension leaves for the app"
+		)
+		let body = try XCTUnwrap(saveBodies().first)
+		XCTAssertEqual(
+			body["queues"] as? [String], ["/queue?queue=home", "/queue?queue=work"],
+			"and the save names only the readlists the server would actually file it into"
+		)
+	}
+
+	func testScrubsAMainlineHrefAnOlderBuildRecordedBeforeTheSaveGoesOut() async throws {
+		let store = TestSupport.loggedInStore()
+		let defaults = TestSupport.ephemeralDefaults()
+		defaults.set("/queue", forKey: "shareTarget.readlistHref")
+		defaults.set(true, forKey: "shareTarget.decided")
+		let shareTarget = ShareTarget(defaults: defaults)
+		let chooser = FakeReadlistChooser { Set($0) }
+		serveOwnReadlists()
+
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: chooser
+		)
+		var reported: [ServerMessage] = []
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(
+			ShareTarget(defaults: defaults).hrefs, ["/queue"],
+			"precondition: a reader who tapped All on a build that offered it carries that href across the upgrade"
+		)
+		XCTAssertEqual(chooser.offered, [], "they answered once already, so the upgrade does not ask again")
+		let body = try XCTUnwrap(saveBodies().first)
+		XCTAssertEqual(
+			body.keys.sorted(), ["url"],
+			"and the href the server would ignore anyway is kept off the wire rather than sent silently"
+		)
+		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'All'"])
+		XCTAssertEqual(outcome, .saved(reported))
 	}
 
 	func testDoesNotAskWhenTheServerAdvertisesNoReadlists() async throws {
@@ -1243,7 +1315,7 @@ final class SaveSharedPageTests: XCTestCase {
 		)
 
 		XCTAssertEqual(
-			chooser.offered.map { $0.map(\.label) }, [["Work", "Home"]],
+			chooser.offered.map { $0.map(\.label) }, [["All", "Work", "Home"]],
 			"sign-out forgets the answer, so the next account on the device is asked rather than inheriting it"
 		)
 		XCTAssertEqual(shareTarget.hrefs, ["/queue?queue=work"])
@@ -1333,7 +1405,7 @@ final class SaveSharedPageTests: XCTestCase {
 			"the answer is recorded before the save, so a share the server refuses still remembers where the reader wanted it"
 		)
 		XCTAssertEqual(
-			chooser.offered.map { $0.map(\.label) }, [["Work", "Home"]],
+			chooser.offered.map { $0.map(\.label) }, [["All", "Work", "Home"]],
 			"the reader is asked once for the whole journey, not again for the retry"
 		)
 	}
