@@ -106,6 +106,16 @@ describe("GET /integrations/gmail", () => {
 		expect(response.headers.location).toBe("/integrations");
 	});
 
+	it("sends a reader whose teardown is already running back to the integrations list", async () => {
+		const { agent, gmail, userId } = await connectedAgent();
+		await gmail.bundle.gmailConnectionStore.markDisconnectRequested({ userId });
+
+		const response = await agent.get(GMAIL);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/integrations");
+	});
+
 	it("shows only step 2 with the address to paste into Gmail", async () => {
 		const { agent, gatewayAddress } = await connectedAgent({ confirmed: false });
 
@@ -507,5 +517,23 @@ describe("POST /integrations/gmail/disconnect", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/integrations");
 		assert.deepEqual(gmail.disconnectRequests, [{ userId }]);
+	});
+
+	it("stops calling Gmail connected on the page the redirect lands on, before the worker has run", async () => {
+		const { agent } = await connectedAgent();
+
+		await agent.post(DISCONNECT).send();
+		const doc = load((await agent.get("/integrations")).text);
+
+		const status = doc.querySelector("[data-test-integration-status]");
+		assert(status, "the Gmail row must carry a status");
+		assert.equal(status.getAttribute("data-test-integration-status"), "disconnecting");
+		assert.equal(status.textContent, "Disconnecting\u2026");
+		assert.deepEqual(
+			Array.from(doc.querySelectorAll("[data-test-integration-action]")).map((el) =>
+				el.getAttribute("data-test-integration-action"),
+			),
+			[],
+		);
 	});
 });

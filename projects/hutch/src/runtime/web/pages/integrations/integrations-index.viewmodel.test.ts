@@ -23,6 +23,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 		lastFilterError: undefined,
 		revokedAt: undefined,
 		revokedReason: undefined,
+		disconnectRequestedAt: undefined,
 		...overrides,
 	};
 }
@@ -137,6 +138,20 @@ describe("toIntegrationsIndexViewModel", () => {
 				"primary",
 			]],
 		);
+	});
+
+	it("offers nothing to press while the teardown the reader asked for is still running", () => {
+		const gmail = gmailRow({
+			connection: connection({
+				forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
+				filterId: "filter-1",
+				disconnectRequestedAt: "2026-08-27T03:00:00.000Z",
+			}),
+		});
+
+		assert.equal(gmail.statusKey, "disconnecting");
+		assert.equal(gmail.statusLabel, "Disconnecting\u2026");
+		assert.deepEqual(gmail.actions, []);
 	});
 
 	it("asks for a reconnect once Google ends the grant", () => {

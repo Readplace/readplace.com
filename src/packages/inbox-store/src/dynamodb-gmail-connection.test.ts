@@ -72,6 +72,7 @@ describe("initDynamoDbGmailConnection", () => {
 			lastFilterError: undefined,
 			revokedAt: undefined,
 			revokedReason: undefined,
+			disconnectRequestedAt: undefined,
 		});
 	});
 
@@ -107,6 +108,7 @@ describe("initDynamoDbGmailConnection", () => {
 			lastFilterError: undefined,
 			revokedAt: undefined,
 			revokedReason: undefined,
+			disconnectRequestedAt: undefined,
 		});
 	});
 
@@ -213,6 +215,21 @@ describe("initDynamoDbGmailConnection", () => {
 		assert.match(expression, /SET connected = :c/);
 		assert.match(expression, /REMOVE revokedAt, revokedReason/);
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":c": "yes" });
+	});
+
+	it("stamps the row when the reader asks to disconnect so the page stops calling it connected", async () => {
+		const { store, commands } = harness();
+
+		await store.markDisconnectRequested({ userId: USER });
+
+		assert.deepEqual(commands[0].input.Key, { userId: USER });
+		assert.match(
+			String(commands[0].input.UpdateExpression),
+			/SET disconnectRequestedAt = :now/,
+		);
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
+			":now": NOW.toISOString(),
+		});
 	});
 
 	it("deletes the connection row by user id", async () => {

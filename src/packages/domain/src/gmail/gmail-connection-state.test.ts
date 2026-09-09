@@ -18,6 +18,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 		lastFilterError: undefined,
 		revokedAt: undefined,
 		revokedReason: undefined,
+		disconnectRequestedAt: undefined,
 		...overrides,
 	};
 }
@@ -25,6 +26,17 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 describe("gmailConnectionState", () => {
 	it("reports disconnected when there is no connection row", () => {
 		assert.equal(gmailConnectionState(undefined), "disconnected");
+	});
+
+	it("reports disconnecting before anything else once the reader asks to disconnect", () => {
+		const state = gmailConnectionState(
+			connection({
+				disconnectRequestedAt: "2026-08-24T03:00:00.000Z",
+				forwardingConfirmedAt: "2026-08-24T00:30:00.000Z",
+				filterId: "filter-1",
+			}),
+		);
+		assert.equal(state, "disconnecting");
 	});
 
 	it("reports revoked before anything else once the grant is gone", () => {

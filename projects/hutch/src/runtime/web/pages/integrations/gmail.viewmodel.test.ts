@@ -29,6 +29,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 		lastFilterError: undefined,
 		revokedAt: undefined,
 		revokedReason: undefined,
+		disconnectRequestedAt: undefined,
 		...overrides,
 	};
 }

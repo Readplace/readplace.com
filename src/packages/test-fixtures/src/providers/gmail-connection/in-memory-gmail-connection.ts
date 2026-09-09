@@ -25,6 +25,7 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 				lastFilterError: undefined,
 				revokedAt: undefined,
 				revokedReason: undefined,
+				disconnectRequestedAt: undefined,
 			};
 			rows.set(userId, connection);
 			return connection;
@@ -67,6 +68,9 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 		},
 		clearRevoked: async ({ userId }) => {
 			update(userId, { revokedAt: undefined, revokedReason: undefined });
+		},
+		markDisconnectRequested: async ({ userId }) => {
+			update(userId, { disconnectRequestedAt: deps.now().toISOString() });
 		},
 		deleteConnection: async (userId) => {
 			rows.delete(userId);

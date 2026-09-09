@@ -31,6 +31,7 @@ const GmailConnectionRow = z.object({
 	lastFilterError: dynamoField(GmailFilterErrorRow),
 	revokedAt: dynamoField(z.string()),
 	revokedReason: dynamoField(z.enum(["invalid-grant", "scope-not-granted"])),
+	disconnectRequestedAt: dynamoField(z.string()),
 	connected: dynamoField(z.string()),
 });
 
@@ -48,6 +49,7 @@ function toConnection(row: z.infer<typeof GmailConnectionRow>): GmailConnection 
 		lastFilterError: row.lastFilterError,
 		revokedAt: row.revokedAt,
 		revokedReason: row.revokedReason,
+		disconnectRequestedAt: row.disconnectRequestedAt,
 	};
 }
 
@@ -86,6 +88,7 @@ export function initDynamoDbGmailConnection(deps: {
 				lastFilterError: undefined,
 				revokedAt: undefined,
 				revokedReason: undefined,
+				disconnectRequestedAt: undefined,
 			};
 		},
 		findConnectionByUserId: async (userId) => {
@@ -152,6 +155,13 @@ export function initDynamoDbGmailConnection(deps: {
 				Key: { userId },
 				UpdateExpression: "SET connected = :c REMOVE revokedAt, revokedReason",
 				ExpressionAttributeValues: { ":c": CONNECTED_MARKER },
+			});
+		},
+		markDisconnectRequested: async ({ userId }) => {
+			await table.update({
+				Key: { userId },
+				UpdateExpression: "SET disconnectRequestedAt = :now",
+				ExpressionAttributeValues: { ":now": deps.now().toISOString() },
 			});
 		},
 		deleteConnection: async (userId) => {

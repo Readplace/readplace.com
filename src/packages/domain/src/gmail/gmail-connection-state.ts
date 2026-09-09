@@ -2,6 +2,7 @@ import type { GmailConnection } from "./gmail-connection.types";
 
 export type GmailConnectionState =
 	| "disconnected"
+	| "disconnecting"
 	| "revoked"
 	| "filter-failed"
 	| "awaiting-confirmation"
@@ -10,6 +11,7 @@ export type GmailConnectionState =
 
 export function gmailConnectionState(connection: GmailConnection | undefined): GmailConnectionState {
 	if (connection === undefined) return "disconnected";
+	if (connection.disconnectRequestedAt !== undefined) return "disconnecting";
 	if (connection.revokedAt !== undefined) return "revoked";
 	if (connection.lastFilterError !== undefined) return "filter-failed";
 	if (connection.forwardingConfirmedAt === undefined) return "awaiting-confirmation";

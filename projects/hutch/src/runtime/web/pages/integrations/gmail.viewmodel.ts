@@ -70,6 +70,7 @@ function track(href: string, content: string): string {
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	disconnected: "Not connected",
+	disconnecting: "Disconnecting…",
 	revoked: "Reconnect needed",
 	"filter-failed": "Needs attention",
 	"awaiting-confirmation": "Step 2 of 2",

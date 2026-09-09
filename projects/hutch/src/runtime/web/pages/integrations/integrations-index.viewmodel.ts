@@ -54,6 +54,7 @@ export interface IntegrationsIndexViewModel {
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	disconnected: "Not set up",
+	disconnecting: "Disconnecting…",
 	revoked: "Reconnect needed",
 	"filter-failed": "Needs attention",
 	"awaiting-confirmation": "Step 2 of 2",
@@ -63,50 +64,51 @@ const STATUS_LABELS: Record<GmailConnectionState, string> = {
 
 const GMAIL_ACTIONS: Record<
 	GmailConnectionState,
-	Omit<IntegrationActionViewModel, "trackSource" | "trackContent">
+	Omit<IntegrationActionViewModel, "trackSource" | "trackContent">[]
 > = {
-	disconnected: {
+	disconnected: [{
 		key: "connect",
 		method: "POST",
 		href: GMAIL_CONNECT_PATH,
 		label: "Connect Gmail",
 		variant: "primary",
-	},
-	"awaiting-confirmation": {
+	}],
+	disconnecting: [],
+	"awaiting-confirmation": [{
 		key: "finish-setup",
 		method: "GET",
 		href: GMAIL_PATH,
 		label: "Finish setup",
 		variant: "primary",
-	},
-	"ready-to-filter": {
+	}],
+	"ready-to-filter": [{
 		key: "manage",
 		method: "GET",
 		href: GMAIL_PATH,
 		label: "Manage",
 		variant: "secondary",
-	},
-	filtering: {
+	}],
+	filtering: [{
 		key: "manage",
 		method: "GET",
 		href: GMAIL_PATH,
 		label: "Manage",
 		variant: "secondary",
-	},
-	"filter-failed": {
+	}],
+	"filter-failed": [{
 		key: "manage",
 		method: "GET",
 		href: GMAIL_PATH,
 		label: "Manage",
 		variant: "primary",
-	},
-	revoked: {
+	}],
+	revoked: [{
 		key: "reconnect",
 		method: "POST",
 		href: GMAIL_CONNECT_PATH,
 		label: "Reconnect Gmail",
 		variant: "primary",
-	},
+	}],
 };
 
 export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
@@ -141,7 +143,7 @@ export function toIntegrationsIndexViewModel(input: {
 				statusKey: state,
 				statusLabel: STATUS_LABELS[state],
 				statusModifier: `integrations__status--${state}`,
-				actions: [trackedAction(GMAIL_ACTIONS[state])],
+				actions: GMAIL_ACTIONS[state].map(trackedAction),
 			},
 		],
 		alerts,

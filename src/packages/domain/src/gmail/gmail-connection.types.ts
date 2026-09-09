@@ -25,6 +25,7 @@ export interface GmailConnection {
 	lastFilterError: GmailFilterError | undefined;
 	revokedAt: string | undefined;
 	revokedReason: GmailRevokedReason | undefined;
+	disconnectRequestedAt: string | undefined;
 }
 
 export interface GmailConnectionStore {
@@ -57,6 +58,7 @@ export interface GmailConnectionStore {
 		reason: GmailRevokedReason;
 	}) => Promise<void>;
 	clearRevoked: (input: { userId: UserId }) => Promise<void>;
+	markDisconnectRequested: (input: { userId: UserId }) => Promise<void>;
 	deleteConnection: (userId: UserId) => Promise<void>;
 	countConnected: () => Promise<number>;
 }

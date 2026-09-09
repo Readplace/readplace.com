@@ -60,7 +60,7 @@ export function registerGmailPageRoutes(
 	router.get("/gmail", requireAuth, async (req: Request, res: Response) => {
 		const userId = ownerOf(req);
 		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
-		if (connection === undefined) {
+		if (connection === undefined || connection.disconnectRequestedAt !== undefined) {
 			res.redirect(303, INTEGRATIONS_PATH);
 			return;
 		}
@@ -145,6 +145,7 @@ export function registerGmailPageRoutes(
 
 	router.post("/gmail/disconnect", write, async (req: Request, res: Response) => {
 		const userId = ownerOf(req);
+		await gmail.gmailConnectionStore.markDisconnectRequested({ userId });
 		await gmail.publishDisconnectGmail({ userId });
 		res.redirect(303, INTEGRATIONS_PATH);
 	});
