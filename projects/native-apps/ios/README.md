@@ -98,7 +98,12 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   inside the reader. The mark-read signal is owned by the server: its chromeless
   reader posts a `markedRead` message to the app's `readplaceReader` WebKit handler,
   and the app injects no script and reads none of the reader's htmx internals — so
-  the reader's request shape and endpoint can change without an app release.
+  the reader's request shape and endpoint can change without an app release. That
+  handler carries three messages: `markedRead` (terminal, latched once per sheet —
+  it closes the sheet and re-reads the list), `captureBlocked` (starts the hidden
+  render that heals a blocked article), and `statusChanged` (neither terminal nor
+  latched — the reader's **Next Read** confirmation marks the article read, keeps
+  the sheet open, and swaps the suggestion in while the list reconciles behind it).
 - **Save by sharing**: a **Share Extension** appears in the iOS share sheet for
   URLs/web pages, plain text, and PDF documents — via a SUBQUERY
   `NSExtensionActivationRule` predicate ([`ShareExtension/Info.plist`](./ShareExtension/Info.plist)

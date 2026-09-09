@@ -67,7 +67,10 @@ first and left byte-identical for shipped iOS builds, and this app registers
 `addJavascriptInterface(bridge, "ReadplaceReader")` whose `postMessage` takes the
 JSON-serialised message, because that is the only shape an
 `addJavascriptInterface` method can receive. The messages themselves — `markedRead`,
-`captureBlocked` — are unchanged.
+`captureBlocked`, `statusChanged` — are unchanged. `markedRead` is terminal and
+latched once per sheet: it closes the sheet and re-reads the list. `statusChanged`
+is neither, so the reader's own Next Read confirmation can mark an article read,
+stay open, and swap the suggestion in while the list reconciles behind it.
 
 **Transcoded intro media.** The iOS bundle ships `LaunchIntroTheme.caf` (Core Audio,
 which Android cannot decode) and `LaunchIntro.mp4` encoded as **10-bit HEVC** (which

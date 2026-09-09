@@ -51,6 +51,37 @@ final class ReaderMessageRouteTests: XCTestCase {
 		)
 	}
 
+	func testAStatusChangeReportReconcilesTheList() {
+		XCTAssertEqual(route(["type": "statusChanged"]), .reconcileStatus)
+	}
+
+	func testAStatusChangeReportIsHonouredAfterTheArticleWasMarkedRead() {
+		XCTAssertEqual(
+			route(["type": "statusChanged"], alreadyMarkedRead: true), .reconcileStatus,
+			"the mark-read latch closes the sheet once; a status change keeps it open, so it must not be latched with it"
+		)
+	}
+
+	func testAStatusChangeReportIsHonouredWhileACaptureIsRunning() {
+		XCTAssertEqual(
+			route(["type": "statusChanged"], captureInFlight: true), .reconcileStatus,
+			"the capture latch belongs to capture only"
+		)
+	}
+
+	func testAStatusChangeReportOnAnotherChannelIsIgnored() {
+		XCTAssertEqual(
+			ReaderMessageRoute.route(
+				message: "someOtherHandler",
+				body: ["type": "statusChanged"],
+				captureInFlight: false,
+				alreadyMarkedRead: false
+			),
+			.ignore,
+			"a page that registers its own interface must not be able to drive the list"
+		)
+	}
+
 	func testAMessageTheBridgeDoesNotRecogniseIsIgnored() {
 		XCTAssertEqual(route(["type": "scrolled"]), .ignore)
 		XCTAssertEqual(

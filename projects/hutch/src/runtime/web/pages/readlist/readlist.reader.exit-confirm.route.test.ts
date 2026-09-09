@@ -16,6 +16,16 @@ const useApp = useTestServer();
 
 const EXIT_CONFIRM = "[data-test-confirm-popover='exit-confirm']";
 const EXIT_CONFIRM_SCRIPT = "/client-dist/reader-exit-confirm.client.js";
+const ARTICLE_BODY_SCOPE = ".article-body__content";
+const CARD_SCOPE = ".next-read__card";
+
+function scopesOf(doc: Document): string {
+	const panel = doc.querySelector(EXIT_CONFIRM);
+	assert(panel, "the exit confirmation must be rendered before its scopes can be read");
+	const form = panel.querySelector("[data-exit-confirm-form]");
+	assert(form, "the exit confirmation carries its scopes on its own form");
+	return form.getAttribute("data-exit-confirm-scopes") ?? "";
+}
 
 const ARTICLE_HTML = `
 <html><head><title>Reader Exit Post</title></head>
@@ -180,14 +190,98 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		expect(readText).toContain(EXIT_CONFIRM_SCRIPT);
 	});
 
-	it("leaves the iOS chromeless reader without the panel or the script", async () => {
+	it("guards both the article body and the Next Read card on the web reader", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/exit-ios");
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/exit-web-scopes");
 
-		const iosText = (await agent.get(`/queue/${articleId}/view?platform=ios`)).text;
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
 
-		expect(new JSDOM(iosText).window.document.querySelectorAll(EXIT_CONFIRM).length).toBe(0);
-		expect(iosText).not.toContain(EXIT_CONFIRM_SCRIPT);
+		expect(scopesOf(doc)).toBe(`${ARTICLE_BODY_SCOPE}, ${CARD_SCOPE}`);
+	});
+
+	it("co-renders the exit and mark-status confirmations on the app surface without an id collision", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/exit-two-panels");
+		await agent.post("/queue/queues");
+
+		const doc = new JSDOM(
+			(await agent.get(`/queue/${articleId}/view?platform=ios`)).text,
+		).window.document;
+
+		const ids = Array.from(doc.querySelectorAll("[data-test-confirm-popover]")).map(
+			(panel) => panel.getAttribute("data-test-confirm-popover"),
+		);
+		expect(ids).toEqual(["exit-confirm", "mark-status"]);
+		expect(new Set(Array.from(doc.querySelectorAll("[popover]")).map((p) => p.id)).size).toBe(
+			ids.length,
+		);
+	});
+});
+
+describe.each(["ios", "android"])(
+	"Reader exit confirmation in the %s app reader (GET /queue/:id/view?platform=)",
+	(platform) => {
+		it("asks before the Next Read card moves the reader on", async () => {
+			const harness = buildHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetArticleId(
+				agent,
+				`https://example.com/exit-${platform}-panel`,
+			);
+
+			const text = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;
+
+			const doc = new JSDOM(text).window.document;
+			expect(doc.querySelectorAll(EXIT_CONFIRM).length).toBe(1);
+			expect(text).toContain(EXIT_CONFIRM_SCRIPT);
+		});
+
+		it("guards the Next Read card alone, leaving article-body links to the external browser", async () => {
+			const harness = buildHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetArticleId(
+				agent,
+				`https://example.com/exit-${platform}-scopes`,
+			);
+
+			const doc = new JSDOM(
+				(await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text,
+			).window.document;
+
+			expect(doc.querySelectorAll(EXIT_CONFIRM).length).toBe(1);
+			expect(scopesOf(doc)).toBe(CARD_SCOPE);
+		});
+
+		it("drops the panel once the article is read, and still ships the script the next swap needs", async () => {
+			const harness = buildHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetArticleId(
+				agent,
+				`https://example.com/exit-${platform}-read`,
+			);
+			await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
+
+			const text = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;
+
+			expect(new JSDOM(text).window.document.querySelectorAll(EXIT_CONFIRM).length).toBe(0);
+			expect(text).toContain(EXIT_CONFIRM_SCRIPT);
+		});
+	},
+);
+
+describe("Reader exit confirmation on the app shell (GET /queue/:id/view?shell=app)", () => {
+	it("guards the Next Read card alone, the same as a platform-marked request", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/exit-shell");
+
+		const doc = new JSDOM(
+			(await agent.get(`/queue/${articleId}/view?shell=app`)).text,
+		).window.document;
+
+		expect(doc.querySelectorAll(EXIT_CONFIRM).length).toBe(1);
+		expect(scopesOf(doc)).toBe(CARD_SCOPE);
 	});
 });

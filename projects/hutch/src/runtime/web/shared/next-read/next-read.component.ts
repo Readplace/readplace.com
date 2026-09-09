@@ -48,6 +48,7 @@ export interface NextReadInput {
 	related?: NextReadContext;
 	pollUrl?: string;
 	returnTo: string;
+	readerPathFor: (articleId: string) => string;
 }
 
 interface DatedLine {
@@ -111,7 +112,7 @@ function cardsOf(input: NextReadInput): NextReadCard[] {
 	return [
 		{
 			id: item.id.value,
-			href: withInternalTracking(`/queue/${item.id.value}/view`, {
+			href: withInternalTracking(input.readerPathFor(item.id.value), {
 				source: "reader",
 				content: tracking.clickContent,
 				term: related.sourceArticleId,

@@ -214,16 +214,15 @@ import {
 	type PitchablePlatform,
 } from "../../onboarding/extension-install";
 import {
-	APP_SHELL_QUERY,
-	APP_SHELL_VALUE,
-	PLATFORM_QUERY,
 	hasBackgroundSaveContinuity,
-	isAppShell,
 	isNativeClient,
 	isNativeSurface,
 	nativeClientOf,
 	nativeSurfaceOf,
+	nativeSurfaceQuery,
 } from "../../onboarding/native-client";
+import { EXIT_CONFIRM_SCOPE } from "../reader/reader-exit-confirm.component";
+import { MARKED_READ_EVENT } from "../reader/reader-exit-confirm.client";
 import { setSirenCollectionCaching } from "../../siren-discovery-cache";
 import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type {
@@ -482,8 +481,15 @@ async function loadCrawls(
 	}
 }
 
-const relatedPollUrlFor = (articleId: string, pollCount: number): string =>
-	`${READLIST_PATH}/${articleId}/related?poll=${pollCount}`;
+const joinedSurfaceQuery = (surfaceQuery: string): string =>
+	surfaceQuery === "" ? "" : `&${surfaceQuery}`;
+
+const relatedPollUrlFor = (params: {
+	articleId: string;
+	pollCount: number;
+	surfaceQuery: string;
+}): string =>
+	`${READLIST_PATH}/${params.articleId}/related?poll=${params.pollCount}${joinedSurfaceQuery(params.surfaceQuery)}`;
 
 async function loadRelatedArticles(
 	findRelatedArticles: FindRelatedArticles,
@@ -569,6 +575,14 @@ const readerMarkReadBridgeScript = (cspNonce: CspNonce) => `<script nonce="${csp
 		if (!isStatusChange(event.detail)) { return; }
 		event.detail.shouldSwap = false;
 		post({ type: "markedRead" });
+	});
+})();
+</script>`;
+
+const readerStatusChangedBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspNonce}">
+(function () {${readerBridgePostFn}
+	document.addEventListener("${MARKED_READ_EVENT}", function () {
+		post({ type: "statusChanged" });
 	});
 })();
 </script>`;
@@ -782,13 +796,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
 		const feature = revealsEpubDownload(req.query.feature) ? "&feature=epub" : "";
-		const surface = nativeSurfaceOf(req);
-		const platform = surface ? `&${PLATFORM_QUERY}=${surface}` : "";
-		const shell = isAppShell(req) ? `&${APP_SHELL_QUERY}=${APP_SHELL_VALUE}` : "";
+		const surface = joinedSurfaceQuery(nativeSurfaceQuery(req));
 		return {
-			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${platform}${shell}${feature}`,
+			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${surface}${feature}`,
 			reader: (n, capturing) =>
-				`${READLIST_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${platform}${shell}${feature}`,
+				`${READLIST_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${surface}${feature}`,
 		};
 	}
 
@@ -797,12 +809,17 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			? NO_READER_VIEW_FAILED_OOB
 			: extensionSuggestionBannerOob(req);
 
-	const readerReturnPath = (req: Request, articleId: string): string => {
-		const surface = nativeSurfaceOf(req);
-		return surface
-			? `${READLIST_PATH}/${articleId}/view?${PLATFORM_QUERY}=${surface}`
-			: `${READLIST_PATH}/${articleId}/view`;
-	};
+	const readerPathFor =
+		(req: Request) =>
+		(articleId: string): string => {
+			const surface = nativeSurfaceQuery(req);
+			return surface === ""
+				? `${READLIST_PATH}/${articleId}/view`
+				: `${READLIST_PATH}/${articleId}/view?${surface}`;
+		};
+
+	const readerReturnPath = (req: Request, articleId: string): string =>
+		readerPathFor(req)(articleId);
 
 	const parseCapturingFlag = (raw: unknown): boolean =>
 		z.literal("1").safeParse(raw).success;
@@ -911,7 +928,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		]);
 		const relatedPollUrl =
 			ownedArticle.relatedDismissedAt === undefined
-				? relatedPollUrlFor(ownedArticle.id.value, 1)
+				? relatedPollUrlFor({
+						articleId: ownedArticle.id.value,
+						pollCount: 1,
+						surfaceQuery: nativeSurfaceQuery(req),
+					})
 				: undefined;
 		const contentVersion = computeArticleContentVersion({
 			article: ownedArticle,
@@ -993,6 +1014,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				backLink: APP_BACK_LINK,
 				renderActions: deps.chromelessReader,
 				readlistFiling,
+				exitConfirmScopes: [EXIT_CONFIRM_SCOPE.nextReadCard],
+				readerPathFor: readerPathFor(req),
 				markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
 				readerNotice: state.notice,
 				downloads:
@@ -1010,6 +1033,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 							scripts:
 								readerBody.scripts +
 								readerMarkReadBridgeScript(cspNonce) +
+								readerStatusChangedBridgeScript(cspNonce) +
 								(state.notice === undefined ? readerCaptureBridgeScript(cspNonce) : ""),
 						},
 						{
@@ -1073,7 +1097,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
 					crawlVersions: state.crawlVersions,
 					crawlBookmarkRemoval,
-					exitMarkReadConfirm: true,
+					exitConfirmScopes: [
+						EXIT_CONFIRM_SCOPE.articleBody,
+						EXIT_CONFIRM_SCOPE.nextReadCard,
+					],
+					readerPathFor: readerPathFor(req),
 					readerNotice: state.notice,
 					downloads:
 						state.content === undefined || !revealsEpubDownload(req.query.feature)
@@ -2311,8 +2339,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		const returnTo = `${READLIST_PATH}/${article.id.value}/view`;
-
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const html = renderNextRead({
 			related: {
@@ -2327,9 +2353,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			},
 			pollUrl:
 				pollCount < MAX_POLLS
-					? relatedPollUrlFor(article.id.value, pollCount + 1)
+					? relatedPollUrlFor({
+							articleId: article.id.value,
+							pollCount: pollCount + 1,
+							surfaceQuery: nativeSurfaceQuery(req),
+						})
 					: undefined,
-			returnTo,
+			returnTo: readerReturnPath(req, article.id.value),
+			readerPathFor: readerPathFor(req),
 		});
 		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
 	});

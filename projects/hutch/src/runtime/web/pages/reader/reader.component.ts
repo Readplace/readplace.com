@@ -39,6 +39,7 @@ import {
 import type { ArticleDownloadLinks } from "../../shared/epub/epub-link";
 import { viewPathFor } from "../view/view-path";
 import {
+	type ExitConfirmScopes,
 	READER_EXIT_CONFIRM_SCRIPT,
 	renderExitConfirm,
 } from "./reader-exit-confirm.component";
@@ -70,16 +71,18 @@ function markReadPostUrl({
 }
 
 function buildExitConfirmHtml(input: {
-	enabled: boolean;
+	scopes: ExitConfirmScopes | undefined;
 	isRead: boolean;
 	articleId: string;
 	title: string;
 }): string {
-	if (!input.enabled) return "";
+	const scopes = input.scopes;
+	if (scopes === undefined) return "";
 	if (input.isRead) return "";
 	return renderExitConfirm({
 		title: input.title,
 		postUrl: markReadPostUrl({ articleId: input.articleId, utmContent: "mark-read-exit" }),
+		scopes,
 	});
 }
 
@@ -107,7 +110,8 @@ export function ReaderPage(
 		readlistFiling: ReaderReadlistFiling;
 		crawlVersions?: LocalTime[];
 		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
-		exitMarkReadConfirm?: boolean;
+		exitConfirmScopes?: ExitConfirmScopes;
+		readerPathFor: (articleId: string) => string;
 		markStatusConfirmReadlistLabels?: readonly string[];
 		readerNotice?: ReaderFailedVariant;
 		downloads?: ArticleDownloadLinks;
@@ -194,10 +198,10 @@ export function ReaderPage(
 			: undefined,
 		pollUrl: options.relatedPollUrl,
 		returnTo: options.currentPath,
+		readerPathFor: options.readerPathFor,
 	});
-	const exitMarkReadConfirm = options.exitMarkReadConfirm === true;
 	const exitConfirmHtml = buildExitConfirmHtml({
-		enabled: exitMarkReadConfirm,
+		scopes: options.exitConfirmScopes,
 		isRead,
 		articleId,
 		title: article.metadata.title,
@@ -233,7 +237,7 @@ export function ReaderPage(
 				SUMMARY_TOGGLE_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
 				(options.readlistFiling.picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
-				(exitMarkReadConfirm ? READER_EXIT_CONFIRM_SCRIPT : "") +
+				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
 				READER_OPEN_SCRIPT,
 		}),
 	};

@@ -7,18 +7,23 @@ const STATUS_PATH = "/queue/abc/status?utm_source=reader&utm_medium=internal&utm
 const STATUS_URL = `http://localhost:3000${STATUS_PATH}`;
 const PANEL_ID = "reader-exit-confirm";
 const BOUND_FLAG = "data-reader-exit-confirm-bound";
+const BOTH_SCOPES = ".article-body__content, .next-read__card";
+const CARD_SCOPE_ONLY = ".next-read__card";
 
-const PANEL = `<div class="confirm-popover" id="${PANEL_ID}" popover="auto" role="dialog" tabindex="-1">
+function panelWithScopes(scopes: string | null): string {
+	const attr = scopes === null ? "" : ` data-exit-confirm-scopes="${scopes}"`;
+	return `<div class="confirm-popover" id="${PANEL_ID}" popover="auto" role="dialog" tabindex="-1">
 	<div class="confirm-popover__header">
 		<h2 class="confirm-popover__title" id="${PANEL_ID}-title">Mark "Saved Post" as read?</h2>
 		<button class="confirm-popover__close" id="exit-dismiss" type="button" popovertarget="${PANEL_ID}" popovertargetaction="hide">Close</button>
 	</div>
-	<form class="confirm-popover__actions" method="POST" data-exit-confirm-form action="${STATUS_PATH}">
+	<form class="confirm-popover__actions" method="POST" data-exit-confirm-form${attr} action="${STATUS_PATH}">
 		<input type="hidden" name="status" value="read">
 		<button class="btn btn--primary" id="exit-yes" type="submit">Yes</button>
 		<button class="btn btn--secondary" id="exit-no" type="button" data-exit-confirm-decline>No</button>
 	</form>
 </div>`;
+}
 
 const READER = `<main class="reader">
 	<div class="article-body__content">
@@ -47,8 +52,15 @@ interface FetchCall {
 	init: RequestInit;
 }
 
-function createHarness(options: { withPanel?: boolean; supportsPopover?: boolean } = {}) {
-	const body = options.withPanel === false ? READER : READER + PANEL;
+function createHarness(
+	options: {
+		withPanel?: boolean;
+		supportsPopover?: boolean;
+		scopes?: string | null;
+	} = {},
+) {
+	const panel = panelWithScopes(options.scopes === undefined ? BOTH_SCOPES : options.scopes);
+	const body = options.withPanel === false ? READER : READER + panel;
 	// A pass-through click is a real navigation attempt jsdom cannot perform;
 	// an unwired console keeps its "Not implemented" report out of the run.
 	const dom = new JSDOM(`<!doctype html><html><body>${body}</body></html>`, {
@@ -60,6 +72,7 @@ function createHarness(options: { withPanel?: boolean; supportsPopover?: boolean
 	const hidden: string[] = [];
 	const fetches: FetchCall[] = [];
 	const navigations: string[] = [];
+	const announced: string[] = [];
 	let settleFetch: { resolve: () => void; reject: () => void } | null = null;
 
 	initReaderExitConfirm({
@@ -77,8 +90,12 @@ function createHarness(options: { withPanel?: boolean; supportsPopover?: boolean
 				settleFetch = { resolve: () => resolve(undefined), reject: () => reject(new Error("offline")) };
 			});
 		},
-		navigate: (href) => {
-			navigations.push(href);
+		follow: (anchor) => {
+			navigations.push(anchor.href);
+			anchor.click();
+		},
+		announceMarkedRead: () => {
+			announced.push("marked-read");
 		},
 	});
 
@@ -94,6 +111,7 @@ function createHarness(options: { withPanel?: boolean; supportsPopover?: boolean
 		hidden,
 		fetches,
 		navigations,
+		announced,
 		element,
 		/** false ⇔ the module cancelled the click, so the browser would not navigate. */
 		click(id: string, init: MouseEventInit = {}): boolean {
@@ -198,6 +216,42 @@ describe("initReaderExitConfirm — interception", () => {
 	});
 });
 
+describe("initReaderExitConfirm — scopes come from the panel", () => {
+	it("guards only the scopes the server wrote, so a card-only reader lets an article-body link go", () => {
+		const harness = createHarness({ scopes: CARD_SCOPE_ONLY });
+
+		assert.equal(harness.click("body-link"), true);
+		assert.equal(harness.click("related-link"), false);
+		assert.deepEqual(harness.shown, [PANEL_ID]);
+	});
+
+	it("guards nothing when the panel names no scopes, nor when it carries no actions at all", () => {
+		const harness = createHarness({ scopes: null });
+
+		assert.equal(harness.click("body-link"), true);
+		assert.equal(harness.click("related-link"), true);
+
+		harness.element(PANEL_ID).querySelector("[data-exit-confirm-form]")?.remove();
+
+		assert.equal(harness.click("body-link"), true);
+		assert.equal(harness.click("related-link"), true);
+		assert.deepEqual(harness.shown, []);
+	});
+
+	it("re-reads the scopes per click, so a swapped-in panel changes what is guarded", () => {
+		const harness = createHarness();
+		assert.equal(harness.click("body-link"), false);
+
+		harness
+			.element(PANEL_ID)
+			.querySelector("[data-exit-confirm-form]")
+			?.setAttribute("data-exit-confirm-scopes", CARD_SCOPE_ONLY);
+
+		assert.equal(harness.click("nested-link"), true);
+		assert.deepEqual(harness.shown, [PANEL_ID]);
+	});
+});
+
 describe("initReaderExitConfirm — capture ordering", () => {
 	it("keeps the click away from the boost handler bound on the link itself", () => {
 		const harness = createHarness();
@@ -217,6 +271,17 @@ describe("initReaderExitConfirm — capture ordering", () => {
 
 		assert.deepEqual(boostHandler, ["blank-link"]);
 		assert.deepEqual(harness.shown, []);
+	});
+
+	it("hands the answered click back to the boost handler bound on the link, once", () => {
+		const harness = createHarness();
+		const boostHandler = harness.recordClicksOn("related-link");
+		harness.click("related-link");
+
+		harness.click("exit-no");
+
+		assert.deepEqual(boostHandler, ["related-link"]);
+		assert.deepEqual(harness.shown, [PANEL_ID]);
 	});
 });
 
@@ -348,6 +413,28 @@ describe("initReaderExitConfirm — confirming", () => {
 		await harness.rejectFetch();
 
 		assert.deepEqual(harness.navigations, ["https://example.com/out"]);
+	});
+
+	it("announces the mark only once the server has answered, never while it is in flight", async () => {
+		const harness = createHarness();
+		harness.click("body-link");
+
+		harness.submitConfirmForm();
+		assert.deepEqual(harness.announced, []);
+
+		await harness.resolveFetch();
+
+		assert.deepEqual(harness.announced, ["marked-read"]);
+	});
+
+	it("announces nothing when the mark-read request fails, so the app never re-reads a stale list", async () => {
+		const harness = createHarness();
+		harness.click("body-link");
+		harness.submitConfirmForm();
+
+		await harness.rejectFetch();
+
+		assert.deepEqual(harness.announced, []);
 	});
 
 	it("marks read only once — a second submit with nothing pending does nothing", () => {

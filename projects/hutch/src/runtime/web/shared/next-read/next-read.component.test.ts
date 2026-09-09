@@ -18,12 +18,14 @@ const secondId = ReaderArticleHashIdSchema.parse("fedcba9876543210fedcba98765432
 const sourceId = ReaderArticleHashIdSchema.parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 const NOW = new Date("2026-08-05T12:00:00.000Z");
 const RETURN_TO = `/queue/${sourceId.value}/view`;
+const WEB_READER_PATH = (articleId: string) => `/queue/${articleId}/view`;
 const savedDaysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000);
 
 function readyWith(
 	items: RelatedArticleDisplay[],
 	pollUrl?: string,
 	dismissal?: NextReadDismissal,
+	readerPathFor: (articleId: string) => string = WEB_READER_PATH,
 ) {
 	return renderNextRead({
 		related: {
@@ -34,6 +36,7 @@ function readyWith(
 		},
 		pollUrl,
 		returnTo: RETURN_TO,
+		readerPathFor,
 	});
 }
 
@@ -78,14 +81,14 @@ function slotOf(doc: Document) {
 
 describe("renderNextRead", () => {
 	it("returns only the slot HTML (no outer page)", () => {
-		const html = renderNextRead({ returnTo: RETURN_TO });
+		const html = renderNextRead({ returnTo: RETURN_TO, readerPathFor: WEB_READER_PATH });
 
 		expect(html.startsWith("<div")).toBe(true);
 		expect(html.includes("<html")).toBe(false);
 	});
 
 	it("hides the card while nothing has been computed", () => {
-		const slot = slotOf(parse(renderNextRead({ returnTo: RETURN_TO })));
+		const slot = slotOf(parse(renderNextRead({ returnTo: RETURN_TO, readerPathFor: WEB_READER_PATH })));
 
 		expect(slot.getAttribute("data-related-status")).toBe("pending");
 		expect(slot.classList.contains("next-read--hidden")).toBe(true);
@@ -102,6 +105,7 @@ describe("renderNextRead", () => {
 						dismissal: undefined,
 					},
 					returnTo: RETURN_TO,
+					readerPathFor: WEB_READER_PATH,
 				}),
 			),
 		);
@@ -149,6 +153,20 @@ describe("renderNextRead", () => {
 			saved: "You saved this 2 months ago",
 			eyebrow: "Next read",
 		});
+	});
+
+	it("keeps the surface markers its caller built into the reader path ahead of the tracking params", () => {
+		const doc = parse(
+			readyWith([FIRST], undefined, undefined, (articleId) =>
+				`/queue/${articleId}/view?platform=ios`,
+			),
+		);
+
+		const link = doc.querySelector("[data-test-related-item]");
+		assert(link, "a ready slot must render the suggestion link");
+		expect(link.getAttribute("href")).toBe(
+			`/queue/${firstId.value}/view?platform=ios&utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${sourceId.value}`,
+		);
 	});
 
 	it("badges an unread suggestion as unread", () => {
@@ -390,6 +408,7 @@ describe("renderNextRead", () => {
 				renderNextRead({
 					pollUrl: "/queue/abc/related?poll=2",
 					returnTo: RETURN_TO,
+					readerPathFor: WEB_READER_PATH,
 				}),
 			),
 		);
@@ -425,6 +444,7 @@ describe("renderNextRead", () => {
 					},
 					pollUrl: "/queue/abc/related?poll=2",
 					returnTo: RETURN_TO,
+					readerPathFor: WEB_READER_PATH,
 				}),
 			),
 		);
@@ -433,7 +453,7 @@ describe("renderNextRead", () => {
 	});
 
 	it("never ticks when the reader was given no poll url", () => {
-		const slot = slotOf(parse(renderNextRead({ returnTo: RETURN_TO })));
+		const slot = slotOf(parse(renderNextRead({ returnTo: RETURN_TO, readerPathFor: WEB_READER_PATH })));
 
 		expect(slot.hasAttribute("hx-get")).toBe(false);
 	});
@@ -444,6 +464,7 @@ describe("renderNextRead", () => {
 				renderNextRead({
 					pollUrl: "/queue/abc/related?poll=2",
 					returnTo: RETURN_TO,
+					readerPathFor: WEB_READER_PATH,
 				}),
 			),
 		);

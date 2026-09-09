@@ -9,6 +9,7 @@ struct ReaderSheet: View {
 	let presentation: ReaderPresentation
 	let mintSession: () async -> ReaderSessionMint
 	let onMarkedRead: () -> Void
+	let onStatusChanged: () -> Void
 	let onCaptureBlocked: (HTMLCapturing) async -> Void
 	let onClose: () -> Void
 	let onLogout: () -> Void
@@ -49,6 +50,7 @@ struct ReaderSheet: View {
 				url: presentation.readerURL,
 				cookies: cookies,
 				onMarkedRead: onMarkedRead,
+				onStatusChanged: onStatusChanged,
 				onCaptureBlocked: onCaptureBlocked,
 				onClose: onClose,
 				onLogout: onLogout,

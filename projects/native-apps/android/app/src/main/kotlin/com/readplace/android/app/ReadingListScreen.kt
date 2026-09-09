@@ -268,6 +268,9 @@ fun ReadingListScreen(
 					scope.launch { viewModel.readerStatusChanged() }
 					viewModel.closeReader()
 				},
+				onStatusChanged = {
+					scope.launch { viewModel.readerStatusChanged() }
+				},
 				onCaptureBlocked = viewModel::captureBlockedArticle,
 				// The close path carries the probe: the sheet routes every dismissal —
 				// including an interactive swipe-down or back press that never touches a

@@ -14,6 +14,11 @@ const CONTENT_FETCHED_AT = "2026-05-14T11:20:00.000Z";
 // interception falling back to the native form submit.
 const EXIT_LINK = `.article-body__content a[href^="${BASE_URL}/privacy"]`;
 const PANEL = "#reader-exit-confirm";
+const CARD_LINK = "[data-test-related-item]";
+const OPEN_CARD = "[data-test-reader-related].next-read--open";
+const RELATED_COMPUTED_AT = "2026-05-14T11:40:00.000Z";
+const LONG_PARAGRAPH =
+	"<p>Body copy long enough that reaching the end of the article is a real scroll, which is the only thing that floats the suggestion card into view.</p>";
 
 const CreatedUser = z.union([
 	z.object({ ok: z.literal(true), userId: z.string() }),
@@ -55,6 +60,114 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
 }
+
+async function seedPlainArticle(
+	page: Page,
+	params: { url: string; title: string; ownerUserId: string },
+): Promise<string> {
+	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+		data: {
+			url: params.url,
+			title: params.title,
+			content: Array.from({ length: 40 }, () => LONG_PARAGRAPH).join("\n"),
+			contentFetchedAt: CONTENT_FETCHED_AT,
+			savedByUserId: params.ownerUserId,
+		},
+	});
+	assert.equal(response.status(), 201, `seed endpoint must create ${params.url}`);
+	return SeededArticle.parse(await response.json()).articleId;
+}
+
+test.describe("Next Read asks before it moves the reader on, inside the app", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 390, height: 844 } });
+
+	test("confirming marks the source read, stays in the sheet, and tells the app", async ({
+		page,
+	}, testInfo) => {
+		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `next-read-exit-${stamp}@example.com`;
+		const ownerUserId = await createOwner(page, email);
+		const sourceUrl = `https://example.com/next-read-exit-source-${stamp}`;
+		const suggestionUrl = `https://example.com/next-read-exit-suggestion-${stamp}`;
+		const sourceId = await seedPlainArticle(page, {
+			url: sourceUrl,
+			title: "The Source Article",
+			ownerUserId,
+		});
+		const suggestionId = await seedPlainArticle(page, {
+			url: suggestionUrl,
+			title: "The Suggested Article",
+			ownerUserId,
+		});
+		const settled = await page.request.post(`${BASE_URL}/e2e/seed-related-articles`, {
+			data: {
+				userId: ownerUserId,
+				sourceUrl,
+				related: [{ url: suggestionUrl, reason: "Same argument" }],
+				computedAt: RELATED_COMPUTED_AT,
+			},
+		});
+		assert.equal(settled.status(), 201, "the seed endpoint must settle the relations");
+
+		await loginAs(page, email);
+		await page.addInitScript(() => {
+			const posted: string[] = [];
+			Object.assign(window, {
+				ReadplaceReader: {
+					postMessage: (message: string) => {
+						posted.push(message);
+					},
+				},
+				readplaceBridgeMessages: posted,
+			});
+		});
+		await page.goto(`${BASE_URL}/queue/${sourceId}/view?platform=android`, {
+			waitUntil: "domcontentloaded",
+		});
+		await page.waitForSelector("body.page-reader--chromeless");
+		await page.waitForSelector('[data-test-reader-related][data-related-status="ready"]', {
+			state: "attached",
+		});
+		await page.evaluate(() => {
+			Object.assign(window, { readplaceSheetGeneration: "opened-once" });
+		});
+
+		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+		await page.waitForSelector(OPEN_CARD);
+		await page.locator(CARD_LINK).click();
+
+		await expect(page.locator(PANEL)).toBeVisible();
+		await page.locator('[data-test-action="exit-confirm-yes"]').click();
+
+		await expect(page.locator(".article-body__title")).toHaveText("The Suggested Article");
+		expect(
+			await page.evaluate(
+				() =>
+					(window as unknown as { readplaceSheetGeneration?: string })
+						.readplaceSheetGeneration,
+			),
+		).toBe("opened-once");
+		expect(page.url()).toContain("platform=android");
+		expect(page.url()).toContain(`/queue/${suggestionId}/view`);
+		await expect(page.locator("body")).toHaveClass(/page-reader--chromeless/);
+		await expect(page.locator("header.header")).toHaveCount(0);
+		await expect(page.locator("footer.footer")).toHaveCount(0);
+
+		await expect(async () => {
+			expect(
+				await page.evaluate(() =>
+					(window as unknown as { readplaceBridgeMessages: string[] })
+						.readplaceBridgeMessages,
+				),
+			).toContainEqual(JSON.stringify({ type: "statusChanged" }));
+		}).toPass({ timeout: 10000 });
+
+		await expect(async () => {
+			await page.goto(`${BASE_URL}/queue?tab=done`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(`[data-test-article="${sourceId}"]`)).toHaveCount(1);
+		}).toPass({ timeout: 15000 });
+	});
+});
 
 test.describe("Leaving the reader through an article link asks to mark it read", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });

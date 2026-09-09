@@ -81,3 +81,11 @@ export function isNativeSurface(req: Request): boolean {
 	if (isAppShell(req)) return true;
 	return nativeSurfaceOf(req) !== undefined;
 }
+
+export function nativeSurfaceQuery(req: Request): string {
+	const surface = nativeSurfaceOf(req);
+	return [
+		...(surface === undefined ? [] : [`${PLATFORM_QUERY}=${surface}`]),
+		...(isAppShell(req) ? [`${APP_SHELL_QUERY}=${APP_SHELL_VALUE}`] : []),
+	].join("&");
+}

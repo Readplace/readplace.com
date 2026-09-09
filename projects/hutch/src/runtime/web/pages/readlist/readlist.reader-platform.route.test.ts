@@ -14,6 +14,7 @@ import { initReadabilityParser } from "@packages/article-parser";
 import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
+import { MARKED_READ_EVENT } from "../reader/reader-exit-confirm.client";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 
 import request from "supertest";
@@ -215,6 +216,45 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		// The full web shell — served to a browser — must not carry the app bridge.
 		const shellText = (await agent.get(`/queue/${articleId}/view`)).text;
 		expect(shellText).not.toContain("readplaceReader");
+	});
+
+	it("injects the server-owned status-changed bridge for the app, absent from the browser shell", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-status-bridge");
+
+		const iosText = (await agent.get(`/queue/${articleId}/view?platform=ios`)).text;
+		expect(iosText).toContain("statusChanged");
+		expect(iosText).toContain(MARKED_READ_EVENT);
+
+		const shellText = (await agent.get(`/queue/${articleId}/view`)).text;
+		expect(shellText).not.toContain("statusChanged");
+	});
+
+	it("posts one statusChanged when the reader announces a mark the app's list must reconcile", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-status-post");
+
+		const posted: Array<{ type?: string }> = [];
+		const dom = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text, {
+			runScripts: "dangerously",
+			beforeParse(window) {
+				Object.assign(window, {
+					webkit: {
+						messageHandlers: {
+							readplaceReader: { postMessage: (msg: { type?: string }) => posted.push(msg) },
+						},
+					},
+				});
+			},
+		});
+
+		dom.window.document.dispatchEvent(new dom.window.Event(MARKED_READ_EVENT));
+
+		expect(posted).toEqual([{ type: "statusChanged" }]);
+
+		dom.window.close();
 	});
 
 	it("injects the server-owned capture bridge for the app, absent from the browser shell", async () => {

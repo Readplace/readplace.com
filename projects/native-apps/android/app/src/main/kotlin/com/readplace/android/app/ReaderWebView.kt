@@ -54,6 +54,7 @@ fun ReaderWebView(
 	url: String,
 	cookies: List<Cookie>,
 	onMarkedRead: () -> Unit,
+	onStatusChanged: () -> Unit,
 	/** Runs the capture of the blocked article and returns once it has settled. The
 	 * capture is hosted by the composition root, not the reader, because a WebView
 	 * removed from the hierarchy stops laying out and running JS: the root outlives
@@ -120,6 +121,7 @@ fun ReaderWebView(
 				val bridge = ReaderBridge(
 					scope = scope,
 					onMarkedRead = onMarkedRead,
+					onStatusChanged = onStatusChanged,
 					onCaptureBlocked = onCaptureBlocked,
 					onMainThread = { action -> post { action() } },
 				)
@@ -375,6 +377,7 @@ private fun choiceColors(style: WebDialog.Choice.Style): ButtonColors =
 private class ReaderBridge(
 	private val scope: CoroutineScope,
 	private val onMarkedRead: () -> Unit,
+	private val onStatusChanged: () -> Unit,
 	private val onCaptureBlocked: suspend () -> Unit,
 	private val onMainThread: (() -> Unit) -> Unit,
 ) {
@@ -415,6 +418,7 @@ private class ReaderBridge(
 				handled = true
 				onMarkedRead()
 			}
+			ReaderMessageRoute.RECONCILE_STATUS -> onStatusChanged()
 			ReaderMessageRoute.IGNORE -> Unit
 		}
 	}

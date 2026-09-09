@@ -3,12 +3,14 @@ package com.readplace.android.app
 enum class ReaderMessageRoute {
 	START_CAPTURE,
 	MARK_READ,
+	RECONCILE_STATUS,
 	IGNORE,
 	;
 
 	companion object {
 		private const val CAPTURE_BLOCKED = "captureBlocked"
 		private const val MARKED_READ = "markedRead"
+		private const val STATUS_CHANGED = "statusChanged"
 
 		/** The one JavaScript interface name the reader bridge is registered under.
 		 * The server's injected script posts to exactly this name, so a message
@@ -25,6 +27,7 @@ enum class ReaderMessageRoute {
 			return when (messageType) {
 				CAPTURE_BLOCKED -> if (captureInFlight) IGNORE else START_CAPTURE
 				MARKED_READ -> if (alreadyMarkedRead) IGNORE else MARK_READ
+				STATUS_CHANGED -> RECONCILE_STATUS
 				else -> IGNORE
 			}
 		}

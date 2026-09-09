@@ -15,6 +15,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	let url: URL
 	let cookies: [HTTPCookie]
 	let onMarkedRead: () -> Void
+	let onStatusChanged: () -> Void
 	let onCaptureBlocked: (HTMLCapturing) async -> Void
 	let onClose: () -> Void
 	/// The account page deleted the account, so the server destroyed every session
@@ -32,6 +33,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	func makeCoordinator() -> Coordinator {
 		Coordinator(
 			onMarkedRead: onMarkedRead,
+			onStatusChanged: onStatusChanged,
 			onCaptureBlocked: onCaptureBlocked,
 			onClose: onClose,
 			onLogout: onLogout,
@@ -98,6 +100,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
 		private let onMarkedRead: () -> Void
+		private let onStatusChanged: () -> Void
 		private let onCaptureBlocked: (HTMLCapturing) async -> Void
 		private let onClose: () -> Void
 		private let onLogout: () -> Void
@@ -115,6 +118,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 		init(
 			onMarkedRead: @escaping () -> Void,
+			onStatusChanged: @escaping () -> Void,
 			onCaptureBlocked: @escaping (HTMLCapturing) async -> Void,
 			onClose: @escaping () -> Void,
 			onLogout: @escaping () -> Void,
@@ -122,6 +126,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			onLoadPhaseChange: @escaping (ReaderLoadPhase) -> Void
 		) {
 			self.onMarkedRead = onMarkedRead
+			self.onStatusChanged = onStatusChanged
 			self.onCaptureBlocked = onCaptureBlocked
 			self.onClose = onClose
 			self.onLogout = onLogout
@@ -218,6 +223,8 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			case .markRead:
 				handled = true
 				onMarkedRead()
+			case .reconcileStatus:
+				onStatusChanged()
 			case .ignore:
 				break
 			}
@@ -333,6 +340,10 @@ enum ReaderBridge {
 
 	static func isCaptureBlocked(message name: String, body: Any) -> Bool {
 		payloadType(message: name, body: body) == "captureBlocked"
+	}
+
+	static func isStatusChanged(message name: String, body: Any) -> Bool {
+		payloadType(message: name, body: body) == "statusChanged"
 	}
 
 	private static func payloadType(message name: String, body: Any) -> String? {

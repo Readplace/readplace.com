@@ -1,14 +1,17 @@
+export const MARKED_READ_EVENT = "readplace:marked-read";
+
 export interface ReaderExitConfirmDeps {
 	document: Document;
 	supportsPopover: () => boolean;
 	showPopover: (panel: Element) => void;
 	hidePopover: (panel: Element) => void;
 	fetchFn: (url: string, init: RequestInit) => Promise<unknown>;
-	navigate: (href: string) => void;
+	follow: (anchor: HTMLAnchorElement) => void;
+	announceMarkedRead: () => void;
 }
 
 interface PendingExit {
-	href: string;
+	anchor: HTMLAnchorElement;
 	panel: Element;
 }
 
@@ -16,7 +19,7 @@ const PANEL_ID = "reader-exit-confirm";
 const FORM_SELECTOR = "[data-exit-confirm-form]";
 const NO_SELECTOR = "[data-exit-confirm-decline]";
 const BOUND_FLAG = "data-reader-exit-confirm-bound";
-const EXIT_SCOPES = [".article-body__content", ".next-read__card"];
+const SCOPES_ATTR = "data-exit-confirm-scopes";
 const SAME_TAB_TARGETS = ["", "_self", "_top"];
 const FOLLOWED_PROTOCOLS = ["http:", "https:"];
 
@@ -24,7 +27,14 @@ function isElement(node: EventTarget | null): node is Element {
 	return typeof Reflect.get(Object(node), "closest") === "function";
 }
 
-function isExitLink(anchor: HTMLAnchorElement): boolean {
+function scopesOf(panel: Element): string {
+	const form = panel.querySelector(FORM_SELECTOR);
+	if (form === null) return "";
+	return form.getAttribute(SCOPES_ATTR) ?? "";
+}
+
+function isExitLink(anchor: HTMLAnchorElement, scopes: string): boolean {
+	if (scopes === "") return false;
 	const rawHref = anchor.getAttribute("href");
 	if (rawHref === null) return false;
 	if (rawHref === "") return false;
@@ -33,7 +43,7 @@ function isExitLink(anchor: HTMLAnchorElement): boolean {
 	// target="_TOP" still navigates this tab and must be intercepted too.
 	if (!SAME_TAB_TARGETS.includes(anchor.target.toLowerCase())) return false;
 	if (!FOLLOWED_PROTOCOLS.includes(anchor.protocol)) return false;
-	return EXIT_SCOPES.some((scope) => anchor.closest(scope) !== null);
+	return anchor.closest(scopes) !== null;
 }
 
 function markReadRequest(form: HTMLFormElement): RequestInit {
@@ -56,6 +66,7 @@ function noop(): void {}
 
 export function initReaderExitConfirm(deps: ReaderExitConfirmDeps): void {
 	let pending: PendingExit | null = null;
+	let bypassing = false;
 
 	function takePending(): PendingExit | null {
 		const decision = pending;
@@ -73,12 +84,15 @@ export function initReaderExitConfirm(deps: ReaderExitConfirmDeps): void {
 
 	function leave(decision: PendingExit): void {
 		deps.hidePopover(decision.panel);
-		deps.navigate(decision.href);
+		bypassing = true;
+		deps.follow(decision.anchor);
+		bypassing = false;
 	}
 
 	deps.document.addEventListener(
 		"click",
 		(event) => {
+			if (bypassing) return;
 			const target = event.target;
 			if (!isElement(target)) return;
 
@@ -97,9 +111,9 @@ export function initReaderExitConfirm(deps: ReaderExitConfirmDeps): void {
 
 			const anchor = target.closest<HTMLAnchorElement>("a");
 			if (anchor === null) return;
-			if (!isExitLink(anchor)) return;
+			if (!isExitLink(anchor, scopesOf(panel))) return;
 
-			pending = { href: anchor.href, panel };
+			pending = { anchor, panel };
 			event.preventDefault();
 			event.stopPropagation();
 			bindDismissal(panel);
@@ -116,7 +130,7 @@ export function initReaderExitConfirm(deps: ReaderExitConfirmDeps): void {
 		event.preventDefault();
 		const accepted = takePending();
 		if (accepted === null) return;
-		deps.fetchFn(form.action, markReadRequest(form)).then(noop, noop);
+		deps.fetchFn(form.action, markReadRequest(form)).then(deps.announceMarkedRead, noop);
 		leave(accepted);
 	});
 }

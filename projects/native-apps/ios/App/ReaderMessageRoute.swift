@@ -3,6 +3,7 @@ import Foundation
 enum ReaderMessageRoute: Equatable {
 	case startCapture
 	case markRead
+	case reconcileStatus
 	case ignore
 
 	static func route(
@@ -16,6 +17,9 @@ enum ReaderMessageRoute: Equatable {
 		}
 		if ReaderBridge.isMarkedRead(message: name, body: body), !alreadyMarkedRead {
 			return .markRead
+		}
+		if ReaderBridge.isStatusChanged(message: name, body: body) {
+			return .reconcileStatus
 		}
 		return .ignore
 	}

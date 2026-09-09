@@ -131,6 +131,9 @@ struct ReadingListView: View {
 							Task { await viewModel.readerStatusChanged() }
 							viewModel.readerPresentation = nil
 						},
+						onStatusChanged: {
+							Task { await viewModel.readerStatusChanged() }
+						},
 						onCaptureBlocked: { captor in
 							await viewModel.captureBlockedArticle(with: captor)
 						},

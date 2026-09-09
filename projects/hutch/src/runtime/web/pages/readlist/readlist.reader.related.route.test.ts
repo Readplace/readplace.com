@@ -414,6 +414,61 @@ describe("GET /queue/:id/related", () => {
 	});
 });
 
+describe("the app surface keeps its markers on everything the suggestion touches", () => {
+	function markersOf(html: string) {
+		const doc = new JSDOM(html).window.document;
+		const card = doc.querySelector("[data-test-related-item]");
+		assert(card, "a ready slot must render the suggestion link");
+		const dismiss = doc.querySelector('.next-read__dismiss-form input[name="returnTo"]');
+		assert(dismiss, "a ready slot must carry where the dismissal returns to");
+		return {
+			card: new URLSearchParams(
+				(card.getAttribute("href") ?? "").split("?")[1],
+			).get("platform"),
+			returnTo: new URLSearchParams(
+				(dismiss.getAttribute("value") ?? "").split("?")[1],
+			).get("platform"),
+		};
+	}
+
+	it("stamps the reader render's card and dismissal with the surface it was opened on", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/view?platform=ios`);
+
+		expect(markersOf(response.text)).toEqual({ card: "ios", returnTo: "ios" });
+	});
+
+	it("keeps the marker on the poll answer, which is how an app reader usually meets the card", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/related?poll=1&platform=android`);
+
+		expect(markersOf(response.text)).toEqual({ card: "android", returnTo: "android" });
+	});
+
+	it("keeps the marker on the next tick, so the chain never falls back to the web shell", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/related?poll=1&platform=ios`);
+
+		expect(relatedSlotOf(response.text).getAttribute("hx-get")).toBe(
+			`/queue/${articleId}/related?poll=2&platform=ios`,
+		);
+	});
+
+	it("emits none of them for an unmarked web request", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		expect(markersOf(response.text)).toEqual({ card: null, returnTo: null });
+	});
+});
+
 describe("POST /queue/:id/related-dismiss", () => {
 	function dismissUrlOf(html: string): string {
 		const form = new JSDOM(html).window.document.querySelector(

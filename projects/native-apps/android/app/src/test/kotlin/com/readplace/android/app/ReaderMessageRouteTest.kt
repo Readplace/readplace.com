@@ -65,6 +65,39 @@ class ReaderMessageRouteTest {
 	}
 
 	@Test
+	fun `a status change report reconciles the list`() {
+		assertEquals(ReaderMessageRoute.RECONCILE_STATUS, route("statusChanged"))
+	}
+
+	@Test
+	fun `a status change report is honoured after the article was marked read`() {
+		assertEquals(
+			"the mark-read latch closes the sheet once; a status change keeps it open, so it must not " +
+				"be latched with it",
+			ReaderMessageRoute.RECONCILE_STATUS,
+			route("statusChanged", alreadyMarkedRead = true),
+		)
+	}
+
+	@Test
+	fun `a status change report is still honoured while a capture is running`() {
+		assertEquals(
+			"the capture latch belongs to capture only",
+			ReaderMessageRoute.RECONCILE_STATUS,
+			route("statusChanged", captureInFlight = true),
+		)
+	}
+
+	@Test
+	fun `a status change arriving on another channel is ignored`() {
+		assertEquals(
+			"a page that registers its own interface must not be able to drive the list",
+			ReaderMessageRoute.IGNORE,
+			route("statusChanged", channelName = "SomeOtherBridge"),
+		)
+	}
+
+	@Test
 	fun `a message the bridge does not recognise is ignored`() {
 		assertEquals(ReaderMessageRoute.IGNORE, route("scrolled"))
 	}

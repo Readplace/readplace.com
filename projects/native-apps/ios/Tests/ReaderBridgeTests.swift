@@ -63,7 +63,23 @@ final class ReaderBridgeTests: XCTestCase {
 		XCTAssertFalse(ReaderBridge.isCaptureBlocked(message: ReaderBridge.messageName, body: "captureBlocked"))
 	}
 
-	func testTheTwoBridgeMessagesDoNotCrossFireOnTheirSharedChannel() {
+	func testIsStatusChangedAcceptsStatusChangedPayloadOnBridgeChannel() {
+		XCTAssertTrue(ReaderBridge.isStatusChanged(message: ReaderBridge.messageName, body: ["type": "statusChanged"]))
+	}
+
+	func testIsStatusChangedRejectsOtherMessageTypes() {
+		XCTAssertFalse(ReaderBridge.isStatusChanged(message: ReaderBridge.messageName, body: ["type": "scrolled"]))
+	}
+
+	func testIsStatusChangedRejectsWrongChannel() {
+		XCTAssertFalse(ReaderBridge.isStatusChanged(message: "someOtherHandler", body: ["type": "statusChanged"]))
+	}
+
+	func testIsStatusChangedRejectsNonDictionaryBody() {
+		XCTAssertFalse(ReaderBridge.isStatusChanged(message: ReaderBridge.messageName, body: "statusChanged"))
+	}
+
+	func testTheThreeBridgeMessagesDoNotCrossFireOnTheirSharedChannel() {
 		XCTAssertFalse(
 			ReaderBridge.isMarkedRead(message: ReaderBridge.messageName, body: ["type": "captureBlocked"]),
 			"a capture request must not mark the article read"
@@ -71,6 +87,14 @@ final class ReaderBridgeTests: XCTestCase {
 		XCTAssertFalse(
 			ReaderBridge.isCaptureBlocked(message: ReaderBridge.messageName, body: ["type": "markedRead"]),
 			"a mark-read must not start a capture"
+		)
+		XCTAssertFalse(
+			ReaderBridge.isMarkedRead(message: ReaderBridge.messageName, body: ["type": "statusChanged"]),
+			"a status change keeps the sheet open; it must not close it the way a mark-read does"
+		)
+		XCTAssertFalse(
+			ReaderBridge.isStatusChanged(message: ReaderBridge.messageName, body: ["type": "markedRead"]),
+			"a mark-read already reconciles as it closes; it must not also read as a status change"
 		)
 	}
 }
