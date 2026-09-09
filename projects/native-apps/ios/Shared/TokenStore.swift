@@ -174,6 +174,13 @@ struct TokenStore {
 		storage.removeValue(for: .refreshToken)
 	}
 
+	@discardableResult
+	func discardRejected(refreshToken: String) -> Bool {
+		guard storage.value(for: .refreshToken) == refreshToken else { return false }
+		clear()
+		return true
+	}
+
 	var isLoggedIn: Bool { tokens != nil }
 
 	/// One-time move of tokens written by pre-Keychain builds out of the App Group

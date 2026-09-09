@@ -1302,7 +1302,7 @@ new aws.cloudwatch.MetricAlarm("oauth-refresh-refused-alarm", {
 	threshold: oauthRefreshRefusedDailyThreshold,
 	treatMissingData: "notBreaching",
 	alarmDescription:
-		"Extension refresh-token grants are being refused above the expected per-day baseline",
+		"Refresh-token grants from any client are being refused above the expected per-day baseline",
 	alarmActions: [oauthRefreshRefusedTopic.arn],
 });
 

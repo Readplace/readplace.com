@@ -20,6 +20,22 @@ final class TokenStoreTests: XCTestCase {
 		XCTAssertTrue(store.isLoggedIn)
 	}
 
+	func testDiscardRejectedRemovesBothStoredKeys() {
+		let defaults = TestSupport.ephemeralDefaults()
+		let store = TokenStore(defaults: defaults)
+		store.save(OAuthTokens(accessToken: "a", refreshToken: "r"))
+		XCTAssertTrue(store.discardRejected(refreshToken: "r"))
+		XCTAssertNil(defaults.string(forKey: TokenKey.accessToken.rawValue))
+		XCTAssertNil(defaults.string(forKey: TokenKey.refreshToken.rawValue))
+	}
+
+	func testDiscardRejectedKeepsAPairStoredSinceTheRejectedToken() {
+		let store = makeStore()
+		store.save(OAuthTokens(accessToken: "a2", refreshToken: "r2"))
+		XCTAssertFalse(store.discardRejected(refreshToken: "r1"))
+		XCTAssertEqual(store.tokens, OAuthTokens(accessToken: "a2", refreshToken: "r2"))
+	}
+
 	func testUpdateAccessTokenKeepsRefreshWhenNil() {
 		let store = makeStore()
 		store.save(OAuthTokens(accessToken: "a", refreshToken: "r"))

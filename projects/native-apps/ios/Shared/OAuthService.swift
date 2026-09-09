@@ -117,9 +117,9 @@ struct OAuthService {
 			"client_id": AppConfig.clientId,
 		])
 		let (data, response) = try await session.data(for: tokenRequest(body))
-		guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-			throw OAuthError.refreshFailed
-		}
+		let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+		if status == 400 { store.discardRejected(refreshToken: refresh) }
+		guard status == 200 else { throw OAuthError.refreshFailed }
 		let tokens = try parseTokens(data, fallbackRefresh: refresh)
 		store.updateAccessToken(tokens.accessToken, refreshToken: tokens.refreshToken)
 		return tokens.accessToken

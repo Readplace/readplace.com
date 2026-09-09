@@ -69,15 +69,44 @@ final class OAuthServiceTests: XCTestCase {
 		XCTAssertEqual(body["refresh_token"], "r1")
 	}
 
-	func testRefreshFailureThrows() async {
-		let store = TestSupport.loggedInStore()
+	func testRefreshDiscardsARejectedRefreshToken() async {
+		let store = TestSupport.loggedInStore(access: "a1", refresh: "r1")
 		StubURLProtocol.setHandler { _, _ in .json(400, "{}") }
 		do {
 			_ = try await makeService(store: store).refresh()
-			XCTFail("Expected refresh to throw")
+			XCTFail("expected .refreshFailed")
 		} catch {
-			// expected
+			XCTAssertEqual((error as? OAuthError)?.errorDescription, OAuthError.refreshFailed.errorDescription)
 		}
+		XCTAssertNil(store.tokens, "a rejected refresh token must not be re-sent on the next call")
+	}
+
+	func testRefreshKeepsTheStoredTokensWhenTheServerIsUnavailable() async {
+		let store = TestSupport.loggedInStore(access: "a1", refresh: "r1")
+		StubURLProtocol.setHandler { _, _ in .json(503, "{}") }
+		do {
+			_ = try await makeService(store: store).refresh()
+			XCTFail("expected .refreshFailed")
+		} catch {
+			XCTAssertEqual((error as? OAuthError)?.errorDescription, OAuthError.refreshFailed.errorDescription)
+		}
+		XCTAssertEqual(store.tokens?.refreshToken, "r1", "only an outright rejection discards the token")
+	}
+
+	func testRefreshLeavesATokenAnOverlappingRefreshAlreadyStored() async {
+		let store = TestSupport.loggedInStore(access: "a1", refresh: "r1")
+		StubURLProtocol.setHandler { _, _ in
+			store.updateAccessToken("a2", refreshToken: "r2")
+			return .json(400, "{}")
+		}
+		do {
+			_ = try await makeService(store: store).refresh()
+			XCTFail("expected .refreshFailed")
+		} catch {
+			XCTAssertEqual((error as? OAuthError)?.errorDescription, OAuthError.refreshFailed.errorDescription)
+		}
+		XCTAssertEqual(store.tokens?.refreshToken, "r2", "the discard declines when the stored token is no longer the one that was sent")
+		XCTAssertEqual(store.tokens?.accessToken, "a2")
 	}
 
 	func testRevokeClearsTokens() async throws {
