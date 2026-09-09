@@ -60,6 +60,10 @@ function setup(options: { stateClass: string; articleBottom: number }) {
 			bottom = nextBottom;
 			for (const listener of scrollListeners) listener();
 		},
+		growArticleTo: (nextBottom: number) => {
+			bottom = nextBottom;
+			for (const listener of swapListeners) listener();
+		},
 		swap: () => {
 			for (const listener of swapListeners) listener();
 		},
@@ -109,6 +113,72 @@ describe("initNextRead", () => {
 		assert(wrap, "the fixture must render the next-read slot");
 		wrap.classList.remove("next-read--hidden");
 		wrap.classList.add("next-read--ready");
+		harness.swap();
+
+		expect(harness.wrapClasses().contains("next-read--open")).toBe(true);
+	});
+
+	it("gets out of the way when the reader turns back into the article, away from its end", () => {
+		const harness = setup({ stateClass: "next-read--ready", articleBottom: 700 });
+		harness.controller.attach();
+
+		harness.scrollTo(2000);
+
+		expect(harness.wrapClasses().contains("next-read--open")).toBe(false);
+	});
+
+	it("stays up when the reader nudges back only far enough to re-read the last paragraph", () => {
+		const harness = setup({ stateClass: "next-read--ready", articleBottom: 700 });
+		harness.controller.attach();
+
+		harness.scrollTo(1000);
+
+		expect(harness.wrapClasses().contains("next-read--open")).toBe(true);
+	});
+
+	it("stays up at the very edge of the range, and leaves one pixel past it", () => {
+		const harness = setup({ stateClass: "next-read--ready", articleBottom: 700 });
+		harness.controller.attach();
+
+		harness.scrollTo(1040);
+		expect(harness.wrapClasses().contains("next-read--open")).toBe(true);
+
+		harness.scrollTo(1041);
+		expect(harness.wrapClasses().contains("next-read--open")).toBe(false);
+	});
+
+	it("comes back when the reader returns to the end of the article", () => {
+		const harness = setup({ stateClass: "next-read--ready", articleBottom: 700 });
+		harness.controller.attach();
+		harness.scrollTo(2000);
+
+		harness.scrollTo(700);
+
+		expect(harness.wrapClasses().contains("next-read--open")).toBe(true);
+	});
+
+	it("stays up while the reader carries on down past the end of the article", () => {
+		const harness = setup({ stateClass: "next-read--ready", articleBottom: 700 });
+		harness.controller.attach();
+
+		harness.scrollTo(-2000);
+
+		expect(harness.wrapClasses().contains("next-read--open")).toBe(true);
+	});
+
+	it("gets out of the way when the article grows under a reader who has not moved", () => {
+		const harness = setup({ stateClass: "next-read--ready", articleBottom: 400 });
+		harness.controller.attach();
+
+		harness.growArticleTo(3000);
+
+		expect(harness.wrapClasses().contains("next-read--open")).toBe(false);
+	});
+
+	it("leaves the suggestion alone when the three-second poll re-renders it at the end of the article", () => {
+		const harness = setup({ stateClass: "next-read--ready", articleBottom: 400 });
+		harness.controller.attach();
+
 		harness.swap();
 
 		expect(harness.wrapClasses().contains("next-read--open")).toBe(true);
