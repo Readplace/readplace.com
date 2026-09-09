@@ -1,3 +1,4 @@
+import type { GmailAccountEmail } from "./gmail-account-email.schema";
 import type { InboxAddress } from "../inbox/inbox-address.schema";
 import type { UserId } from "../user";
 
@@ -14,6 +15,7 @@ export type GmailFilterErrorCode = "query-too-long" | "rejected";
 export interface GmailConnection {
 	userId: UserId;
 	gatewayAddress: InboxAddress;
+	accountEmail: GmailAccountEmail | undefined;
 	connectedAt: string;
 	forwardingConfirmedAt: string | undefined;
 	filterId: string | undefined;
@@ -35,6 +37,10 @@ export interface GmailConnectionStore {
 	) => Promise<GmailConnection | undefined>;
 	markForwardingConfirmed: (input: { userId: UserId }) => Promise<void>;
 	clearForwardingConfirmed: (input: { userId: UserId }) => Promise<void>;
+	recordAccountEmail: (input: {
+		userId: UserId;
+		accountEmail: GmailAccountEmail;
+	}) => Promise<void>;
 	recordFilter: (input: {
 		userId: UserId;
 		filterId: string;

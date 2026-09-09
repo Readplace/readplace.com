@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { GmailAccountEmailSchema } from "@packages/domain/gmail";
+import type { GmailAccountEmail } from "@packages/domain/gmail";
+import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
@@ -24,8 +27,11 @@ function grantOk(): GmailGrantResult {
 	};
 }
 
-function fixtureWithGmail(grant: GmailGrantResult = grantOk()) {
-	const gmail = initInMemoryGmailIntegration({ grant });
+function fixtureWithGmail(
+	grant: GmailGrantResult = grantOk(),
+	accountEmail?: GmailApiResult<GmailAccountEmail>,
+) {
+	const gmail = initInMemoryGmailIntegration({ grant, accountEmail });
 	const fixture = {
 		...createDefaultTestAppFixture(TEST_APP_ORIGIN),
 		gmailIntegration: gmail.bundle,
@@ -127,7 +133,7 @@ describe("POST /integrations/gmail/connect", () => {
 
 describe("GET /integrations/gmail/callback", () => {
 	it("stores the refresh token and reports the connection", async () => {
-		const { fixture, gmailCredentialsStore, codes } = fixtureWithGmail();
+		const { fixture, gmailCredentialsStore, gmailConnectionStore, codes } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
@@ -139,6 +145,45 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(response.headers.location).toBe("/integrations/gmail?notice=connected");
 		expect(codes).toEqual(["auth-code"]);
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("refresh-value");
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.accountEmail).toBeUndefined();
+	});
+
+	it("records the connected mailbox address on a first connect", async () => {
+		const accountEmail = GmailAccountEmailSchema.parse("reader@gmail.com");
+		const { fixture, gmailConnectionStore } = fixtureWithGmail(grantOk(), {
+			ok: true,
+			value: accountEmail,
+		});
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+
+		await connectAndCallback(agent);
+
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.accountEmail).toBe(
+			accountEmail,
+		);
+	});
+
+	it("records the connected mailbox address on a reconnect of an existing row", async () => {
+		const accountEmail = GmailAccountEmailSchema.parse("reader@gmail.com");
+		const { fixture, gmailConnectionStore } = fixtureWithGmail(grantOk(), {
+			ok: true,
+			value: accountEmail,
+		});
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await connectAndCallback(agent);
+		const first = await gmailConnectionStore.findConnectionByUserId(userId);
+
+		await connectAndCallback(agent);
+
+		const second = await gmailConnectionStore.findConnectionByUserId(userId);
+		expect(second?.accountEmail).toBe(accountEmail);
+		expect(second?.gatewayAddress).toBe(first?.gatewayAddress);
 	});
 
 	it("refuses a callback whose state was not the one this browser was issued", async () => {

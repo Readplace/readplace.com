@@ -15,6 +15,7 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 			const connection: GmailConnection = {
 				userId,
 				gatewayAddress,
+				accountEmail: undefined,
 				connectedAt: deps.now().toISOString(),
 				forwardingConfirmedAt: undefined,
 				filterId: undefined,
@@ -36,6 +37,9 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 		},
 		clearForwardingConfirmed: async ({ userId }) => {
 			update(userId, { forwardingConfirmedAt: undefined });
+		},
+		recordAccountEmail: async ({ userId, accountEmail }) => {
+			update(userId, { accountEmail });
 		},
 		recordFilter: async ({ userId, filterId, filterQuery, filterSenderCount }) => {
 			update(userId, {

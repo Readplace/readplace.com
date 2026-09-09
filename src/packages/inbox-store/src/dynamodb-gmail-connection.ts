@@ -4,6 +4,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import type { GmailConnection, GmailConnectionStore } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
@@ -20,6 +21,7 @@ const GmailFilterErrorRow = z.object({
 const GmailConnectionRow = z.object({
 	userId: UserIdSchema,
 	gatewayAddress: InboxAddressSchema,
+	accountEmail: dynamoField(GmailAccountEmailSchema),
 	connectedAt: z.string(),
 	forwardingConfirmedAt: dynamoField(z.string()),
 	filterId: dynamoField(z.string()),
@@ -36,6 +38,7 @@ function toConnection(row: z.infer<typeof GmailConnectionRow>): GmailConnection 
 	return {
 		userId: row.userId,
 		gatewayAddress: row.gatewayAddress,
+		accountEmail: row.accountEmail,
 		connectedAt: row.connectedAt,
 		forwardingConfirmedAt: row.forwardingConfirmedAt,
 		filterId: row.filterId,
@@ -73,6 +76,7 @@ export function initDynamoDbGmailConnection(deps: {
 			return {
 				userId,
 				gatewayAddress,
+				accountEmail: undefined,
 				connectedAt,
 				forwardingConfirmedAt: undefined,
 				filterId: undefined,
@@ -100,6 +104,13 @@ export function initDynamoDbGmailConnection(deps: {
 			await table.update({
 				Key: { userId },
 				UpdateExpression: "REMOVE forwardingConfirmedAt",
+			});
+		},
+		recordAccountEmail: async ({ userId, accountEmail }) => {
+			await table.update({
+				Key: { userId },
+				UpdateExpression: "SET accountEmail = :email",
+				ExpressionAttributeValues: { ":email": accountEmail },
 			});
 		},
 		recordFilter: async ({ userId, filterId, filterQuery, filterSenderCount }) => {

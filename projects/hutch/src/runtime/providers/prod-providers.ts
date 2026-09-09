@@ -52,6 +52,8 @@ import { createPresignerClient } from "./pending-upload/mint-upload-url";
 import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initDynamoDbImportSession } from "./import-session/dynamodb-import-session";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
+import { initGmailAccessToken } from "./gmail-api/gmail-access-token";
+import { initGmailAccountEmail } from "./gmail-api/gmail-account";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
 import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
 import {
@@ -268,6 +270,12 @@ export function initProdProviders(input: { appOrigin: string }) {
 		now: () => new Date(),
 	});
 
+	const gmailCredentialsStore = initDynamoDbGmailCredentials({
+		client,
+		tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"),
+		now: () => new Date(),
+	});
+
 	const gmailIntegration = {
 		exchangeGmailCode: initExchangeGmailCode({
 			clientId: gmailClientId,
@@ -275,13 +283,19 @@ export function initProdProviders(input: { appOrigin: string }) {
 			redirectUri: `${appOriginForRedirect}/integrations/gmail/callback`,
 			fetch: globalThis.fetch,
 		}),
+		findGmailAccountEmail: initGmailAccountEmail({
+			accessToken: initGmailAccessToken({
+				clientId: gmailClientId,
+				clientSecret: gmailClientSecret,
+				credentials: gmailCredentialsStore,
+				fetch: globalThis.fetch,
+				now: () => new Date(),
+			}),
+			fetch: globalThis.fetch,
+		}),
 		clientId: gmailClientId,
 		stateSecret: deriveGmailStateSigningSecret(gmailStateSeed),
-		gmailCredentialsStore: initDynamoDbGmailCredentials({
-			client,
-			tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"),
-			now: () => new Date(),
-		}),
+		gmailCredentialsStore,
 		gmailConnectionStore: initDynamoDbGmailConnection({
 			client,
 			tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"),

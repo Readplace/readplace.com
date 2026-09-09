@@ -4,6 +4,8 @@ import type { BillingPlan } from "@packages/provider-contracts/subscription-prov
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
+import { initGmailAccessToken } from "./gmail-api/gmail-access-token";
+import { initGmailAccountEmail } from "./gmail-api/gmail-account";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
 import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
@@ -162,6 +164,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 			(!gmailClientId && !gmailClientSecret && !gmailStateSeed),
 		"GMAIL_INTEGRATION_CLIENT_ID, GMAIL_INTEGRATION_CLIENT_SECRET and GMAIL_INTEGRATION_STATE_SECRET must all be set or all unset",
 	);
+	const gmailCredentialsStore = initInMemoryGmailCredentials({ now: () => new Date() });
+
 	const gmailIntegration =
 		gmailClientId && gmailClientSecret && gmailStateSeed
 			? {
@@ -171,9 +175,19 @@ export function initDevProviders(input: { appOrigin: string }) {
 						redirectUri: `http://localhost:${getEnv("PORT") || "3000"}/integrations/gmail/callback`,
 						fetch: globalThis.fetch,
 					}),
+					findGmailAccountEmail: initGmailAccountEmail({
+						accessToken: initGmailAccessToken({
+							clientId: gmailClientId,
+							clientSecret: gmailClientSecret,
+							credentials: gmailCredentialsStore,
+							fetch: globalThis.fetch,
+							now: () => new Date(),
+						}),
+						fetch: globalThis.fetch,
+					}),
 					clientId: gmailClientId,
 					stateSecret: deriveGmailStateSigningSecret(gmailStateSeed),
-					gmailCredentialsStore: initInMemoryGmailCredentials({ now: () => new Date() }),
+					gmailCredentialsStore,
 					gmailConnectionStore: initInMemoryGmailConnection({ now: () => new Date() }),
 					gmailSenderStore: initInMemoryGmailSender({ now: () => new Date() }),
 					mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
