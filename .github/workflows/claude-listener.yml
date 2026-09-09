@@ -69,6 +69,7 @@ jobs:
 
     steps:
       - name: Checkout repository
+        id: checkout
         uses: actions/checkout@v6
         with:
           # Check out the PR head for @claude PR comments so the action computes
@@ -81,11 +82,13 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
 
       - name: Configure git
+        id: configure-git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Setup Node.js
+        id: setup-node
         uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -97,9 +100,11 @@ jobs:
       # with ERR_PNPM_BAD_PM_VERSION and skips every later step, including the one that
       # reports back to the PR.
       - name: Setup pnpm
+        id: setup-pnpm
         uses: pnpm/action-setup@v4
 
       - name: Install dependencies
+        id: install-dependencies
         run: pnpm install --frozen-lockfile
 
       # This job runs `pnpm check`, so it needs the same browsers CI uses.
@@ -110,6 +115,7 @@ jobs:
       # 'action.yml'". An absent script means an older branch that still
       # installs its own browsers, which is self-consistent; leave it alone.
       - name: Use the pinned browsers
+        id: pinned-browsers
         run: |
           script=".github/actions/pinned-browsers/materialise.sh"
           if [ ! -f "$script" ]; then
@@ -145,6 +151,7 @@ jobs:
       # and the settings env raises the Bash timeout so a foreground check has
       # room to finish.
       - name: Install headless Bash guard
+        id: headless-bash-guard
         run: |
           cat > /tmp/claude-deny-bg.sh <<'HOOK'
           #!/usr/bin/env bash
@@ -215,6 +222,7 @@ jobs:
       # which reference different prompt files. The artifact's presence is the review-run
       # signal the auto-fix workflow keys on.
       - name: Save review output for the auto-fix workflow
+        id: save-review-output
         if: steps.claude.outcome == 'success' && github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.comment.body, '<!-- CLAUDE_REVIEW_REQUEST -->') || contains(github.event.comment.body, 'claude-PR-code-reviewer.md'))
         uses: actions/upload-artifact@v4
         with:
@@ -234,7 +242,7 @@ jobs:
         uses: actions/github-script@v8
         env:
           CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
+          STEP_CONCLUSIONS: ${{ toJSON(steps) }}
         with:
           github-token: ${{ github.token }}
           script: |
@@ -245,15 +253,9 @@ jobs:
             const issueNumber = context.issue.number;
             const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
 
-            const { data: attempt } = await github.rest.actions.listJobsForWorkflowRunAttempt({
-              owner, repo,
-              run_id: context.runId,
-              attempt_number: Number(process.env.RUN_ATTEMPT),
-            });
-            const failedStep = attempt.jobs
-              .flatMap((job) => job.steps ?? [])
-              .find((step) => step.conclusion === 'failure');
-            const stepName = failedStep?.name ?? 'an unidentified step';
+            const stepConclusions = JSON.parse(process.env.STEP_CONCLUSIONS || '{}') ?? {};
+            const stepName = Object.keys(stepConclusions)
+              .find((id) => stepConclusions[id]?.conclusion === 'failure') ?? 'an unidentified step';
             const claudeOutcome = process.env.CLAUDE_OUTCOME || 'did not run';
             core.warning(`Listener failed at "${stepName}"; Claude step ${claudeOutcome}.`);
 
