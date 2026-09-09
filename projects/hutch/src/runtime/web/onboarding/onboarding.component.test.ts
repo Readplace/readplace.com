@@ -82,6 +82,7 @@ function actionForm(step: Element, key: string): Element {
 }
 
 const PLATFORMS = ["chrome", "firefox", "iphone", "other"] as const;
+const OWN_CLIENT_PLATFORMS = ["chrome", "firefox", "iphone"] as const;
 
 describe("OnboardingChecklist", () => {
 	it("renders every step incomplete and container visible when nothing is done", () => {
@@ -171,19 +172,17 @@ describe("OnboardingChecklist", () => {
 		);
 	});
 
-	it("lets the save step's title stand alone while the install step keeps its description", () => {
-		const doc = parse(checklist(contextWith({ platform: "chrome" })));
+	it("tells a browser reader why the extension beats pasting a URL", () => {
+		for (const platform of ["chrome", "firefox", "other"] as const) {
+			const doc = parse(checklist(contextWith({ platform })));
 
-		assert.equal(
-			stepOf(doc, "install-extension").querySelectorAll(".onboarding__step-description").length,
-			1,
-		);
-		assert.equal(
-			stepOf(doc, "save-first-article-via-extension").querySelectorAll(
-				".onboarding__step-description",
-			).length,
-			0,
-		);
+			assert.equal(
+				stepOf(doc, "save-first-article-via-extension").querySelector(
+					".onboarding__step-description",
+				)?.textContent,
+				"This way sites can't block the clean reader view.",
+			);
+		}
 	});
 
 	it("keeps the share-sheet walkthrough on the iPhone save step", () => {
@@ -271,10 +270,27 @@ describe("OnboardingChecklist", () => {
 		}
 	});
 
-	it("renders no action on save-first-article for platforms with their own client", () => {
-		for (const platform of ["chrome", "firefox", "iphone"] as const) {
+	it("offers each platform its own client to download from save-first-article", () => {
+		const labelByPlatform = {
+			chrome: "Download Chrome extension",
+			firefox: "Download Firefox extension",
+			iphone: "Download the iPhone app",
+		} satisfies Record<(typeof OWN_CLIENT_PLATFORMS)[number], string>;
+		for (const platform of OWN_CLIENT_PLATFORMS) {
 			const doc = parse(checklist(contextWith({ platform })));
-			assert.deepEqual(actionKeys(stepOf(doc, "save-first-article-via-extension")), []);
+			const step = stepOf(doc, "save-first-article-via-extension");
+			assert.deepEqual(actionKeys(step), ["download-client"]);
+			const form = actionForm(step, "download-client");
+			assert.equal(form.getAttribute("method"), "GET");
+			assert.equal(form.getAttribute("action"), "/install");
+			assert.equal(
+				form.querySelector('input[name="client"]')?.getAttribute("value"),
+				platform,
+			);
+			assert.equal(
+				step.querySelector('[data-test-onboarding-action="download-client"]')?.textContent,
+				labelByPlatform[platform],
+			);
 		}
 	});
 
@@ -370,7 +386,9 @@ describe("OnboardingChecklist", () => {
 		it("keeps the mark-done control off every other step", () => {
 			const doc = parse(checklist(contextWith({ platform: "chrome" })));
 			assert.deepEqual(actionKeys(stepOf(doc, "install-extension")), ["install"]);
-			assert.deepEqual(actionKeys(stepOf(doc, "save-first-article-via-extension")), []);
+			assert.deepEqual(actionKeys(stepOf(doc, "save-first-article-via-extension")), [
+				"download-client",
+			]);
 			assert.deepEqual(actionKeys(stepOf(doc, "save-enough-for-next-read")), []);
 		});
 

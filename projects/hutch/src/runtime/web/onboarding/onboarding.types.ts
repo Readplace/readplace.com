@@ -43,6 +43,7 @@ export type OnboardingActionMethod = "GET" | "POST";
 export type OnboardingActionVariant = "primary" | "text";
 export type OnboardingActionKey =
 	| "install"
+	| "download-client"
 	| "choose-browser"
 	| "see-install-options"
 	| "see-inbox-address"
