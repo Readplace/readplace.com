@@ -28,7 +28,7 @@ protocol HTMLCapturing {
 
 @MainActor
 protocol ReadlistChoosing {
-	func choose(among readlists: [Readlist]) async -> Set<Readlist>
+	func choose(among drops: [SharedArticlesDrop]) async -> Set<Readlist>
 }
 
 /// The share-sheet save journey, lifted out of `ShareViewController` so the full
@@ -113,11 +113,11 @@ struct SaveSharedPage {
 	}
 
 	private func tickedReadlists(on page: ReadlistPage) async -> Set<String> {
-		let choices = page.readlists.filter { $0.href != page.rootHref }
-		guard !shareTarget.isDecided, !choices.isEmpty else { return shareTarget.hrefs }
-		let chosen = await readlistChooser.choose(among: choices)
-		shareTarget.record(hrefs: Set(chosen.map(\.href)))
-		return shareTarget.hrefs
+		let drops = SharedArticlesDrop.firstAsk(readlists: page.readlists, mainlineHref: page.rootHref)
+		if !shareTarget.isDecided, drops.contains(where: { $0.choice != nil }) {
+			shareTarget.record(hrefs: Set(await readlistChooser.choose(among: drops).map(\.href)))
+		}
+		return shareTarget.hrefs.subtracting([page.rootHref].compactMap { $0 })
 	}
 
 	private static let pdfMagic = Data("%PDF-".utf8)

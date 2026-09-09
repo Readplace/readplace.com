@@ -30,6 +30,20 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
+	private func tickTheBoxOnScreen(
+		_ viewModel: ReadingListViewModel,
+		file: StaticString = #filePath,
+		line: UInt = #line
+	) throws {
+		let readlist = try XCTUnwrap(
+			viewModel.sharedArticlesDrop?.choice,
+			"the readlist on screen must offer a box the reader can tick",
+			file: file,
+			line: line
+		)
+		viewModel.toggleSharedArticlesDrop(into: readlist)
+	}
+
 	// MARK: - Add-links help (client-side)
 
 	func testAddLinksHelpURLIsTheClientHeldHelpPathWithTheAppShellMarker() {
@@ -1352,78 +1366,78 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(viewModel.shareTargetHrefs, [], "nothing has been ticked, so no readlist claims shared articles")
 		XCTAssertEqual(
-			viewModel.readlistMenu.map(\.isShareTarget), [false, false, false],
-			"and no readlist is badged as one shared articles drop into"
+			viewModel.readlistMenu.map(\.isShareTarget), [true, false, false],
+			"and no readlist of the reader's own is badged as one shared articles drop into"
 		)
 
 		await viewModel.select(readlistHref: "/queue?queue=work")
 
-		XCTAssertFalse(viewModel.sharedArticlesDropHere, "switching readlists ticks nothing either")
+		XCTAssertEqual(viewModel.sharedArticlesDrop?.showsTick, false, "switching readlists ticks nothing either")
 	}
 
-	func testTickingSeveralReadlistsDropsSharedArticlesIntoEachOfThem() async {
+	func testTickingSeveralReadlistsDropsSharedArticlesIntoEachOfThem() async throws {
 		StubURLProtocol.setHandler(threeReadlistHandler())
 		let defaults = TestSupport.ephemeralDefaults()
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
 		await viewModel.refresh()
 		await viewModel.select(readlistHref: "/queue?queue=work")
-		viewModel.toggleSharedArticlesDropHere()
+		try tickTheBoxOnScreen(viewModel)
 
 		await viewModel.select(readlistHref: "/queue?queue=home")
-		viewModel.toggleSharedArticlesDropHere()
+		try tickTheBoxOnScreen(viewModel)
 
-		XCTAssertTrue(viewModel.sharedArticlesDropHere, "the box on the readlist on screen is ticked")
+		XCTAssertEqual(viewModel.sharedArticlesDrop?.showsTick, true, "the box on the readlist on screen is ticked")
 		XCTAssertEqual(
 			ShareTarget(defaults: defaults).hrefs, ["/queue?queue=work", "/queue?queue=home"],
 			"the extension is a separate process, so every tick is written to the shared suite"
 		)
 		XCTAssertEqual(
 			viewModel.readlistMenu.map(\.badgeSystemImage),
-			["list.bullet", "square.and.arrow.up", "square.and.arrow.up"],
+			["square.and.arrow.up", "square.and.arrow.up", "square.and.arrow.up"],
 			"and the menu badges every readlist shared articles drop into"
 		)
 
 		await viewModel.select(readlistHref: "/queue")
 
-		XCTAssertFalse(
-			viewModel.sharedArticlesDropHere,
-			"All is on screen while shares drop into Work and Home, so All's box reads unticked"
+		XCTAssertEqual(
+			viewModel.sharedArticlesDrop, .always(label: "All"),
+			"All is on screen while shares drop into Work and Home, and it says shares land here too"
 		)
 	}
 
-	func testUntickingOneReadlistLeavesTheOthersTicked() async {
+	func testUntickingOneReadlistLeavesTheOthersTicked() async throws {
 		StubURLProtocol.setHandler(threeReadlistHandler())
 		let defaults = TestSupport.ephemeralDefaults()
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
 		await viewModel.refresh()
 		await viewModel.select(readlistHref: "/queue?queue=work")
-		viewModel.toggleSharedArticlesDropHere()
+		try tickTheBoxOnScreen(viewModel)
 		await viewModel.select(readlistHref: "/queue?queue=home")
-		viewModel.toggleSharedArticlesDropHere()
+		try tickTheBoxOnScreen(viewModel)
 
 		await viewModel.select(readlistHref: "/queue?queue=work")
-		viewModel.toggleSharedArticlesDropHere()
+		try tickTheBoxOnScreen(viewModel)
 
-		XCTAssertFalse(viewModel.sharedArticlesDropHere, "the box on screen is unticked again")
+		XCTAssertEqual(viewModel.sharedArticlesDrop?.showsTick, false, "the box on screen is unticked again")
 		XCTAssertEqual(
 			ShareTarget(defaults: defaults).hrefs, ["/queue?queue=home"],
 			"unticking one box says nothing about the readlists still ticked"
 		)
 		XCTAssertEqual(
-			viewModel.readlistMenu.map(\.isShareTarget), [false, false, true],
+			viewModel.readlistMenu.map(\.isShareTarget), [true, false, true],
 			"so the menu badges what is left"
 		)
 	}
 
-	func testUntickingTheLastReadlistStopsSharedArticlesDroppingIntoAnyOfThem() async {
+	func testUntickingTheLastReadlistStopsSharedArticlesDroppingIntoAnyOfThem() async throws {
 		StubURLProtocol.setHandler(threeReadlistHandler())
 		let defaults = TestSupport.ephemeralDefaults()
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
 		await viewModel.refresh()
 		await viewModel.select(readlistHref: "/queue?queue=work")
-		viewModel.toggleSharedArticlesDropHere()
+		try tickTheBoxOnScreen(viewModel)
 
-		viewModel.toggleSharedArticlesDropHere()
+		try tickTheBoxOnScreen(viewModel)
 
 		XCTAssertEqual(
 			ShareTarget(defaults: defaults).hrefs, [],
@@ -1435,7 +1449,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testTheDropCheckboxIsNotOfferedOnTheMainlineReadlist() async {
+	func testTheMainlineReadlistShowsALockedTickInsteadOfNoBoxAtAll() async {
 		StubURLProtocol.setHandler(threeReadlistHandler())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
@@ -1445,30 +1459,42 @@ final class ReadingListViewModelTests: XCTestCase {
 			viewModel.selectedReadlistHref, "/queue",
 			"precondition: the entry point answers with the collection its own root link names"
 		)
-		XCTAssertFalse(
-			viewModel.offersSharedArticlesDropChoice,
-			"every save is in the whole queue already, so ticking the mainline readlist could change nothing"
+		XCTAssertEqual(
+			viewModel.sharedArticlesDrop, .always(label: "All"),
+			"every save is in the whole queue already, so the box states that rule rather than leaving it unsaid"
+		)
+		XCTAssertNil(
+			viewModel.sharedArticlesDrop?.choice,
+			"and it names no readlist, so a tap has nothing to record and the tick cannot be taken away"
 		)
 
 		await viewModel.select(readlistHref: "/queue?queue=work")
 
-		XCTAssertTrue(
-			viewModel.offersSharedArticlesDropChoice,
-			"a readlist of the reader's own is somewhere a shared article can be sent, so it is offered the box"
+		XCTAssertEqual(
+			viewModel.sharedArticlesDrop?.choice?.label, "Work",
+			"a readlist of the reader's own is somewhere a shared article can be sent, so it is theirs to tick"
 		)
 	}
 
-	func testTheBoxCannotBeTickedBeforeACollectionNamesItsReadlist() {
+	func testShowingTheLockedMainlineRowDecidesNothingOnTheReadersBehalf() async {
+		StubURLProtocol.setHandler(threeReadlistHandler())
 		let defaults = TestSupport.ephemeralDefaults()
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
 
-		viewModel.toggleSharedArticlesDropHere()
+		await viewModel.refresh()
 
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, [],
-			"there is no readlist on screen to drop shares into yet"
+			viewModel.sharedArticlesDrop?.showsTick, true,
+			"precondition: the mainline readlist is on screen showing its locked tick"
 		)
-		XCTAssertFalse(ShareTarget(defaults: defaults).isDecided, "and nothing was decided on the reader's behalf")
+		XCTAssertEqual(
+			ShareTarget(defaults: defaults).hrefs, [],
+			"a tick that states a server rule is not a readlist the extension should name on a save"
+		)
+		XCTAssertFalse(
+			ShareTarget(defaults: defaults).isDecided,
+			"and the reader has still not been asked, so the next share asks them"
+		)
 	}
 
 	func testTheBoxReadsUntickedWhenATickedReadlistIsNoLongerAdvertised() async {
@@ -1480,10 +1506,16 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 
 		XCTAssertEqual(
-			viewModel.readlistMenu.map(\.isShareTarget), [false, false],
+			viewModel.readlistMenu.map(\.isShareTarget), [true, false],
 			"a readlist the server no longer advertises badges nothing"
 		)
-		XCTAssertFalse(viewModel.sharedArticlesDropHere, "and the box on screen reads unticked")
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertEqual(
+			viewModel.sharedArticlesDrop?.showsTick, false,
+			"and the box on the readlist the reader does own reads unticked"
+		)
 	}
 
 	func testReadlistSwitchingIsOfferedOnlyWhenMoreThanOneReadlistIsAdvertised() async {
@@ -1504,8 +1536,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			viewModel.offersReadlistSwitching,
 			"a reader with one readlist is shown no switcher"
 		)
-		XCTAssertFalse(
-			viewModel.offersSharedArticlesDropChoice,
+		XCTAssertNil(
+			viewModel.sharedArticlesDrop,
 			"and no drop checkbox, because there is nowhere else shares could drop"
 		)
 	}
@@ -1541,8 +1573,8 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testTheDropCheckboxIsOfferedOnTheTabAReadlistOpensOn() async {
 		StubURLProtocol.setHandler(readlistedHandler())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-		XCTAssertFalse(
-			viewModel.offersSharedArticlesDropChoice,
+		XCTAssertNil(
+			viewModel.sharedArticlesDrop,
 			"before a collection lands there is no tab to judge the checkbox against"
 		)
 		await viewModel.refresh()
@@ -1553,8 +1585,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			viewModel.selectedTabHref, viewModel.tabs.first?.href,
 			"precondition: a readlist opens on the tab its own href resolves to"
 		)
-		XCTAssertTrue(
-			viewModel.offersSharedArticlesDropChoice,
+		XCTAssertEqual(
+			viewModel.sharedArticlesDrop?.choice?.label, "Work",
 			"a shared article arrives unread, so the checkbox belongs on the tab it would arrive in"
 		)
 	}
@@ -1570,8 +1602,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			viewModel.tabs.map(\.isCurrent), [false, true],
 			"precondition: the collection that landed lists a tab other than the one a readlist opens on"
 		)
-		XCTAssertFalse(
-			viewModel.offersSharedArticlesDropChoice,
+		XCTAssertNil(
+			viewModel.sharedArticlesDrop,
 			"a shared article never arrives already read, so the checkbox would be a promise this tab cannot keep"
 		)
 		XCTAssertTrue(
