@@ -27,13 +27,24 @@ const DESKTOP = { width: 1280, height: 900 };
 const ONBOARDING_CARD = "main.readlist .onboarding";
 const STEPS_LIST = "main.readlist .onboarding__steps";
 const ANY_STEP = "main.readlist [data-test-onboarding-step]";
-const COMPLETED_STEP = 'main.readlist [data-test-onboarding-step="install-extension"]';
-const OUTSTANDING_STEP =
-	'main.readlist [data-test-onboarding-step="save-first-article-via-extension"]';
+
+const ALL_STEP_IDS = [
+	"install-extension",
+	"save-first-article-via-extension",
+	"receive-articles-by-email",
+	"save-enough-for-next-read",
+] as const;
+
+function stepSelector(id: (typeof ALL_STEP_IDS)[number]): string {
+	return `main.readlist [data-test-onboarding-step="${id}"]`;
+}
+
+const INSTALL_STEP = stepSelector("install-extension");
+const SAVE_STEP = stepSelector("save-first-article-via-extension");
 const SUCCESS_TITLE = "main.readlist .onboarding__success-title";
 const SUCCESS_MESSAGE = "main.readlist .onboarding__success-message";
-const EMAIL_STEP = 'main.readlist [data-test-onboarding-step="receive-articles-by-email"]';
-const NEXT_READ_STEP = 'main.readlist [data-test-onboarding-step="save-enough-for-next-read"]';
+const EMAIL_STEP = stepSelector("receive-articles-by-email");
+const NEXT_READ_STEP = stepSelector("save-enough-for-next-read");
 const EMAIL_CTA = `${EMAIL_STEP} [data-test-onboarding-action="see-inbox-address"]`;
 const EMAIL_MARK_DONE = `${EMAIL_STEP} [data-test-onboarding-action="email-mark-done"]`;
 
@@ -76,12 +87,34 @@ async function seedInboxArticleQueued(page: Page, userId: string): Promise<void>
 	assert.equal(response.status(), 201, "the inbox-article seed endpoint must answer 201");
 }
 
-async function visibleStepIds(page: Page): Promise<string[]> {
+async function stepIdsUnder(page: Page, selector: string): Promise<string[]> {
 	return page
-		.locator(`${ANY_STEP}:visible`)
+		.locator(selector)
 		.evaluateAll((els) =>
 			els.map((el) => el.getAttribute("data-test-onboarding-step") ?? ""),
 		);
+}
+
+async function visibleStepIds(page: Page): Promise<string[]> {
+	return stepIdsUnder(page, `${ANY_STEP}:visible`);
+}
+
+async function onlyStepOnShow(
+	page: Page,
+	id: (typeof ALL_STEP_IDS)[number],
+): Promise<void> {
+	assert.deepEqual(
+		await stepIdsUnder(page, ANY_STEP),
+		[...ALL_STEP_IDS],
+		"every step must still render, in order",
+	);
+	assert.deepEqual(await visibleStepIds(page), [id], `only ${id} may be visible`);
+	for (const other of ALL_STEP_IDS.filter((stepId) => stepId !== id)) {
+		const row = page.locator(stepSelector(other));
+		await expect(row).toBeAttached();
+		await expect(row).toBeHidden();
+		assert.equal(await row.boundingBox(), null, `${other} must have no box at all`);
+	}
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
@@ -110,31 +143,29 @@ async function reloadReadlistWithOnboardingCookies(
 async function checklistSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
-	await expect(page.locator(OUTSTANDING_STEP)).toBeVisible();
+	await expect(page.locator(SAVE_STEP)).toBeVisible();
 }
 
 async function completedRowTakesNoSpace(page: Page): Promise<void> {
-	const completed = page.locator(COMPLETED_STEP);
-	await expect(completed).toBeAttached();
-	await expect(completed).toBeHidden();
-
-	const allSteps = await page.locator(ANY_STEP).count();
-	const visibleSteps = await page.locator(`${ANY_STEP}:visible`).count();
-	assert.equal(
-		visibleSteps,
-		allSteps - 1,
-		"every step but the checked-off one must still occupy the card",
+	await expect(page.locator(INSTALL_STEP)).toHaveAttribute(
+		"data-test-onboarding-complete",
+		"true",
 	);
+	await onlyStepOnShow(page, "save-first-article-via-extension");
+}
 
-	const list = await measuredBox(page, STEPS_LIST);
-	const step = await measuredBox(page, OUTSTANDING_STEP);
-	assert.equal(
-		step.y,
-		list.y,
-		"the first outstanding step must start where the list starts, with the completed row above it contributing nothing",
+async function installStepSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await waitForImagePixels(page, "main.readlist .onboarding__avatar");
+	await expect(page.locator(INSTALL_STEP)).toBeVisible();
+}
+
+async function installRowStandsAlone(page: Page): Promise<void> {
+	await expect(page.locator(INSTALL_STEP)).toHaveAttribute(
+		"data-test-onboarding-complete",
+		"false",
 	);
-	const completedBox = await page.locator(COMPLETED_STEP).boundingBox();
-	assert.equal(completedBox, null, "a checked-off row must have no box at all");
+	await onlyStepOnShow(page, "install-extension");
 }
 
 async function successSettled(page: Page): Promise<void> {
@@ -163,17 +194,8 @@ async function emailStepOutstandingSettled(page: Page): Promise<void> {
 	await expect(page.locator(EMAIL_MARK_DONE)).toBeVisible();
 }
 
-async function emailRowLeadsTheList(page: Page): Promise<void> {
-	assert.deepEqual(
-		await visibleStepIds(page),
-		["receive-articles-by-email", "save-enough-for-next-read"],
-		"the email row must lead the outstanding list, with Next Read below it",
-	);
-	const list = await measuredBox(page, STEPS_LIST);
-	const email = await measuredBox(page, EMAIL_STEP);
-	const nextRead = await measuredBox(page, NEXT_READ_STEP);
-	assert.equal(email.y, list.y, "the email row must start where the list starts");
-	assert.ok(nextRead.y >= email.y + email.height, "Next Read must sit below the email row");
+async function emailRowStandsAlone(page: Page): Promise<void> {
+	await onlyStepOnShow(page, "receive-articles-by-email");
 
 	const row = await measuredBox(page, EMAIL_STEP);
 	const cta = await measuredBox(page, EMAIL_CTA);
@@ -230,10 +252,20 @@ const CHECKLIST_STEP_HIDDEN: VisualCheckpoint = {
 	maxDiffPixelRatio: 0,
 };
 
+const FIRST_RUN_INSTALL_STEP: VisualCheckpoint = {
+	name: "onboarding-first-run-install-step",
+	settled: installStepSettled,
+	geometry: installRowStandsAlone,
+	target: ONBOARDING_CARD,
+	capture: "element",
+	pinnedText: [],
+	maxDiffPixelRatio: 0,
+};
+
 const EMAIL_STEP_OUTSTANDING: VisualCheckpoint = {
 	name: "onboarding-email-step-outstanding",
 	settled: emailStepOutstandingSettled,
-	geometry: emailRowLeadsTheList,
+	geometry: emailRowStandsAlone,
 	target: ONBOARDING_CARD,
 	capture: "element",
 	pinnedText: [],
@@ -262,6 +294,14 @@ const SUCCESS_RETURNING_USER: VisualCheckpoint = {
 
 test.describe("Onboarding card", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("a brand-new reader is asked the install step only", async ({ page }, testInfo) => {
+		const email = `onboarding-first-run-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+
+		await captureCheckpoint(page, FIRST_RUN_INSTALL_STEP);
+	});
 
 	test("a checked-off step stops taking up space", async ({ page }, testInfo) => {
 		const email = `onboarding-step-hidden-${testInfo.workerIndex}-${Date.now()}@example.com`;

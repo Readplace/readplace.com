@@ -63,12 +63,15 @@
 }
 
 .onboarding__step {
-  display: flex;
   align-items: flex-start;
   gap: 16px;
 }
 
-.onboarding__step--complete {
+.onboarding__step--visible {
+  display: flex;
+}
+
+.onboarding__step--hidden {
   display: none;
 }
 

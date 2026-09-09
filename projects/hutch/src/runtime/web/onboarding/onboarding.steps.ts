@@ -154,8 +154,14 @@ export const ONBOARDING_VERSION = createHash("sha256")
 	.digest("hex")
 	.slice(0, 8);
 
+export function firstOutstandingStep(
+	ctx: InstallableClientOnboarding,
+): OnboardingStep | undefined {
+	return ONBOARDING_STEPS.find((step) => !step.isComplete(ctx));
+}
+
 export function hasOutstandingStep(ctx: InstallableClientOnboarding): boolean {
-	return ONBOARDING_STEPS.some((step) => !step.isComplete(ctx));
+	return firstOutstandingStep(ctx) !== undefined;
 }
 
 /** Dismiss token for the no-client escape card. Deliberately a fixed string,

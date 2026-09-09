@@ -92,10 +92,7 @@ export function createOnboardingActions(
 				await expect(savedStep).toHaveAttribute('data-test-onboarding-complete', 'true')
 				await expect(savedStep).toBeHidden()
 
-				expect(await visibleStepIds(page)).toEqual([
-					'receive-articles-by-email',
-					'save-enough-for-next-read',
-				])
+				expect(await visibleStepIds(page)).toEqual(['receive-articles-by-email'])
 				await expect(page.locator(EMAIL_STEP)).toHaveAttribute(
 					'data-test-onboarding-complete',
 					'false',

@@ -55,6 +55,12 @@ function stepIds(doc: Document): string[] {
 	);
 }
 
+function stepIdsInState(doc: Document, state: "visible" | "hidden"): string[] {
+	return Array.from(
+		doc.querySelectorAll(`.onboarding__step--${state}[data-test-onboarding-step]`),
+	).map((el) => el.getAttribute("data-test-onboarding-step") ?? "");
+}
+
 function stepOf(doc: Document, id: string): Element {
 	const step = doc.querySelector(`[data-test-onboarding-step="${id}"]`);
 	assert(step, `${id} step must be rendered`);
@@ -121,22 +127,28 @@ describe("OnboardingChecklist", () => {
 
 		const step = stepOf(doc, "install-extension");
 		assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
-		assert.equal(step.classList.contains("onboarding__step--complete"), true);
 	});
 
-	it("carries the hiding state class on a completed row and not on an outstanding one", () => {
+	it("asks a reader who has done nothing for the install step alone", () => {
+		const doc = parse(checklist(contextWith()));
+
+		assert.deepEqual(stepIdsInState(doc, "visible"), ["install-extension"]);
+		assert.deepEqual(stepIdsInState(doc, "hidden"), [
+			"save-first-article-via-extension",
+			"receive-articles-by-email",
+			"save-enough-for-next-read",
+		]);
+	});
+
+	it("moves the ask to the save step once the reader has installed", () => {
 		const doc = parse(checklist(contextWith({ installed: true })));
 
-		assert.equal(
-			stepOf(doc, "install-extension").classList.contains("onboarding__step--complete"),
-			true,
-		);
-		assert.equal(
-			stepOf(doc, "save-first-article-via-extension").classList.contains(
-				"onboarding__step--complete",
-			),
-			false,
-		);
+		assert.deepEqual(stepIdsInState(doc, "visible"), ["save-first-article-via-extension"]);
+		assert.deepEqual(stepIdsInState(doc, "hidden"), [
+			"install-extension",
+			"receive-articles-by-email",
+			"save-enough-for-next-read",
+		]);
 	});
 
 	it("keeps install-extension incomplete when installed is false", () => {
@@ -285,7 +297,6 @@ describe("OnboardingChecklist", () => {
 			const doc = parse(checklist(contextWith({ inboxArticleQueued: true })));
 			const step = emailStep(doc);
 			assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
-			assert.equal(step.classList.contains("onboarding__step--complete"), true);
 		});
 
 		it("reads the same title and description on every platform", () => {
@@ -368,7 +379,6 @@ describe("OnboardingChecklist", () => {
 
 			const step = emailStep(doc);
 			assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
-			assert.equal(step.classList.contains("onboarding__step--complete"), true);
 		});
 
 		it("hides the card without congratulating a reader whose every step, this one included, was satisfied on arrival", () => {

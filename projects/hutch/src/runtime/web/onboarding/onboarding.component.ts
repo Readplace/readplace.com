@@ -4,7 +4,7 @@ import { render, withInternalTracking } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { BROWSER_EXTENSIONS_OR, NATIVE_APP_DEVICES_OR } from "../shared/client-enumerations";
 import { READLIST_DISMISS_ONBOARDING_PATH } from "../pages/readlist/readlist.url";
-import { ONBOARDING_STEPS, hasOutstandingStep } from "./onboarding.steps";
+import { ONBOARDING_STEPS, firstOutstandingStep } from "./onboarding.steps";
 import type {
 	InstallableClientOnboarding,
 	OnboardingAction,
@@ -77,20 +77,28 @@ interface OnboardingStepDisplayModel {
 	actions: OnboardingActionDisplayModel[];
 }
 
-function toStepDisplayModel(
-	step: OnboardingStep,
-	ctx: InstallableClientOnboarding,
-	returnQuery: string,
-): OnboardingStepDisplayModel {
-	const isComplete = step.isComplete(ctx);
+type OnboardingStepVisibility = "visible" | "hidden";
+
+const STEP_ROW_CLASS: Record<OnboardingStepVisibility, string> = {
+	visible: "onboarding__step onboarding__step--visible",
+	hidden: "onboarding__step onboarding__step--hidden",
+};
+
+interface OnboardingStepRow {
+	step: OnboardingStep;
+	ctx: InstallableClientOnboarding;
+	returnQuery: string;
+	visibility: OnboardingStepVisibility;
+}
+
+function toStepDisplayModel(row: OnboardingStepRow): OnboardingStepDisplayModel {
+	const { step, ctx, returnQuery, visibility } = row;
 	return {
 		id: step.id,
 		title: step.title(ctx),
 		description: step.description(ctx),
-		completeAttr: isComplete ? "true" : "false",
-		rowClass: isComplete
-			? "onboarding__step onboarding__step--complete"
-			: "onboarding__step",
+		completeAttr: step.isComplete(ctx) ? "true" : "false",
+		rowClass: STEP_ROW_CLASS[visibility],
 		actions: step.actions(ctx).map((action) => toActionDisplayModel(action, returnQuery)),
 	};
 }
@@ -140,8 +148,16 @@ export function OnboardingChecklist(
 	options: OnboardingChecklistOptions,
 ): string {
 	if (!ctx.hasInstallableClient) return renderNoClientCard(options);
-	const steps = ONBOARDING_STEPS.map((step) => toStepDisplayModel(step, ctx, options.returnQuery));
-	const allComplete = !hasOutstandingStep(ctx);
+	const outstanding = firstOutstandingStep(ctx);
+	const steps = ONBOARDING_STEPS.map((step) =>
+		toStepDisplayModel({
+			step,
+			ctx,
+			returnQuery: options.returnQuery,
+			visibility: step === outstanding ? "visible" : "hidden",
+		}),
+	);
+	const allComplete = outstanding === undefined;
 	/* A checklist that arrives with every step already satisfied congratulates a
 	 * reader who did nothing — the state a deep queue lands in the moment a new
 	 * step ships. Nothing was accomplished, so nothing is shown. */
