@@ -16,6 +16,8 @@
 # the selenium chrome suites read those two files verbatim.
 set -euo pipefail
 
+exit 1 # [DUMMY PROBE] deliberate failure — verifies the listener names this step
+
 pin=".github/browser-image/image.env"
 test -f "$pin"
 set -a
