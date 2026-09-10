@@ -120,6 +120,10 @@ enum AppConfig {
 	/// and token time — and a test pins the value so a change fails a test.
 	static let nativeCallbackURL = "\(callbackURLScheme)://\(nativeCallbackHost)"
 
+	static func nativeUserAgent(product: String, build: String, osVersion: OperatingSystemVersion) -> String {
+		"\(product)/build-\(build) iOS/\(osVersion.majorVersion).\(osVersion.minorVersion)"
+	}
+
 	/// A Safari-like user agent for the off-screen `WKWebView` that `HTMLCaptor`
 	/// uses to render article pages for capture. A stock Safari UA gets sites to
 	/// serve their normal page rather than refusing or degrading content for an

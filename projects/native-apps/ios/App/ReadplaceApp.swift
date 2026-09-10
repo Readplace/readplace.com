@@ -4,7 +4,7 @@ import UIKit
 @main
 struct ReadplaceApp: App {
 	@UIApplicationDelegateAdaptor(BackgroundSessionAppDelegate.self) private var backgroundSessions
-	@StateObject private var session = AppSession()
+	@StateObject private var session = AppSession(nativeUserAgent: AppSession.processNativeUserAgent())
 
 	var body: some Scene {
 		WindowGroup {

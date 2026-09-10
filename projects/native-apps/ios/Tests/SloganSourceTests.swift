@@ -14,7 +14,8 @@ final class SloganSourceTests: XCTestCase {
 	private func makeSource() -> SloganSource {
 		initSloganSource(
 			sessionConfiguration: TestSupport.stubbedConfiguration(),
-			baseURL: AppConfig.serverBaseURL
+			baseURL: AppConfig.serverBaseURL,
+			nativeUserAgent: TestSupport.nativeUserAgent
 		)
 	}
 
@@ -48,6 +49,18 @@ final class SloganSourceTests: XCTestCase {
 			"sign-in has no token, so the request must not claim one"
 		)
 		XCTAssertEqual(record?.request.value(forHTTPHeaderField: AppConfig.clientHeader), AppConfig.clientIos)
+	}
+
+	func testItNamesTheBuildInTheSloganRequest() async {
+		stub(status: 200, body: #"{"slogans":["Your #1 AI-Powered Reading List."]}"#)
+
+		_ = await makeSource().load()
+
+		let record = StubURLProtocol.records(path: AppConfig.slogansPath).first
+		XCTAssertEqual(
+			record?.request.value(forHTTPHeaderField: "User-Agent"), TestSupport.nativeUserAgent,
+			"the slogan fetch runs before sign-in and is often the app's first call, so it is the first access-log line that can name the build — CFNetwork's stock string names only the framework"
+		)
 	}
 
 	func testItIgnoresAnErrorStatus() async {
@@ -101,7 +114,8 @@ final class SloganSourceTests: XCTestCase {
 	func testItIgnoresAnUnusableBaseURL() async {
 		let source = initSloganSource(
 			sessionConfiguration: TestSupport.stubbedConfiguration(),
-			baseURL: "not a url"
+			baseURL: "not a url",
+			nativeUserAgent: TestSupport.nativeUserAgent
 		)
 
 		let slogans = await source.load()

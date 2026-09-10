@@ -13,6 +13,7 @@ final class RedirectHeadersTests: XCTestCase {
 			"Authorization": "Bearer access-1",
 			"Accept": AppConfig.sirenMediaType,
 			"X-Readplace-Client": "ios",
+			"User-Agent": TestSupport.nativeUserAgent,
 			AppConfig.saveContinuityHeader: AppConfig.saveContinuityBackground,
 		])
 
@@ -21,6 +22,10 @@ final class RedirectHeadersTests: XCTestCase {
 		XCTAssertEqual(followed.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
 		XCTAssertEqual(followed.value(forHTTPHeaderField: "Accept"), AppConfig.sirenMediaType)
 		XCTAssertEqual(followed.value(forHTTPHeaderField: "X-Readplace-Client"), "ios")
+		XCTAssertEqual(
+			followed.value(forHTTPHeaderField: "User-Agent"), TestSupport.nativeUserAgent,
+			"the entry point redirects to the collection, so a followed request that lost it reverts to CFNetwork's stock string and the log names the wrong client for the request that actually reached the server"
+		)
 		XCTAssertEqual(followed.value(forHTTPHeaderField: AppConfig.saveContinuityHeader), AppConfig.saveContinuityBackground)
 	}
 

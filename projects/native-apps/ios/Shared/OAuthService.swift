@@ -30,11 +30,18 @@ struct AuthorizationRequest {
 struct OAuthService {
 	let baseURL: String
 	let store: TokenStore
+	private let nativeUserAgent: String
 	private let session: URLSession
 
-	init(baseURL: String, store: TokenStore, sessionConfiguration: URLSessionConfiguration = .default) {
+	init(
+		baseURL: String,
+		store: TokenStore,
+		nativeUserAgent: String,
+		sessionConfiguration: URLSessionConfiguration = .default
+	) {
 		self.baseURL = baseURL
 		self.store = store
+		self.nativeUserAgent = nativeUserAgent
 		self.session = URLSession(configuration: sessionConfiguration)
 	}
 
@@ -131,6 +138,7 @@ struct OAuthService {
 			var request = URLRequest(url: revokeEndpoint)
 			request.httpMethod = "POST"
 			request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+			request.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")
 			request.httpBody = try? JSONSerialization.data(withJSONObject: ["token": refresh])
 			_ = try? await session.data(for: request)
 		}
@@ -144,6 +152,7 @@ struct OAuthService {
 		request.httpMethod = "POST"
 		request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 		request.setValue("application/json", forHTTPHeaderField: "Accept")
+		request.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")
 		request.httpBody = body
 		return request
 	}

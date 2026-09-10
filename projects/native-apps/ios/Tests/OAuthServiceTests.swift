@@ -8,7 +8,12 @@ final class OAuthServiceTests: XCTestCase {
 	}
 
 	private func makeService(store: TokenStore) -> OAuthService {
-		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		OAuthService(
+			baseURL: AppConfig.serverBaseURL,
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 	}
 
 	func testExchangeCodeStoresTokensAndSendsCorrectBody() async throws {
@@ -161,5 +166,44 @@ final class OAuthServiceTests: XCTestCase {
 		await makeService(store: store).revoke()
 		XCTAssertNil(store.tokens)
 		XCTAssertTrue(StubURLProtocol.records(path: "/oauth/revoke").isEmpty, "nothing to revoke without a token")
+	}
+
+	func testExchangeCodeNamesTheBuildInItsUserAgent() async throws {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.tokenResponse(access: "a", refresh: "r")) }
+
+		try await makeService(store: store).exchangeCode("c", verifier: "v", redirectURI: AppConfig.nativeCallbackURL)
+
+		let record = try XCTUnwrap(StubURLProtocol.records(path: "/oauth/token").first)
+		XCTAssertEqual(
+			record.request.value(forHTTPHeaderField: "User-Agent"), TestSupport.nativeUserAgent,
+			"the access log must name the build that signed in — CFNetwork's stock string cannot tell a dev device from a reader"
+		)
+	}
+
+	func testRefreshNamesTheBuildInItsUserAgent() async throws {
+		let store = TestSupport.loggedInStore(access: "a1", refresh: "r1")
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.tokenResponse(access: "a2", refresh: nil)) }
+
+		_ = try await makeService(store: store).refresh()
+
+		let record = try XCTUnwrap(StubURLProtocol.records(path: "/oauth/token").first)
+		XCTAssertEqual(
+			record.request.value(forHTTPHeaderField: "User-Agent"), TestSupport.nativeUserAgent,
+			"a refused refresh is only diagnosable when the log names the build whose session was refused"
+		)
+	}
+
+	func testRevokeNamesTheBuildInItsUserAgent() async throws {
+		let store = TestSupport.loggedInStore(access: "a1", refresh: "r1")
+		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
+
+		await makeService(store: store).revoke()
+
+		let record = try XCTUnwrap(StubURLProtocol.records(path: "/oauth/revoke").first)
+		XCTAssertEqual(
+			record.request.value(forHTTPHeaderField: "User-Agent"), TestSupport.nativeUserAgent,
+			"revoke builds its own request instead of the token one, so identity added only to the token request leaves sign-out anonymous"
+		)
 	}
 }

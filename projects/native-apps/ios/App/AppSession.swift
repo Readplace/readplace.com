@@ -26,6 +26,7 @@ final class AppSession: ObservableObject {
 	@Published private(set) var isLoggedIn: Bool
 
 	private let store: TokenStore
+	private let nativeUserAgent: String
 	private let sessionConfiguration: URLSessionConfiguration
 	private let wipeReaderWebStore: () async -> Void
 	private let purgeShareArtifacts: () -> Void
@@ -40,12 +41,14 @@ final class AppSession: ObservableObject {
 	// OS-boundary seam tests replace with a spy.
 	init(
 		store: TokenStore = TokenStore(),
+		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration = AppSession.uncachedEphemeralConfiguration(),
 		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData,
 		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts,
 		forgetReaderChoices: @escaping () -> Void = AppSession.removeReaderChoices
 	) {
 		self.store = store
+		self.nativeUserAgent = nativeUserAgent
 		self.sessionConfiguration = sessionConfiguration
 		self.wipeReaderWebStore = wipeReaderWebStore
 		self.purgeShareArtifacts = purgeShareArtifacts
@@ -146,6 +149,18 @@ final class AppSession: ObservableObject {
 		ShareArtifacts.forgetReaderChoices(appGroupId: TokenStore.resolvedAppGroupId)
 	}
 
+	nonisolated static func processNativeUserAgent(
+		bundle: Bundle = .main,
+		osVersion: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
+	) -> String {
+		guard let product = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
+			let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+		else {
+			preconditionFailure("Info.plist must carry CFBundleName and CFBundleVersion")
+		}
+		return AppConfig.nativeUserAgent(product: product, build: build, osVersion: osVersion)
+	}
+
 	nonisolated static func uncachedEphemeralConfiguration() -> URLSessionConfiguration {
 		let configuration = URLSessionConfiguration.ephemeral
 		configuration.urlCache = nil
@@ -153,14 +168,28 @@ final class AppSession: ObservableObject {
 	}
 
 	func makeAPI() -> ReadplaceAPI {
-		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: sessionConfiguration)
+		ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL,
+			store: store,
+			nativeUserAgent: nativeUserAgent,
+			sessionConfiguration: sessionConfiguration
+		)
 	}
 
 	func makeOAuth() -> OAuthService {
-		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: sessionConfiguration)
+		OAuthService(
+			baseURL: AppConfig.serverBaseURL,
+			store: store,
+			nativeUserAgent: nativeUserAgent,
+			sessionConfiguration: sessionConfiguration
+		)
 	}
 
 	func makeSloganSource() -> SloganSource {
-		initSloganSource(sessionConfiguration: sessionConfiguration, baseURL: AppConfig.serverBaseURL)
+		initSloganSource(
+			sessionConfiguration: sessionConfiguration,
+			baseURL: AppConfig.serverBaseURL,
+			nativeUserAgent: nativeUserAgent
+		)
 	}
 }

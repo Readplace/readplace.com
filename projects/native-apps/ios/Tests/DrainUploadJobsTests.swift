@@ -48,6 +48,7 @@ final class DrainUploadJobsTests: XCTestCase {
 			api: ReadplaceAPI(
 				baseURL: AppConfig.serverBaseURL,
 				store: store,
+				nativeUserAgent: TestSupport.nativeUserAgent,
 				sessionConfiguration: TestSupport.stubbedConfiguration()
 			),
 			captor: captor,

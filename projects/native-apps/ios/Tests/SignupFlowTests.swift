@@ -14,7 +14,12 @@ final class SignupFlowTests: XCTestCase {
 	}
 
 	private func makeService(store: TokenStore) -> OAuthService {
-		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		OAuthService(
+			baseURL: AppConfig.serverBaseURL,
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 	}
 
 	func testSignupAuthorizationRequestUsesNativeRedirectAndScreenHint() {
@@ -36,7 +41,11 @@ final class SignupFlowTests: XCTestCase {
 
 	func testSignupJourneySignsTheSessionInThroughTheCapturedCallback() async throws {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let session = AppSession(
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 		let request = makeService(store: TestSupport.loggedInStore()).makeSignupAuthorizationRequest()
 		XCTAssertFalse(session.isLoggedIn)
 

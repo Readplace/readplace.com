@@ -8,6 +8,8 @@ import { OAUTH_TOKEN_GRANT_TYPES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CO
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
+const NATIVE_APP_BUILD_USER_AGENT = "Readplace/build-111 iOS/26.5";
+const SHARE_EXTENSION_BUILD_USER_AGENT = "ShareExtension/build-111 iOS/26.5";
 const ANDROID_APP_USER_AGENT = "Readplace/1 Android/17";
 
 const OWN_HOST = "readplace.test";
@@ -569,6 +571,14 @@ describe("classifyDeviceClass", () => {
 
 	it("returns 'mobile_ios' for our own share extension, which carries no iPhone token and would otherwise fall through to desktop", () => {
 		expect(classifyDeviceClass(SHARE_EXTENSION_USER_AGENT)).toBe("mobile_ios");
+	});
+
+	it("returns 'mobile_ios' for the User-Agent the app now sets itself, which names the build and the OS instead of the CFNetwork and Darwin versions the stock string leaked", () => {
+		expect(classifyDeviceClass(NATIVE_APP_BUILD_USER_AGENT)).toBe("mobile_ios");
+	});
+
+	it("returns 'mobile_ios' for the share extension's own User-Agent, which carries no iPhone token either and would otherwise fall through to desktop", () => {
+		expect(classifyDeviceClass(SHARE_EXTENSION_BUILD_USER_AGENT)).toBe("mobile_ios");
 	});
 
 	it("returns 'desktop', not 'mobile_ios', for a desktop browser User-Agent carrying our native token, since the native match is anchored to the whole User-Agent", () => {
@@ -1317,6 +1327,14 @@ describe("isBotUserAgent", () => {
 		expect(isBotUserAgent(SHARE_EXTENSION_USER_AGENT)).toBe(false);
 	});
 
+	it("does not report the User-Agent our iPhone app now sets itself as a bot — isbot() reads it as a crawler off the same ^read rule that condemned the stock CFNetwork string, so dropping the stock shape never dropped the need for the exemption", () => {
+		expect(isBotUserAgent(NATIVE_APP_BUILD_USER_AGENT)).toBe(false);
+	});
+
+	it("does not report the share extension's own User-Agent as a bot, which isbot() happens to spare today and must keep being spared", () => {
+		expect(isBotUserAgent(SHARE_EXTENSION_BUILD_USER_AGENT)).toBe(false);
+	});
+
 	it("does not report a real browser as a bot", () => {
 		expect(
 			isBotUserAgent(
@@ -1339,6 +1357,22 @@ describe("isBotUserAgent", () => {
 
 	it("still reports a build segment that is not the integer CFBundleVersion carries as a bot", () => {
 		expect(isBotUserAgent("Readplace/beta CFNetwork/1.0 Darwin/1.0")).toBe(true);
+	});
+
+	it("still reports the new shape as a bot when its build is not the integer CFBundleVersion carries, so the literal `build-` prefix is not what earns the exemption", () => {
+		expect(isBotUserAgent("Readplace/build-abc iOS/26.5")).toBe(true);
+	});
+
+	it("still reports the new shape stripped of its platform token as a bot, since a product and a build alone name no client we ship", () => {
+		expect(isBotUserAgent("Readplace/build-111")).toBe(true);
+	});
+
+	it("still reports the new shape with anything appended to it as a bot, so the added alternative is anchored to the whole User-Agent exactly as the stock one is", () => {
+		expect(isBotUserAgent(`${NATIVE_APP_BUILD_USER_AGENT} extra`)).toBe(true);
+	});
+
+	it("still reports a cross of the two shapes — the new build segment carrying the stock CFNetwork and Darwin tokens — as a bot, proving the exemption is two whole alternatives and not a cross-product of their halves", () => {
+		expect(isBotUserAgent("Readplace/build-111 CFNetwork/1.0 Darwin/1.0")).toBe(true);
 	});
 
 	it("does not report our own Android app on a codename OS release as a bot, which isbot() reads as a crawler off its ^read rule", () => {

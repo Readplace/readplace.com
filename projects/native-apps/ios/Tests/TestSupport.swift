@@ -60,6 +60,12 @@ enum TestSupport {
 		)
 	}
 
+	static let nativeUserAgent = AppConfig.nativeUserAgent(
+		product: "Readplace",
+		build: "111",
+		osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 5, patchVersion: 0)
+	)
+
 	static func stubbedConfiguration() -> URLSessionConfiguration {
 		let config = URLSessionConfiguration.ephemeral
 		config.protocolClasses = [StubURLProtocol.self]

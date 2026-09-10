@@ -28,7 +28,8 @@ private let sloganLogger = Logger(subsystem: "com.readplace.app", category: "slo
 /// a user is trying to sign in from.
 func initSloganSource(
 	sessionConfiguration: URLSessionConfiguration,
-	baseURL: String
+	baseURL: String,
+	nativeUserAgent: String
 ) -> SloganSource {
 	let session = URLSession(configuration: sessionConfiguration)
 	return SloganSource(load: {
@@ -36,6 +37,7 @@ func initSloganSource(
 		var request = URLRequest(url: url)
 		request.setValue("application/json", forHTTPHeaderField: "Accept")
 		request.setValue(AppConfig.clientIos, forHTTPHeaderField: AppConfig.clientHeader)
+		request.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")
 		do {
 			let (data, response) = try await session.data(for: request)
 			guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [] }

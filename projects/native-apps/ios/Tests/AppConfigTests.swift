@@ -49,4 +49,40 @@ final class AppConfigTests: XCTestCase {
 		XCTAssertEqual(AppConfig.appShellQueryItem.name, "shell")
 		XCTAssertEqual(AppConfig.appShellQueryItem.value, "app")
 	}
+
+	func testNativeUserAgentNamesTheProductAndTheBuildItWasMadeFrom() {
+		XCTAssertEqual(
+			AppConfig.nativeUserAgent(
+				product: "Readplace",
+				build: "111",
+				osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 5, patchVersion: 0)
+			),
+			"Readplace/build-111 iOS/26.5",
+			"the shape is a contract with the server, whose native-client pattern matches product/build-N iOS/major.minor and nothing else: a dropped build- prefix or a swapped separator logs every request from this build as an unrecognised client"
+		)
+	}
+
+	func testNativeUserAgentNamesTheShareExtensionAsItsOwnProduct() {
+		XCTAssertEqual(
+			AppConfig.nativeUserAgent(
+				product: "ShareExtension",
+				build: "111",
+				osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 5, patchVersion: 0)
+			),
+			"ShareExtension/build-111 iOS/26.5",
+			"the extension is a second binary that saves on its own, so a product name baked into the format would file every share-sheet save under the app and hide which of the two broke"
+		)
+	}
+
+	func testNativeUserAgentKeepsThePatchVersionOutOfTheOSToken() {
+		XCTAssertEqual(
+			AppConfig.nativeUserAgent(
+				product: "Readplace",
+				build: "111",
+				osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 5, patchVersion: 1)
+			),
+			"Readplace/build-111 iOS/26.5",
+			"a patch component that surfaces only on a non-zero patch release would split one OS version into an open set of user agents the server pattern has to keep chasing"
+		)
+	}
 }

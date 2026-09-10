@@ -8,7 +8,10 @@ final class ReadplaceAPITests: XCTestCase {
 	}
 
 	private func makeAPI(store: TokenStore) -> ReadplaceAPI {
-		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 	}
 
 	private func saveArticleAction() -> SirenAction {
@@ -122,6 +125,31 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(
 			readlistRequest.value(forHTTPHeaderField: AppConfig.saveContinuityHeader), AppConfig.saveContinuityBackground,
 			"this build's saves survive the share sheet, so the server must drop the 'don't close this' notice"
+		)
+	}
+
+	func testLoadReadlistSendsTheInjectedUserAgentAndKeepsItAcrossTheEntryPointRedirect() async throws {
+		let store = TestSupport.loggedInStore()
+		let injected = "Readplace/build-4242 iOS/99.9"
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, Fixtures.collection(entitiesJSON: []))
+		}
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: injected,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
+
+		_ = try await api.loadReadlist()
+
+		let entryRequest = try XCTUnwrap(StubURLProtocol.records(path: "/").first?.request)
+		XCTAssertEqual(
+			entryRequest.value(forHTTPHeaderField: "User-Agent"), injected,
+			"the wire must carry the agent this client was built with, not CFNetwork's stock string nor one re-read from the bundle"
+		)
+		let readlistRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
+		XCTAssertEqual(
+			readlistRequest.value(forHTTPHeaderField: "User-Agent"), injected,
+			"and it must survive the GET / → /queue redirect, so the leg that actually serves the collection still names the build"
 		)
 	}
 
@@ -300,6 +328,22 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
+	func testFetchExternalContentSendsNoNativeUserAgent() async throws {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(status: 200, headers: ["Content-Type": "application/pdf"], body: Data("%PDF-1.7 body".utf8))
+		}
+
+		_ = await makeAPI(store: store).fetchExternalContent(URL(string: "https://example.com/paper.pdf")!)
+
+		let record = try XCTUnwrap(StubURLProtocol.records.first)
+		let userAgent = record.request.value(forHTTPHeaderField: "User-Agent") ?? ""
+		XCTAssertFalse(
+			userAgent.contains("build-"),
+			"the authed and external sessions share one configuration, so an agent set there would name our app and build to every third-party origin"
+		)
+	}
+
 	func testFetchExternalContentAbortsWhenStreamedBytesExceedCeiling() async {
 		// No Content-Length, so the size is unknown up front: the running total must
 		// trip the ceiling mid-stream and degrade to nil rather than buffering the whole
@@ -313,7 +357,7 @@ final class ReadplaceAPITests: XCTestCase {
 			)
 		}
 		let api = ReadplaceAPI(
-			baseURL: AppConfig.serverBaseURL, store: store,
+			baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration(), maxExternalContentBytes: 16
 		)
 
@@ -335,7 +379,7 @@ final class ReadplaceAPITests: XCTestCase {
 			)
 		}
 		let api = ReadplaceAPI(
-			baseURL: AppConfig.serverBaseURL, store: store,
+			baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration(), maxExternalContentBytes: 16
 		)
 
@@ -802,7 +846,7 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(),
-			sessionConfiguration: config
+			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: config
 		)
 
 		let cookies = try await api.bootstrapSession()
@@ -828,7 +872,7 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(),
-			sessionConfiguration: config
+			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: config
 		)
 
 		let cookies = try await api.bootstrapSession()
@@ -844,7 +888,7 @@ final class ReadplaceAPITests: XCTestCase {
 		StubURLProtocol.setHandler { _, _ in StubURLProtocol.Stub(status: 204) }
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(),
-			sessionConfiguration: config
+			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: config
 		)
 
 		do {

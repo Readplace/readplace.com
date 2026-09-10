@@ -16,7 +16,12 @@ final class LoginFlowTests: XCTestCase {
 	}
 
 	private func makeService(store: TokenStore) -> OAuthService {
-		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		OAuthService(
+			baseURL: AppConfig.serverBaseURL,
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 	}
 
 	func testTheAppsDefaultSessionConfigurationCachesNoResponses() {
@@ -48,7 +53,11 @@ final class LoginFlowTests: XCTestCase {
 
 	func testCompleteSignInExchangesCodeAndFlipsSessionToLoggedIn() async throws {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let session = AppSession(
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 		XCTAssertFalse(session.isLoggedIn)
 
 		StubURLProtocol.setHandler { request, _ in
@@ -78,7 +87,11 @@ final class LoginFlowTests: XCTestCase {
 
 	func testRejectedCallbackDoesNotExchange() async throws {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let session = AppSession(
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 
 		let result = await session.completeSignIn(
 			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?code=abc&state=WRONG")!,
@@ -99,6 +112,7 @@ final class LoginFlowTests: XCTestCase {
 		var readerWipeInvoked = false
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
+			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: config,
 			wipeReaderWebStore: { readerWipeInvoked = true }
 		)
@@ -124,6 +138,7 @@ final class LoginFlowTests: XCTestCase {
 		var readerWipeInvoked = false
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
+			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: config,
 			wipeReaderWebStore: { readerWipeInvoked = true }
 		)
@@ -146,6 +161,7 @@ final class LoginFlowTests: XCTestCase {
 		var purges = 0
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
+			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration(),
 			wipeReaderWebStore: {},
 			purgeShareArtifacts: { purges += 1 }
@@ -163,6 +179,7 @@ final class LoginFlowTests: XCTestCase {
 		var purges = 0
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
+			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration(),
 			wipeReaderWebStore: {},
 			purgeShareArtifacts: { purges += 1 }
@@ -183,6 +200,7 @@ final class LoginFlowTests: XCTestCase {
 		func session() -> AppSession {
 			AppSession(
 				store: TestSupport.loggedInStore(),
+				nativeUserAgent: TestSupport.nativeUserAgent,
 				sessionConfiguration: TestSupport.stubbedConfiguration(),
 				wipeReaderWebStore: {},
 				purgeShareArtifacts: {},
@@ -214,6 +232,7 @@ final class LoginFlowTests: XCTestCase {
 		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc", name: "hutch_session_renamed"))
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
+			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: config,
 			wipeReaderWebStore: {}
 		)
@@ -229,7 +248,11 @@ final class LoginFlowTests: XCTestCase {
 
 	func testLoggedInThenLoadReadlistRendersArticles() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
-		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let session = AppSession(
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 		XCTAssertTrue(session.isLoggedIn)
 
 		StubURLProtocol.setHandler { request, _ in
@@ -267,7 +290,11 @@ final class LoginFlowTests: XCTestCase {
 
 	func testCallbackCarryingAnErrorParamIsDeniedWithoutExchanging() async {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let session = AppSession(
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 
 		let result = await session.completeSignIn(
 			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?error=access_denied&state=S")!,
@@ -282,7 +309,11 @@ final class LoginFlowTests: XCTestCase {
 
 	func testCallbackWithoutACodeIsMissingCodeWithoutExchanging() async {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let session = AppSession(
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 
 		let result = await session.completeSignIn(
 			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?state=S")!,
@@ -296,7 +327,11 @@ final class LoginFlowTests: XCTestCase {
 
 	func testExchangeFailureDuringSignInSurfacesAsFailureAndStaysLoggedOut() async {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let session = AppSession(
+			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
 		StubURLProtocol.setHandler { _, _ in .json(400, "{\"error\":\"invalid_grant\"}") }
 
 		let result = await session.completeSignIn(

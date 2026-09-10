@@ -18,6 +18,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL,
 			store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
 		return ReadingListViewModel(
@@ -3008,6 +3009,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL,
 			store: TestSupport.loggedInStore(),
+			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
 		var expired = false

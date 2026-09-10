@@ -39,6 +39,7 @@ final class ShareViewController: UIViewController {
 			api: ReadplaceAPI(
 				baseURL: AppConfig.serverBaseURL,
 				store: store,
+				nativeUserAgent: ShareViewController.processNativeUserAgent(),
 				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: containerURL)
 			),
 			captor: captor,
@@ -74,6 +75,18 @@ final class ShareViewController: UIViewController {
 		}
 		await hold.untilSettledAndRead(settled)
 		extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+	}
+
+	private static func processNativeUserAgent(
+		bundle: Bundle = .main,
+		osVersion: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
+	) -> String {
+		guard let product = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
+			let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+		else {
+			preconditionFailure("Info.plist must carry CFBundleName and CFBundleVersion")
+		}
+		return AppConfig.nativeUserAgent(product: product, build: build, osVersion: osVersion)
 	}
 
 	@objc private func backdropTapped() {

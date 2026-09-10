@@ -13,7 +13,7 @@ final class SaveSharedPageTests: XCTestCase {
 	}
 
 	private func makeAPI(store: TokenStore) -> ReadplaceAPI {
-		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: TestSupport.stubbedConfiguration())
 	}
 
 	/// Every save shares the same shape: the readlist, and a URL-only save that

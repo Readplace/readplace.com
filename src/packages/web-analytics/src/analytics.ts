@@ -157,7 +157,7 @@ export type DeviceClass =
  * same `Product/version` shape, since `okhttp/x` identifies nothing.
  */
 const NATIVE_CLIENT_USER_AGENTS = {
-	ios: /^(?:Readplace|ShareExtension)\/\d+ CFNetwork\/[\d.]+ Darwin\/[\d.]+$/,
+	ios: /^(?:Readplace|ShareExtension)\/(?:\d+ CFNetwork\/[\d.]+ Darwin\/[\d.]+|build-\d+ iOS\/[\w.]+)$/,
 	android: /^Readplace\/\d+ Android\/[\w.]+$/,
 } as const;
 

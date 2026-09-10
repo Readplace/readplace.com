@@ -12,6 +12,7 @@ final class WebAuthFlowTests: XCTestCase {
 		OAuthService(
 			baseURL: AppConfig.serverBaseURL,
 			store: TestSupport.loggedInStore(),
+			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		).makeNativeLoginAuthorizationRequest()
 	}

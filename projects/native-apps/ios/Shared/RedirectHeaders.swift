@@ -9,6 +9,7 @@ enum RedirectHeaders {
 	static let preserved = [
 		"Authorization",
 		"Accept",
+		"User-Agent",
 		AppConfig.clientHeader,
 		AppConfig.saveContinuityHeader,
 	]

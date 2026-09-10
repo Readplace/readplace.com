@@ -15,6 +15,7 @@ final class HealBlockedArticleTests: XCTestCase {
 			api: ReadplaceAPI(
 				baseURL: AppConfig.serverBaseURL,
 				store: store,
+				nativeUserAgent: TestSupport.nativeUserAgent,
 				sessionConfiguration: TestSupport.stubbedConfiguration()
 			),
 			captor: captor

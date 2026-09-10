@@ -110,6 +110,7 @@ final class ReadplaceAPI {
 
 	let baseURL: String
 	private let store: TokenStore
+	private let nativeUserAgent: String
 	private let oauth: OAuthService
 	private let session: URLSession
 	// Fetches third-party content (e.g. a PDF the user shared) with no delegate
@@ -134,12 +135,19 @@ final class ReadplaceAPI {
 	init(
 		baseURL: String,
 		store: TokenStore,
+		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration = .ephemeral,
 		maxExternalContentBytes: Int = ReadplaceAPI.defaultMaxExternalContentBytes
 	) {
 		self.baseURL = baseURL
 		self.store = store
-		self.oauth = OAuthService(baseURL: baseURL, store: store, sessionConfiguration: sessionConfiguration)
+		self.nativeUserAgent = nativeUserAgent
+		self.oauth = OAuthService(
+			baseURL: baseURL,
+			store: store,
+			nativeUserAgent: nativeUserAgent,
+			sessionConfiguration: sessionConfiguration
+		)
 		// URLSession retains its delegate until invalidated, so the redirect
 		// handler stays alive for the session's lifetime.
 		self.session = URLSession(
@@ -395,6 +403,7 @@ final class ReadplaceAPI {
 		// app's cookies, so it can't rely on the extension's cookie signals).
 		authed.setValue(AppConfig.clientIos, forHTTPHeaderField: AppConfig.clientHeader)
 		authed.setValue(AppConfig.saveContinuityBackground, forHTTPHeaderField: AppConfig.saveContinuityHeader)
+		authed.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")
 		let (data, response) = try await session.data(for: authed)
 		guard let http = response as? HTTPURLResponse else { throw APIError.decoding }
 		if http.statusCode == 401 && retryOn401 {

@@ -40,6 +40,7 @@ final class ShareExtensionKeychainDiagnosticsTests: XCTestCase {
 			api: ReadplaceAPI(
 				baseURL: AppConfig.serverBaseURL,
 				store: store,
+				nativeUserAgent: TestSupport.nativeUserAgent,
 				sessionConfiguration: TestSupport.stubbedConfiguration()
 			),
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil)),
