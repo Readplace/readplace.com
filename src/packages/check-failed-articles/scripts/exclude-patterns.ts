@@ -97,7 +97,10 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// a paid newsletter.
 	/^https:\/\/cutlefish\.substack\.com\/p\/tbm-1352-asking-better-questions\?utm_source=substack&utm_medium=email$/i,
 	/^https:\/\/cutlefish\.substack\.com\/p\/tbm-410-dancing-with-problems\?utm_source=post-email-title&publication_id=24711&post_id=190590408&utm_campaign=email-post-title&isFreemail=true&r=5ik6xc&triedRedirect=true&utm_medium=email$/i,
-	/^https:\/\/psychologywod\.com\/2013\/08\/18\/blocked-practice-vs-random-practice-shake-things-up-in-your-training-and-in-your-life\/$/i,
+	// Domain no longer exists — psychologywod.com returns NXDOMAIN from
+	// public resolvers, so a recrawl can never succeed. `\/?` covers both
+	// stored shapes (the row was saved with and without a trailing slash).
+	/^https:\/\/psychologywod\.com\/2013\/08\/18\/blocked-practice-vs-random-practice-shake-things-up-in-your-training-and-in-your-life\/?$/i,
 	// Akamai BotManager RSTs HTTP/2 from AWS-range IPs at the TLS layer —
 	// both `default-browser` and `honest-bot` personas fail. Requires a
 	// non-AWS egress path (residential proxy) to resolve.

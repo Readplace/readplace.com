@@ -396,8 +396,8 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 		},
 		{
 			url: "https://psychologywod.com/2013/08/18/blocked-practice-vs-random-practice-shake-things-up-in-your-training-and-in-your-life",
-			excluded: false,
-			label: "psychologywod blocked-practice article missing trailing slash",
+			excluded: true,
+			label: "psychologywod blocked-practice article without trailing slash",
 		},
 		{
 			url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",
