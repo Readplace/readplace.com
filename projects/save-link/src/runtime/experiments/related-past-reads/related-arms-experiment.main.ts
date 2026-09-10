@@ -47,8 +47,6 @@ const logger = HutchLogger.from(consoleLogger);
 
 const EXPERIMENT_TIMEOUT_MS = 600_000;
 const DEFAULT_ANCHOR_COUNT = 6;
-const DEEPSEEK_INPUT_USD_PER_MTOK = 0.28;
-const DEEPSEEK_OUTPUT_USD_PER_MTOK = 0.42;
 
 const BASELINE_PROMPT = readFileSync(
 	join(__dirname, "arm-b-production-baseline-prompt.md"),
@@ -482,13 +480,6 @@ function tokensOf(arm: ArmResult): { input: number; output: number } {
 	);
 }
 
-function usdOf(tokens: { input: number; output: number }): number {
-	return (
-		(tokens.input / 1_000_000) * DEEPSEEK_INPUT_USD_PER_MTOK +
-		(tokens.output / 1_000_000) * DEEPSEEK_OUTPUT_USD_PER_MTOK
-	);
-}
-
 function renderMarkdown(reports: AnchorReport[]): string {
 	const lines: string[] = [
 		"# Similar past reads — prompt arm comparison",
@@ -499,8 +490,8 @@ function renderMarkdown(reports: AnchorReport[]): string {
 		"",
 		"## Summary",
 		"",
-		"| Anchor | Repeat | Arm | Picks | Unread | Read | Input tokens | Output tokens | USD | Slowest call (ms) | Over production timeout |",
-		"| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+		"| Anchor | Repeat | Arm | Picks | Unread | Read | Input tokens | Output tokens | Slowest call (ms) | Over production timeout |",
+		"| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
 	];
 
 	for (const report of reports) {
@@ -510,7 +501,7 @@ function renderMarkdown(reports: AnchorReport[]): string {
 			const slowest = Math.max(...arm.calls.map((call) => call.durationMs));
 			const over = arm.calls.some((call) => call.overProductionTimeout);
 			lines.push(
-				`| ${report.anchor.title} | ${report.repeat} | ${arm.arm} | ${arm.effective.length} | ${arm.effective.filter((pick) => !readUrls.has(pick.url)).length} | ${arm.effective.filter((pick) => readUrls.has(pick.url)).length} | ${tokens.input} | ${tokens.output} | ${usdOf(tokens).toFixed(4)} | ${slowest} | ${over ? "YES" : "no"} |`,
+				`| ${report.anchor.title} | ${report.repeat} | ${arm.arm} | ${arm.effective.length} | ${arm.effective.filter((pick) => !readUrls.has(pick.url)).length} | ${arm.effective.filter((pick) => readUrls.has(pick.url)).length} | ${tokens.input} | ${tokens.output} | ${slowest} | ${over ? "YES" : "no"} |`,
 			);
 		}
 	}
@@ -755,7 +746,6 @@ async function main(): Promise<void> {
 		outputDir,
 		inputTokens: spent.input,
 		outputTokens: spent.output,
-		estimatedUsd: usdOf(spent).toFixed(2),
 	});
 }
 
