@@ -40,7 +40,7 @@ Readplace runs an MCP server at https://readplace.com/mcp. There is no API key: 
 
 - ChatGPT: add the official Readplace plugin at https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a and complete the OAuth sign-in. No custom connector, no Developer Mode.
 - Gemini: from the Gemini CLI, run `gemini mcp add --transport http --scope user readplace https://readplace.com/mcp`, then `/mcp auth readplace` and finish the browser sign-in. Free.
-- Claude: Settings -> Connectors -> Add custom connector, paste the server URL, complete the one-time OAuth sign-in. Works on the Free plan.
+- Claude: open the Readplace listing at https://claude.ai/directory/readplace and choose Connect, then complete the OAuth sign-in. No custom connector to configure.
 - Any other MCP client: add https://readplace.com/mcp as a remote HTTP (Streamable HTTP) connector and authorize when prompted.
 
 ## Pages

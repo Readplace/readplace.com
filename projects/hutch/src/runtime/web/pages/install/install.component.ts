@@ -311,10 +311,11 @@ const PANEL_DATA = {
 	claude: {
 		group: "aiAssistant",
 		intro:
-			"Readplace runs an MCP server. Connect it once and Claude can save pages to your readlist and read your list back, right inside the conversation.",
+			"Readplace is listed in Claude's connector directory. Add it in one click and Claude can save pages to your readlist and read your list back — the same MCP server, with no connector to configure.",
 		promptLabel: "Or just ask Claude",
 		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
-		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
+		requirement:
+			"You sign in to Readplace once when you add the connector. The server URL above still works if you would rather add it as a custom connector yourself.",
 	},
 } satisfies { [N in ClientName]: PanelCopy[ClientGroupOf<N>] };
 

@@ -43,12 +43,11 @@ const MCP_SETUP = {
 	},
 	claude: {
 		requirement:
-			"Works on Free, Pro, Max, Team, and Enterprise. The Free plan allows a single custom connector.",
+			"Readplace is listed in Claude's connector directory, so there is no custom connector to configure.",
 		steps: [
-			"Open Settings and go to Connectors.",
-			"Choose “Add custom connector”.",
-			"Paste the Readplace server URL and save.",
-			"Open the connector and complete the one-time OAuth sign-in to authorize Claude.",
+			"Open the Readplace listing in Claude's connector directory and choose Connect.",
+			"Complete the one-time OAuth sign-in to authorize Claude.",
+			"Ask Claude to save a link, or to list what you have saved.",
 		],
 	},
 } satisfies Record<AdvertisedClientNameInGroup<"aiAssistant">, Omit<McpTool, "name">>;

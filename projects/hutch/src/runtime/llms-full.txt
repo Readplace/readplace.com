@@ -86,9 +86,9 @@ each URL.
 
 ### Claude
 
-1. Open Settings -> Connectors and choose "Add custom connector". Works on Free, Pro, Max, Team, and Enterprise; the Free plan allows a single custom connector.
-2. Paste https://readplace.com/mcp and save.
-3. Open the connector and complete the one-time OAuth sign-in.
+1. Open the Readplace listing at https://claude.ai/directory/readplace and choose Connect. There is no custom connector to configure.
+2. Complete the one-time OAuth sign-in to authorize Claude.
+3. The listing connects to the same MCP server, https://readplace.com/mcp, which you can still add by hand as a custom connector if you prefer.
 
 ### Any other MCP client
 

@@ -66,7 +66,7 @@ describe("SUPPORTED_CLIENTS", () => {
 			{
 				chatgpt: "https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a",
 				gemini: null,
-				claude: null,
+				claude: "https://claude.ai/directory/readplace",
 			},
 		);
 	});

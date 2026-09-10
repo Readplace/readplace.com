@@ -165,7 +165,7 @@ export const SUPPORTED_CLIENTS = [
 			kind: "mcpConnector",
 			serverUrl: "https://readplace.com/mcp",
 			guidePath: "/mcp",
-			directInstallUrl: null,
+			directInstallUrl: "https://claude.ai/directory/readplace",
 		},
 		auth: { kind: "dynamicRegistration" },
 		advertised: true,

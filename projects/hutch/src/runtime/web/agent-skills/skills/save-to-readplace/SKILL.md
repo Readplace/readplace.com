@@ -43,8 +43,9 @@ hand-rolling OAuth. Per-client setup:
 - Gemini: from the Gemini CLI, run `gemini mcp add --transport http --scope
   user readplace https://readplace.com/mcp`, then `/mcp auth readplace` and
   the browser sign-in. Free.
-- Claude: Settings -> Connectors -> Add custom connector, paste the server
-  URL, and complete the one-time OAuth sign-in. Works on the Free plan.
+- Claude: open the Readplace listing at
+  https://claude.ai/directory/readplace and choose Connect, then
+  complete the OAuth sign-in. No custom connector to configure.
 - Any other MCP client: add https://readplace.com/mcp as a remote HTTP
   connector and authorize when prompted.
 
