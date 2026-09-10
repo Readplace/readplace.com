@@ -114,6 +114,15 @@
   margin-top: 4px;
 }
 
+.gmail__step-shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 8px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .gmail__copy-field {
   display: flex;
   align-items: center;

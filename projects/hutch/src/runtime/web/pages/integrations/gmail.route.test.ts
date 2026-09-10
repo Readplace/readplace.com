@@ -258,6 +258,25 @@ describe("GET /integrations/gmail", () => {
 		]);
 	});
 
+	it("shows where to click in Gmail beside the steps that need it", async () => {
+		const { agent } = await connectedAgent({ confirmed: false });
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const shots = Array.from(doc.querySelectorAll("[data-test-gmail-shot]"));
+		expect(shots.map((shot) => shot.getAttribute("data-test-gmail-shot"))).toEqual([
+			"see-all-settings",
+			"add-forwarding-address",
+		]);
+		for (const shot of shots) {
+			assert.equal(shot.getAttribute("loading"), "lazy");
+			assert.match(String(shot.getAttribute("src")), /\/screenshots\/gmail-[a-z-]+\.webp$/);
+			assert(shot.getAttribute("alt"), "every screenshot describes what it circles");
+			assert(shot.getAttribute("width"), "intrinsic width reserves layout before the image lands");
+			assert(shot.getAttribute("height"), "intrinsic height reserves layout before the image lands");
+		}
+	});
+
 	it("points Open Gmail at the connected mailbox", async () => {
 		const { agent, gmail, userId } = await connectedAgent({ confirmed: false });
 		await gmail.bundle.gmailConnectionStore.recordAccountEmail({
