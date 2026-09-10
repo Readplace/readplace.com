@@ -13,6 +13,7 @@ final class ShareViewController: UIViewController {
 	private let titleGroup = UIStackView()
 	private let backdropTap = UITapGestureRecognizer()
 	private let hold = ShareSheetHold(holdSeconds: 3)
+	private var chooser: ReadlistChoiceCard?
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -192,80 +193,24 @@ final class ShareViewController: UIViewController {
 
 extension ShareViewController: ReadlistChoosing {
 	func choose(among drops: [SharedArticlesDrop]) async -> Set<Readlist> {
-		spinner.stopAnimating()
-		spinner.isHidden = true
-		statusLabel.text = "Save to which readlists?"
-		noticeLabel.text = "You can change this later in the Readplace app"
-		noticeLabel.isHidden = false
-
-		let choices = UIStackView()
-		choices.translatesAutoresizingMaskIntoConstraints = false
-		choices.axis = .vertical
-		choices.alignment = .fill
-		choices.spacing = 8
-
+		card.isHidden = true
 		return await withCheckedContinuation { (continuation: CheckedContinuation<Set<Readlist>, Never>) in
-			var rows: [(readlist: Readlist, button: UIButton)] = []
-			for drop in drops {
-				let button = UIButton(configuration: Self.tickConfiguration(for: drop))
-				guard let readlist = drop.choice else {
-					button.isUserInteractionEnabled = false
-					choices.addArrangedSubview(button)
-					continue
-				}
-				button.addAction(
-					UIAction { [weak button] _ in
-						guard let button else { return }
-						button.isSelected.toggle()
-						button.configuration = Self.tickConfiguration(
-							for: button.isSelected ? .ticked(readlist) : .unticked(readlist)
-						)
-					},
-					for: .touchUpInside
-				)
-				rows.append((readlist: readlist, button: button))
-				choices.addArrangedSubview(button)
+			let built = ReadlistChoiceCard(drops: drops) { [weak self] ticked in
+				self?.dismissChooser()
+				continuation.resume(returning: ticked)
 			}
-			let done = UIButton(configuration: Self.doneConfiguration())
-			done.addAction(
-				UIAction { [weak self] _ in
-					choices.removeFromSuperview()
-					self?.setStatus("Saving…")
-					continuation.resume(returning: Set(rows.filter { $0.button.isSelected }.map(\.readlist)))
-				},
-				for: .touchUpInside
-			)
-			choices.addArrangedSubview(done)
-			titleGroup.insertArrangedSubview(choices, at: 1)
+			built.view.frame = view.bounds
+			built.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+			view.addSubview(built.view)
+			chooser = built
 		}
 	}
 
-	private static func tickConfiguration(for drop: SharedArticlesDrop) -> UIButton.Configuration {
-		var configuration = drop.showsTick ? UIButton.Configuration.filled() : UIButton.Configuration.tinted()
-		configuration.attributedTitle = AttributedString(Self.tickTitle(for: drop))
-		configuration.image = UIImage(systemName: SharedArticlesDropPresentation.boxSystemImage(for: drop))
-		configuration.imagePadding = 8
-		configuration.baseBackgroundColor = BrandColor.amber
-		configuration.cornerStyle = .medium
-		return configuration
-	}
-
-	private static func tickTitle(for drop: SharedArticlesDrop) -> NSAttributedString {
-		let title = NSMutableAttributedString(string: drop.label)
-		guard let lock = SharedArticlesDropPresentation.lockSystemImage(for: drop),
-			let glyph = UIImage(systemName: lock)
-		else { return title }
-		title.append(NSAttributedString(string: " "))
-		title.append(NSAttributedString(attachment: NSTextAttachment(image: glyph)))
-		return title
-	}
-
-	private static func doneConfiguration() -> UIButton.Configuration {
-		var configuration = UIButton.Configuration.filled()
-		configuration.title = "Done"
-		configuration.baseBackgroundColor = BrandColor.amber
-		configuration.cornerStyle = .medium
-		return configuration
+	private func dismissChooser() {
+		chooser?.view.removeFromSuperview()
+		chooser = nil
+		card.isHidden = false
+		setStatus("Saving…")
 	}
 }
 

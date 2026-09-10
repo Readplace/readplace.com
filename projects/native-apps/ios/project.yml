@@ -85,7 +85,12 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - Tests
+      - path: Tests
+        # The committed baselines are read from source at test time. Sweeping them
+        # into the bundle would also run them through Xcode's PNG compressor, which
+        # rewrites the very bytes the comparison is pinned to.
+        excludes:
+          - "*.swift-snapshots/**"
     dependencies:
       - target: Readplace
     settings:

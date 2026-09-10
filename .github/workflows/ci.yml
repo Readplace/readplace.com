@@ -556,6 +556,15 @@ jobs:
           xcrun simctl list devices | grep -F -- "$UDID" || true
           make test SIM="platform=iOS Simulator,id=$UDID"
 
+      - name: Upload the test result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcresult-${{ github.run_id }}-${{ github.run_attempt }}
+          path: projects/native-apps/ios/build/TestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Build + upload the iOS app (and its embedded share extension, in one build)
   # to TestFlight. Independent of the infra deploy pipeline — gated on the web
   # test suite passing, the iOS test bundle passing, and the iOS shipping code

@@ -45,6 +45,13 @@ SIM ?= platform=iOS Simulator,id=$(SIM_UDID)
 SIM_DEVICE = $(shell printf '%s' '$(SIM)' | sed -E 's/.*,(id|name)=([^,]*).*/\2/')
 COVERAGE_RESULT = build/TestResults.xcresult
 
+# `make test RECORD_SNAPSHOTS=1` re-mints the share card's committed baselines for
+# the runtime under test. It has to be exported into xcodebuild's environment, not
+# passed as a build setting: xcodebuild forwards TEST_RUNNER_-prefixed variables
+# into the test host and ignores an assignment on the command line. A recording run
+# always fails, so a flag left set in CI cannot go green.
+SNAPSHOT_ENV = $(if $(RECORD_SNAPSHOTS),TEST_RUNNER_READPLACE_RECORD_SNAPSHOTS=$(RECORD_SNAPSHOTS) ,)
+
 # Both test entry points need a simulator, so they fail through one actionable
 # message rather than xcodebuild's generic destination dump.
 require-sim:
@@ -53,7 +60,7 @@ require-sim:
 test: generate require-sim
 	./scripts/xc.sh xcrun simctl bootstatus '$(SIM_DEVICE)' -b
 	rm -rf $(COVERAGE_RESULT)
-	./scripts/xc.sh xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)' \
+	$(SNAPSHOT_ENV)./scripts/xc.sh xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)' \
 		-enableCodeCoverage YES -resultBundlePath $(COVERAGE_RESULT)
 	./scripts/xc.sh python3 scripts/check-coverage.py $(COVERAGE_RESULT)
 	$(MAKE) test-staging SIM='$(SIM)'
