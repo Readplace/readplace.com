@@ -95,6 +95,8 @@ describe("initGenerateSummaryHandler", () => {
 				excerpt: "A blurb.",
 				inputTokens: 100,
 				outputTokens: 50,
+				cacheHitInputTokens: 64,
+				cacheMissInputTokens: 36,
 			}),
 			findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue({ content: html }),
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
@@ -113,6 +115,62 @@ describe("initGenerateSummaryHandler", () => {
 				sourceContentHash: computeCanonicalContentHash(html),
 				now: NOW.toISOString(),
 			},
+		});
+	});
+
+	it("logs the cache hit/miss split of the input tokens the summary cost", async () => {
+		const URL = "https://example.com/split";
+		const info = jest.fn();
+		const { handler } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
+				kind: "ready",
+				summary: "A summary.",
+				excerpt: "A blurb.",
+				inputTokens: 100,
+				outputTokens: 50,
+				cacheHitInputTokens: 64,
+				cacheMissInputTokens: 36,
+			}),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, info },
+		});
+
+		await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+		expect(info).toHaveBeenCalledWith("[GenerateSummary] completed", {
+			url: URL,
+			inputTokens: 100,
+			outputTokens: 50,
+			cacheHitInputTokens: 64,
+			cacheMissInputTokens: 36,
+		});
+	});
+
+	it("still completes, logging an unknown split, when the summary carried no cache split", async () => {
+		const URL = "https://example.com/no-split";
+		const info = jest.fn();
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
+				kind: "ready",
+				summary: "A summary.",
+				excerpt: "A blurb.",
+				inputTokens: 100,
+				outputTokens: 50,
+			}),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, info },
+		});
+
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, expect.objectContaining({ url: URL }));
+		expect(info).toHaveBeenCalledWith("[GenerateSummary] completed", {
+			url: URL,
+			inputTokens: 100,
+			outputTokens: 50,
+			cacheHitInputTokens: "unknown",
+			cacheMissInputTokens: "unknown",
 		});
 	});
 
@@ -164,6 +222,8 @@ describe("initGenerateSummaryHandler", () => {
 				excerpt: "Recovered blurb.",
 				inputTokens: 100,
 				outputTokens: 50,
+				cacheHitInputTokens: 64,
+				cacheMissInputTokens: 36,
 			}),
 			loadArticle: jest.fn().mockResolvedValue(cached),
 		});

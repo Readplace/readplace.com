@@ -39,6 +39,8 @@ function build() {
 		related: [],
 		inputTokens: 7,
 		outputTokens: 3,
+		cacheHitInputTokens: 4,
+		cacheMissInputTokens: 3,
 	};
 	const { selectRelatedArticles } =
 		initSelectRelatedArticlesWithoutSharedBoilerplate({

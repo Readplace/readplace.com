@@ -67,7 +67,7 @@ export function initPdfPageLlmCleanupHandler(deps: {
 			};
 		}
 
-		logger.info(`[pdf-page-llm-cleanup] applied page=${input.pageIndex} beforeLen=${input.ocrText.length} afterLen=${result.text.length} inputTokens=${result.tokens.input} outputTokens=${result.tokens.output} dt=${Date.now() - t0}ms`);
+		logger.info(`[pdf-page-llm-cleanup] applied page=${input.pageIndex} beforeLen=${input.ocrText.length} afterLen=${result.text.length} inputTokens=${result.tokens.input} outputTokens=${result.tokens.output} cacheHitInputTokens=${result.tokens.cacheHitInput ?? "unknown"} cacheMissInputTokens=${result.tokens.cacheMissInput ?? "unknown"} dt=${Date.now() - t0}ms`);
 		return {
 			pageIndex: input.pageIndex,
 			cleanedText: result.text,

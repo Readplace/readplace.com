@@ -2,7 +2,10 @@ import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import { initPdfPageHtmlConvertHandler } from "./pdf-page-html-convert-handler";
 import type { ConvertPageToHtmlWithLlm } from "./pdf-page-html-convert-handler.types";
 
-function stubLlm(text: string, tokens = { input: 100, output: 50 }): ConvertPageToHtmlWithLlm {
+function stubLlm(
+	text: string,
+	tokens: Awaited<ReturnType<ConvertPageToHtmlWithLlm>>["tokens"] = { input: 100, output: 50, cacheHitInput: 64, cacheMissInput: 36 },
+): ConvertPageToHtmlWithLlm {
 	return async () => ({ text, tokens });
 }
 
@@ -30,6 +33,45 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		expect(result.applied).toBe(true);
 		expect(result.semanticHtml).toBe("<h2>Section</h2><p>Body prose here that is long enough to retain content.</p>");
 		expect(result.tokens).toEqual({ input: 100, output: 50 });
+	});
+
+	it("logs the cache hit/miss split of the input tokens it spent", async () => {
+		const { logger, messages } = capturingLogger();
+		const handler = initPdfPageHtmlConvertHandler({
+			convertPageToHtmlWithLlm: stubLlm("<h2>Section</h2><p>Body prose here that is long enough to retain content.</p>"),
+			logger,
+		});
+
+		await handler({
+			pageIndex: 3,
+			pageText: "Section\n\nBody prose here that is long enough to retain content.",
+		});
+
+		const applied = messages.find((m) => m.includes("] applied"));
+		expect(applied).toContain("inputTokens=100");
+		expect(applied).toContain("cacheHitInputTokens=64");
+		expect(applied).toContain("cacheMissInputTokens=36");
+	});
+
+	it("logs the cache split as unknown when the provider reports no split", async () => {
+		const { logger, messages } = capturingLogger();
+		const handler = initPdfPageHtmlConvertHandler({
+			convertPageToHtmlWithLlm: stubLlm(
+				"<h2>Section</h2><p>Body prose here that is long enough to retain content.</p>",
+				{ input: 100, output: 50 },
+			),
+			logger,
+		});
+
+		await handler({
+			pageIndex: 3,
+			pageText: "Section\n\nBody prose here that is long enough to retain content.",
+		});
+
+		const applied = messages.find((m) => m.includes("] applied"));
+		expect(applied).toContain("inputTokens=100");
+		expect(applied).toContain("cacheHitInputTokens=unknown");
+		expect(applied).toContain("cacheMissInputTokens=unknown");
 	});
 
 	it("strips ```html fences the model occasionally emits despite the prompt rule", async () => {
@@ -140,7 +182,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("surfaces tokens even when guardrails reject the model output", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
-			convertPageToHtmlWithLlm: stubLlm("<h2>tl;dr</h2>", { input: 80, output: 5 }),
+			convertPageToHtmlWithLlm: stubLlm("<h2>tl;dr</h2>", { input: 80, output: 5, cacheHitInput: 48, cacheMissInput: 32 }),
 			logger: noopLogger,
 		});
 
@@ -154,7 +196,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("short-circuits empty input without invoking the LLM", async () => {
 		let calls = 0;
 		const handler = initPdfPageHtmlConvertHandler({
-			convertPageToHtmlWithLlm: async () => { calls += 1; return { text: "x", tokens: { input: 1, output: 1 } }; },
+			convertPageToHtmlWithLlm: async () => { calls += 1; return { text: "x", tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } }; },
 			logger: noopLogger,
 		});
 
@@ -167,7 +209,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("short-circuits whitespace-only input", async () => {
 		let calls = 0;
 		const handler = initPdfPageHtmlConvertHandler({
-			convertPageToHtmlWithLlm: async () => { calls += 1; return { text: "x", tokens: { input: 1, output: 1 } }; },
+			convertPageToHtmlWithLlm: async () => { calls += 1; return { text: "x", tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } }; },
 			logger: noopLogger,
 		});
 
@@ -206,7 +248,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		const handler = initPdfPageHtmlConvertHandler({
 			convertPageToHtmlWithLlm: async ({ systemPrompt, userText }) => {
 				captured = systemPrompt;
-				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1 } };
+				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
 			},
 			logger: noopLogger,
 		});
@@ -223,7 +265,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		const handler = initPdfPageHtmlConvertHandler({
 			convertPageToHtmlWithLlm: async ({ userText, maxTokens }) => {
 				captured.push(maxTokens);
-				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1 } };
+				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
 			},
 			logger: noopLogger,
 		});
@@ -240,7 +282,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		const handler = initPdfPageHtmlConvertHandler({
 			convertPageToHtmlWithLlm: async ({ userText, maxTokens }) => {
 				captured.push(maxTokens);
-				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1 } };
+				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
 			},
 			logger: noopLogger,
 		});

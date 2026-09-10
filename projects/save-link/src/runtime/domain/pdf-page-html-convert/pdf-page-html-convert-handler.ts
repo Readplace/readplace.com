@@ -68,15 +68,18 @@ export function initPdfPageHtmlConvertHandler(deps: {
 		const rejection = guardrailReason({ pageText: input.pageText, semanticHtml: sanitised });
 		if (rejection !== null) {
 			logger.warn(`[pdf-page-html-convert] guardrail rejected page=${input.pageIndex} reason=${rejection} inputLen=${input.pageText.length} outputLen=${sanitised.length} dt=${Date.now() - t0}ms — falling back to <p> wrap`);
-			return { ...paragraphFallback(input), tokens: result.tokens };
+			return {
+				...paragraphFallback(input),
+				tokens: { input: result.tokens.input, output: result.tokens.output },
+			};
 		}
 
-		logger.info(`[pdf-page-html-convert] applied page=${input.pageIndex} inputLen=${input.pageText.length} outputLen=${sanitised.length} inputTokens=${result.tokens.input} outputTokens=${result.tokens.output} dt=${Date.now() - t0}ms`);
+		logger.info(`[pdf-page-html-convert] applied page=${input.pageIndex} inputLen=${input.pageText.length} outputLen=${sanitised.length} inputTokens=${result.tokens.input} outputTokens=${result.tokens.output} cacheHitInputTokens=${result.tokens.cacheHitInput ?? "unknown"} cacheMissInputTokens=${result.tokens.cacheMissInput ?? "unknown"} dt=${Date.now() - t0}ms`);
 		return {
 			pageIndex: input.pageIndex,
 			semanticHtml: sanitised,
 			applied: true,
-			tokens: result.tokens,
+			tokens: { input: result.tokens.input, output: result.tokens.output },
 		};
 	};
 }

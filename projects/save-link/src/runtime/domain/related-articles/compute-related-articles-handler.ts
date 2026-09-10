@@ -162,6 +162,8 @@ export function initComputeRelatedArticlesHandler(
 					relatedCount: result.related.length,
 					inputTokens: result.inputTokens,
 					outputTokens: result.outputTokens,
+					cacheHitInputTokens: result.cacheHitInputTokens ?? "unknown",
+					cacheMissInputTokens: result.cacheMissInputTokens ?? "unknown",
 				});
 			} catch (error) {
 				if (error instanceof MetadataNotReadyError) {

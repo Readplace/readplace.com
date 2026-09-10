@@ -38,7 +38,7 @@ function selectorReturning(text: string, captured: Captured = { prompts: [], sys
 		}
 		return {
 			content: [{ type: "text", text }],
-			usage: { input_tokens: 140, output_tokens: 25 },
+			usage: { input_tokens: 140, output_tokens: 25, cache_hit_input_tokens: 96, cache_miss_input_tokens: 44 },
 		};
 	};
 	const { selectRelatedArticles } = initSelectRelatedArticles({
@@ -167,6 +167,8 @@ describe("initSelectRelatedArticles", () => {
 			related: [{ url: "https://example.com/finished-0", reason: "Same craft" }],
 			inputTokens: 140,
 			outputTokens: 25,
+			cacheHitInputTokens: 96,
+			cacheMissInputTokens: 44,
 		});
 	});
 
@@ -225,6 +227,8 @@ describe("initSelectRelatedArticles", () => {
 			],
 			inputTokens: 140,
 			outputTokens: 25,
+			cacheHitInputTokens: 96,
+			cacheMissInputTokens: 44,
 		});
 	});
 
@@ -250,6 +254,8 @@ describe("initSelectRelatedArticles", () => {
 			related: [{ url: "https://example.com/earlier-1", reason: "Real" }],
 			inputTokens: 140,
 			outputTokens: 25,
+			cacheHitInputTokens: 96,
+			cacheMissInputTokens: 44,
 		});
 	});
 
@@ -274,6 +280,8 @@ describe("initSelectRelatedArticles", () => {
 			related: [{ url: "https://example.com/earlier-1", reason: "First reason" }],
 			inputTokens: 140,
 			outputTokens: 25,
+			cacheHitInputTokens: 96,
+			cacheMissInputTokens: 44,
 		});
 	});
 
@@ -347,7 +355,7 @@ describe("initSelectRelatedArticles", () => {
 	it("reports an answer that carried no text block at all", async () => {
 		const createMessage: CreateAiMessage = async () => ({
 			content: [],
-			usage: { input_tokens: 1, output_tokens: 0 },
+			usage: { input_tokens: 1, output_tokens: 0, cache_hit_input_tokens: 0, cache_miss_input_tokens: 1 },
 		});
 		const { selectRelatedArticles } = initSelectRelatedArticles({
 			createMessage,

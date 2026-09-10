@@ -7,7 +7,7 @@ describe("initReviewDocumentWithDeepseek", () => {
 		const review = initReviewDocumentWithDeepseek({
 			createChatCompletion: async () => ({
 				choices: [{ message: { content: '{"decisions": []}' } }],
-				usage: { prompt_tokens: 500, completion_tokens: 100 },
+				usage: { prompt_tokens: 500, completion_tokens: 100, prompt_cache_hit_tokens: 384, prompt_cache_miss_tokens: 116 },
 			}),
 		});
 
@@ -18,7 +18,12 @@ describe("initReviewDocumentWithDeepseek", () => {
 		});
 
 		expect(result.text).toBe('{"decisions": []}');
-		expect(result.tokens).toEqual({ input: 500, output: 100 });
+		expect(result.tokens).toEqual({
+			input: 500,
+			output: 100,
+			cacheHitInput: 384,
+			cacheMissInput: 116,
+		});
 	});
 
 	it("uses deepseek-v4-flash in non-thinking mode with temperature 0 and JSON response_format", async () => {
@@ -28,7 +33,7 @@ describe("initReviewDocumentWithDeepseek", () => {
 				captured = params;
 				return {
 					choices: [{ message: { content: "{}" } }],
-					usage: { prompt_tokens: 1, completion_tokens: 1 },
+					usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 				};
 			},
 		});
@@ -46,7 +51,7 @@ describe("initReviewDocumentWithDeepseek", () => {
 		const review = initReviewDocumentWithDeepseek({
 			createChatCompletion: async (params) => {
 				captured = params;
-				return { choices: [{ message: { content: "{}" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } };
+				return { choices: [{ message: { content: "{}" } }], usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 } };
 			},
 		});
 
@@ -60,7 +65,7 @@ describe("initReviewDocumentWithDeepseek", () => {
 		const review = initReviewDocumentWithDeepseek({
 			createChatCompletion: async (params) => {
 				captured = params;
-				return { choices: [{ message: { content: "{}" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } };
+				return { choices: [{ message: { content: "{}" } }], usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 } };
 			},
 		});
 
@@ -73,7 +78,7 @@ describe("initReviewDocumentWithDeepseek", () => {
 		const review = initReviewDocumentWithDeepseek({
 			createChatCompletion: async () => ({
 				choices: [{ message: { content: null } }],
-				usage: { prompt_tokens: 1, completion_tokens: 1 },
+				usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 			}),
 		});
 

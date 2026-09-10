@@ -34,5 +34,10 @@ export type ConvertPageToHtmlWithLlm = (params: {
 	readonly maxTokens: number;
 }) => Promise<{
 	readonly text: string;
-	readonly tokens: { readonly input: number; readonly output: number };
+	readonly tokens: {
+		readonly input: number;
+		readonly output: number;
+		readonly cacheHitInput?: number;
+		readonly cacheMissInput?: number;
+	};
 }>;

@@ -8,7 +8,7 @@ describe("initCreateDeepseekMessage", () => {
 		});
 		const createChatCompletion = jest.fn().mockResolvedValue({
 			choices: [{ message: { content: jsonPayload } }],
-			usage: { prompt_tokens: 50, completion_tokens: 20 },
+			usage: { prompt_tokens: 50, completion_tokens: 20, prompt_cache_hit_tokens: 32, prompt_cache_miss_tokens: 18 },
 		});
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
@@ -30,7 +30,12 @@ describe("initCreateDeepseekMessage", () => {
 		});
 		expect(result).toEqual({
 			content: [{ type: "text", text: jsonPayload }],
-			usage: { input_tokens: 50, output_tokens: 20 },
+			usage: {
+				input_tokens: 50,
+				output_tokens: 20,
+				cache_hit_input_tokens: 32,
+				cache_miss_input_tokens: 18,
+			},
 		});
 	});
 
@@ -38,7 +43,7 @@ describe("initCreateDeepseekMessage", () => {
 		const jsonPayload = JSON.stringify({ summary: "trimmed", excerpt: "blurb" });
 		const createChatCompletion = jest.fn().mockResolvedValue({
 			choices: [{ message: { content: `  ${jsonPayload}  \n` } }],
-			usage: { prompt_tokens: 5, completion_tokens: 3 },
+			usage: { prompt_tokens: 5, completion_tokens: 3, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 5 },
 		});
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
@@ -54,7 +59,7 @@ describe("initCreateDeepseekMessage", () => {
 	it("should throw when response has no message content", async () => {
 		const createChatCompletion = jest.fn().mockResolvedValue({
 			choices: [{ message: { content: null } }],
-			usage: { prompt_tokens: 10, completion_tokens: 0 },
+			usage: { prompt_tokens: 10, completion_tokens: 0, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 10 },
 		});
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
@@ -69,7 +74,7 @@ describe("initCreateDeepseekMessage", () => {
 	it("should extract text from document content blocks", async () => {
 		const createChatCompletion = jest.fn().mockResolvedValue({
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
-			usage: { prompt_tokens: 60, completion_tokens: 15 },
+			usage: { prompt_tokens: 60, completion_tokens: 15, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 60 },
 		});
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
@@ -100,7 +105,7 @@ describe("initCreateDeepseekMessage", () => {
 	it("should join multiple document blocks with newline", async () => {
 		const createChatCompletion = jest.fn().mockResolvedValue({
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
-			usage: { prompt_tokens: 80, completion_tokens: 10 },
+			usage: { prompt_tokens: 80, completion_tokens: 10, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 80 },
 		});
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
@@ -139,7 +144,7 @@ describe("initCreateDeepseekMessage", () => {
 	it("should cap max_tokens to 8192", async () => {
 		const createChatCompletion = jest.fn().mockResolvedValue({
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
-			usage: { prompt_tokens: 10, completion_tokens: 5 },
+			usage: { prompt_tokens: 10, completion_tokens: 5, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 10 },
 		});
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
@@ -167,5 +172,23 @@ describe("initCreateDeepseekMessage", () => {
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
 		})).rejects.toThrow("DeepSeek response missing usage data");
+	});
+
+	it("should answer without a cache split when usage omits one, rather than failing the call", async () => {
+		const createChatCompletion = jest.fn().mockResolvedValue({
+			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
+			usage: { prompt_tokens: 10, completion_tokens: 5 },
+		});
+
+		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const result = await createMessage({
+			max_tokens: 100,
+			system: "system",
+			messages: [{ role: "user", content: "hello" }],
+		});
+
+		expect(result.usage.input_tokens).toBe(10);
+		expect(result.usage.cache_hit_input_tokens).toBeUndefined();
+		expect(result.usage.cache_miss_input_tokens).toBeUndefined();
 	});
 });

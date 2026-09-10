@@ -4,7 +4,12 @@ import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "./deepseek-model";
 
 type ChatCompletionResponse = {
 	choices: Array<{ message?: { content?: string | null } }>;
-	usage?: { prompt_tokens: number; completion_tokens: number } | null;
+	usage?: {
+		prompt_tokens: number;
+		completion_tokens: number;
+		prompt_cache_hit_tokens?: number;
+		prompt_cache_miss_tokens?: number;
+	} | null;
 };
 
 type CreateChatCompletion = (params: {
@@ -51,6 +56,8 @@ export function initCreateDeepseekMessage(deps: {
 			usage: {
 				input_tokens: response.usage.prompt_tokens,
 				output_tokens: response.usage.completion_tokens,
+				cache_hit_input_tokens: response.usage.prompt_cache_hit_tokens,
+				cache_miss_input_tokens: response.usage.prompt_cache_miss_tokens,
 			},
 		};
 	};

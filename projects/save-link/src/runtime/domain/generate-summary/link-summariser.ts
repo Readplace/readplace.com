@@ -38,6 +38,8 @@ export type SummarizeResult =
 			excerpt: string;
 			inputTokens: number;
 			outputTokens: number;
+			cacheHitInputTokens?: number;
+			cacheMissInputTokens?: number;
 		}
 	| { kind: "skipped"; reason: SummarySkipReason }
 	| { kind: "no-text-block" };
@@ -117,6 +119,8 @@ export function initLinkSummariser(deps: {
 			excerpt,
 			inputTokens: response.usage.input_tokens,
 			outputTokens: response.usage.output_tokens,
+			cacheHitInputTokens: response.usage.cache_hit_input_tokens,
+			cacheMissInputTokens: response.usage.cache_miss_input_tokens,
 		};
 	};
 

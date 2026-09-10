@@ -107,6 +107,8 @@ function createHandler(overrides: HandlerOverrides = {}) {
 						related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
 						inputTokens: 120,
 						outputTokens: 30,
+						cacheHitInputTokens: 80,
+						cacheMissInputTokens: 40,
 					};
 		},
 		markRelatedArticlesReady: async (params) => {
@@ -150,6 +152,48 @@ describe("initComputeRelatedArticlesHandler", () => {
 		]);
 	});
 
+	it("logs the cache hit/miss split of the input tokens the selection cost", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler } = createHandler({ logger });
+
+		await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", {
+			url: TARGET_URL,
+			relatedCount: 1,
+			inputTokens: 120,
+			outputTokens: 30,
+			cacheHitInputTokens: 80,
+			cacheMissInputTokens: 40,
+		});
+	});
+
+	it("still completes, logging an unknown split, when the selection carried no cache split", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, published } = createHandler({
+			logger,
+			selectRelatedArticles: async () => ({
+				kind: "ready",
+				related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
+				inputTokens: 120,
+				outputTokens: 30,
+			}),
+		});
+
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(published[0]?.relatedCount).toBe(1);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", {
+			url: TARGET_URL,
+			relatedCount: 1,
+			inputTokens: 120,
+			outputTokens: 30,
+			cacheHitInputTokens: "unknown",
+			cacheMissInputTokens: "unknown",
+		});
+	});
+
 	it("announces nothing when another computation had already settled the row", async () => {
 		const { handler, ready, published } = createHandler({ markOutcome: "superseded" });
 
@@ -183,6 +227,8 @@ describe("initComputeRelatedArticlesHandler", () => {
 				related: [],
 				inputTokens: 90,
 				outputTokens: 5,
+				cacheHitInputTokens: 60,
+				cacheMissInputTokens: 30,
 			}),
 		});
 

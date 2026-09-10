@@ -96,6 +96,8 @@ describe("summary recovery on canonical content change", () => {
 			excerpt: "A real generated excerpt.",
 			inputTokens: 100,
 			outputTokens: 40,
+			cacheHitInputTokens: 64,
+			cacheMissInputTokens: 36,
 		}));
 
 		let generateSummaryHandler: Handler<SQSEvent, SQSBatchResponse>;

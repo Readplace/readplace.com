@@ -17,6 +17,12 @@ export type SelectMostCompleteContent = (params: {
 
 type ChatCompletionResponse = {
 	choices: Array<{ message?: { content?: string | null } }>;
+	usage?: {
+		prompt_tokens: number;
+		completion_tokens: number;
+		prompt_cache_hit_tokens?: number;
+		prompt_cache_miss_tokens?: number;
+	} | null;
 };
 
 export type CreateSelectorChatCompletion = (params: {
@@ -97,6 +103,13 @@ export function initSelectMostCompleteContent(deps: {
 			});
 			return { winner: "tie", reason: "unknown winner label" };
 		}
+		logger.info("[SelectContent] completed", {
+			url: params.url,
+			inputTokens: response.usage?.prompt_tokens ?? "unknown",
+			outputTokens: response.usage?.completion_tokens ?? "unknown",
+			cacheHitInputTokens: response.usage?.prompt_cache_hit_tokens ?? "unknown",
+			cacheMissInputTokens: response.usage?.prompt_cache_miss_tokens ?? "unknown",
+		});
 		return { winner: params.candidates[winnerIndex].tier, reason: validated.data.reason };
 	};
 

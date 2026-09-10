@@ -7,7 +7,7 @@ describe("initCleanupPageWithDeepseek", () => {
 		const cleanup = initCleanupPageWithDeepseek({
 			createChatCompletion: async () => ({
 				choices: [{ message: { content: "Repository of the Reading Room." } }],
-				usage: { prompt_tokens: 120, completion_tokens: 30 },
+				usage: { prompt_tokens: 120, completion_tokens: 30, prompt_cache_hit_tokens: 90, prompt_cache_miss_tokens: 30 },
 			}),
 		});
 
@@ -19,7 +19,7 @@ describe("initCleanupPageWithDeepseek", () => {
 
 		expect(result).toEqual({
 			text: "Repository of the Reading Room.",
-			tokens: { input: 120, output: 30 },
+			tokens: { input: 120, output: 30, cacheHitInput: 90, cacheMissInput: 30 },
 		});
 	});
 
@@ -30,7 +30,7 @@ describe("initCleanupPageWithDeepseek", () => {
 				captured = params;
 				return {
 					choices: [{ message: { content: "x" } }],
-					usage: { prompt_tokens: 1, completion_tokens: 1 },
+					usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 				};
 			},
 		});
@@ -53,7 +53,7 @@ describe("initCleanupPageWithDeepseek", () => {
 				captured = params;
 				return {
 					choices: [{ message: { content: "x" } }],
-					usage: { prompt_tokens: 1, completion_tokens: 1 },
+					usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 				};
 			},
 		});
@@ -70,7 +70,7 @@ describe("initCleanupPageWithDeepseek", () => {
 				captured = params;
 				return {
 					choices: [{ message: { content: "x" } }],
-					usage: { prompt_tokens: 1, completion_tokens: 1 },
+					usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 				};
 			},
 		});
@@ -84,7 +84,7 @@ describe("initCleanupPageWithDeepseek", () => {
 		const cleanup = initCleanupPageWithDeepseek({
 			createChatCompletion: async () => ({
 				choices: [{ message: { content: null } }],
-				usage: { prompt_tokens: 1, completion_tokens: 1 },
+				usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 			}),
 		});
 
@@ -114,7 +114,7 @@ describe("initCleanupPageWithDeepseek", () => {
 		const cleanup = initCleanupPageWithDeepseek({
 			createChatCompletion: async () => ({
 				choices: [{ message: { content: "" } }],
-				usage: { prompt_tokens: 1, completion_tokens: 0 },
+				usage: { prompt_tokens: 1, completion_tokens: 0, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 			}),
 		});
 

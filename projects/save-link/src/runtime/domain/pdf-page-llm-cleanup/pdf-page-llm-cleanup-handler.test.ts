@@ -2,7 +2,10 @@ import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import { initPdfPageLlmCleanupHandler } from "./pdf-page-llm-cleanup-handler";
 import type { CleanupPageWithLlm } from "./pdf-page-llm-cleanup-handler.types";
 
-function stubLlm(text: string, tokens = { input: 100, output: 50 }): CleanupPageWithLlm {
+function stubLlm(
+	text: string,
+	tokens: Awaited<ReturnType<CleanupPageWithLlm>>["tokens"] = { input: 100, output: 50, cacheHitInput: 64, cacheMissInput: 36 },
+): CleanupPageWithLlm {
 	return async () => ({ text, tokens });
 }
 
@@ -30,6 +33,36 @@ describe("initPdfPageLlmCleanupHandler", () => {
 			applied: true,
 			tokens: { input: 100, output: 50 },
 		});
+	});
+
+	it("logs the cache hit/miss split of the input tokens it spent", async () => {
+		const { logger, messages } = capturingLogger();
+		const handler = initPdfPageLlmCleanupHandler({
+			cleanupPageWithLlm: stubLlm("Repository of the Reading Room."),
+			logger,
+		});
+
+		await handler({ pageIndex: 3, ocrText: "Vepository of the Reading Room." });
+
+		const applied = messages.find((m) => m.includes("] applied"));
+		expect(applied).toContain("inputTokens=100");
+		expect(applied).toContain("cacheHitInputTokens=64");
+		expect(applied).toContain("cacheMissInputTokens=36");
+	});
+
+	it("logs the cache split as unknown when the provider reports no split", async () => {
+		const { logger, messages } = capturingLogger();
+		const handler = initPdfPageLlmCleanupHandler({
+			cleanupPageWithLlm: stubLlm("Repository of the Reading Room.", { input: 100, output: 50 }),
+			logger,
+		});
+
+		await handler({ pageIndex: 3, ocrText: "Vepository of the Reading Room." });
+
+		const applied = messages.find((m) => m.includes("] applied"));
+		expect(applied).toContain("inputTokens=100");
+		expect(applied).toContain("cacheHitInputTokens=unknown");
+		expect(applied).toContain("cacheMissInputTokens=unknown");
 	});
 
 	it("returns the original text with applied=false when the model rewrites too much (length-delta)", async () => {
@@ -114,7 +147,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("short-circuits empty input without calling the LLM", async () => {
 		let calls = 0;
 		const handler = initPdfPageLlmCleanupHandler({
-			cleanupPageWithLlm: async () => { calls += 1; return { text: "anything", tokens: { input: 1, output: 1 } }; },
+			cleanupPageWithLlm: async () => { calls += 1; return { text: "anything", tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } }; },
 			logger: noopLogger,
 		});
 
@@ -127,7 +160,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("short-circuits whitespace-only input without calling the LLM", async () => {
 		let calls = 0;
 		const handler = initPdfPageLlmCleanupHandler({
-			cleanupPageWithLlm: async () => { calls += 1; return { text: "anything", tokens: { input: 1, output: 1 } }; },
+			cleanupPageWithLlm: async () => { calls += 1; return { text: "anything", tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } }; },
 			logger: noopLogger,
 		});
 
@@ -169,7 +202,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		const handler = initPdfPageLlmCleanupHandler({
 			cleanupPageWithLlm: async ({ userText, maxTokens }) => {
 				captured.push(maxTokens);
-				return { text: userText, tokens: { input: 1, output: 1 } };
+				return { text: userText, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
 			},
 			logger: noopLogger,
 		});
@@ -186,7 +219,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		const handler = initPdfPageLlmCleanupHandler({
 			cleanupPageWithLlm: async ({ userText, maxTokens }) => {
 				captured.push(maxTokens);
-				return { text: userText, tokens: { input: 1, output: 1 } };
+				return { text: userText, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
 			},
 			logger: noopLogger,
 		});
@@ -202,7 +235,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		const handler = initPdfPageLlmCleanupHandler({
 			cleanupPageWithLlm: async ({ systemPrompt, userText }) => {
 				captured = systemPrompt;
-				return { text: userText, tokens: { input: 1, output: 1 } };
+				return { text: userText, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
 			},
 			logger: noopLogger,
 		});

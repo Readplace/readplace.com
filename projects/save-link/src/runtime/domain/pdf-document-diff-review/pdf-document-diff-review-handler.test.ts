@@ -2,7 +2,10 @@ import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import { initPdfDocumentDiffReviewHandler } from "./pdf-document-diff-review-handler";
 import type { ReviewDocumentWithLlm } from "./pdf-document-diff-review-handler.types";
 
-function llmReturning(text: string, tokens = { input: 200, output: 100 }): ReviewDocumentWithLlm {
+function llmReturning(
+	text: string,
+	tokens: Awaited<ReturnType<ReviewDocumentWithLlm>>["tokens"] = { input: 200, output: 100, cacheHitInput: 128, cacheMissInput: 72 },
+): ReviewDocumentWithLlm {
 	return async () => ({ text, tokens });
 }
 
@@ -63,6 +66,43 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 
 		// Hargis vs Harris — stage 1 "corrected" Hargis to Harris, stage 2 rejects.
 		expect(result.pages[0].finalText).toBe("see Hargis");
+	});
+
+	it("logs the cache hit/miss split of the input tokens it spent", async () => {
+		const { logger, messages } = capturingLogger();
+		const handler = initPdfDocumentDiffReviewHandler({
+			reviewDocumentWithLlm: llmReturning(decisionsJson([{ diff_id: 1, decision: "APPROVE" }])),
+			logger,
+		});
+
+		await handler({
+			pages: [{ pageIndex: 0, originalText: "the Vepository here", cleanedText: "the Repository here" }],
+		});
+
+		const applied = messages.find((m) => m.includes("] applied="));
+		expect(applied).toContain("inputTokens=200");
+		expect(applied).toContain("cacheHitInputTokens=128");
+		expect(applied).toContain("cacheMissInputTokens=72");
+	});
+
+	it("logs the cache split as unknown when the provider reports no split", async () => {
+		const { logger, messages } = capturingLogger();
+		const handler = initPdfDocumentDiffReviewHandler({
+			reviewDocumentWithLlm: llmReturning(
+				decisionsJson([{ diff_id: 1, decision: "APPROVE" }]),
+				{ input: 200, output: 100 },
+			),
+			logger,
+		});
+
+		await handler({
+			pages: [{ pageIndex: 0, originalText: "the Vepository here", cleanedText: "the Repository here" }],
+		});
+
+		const applied = messages.find((m) => m.includes("] applied="));
+		expect(applied).toContain("inputTokens=200");
+		expect(applied).toContain("cacheHitInputTokens=unknown");
+		expect(applied).toContain("cacheMissInputTokens=unknown");
 	});
 
 	it("falls back to cleanedText when the model response is malformed JSON", async () => {
@@ -203,7 +243,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		const handler = initPdfDocumentDiffReviewHandler({
 			reviewDocumentWithLlm: async ({ userMessage }) => {
 				capturedMessage = userMessage;
-				return { text: decisionsJson([]), tokens: { input: 1, output: 1 } };
+				return { text: decisionsJson([]), tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
 			},
 			logger: noopLogger,
 		});
@@ -235,7 +275,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		const handler = initPdfDocumentDiffReviewHandler({
 			reviewDocumentWithLlm: async () => {
 				calls.push(1);
-				return { text: decisionsJson([]), tokens: { input: 1000, output: 200 } };
+				return { text: decisionsJson([]), tokens: { input: 1000, output: 200, cacheHitInput: 640, cacheMissInput: 360 } };
 			},
 			logger: noopLogger,
 		});
@@ -258,12 +298,44 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		expect(result.tokens?.output).toBe(200 * calls.length);
 	});
 
+	it("reports the document-wide cache split as unknown when only some calls reported one", async () => {
+		let call = 0;
+		const { logger, messages } = capturingLogger();
+		const handler = initPdfDocumentDiffReviewHandler({
+			reviewDocumentWithLlm: async () => {
+				call += 1;
+				const tokens = call === 1
+					? { input: 1000, output: 200 }
+					: { input: 1000, output: 200, cacheHitInput: 640, cacheMissInput: 360 };
+				return { text: decisionsJson([]), tokens };
+			},
+			logger,
+		});
+
+		const wordsPerPage = 30_000;
+		const originalText = Array.from({ length: wordsPerPage }, (_, i) => `word${i}`).join(" ");
+		const cleanedText = originalText.replace("word0 ", "WORD0 ");
+		const result = await handler({
+			pages: [
+				{ pageIndex: 0, originalText, cleanedText },
+				{ pageIndex: 1, originalText, cleanedText },
+				{ pageIndex: 2, originalText, cleanedText },
+			],
+		});
+
+		expect(call).toBeGreaterThan(1);
+		expect(result.tokens?.input).toBe(1000 * call);
+		const applied = messages.find((m) => m.includes("] applied="));
+		expect(applied).toContain("cacheHitInputTokens=unknown");
+		expect(applied).toContain("cacheMissInputTokens=unknown");
+	});
+
 	it("emits a single chunk containing an oversize page rather than dropping it", async () => {
 		let chunkCount = 0;
 		const handler = initPdfDocumentDiffReviewHandler({
 			reviewDocumentWithLlm: async () => {
 				chunkCount += 1;
-				return { text: decisionsJson([]), tokens: { input: 1, output: 1 } };
+				return { text: decisionsJson([]), tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
 			},
 			logger: noopLogger,
 		});

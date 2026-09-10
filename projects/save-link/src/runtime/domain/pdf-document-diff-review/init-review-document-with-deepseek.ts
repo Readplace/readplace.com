@@ -4,7 +4,12 @@ import type { ReviewDocumentWithLlm } from "./pdf-document-diff-review-handler.t
 
 type ChatCompletionResponse = {
 	choices: Array<{ message?: { content?: string | null } }>;
-	usage?: { prompt_tokens: number; completion_tokens: number } | null;
+	usage?: {
+		prompt_tokens: number;
+		completion_tokens: number;
+		prompt_cache_hit_tokens?: number;
+		prompt_cache_miss_tokens?: number;
+	} | null;
 };
 
 type CreateChatCompletion = (params: {
@@ -48,6 +53,8 @@ export function initReviewDocumentWithDeepseek(deps: {
 			tokens: {
 				input: response.usage.prompt_tokens,
 				output: response.usage.completion_tokens,
+				cacheHitInput: response.usage.prompt_cache_hit_tokens,
+				cacheMissInput: response.usage.prompt_cache_miss_tokens,
 			},
 		};
 	};

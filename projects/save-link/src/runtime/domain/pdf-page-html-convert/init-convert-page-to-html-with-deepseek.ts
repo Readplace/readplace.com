@@ -4,7 +4,12 @@ import type { ConvertPageToHtmlWithLlm } from "./pdf-page-html-convert-handler.t
 
 type ChatCompletionResponse = {
 	choices: Array<{ message?: { content?: string | null } }>;
-	usage?: { prompt_tokens: number; completion_tokens: number } | null;
+	usage?: {
+		prompt_tokens: number;
+		completion_tokens: number;
+		prompt_cache_hit_tokens?: number;
+		prompt_cache_miss_tokens?: number;
+	} | null;
 };
 
 type CreateChatCompletion = (params: {
@@ -51,6 +56,8 @@ export function initConvertPageToHtmlWithDeepseek(deps: {
 			tokens: {
 				input: response.usage.prompt_tokens,
 				output: response.usage.completion_tokens,
+				cacheHitInput: response.usage.prompt_cache_hit_tokens,
+				cacheMissInput: response.usage.prompt_cache_miss_tokens,
 			},
 		};
 	};

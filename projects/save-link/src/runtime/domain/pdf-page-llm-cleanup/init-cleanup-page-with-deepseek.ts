@@ -4,7 +4,12 @@ import type { CleanupPageWithLlm } from "./pdf-page-llm-cleanup-handler.types";
 
 type ChatCompletionResponse = {
 	choices: Array<{ message?: { content?: string | null } }>;
-	usage?: { prompt_tokens: number; completion_tokens: number } | null;
+	usage?: {
+		prompt_tokens: number;
+		completion_tokens: number;
+		prompt_cache_hit_tokens?: number;
+		prompt_cache_miss_tokens?: number;
+	} | null;
 };
 
 type CreateChatCompletion = (params: {
@@ -53,6 +58,8 @@ export function initCleanupPageWithDeepseek(deps: {
 			tokens: {
 				input: response.usage.prompt_tokens,
 				output: response.usage.completion_tokens,
+				cacheHitInput: response.usage.prompt_cache_hit_tokens,
+				cacheMissInput: response.usage.prompt_cache_miss_tokens,
 			},
 		};
 	};

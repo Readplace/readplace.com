@@ -103,6 +103,8 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 						url: command.url,
 						inputTokens: result.inputTokens,
 						outputTokens: result.outputTokens,
+						cacheHitInputTokens: result.cacheHitInputTokens ?? "unknown",
+						cacheMissInputTokens: result.cacheMissInputTokens ?? "unknown",
 					});
 					continue;
 				}

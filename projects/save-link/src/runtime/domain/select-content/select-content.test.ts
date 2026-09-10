@@ -2,7 +2,15 @@ import { noopLogger } from "@packages/hutch-logger";
 import { initSelectMostCompleteContent, type CreateSelectorChatCompletion } from "./select-content";
 
 function fakeChat(content: string | null | undefined): CreateSelectorChatCompletion {
-	return jest.fn().mockResolvedValue({ choices: [{ message: { content } }] });
+	return jest.fn().mockResolvedValue({
+		choices: [{ message: { content } }],
+		usage: {
+			prompt_tokens: 900,
+			completion_tokens: 40,
+			prompt_cache_hit_tokens: 768,
+			prompt_cache_miss_tokens: 132,
+		},
+	});
 }
 
 describe("initSelectMostCompleteContent (variadic)", () => {
@@ -21,6 +29,85 @@ describe("initSelectMostCompleteContent (variadic)", () => {
 		});
 
 		expect(result).toEqual({ winner: "tier-0", reason: "tier-0 is more complete" });
+	});
+
+	it("logs the token counts and the cache hit/miss split of the winning call", async () => {
+		const info = jest.fn();
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({
+			createChatCompletion: fakeChat(JSON.stringify({ winner: "A", reason: "tier-0 is more complete" })),
+			logger: { ...noopLogger, info },
+		});
+
+		await selectMostCompleteContent({
+			url: "https://example.com/a",
+			candidates: [
+				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
+				{ tier: "tier-1", title: "T", wordCount: 50, html: "<p>tier-1</p>" },
+			],
+		});
+
+		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
+			url: "https://example.com/a",
+			inputTokens: 900,
+			outputTokens: 40,
+			cacheHitInputTokens: 768,
+			cacheMissInputTokens: 132,
+		});
+	});
+
+	it("still picks a winner, logging an unknown split, when the provider reports no cache split", async () => {
+		const info = jest.fn();
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({
+			createChatCompletion: async () => ({
+				choices: [{ message: { content: JSON.stringify({ winner: "A", reason: "tier-0 is more complete" }) } }],
+				usage: { prompt_tokens: 900, completion_tokens: 40 },
+			}),
+			logger: { ...noopLogger, info },
+		});
+
+		const result = await selectMostCompleteContent({
+			url: "https://example.com/a",
+			candidates: [
+				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
+				{ tier: "tier-1", title: "T", wordCount: 50, html: "<p>tier-1</p>" },
+			],
+		});
+
+		expect(result).toEqual({ winner: "tier-0", reason: "tier-0 is more complete" });
+		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
+			url: "https://example.com/a",
+			inputTokens: 900,
+			outputTokens: 40,
+			cacheHitInputTokens: "unknown",
+			cacheMissInputTokens: "unknown",
+		});
+	});
+
+	it("still picks a winner, logging unknown counts, when the provider reports no usage at all", async () => {
+		const info = jest.fn();
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({
+			createChatCompletion: async () => ({
+				choices: [{ message: { content: JSON.stringify({ winner: "A", reason: "tier-0 is more complete" }) } }],
+			}),
+			logger: { ...noopLogger, info },
+		});
+
+		const result = await selectMostCompleteContent({
+			url: "https://example.com/a",
+			candidates: [
+				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
+				{ tier: "tier-1", title: "T", wordCount: 50, html: "<p>tier-1</p>" },
+			],
+		});
+
+		expect(result).toEqual({ winner: "tier-0", reason: "tier-0 is more complete" });
+		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
+			url: "https://example.com/a",
+			inputTokens: "unknown",
+			outputTokens: "unknown",
+			cacheHitInputTokens: "unknown",
+			cacheMissInputTokens: "unknown",
+		});
 	});
 
 	it("calls deepseek-v4-flash in non-thinking JSON mode", async () => {

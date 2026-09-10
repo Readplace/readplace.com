@@ -80,6 +80,8 @@ export function initPdfDocumentDiffReviewHandler(deps: {
 		const allDecisions: DiffDecision[] = [];
 		let totalInputTokens = 0;
 		let totalOutputTokens = 0;
+		let totalCacheHitInputTokens: number | undefined = 0;
+		let totalCacheMissInputTokens: number | undefined = 0;
 		for (const chunk of chunks) {
 			const userMessage = buildUserMessage({ allPages: input.pages, chunk });
 			try {
@@ -96,6 +98,8 @@ export function initPdfDocumentDiffReviewHandler(deps: {
 				allDecisions.push(...parsed);
 				totalInputTokens += result.tokens.input;
 				totalOutputTokens += result.tokens.output;
+				totalCacheHitInputTokens = sumTokens(totalCacheHitInputTokens, result.tokens.cacheHitInput);
+				totalCacheMissInputTokens = sumTokens(totalCacheMissInputTokens, result.tokens.cacheMissInput);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				const statusTag = httpStatusTag(error);
@@ -127,13 +131,19 @@ export function initPdfDocumentDiffReviewHandler(deps: {
 			return fallbackToCleanedText(input);
 		}
 
-		logger.info(`[pdf-document-diff-review] applied=${log.applied} modified=${log.modified} rejected=${log.rejected} newApplied=${log.newApplied} skipped=${log.skippedReasons.length} inputTokens=${totalInputTokens} outputTokens=${totalOutputTokens} dt=${Date.now() - t0}ms`);
+		logger.info(`[pdf-document-diff-review] applied=${log.applied} modified=${log.modified} rejected=${log.rejected} newApplied=${log.newApplied} skipped=${log.skippedReasons.length} inputTokens=${totalInputTokens} outputTokens=${totalOutputTokens} cacheHitInputTokens=${totalCacheHitInputTokens ?? "unknown"} cacheMissInputTokens=${totalCacheMissInputTokens ?? "unknown"} dt=${Date.now() - t0}ms`);
 		return {
 			pages: finalPages,
 			applied: true,
 			tokens: { input: totalInputTokens, output: totalOutputTokens },
 		};
 	};
+}
+
+function sumTokens(total: number | undefined, value: number | undefined): number | undefined {
+	if (total === undefined) return undefined;
+	if (value === undefined) return undefined;
+	return total + value;
 }
 
 function fallbackToCleanedText(input: PdfDocumentDiffReviewInput): PdfDocumentDiffReviewOutput {

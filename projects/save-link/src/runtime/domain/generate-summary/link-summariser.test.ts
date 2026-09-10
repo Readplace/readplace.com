@@ -7,7 +7,7 @@ import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summar
 function createStubCreateMessage(payload: { summary: string; excerpt?: string }): CreateAiMessage {
 	return async () => ({
 		content: [{ type: "text", text: JSON.stringify(payload) }],
-		usage: { input_tokens: 50, output_tokens: 10 },
+		usage: { input_tokens: 50, output_tokens: 10, cache_hit_input_tokens: 32, cache_miss_input_tokens: 18 },
 	});
 }
 
@@ -40,6 +40,8 @@ describe("initLinkSummariser", () => {
 			excerpt: "Quick blurb.",
 			inputTokens: 50,
 			outputTokens: 10,
+			cacheHitInputTokens: 32,
+			cacheMissInputTokens: 18,
 		});
 	});
 
@@ -88,7 +90,7 @@ describe("initLinkSummariser", () => {
 	it("returns kind 'no-text-block' when the response has no text block", async () => {
 		const createMessage: CreateAiMessage = async () => ({
 			content: [{ type: "tool_use" }],
-			usage: { input_tokens: 50, output_tokens: 10 },
+			usage: { input_tokens: 50, output_tokens: 10, cache_hit_input_tokens: 32, cache_miss_input_tokens: 18 },
 		});
 
 		const { summarizeArticle } = initLinkSummariser({
@@ -220,6 +222,8 @@ describe("initLinkSummariser", () => {
 			excerpt: "A good summary.",
 			inputTokens: 50,
 			outputTokens: 10,
+			cacheHitInputTokens: 32,
+			cacheMissInputTokens: 18,
 		});
 		expect(info).toHaveBeenCalledWith(
 			"[summarize] no excerpt in response, deriving one from the summary",
@@ -336,7 +340,7 @@ describe("initLinkSummariser", () => {
 	it("passes article content as a document block to createMessage", async () => {
 		const createMessage = jest.fn().mockResolvedValue({
 			content: [{ type: "text", text: JSON.stringify({ summary: "A summary.", excerpt: "Blurb." }) }],
-			usage: { input_tokens: 50, output_tokens: 10 },
+			usage: { input_tokens: 50, output_tokens: 10, cache_hit_input_tokens: 32, cache_miss_input_tokens: 18 },
 		});
 
 		const { summarizeArticle } = initLinkSummariser({

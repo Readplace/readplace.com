@@ -42,6 +42,8 @@ export type SelectRelatedResult =
 			related: RelatedArticleLink[];
 			inputTokens: number;
 			outputTokens: number;
+			cacheHitInputTokens?: number;
+			cacheMissInputTokens?: number;
 		}
 	| { kind: "no-text-block" }
 	| { kind: "shared-boilerplate" };
@@ -193,6 +195,8 @@ export function initSelectRelatedArticles(deps: {
 			}),
 			inputTokens: response.usage.input_tokens,
 			outputTokens: response.usage.output_tokens,
+			cacheHitInputTokens: response.usage.cache_hit_input_tokens,
+			cacheMissInputTokens: response.usage.cache_miss_input_tokens,
 		};
 	};
 

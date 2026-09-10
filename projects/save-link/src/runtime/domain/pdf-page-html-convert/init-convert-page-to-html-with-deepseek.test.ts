@@ -7,7 +7,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 		const convert = initConvertPageToHtmlWithDeepseek({
 			createChatCompletion: async () => ({
 				choices: [{ message: { content: "<h2>Title</h2><p>body</p>" } }],
-				usage: { prompt_tokens: 200, completion_tokens: 60 },
+				usage: { prompt_tokens: 200, completion_tokens: 60, prompt_cache_hit_tokens: 150, prompt_cache_miss_tokens: 50 },
 			}),
 		});
 
@@ -19,7 +19,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 
 		expect(result).toEqual({
 			text: "<h2>Title</h2><p>body</p>",
-			tokens: { input: 200, output: 60 },
+			tokens: { input: 200, output: 60, cacheHitInput: 150, cacheMissInput: 50 },
 		});
 	});
 
@@ -28,7 +28,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 		const convert = initConvertPageToHtmlWithDeepseek({
 			createChatCompletion: async (params) => {
 				captured = params;
-				return { choices: [{ message: { content: "<p>x</p>" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } };
+				return { choices: [{ message: { content: "<p>x</p>" } }], usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 } };
 			},
 		});
 
@@ -45,7 +45,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 		const convert = initConvertPageToHtmlWithDeepseek({
 			createChatCompletion: async (params) => {
 				captured = params;
-				return { choices: [{ message: { content: "<p>x</p>" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } };
+				return { choices: [{ message: { content: "<p>x</p>" } }], usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 } };
 			},
 		});
 
@@ -59,7 +59,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 		const convert = initConvertPageToHtmlWithDeepseek({
 			createChatCompletion: async (params) => {
 				captured = params;
-				return { choices: [{ message: { content: "<p>x</p>" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } };
+				return { choices: [{ message: { content: "<p>x</p>" } }], usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 } };
 			},
 		});
 
@@ -72,7 +72,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 		const convert = initConvertPageToHtmlWithDeepseek({
 			createChatCompletion: async () => ({
 				choices: [{ message: { content: null } }],
-				usage: { prompt_tokens: 1, completion_tokens: 1 },
+				usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 			}),
 		});
 
@@ -97,7 +97,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 		const convert = initConvertPageToHtmlWithDeepseek({
 			createChatCompletion: async () => ({
 				choices: [{ message: { content: "" } }],
-				usage: { prompt_tokens: 1, completion_tokens: 0 },
+				usage: { prompt_tokens: 1, completion_tokens: 0, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 },
 			}),
 		});
 		const result = await convert({ systemPrompt: "s", userText: "u", maxTokens: 256 });
