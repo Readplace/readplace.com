@@ -2408,16 +2408,20 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	/// A three-page readlist.
-	private func threePageHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
+	private func threePageHandler(
+		holdingPage3Until gate: DispatchSemaphore? = nil
+	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
 		return { request, _ in
 			let url = request.url
 			switch (url?.path, url?.query) {
 			case ("/", _):
 				return .redirect(to: "/queue")
 			case ("/queue", let query) where query?.contains("page=3") == true:
-				return .json(200, Fixtures.collection(
+				let page3 = StubURLProtocol.Stub.json(200, Fixtures.collection(
 					entitiesJSON: [Fixtures.article(id: "a5"), Fixtures.article(id: "a6")], page: 3
 				))
+				guard let gate else { return page3 }
+				return page3.held(until: gate)
 			case ("/queue", let query) where query?.contains("page=2") == true:
 				return .json(200, Fixtures.collection(
 					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")],
@@ -2440,7 +2444,8 @@ final class ReadingListViewModelTests: XCTestCase {
 		// let the stale append land on top of the fresh first page — a gap where
 		// the boundary row was and a cursor pointing past rows never shown. The
 		// reset waits for the next return instead, and the marker survives for it.
-		StubURLProtocol.setHandler(threePageHandler())
+		let page3Held = DispatchSemaphore(value: 0)
+		StubURLProtocol.setHandler(threePageHandler(holdingPage3Until: page3Held))
 		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), unseenSave: unseenSave)
 		await viewModel.refresh()
@@ -2448,12 +2453,12 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
 		unseenSave.record()
 
-		// Both run on the main actor: `loadMore` marks itself in flight before its
-		// first suspension, so the foreground that follows finds it under way.
-		async let pageLoad: Void = viewModel.loadMore()
-		async let foreground: Void = viewModel.handleForeground()
-		await pageLoad
-		await foreground
+		let requestsBefore = StubURLProtocol.records.count
+		let pageLoad = Task { await viewModel.loadMore() }
+		await awaitRecordedRequests(requestsBefore + 1)
+		await viewModel.handleForeground()
+		page3Held.signal()
+		await pageLoad.value
 
 		let firstPageGETs = StubURLProtocol.records(path: "/queue").filter { $0.request.url?.query == nil }.count
 		XCTAssertEqual(firstPageGETs, 1, "the setup read is the only first-page read; the foreground stepped aside")
