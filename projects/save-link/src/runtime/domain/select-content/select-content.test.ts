@@ -31,7 +31,7 @@ describe("initSelectMostCompleteContent (variadic)", () => {
 		expect(result).toEqual({ winner: "tier-0", reason: "tier-0 is more complete" });
 	});
 
-	it("logs the token counts and the cache hit/miss split of the winning call", async () => {
+	it("logs the token counts and the cache hit/miss split of a call that picked a winner", async () => {
 		const info = jest.fn();
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
 			createChatCompletion: fakeChat(JSON.stringify({ winner: "A", reason: "tier-0 is more complete" })),
@@ -53,6 +53,51 @@ describe("initSelectMostCompleteContent (variadic)", () => {
 			cacheHitInputTokens: 768,
 			cacheMissInputTokens: 132,
 		});
+	});
+
+	it("logs the token counts of a call the model answered with a tie", async () => {
+		const info = jest.fn();
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({
+			createChatCompletion: fakeChat(JSON.stringify({ winner: "tie", reason: "equally good" })),
+			logger: { ...noopLogger, info },
+		});
+
+		const result = await selectMostCompleteContent({
+			url: "https://example.com/a",
+			candidates: [
+				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
+				{ tier: "tier-1", title: "T", wordCount: 100, html: "<p>tier-1</p>" },
+			],
+		});
+
+		expect(result).toEqual({ winner: "tie", reason: "equally good" });
+		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
+			url: "https://example.com/a",
+			inputTokens: 900,
+			outputTokens: 40,
+			cacheHitInputTokens: 768,
+			cacheMissInputTokens: 132,
+		});
+	});
+
+	it("logs no token counts when the provider rejected the request and no completion was billed", async () => {
+		const info = jest.fn();
+		const rejection = Object.assign(new Error("400 bad request"), { status: 400 });
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({
+			createChatCompletion: jest.fn().mockRejectedValue(rejection),
+			logger: { ...noopLogger, info },
+		});
+
+		const result = await selectMostCompleteContent({
+			url: "https://example.com/a",
+			candidates: [
+				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
+				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
+			],
+		});
+
+		expect(result).toEqual({ winner: "tie", reason: "provider rejected request" });
+		expect(info).not.toHaveBeenCalledWith("[SelectContent] completed", expect.anything());
 	});
 
 	it("still picks a winner, logging an unknown split, when the provider reports no cache split", async () => {
@@ -110,7 +155,7 @@ describe("initSelectMostCompleteContent (variadic)", () => {
 		});
 	});
 
-	it("calls deepseek-v4-flash in non-thinking JSON mode", async () => {
+	it("calls deepseek-flash in non-thinking JSON mode", async () => {
 		let captured: Parameters<CreateSelectorChatCompletion>[0] | undefined;
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
 			createChatCompletion: async (params) => {
@@ -128,7 +173,7 @@ describe("initSelectMostCompleteContent (variadic)", () => {
 			],
 		});
 
-		expect(captured?.model).toBe("deepseek-v4-flash");
+		expect(captured?.model).toBe("deepseek-flash");
 		expect(captured?.thinking).toEqual({ type: "disabled" });
 		expect(captured?.response_format).toEqual({ type: "json_object" });
 	});

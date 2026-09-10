@@ -1,4 +1,4 @@
-export const DEEPSEEK_MODEL = "deepseek-v4-flash";
+export const DEEPSEEK_MODEL = "deepseek-flash";
 
 // deepseek-v4-flash defaults to thinking mode; the summariser, triage, and OCR
 // flows need the non-thinking path deepseek-chat used — thinking mode bills the

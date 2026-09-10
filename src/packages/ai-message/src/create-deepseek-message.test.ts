@@ -19,7 +19,7 @@ describe("initCreateDeepseekMessage", () => {
 		});
 
 		expect(createChatCompletion).toHaveBeenCalledWith({
-			model: "deepseek-v4-flash",
+			model: "deepseek-flash",
 			thinking: { type: "disabled" },
 			max_tokens: 1024,
 			response_format: { type: "json_object" },
