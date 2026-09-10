@@ -12,7 +12,7 @@ import {
 	GMAIL_SENDER_ADD_PATH,
 	GMAIL_SENDER_MAP_PATH,
 	GMAIL_SENDER_REMOVE_PATH,
-	buildGmailSettingsUrl,
+	buildGmailMailboxUrl,
 	type GmailPageError,
 	type GmailPageNotice,
 } from "./gmail.url";
@@ -42,7 +42,7 @@ export interface GmailPageViewModel {
 	statusLabel: string;
 	integrationsPath: string;
 	gatewayAddress: string;
-	settingsUrl: string;
+	mailboxUrl: string;
 	addSenderAction: string;
 	disconnectAction: string;
 	reconnectAction: string;
@@ -152,7 +152,7 @@ export function toGmailPageViewModel(input: {
 		statusLabel: STATUS_LABELS[state],
 		integrationsPath: track(INTEGRATIONS_PATH, "back-to-integrations"),
 		gatewayAddress: input.connection.gatewayAddress,
-		settingsUrl: buildGmailSettingsUrl(input.connection.accountEmail),
+		mailboxUrl: buildGmailMailboxUrl(input.connection.accountEmail),
 		addSenderAction: track(GMAIL_SENDER_ADD_PATH, "add-sender"),
 		disconnectAction: track(GMAIL_DISCONNECT_PATH, "disconnect"),
 		reconnectAction: track(GMAIL_CONNECT_PATH, "reconnect"),

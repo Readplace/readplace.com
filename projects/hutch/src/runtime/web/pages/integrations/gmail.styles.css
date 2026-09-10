@@ -101,6 +101,19 @@
   margin-bottom: 16px;
 }
 
+.gmail__step-list {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  text-wrap: pretty;
+  color: var(--muted-foreground);
+}
+
+.gmail__step-list li + li {
+  margin-top: 4px;
+}
+
 .gmail__copy-field {
   display: flex;
   align-items: center;

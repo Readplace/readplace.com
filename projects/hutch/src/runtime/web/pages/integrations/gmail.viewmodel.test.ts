@@ -66,23 +66,20 @@ describe("toGmailPageViewModel", () => {
 		assert.equal(vm.integrationsPath, "/integrations?utm_source=integrations-gmail&utm_medium=internal&utm_content=back-to-integrations");
 	});
 
-	it("points the settings link at the connected mailbox", () => {
+	it("points the Gmail link at the connected mailbox", () => {
 		const vm = toGmailPageViewModel({
 			gatewayLive: true,
 			connection: connection({ accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") }),
 			senders: [],
 		});
 
-		assert.equal(
-			vm.settingsUrl,
-			"https://mail.google.com/mail/u/0/?authuser=reader%40gmail.com#settings/fwdandpop",
-		);
+		assert.equal(vm.mailboxUrl, "https://mail.google.com/mail/u/0/?authuser=reader%40gmail.com");
 	});
 
 	it("falls back to the first signed-in account when no mailbox was captured", () => {
 		const vm = toGmailPageViewModel({ gatewayLive: true, connection: connection(), senders: [] });
 
-		assert.equal(vm.settingsUrl, "https://mail.google.com/mail/u/0/#settings/fwdandpop");
+		assert.equal(vm.mailboxUrl, "https://mail.google.com/mail/u/0/");
 	});
 
 	it("shows the sender list once the address is confirmed", () => {

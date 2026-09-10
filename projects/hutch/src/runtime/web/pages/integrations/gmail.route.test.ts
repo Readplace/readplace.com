@@ -242,7 +242,23 @@ describe("GET /integrations/gmail", () => {
 		expect(response.text).toContain("/client-dist/integrations.client.js");
 	});
 
-	it("points Open Gmail settings at the connected mailbox", async () => {
+	it("walks the reader to the forwarding pane through Gmail's own menus", async () => {
+		const { agent } = await connectedAgent({ confirmed: false });
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const steps = Array.from(doc.querySelectorAll("[data-test-gmail-steps] li")).map((step) =>
+			step.textContent?.replace(/\s+/g, " ").trim(),
+		);
+		expect(steps).toEqual([
+			"Open Gmail and click the gear icon",
+			"Choose See all settings",
+			"Open Forwarding and POP/IMAP",
+			"Click Add a forwarding address, paste the address below, then Next and Proceed",
+		]);
+	});
+
+	it("points Open Gmail at the connected mailbox", async () => {
 		const { agent, gmail, userId } = await connectedAgent({ confirmed: false });
 		await gmail.bundle.gmailConnectionStore.recordAccountEmail({
 			userId,
@@ -251,25 +267,22 @@ describe("GET /integrations/gmail", () => {
 
 		const doc = load((await agent.get(GMAIL)).text);
 
-		const link = doc.querySelector("[data-test-gmail-open-settings]");
-		assert(link, "step 2 offers a link into Gmail settings");
+		const link = doc.querySelector("[data-test-gmail-open]");
+		assert(link, "step 2 offers a link into Gmail");
 		assert.equal(
 			link.getAttribute("href"),
-			"https://mail.google.com/mail/u/0/?authuser=reader%40gmail.com#settings/fwdandpop",
+			"https://mail.google.com/mail/u/0/?authuser=reader%40gmail.com",
 		);
 	});
 
-	it("keeps the first-account settings link when no mailbox was captured", async () => {
+	it("keeps the first-account Gmail link when no mailbox was captured", async () => {
 		const { agent } = await connectedAgent({ confirmed: false });
 
 		const doc = load((await agent.get(GMAIL)).text);
 
-		const link = doc.querySelector("[data-test-gmail-open-settings]");
-		assert(link, "step 2 offers a link into Gmail settings");
-		assert.equal(
-			link.getAttribute("href"),
-			"https://mail.google.com/mail/u/0/#settings/fwdandpop",
-		);
+		const link = doc.querySelector("[data-test-gmail-open]");
+		assert(link, "step 2 offers a link into Gmail");
+		assert.equal(link.getAttribute("href"), "https://mail.google.com/mail/u/0/");
 	});
 
 	it("serves only the awaiting content to a markdown reader while awaiting", async () => {
