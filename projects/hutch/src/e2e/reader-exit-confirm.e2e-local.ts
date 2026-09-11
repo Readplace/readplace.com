@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { readScrollY, recordScrollAfterMainSwap } from "./readlist-reader-skeleton.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 
@@ -81,7 +82,7 @@ async function seedPlainArticle(
 test.describe("Next Read asks before it moves the reader on, inside the app", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 390, height: 844 } });
 
-	test("confirming marks the source read, stays in the sheet, and tells the app", async ({
+	test("confirming opens the next article at the top without animation, marks the source read, and tells the app", async ({
 		page,
 	}, testInfo) => {
 		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
@@ -134,12 +135,15 @@ test.describe("Next Read asks before it moves the reader on, inside the app", ()
 
 		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 		await page.waitForSelector(OPEN_CARD);
+		expect(await page.evaluate(readScrollY)).toBeGreaterThan(0);
+		await page.evaluate(recordScrollAfterMainSwap);
 		await page.locator(CARD_LINK).click();
 
 		await expect(page.locator(PANEL)).toBeVisible();
 		await page.locator('[data-test-action="exit-confirm-yes"]').click();
 
 		await expect(page.locator(".article-body__title")).toHaveText("The Suggested Article");
+		await expect(page.locator("html")).toHaveAttribute("data-test-scroll-after-main-swap", "0");
 		expect(
 			await page.evaluate(
 				() =>

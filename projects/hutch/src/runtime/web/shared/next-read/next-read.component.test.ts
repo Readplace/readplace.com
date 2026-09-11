@@ -384,7 +384,7 @@ describe("renderNextRead", () => {
 		}).toEqual({ type: "submit", label: "Dismiss suggestion", icon: true });
 	});
 
-	it("boosts the suggestion so it navigates like the rest of the reader", () => {
+	it("boosts the suggestion so the next article lands at the top without animation", () => {
 		const doc = parse(readyWith([FIRST]));
 
 		const link = doc.querySelector("[data-test-related-item]");
@@ -398,7 +398,7 @@ describe("renderNextRead", () => {
 			boost: "true",
 			target: "main",
 			select: "main",
-			swap: "outerHTML show:none",
+			swap: "outerHTML show:none scroll:html:top",
 		});
 	});
 
