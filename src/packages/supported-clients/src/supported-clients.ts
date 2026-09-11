@@ -160,7 +160,7 @@ export const SUPPORTED_CLIENTS = [
 		name: "claude",
 		displayName: "Claude",
 		group: "aiAssistant",
-		description: "Saves and reads your list from Claude via the MCP connector.",
+		description: "Installs from Claude's connector directory, which connects through the same MCP server.",
 		install: {
 			kind: "mcpConnector",
 			serverUrl: "https://readplace.com/mcp",

@@ -313,7 +313,7 @@ const PANEL_DATA = {
 		intro:
 			"Readplace is listed in Claude's connector directory. Add it in one click and Claude can save pages to your readlist and read your list back — the same MCP server, with no connector to configure.",
 		promptLabel: "Or just ask Claude",
-		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
+		prompt: "Connect to readplace.com so you can save pages to and read my reading list.",
 		requirement:
 			"You sign in to Readplace once when you add the connector. The server URL above still works if you would rather add it as a custom connector yourself.",
 	},

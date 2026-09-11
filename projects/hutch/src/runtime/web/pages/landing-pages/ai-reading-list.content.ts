@@ -59,7 +59,6 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		"Claude connects from its listing in the connector directory, so there is nothing to paste. ChatGPT installs the official Readplace plugin, so there is no connector to configure. Gemini connects free through the CLI; the Gemini app needs a Google AI Ultra subscription.",
 		"A summary is a summary. Pulling a TL;DR is not the same as having read the piece.",
 		"A link saved through the assistant starts as a placeholder and fills in as the crawler works, so the reader view is not there the instant it is saved.",
-		"I wrote the connection steps for each assistant by hand. When they change their menus, the steps can drift.",
 	],
 	faq: [
 		{

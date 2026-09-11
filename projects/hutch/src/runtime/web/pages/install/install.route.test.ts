@@ -473,7 +473,7 @@ describe("GET /install", () => {
 			'[data-test-section="ai-prompt"] .install-page__prompt-text',
 		);
 		expect(prompt?.textContent).toBe(
-			"Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
+			"Connect to readplace.com so you can save pages to and read my reading list.",
 		);
 
 		const copyButtons = Array.from(doc.querySelectorAll("[data-install-copy]"));
