@@ -45,19 +45,20 @@ final class ShareArtifactsTests: XCTestCase {
 	}
 
 	func testForgettingReaderChoicesTakesTheShareTargetAndTheLastViewedReadlist() throws {
-		let group = "test.\(UUID().uuidString)"
-		let defaults = try XCTUnwrap(
-			UserDefaults(suiteName: group),
-			"the App Group a sign-out clears must resolve to a defaults suite"
+		let group = TokenStore.resolvedAppGroupId
+		let container = try XCTUnwrap(
+			AppGroupContainer.entitled(appGroupId: group),
+			"the App Group a sign-out clears must resolve to a container"
 		)
-		defer { defaults.removePersistentDomain(forName: group) }
-		ShareTarget(defaults: defaults).record(hrefs: ["/queue?queue=work"])
+		let defaults = try XCTUnwrap(UserDefaults(suiteName: group))
+		defer { ShareArtifacts.forgetReaderChoices(appGroupId: group) }
+		ShareTarget(container: container).record(hrefs: ["/queue?queue=work"])
 		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
 
 		ShareArtifacts.forgetReaderChoices(appGroupId: group)
 
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, [],
+			ShareTarget(container: container).hrefs, [],
 			"the next account on the device is prompted for its own share target rather than inheriting this one"
 		)
 		XCTAssertNil(
@@ -69,14 +70,16 @@ final class ShareArtifactsTests: XCTestCase {
 	func testPurgingSessionArtifactsLeavesTheReadersChoicesAlone() throws {
 		let group = TokenStore.resolvedAppGroupId
 		let defaults = try XCTUnwrap(UserDefaults(suiteName: group))
+		let container = try XCTUnwrap(AppGroupContainer.entitled(appGroupId: group))
 		ShareArtifacts.forgetReaderChoices(appGroupId: group)
-		ShareTarget(defaults: defaults).record(hrefs: ["/queue?queue=work"])
+		defer { ShareArtifacts.forgetReaderChoices(appGroupId: group) }
+		ShareTarget(container: container).record(hrefs: ["/queue?queue=work"])
 		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
 
 		ShareArtifacts.purge(appGroupId: group)
 
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, ["/queue?queue=work"],
+			ShareTarget(container: container).hrefs, ["/queue?queue=work"],
 			"a session that expired on its own is the same reader coming back, so where their shares drop must survive it"
 		)
 		XCTAssertEqual(

@@ -31,7 +31,8 @@ struct ReadingListView: View {
 			api: api,
 			jobs: UploadJobStore.inSharedContainer(appGroupId: group),
 			unseenSave: UnseenSave.inSharedContainer(appGroupId: group),
-			shareTarget: ShareTarget(defaults: defaults),
+			shareTarget: AppGroupContainer.entitled(appGroupId: group)
+				.map { ShareTarget.inSharedContainer($0, appGroupId: group) },
 			lastViewed: LastViewedReadlist(defaults: defaults),
 			onSessionExpired: { [weak session] in session?.forceLogout() }
 		))

@@ -1,43 +1,77 @@
 import Foundation
 
-struct ShareTarget {
-	private let defaults: UserDefaults
+enum SharedArticlesDropChoice: AppGroupValue {
+	case unasked
+	case chosen(hrefs: Set<String>)
 
-	private enum Key {
+	static let fileName = "shared-articles-drop.json"
+	static let unwritten = SharedArticlesDropChoice.unasked
+
+	var hrefs: Set<String> {
+		guard case .chosen(let hrefs) = self else { return [] }
+		return hrefs
+	}
+
+	var isDecided: Bool {
+		guard case .chosen = self else { return false }
+		return true
+	}
+
+	private enum EarlierBuildKey {
 		static let readlistHrefs = "shareTarget.readlistHrefs"
 		static let singleReadlistHref = "shareTarget.readlistHref"
 		static let decided = "shareTarget.decided"
 	}
 
-	init(defaults: UserDefaults) {
-		self.defaults = defaults
+	static func recordedByAnEarlierBuild(in defaults: UserDefaults) -> SharedArticlesDropChoice? {
+		if let recorded = defaults.stringArray(forKey: EarlierBuildKey.readlistHrefs) {
+			return .chosen(hrefs: Set(recorded))
+		}
+		if let single = defaults.string(forKey: EarlierBuildKey.singleReadlistHref) {
+			return .chosen(hrefs: [single])
+		}
+		guard defaults.bool(forKey: EarlierBuildKey.decided) else { return nil }
+		return .chosen(hrefs: [])
 	}
 
-	var hrefs: Set<String> {
-		if let recorded = defaults.stringArray(forKey: Key.readlistHrefs) { return Set(recorded) }
-		return Set([defaults.string(forKey: Key.singleReadlistHref)].compactMap { $0 })
+	static func forgetEarlierBuild(in defaults: UserDefaults) {
+		defaults.removeObject(forKey: EarlierBuildKey.readlistHrefs)
+		defaults.removeObject(forKey: EarlierBuildKey.singleReadlistHref)
+		defaults.removeObject(forKey: EarlierBuildKey.decided)
+	}
+}
+
+typealias ShareTarget = AppGroupStore<SharedArticlesDropChoice>
+
+extension AppGroupStore where Value == SharedArticlesDropChoice {
+	static func inSharedContainer(_ container: AppGroupContainer, appGroupId: String) -> ShareTarget {
+		let earlierBuild = UserDefaults(suiteName: appGroupId)
+		let target = ShareTarget(container: container).adoptingLegacy {
+			earlierBuild.flatMap(SharedArticlesDropChoice.recordedByAnEarlierBuild(in:))
+		}
+		if let earlierBuild {
+			SharedArticlesDropChoice.forgetEarlierBuild(in: earlierBuild)
+		}
+		return target
 	}
 
-	var isDecided: Bool {
-		defaults.bool(forKey: Key.decided)
-	}
+	var hrefs: Set<String> { stored.hrefs }
+
+	var isDecided: Bool { stored.isDecided }
 
 	func record(hrefs: Set<String>) {
-		defaults.set(hrefs.sorted(), forKey: Key.readlistHrefs)
-		defaults.set(true, forKey: Key.decided)
+		update { _ in .chosen(hrefs: hrefs) }
 	}
 
 	func add(href: String) {
-		record(hrefs: hrefs.union([href]))
+		update { .chosen(hrefs: $0.hrefs.union([href])) }
 	}
 
 	func remove(href: String) {
-		record(hrefs: hrefs.subtracting([href]))
+		update { .chosen(hrefs: $0.hrefs.subtracting([href])) }
 	}
 
 	func forget() {
-		defaults.removeObject(forKey: Key.readlistHrefs)
-		defaults.removeObject(forKey: Key.singleReadlistHref)
-		defaults.removeObject(forKey: Key.decided)
+		update { _ in .unasked }
 	}
 }

@@ -46,7 +46,7 @@ final class ShareExtensionKeychainDiagnosticsTests: XCTestCase {
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil)),
 			jobs: UploadJobStore(containerURL: TestSupport.temporaryContainer()),
 			unseenSave: nil,
-			shareTarget: ShareTarget(defaults: TestSupport.ephemeralDefaults()),
+			shareTarget: ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer())),
 			readlistChooser: FakeReadlistChooser { [$0[0]] }
 		)
 

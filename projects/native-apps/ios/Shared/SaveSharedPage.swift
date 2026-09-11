@@ -45,7 +45,7 @@ struct SaveSharedPage {
 	/// Nil for the same no-container reason as `jobs`, which costs only the app's
 	/// automatic list refresh on return.
 	let unseenSave: UnseenSave?
-	let shareTarget: ShareTarget
+	let shareTarget: ShareTarget?
 	let readlistChooser: ReadlistChoosing
 	var stillSavingAfter: TimeInterval = 4
 
@@ -113,6 +113,7 @@ struct SaveSharedPage {
 	}
 
 	private func tickedReadlists(on page: ReadlistPage) async -> Set<String> {
+		guard let shareTarget else { return [] }
 		let drops = SharedArticlesDrop.firstAsk(readlists: page.readlists, mainlineHref: page.rootHref)
 		if !shareTarget.isDecided, drops.contains(where: { $0.choice != nil }) {
 			shareTarget.record(hrefs: Set(await readlistChooser.choose(among: drops).map(\.href)))

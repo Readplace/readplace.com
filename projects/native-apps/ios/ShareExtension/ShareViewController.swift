@@ -28,24 +28,19 @@ final class ShareViewController: UIViewController {
 
 		let captor = LazyHTMLCaptor { [weak self] webView in self?.attachHidden(webView) }
 		let group = TokenStore.resolvedAppGroupId
-		guard let defaults = UserDefaults(suiteName: group) else {
-			preconditionFailure("App Group \(group) is required to read the share target")
-		}
-		let containerURL = FileManager.default.containerURL(
-			forSecurityApplicationGroupIdentifier: group
-		)
+		let appGroup = AppGroupContainer.entitled(appGroupId: group)
 		let saver = SaveSharedPage(
 			store: store,
 			api: ReadplaceAPI(
 				baseURL: AppConfig.serverBaseURL,
 				store: store,
 				nativeUserAgent: ShareViewController.processNativeUserAgent(),
-				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: containerURL)
+				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: appGroup?.url)
 			),
 			captor: captor,
-			jobs: containerURL.map(UploadJobStore.init(containerURL:)),
-			unseenSave: containerURL.map(UnseenSave.init(containerURL:)),
-			shareTarget: ShareTarget(defaults: defaults),
+			jobs: appGroup.map { UploadJobStore(containerURL: $0.url) },
+			unseenSave: appGroup.map { UnseenSave(containerURL: $0.url) },
+			shareTarget: appGroup.map { ShareTarget.inSharedContainer($0, appGroupId: group) },
 			readlistChooser: self
 		)
 		let sharedPdf: (() async -> Data?)? = shared?.pdfProvider.map { provider in

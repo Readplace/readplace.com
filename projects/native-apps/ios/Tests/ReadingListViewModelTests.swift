@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Readplace
 
@@ -13,6 +14,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		jobs: UploadJobStore? = nil,
 		unseenSave: UnseenSave? = nil,
 		defaults: UserDefaults = TestSupport.ephemeralDefaults(),
+		shareContainer: AppGroupContainer? = AppGroupContainer(url: TestSupport.temporaryContainer()),
 		onSessionExpired: @escaping () -> Void = {}
 	) -> ReadingListViewModel {
 		let api = ReadplaceAPI(
@@ -25,7 +27,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			api: api,
 			jobs: jobs,
 			unseenSave: unseenSave,
-			shareTarget: ShareTarget(defaults: defaults),
+			shareTarget: shareContainer.map(ShareTarget.init(container:)),
 			lastViewed: LastViewedReadlist(defaults: defaults),
 			onSessionExpired: onSessionExpired
 		)
@@ -1341,20 +1343,56 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testTheTickedReadlistsAreReadAtLaunchAndAgainOnForeground() async {
-		StubURLProtocol.setHandler(readlistedHandler())
-		let defaults = TestSupport.ephemeralDefaults()
-		ShareTarget(defaults: defaults).record(hrefs: ["/queue"])
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+	func testAChoiceAnotherProcessRecordsIsWhatTheListReportsWithNothingToRefreshIt() {
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
 		XCTAssertEqual(viewModel.shareTargetHrefs, ["/queue"], "the recorded choice is read as the app comes up")
-		await viewModel.refresh()
 
-		ShareTarget(defaults: defaults).record(hrefs: ["/queue?queue=work", "/queue?queue=home"])
-		await viewModel.handleForeground()
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=work", "/queue?queue=home"])
 
 		XCTAssertEqual(
 			viewModel.shareTargetHrefs, ["/queue?queue=work", "/queue?queue=home"],
-			"a choice the share sheet recorded while the app was suspended reaches the row on the next foreground"
+			"the share sheet records from another process while the app keeps running; a copy refreshed on launch or foreground would still show the first answer"
+		)
+	}
+
+	func testSharedChoicesRedrawAfterAToggleAndAfterReturningToTheApp() async {
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let target = ShareTarget(container: shareContainer)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+		let work = Readlist(entry: CollectionReadlist(label: "Work", rel: "readlist", href: "/queue?queue=work"))
+		var redraws = 0
+		let observation = viewModel.objectWillChange.sink { redraws += 1 }
+		defer { observation.cancel() }
+
+		viewModel.toggleSharedArticlesDrop(into: work)
+
+		XCTAssertEqual(redraws, 1, "ticking a readlist must redraw its checkbox even though the choice lives on disk")
+		XCTAssertEqual(viewModel.shareTargetHrefs, [work.href])
+
+		target.record(hrefs: ["/queue?queue=home"])
+		await viewModel.handleForeground()
+
+		XCTAssertEqual(redraws, 2, "returning from the share sheet must redraw its answer even when no list reload runs")
+		XCTAssertEqual(viewModel.shareTargetHrefs, ["/queue?queue=home"])
+		XCTAssertEqual(StubURLProtocol.records.count, 0, "refreshing a local choice needs no server round trip")
+	}
+
+	func testABuildWithNoAppGroupOffersNoDropRow() async {
+		StubURLProtocol.setHandler(threeReadlistHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: nil)
+
+		await viewModel.refresh()
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertNil(
+			viewModel.sharedArticlesDrop,
+			"with nowhere both processes can read, a tick the share sheet could never see must not be offered"
+		)
+		XCTAssertEqual(
+			viewModel.readlistMenu.map(\.isShareTarget), [true, false, false],
+			"and only the mainline, where every save lands, is badged as where shared articles drop"
 		)
 	}
 
@@ -1379,7 +1417,8 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testTickingSeveralReadlistsDropsSharedArticlesIntoEachOfThem() async throws {
 		StubURLProtocol.setHandler(threeReadlistHandler())
 		let defaults = TestSupport.ephemeralDefaults()
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, shareContainer: shareContainer)
 		await viewModel.refresh()
 		await viewModel.select(readlistHref: "/queue?queue=work")
 		try tickTheBoxOnScreen(viewModel)
@@ -1389,7 +1428,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(viewModel.sharedArticlesDrop?.showsTick, true, "the box on the readlist on screen is ticked")
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, ["/queue?queue=work", "/queue?queue=home"],
+			ShareTarget(container: shareContainer).hrefs, ["/queue?queue=work", "/queue?queue=home"],
 			"the extension is a separate process, so every tick is written to the shared suite"
 		)
 		XCTAssertEqual(
@@ -1409,7 +1448,8 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testUntickingOneReadlistLeavesTheOthersTicked() async throws {
 		StubURLProtocol.setHandler(threeReadlistHandler())
 		let defaults = TestSupport.ephemeralDefaults()
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, shareContainer: shareContainer)
 		await viewModel.refresh()
 		await viewModel.select(readlistHref: "/queue?queue=work")
 		try tickTheBoxOnScreen(viewModel)
@@ -1421,7 +1461,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(viewModel.sharedArticlesDrop?.showsTick, false, "the box on screen is unticked again")
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, ["/queue?queue=home"],
+			ShareTarget(container: shareContainer).hrefs, ["/queue?queue=home"],
 			"unticking one box says nothing about the readlists still ticked"
 		)
 		XCTAssertEqual(
@@ -1433,7 +1473,8 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testUntickingTheLastReadlistStopsSharedArticlesDroppingIntoAnyOfThem() async throws {
 		StubURLProtocol.setHandler(threeReadlistHandler())
 		let defaults = TestSupport.ephemeralDefaults()
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, shareContainer: shareContainer)
 		await viewModel.refresh()
 		await viewModel.select(readlistHref: "/queue?queue=work")
 		try tickTheBoxOnScreen(viewModel)
@@ -1441,11 +1482,11 @@ final class ReadingListViewModelTests: XCTestCase {
 		try tickTheBoxOnScreen(viewModel)
 
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, [],
+			ShareTarget(container: shareContainer).hrefs, [],
 			"no readlist claims shared articles, so the server files them where it files an unaddressed save"
 		)
 		XCTAssertTrue(
-			ShareTarget(defaults: defaults).isDecided,
+			ShareTarget(container: shareContainer).isDecided,
 			"the reader has answered the question, so the share sheet must not ask it again"
 		)
 	}
@@ -1480,7 +1521,8 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testShowingTheLockedMainlineRowDecidesNothingOnTheReadersBehalf() async {
 		StubURLProtocol.setHandler(threeReadlistHandler())
 		let defaults = TestSupport.ephemeralDefaults()
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, shareContainer: shareContainer)
 
 		await viewModel.refresh()
 
@@ -1489,11 +1531,11 @@ final class ReadingListViewModelTests: XCTestCase {
 			"precondition: the mainline readlist is on screen showing its locked tick"
 		)
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, [],
+			ShareTarget(container: shareContainer).hrefs, [],
 			"a tick that states a server rule is not a readlist the extension should name on a save"
 		)
 		XCTAssertFalse(
-			ShareTarget(defaults: defaults).isDecided,
+			ShareTarget(container: shareContainer).isDecided,
 			"and the reader has still not been asked, so the next share asks them"
 		)
 	}
@@ -1501,8 +1543,9 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testTheBoxReadsUntickedWhenATickedReadlistIsNoLongerAdvertised() async {
 		StubURLProtocol.setHandler(readlistedHandler())
 		let defaults = TestSupport.ephemeralDefaults()
-		ShareTarget(defaults: defaults).record(hrefs: ["/queue?queue=deleted"])
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=deleted"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, shareContainer: shareContainer)
 
 		await viewModel.refresh()
 
@@ -3014,11 +3057,12 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 		var expired = false
 		let defaults = TestSupport.ephemeralDefaults()
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
 		let viewModel = ReadingListViewModel(
 			api: api,
 			jobs: nil,
 			unseenSave: nil,
-			shareTarget: ShareTarget(defaults: defaults),
+			shareTarget: ShareTarget(container: shareContainer),
 			lastViewed: LastViewedReadlist(defaults: defaults),
 			onSessionExpired: { expired = true }
 		)

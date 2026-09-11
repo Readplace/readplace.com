@@ -268,11 +268,12 @@ final class LoginFlowTests: XCTestCase {
 		}
 
 		let defaults = TestSupport.ephemeralDefaults()
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
 		let viewModel = ReadingListViewModel(
 			api: session.makeAPI(),
 			jobs: nil,
 			unseenSave: nil,
-			shareTarget: ShareTarget(defaults: defaults),
+			shareTarget: ShareTarget(container: shareContainer),
 			lastViewed: LastViewedReadlist(defaults: defaults),
 			onSessionExpired: {}
 		)

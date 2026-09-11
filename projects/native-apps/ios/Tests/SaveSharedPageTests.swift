@@ -40,7 +40,7 @@ final class SaveSharedPageTests: XCTestCase {
 		captor: HTMLCapturing,
 		container: URL,
 		stillSavingAfter: TimeInterval = 4,
-		shareTarget: ShareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults()),
+		shareTarget: ShareTarget? = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer())),
 		readlistChooser: ReadlistChoosing = FakeReadlistChooser { [$0[0]] }
 	) -> SaveSharedPage {
 		SaveSharedPage(
@@ -467,7 +467,7 @@ final class SaveSharedPageTests: XCTestCase {
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
 			jobs: nil,
 			unseenSave: nil,
-			shareTarget: ShareTarget(defaults: TestSupport.ephemeralDefaults()),
+			shareTarget: ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer())),
 			readlistChooser: FakeReadlistChooser { [$0[0]] }
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -976,7 +976,7 @@ final class SaveSharedPageTests: XCTestCase {
 	private func urlOnlySaver(
 		store: TokenStore,
 		container: URL,
-		shareTarget: ShareTarget,
+		shareTarget: ShareTarget?,
 		readlistChooser: ReadlistChoosing
 	) -> SaveSharedPage {
 		makeSaver(
@@ -988,9 +988,37 @@ final class SaveSharedPageTests: XCTestCase {
 		)
 	}
 
+	func testABuildWithNoAppGroupSavesIntoTheMainReadlistWithoutAsking() async throws {
+		let store = TestSupport.loggedInStore()
+		let chooser = FakeReadlistChooser { Set($0) }
+		serveOwnReadlists()
+
+		var reported: [ServerMessage] = []
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: nil,
+			readlistChooser: chooser
+		)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onSaved: { reported = $0 }
+		)
+
+		XCTAssertEqual(
+			chooser.offered, [],
+			"an answer nothing could remember would be asked on every share, so the question is not asked at all"
+		)
+		let body = try XCTUnwrap(saveBodies().first)
+		XCTAssertNil(body["queues"], "the save goes out into the main readlist alone")
+		XCTAssertEqual(outcome, .saved(reported), "and the share still lands; only the readlist question is gone")
+	}
+
 	func testAsksOnceWhichReadlistsToSaveIntoAndSendsEveryTickedOne() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		let chooser = FakeReadlistChooser { Set($0) }
 		serveOwnReadlists(confirmation: "Saved to &#x27;Work&#x27; and &#x27;Home&#x27;")
 
@@ -1032,7 +1060,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testDoneWithNothingTickedIsAnAnswerAndSavesTheRequestReadlistsNeverChanged() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		let chooser = FakeReadlistChooser { _ in [] }
 		serveOwnReadlists()
 
@@ -1068,7 +1096,7 @@ final class SaveSharedPageTests: XCTestCase {
 	func testDoesNotAskAReaderWhoKeepsOnlyTheMainlineReadlist() async throws {
 		let store = TestSupport.loggedInStore()
 		let container = TestSupport.temporaryContainer()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		let chooser = FakeReadlistChooser { Set($0) }
 		let onlyAll = "{ \"label\": \"All\", \"rel\": \"current\", \"href\": \"/queue\" }"
 		StubURLProtocol.setHandler { request, _ in
@@ -1104,8 +1132,8 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testOffersTheMainlineReadlistLockedAndNeverRecordsIt() async throws {
 		let store = TestSupport.loggedInStore()
-		let defaults = TestSupport.ephemeralDefaults()
-		let shareTarget = ShareTarget(defaults: defaults)
+		let container = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let shareTarget = ShareTarget(container: container)
 		let chooser = FakeReadlistChooser { Set($0) }
 		serveOwnReadlists(confirmation: "Saved to &#x27;Work&#x27; and &#x27;Home&#x27;")
 
@@ -1127,7 +1155,7 @@ final class SaveSharedPageTests: XCTestCase {
 			"but it names no readlist, so a reader who ticks every row on offer still cannot pick it"
 		)
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, ["/queue?queue=work", "/queue?queue=home"],
+			ShareTarget(container: container).hrefs, ["/queue?queue=work", "/queue?queue=home"],
 			"so the mainline href never reaches the answer the extension leaves for the app"
 		)
 		let body = try XCTUnwrap(saveBodies().first)
@@ -1142,7 +1170,10 @@ final class SaveSharedPageTests: XCTestCase {
 		let defaults = TestSupport.ephemeralDefaults()
 		defaults.set("/queue", forKey: "shareTarget.readlistHref")
 		defaults.set(true, forKey: "shareTarget.decided")
-		let shareTarget = ShareTarget(defaults: defaults)
+		let container = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let shareTarget = ShareTarget(container: container).adoptingLegacy {
+			SharedArticlesDropChoice.recordedByAnEarlierBuild(in: defaults)
+		}
 		let chooser = FakeReadlistChooser { Set($0) }
 		serveOwnReadlists()
 
@@ -1161,7 +1192,7 @@ final class SaveSharedPageTests: XCTestCase {
 		)
 
 		XCTAssertEqual(
-			ShareTarget(defaults: defaults).hrefs, ["/queue"],
+			ShareTarget(container: container).hrefs, ["/queue"],
 			"precondition: a reader who tapped All on a build that offered it carries that href across the upgrade"
 		)
 		XCTAssertEqual(chooser.offered, [], "they answered once already, so the upgrade does not ask again")
@@ -1176,7 +1207,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testDoesNotAskWhenTheServerAdvertisesNoReadlists() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		let chooser = FakeReadlistChooser { Set($0) }
 		serveReadlistAndSave()
 
@@ -1196,7 +1227,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testDoesNotAskAReaderWhoAnsweredWithNothingTicked() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		shareTarget.record(hrefs: [])
 		let chooser = FakeReadlistChooser { Set($0) }
 		serveOwnReadlists()
@@ -1228,7 +1259,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testSendsEveryRecordedTickWithoutAsking() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		shareTarget.record(hrefs: ["/queue?queue=work", "/queue?queue=home"])
 		let chooser = FakeReadlistChooser { Set($0) }
 		serveOwnReadlists(confirmation: "Saved to &#x27;Work&#x27; and &#x27;Home&#x27;")
@@ -1259,7 +1290,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testSendsATickedReadlistTheServerNoLongerAdvertises() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		shareTarget.record(hrefs: ["/queue?queue=gone"])
 		let chooser = FakeReadlistChooser { Set($0) }
 		serveOwnReadlists()
@@ -1294,7 +1325,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testAsksAgainOnceTheRecordedAnswerIsForgotten() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		shareTarget.record(hrefs: ["/queue?queue=work"])
 		shareTarget.forget()
 		let chooser = FakeReadlistChooser { Set($0.filter { $0.label == "Work" }) }
@@ -1327,7 +1358,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testTheRetryPastTheCacheCarriesTheSameTicks() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		shareTarget.record(hrefs: ["/queue?queue=work"])
 		var reads = 0
 		StubURLProtocol.setHandler { request, _ in
@@ -1376,7 +1407,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testRecordsTheAnswerBeforeTheSaveSoAFailedShareStillRemembersIt() async throws {
 		let store = TestSupport.loggedInStore()
-		let shareTarget = ShareTarget(defaults: TestSupport.ephemeralDefaults())
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
 		let chooser = FakeReadlistChooser { Set($0.filter { $0.label == "Work" }) }
 		StubURLProtocol.setHandler { request, _ in
 			switch (request.url?.path, request.httpMethod) {

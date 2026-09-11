@@ -9,8 +9,10 @@ enum ShareArtifacts {
 	}
 
 	static func forgetReaderChoices(appGroupId: String) {
+		AppGroupContainer.entitled(appGroupId: appGroupId)
+			.map(ShareTarget.init(container:))?
+			.forget()
 		guard let defaults = UserDefaults(suiteName: appGroupId) else { return }
-		ShareTarget(defaults: defaults).forget()
 		LastViewedReadlist(defaults: defaults).forget()
 	}
 }
