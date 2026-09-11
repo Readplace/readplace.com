@@ -1192,6 +1192,7 @@ const rewriteGmailFilterDynamodb = new HutchDynamoDBAccess("hutch-rewrite-gmail-
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -1217,6 +1218,7 @@ const rewriteGmailFilterLambda = new HutchLambda("rewrite-gmail-filter", {
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
+		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 	},

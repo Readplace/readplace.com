@@ -5,12 +5,11 @@ import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import { baseCookieOptions } from "@packages/web-analytics";
 import type {
-	ForwardableSender,
 	GmailConnectionStore,
 	GmailCredentialsStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
-import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
+import type { AliasName, InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
@@ -37,10 +36,8 @@ export interface GmailIntegrationDependencies {
 	gmailSenderStore: GmailSenderStore;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
 	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
-	mintSenderAddress: (input: {
-		userId: UserId;
-		senderEmail: ForwardableSender;
-	}) => Promise<InboxAddress>;
+	mintInboxAddress: (input: { userId: UserId; name: AliasName }) => Promise<InboxAddress>;
+	listInboxAddresses: (userId: UserId) => Promise<InboxAddressEntry[]>;
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
 		reason: "forwarding-confirmed" | "sender-added" | "sender-removed";

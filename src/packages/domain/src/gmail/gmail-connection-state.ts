@@ -15,6 +15,6 @@ export function gmailConnectionState(connection: GmailConnection | undefined): G
 	if (connection.revokedAt !== undefined) return "revoked";
 	if (connection.lastFilterError !== undefined) return "filter-failed";
 	if (connection.forwardingConfirmedAt === undefined) return "awaiting-confirmation";
-	if (connection.filterId === undefined) return "ready-to-filter";
+	if (!connection.filterCount) return "ready-to-filter";
 	return "filtering";
 }

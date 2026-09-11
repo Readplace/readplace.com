@@ -2,7 +2,7 @@ import {
 	INBOX_ADDRESS_MAX_PER_USER,
 	type InboxAddressEntry,
 	isLiveAddress,
-	isUserAlias,
+	isCappedAddress,
 } from "@packages/domain/inbox";
 
 export interface InboxAddressRowViewModel {
@@ -84,7 +84,7 @@ function toRow(entry: InboxAddressEntry): InboxAddressRowViewModel {
 }
 
 export function toInboxAddressesViewModel(entries: InboxAddressEntry[]): InboxAddressesViewModel {
-	const aliases = entries.filter(isUserAlias);
+	const aliases = entries.filter(isCappedAddress);
 	const activeAddresses = aliases.filter(isLiveAddress).map(toRow);
 	const disabledAddresses = aliases.filter((entry) => !isLiveAddress(entry)).map(toRow);
 	return {

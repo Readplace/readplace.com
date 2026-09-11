@@ -14,19 +14,20 @@ export function countLiveAddresses(entries: readonly InboxAddressEntry[]): numbe
 	return entries.filter(isLiveAddress).length;
 }
 
-export function isUserAlias(entry: InboxAddressEntry): boolean {
-	return entry.purpose === "user-alias";
+export function isCappedAddress(entry: InboxAddressEntry): boolean {
+	return entry.purpose !== "gmail-forwarding";
 }
 
-export function countLiveUserAliases(entries: readonly InboxAddressEntry[]): number {
-	return entries.filter((entry) => isLiveAddress(entry) && isUserAlias(entry)).length;
+export function countLiveCappedAddresses(entries: readonly InboxAddressEntry[]): number {
+	return entries.filter((entry) => isLiveAddress(entry) && isCappedAddress(entry)).length;
 }
 
-export function userAliasCapReached(input: {
+export function addressCapReached(input: {
 	purpose: InboxAddressPurpose;
 	owned: readonly InboxAddressEntry[];
 }): boolean {
 	return (
-		input.purpose === "user-alias" && countLiveUserAliases(input.owned) >= INBOX_ADDRESS_MAX_PER_USER
+		input.purpose !== "gmail-forwarding" &&
+		countLiveCappedAddresses(input.owned) >= INBOX_ADDRESS_MAX_PER_USER
 	);
 }

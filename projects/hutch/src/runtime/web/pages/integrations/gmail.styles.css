@@ -203,6 +203,26 @@
   box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
+.gmail__add-select {
+  flex: 0 1 auto;
+  min-width: 0;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font-family: inherit;
+  font-size: var(--input-font-size);
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.gmail__add-select:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-shadow);
+}
+
 .gmail__empty {
   font-size: 0.9375rem;
   line-height: 1.6;

@@ -74,8 +74,7 @@ import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/articl
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
-import { aliasNameForSender } from "@packages/domain/gmail";
-import type { ForwardableSender } from "@packages/domain/gmail";
+import type { AliasName } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
 /** `appOrigin` is threaded in rather than read from the environment because the
@@ -316,18 +315,16 @@ export function initProdProviders(input: { appOrigin: string }) {
 			return entry.address;
 		},
 		findInboxAddress: inboxAddressStore.findByAddress,
-		mintSenderAddress: async ({ senderEmail, userId }: {
-			userId: UserId;
-			senderEmail: ForwardableSender;
-		}) => {
+		mintInboxAddress: async ({ userId, name }: { userId: UserId; name: AliasName }) => {
 			const entry = await inboxAddressStore.createAddress({
 				userId,
 				domain: inboxAddressDomain,
-				name: aliasNameForSender(senderEmail),
+				name,
 				purpose: "gmail-mapped",
 			});
 			return entry.address;
 		},
+		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		publishRewriteGmailFilter: async (detail: {
 			userId: UserId;
 			reason: "forwarding-confirmed" | "sender-added" | "sender-removed";

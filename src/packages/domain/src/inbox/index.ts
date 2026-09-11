@@ -11,11 +11,11 @@ export type {
 	TombstoneUserAddresses,
 } from "./inbox-address.types";
 export {
+	addressCapReached,
 	countLiveAddresses,
-	countLiveUserAliases,
+	countLiveCappedAddresses,
 	isLiveAddress,
-	isUserAlias,
-	userAliasCapReached,
+	isCappedAddress,
 } from "./inbox-address.live";
 export {
 	InboxTokenSchema,

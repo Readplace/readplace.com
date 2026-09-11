@@ -55,6 +55,15 @@
               <input class="gmail__add-input" id="gmail-sender" type="email" name="sender" placeholder="dan@tldr.tech" required />
               <button type="submit" class="btn btn--primary btn--field" data-test-gmail-add-sender>Add</button>
             </div>
+            <label class="gmail__add-label" for="gmail-destination">Inbox</label>
+            <div class="gmail__add-row">
+              <select class="gmail__add-select" id="gmail-destination" name="destination" data-test-gmail-destination>
+                {{#each destinationOptions}}
+                <option value="{{value}}" data-test-gmail-destination-option="{{value}}">{{label}}</option>
+                {{/each}}
+              </select>
+              <input class="gmail__add-input" id="gmail-inbox-name" type="text" name="inbox_name" placeholder="New inbox name (optional)" data-test-gmail-inbox-name />
+            </div>
           </form>
 
           {{#if hasSenders}}

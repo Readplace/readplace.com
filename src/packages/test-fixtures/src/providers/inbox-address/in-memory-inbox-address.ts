@@ -9,7 +9,7 @@ import {
 	InboxAddressLimitReachedError,
 	type InboxAddressEntry,
 	type InboxAddressStore,
-	userAliasCapReached,
+	addressCapReached,
 } from "@packages/domain/inbox";
 
 export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddressStore {
@@ -20,7 +20,7 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 
 	return {
 		createAddress: async ({ userId, domain, name, purpose }) => {
-			if (userAliasCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
+			if (addressCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
 				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
 			}
 			const token = generateInboxToken();
@@ -33,6 +33,7 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 				createdAt: deps.now().toISOString(),
 				disabledAt: undefined,
 				purpose,
+				gmailConfirmedAt: undefined,
 			};
 			rows.set(address, entry);
 			return entry;
@@ -59,6 +60,19 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 			rows.set(address, { ...row, disabledAt: undefined });
 		},
 		findByAddress: async (address) => rows.get(address),
+		markGmailForwardingConfirmed: async ({ userId, address }) => {
+			const row = rows.get(address);
+			if (row === undefined || row.userId !== userId) {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "The conditional request failed",
+				});
+			}
+			rows.set(address, {
+				...row,
+				gmailConfirmedAt: row.gmailConfirmedAt ?? deps.now().toISOString(),
+			});
+		},
 		tombstoneUserAddresses: async (userId) => {
 			for (const [address, entry] of rows) {
 				if (entry.userId !== userId) continue;

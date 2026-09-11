@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import type { GmailConnection, GmailSenderEntry } from "@packages/domain/gmail";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
-import { InboxAddressSchema } from "@packages/domain/inbox";
+import {
+	AliasNameSchema,
+	type InboxAddressEntry,
+	type InboxAddressPurpose,
+	InboxAddressSchema,
+	InboxTokenSchema,
+} from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_CONFIRM_MAX_POLLS } from "./gmail.url";
 import {
@@ -22,8 +28,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 		accountEmail: undefined,
 		connectedAt: "2026-08-27T00:00:00.000Z",
 		forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
-		filterId: undefined,
-		filterQuery: undefined,
+		filterCount: undefined,
 		filterSenderCount: undefined,
 		filterUpdatedAt: undefined,
 		lastFilterError: undefined,
@@ -46,6 +51,24 @@ function sender(overrides: Partial<GmailSenderEntry> = {}): GmailSenderEntry {
 		mappedAddress: undefined,
 		mappedAt: undefined,
 		...overrides,
+	};
+}
+
+function inbox(input: {
+	name: string;
+	address: string;
+	disabled?: boolean;
+	purpose?: InboxAddressPurpose;
+}): InboxAddressEntry {
+	return {
+		address: InboxAddressSchema.parse(input.address),
+		userId: USER,
+		name: AliasNameSchema.parse(input.name),
+		token: InboxTokenSchema.parse(input.address.replace(/^[^-]+-/, "").replace(/@.*$/, "")),
+		createdAt: "2026-08-27T00:00:00.000Z",
+		disabledAt: input.disabled ? "2026-08-27T01:00:00.000Z" : undefined,
+		purpose: input.purpose ?? "gmail-mapped",
+		gmailConfirmedAt: undefined,
 	};
 }
 
@@ -226,7 +249,7 @@ describe("toGmailPageViewModel", () => {
 	it("warns about a switched-off gateway even after forwarding was confirmed", () => {
 		const vm = toGmailPageViewModel({
 			gatewayLive: false,
-			connection: connection({ filterId: "f-1", filterQuery: "from:(dan@tldr.tech)" }),
+			connection: connection({ filterCount: 1 }),
 			senders: [sender()],
 		});
 
@@ -240,13 +263,69 @@ describe("toGmailPageViewModel", () => {
 	it("reports the filtering state once a filter is live", () => {
 		const vm = toGmailPageViewModel({
 			gatewayLive: true,
-			connection: connection({ filterId: "f-1", filterQuery: "from:(dan@tldr.tech)" }),
+			connection: connection({ filterCount: 1 }),
 			senders: [sender()],
 		});
 
 		assert.equal(vm.state, "filtering");
 		assert.equal(vm.statusLabel, "Forwarding");
 		assert.equal(vm.stateModifier, "gmail__status--filtering");
+	});
+
+	it("offers just the default inbox and a new one when the reader has none yet", () => {
+		const vm = toGmailPageViewModel({ gatewayLive: true, connection: connection(), senders: [] });
+
+		assert.deepEqual(
+			vm.destinationOptions.map((option) => option.value),
+			["", "new"],
+		);
+	});
+
+	it("lists the reader's live named inboxes as destinations, default first and new last", () => {
+		const vm = toGmailPageViewModel({
+			gatewayLive: true,
+			connection: connection(),
+			senders: [],
+			inboxes: [
+				inbox({ name: "tech", address: "tech-b3d4e5@read.place" }),
+				inbox({ name: "cooking", address: "cooking-c4e5f6@read.place", disabled: true }),
+				inbox({ name: "gmail", address: GATEWAY, purpose: "gmail-forwarding" }),
+			],
+		});
+
+		assert.deepEqual(vm.destinationOptions, [
+			{ value: "", label: "Default inbox" },
+			{ value: "tech-b3d4e5@read.place", label: "tech" },
+			{ value: "new", label: "New inbox…" },
+		]);
+	});
+
+	it("greets a freshly created inbox with the inbox-created notice", () => {
+		const vm = toGmailPageViewModel({
+			gatewayLive: true,
+			connection: connection(),
+			senders: [],
+			notice: "inbox_created",
+		});
+
+		assert.deepEqual(
+			vm.notices.map((banner) => banner.key),
+			["inbox_created"],
+		);
+	});
+
+	it("surfaces a taken-inbox-name error off the query string", () => {
+		const vm = toGmailPageViewModel({
+			gatewayLive: true,
+			connection: connection(),
+			senders: [],
+			error: "inbox_name_taken",
+		});
+
+		assert.deepEqual(
+			vm.alerts.map((banner) => banner.key),
+			["inbox_name_taken"],
+		);
 	});
 });
 

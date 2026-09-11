@@ -18,8 +18,7 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 				accountEmail: undefined,
 				connectedAt: deps.now().toISOString(),
 				forwardingConfirmedAt: undefined,
-				filterId: undefined,
-				filterQuery: undefined,
+				filterCount: undefined,
 				filterSenderCount: undefined,
 				filterUpdatedAt: undefined,
 				lastFilterError: undefined,
@@ -42,10 +41,9 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 		recordAccountEmail: async ({ userId, accountEmail }) => {
 			update(userId, { accountEmail });
 		},
-		recordFilter: async ({ userId, filterId, filterQuery, filterSenderCount }) => {
+		recordFilter: async ({ userId, filterCount, filterSenderCount }) => {
 			update(userId, {
-				filterId,
-				filterQuery,
+				filterCount,
 				filterSenderCount,
 				filterUpdatedAt: deps.now().toISOString(),
 				lastFilterError: undefined,
@@ -53,8 +51,7 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 		},
 		clearFilter: async ({ userId }) => {
 			update(userId, {
-				filterId: undefined,
-				filterQuery: undefined,
+				filterCount: undefined,
 				filterSenderCount: undefined,
 				filterUpdatedAt: undefined,
 				lastFilterError: undefined,

@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { AliasNameSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailIntegration } from "./in-memory-gmail-integration";
 
 const owner = UserIdSchema.parse("00000000000000000000000000000001");
-const tldr = ForwardableSenderSchema.parse("dan@tldr.tech");
 
 const GRANT: GmailGrantResult = {
 	ok: true,
@@ -33,12 +32,28 @@ describe("initInMemoryGmailIntegration", () => {
 		assert.match(address, /^gmail-[0-9a-z]{6}@read\.place$/);
 	});
 
-	it("names a sender's address after its publication and honours the domain", async () => {
+	it("mints an inbox address under the given name and honours the domain", async () => {
 		const gmail = initInMemoryGmailIntegration({ grant: GRANT, domain: "readplace-staging.com" });
 
-		const address = await gmail.bundle.mintSenderAddress({ userId: owner, senderEmail: tldr });
+		const address = await gmail.bundle.mintInboxAddress({
+			userId: owner,
+			name: AliasNameSchema.parse("tldr"),
+		});
 
 		assert.match(address, /^tldr-[0-9a-z]{6}@readplace-staging\.com$/);
+	});
+
+	it("lists the inbox addresses a reader holds", async () => {
+		const gmail = initInMemoryGmailIntegration({ grant: GRANT });
+		await gmail.bundle.mintGatewayAddress({ userId: owner });
+		await gmail.bundle.mintInboxAddress({ userId: owner, name: AliasNameSchema.parse("tech") });
+
+		const listed = await gmail.bundle.listInboxAddresses(owner);
+
+		assert.deepEqual(
+			listed.map((entry) => entry.name).sort(),
+			["gmail", "tech"],
+		);
 	});
 
 	it("captures the commands the page would publish", async () => {

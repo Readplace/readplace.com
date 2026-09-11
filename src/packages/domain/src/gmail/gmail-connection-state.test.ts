@@ -11,8 +11,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 		accountEmail: undefined,
 		connectedAt: "2026-08-24T00:00:00.000Z",
 		forwardingConfirmedAt: undefined,
-		filterId: undefined,
-		filterQuery: undefined,
+		filterCount: undefined,
 		filterSenderCount: undefined,
 		filterUpdatedAt: undefined,
 		lastFilterError: undefined,
@@ -33,7 +32,7 @@ describe("gmailConnectionState", () => {
 			connection({
 				disconnectRequestedAt: "2026-08-24T03:00:00.000Z",
 				forwardingConfirmedAt: "2026-08-24T00:30:00.000Z",
-				filterId: "filter-1",
+				filterCount: 1,
 			}),
 		);
 		assert.equal(state, "disconnecting");
@@ -45,7 +44,7 @@ describe("gmailConnectionState", () => {
 				revokedAt: "2026-08-24T01:00:00.000Z",
 				revokedReason: "invalid-grant",
 				forwardingConfirmedAt: "2026-08-24T00:30:00.000Z",
-				filterId: "filter-1",
+				filterCount: 1,
 			}),
 		);
 		assert.equal(state, "revoked");
@@ -80,8 +79,7 @@ describe("gmailConnectionState", () => {
 		const state = gmailConnectionState(
 			connection({
 				forwardingConfirmedAt: "2026-08-24T00:30:00.000Z",
-				filterId: "filter-1",
-				filterQuery: "from:(dan@tldr.tech)",
+				filterCount: 1,
 				filterSenderCount: 1,
 			}),
 		);

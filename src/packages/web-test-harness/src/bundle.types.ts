@@ -2,7 +2,6 @@ import type { CrawlArticle } from "@packages/crawl-article";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 import type {
-	ForwardableSender,
 	GmailConnectionStore,
 	GmailCredentialsStore,
 	GmailSenderStore,
@@ -194,7 +193,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts";
 import type { UserId } from "@packages/domain/user";
-import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
+import type { AliasName, InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
 
@@ -517,10 +516,8 @@ export interface GmailIntegrationBundle {
 	gmailSenderStore: GmailSenderStore;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
 	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
-	mintSenderAddress: (input: {
-		userId: UserId;
-		senderEmail: ForwardableSender;
-	}) => Promise<InboxAddress>;
+	mintInboxAddress: (input: { userId: UserId; name: AliasName }) => Promise<InboxAddress>;
+	listInboxAddresses: (userId: UserId) => Promise<InboxAddressEntry[]>;
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
 		reason: "forwarding-confirmed" | "sender-added" | "sender-removed";

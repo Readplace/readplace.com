@@ -86,7 +86,7 @@ describe("initInMemoryInboxAddress", () => {
 		expect(gateway.purpose).toBe("gmail-forwarding");
 	});
 
-	it("does not count integration-minted addresses toward the user-alias cap", async () => {
+	it("counts Gmail-mapped inboxes toward the cap now that a named inbox consumes a slot", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
 		for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
 			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "gmail-mapped" });
@@ -94,7 +94,7 @@ describe("initInMemoryInboxAddress", () => {
 
 		await expect(
 			store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" }),
-		).resolves.toBeDefined();
+		).rejects.toThrow(InboxAddressLimitReachedError);
 	});
 
 	it("frees a slot when a live address is disabled, since only live addresses count toward the cap", async () => {
@@ -215,6 +215,41 @@ describe("initInMemoryInboxAddress", () => {
 
 		const [refreshed] = await store.listAddressesByUserId(owner);
 		expect(refreshed.disabledAt).not.toBeUndefined();
+	});
+
+	describe("markGmailForwardingConfirmed", () => {
+		it("stamps gmailConfirmedAt on an owned address and keeps the first timestamp when called again", async () => {
+			let clock = new Date("2026-06-23T00:00:00.000Z");
+			const store = initInMemoryInboxAddress({ now: () => clock });
+			const entry = await store.createAddress({
+				userId: owner,
+				domain: DOMAIN,
+				name: NAME,
+				purpose: "gmail-forwarding",
+			});
+
+			await store.markGmailForwardingConfirmed({ userId: owner, address: entry.address });
+			clock = new Date("2026-06-24T00:00:00.000Z");
+			await store.markGmailForwardingConfirmed({ userId: owner, address: entry.address });
+
+			const found = await store.findByAddress(entry.address);
+			assert(found, "expected the confirmed address to resolve");
+			expect(found.gmailConfirmedAt).toBe("2026-06-23T00:00:00.000Z");
+		});
+
+		it("rejects a confirmation for an address the caller does not own", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+			const entry = await store.createAddress({
+				userId: owner,
+				domain: DOMAIN,
+				name: NAME,
+				purpose: "gmail-forwarding",
+			});
+
+			await expect(
+				store.markGmailForwardingConfirmed({ userId: otherUser, address: entry.address }),
+			).rejects.toThrow(ConditionalCheckFailedException);
+		});
 	});
 
 	describe("tombstoneUserAddresses", () => {

@@ -1,7 +1,7 @@
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender } from "@packages/inbox-store";
+import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import {
 	DisconnectGmailCommand,
@@ -45,6 +45,12 @@ const senders = initDynamoDbGmailSender({
 	now,
 });
 
+const addresses = initDynamoDbInboxAddress({
+	client,
+	tableName: requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE"),
+	now,
+});
+
 const rewriteGmailFilter = initRewriteGmailFilter({
 	filters: initGmailFilters({
 		accessToken: initGmailAccessToken({
@@ -58,6 +64,7 @@ const rewriteGmailFilter = initRewriteGmailFilter({
 	}),
 	connections,
 	senders,
+	addresses,
 	now,
 	logger,
 });
@@ -72,7 +79,7 @@ export const handler = initHandleByDetailType({
 	routes: {
 		[RewriteGmailFilterCommand.detailType]: [rewriteHandler],
 		[GmailForwardingConfirmedEvent.detailType]: [
-			initGmailForwardingConfirmedHandler({ connections, publishEvent, logger }),
+			initGmailForwardingConfirmedHandler({ connections, addresses, publishEvent, logger }),
 		],
 		[DisconnectGmailCommand.detailType]: [
 			initDisconnectGmailHandler({

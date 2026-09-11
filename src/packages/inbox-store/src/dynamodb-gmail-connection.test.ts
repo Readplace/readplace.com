@@ -65,8 +65,7 @@ describe("initDynamoDbGmailConnection", () => {
 			accountEmail: undefined,
 			connectedAt: NOW.toISOString(),
 			forwardingConfirmedAt: undefined,
-			filterId: undefined,
-			filterQuery: undefined,
+			filterCount: undefined,
 			filterSenderCount: undefined,
 			filterUpdatedAt: undefined,
 			lastFilterError: undefined,
@@ -84,8 +83,7 @@ describe("initDynamoDbGmailConnection", () => {
 				accountEmail: ACCOUNT_EMAIL,
 				connectedAt: NOW.toISOString(),
 				forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
-				filterId: "filter-1",
-				filterQuery: "from:(dan@tldr.tech)",
+				filterCount: 1,
 				filterSenderCount: 1,
 				filterUpdatedAt: "2026-08-27T00:06:00.000Z",
 				connected: "yes",
@@ -101,8 +99,7 @@ describe("initDynamoDbGmailConnection", () => {
 			accountEmail: ACCOUNT_EMAIL,
 			connectedAt: NOW.toISOString(),
 			forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
-			filterId: "filter-1",
-			filterQuery: "from:(dan@tldr.tech)",
+			filterCount: 1,
 			filterSenderCount: 1,
 			filterUpdatedAt: "2026-08-27T00:06:00.000Z",
 			lastFilterError: undefined,
@@ -145,18 +142,16 @@ describe("initDynamoDbGmailConnection", () => {
 
 		await store.recordFilter({
 			userId: USER,
-			filterId: "filter-1",
-			filterQuery: "from:(dan@tldr.tech)",
-			filterSenderCount: 1,
+			filterCount: 2,
+			filterSenderCount: 3,
 		});
 
 		const expression = String(commands[0].input.UpdateExpression);
-		assert.match(expression, /SET filterId = :id/);
+		assert.match(expression, /SET filterCount = :c/);
 		assert.match(expression, /REMOVE lastFilterError/);
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
-			":id": "filter-1",
-			":q": "from:(dan@tldr.tech)",
-			":n": 1,
+			":c": 2,
+			":n": 3,
 			":now": NOW.toISOString(),
 		});
 	});
@@ -202,7 +197,7 @@ describe("initDynamoDbGmailConnection", () => {
 
 		assert.match(
 			String(commands[0].input.UpdateExpression),
-			/REMOVE filterId, filterQuery, filterSenderCount, filterUpdatedAt, lastFilterError/,
+			/REMOVE filterCount, filterSenderCount, filterUpdatedAt, lastFilterError/,
 		);
 	});
 

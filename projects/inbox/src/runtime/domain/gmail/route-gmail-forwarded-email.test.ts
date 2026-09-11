@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
-import type { ParsedEmail } from "@packages/domain/inbox";
+import type { InboxAddress, ParsedEmail } from "@packages/domain/inbox";
 import { InboxAddressSchema, MessageIdSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
@@ -37,10 +37,17 @@ function harness() {
 		heldMail,
 		logger: HutchLogger.from(noopLogger),
 	});
-	const run = (email: ParsedEmail = forwardedEmail()) =>
+	const run = (
+		email: ParsedEmail = forwardedEmail(),
+		options: {
+			recipientAddress?: InboxAddress;
+			purpose?: "gmail-forwarding" | "gmail-mapped";
+		} = {},
+	) =>
 		route({
 			userId: USER,
-			gatewayAddress: GATEWAY,
+			recipientAddress: options.recipientAddress ?? GATEWAY,
+			purpose: options.purpose ?? "gmail-forwarding",
 			email,
 			receivedAtMessageId: `${RECEIVED_AT}#${email.messageId}`,
 			receivedAt: RECEIVED_AT,
@@ -102,5 +109,28 @@ describe("initRouteGmailForwardedEmail", () => {
 			await heldMail.listHeldMailBySender({ userId: USER, senderEmail: TLDR, limit: 5 }),
 			[],
 		);
+	});
+
+	it("records a sighting for mail delivered straight to a named inbox from a known sender", async () => {
+		const { run, senders } = harness();
+		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: ALIAS });
+
+		const delivered = await run(forwardedEmail({ subject: "TLDR 2026-08-28" }), {
+			recipientAddress: ALIAS,
+			purpose: "gmail-mapped",
+		});
+
+		assert.equal(delivered, ALIAS);
+		const sender = await senders.findSender({ userId: USER, senderEmail: TLDR });
+		assert.equal(sender?.lastSubject, "TLDR 2026-08-28");
+	});
+
+	it("does not mint a sender row for a hand-forwarded message to a named inbox", async () => {
+		const { run, senders } = harness();
+
+		const delivered = await run(forwardedEmail(), { recipientAddress: ALIAS, purpose: "gmail-mapped" });
+
+		assert.equal(delivered, ALIAS);
+		assert.equal(await senders.findSender({ userId: USER, senderEmail: TLDR }), undefined);
 	});
 });

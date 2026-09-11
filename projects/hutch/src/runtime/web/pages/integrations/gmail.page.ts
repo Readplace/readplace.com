@@ -2,20 +2,26 @@ import assert from "node:assert";
 import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
 import { parsePollParam, sendComponent } from "@packages/web-shell";
-import { ForwardableSenderSchema, gmailConnectionState } from "@packages/domain/gmail";
-import { isLiveAddress } from "@packages/domain/inbox";
+import { ForwardableSenderSchema, aliasNameForSender, gmailConnectionState } from "@packages/domain/gmail";
+import { addressCapReached, type InboxAddress, isLiveAddress, normalizeAliasName } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { GmailPage, renderGmailPoll } from "./gmail.component";
-import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS } from "./gmail.url";
+import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, type GmailPageNotice } from "./gmail.url";
 import { toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-connect.page";
 
 const SenderBodySchema = z.object({ sender: z.string() });
+
+const AddSenderBodySchema = z.object({
+	sender: z.string(),
+	destination: z.string().optional(),
+	inbox_name: z.string().optional(),
+});
 
 export interface GmailPageContext {
 	buildBannerState: BuildBannerState;
@@ -65,10 +71,12 @@ export function registerGmailPageRoutes(
 			return;
 		}
 		const senders = await gmail.gmailSenderStore.listSendersByUserId(userId);
+		const inboxes = await gmail.listInboxAddresses(userId);
 		const gateway = await gmail.findInboxAddress(connection.gatewayAddress);
 		const vm = toGmailPageViewModel({
 			connection,
 			senders,
+			inboxes,
 			gatewayLive: gateway !== undefined && isLiveAddress(gateway),
 			error: flash(req, "error"),
 			notice: flash(req, "notice"),
@@ -97,16 +105,64 @@ export function registerGmailPageRoutes(
 
 	router.post("/gmail/senders/add", write, async (req: Request, res: Response) => {
 		const userId = ownerOf(req);
-		const senderEmail = parseSender(req);
-		if (senderEmail === undefined) {
+		const body = AddSenderBodySchema.safeParse(req.body);
+		if (!body.success) {
 			res.redirect(303, buildGmailUrl({ error: "sender_invalid" }));
 			return;
 		}
+		const sender = ForwardableSenderSchema.safeParse(body.data.sender);
+		if (!sender.success) {
+			res.redirect(303, buildGmailUrl({ error: "sender_invalid" }));
+			return;
+		}
+		const senderEmail = sender.data;
 		const existing = await gmail.gmailSenderStore.findSender({ userId, senderEmail });
 		if (existing?.addedToFilterAt !== undefined) {
 			res.redirect(303, buildGmailUrl({ error: "sender_duplicate" }));
 			return;
 		}
+
+		const destination = body.data.destination ?? "";
+		if (destination !== "") {
+			const owned = await gmail.listInboxAddresses(userId);
+			let mappedAddress: InboxAddress;
+			let notice: GmailPageNotice;
+			if (destination === "new") {
+				const rawName = (body.data.inbox_name ?? "").trim();
+				const inboxName = rawName === "" ? aliasNameForSender(senderEmail) : normalizeAliasName(rawName);
+				if (inboxName === undefined) {
+					res.redirect(303, buildGmailUrl({ error: "inbox_name_invalid" }));
+					return;
+				}
+				if (owned.some((entry) => isLiveAddress(entry) && entry.name === inboxName)) {
+					res.redirect(303, buildGmailUrl({ error: "inbox_name_taken" }));
+					return;
+				}
+				if (addressCapReached({ purpose: "gmail-mapped", owned })) {
+					res.redirect(303, buildGmailUrl({ error: "inbox_limit" }));
+					return;
+				}
+				mappedAddress = await gmail.mintInboxAddress({ userId, name: inboxName });
+				notice = "inbox_created";
+			} else {
+				const inbox = owned.find(
+					(entry) =>
+						entry.address === destination && isLiveAddress(entry) && entry.purpose === "gmail-mapped",
+				);
+				if (inbox === undefined) {
+					res.redirect(303, buildGmailUrl({ error: "inbox_name_invalid" }));
+					return;
+				}
+				mappedAddress = inbox.address;
+				notice = inbox.gmailConfirmedAt === undefined ? "inbox_confirmation_required" : "sender_mapped";
+			}
+			await gmail.gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddress });
+			await gmail.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
+			await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
+			res.redirect(303, buildGmailUrl({ notice }));
+			return;
+		}
+
 		await gmail.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
 		res.redirect(303, buildGmailUrl({ notice: "sender_added" }));
@@ -136,11 +192,19 @@ export function registerGmailPageRoutes(
 			res.redirect(303, buildGmailUrl({ error: "sender_unknown" }));
 			return;
 		}
-		const mappedAddress = await gmail.mintSenderAddress({ userId, senderEmail });
+		const owned = await gmail.listInboxAddresses(userId);
+		if (addressCapReached({ purpose: "gmail-mapped", owned })) {
+			res.redirect(303, buildGmailUrl({ error: "inbox_limit" }));
+			return;
+		}
+		const mappedAddress = await gmail.mintInboxAddress({
+			userId,
+			name: aliasNameForSender(senderEmail),
+		});
 		await gmail.gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddress });
 		await gmail.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
-		res.redirect(303, buildGmailUrl({ notice: "sender_mapped" }));
+		res.redirect(303, buildGmailUrl({ notice: "inbox_created" }));
 	});
 
 	router.post("/gmail/disconnect", write, async (req: Request, res: Response) => {

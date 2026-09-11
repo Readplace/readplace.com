@@ -18,8 +18,7 @@ export interface GmailConnection {
 	accountEmail: GmailAccountEmail | undefined;
 	connectedAt: string;
 	forwardingConfirmedAt: string | undefined;
-	filterId: string | undefined;
-	filterQuery: string | undefined;
+	filterCount: number | undefined;
 	filterSenderCount: number | undefined;
 	filterUpdatedAt: string | undefined;
 	lastFilterError: GmailFilterError | undefined;
@@ -44,8 +43,7 @@ export interface GmailConnectionStore {
 	}) => Promise<void>;
 	recordFilter: (input: {
 		userId: UserId;
-		filterId: string;
-		filterQuery: string;
+		filterCount: number;
 		filterSenderCount: number;
 	}) => Promise<void>;
 	clearFilter: (input: { userId: UserId }) => Promise<void>;

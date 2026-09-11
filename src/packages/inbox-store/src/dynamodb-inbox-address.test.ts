@@ -27,6 +27,7 @@ interface CapturedCommand {
 	input: {
 		Item?: Record<string, unknown>;
 		Key?: Record<string, unknown>;
+		ConsistentRead?: boolean;
 		IndexName?: string;
 		KeyConditionExpression?: string;
 		ConditionExpression?: string;
@@ -193,7 +194,7 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(entry.purpose).toBe("gmail-forwarding");
 		});
 
-		it("does not count integration-minted rows toward the user-alias cap", async () => {
+		it("counts Gmail-mapped inboxes toward the cap now that a named inbox consumes a slot", async () => {
 			const commands: CapturedCommand[] = [];
 			const store = initDynamoDbInboxAddress({
 				client: createFakeClient((cmd) => {
@@ -211,9 +212,11 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+			await expect(
+				store.createAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias" }),
+			).rejects.toThrow(InboxAddressLimitReachedError);
 
-			expect(commands.some((c) => c.input.Item)).toBe(true);
+			expect(commands.some((c) => c.input.Item)).toBe(false);
 		});
 
 		it("counts only live rows toward the cap: a user whose cap-worth of rows are all disabled can still create", async () => {
@@ -362,7 +365,7 @@ describe("initDynamoDbInboxAddress", () => {
 	});
 
 	describe("findByAddress", () => {
-		it("resolves an address with a single GetItem on the address key", async () => {
+		it("resolves an address with a strongly consistent GetItem on the address key", async () => {
 			let captured: CapturedCommand | undefined;
 			const store = initDynamoDbInboxAddress({
 				client: createFakeClient((cmd) => {
@@ -385,6 +388,7 @@ describe("initDynamoDbInboxAddress", () => {
 			const entry = await store.findByAddress(address);
 
 			expect(captured?.input.Key).toEqual({ address });
+			expect(captured?.input.ConsistentRead).toBe(true);
 			assert(entry, "expected the row to be returned");
 			expect(entry.userId).toBe(USER);
 			expect(entry.address).toBe(address);
@@ -401,6 +405,46 @@ describe("initDynamoDbInboxAddress", () => {
 			const address = InboxAddressSchema.parse("in-zzzzzz@read.place");
 
 			expect(await store.findByAddress(address)).toBeUndefined();
+		});
+	});
+
+	describe("markGmailForwardingConfirmed", () => {
+		it("stamps gmailConfirmedAt with an ownership-guarded, idempotent update", async () => {
+			let captured: CapturedCommand | undefined;
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					captured = cmd as CapturedCommand;
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+			const address = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
+
+			await store.markGmailForwardingConfirmed({ userId: USER, address });
+
+			expect(captured?.input.Key).toEqual({ address });
+			expect(captured?.input.ConditionExpression).toBe("userId = :uid");
+			expect(captured?.input.UpdateExpression).toBe(
+				"SET gmailConfirmedAt = if_not_exists(gmailConfirmedAt, :now)",
+			);
+			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
+			expect(captured?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
+		});
+
+		it("propagates the conditional-check failure when the caller does not own the row", async () => {
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient(() => {
+					throw conditionalCheckFailed();
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+			const address = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
+
+			await expect(
+				store.markGmailForwardingConfirmed({ userId: USER, address }),
+			).rejects.toThrow(ConditionalCheckFailedException);
 		});
 	});
 

@@ -16,8 +16,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 		accountEmail: undefined,
 		connectedAt: "2026-08-27T00:00:00.000Z",
 		forwardingConfirmedAt: undefined,
-		filterId: undefined,
-		filterQuery: undefined,
+		filterCount: undefined,
 		filterSenderCount: undefined,
 		filterUpdatedAt: undefined,
 		lastFilterError: undefined,
@@ -98,7 +97,7 @@ describe("toIntegrationsIndexViewModel", () => {
 		const gmail = gmailRow({
 			connection: connection({
 				forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
-				filterId: "filter-1",
+				filterCount: 1,
 			}),
 		});
 
@@ -144,7 +143,7 @@ describe("toIntegrationsIndexViewModel", () => {
 		const gmail = gmailRow({
 			connection: connection({
 				forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
-				filterId: "filter-1",
+				filterCount: 1,
 				disconnectRequestedAt: "2026-08-27T03:00:00.000Z",
 			}),
 		});

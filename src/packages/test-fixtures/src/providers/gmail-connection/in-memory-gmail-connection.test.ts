@@ -79,14 +79,12 @@ describe("initInMemoryGmailConnection", () => {
 
 		await store.recordFilter({
 			userId: owner,
-			filterId: "filter-1",
-			filterQuery: "from:(dan@tldr.tech)",
+			filterCount: 1,
 			filterSenderCount: 1,
 		});
 
 		const connection = await store.findConnectionByUserId(owner);
-		assert.equal(connection?.filterId, "filter-1");
-		assert.equal(connection?.filterQuery, "from:(dan@tldr.tech)");
+		assert.equal(connection?.filterCount, 1);
 		assert.equal(connection?.filterSenderCount, 1);
 		assert.equal(connection?.lastFilterError, undefined);
 	});
@@ -124,16 +122,14 @@ describe("initInMemoryGmailConnection", () => {
 		await connect();
 		await store.recordFilter({
 			userId: owner,
-			filterId: "filter-1",
-			filterQuery: "from:(dan@tldr.tech)",
+			filterCount: 1,
 			filterSenderCount: 1,
 		});
 
 		await store.clearFilter({ userId: owner });
 
 		const connection = await store.findConnectionByUserId(owner);
-		assert.equal(connection?.filterId, undefined);
-		assert.equal(connection?.filterQuery, undefined);
+		assert.equal(connection?.filterCount, undefined);
 		assert.equal(connection?.filterSenderCount, undefined);
 		assert.equal(connection?.filterUpdatedAt, undefined);
 	});

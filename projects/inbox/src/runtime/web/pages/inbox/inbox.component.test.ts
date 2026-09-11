@@ -19,6 +19,7 @@ function entry(overrides: Partial<InboxAddressEntry> = {}): InboxAddressEntry {
 		createdAt: "2026-06-23T00:00:00.000Z",
 		disabledAt: undefined,
 		purpose: "user-alias",
+		gmailConfirmedAt: undefined,
 		...overrides,
 	};
 }

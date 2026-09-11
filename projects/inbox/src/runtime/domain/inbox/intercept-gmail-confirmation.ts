@@ -37,10 +37,10 @@ export function initInterceptGmailConfirmation(deps: {
 		if (
 			resolved === undefined ||
 			resolved.disabledAt !== undefined ||
-			resolved.purpose !== "gmail-forwarding"
+			(resolved.purpose !== "gmail-forwarding" && resolved.purpose !== "gmail-mapped")
 		) {
 			logger.warn(
-				"[intercept-gmail-confirmation] confirmation not addressed to a live gateway address",
+				"[intercept-gmail-confirmation] confirmation not addressed to a live forwarding address",
 				{ recipientAddress },
 			);
 			return false;

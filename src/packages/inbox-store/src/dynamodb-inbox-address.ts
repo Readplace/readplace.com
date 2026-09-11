@@ -22,7 +22,7 @@ import {
 	type InboxAddressStore,
 	InboxTokenSchema,
 	type TombstoneUserAddresses,
-	userAliasCapReached,
+	addressCapReached,
 } from "@packages/domain/inbox";
 
 const InboxAddressRow = z.object({
@@ -36,6 +36,7 @@ const InboxAddressRow = z.object({
 	createdAt: z.string(),
 	disabledAt: dynamoField(z.string()),
 	purpose: dynamoField(InboxAddressPurposeSchema),
+	gmailConfirmedAt: dynamoField(z.string()),
 });
 
 /** The one seam that turns a stored row into a fully-populated entry. */
@@ -48,6 +49,7 @@ function toEntry(row: z.infer<typeof InboxAddressRow>): InboxAddressEntry {
 		createdAt: row.createdAt,
 		disabledAt: row.disabledAt,
 		purpose: row.purpose ?? DEFAULT_INBOX_ADDRESS_PURPOSE,
+		gmailConfirmedAt: row.gmailConfirmedAt,
 	};
 }
 
@@ -107,7 +109,7 @@ export function initDynamoDbInboxAddress(deps: {
 			// soft guardrail (a racing pair of creates may briefly land one over the
 			// cap) — fine, since the cap exists to stop an unbounded create loop, not
 			// to enforce an exact-to-the-row ceiling.
-			if (userAliasCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
+			if (addressCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
 				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
 			}
 			const createdAt = deps.now().toISOString();
@@ -119,7 +121,16 @@ export function initDynamoDbInboxAddress(deps: {
 						Item: { address, userId, name, token, createdAt, purpose },
 						ConditionExpression: "attribute_not_exists(address)",
 					});
-					return { address, userId, name, token, createdAt, disabledAt: undefined, purpose };
+					return {
+						address,
+						userId,
+						name,
+						token,
+						createdAt,
+						disabledAt: undefined,
+						purpose,
+						gmailConfirmedAt: undefined,
+					};
 				} catch (error) {
 					if (error instanceof ConditionalCheckFailedException) continue;
 					throw error;
@@ -147,8 +158,16 @@ export function initDynamoDbInboxAddress(deps: {
 			});
 		},
 		findByAddress: async (address) => {
-			const row = await table.get({ address });
+			const row = await table.get({ address }, { consistentRead: true });
 			return row === undefined ? undefined : toEntry(row);
+		},
+		markGmailForwardingConfirmed: async ({ userId, address }) => {
+			await table.update({
+				Key: { address },
+				ConditionExpression: "userId = :uid",
+				UpdateExpression: "SET gmailConfirmedAt = if_not_exists(gmailConfirmedAt, :now)",
+				ExpressionAttributeValues: { ":uid": userId, ":now": deps.now().toISOString() },
+			});
 		},
 		tombstoneUserAddresses,
 	};

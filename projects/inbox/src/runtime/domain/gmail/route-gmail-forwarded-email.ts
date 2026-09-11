@@ -9,7 +9,8 @@ import type { HutchLogger } from "@packages/hutch-logger";
 
 export type RouteGmailForwardedEmail = (input: {
 	userId: UserId;
-	gatewayAddress: InboxAddress;
+	recipientAddress: InboxAddress;
+	purpose: "gmail-forwarding" | "gmail-mapped";
 	email: ParsedEmail;
 	receivedAtMessageId: string;
 	receivedAt: string;
@@ -25,7 +26,8 @@ export function initRouteGmailForwardedEmail(deps: {
 
 	return async ({
 		userId,
-		gatewayAddress,
+		recipientAddress,
+		purpose,
 		email,
 		receivedAtMessageId,
 		receivedAt,
@@ -33,10 +35,18 @@ export function initRouteGmailForwardedEmail(deps: {
 	}) => {
 		const senderEmail = parseForwardableSender(email.from);
 		if (senderEmail === undefined) {
-			logger.warn("[route-gmail-forwarded-email] unreadable sender, left in the gateway", {
-				gatewayAddress,
+			logger.warn("[route-gmail-forwarded-email] unreadable sender, delivered as addressed", {
+				recipientAddress,
 			});
-			return gatewayAddress;
+			return recipientAddress;
+		}
+
+		if (purpose === "gmail-mapped") {
+			const existing = await senders.findSender({ userId, senderEmail });
+			if (existing !== undefined) {
+				await senders.recordSenderSeen({ userId, senderEmail, subject: email.subject });
+			}
+			return recipientAddress;
 		}
 
 		await senders.recordSenderSeen({ userId, senderEmail, subject: email.subject });
@@ -51,7 +61,7 @@ export function initRouteGmailForwardedEmail(deps: {
 			subject: email.subject,
 			receivedAt,
 			rawEmailS3Key,
-			recipientAddress: gatewayAddress,
+			recipientAddress,
 		});
 		logger.info("[route-gmail-forwarded-email] held an unmapped sender", { senderEmail });
 		return undefined;

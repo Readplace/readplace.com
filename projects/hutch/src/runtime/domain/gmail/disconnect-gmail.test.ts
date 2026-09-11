@@ -50,7 +50,7 @@ async function makeHarness(options: {
 		senders,
 		rewriteGmailFilter: async ({ userId }) => {
 			rewrites.push(userId);
-			return options.rewritten ?? { ok: true, filterId: undefined, senderCount: 0 };
+			return options.rewritten ?? { ok: true, filterCount: 0, senderCount: 0 };
 		},
 		revokeGmailGrant: async ({ refreshToken }) => {
 			revokes.push(refreshToken);

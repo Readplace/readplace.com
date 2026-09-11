@@ -5,16 +5,16 @@ import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import {
 	AliasNameSchema,
-	countLiveUserAliases,
+	countLiveCappedAddresses,
 	DEFAULT_INBOX_ADDRESS_PURPOSE,
 	EmailLinkOrdinalSchema,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
 	isLiveAddress,
-	isUserAlias,
+	isCappedAddress,
 	normalizeAliasName,
-	userAliasCapReached,
+	addressCapReached,
 	INBOX_ADDRESSES_PATH,
 	parseInboxHighlight,
 } from "@packages/domain/inbox";
@@ -237,7 +237,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		// still shows it even when the eventually-consistent live read
 		// (listAddressesByUserId) briefly undercounts and would otherwise drop it.
 		const limitReached =
-			req.query.error === "limit" || countLiveUserAliases(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
+			req.query.error === "limit" || countLiveCappedAddresses(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
 		const submittedName = typeof req.query.name === "string" ? req.query.name : "";
 		sendComponent(
 			req,
@@ -688,7 +688,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// else's row never reaches the (also ownership-guarded) store write.
 			const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
 			const target = owned.find((entry) => entry.address === parsed.data.address);
-			if (target !== undefined && isUserAlias(target)) {
+			if (target !== undefined && isCappedAddress(target)) {
 				await deps.inboxAddressStore.disableAddress({ userId, address: parsed.data.address });
 			}
 		}
@@ -706,8 +706,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			if (parsed.success) {
 				const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
 				const target = owned.find((entry) => entry.address === parsed.data.address);
-				if (target !== undefined && isUserAlias(target) && !isLiveAddress(target)) {
-					if (userAliasCapReached({ purpose: target.purpose, owned })) {
+				if (target !== undefined && isCappedAddress(target) && !isLiveAddress(target)) {
+					if (addressCapReached({ purpose: target.purpose, owned })) {
 						res.redirect(303, `${addressesPath}?error=limit`);
 						return;
 					}

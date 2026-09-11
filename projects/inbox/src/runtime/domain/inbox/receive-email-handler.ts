@@ -225,10 +225,11 @@ export function initReceiveEmailHandler(deps: {
 						continue;
 					}
 					const deliveryAddress =
-						resolved.purpose === "gmail-forwarding"
+						resolved.purpose === "gmail-forwarding" || resolved.purpose === "gmail-mapped"
 							? await routeGmailForwardedEmail({
 									userId,
-									gatewayAddress: recipientAddress,
+									recipientAddress,
+									purpose: resolved.purpose,
 									email: parsed.email,
 									receivedAtMessageId,
 									receivedAt,
@@ -236,6 +237,13 @@ export function initReceiveEmailHandler(deps: {
 								})
 							: recipientAddress;
 					if (deliveryAddress === undefined) continue;
+					if (deliveryAddress !== recipientAddress) {
+						const destination = await findByAddress(deliveryAddress);
+						if (destination === undefined || destination.disabledAt !== undefined) {
+							await putEmail(auditRow(deliveryAddress, UNROUTED_USER_ID));
+							continue;
+						}
+					}
 					const base = {
 						userId,
 						receivedAtMessageId,

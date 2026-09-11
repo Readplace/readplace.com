@@ -16,14 +16,22 @@ export function buildGmailMailboxUrl(accountEmail: GmailAccountEmail | undefined
 
 export const GMAIL_CONFIRM_MAX_POLLS = 100;
 
-export type GmailPageError = "sender_invalid" | "sender_duplicate" | "sender_unknown";
+export type GmailPageError =
+	| "sender_invalid"
+	| "sender_duplicate"
+	| "sender_unknown"
+	| "inbox_name_invalid"
+	| "inbox_name_taken"
+	| "inbox_limit";
 
 export type GmailPageNotice =
 	| "connected"
 	| "confirmed"
 	| "sender_added"
 	| "sender_removed"
-	| "sender_mapped";
+	| "sender_mapped"
+	| "inbox_created"
+	| "inbox_confirmation_required";
 
 export function buildGmailUrl(
 	params: { error: GmailPageError } | { notice: GmailPageNotice },

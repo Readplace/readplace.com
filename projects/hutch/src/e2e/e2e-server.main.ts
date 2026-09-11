@@ -12,7 +12,7 @@ import {
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
 import { UserIdSchema } from '@packages/domain/user'
-import { ForwardableSenderSchema } from '@packages/domain/gmail'
+import { ForwardableSenderSchema, aliasNameForSender } from '@packages/domain/gmail'
 import { GMAIL_SETTINGS_SCOPE } from '@packages/provider-contracts/gmail-oauth'
 import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
 import { createTestApp } from '../runtime/test-app'
@@ -409,7 +409,7 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		return
 	}
 	const { userId, state, senders } = parsed.data
-	const { gmailConnectionStore, gmailSenderStore, mintGatewayAddress, mintSenderAddress } =
+	const { gmailConnectionStore, gmailSenderStore, mintGatewayAddress, mintInboxAddress } =
 		gmailIntegration.bundle
 	await gmailConnectionStore.createConnection({
 		userId,
@@ -424,8 +424,7 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 	if (state === 'filtering') {
 		await gmailConnectionStore.recordFilter({
 			userId,
-			filterId: 'filter-e2e',
-			filterQuery: 'from:(dan@tldr.tech)',
+			filterCount: 1,
 			filterSenderCount: senders.filter((s) => s.place !== 'unsorted').length,
 		})
 	}
@@ -456,7 +455,7 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 			await gmailSenderStore.mapSenderToAddress({
 				userId,
 				senderEmail,
-				mappedAddress: await mintSenderAddress({ userId, senderEmail }),
+				mappedAddress: await mintInboxAddress({ userId, name: aliasNameForSender(senderEmail) }),
 			})
 		}
 		await gmailSenderStore.addSenderToFilter({ userId, senderEmail })

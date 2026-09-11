@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import {
+	AliasNameSchema,
 	DEFAULT_INBOX_ALIAS,
 	GMAIL_FORWARDING_ALIAS,
 	InboxAddressSchema,
@@ -65,7 +66,7 @@ function makeHarness(opts?: {
 	const published: { detail: { receivedAtMessageId: string; userId: string; recipientAddress: string } }[] = [];
 	const imageDownloadCalls: { html: string }[] = [];
 	const interceptions: { recipientCount: number }[] = [];
-	const routings: { gatewayAddress: string }[] = [];
+	const routings: { recipientAddress: string; purpose: string }[] = [];
 
 	const handler = initReceiveEmailHandler({
 		readRawEmail: async (key) => rawMap.get(key),
@@ -90,9 +91,9 @@ function makeHarness(opts?: {
 			}),
 		routeGmailForwardedEmail:
 			opts?.routeGmailForwardedEmail ??
-			(async ({ gatewayAddress }) => {
-				routings.push({ gatewayAddress });
-				return gatewayAddress;
+			(async ({ recipientAddress, purpose }) => {
+				routings.push({ recipientAddress, purpose });
+				return recipientAddress;
 			}),
 		logger: HutchLogger.from(noopLogger),
 		maxEmailBytes: opts?.maxEmailBytes ?? 20 * 1024 * 1024,
@@ -495,19 +496,78 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("delivers gateway mail to the alias the sender is mapped to", async () => {
+		let mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
 		const { addressStore, emailStore, rawMap, published, routings, run } = makeHarness({
-			routeGmailForwardedEmail: async () => InboxAddressSchema.parse("tldr-b8c3d0@read.place"),
+			routeGmailForwardedEmail: async () => mappedAddress,
 		});
 		const gateway = await mintGatewayAddress(addressStore);
+		const mapped = await addressStore.createAddress({
+			userId: OWNER,
+			domain: "read.place",
+			name: AliasNameSchema.parse("tldr"),
+			purpose: "gmail-mapped",
+		});
+		mappedAddress = mapped.address;
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		await run(gateway);
 
 		const emails = await listEmails(emailStore, OWNER);
 		expect(emails).toHaveLength(1);
-		assert.equal(emails[0].recipientAddress, "tldr-b8c3d0@read.place");
-		assert.equal(published[0].detail.recipientAddress, "tldr-b8c3d0@read.place");
+		assert.equal(emails[0].recipientAddress, mapped.address);
+		assert.equal(published[0].detail.recipientAddress, mapped.address);
 		assert.deepEqual(routings, []);
+	});
+
+	it("rejects gateway mail mapped to a disabled inbox and resumes delivery when it is enabled", async () => {
+		let mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
+		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
+			routeGmailForwardedEmail: async () => mappedAddress,
+		});
+		const gateway = await mintGatewayAddress(addressStore);
+		const mapped = await addressStore.createAddress({
+			userId: OWNER,
+			domain: "read.place",
+			name: AliasNameSchema.parse("tldr"),
+			purpose: "gmail-mapped",
+		});
+		mappedAddress = mapped.address;
+		await addressStore.disableAddress({ userId: OWNER, address: mapped.address });
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await run(gateway);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const [rejected] = await listEmails(emailStore, UNROUTED);
+		expect(rejected.status).toBe("rejected");
+		expect(rejected.recipientAddress).toBe(mapped.address);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
+		expect(published).toHaveLength(0);
+
+		await addressStore.enableAddress({ userId: OWNER, address: mapped.address });
+		await run(gateway);
+		const [received] = await listEmails(emailStore, OWNER);
+		expect(received.status).toBe("received");
+		expect(received.recipientAddress).toBe(mapped.address);
+		expect(published).toHaveLength(1);
+	});
+
+	it("audits gateway mail whose mapped inbox no longer resolves", async () => {
+		const mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
+		const { addressStore, emailStore, rawMap, run } = makeHarness({
+			routeGmailForwardedEmail: async () => mappedAddress,
+		});
+		const gateway = await mintGatewayAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await run(gateway);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const [rejected] = await listEmails(emailStore, UNROUTED);
+		expect(rejected.status).toBe("rejected");
+		expect(rejected.recipientAddress).toBe(mappedAddress);
 	});
 
 	it("stores nothing and publishes nothing while a gateway sender is unmapped", async () => {
@@ -533,5 +593,23 @@ describe("initReceiveEmailHandler", () => {
 		await run(alias);
 
 		assert.deepEqual(routings, []);
+	});
+
+	it("routes mail delivered straight to a named inbox so the sighting is recorded", async () => {
+		const { addressStore, emailStore, rawMap, published, routings, run } = makeHarness();
+		const inbox = await addressStore.createAddress({
+			userId: OWNER,
+			domain: "read.place",
+			name: AliasNameSchema.parse("tech"),
+			purpose: "gmail-mapped",
+		});
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(inbox.address);
+
+		assert.deepEqual(routings, [{ recipientAddress: inbox.address, purpose: "gmail-mapped" }]);
+		const [row] = await listEmails(emailStore, OWNER);
+		expect(row.status).toBe("received");
+		expect(published).toHaveLength(1);
 	});
 });

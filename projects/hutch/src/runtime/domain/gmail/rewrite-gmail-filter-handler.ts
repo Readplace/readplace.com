@@ -36,12 +36,11 @@ export function initRewriteGmailFilterHandler(deps: {
 				if (result.ok) {
 					await publishEvent(GmailFilterRewrittenEvent, {
 						userId,
-						filterId: result.filterId,
 						senderCount: result.senderCount,
 					});
 					logger.info("[rewrite-gmail-filter] filter reconciled", {
 						userId,
-						filterId: result.filterId,
+						filterCount: result.filterCount,
 						senderCount: result.senderCount,
 						reason: parsed.data.reason,
 					});

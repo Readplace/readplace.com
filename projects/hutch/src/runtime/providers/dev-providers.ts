@@ -79,8 +79,7 @@ import { initInMemoryImportSession } from "@packages/test-fixtures/providers/imp
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
-import { aliasNameForSender } from "@packages/domain/gmail";
-import type { ForwardableSender } from "@packages/domain/gmail";
+import type { AliasName } from "@packages/domain/inbox";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
@@ -200,18 +199,16 @@ export function initDevProviders(input: { appOrigin: string }) {
 						return entry.address;
 					},
 					findInboxAddress: inboxAddressStore.findByAddress,
-					mintSenderAddress: async ({
-						userId,
-						senderEmail,
-					}: { userId: UserId; senderEmail: ForwardableSender }) => {
+					mintInboxAddress: async ({ userId, name }: { userId: UserId; name: AliasName }) => {
 						const entry = await inboxAddressStore.createAddress({
 							userId,
 							domain: inboxAddressDomain,
-							name: aliasNameForSender(senderEmail),
+							name,
 							purpose: "gmail-mapped",
 						});
 						return entry.address;
 					},
+					listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 					publishRewriteGmailFilter: async () => {},
 					publishDisconnectGmail: async () => {},
 				}

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "../user";
 import {
+	addressCapReached,
 	countLiveAddresses,
-	countLiveUserAliases,
+	countLiveCappedAddresses,
 	isLiveAddress,
-	isUserAlias,
-	userAliasCapReached,
+	isCappedAddress,
 } from "./inbox-address.live";
 import {
 	AliasNameSchema,
@@ -32,6 +32,7 @@ function makeEntry(
 		createdAt: "2026-01-01T00:00:00.000Z",
 		disabledAt: input.disabledAt,
 		purpose: input.purpose ?? DEFAULT_INBOX_ADDRESS_PURPOSE,
+		gmailConfirmedAt: undefined,
 	};
 }
 
@@ -64,36 +65,37 @@ describe("countLiveAddresses", () => {
 	});
 });
 
-describe("isUserAlias", () => {
-	it("treats an address the user minted as a user alias", () => {
-		assert.equal(isUserAlias(makeEntry()), true);
+describe("isCappedAddress", () => {
+	it("includes user aliases and named Gmail inboxes", () => {
+		assert.equal(isCappedAddress(makeEntry()), true);
+		assert.equal(isCappedAddress(makeEntry({ purpose: "gmail-mapped" })), true);
 	});
 
-	it("treats the Gmail gateway address as not a user alias", () => {
-		assert.equal(isUserAlias(makeEntry({ purpose: "gmail-forwarding" })), false);
+	it("exempts the Gmail gateway address", () => {
+		assert.equal(isCappedAddress(makeEntry({ purpose: "gmail-forwarding" })), false);
 	});
 });
 
-describe("countLiveUserAliases", () => {
-	it("counts only live addresses the user minted themselves", () => {
+describe("countLiveCappedAddresses", () => {
+	it("counts every live address except the Gmail gateway", () => {
 		const entries = [
 			makeEntry(),
 			makeEntry({ purpose: "gmail-forwarding" }),
 			makeEntry({ purpose: "gmail-mapped" }),
 			makeEntry({ disabledAt: DISABLED_AT }),
 		];
-		assert.equal(countLiveUserAliases(entries), 1);
+		assert.equal(countLiveCappedAddresses(entries), 2);
 	});
 
-	it("returns zero when the user holds only integration-minted addresses", () => {
-		assert.equal(countLiveUserAliases([makeEntry({ purpose: "gmail-forwarding" })]), 0);
+	it("returns zero when the user holds only the exempt gateway", () => {
+		assert.equal(countLiveCappedAddresses([makeEntry({ purpose: "gmail-forwarding" })]), 0);
 	});
 });
 
-describe("userAliasCapReached", () => {
-	it("reaches the cap for a user alias once the user holds the maximum live user aliases", () => {
+describe("addressCapReached", () => {
+	it("reaches the cap for a user alias once the user holds the maximum live capped addresses", () => {
 		const owned = liveUserAliases(INBOX_ADDRESS_MAX_PER_USER);
-		assert.equal(userAliasCapReached({ purpose: "user-alias", owned }), true);
+		assert.equal(addressCapReached({ purpose: "user-alias", owned }), true);
 	});
 
 	it("leaves room for a user alias when one of the cap-worth of rows is disabled", () => {
@@ -101,24 +103,24 @@ describe("userAliasCapReached", () => {
 			...liveUserAliases(INBOX_ADDRESS_MAX_PER_USER - 1),
 			makeEntry({ disabledAt: DISABLED_AT }),
 		];
-		assert.equal(userAliasCapReached({ purpose: "user-alias", owned }), false);
+		assert.equal(addressCapReached({ purpose: "user-alias", owned }), false);
 	});
 
-	it("never caps the Gmail gateway address, even when the user aliases are full", () => {
+	it("never caps the Gmail gateway address, even when the cap is full", () => {
 		const owned = liveUserAliases(INBOX_ADDRESS_MAX_PER_USER);
-		assert.equal(userAliasCapReached({ purpose: "gmail-forwarding", owned }), false);
+		assert.equal(addressCapReached({ purpose: "gmail-forwarding", owned }), false);
 	});
 
-	it("never caps a Gmail-mapped inbox, even when the user aliases are full", () => {
+	it("caps a Gmail-mapped inbox once the cap is full, since it now counts", () => {
 		const owned = liveUserAliases(INBOX_ADDRESS_MAX_PER_USER);
-		assert.equal(userAliasCapReached({ purpose: "gmail-mapped", owned }), false);
+		assert.equal(addressCapReached({ purpose: "gmail-mapped", owned }), true);
 	});
 
-	it("does not count integration-minted rows toward a user alias's cap", () => {
+	it("counts a Gmail-mapped row toward the cap alongside user aliases", () => {
 		const owned = [
 			...liveUserAliases(INBOX_ADDRESS_MAX_PER_USER - 1),
 			makeEntry({ purpose: "gmail-mapped" }),
 		];
-		assert.equal(userAliasCapReached({ purpose: "user-alias", owned }), false);
+		assert.equal(addressCapReached({ purpose: "user-alias", owned }), true);
 	});
 });

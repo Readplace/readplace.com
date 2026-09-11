@@ -24,8 +24,7 @@ const GmailConnectionRow = z.object({
 	accountEmail: dynamoField(GmailAccountEmailSchema),
 	connectedAt: z.string(),
 	forwardingConfirmedAt: dynamoField(z.string()),
-	filterId: dynamoField(z.string()),
-	filterQuery: dynamoField(z.string()),
+	filterCount: dynamoField(z.number()),
 	filterSenderCount: dynamoField(z.number()),
 	filterUpdatedAt: dynamoField(z.string()),
 	lastFilterError: dynamoField(GmailFilterErrorRow),
@@ -42,8 +41,7 @@ function toConnection(row: z.infer<typeof GmailConnectionRow>): GmailConnection 
 		accountEmail: row.accountEmail,
 		connectedAt: row.connectedAt,
 		forwardingConfirmedAt: row.forwardingConfirmedAt,
-		filterId: row.filterId,
-		filterQuery: row.filterQuery,
+		filterCount: row.filterCount,
 		filterSenderCount: row.filterSenderCount,
 		filterUpdatedAt: row.filterUpdatedAt,
 		lastFilterError: row.lastFilterError,
@@ -81,8 +79,7 @@ export function initDynamoDbGmailConnection(deps: {
 				accountEmail: undefined,
 				connectedAt,
 				forwardingConfirmedAt: undefined,
-				filterId: undefined,
-				filterQuery: undefined,
+				filterCount: undefined,
 				filterSenderCount: undefined,
 				filterUpdatedAt: undefined,
 				lastFilterError: undefined,
@@ -116,14 +113,13 @@ export function initDynamoDbGmailConnection(deps: {
 				ExpressionAttributeValues: { ":email": accountEmail },
 			});
 		},
-		recordFilter: async ({ userId, filterId, filterQuery, filterSenderCount }) => {
+		recordFilter: async ({ userId, filterCount, filterSenderCount }) => {
 			await table.update({
 				Key: { userId },
 				UpdateExpression:
-					"SET filterId = :id, filterQuery = :q, filterSenderCount = :n, filterUpdatedAt = :now REMOVE lastFilterError",
+					"SET filterCount = :c, filterSenderCount = :n, filterUpdatedAt = :now REMOVE lastFilterError",
 				ExpressionAttributeValues: {
-					":id": filterId,
-					":q": filterQuery,
+					":c": filterCount,
 					":n": filterSenderCount,
 					":now": deps.now().toISOString(),
 				},
@@ -133,7 +129,7 @@ export function initDynamoDbGmailConnection(deps: {
 			await table.update({
 				Key: { userId },
 				UpdateExpression:
-					"REMOVE filterId, filterQuery, filterSenderCount, filterUpdatedAt, lastFilterError",
+					"REMOVE filterCount, filterSenderCount, filterUpdatedAt, lastFilterError",
 			});
 		},
 		recordFilterError: async ({ userId, error }) => {

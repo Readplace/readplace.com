@@ -5,6 +5,8 @@ import type {
 	GmailSenderEntry,
 } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
+import type { InboxAddressEntry } from "@packages/domain/inbox";
+import { isLiveAddress } from "@packages/domain/inbox";
 import {
 	buildGmailStatusUrl,
 	GMAIL_CONFIRM_MAX_POLLS,
@@ -36,6 +38,11 @@ export interface GmailBannerViewModel {
 	message: string;
 }
 
+export interface GmailDestinationOptionViewModel {
+	value: string;
+	label: string;
+}
+
 export interface GmailPageViewModel {
 	state: GmailConnectionState;
 	stateModifier: string;
@@ -51,6 +58,7 @@ export interface GmailPageViewModel {
 	showReconnect: boolean;
 	senders: GmailSenderRowViewModel[];
 	unsorted: GmailUnsortedRowViewModel[];
+	destinationOptions: GmailDestinationOptionViewModel[];
 	hasSenders: boolean;
 	hasUnsorted: boolean;
 	alerts: GmailBannerViewModel[];
@@ -82,6 +90,9 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	sender_invalid: "That doesn't look like an email address. Use the address the newsletter sends from.",
 	sender_duplicate: "You're already forwarding that sender.",
 	sender_unknown: "I couldn't find that sender any more. Reload the page and try again.",
+	inbox_name_invalid: "That inbox name can only use letters, numbers and hyphens. Try a simpler name.",
+	inbox_name_taken: "You already have an inbox with that name. Pick another, or add the sender to it.",
+	inbox_limit: "You've reached the limit of inboxes on your account. Reuse one of your existing inboxes.",
 };
 
 export const GMAIL_GATEWAY_DISABLED_MESSAGE =
@@ -93,6 +104,8 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	sender_added: "Added. Gmail will start forwarding that sender.",
 	sender_removed: "Removed. Gmail will stop forwarding that sender.",
 	sender_mapped: "Done. That sender now has its own inbox.",
+	inbox_created: "Inbox ready. Add its address in Gmail's forwarding settings to forward directly to this inbox. Readplace confirms it automatically.",
+	inbox_confirmation_required: "This inbox still needs Gmail setup. Add its address in Gmail's forwarding settings to forward directly to this inbox. Readplace confirms it automatically.",
 };
 
 const GMAIL_POLL_WATCHING = "Watching for Gmail to confirm the forwarding address.";
@@ -124,6 +137,7 @@ export function toGmailPollViewModel(input: { pollCount: number }): GmailPollVie
 export function toGmailPageViewModel(input: {
 	connection: GmailConnection;
 	senders: readonly GmailSenderEntry[];
+	inboxes?: readonly InboxAddressEntry[];
 	gatewayLive: boolean;
 	error?: string;
 	notice?: string;
@@ -132,6 +146,14 @@ export function toGmailPageViewModel(input: {
 	const awaiting = state === "awaiting-confirmation";
 	const revoked = state === "revoked";
 	const onFilter = input.senders.filter((sender) => sender.addedToFilterAt !== undefined);
+	const namedInboxes = (input.inboxes ?? []).filter(
+		(entry) => isLiveAddress(entry) && entry.purpose === "gmail-mapped",
+	);
+	const destinationOptions: GmailDestinationOptionViewModel[] = [
+		{ value: "", label: "Default inbox" },
+		...namedInboxes.map((entry) => ({ value: entry.address, label: entry.name })),
+		{ value: "new", label: "New inbox…" },
+	];
 	const unsorted = input.senders.filter(
 		(sender) => sender.addedToFilterAt === undefined && sender.mappedAddress === undefined,
 	);
@@ -170,6 +192,7 @@ export function toGmailPageViewModel(input: {
 			detail: senderDetail(sender),
 			mapAction: track(GMAIL_SENDER_MAP_PATH, "map-sender"),
 		})),
+		destinationOptions,
 		hasSenders: onFilter.length > 0,
 		hasUnsorted: unsorted.length > 0,
 		alerts,

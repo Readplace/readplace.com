@@ -491,7 +491,7 @@ describe("Inbox address routes", () => {
 			expect(after.disabledAt).toBeUndefined();
 		});
 
-		it("keeps integration-minted addresses out of the list the reader manages", async () => {
+		it("lists named Gmail inboxes alongside user aliases and keeps the gateway protected", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -504,6 +504,12 @@ describe("Inbox address routes", () => {
 				name: SEED_NAME,
 				purpose: "gmail-forwarding",
 			});
+			const mapped = await store.createAddress({
+				userId,
+				domain: "read.place",
+				name: AliasNameSchema.parse("tech"),
+				purpose: "gmail-mapped",
+			});
 			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
 			const newsletter = (await store.listAddressesByUserId(userId)).find(
 				(entry) => entry.purpose === "user-alias",
@@ -515,7 +521,57 @@ describe("Inbox address routes", () => {
 			const listed = Array.from(
 				page.querySelectorAll('form.inbox__disable input[name="address"]'),
 			).map((el) => el.getAttribute("value"));
-			expect(listed).toEqual([newsletter.address]);
+			expect(listed).toEqual([mapped.address, newsletter.address]);
+		});
+
+		it("frees a slot by disabling a named Gmail inbox and enforces the cap when enabling it again", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			const store = fixture.inboxAddress.inboxAddressStore;
+			for (let index = 0; index < INBOX_ADDRESS_MAX_PER_USER; index++) {
+				await store.createAddress({
+					userId,
+					domain: "read.place",
+					name: SEED_NAME,
+					purpose: "gmail-mapped",
+				});
+			}
+			const [mapped] = await store.listAddressesByUserId(userId);
+
+			const disabled = await agent
+				.post("/inbox/disable")
+				.type("form")
+				.send({ address: mapped.address });
+			expect(disabled.status).toBe(303);
+			const created = await agent.post("/inbox/create").type("form").send({ name: "replacement" });
+			expect(created.headers.location).toBe("/inbox/addresses?created=replacement");
+			const blocked = await agent
+				.post("/inbox/enable")
+				.type("form")
+				.send({ address: mapped.address });
+			expect(blocked.headers.location).toBe("/inbox/addresses?error=limit");
+
+			const replacement = (await store.listAddressesByUserId(userId)).find(
+				(entry) => entry.name === "replacement",
+			);
+			assert(replacement, "the freed slot must hold the newly created address");
+			await agent.post("/inbox/disable").type("form").send({ address: replacement.address });
+			const enabled = await agent
+				.post("/inbox/enable")
+				.type("form")
+				.send({ address: mapped.address });
+			expect(enabled.headers.location).toBe("/inbox/addresses");
+			const restored = await store.findByAddress(mapped.address);
+			assert(restored, "the named Gmail inbox must still resolve");
+			expect(restored.disabledAt).toBeUndefined();
+			const page = new JSDOM((await agent.get("/inbox/addresses")).text).window.document;
+			const listed = Array.from(
+				page.querySelectorAll('form.inbox__disable input[name="address"]'),
+			).map((element) => element.getAttribute("value"));
+			expect(listed).toContain(mapped.address);
 		});
 
 		it("disables an address the user owns", async () => {
@@ -718,32 +774,32 @@ describe("Inbox address routes", () => {
 			expect(statuses).toEqual(["enabled"]);
 		});
 
-		it("leaves an integration-minted address disabled — only the integration owns it", async () => {
+		it("leaves a Gmail gateway disabled because only the integration owns it", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "seeded login user must exist");
 			const store = fixture.inboxAddress.inboxAddressStore;
-			const mapped = await store.createAddress({
+			const gateway = await store.createAddress({
 				userId,
 				domain: "read.place",
 				name: SEED_NAME,
-				purpose: "gmail-mapped",
+				purpose: "gmail-forwarding",
 			});
-			await store.disableAddress({ userId, address: mapped.address });
-			const disabled = await store.findByAddress(mapped.address);
-			assert(disabled?.disabledAt, "the mapped address must start out disabled");
+			await store.disableAddress({ userId, address: gateway.address });
+			const disabled = await store.findByAddress(gateway.address);
+			assert(disabled?.disabledAt, "the gateway address must start out disabled");
 
 			const response = await agent
 				.post("/inbox/enable")
 				.type("form")
-				.send({ address: mapped.address });
+				.send({ address: gateway.address });
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/inbox/addresses");
-			const after = await store.findByAddress(mapped.address);
-			assert(after, "the mapped address must still resolve");
+			const after = await store.findByAddress(gateway.address);
+			assert(after, "the gateway address must still resolve");
 			expect(after.disabledAt).toBe(disabled.disabledAt);
 		});
 

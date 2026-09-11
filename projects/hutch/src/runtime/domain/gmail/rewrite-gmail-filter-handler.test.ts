@@ -40,10 +40,10 @@ function makeHarness(outcome: RewriteGmailFilterOutcome | (() => never)) {
 }
 
 describe("initRewriteGmailFilterHandler", () => {
-	it("publishes the rewritten fact with the filter it settled on", async () => {
+	it("publishes the rewritten fact with the sender count it settled on", async () => {
 		const { run, rewritten, published } = makeHarness({
 			ok: true,
-			filterId: "f-101",
+			filterCount: 2,
 			senderCount: 2,
 		});
 
@@ -52,15 +52,15 @@ describe("initRewriteGmailFilterHandler", () => {
 		assert.deepEqual(response, { batchItemFailures: [] });
 		assert.deepEqual(rewritten, [USER]);
 		assert.equal(published[0].event, GmailFilterRewrittenEvent);
-		assert.deepEqual(published[0].detail, { userId: USER, filterId: "f-101", senderCount: 2 });
+		assert.deepEqual(published[0].detail, { userId: USER, senderCount: 2 });
 	});
 
-	it("publishes the rewritten fact with no filter once the last sender is gone", async () => {
-		const { run, published } = makeHarness({ ok: true, filterId: undefined, senderCount: 0 });
+	it("publishes the rewritten fact with no senders once the last sender is gone", async () => {
+		const { run, published } = makeHarness({ ok: true, filterCount: 0, senderCount: 0 });
 
 		await run(buildSqsEvent([{ messageId: "cmd-1", body: commandBody("sender-removed") }]));
 
-		assert.deepEqual(published[0].detail, { userId: USER, filterId: undefined, senderCount: 0 });
+		assert.deepEqual(published[0].detail, { userId: USER, senderCount: 0 });
 	});
 
 	it("retries a Gmail outage instead of publishing a failure", async () => {
@@ -87,7 +87,7 @@ describe("initRewriteGmailFilterHandler", () => {
 	});
 
 	it("retries a command whose detail it cannot read", async () => {
-		const { run, rewritten } = makeHarness({ ok: true, filterId: "f-1", senderCount: 1 });
+		const { run, rewritten } = makeHarness({ ok: true, filterCount: 1, senderCount: 1 });
 
 		const response = await run(
 			buildSqsEvent([{ messageId: "cmd-1", body: JSON.stringify({ detail: { userId: USER } }) }]),

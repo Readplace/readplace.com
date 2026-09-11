@@ -1,7 +1,6 @@
-import type { ForwardableSender, GmailAccountEmail } from "@packages/domain/gmail";
-import { aliasNameForSender } from "@packages/domain/gmail";
+import type { GmailAccountEmail } from "@packages/domain/gmail";
 import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
-import type { InboxAddressStore } from "@packages/domain/inbox";
+import type { AliasName, InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { GmailIntegrationBundle } from "@packages/web-test-harness";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
@@ -62,18 +61,16 @@ export function initInMemoryGmailIntegration(input: {
 				return entry.address;
 			},
 			findInboxAddress: addresses.findByAddress,
-			mintSenderAddress: async ({
-				userId,
-				senderEmail,
-			}: { userId: UserId; senderEmail: ForwardableSender }) => {
+			mintInboxAddress: async ({ userId, name }: { userId: UserId; name: AliasName }) => {
 				const entry = await addresses.createAddress({
 					userId,
 					domain,
-					name: aliasNameForSender(senderEmail),
+					name,
 					purpose: "gmail-mapped",
 				});
 				return entry.address;
 			},
+			listInboxAddresses: (userId: UserId) => addresses.listAddressesByUserId(userId),
 			publishRewriteGmailFilter: async (detail) => {
 				rewriteRequests.push(detail);
 			},
