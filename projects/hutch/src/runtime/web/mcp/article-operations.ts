@@ -1,6 +1,5 @@
 import assert from "node:assert";
 import {
-	ReaderArticleHashIdSchema,
 	displayableReadTime,
 	isNonArticleHost,
 } from "@packages/domain/article";
@@ -8,8 +7,8 @@ import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
-	FindArticleById,
 	FindArticlesByUser,
+	FindReadlistArticles,
 	ReadArticleContent,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
@@ -26,11 +25,17 @@ import type {
 	ArticleStatusResult,
 	ArticleSummaryResult,
 	McpArticle,
+	McpReadlist,
 	McpServerDeps,
 } from "./mcp-server";
 
+import type { ResolveOwnedArticle } from "./article-lookup";
+import type { ResolveReadlistMembership } from "./readlist-membership";
+
 interface McpArticleOperationDeps {
-	findArticleById: FindArticleById;
+	resolveOwnedArticle: ResolveOwnedArticle;
+	resolveReadlistMembership: ResolveReadlistMembership;
+	findReadlistArticles: FindReadlistArticles;
 	findArticlesByUser: FindArticlesByUser;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
@@ -38,10 +43,14 @@ interface McpArticleOperationDeps {
 	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
 }
 
-export function toMcpArticle(article: SavedArticle): McpArticle {
+export function toMcpArticle(
+	article: SavedArticle,
+	readlists: readonly McpReadlist[],
+): McpArticle {
 	const readTime = displayableReadTime(article);
 	return {
 		id: article.id.value,
+		readlists,
 		url: article.displayUrl ?? article.url,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
@@ -112,15 +121,6 @@ function toRelatedResult(related: RelatedArticles): ArticleRelatedResult {
 	}
 }
 
-/**
- * Builds the article-facing MCP operations from the same store seams the
- * hypermedia `/queue` API uses. Lives here rather than in the composition root
- * so the id→owner resolution and the metadata/summary mapping are unit-testable
- * without standing up the whole app. Every lookup — and the status write, which
- * resolves its target the same way — is owner-scoped (`findArticleById` is keyed
- * by userId), so a cross-user or malformed id resolves to "not found" rather
- * than reaching another user's article.
- */
 export function initMcpArticleOperations(
 	deps: McpArticleOperationDeps,
 ): Pick<
@@ -133,19 +133,13 @@ export function initMcpArticleOperations(
 	| "markAsRead"
 	| "markAsUnread"
 > {
-	async function resolveOwned(
-		userId: AuthenticatedUserId,
-		id: string,
-	): Promise<SavedArticle | null> {
-		const parsed = ReaderArticleHashIdSchema.safeParse(id);
-		if (!parsed.success) return null;
-		return deps.findArticleById(parsed.data, userId);
+	async function projectArticle(userId: AuthenticatedUserId, article: SavedArticle) {
+		const membership = await deps.resolveReadlistMembership({ userId, urls: [article.url] });
+		const readlists = membership.get(article.url);
+		assert(readlists, "membership must include each requested URL");
+		return toMcpArticle(article, readlists);
 	}
 
-	/** Shared by both mark operations, which differ only in the status they land
-	 * on. Re-reading the row first is what makes the write idempotent: the store
-	 * restamps `readAt` on every write, so a second mark_as_read on an
-	 * already-read article would move a date the caller was told wouldn't move. */
 	async function changeStatus({
 		userId,
 		id,
@@ -155,24 +149,25 @@ export function initMcpArticleOperations(
 		id: string;
 		status: ArticleStatus;
 	}): Promise<ArticleStatusResult> {
-		const article = await resolveOwned(userId, id);
-		if (!article) return { status: "not_found" };
+		const owned = await deps.resolveOwnedArticle({ userId, id });
+		if (!owned) return { status: "not_found" };
+		const { article, readlist } = owned;
 		if (article.status === status) {
-			return { status: "ok", article: toMcpArticle(article) };
+			return { status: "ok", article: await projectArticle(userId, article) };
 		}
 		const updated = await deps.updateArticleStatusAcrossReadlists({
 			id: article.id,
 			userId,
-			addressed: DEFAULT_READLIST_SLUG,
+			addressed: readlist,
 			status,
 		});
 		if (!updated) return { status: "not_found" };
-		return { status: "ok", article: toMcpArticle(updated) };
+		return { status: "ok", article: await projectArticle(userId, updated) };
 	}
 
 	return {
-		listReadlist: async ({ userId, status, sort, order, page, pageSize }) => {
-			const result = await deps.findArticlesByUser({
+		listReadlist: async ({ userId, readlist = DEFAULT_READLIST_SLUG, status, sort, order, page, pageSize }) => {
+			const query = {
 				userId,
 				status,
 				sort,
@@ -181,24 +176,36 @@ export function initMcpArticleOperations(
 				pageSize,
 				excludeContent: true,
 				includeTotal: true,
-			});
+			};
+			const result = await (readlist === DEFAULT_READLIST_SLUG
+				? deps.findArticlesByUser(query)
+				: deps.findReadlistArticles({ ...query, readlist }));
 			assert(result.total !== undefined, "includeTotal query must return a total");
+			const membership = await deps.resolveReadlistMembership({
+				userId,
+				urls: result.articles.map((article) => article.url),
+			});
 			return {
 				total: result.total,
 				page: result.page,
 				pageSize: result.pageSize,
-				articles: result.articles.map(toMcpArticle),
+				articles: result.articles.map((article) => {
+					const readlists = membership.get(article.url);
+					assert(readlists, "membership must include each requested URL");
+					return toMcpArticle(article, readlists);
+				}),
 			};
 		},
 
 		getArticle: async ({ userId, id }) => {
-			const article = await resolveOwned(userId, id);
-			return article ? toMcpArticle(article) : null;
+			const owned = await deps.resolveOwnedArticle({ userId, id });
+			return owned ? projectArticle(userId, owned.article) : null;
 		},
 
 		getArticleContent: async ({ userId, id }) => {
-			const article = await resolveOwned(userId, id);
-			if (!article) return { status: "not_found" };
+			const owned = await deps.resolveOwnedArticle({ userId, id });
+			if (!owned) return { status: "not_found" };
+			const { article } = owned;
 			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
 			const content = await deps.readArticleContent(article.url);
 			return content === undefined
@@ -207,16 +214,19 @@ export function initMcpArticleOperations(
 		},
 
 		getArticleSummary: async ({ userId, id }) => {
-			const article = await resolveOwned(userId, id);
-			if (!article) return { status: "not_found" };
+			const owned = await deps.resolveOwnedArticle({ userId, id });
+			if (!owned) return { status: "not_found" };
+			const { article } = owned;
 			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
 			const summary = await deps.findGeneratedSummary(article.url);
 			return toSummaryResult(summary);
 		},
 
 		getRelatedArticles: async ({ userId, id }) => {
-			const article = await resolveOwned(userId, id);
-			if (!article) return { status: "not_found" };
+			const owned = await deps.resolveOwnedArticle({ userId, id });
+			if (!owned) return { status: "not_found" };
+			if (owned.readlist !== DEFAULT_READLIST_SLUG) return { status: "skipped" };
+			const { article } = owned;
 			const related = await deps.findRelatedArticles({
 				userId,
 				url: article.url,

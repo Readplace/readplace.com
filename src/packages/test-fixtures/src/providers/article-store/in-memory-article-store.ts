@@ -473,15 +473,21 @@ export function initInMemoryArticleStore(): {
 	const assignSavedArticleToReadlist: AssignSavedArticleToReadlist = async ({
 		userId,
 		readlist,
+		from,
 		url,
 		savedAt,
 	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const source = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		const partitionKey = (slug: ReadlistSlug) =>
+			slug === DEFAULT_READLIST_SLUG
+				? userArticleKey(userId, articleResourceUniqueId.value)
+				: userArticleKey(userId, articleResourceUniqueId.value, slug);
+		const source = userArticles.get(partitionKey(from));
 		if (!source) return { assigned: false };
-		const targetKey = userArticleKey(userId, articleResourceUniqueId.value, readlist);
+		const targetKey = partitionKey(readlist);
 		if (userArticles.has(targetKey)) return { assigned: false };
-		userArticles.set(targetKey, { ...source, readlist, savedAt });
+		const targetReadlist = readlist === DEFAULT_READLIST_SLUG ? undefined : readlist;
+		userArticles.set(targetKey, { ...source, readlist: targetReadlist, savedAt });
 		return { assigned: true };
 	};
 
@@ -509,10 +515,13 @@ export function initInMemoryArticleStore(): {
 		return saves;
 	};
 
-	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls }) => {
+	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
 		const saves = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const url of urls) {
-			saves.set(url, await listUserSavesForUrl({ userId, url }));
+			const memberships = await listUserSavesForUrl({ userId, url });
+			saves.set(url, readlists === undefined ? memberships : memberships.filter(
+				(save) => readlists.includes(save.readlist ?? DEFAULT_READLIST_SLUG),
+			));
 		}
 		return saves;
 	};
@@ -575,14 +584,14 @@ export function initInMemoryArticleStore(): {
 		const owned = [...readlistDefinitions.values()].filter((d) => d.userId === params.userId);
 		if (owned.length >= READLIST_MAX_PER_USER) throw new ReadlistLimitReachedError(READLIST_MAX_PER_USER);
 		const key = readlistDefinitionKey(params.userId, params.slug);
-		if (readlistDefinitions.has(key)) return { created: false };
+		if (readlistDefinitions.has(key)) return { created: false, ownedCount: owned.length };
 		readlistDefinitions.set(key, {
 			userId: params.userId,
 			slug: params.slug,
 			label: params.label,
 			createdAt: params.createdAt,
 		});
-		return { created: true };
+		return { created: true, ownedCount: owned.length + 1 };
 	};
 
 	const renameReadlistDefinition: RenameReadlistDefinition = async (params) => {

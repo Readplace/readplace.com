@@ -30,7 +30,7 @@ describe("/mcp SEO", () => {
 		expect(doc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(CANONICAL_URL);
 		expect(doc.title).toBe("Connect Readplace to your AI assistant (MCP) — Readplace");
 		expect(doc.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(
-			"Readplace runs an MCP server. Connect ChatGPT, Gemini, Claude, Perplexity, or any MCP client and your assistant can save pages to your reading queue and list back what you have saved.",
+			"Readplace runs an MCP server. Connect ChatGPT, Gemini, Claude, Perplexity, or any MCP client and your assistant can save pages to your readlist and list back what you have saved.",
 		);
 	});
 

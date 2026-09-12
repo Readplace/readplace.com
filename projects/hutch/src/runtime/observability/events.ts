@@ -1,4 +1,5 @@
 import type { CheckoutVariant } from "@packages/provider-contracts/hosted-checkout";
+import type { UserId } from "@packages/domain/user";
 import { STREAMS } from "@packages/web-analytics";
 
 export {
@@ -65,7 +66,20 @@ export const METRICS = {
 		namespace: "Readplace/OAuth",
 		name: "OAuthRefreshRefused",
 	},
+	readlistCapApproached: {
+		namespace: "Readplace/Readlists",
+		name: "ReadlistCapApproached",
+	},
 } as const;
+
+export const READLIST_CAP_APPROACHED_EVENT = "readlist_cap_approached";
+
+export interface ReadlistCapApproachedLine {
+	event: typeof READLIST_CAP_APPROACHED_EVENT;
+	count: number;
+	limit: number;
+	userId: UserId;
+}
 
 export const GMAIL_CONNECTIONS_COUNT_EVENT = "gmail_connections_counted";
 

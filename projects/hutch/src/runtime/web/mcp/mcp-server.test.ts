@@ -1,9 +1,12 @@
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { encodeReadlistCursor } from "./cursor";
 import {
 	initMcpServer,
 	type McpArticle,
+	type CreateReadlistResult,
+	type AddToReadlistResult,
 	type McpServerDeps,
 	type McpToolCallRecord,
 } from "./mcp-server";
@@ -13,7 +16,10 @@ const context = { userId, oauthClientId: "dyn-registered-mcp-client" };
 
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {
-		saveLink: async () => ({ ok: true, title: "Example", url: "https://example.com/" }),
+		saveLink: async () => ({ ok: true, title: "Example", url: "https://example.com/", filedInto: [] }),
+		listReadlists: async () => [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+		createReadlist: async () => ({ status: "invalid_name" }),
+		addToReadlist: async () => ({ status: "article_not_found" }),
 		listReadlist: async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }),
 		getArticle: async () => null,
 		getArticleContent: async () => ({ status: "not_found" }),
@@ -40,6 +46,7 @@ function mcpArticle(overrides: Partial<McpArticle> = {}): McpArticle {
 		readTime: { value: "1", label: "~1 min read" },
 		status: "unread",
 		savedAt: "2026-01-01T00:00:00.000Z",
+		readlists: [],
 		...overrides,
 	};
 }
@@ -117,11 +124,14 @@ describe("initMcpServer", () => {
 			result: {
 				tools: [
 					{ name: "save_link", annotations: { openWorldHint: true } },
-					{ name: "list_queue", annotations: { readOnlyHint: true } },
+					{ name: "list_readlists", annotations: { readOnlyHint: true } },
+					{ name: "list_readlist_articles", annotations: { readOnlyHint: true } },
 					{ name: "get_article", annotations: { readOnlyHint: true } },
 					{ name: "get_article_content" },
 					{ name: "get_article_summary" },
 					{ name: "get_related_articles", annotations: { readOnlyHint: true } },
+					{ name: "create_readlist", annotations: { readOnlyHint: false } },
+					{ name: "add_to_readlist", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_read", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_unread", annotations: { readOnlyHint: false } },
 					{ name: "delete_article", annotations: { readOnlyHint: true } },
@@ -202,6 +212,7 @@ describe("initMcpServer", () => {
 		it("saves the url for the authenticated user and reports the title", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
+				filedInto: [],
 				title: "My Article",
 				url: "https://example.com/a",
 			}));
@@ -213,6 +224,7 @@ describe("initMcpServer", () => {
 				userId,
 				url: "https://example.com/a",
 				oauthClientId: "dyn-registered-mcp-client",
+				readlists: [],
 			});
 			expect(response).toMatchObject({
 				id: 4,
@@ -282,10 +294,10 @@ describe("initMcpServer", () => {
 		});
 	});
 
-	describe("tools/call list_queue", () => {
+	describe("tools/call list_readlist_articles", () => {
 		it("reports an empty readlist with the exact legacy text", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 8, "list_queue");
+			const response = await call(server, 8, "list_readlist_articles");
 			expect(response).toMatchObject({
 				id: 8,
 				result: { content: [{ type: "text", text: "Your Readplace readlist is empty." }] },
@@ -303,7 +315,7 @@ describe("initMcpServer", () => {
 				],
 			}));
 			const server = initMcpServer(fakeDeps({ listReadlist }));
-			const response = await call(server, 9, "list_queue", { status: "unread" });
+			const response = await call(server, 9, "list_readlist_articles", { status: "unread" });
 			expect(listReadlist).toHaveBeenCalledWith({
 				userId,
 				status: "unread",
@@ -336,7 +348,7 @@ describe("initMcpServer", () => {
 				articles: [mcpArticle({ title: "A" }), mcpArticle({ title: "B" })],
 			}));
 			const server = initMcpServer(fakeDeps({ listReadlist }));
-			const response = await call(server, 14, "list_queue");
+			const response = await call(server, 14, "list_readlist_articles");
 			expect(response).toMatchObject({
 				result: {
 					content: [
@@ -354,7 +366,7 @@ describe("initMcpServer", () => {
 				articles: [mcpArticle({ title: "A" }), mcpArticle({ title: "B" })],
 			}));
 			const server = initMcpServer(fakeDeps({ listReadlist }));
-			const response = await call(server, 20, "list_queue", { limit: 2 });
+			const response = await call(server, 20, "list_readlist_articles", { limit: 2 });
 			expect(response).toMatchObject({
 				result: { structuredContent: { nextCursor: expect.any(String) } },
 			});
@@ -369,7 +381,7 @@ describe("initMcpServer", () => {
 				articles: [mcpArticle({ title: "C" }), mcpArticle({ title: "D" })],
 			}));
 			const server = initMcpServer(fakeDeps({ listReadlist }));
-			const response = await call(server, 21, "list_queue", { cursor });
+			const response = await call(server, 21, "list_readlist_articles", { cursor });
 			expect(listReadlist).toHaveBeenCalledWith({
 				userId,
 				page: 2,
@@ -392,7 +404,7 @@ describe("initMcpServer", () => {
 				articles: [],
 			}));
 			const server = initMcpServer(fakeDeps({ listReadlist }));
-			const response = await call(server, 22, "list_queue", { cursor });
+			const response = await call(server, 22, "list_readlist_articles", { cursor });
 			expect(response).toMatchObject({
 				result: { content: [{ text: "No more saved articles." }] },
 			});
@@ -400,7 +412,7 @@ describe("initMcpServer", () => {
 
 		it("rejects an invalid cursor with a restart instruction", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 23, "list_queue", { cursor: "garbage" });
+			const response = await call(server, 23, "list_readlist_articles", { cursor: "garbage" });
 			expect(response).toMatchObject({
 				id: 23,
 				result: { isError: true, content: [{ text: expect.stringContaining("without a cursor") }] },
@@ -410,7 +422,7 @@ describe("initMcpServer", () => {
 		it("maps sort:read to the readAt index when status is read", async () => {
 			const listReadlist = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
 			const server = initMcpServer(fakeDeps({ listReadlist }));
-			await call(server, 24, "list_queue", { status: "read", sort: "read", order: "asc" });
+			await call(server, 24, "list_readlist_articles", { status: "read", sort: "read", order: "asc" });
 			expect(listReadlist).toHaveBeenCalledWith({
 				userId,
 				status: "read",
@@ -424,7 +436,7 @@ describe("initMcpServer", () => {
 		it("maps sort:saved to the savedAt index", async () => {
 			const listReadlist = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
 			const server = initMcpServer(fakeDeps({ listReadlist }));
-			await call(server, 25, "list_queue", { sort: "saved" });
+			await call(server, 25, "list_readlist_articles", { sort: "saved" });
 			expect(listReadlist).toHaveBeenCalledWith(
 				expect.objectContaining({ sort: "savedAt" }),
 			);
@@ -433,7 +445,7 @@ describe("initMcpServer", () => {
 		it("refuses sort:read without status:read", async () => {
 			const listReadlist = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
 			const server = initMcpServer(fakeDeps({ listReadlist }));
-			const response = await call(server, 26, "list_queue", { sort: "read" });
+			const response = await call(server, 26, "list_readlist_articles", { sort: "read" });
 			expect(response).toMatchObject({
 				id: 26,
 				result: { isError: true, content: [{ text: expect.stringContaining('status:"read"') }] },
@@ -443,7 +455,7 @@ describe("initMcpServer", () => {
 
 		it("returns an error result for an invalid status", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 10, "list_queue", { status: "archived" });
+			const response = await call(server, 10, "list_readlist_articles", { status: "archived" });
 			expect(response).toMatchObject({ id: 10, result: { isError: true } });
 		});
 
@@ -453,7 +465,7 @@ describe("initMcpServer", () => {
 			});
 			const logError = jest.fn();
 			const server = initMcpServer(fakeDeps({ listReadlist, logError }));
-			const response = await call(server, 11, "list_queue");
+			const response = await call(server, 11, "list_readlist_articles");
 			expect(response).toMatchObject({
 				id: 11,
 				result: {
@@ -465,7 +477,7 @@ describe("initMcpServer", () => {
 					],
 				},
 			});
-			expect(logError).toHaveBeenCalledWith("MCP list_queue failed", new Error("db down"));
+			expect(logError).toHaveBeenCalledWith("MCP list_readlist_articles failed", new Error("db down"));
 		});
 	});
 
@@ -849,7 +861,7 @@ describe("initMcpServer", () => {
 			);
 			const response = await call(server, 66, "get_related_articles", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
-				result: { content: [{ text: expect.stringContaining("No related saves") }] },
+				result: { content: [{ text: "No related saves are available for that article." }] },
 			});
 		});
 
@@ -1046,6 +1058,7 @@ describe("initMcpServer", () => {
 		it("refuses save_link with the renewal upsell when inactive, before the save runs", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
+				filedInto: [],
 				title: "x",
 				url: "https://e.test/",
 			}));
@@ -1077,7 +1090,8 @@ describe("initMcpServer", () => {
 				fakeDeps({ resolveToolAccess: inactive, listReadlist, markAsRead, markAsUnread }),
 			);
 			for (const tool of [
-				"list_queue",
+				"list_readlists",
+				"list_readlist_articles",
 				"get_article",
 				"get_article_content",
 				"get_article_summary",
@@ -1101,6 +1115,7 @@ describe("initMcpServer", () => {
 		it("refuses save_link without running the save when the subscription check throws", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
+				filedInto: [],
 				title: "Saved",
 				url: "https://e.test/a",
 			}));
@@ -1173,7 +1188,7 @@ describe("initMcpServer", () => {
 					},
 				}),
 			);
-			const response = await call(server, 74, "list_queue", {});
+			const response = await call(server, 74, "list_readlist_articles", {});
 			expect(response).toMatchObject({
 				id: 74,
 				result: { structuredContent: { total: 1 } },
@@ -1188,6 +1203,7 @@ describe("initMcpServer", () => {
 				fakeDeps({
 					saveLink: async () => ({
 						ok: true,
+						filedInto: [],
 						title: "My Article",
 						url: "https://e.test/a",
 					}),
@@ -1202,9 +1218,9 @@ describe("initMcpServer", () => {
 			});
 		});
 
-		it("returns a successful list_queue as one text block plus its structuredContent", async () => {
+		it("returns a successful list_readlist_articles as one text block plus its structuredContent", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 72, "list_queue");
+			const response = await call(server, 72, "list_readlist_articles");
 			expect(response).toMatchObject({
 				result: {
 					content: [{ type: "text", text: "Your Readplace readlist is empty." }],
@@ -1258,10 +1274,10 @@ describe("initMcpServer", () => {
 
 		it("records a successful call with the calling client and user", async () => {
 			const { server, records } = recording();
-			await call(server, 1, "list_queue");
+			await call(server, 1, "list_readlist_articles");
 			expect(records).toEqual([
 				{
-					tool: "list_queue",
+					tool: "list_readlist_articles",
 					outcome: "ok",
 					userId,
 					oauthClientId: "dyn-registered-mcp-client",
@@ -1279,23 +1295,23 @@ describe("initMcpServer", () => {
 			});
 		});
 
-		it("records the sort order a list_queue call asked for, so a client requesting oldest-first is countable", async () => {
+		it("records the sort order a list_readlist_articles call asked for, so a client requesting oldest-first is countable", async () => {
 			const { server, records } = recording();
-			await call(server, 1, "list_queue", { order: "asc" });
-			expect(records[0]).toMatchObject({ tool: "list_queue", sortOrder: "asc" });
+			await call(server, 1, "list_readlist_articles", { order: "asc" });
+			expect(records[0]).toMatchObject({ tool: "list_readlist_articles", sortOrder: "asc" });
 		});
 
 		it("records the sort order carried by a pagination cursor, so page two of an ascending listing is not misread as the default", async () => {
 			const { server, records } = recording();
-			await call(server, 1, "list_queue", {
+			await call(server, 1, "list_readlist_articles", {
 				cursor: encodeReadlistCursor({ page: 2, pageSize: 20, order: "asc" }),
 			});
-			expect(records[0]).toMatchObject({ tool: "list_queue", sortOrder: "asc" });
+			expect(records[0]).toMatchObject({ tool: "list_readlist_articles", sortOrder: "asc" });
 		});
 
 		it("records no sort order for a cursor that does not decode, since the call never reached a listing", async () => {
 			const { server, records } = recording();
-			await call(server, 1, "list_queue", { cursor: "not-a-cursor" });
+			await call(server, 1, "list_readlist_articles", { cursor: "not-a-cursor" });
 			expect(JSON.stringify(records[0])).not.toContain("sortOrder");
 		});
 
@@ -1364,7 +1380,7 @@ describe("initMcpServer", () => {
 					logError: (message) => { errors.push(message); },
 				}),
 			);
-			const response = await call(server, 1, "list_queue");
+			const response = await call(server, 1, "list_readlist_articles");
 			expect(response).toMatchObject({ id: 1, result: { content: expect.any(Array) } });
 			expect(errors).toEqual(["MCP tool-call analytics failed"]);
 		});
@@ -1375,5 +1391,554 @@ describe("initMcpServer", () => {
 			expect(records[0]).toMatchObject({ tool: "save_link", outcome: "error" });
 			expect(records[0]).not.toHaveProperty("submittedUrl");
 		});
+	});
+});
+
+describe("MCP readlist tools", () => {
+	const all = { id: DEFAULT_READLIST_SLUG, name: "All" };
+	const work = { id: ReadlistSlugSchema.parse("work"), name: "Work" };
+	const personal = {
+		id: ReadlistSlugSchema.parse("personal"),
+		name: "Personal",
+	};
+
+	it("lists readlist ids and names for the authenticated user", async () => {
+		const listReadlists = jest.fn(async () => [all, work]);
+		const server = initMcpServer(fakeDeps({ listReadlists }));
+		expect(await call(server, 1, "list_readlists")).toMatchObject({
+			result: {
+				content: [
+					{ text: "You have 2 readlist(s):\n- All (id default)\n- Work (id work)" },
+				],
+				structuredContent: { readlists: [all, work] },
+			},
+		});
+		expect(listReadlists).toHaveBeenCalledWith({ userId });
+	});
+
+	it("serves the legacy listing alias with the same result while recording the original name and sort order", async () => {
+		const records: McpToolCallRecord[] = [];
+		const server = initMcpServer(
+			fakeDeps({ recordToolCall: (record) => records.push(record) }),
+		);
+		const args = {
+			cursor: encodeReadlistCursor({ page: 2, pageSize: 20, order: "asc" }),
+			order: "desc",
+		};
+		expect(await call(server, 1, "list_queue", args)).toEqual(
+			await call(server, 1, "list_readlist_articles", args),
+		);
+		expect(records).toEqual([
+			{
+				tool: "list_queue",
+				outcome: "ok",
+				userId,
+				oauthClientId: context.oauthClientId,
+				sortOrder: "asc",
+			},
+			{
+				tool: "list_readlist_articles",
+				outcome: "ok",
+				userId,
+				oauthClientId: context.oauthClientId,
+				sortOrder: "asc",
+			},
+		]);
+	});
+
+	it("teaches the current listing tool name when legacy arguments are invalid", async () => {
+		const server = initMcpServer(fakeDeps());
+		expect(
+			await call(server, 1, "list_queue", { status: "archived" }),
+		).toMatchObject({
+			result: {
+				isError: true,
+				content: [{ text: expect.stringContaining("list_readlist_articles") }],
+			},
+		});
+	});
+
+	it("saves into every requested readlist and reports the named destinations", async () => {
+		const saveLink = jest.fn(fakeDeps().saveLink);
+		saveLink.mockResolvedValue({
+			ok: true,
+			title: "Example",
+			url: "https://example.com/",
+			filedInto: [all, work, personal],
+		});
+		const server = initMcpServer(
+			fakeDeps({ listReadlists: async () => [all, work, personal], saveLink }),
+		);
+		expect(
+			await call(server, 1, "save_link", {
+				url: "https://example.com/",
+				readlists: [work.id, personal.id],
+			}),
+		).toMatchObject({
+			result: {
+				content: [
+					{ text: expect.stringContaining("filed it into Work, Personal") },
+				],
+			},
+		});
+		expect(saveLink).toHaveBeenCalledWith({
+			userId,
+			url: "https://example.com/",
+			readlists: [work.id, personal.id],
+			oauthClientId: context.oauthClientId,
+		});
+	});
+
+	it.each([
+		"unowned",
+		"Not A Slug",
+	])("refuses unknown readlist %s before saving or listing anything", async (unknownId) => {
+		const saveLink = jest.fn(fakeDeps().saveLink);
+		const listReadlist = jest.fn(fakeDeps().listReadlist);
+		const addToReadlist = jest.fn(fakeDeps().addToReadlist);
+		const server = initMcpServer(
+			fakeDeps({
+				saveLink,
+				listReadlist,
+				addToReadlist,
+				listReadlists: async () => [all, work],
+			}),
+		);
+		const message = `No readlist with id ${unknownId}. Call list_readlists and pass one of the ids it returns.`;
+		expect(
+			await call(server, 1, "save_link", {
+				url: "https://example.com/",
+				readlists: [work.id, unknownId],
+			}),
+		).toMatchObject({
+			result: {
+				isError: true,
+				content: [{ text: `${message} Nothing was saved.` }],
+			},
+		});
+		expect(
+			await call(server, 2, "list_readlist_articles", { readlist: unknownId }),
+		).toMatchObject({
+			result: { isError: true, content: [{ text: message }] },
+		});
+		expect(
+			await call(server, 3, "add_to_readlist", {
+				id: "a".repeat(32),
+				readlist: unknownId,
+			}),
+		).toMatchObject({
+			result: { isError: true, content: [{ text: message }] },
+		});
+		expect(saveLink).toHaveBeenCalledTimes(0);
+		expect(listReadlist).toHaveBeenCalledTimes(0);
+		expect(addToReadlist).toHaveBeenCalledTimes(0);
+	});
+
+	it("carries a scoped listing into the next cursor and returns article memberships", async () => {
+		const article = mcpArticle({ readlists: [all, work] });
+		const listReadlist = jest.fn(async () => ({
+			total: 2,
+			page: 1,
+			pageSize: 1,
+			articles: [article],
+		}));
+		const server = initMcpServer(
+			fakeDeps({ listReadlists: async () => [all, work], listReadlist }),
+		);
+		expect(
+			await call(server, 1, "list_readlist_articles", {
+				readlist: work.id,
+				status: "read",
+				sort: "read",
+				order: "asc",
+				limit: 1,
+			}),
+		).toMatchObject({
+			result: {
+				content: [{ text: expect.stringContaining("in Work") }],
+				structuredContent: {
+					articles: [article],
+					readlist: work,
+					nextCursor: encodeReadlistCursor({
+						page: 2,
+						pageSize: 1,
+						readlist: work.id,
+						status: "read",
+						sort: "readAt",
+						order: "asc",
+					}),
+				},
+			},
+		});
+		expect(listReadlist).toHaveBeenCalledWith({
+			userId,
+			readlist: work.id,
+			status: "read",
+			sort: "readAt",
+			order: "asc",
+			page: 1,
+			pageSize: 1,
+		});
+	});
+
+	it("lets the cursor's readlist, filters and pagination override conflicting arguments", async () => {
+		const listReadlist = jest.fn(async () => ({
+			total: 4,
+			page: 2,
+			pageSize: 1,
+			articles: [mcpArticle()],
+		}));
+		const server = initMcpServer(
+			fakeDeps({ listReadlists: async () => [all, work], listReadlist }),
+		);
+		const cursor = encodeReadlistCursor({
+			page: 2,
+			pageSize: 1,
+			readlist: work.id,
+			status: "read",
+			sort: "readAt",
+			order: "asc",
+		});
+		expect(
+			await call(server, 1, "list_readlist_articles", {
+				cursor,
+				readlist: "unknown",
+				status: "unread",
+				sort: "saved",
+				order: "desc",
+				limit: 99,
+			}),
+		).toMatchObject({ result: { structuredContent: { readlist: work } } });
+		expect(listReadlist).toHaveBeenCalledWith({
+			userId,
+			readlist: work.id,
+			status: "read",
+			sort: "readAt",
+			order: "asc",
+			page: 2,
+			pageSize: 1,
+		});
+	});
+
+	it("refuses a cursor scoped to a readlist the caller does not own", async () => {
+		const listReadlist = jest.fn(fakeDeps().listReadlist);
+		const server = initMcpServer(fakeDeps({ listReadlist }));
+		const cursor = encodeReadlistCursor({
+			page: 2,
+			pageSize: 20,
+			readlist: work.id,
+		});
+		expect(
+			await call(server, 1, "list_readlist_articles", { cursor }),
+		).toMatchObject({
+			result: {
+				isError: true,
+				content: [
+					{
+						text: "No readlist with id work. Call list_readlists and pass one of the ids it returns.",
+					},
+				],
+			},
+		});
+		expect(listReadlist).toHaveBeenCalledTimes(0);
+	});
+
+	it.each([
+		"list_readlists",
+		"save_link",
+		"list_readlist_articles",
+		"add_to_readlist",
+	])("reports a failed ownership lookup through %s's tool error", async (tool) => {
+		const logError = jest.fn();
+		const server = initMcpServer(
+			fakeDeps({
+				listReadlists: async () => {
+					throw new Error("readlists unavailable");
+				},
+				logError,
+			}),
+		);
+		expect(
+			await call(server, 1, tool, {
+				url: "https://example.com/",
+				id: "article",
+				readlist: work.id,
+				readlists: [work.id],
+			}),
+		).toMatchObject({ result: { isError: true } });
+		expect(logError).toHaveBeenCalledWith(
+			`MCP ${tool} failed`,
+			new Error("readlists unavailable"),
+		);
+	});
+
+	it.each([
+		"created",
+		"exists",
+	] as const)("reports a %s readlist with its reusable id", async (status) => {
+		const createReadlist = jest.fn(
+			async (): Promise<CreateReadlistResult> => ({ status, readlist: work }),
+		);
+		const server = initMcpServer(fakeDeps({ createReadlist }));
+		expect(
+			await call(server, 1, "create_readlist", { name: "Work" }),
+		).toMatchObject({
+			result: { structuredContent: { status, readlist: work } },
+		});
+		expect(createReadlist).toHaveBeenCalledWith({ userId, name: "Work" });
+	});
+
+	it.each<{ outcome: CreateReadlistResult; message: string }>([
+		{
+			outcome: { status: "invalid_name" },
+			message: "A readlist name must be 1–24 characters",
+		},
+		{
+			outcome: { status: "reserved_name", readlist: all },
+			message: "All already receives every save",
+		},
+		{
+			outcome: { status: "limit_reached", limit: 7 },
+			message: "maximum of 7 readlists",
+		},
+		{
+			outcome: {
+				status: "access_denied",
+				message: "Verify your email to create readlists.",
+			},
+			message: "Verify your email",
+		},
+	])("explains create_readlist refusal $outcome.status", async ({
+		outcome,
+		message,
+	}) => {
+		const server = initMcpServer(
+			fakeDeps({ createReadlist: async () => outcome }),
+		);
+		expect(
+			await call(server, 1, "create_readlist", { name: "Work" }),
+		).toMatchObject({
+			result: {
+				isError: true,
+				content: [{ text: expect.stringContaining(message) }],
+			},
+		});
+	});
+
+	it("returns argument errors before attempting readlist writes", async () => {
+		const createReadlist = jest.fn(fakeDeps().createReadlist);
+		const addToReadlist = jest.fn(fakeDeps().addToReadlist);
+		const server = initMcpServer(fakeDeps({ createReadlist, addToReadlist }));
+		expect(await call(server, 1, "create_readlist", {})).toMatchObject({
+			result: {
+				isError: true,
+				content: [{ text: expect.stringContaining("name") }],
+			},
+		});
+		for (const args of [
+			{ id: "article" },
+			{ id: "article", readlist: work.id, create_name: "Work" },
+		]) {
+			expect(await call(server, 1, "add_to_readlist", args)).toMatchObject({
+				result: {
+					isError: true,
+					content: [{ text: expect.stringContaining("exactly one") }],
+				},
+			});
+		}
+		expect(createReadlist).toHaveBeenCalledTimes(0);
+		expect(addToReadlist).toHaveBeenCalledTimes(0);
+	});
+
+	it.each([
+		"filed",
+		"already_filed",
+	] as const)("reports an article %s into a readlist with current membership", async (status) => {
+		const article = mcpArticle({ readlists: [all, work] });
+		const addToReadlist = jest.fn(
+			async (): Promise<AddToReadlistResult> => ({
+				status,
+				readlist: work,
+				article,
+			}),
+		);
+		const server = initMcpServer(
+			fakeDeps({ listReadlists: async () => [all, work], addToReadlist }),
+		);
+		expect(
+			await call(server, 1, "add_to_readlist", {
+				id: article.id,
+				readlist: work.id,
+			}),
+		).toMatchObject({
+			result: {
+				structuredContent: { status, readlist: work, article },
+				content: [{ text: expect.stringContaining("In readlists: All, Work") }],
+			},
+		});
+		expect(addToReadlist).toHaveBeenCalledWith({
+			userId,
+			id: article.id,
+			target: { kind: "existing", readlist: work.id },
+		});
+	});
+
+	it("forwards create_name as a create target and reports a missing article", async () => {
+		const addToReadlist = jest.fn(fakeDeps().addToReadlist);
+		const server = initMcpServer(fakeDeps({ addToReadlist }));
+		expect(
+			await call(server, 1, "add_to_readlist", {
+				id: "unknown",
+				create_name: "Work",
+			}),
+		).toMatchObject({ result: { structuredContent: { found: false } } });
+		expect(addToReadlist).toHaveBeenCalledWith({
+			userId,
+			id: "unknown",
+			target: { kind: "create", name: "Work" },
+		});
+	});
+
+	it.each<{ outcome: AddToReadlistResult; message: string }>([
+		{
+			outcome: { status: "readlist_not_found" },
+			message: "No readlist with id default",
+		},
+		{
+			outcome: { status: "invalid_name" },
+			message: "A readlist name must be 1–24 characters",
+		},
+		{
+			outcome: { status: "reserved_name", readlist: all },
+			message: "All already receives every save",
+		},
+		{
+			outcome: { status: "limit_reached", limit: 7 },
+			message: "maximum of 7 readlists",
+		},
+		{
+			outcome: {
+				status: "access_denied",
+				message: "Verify your email to file articles.",
+			},
+			message: "Verify your email",
+		},
+	])("explains add_to_readlist refusal $outcome.status", async ({
+		outcome,
+		message,
+	}) => {
+		const server = initMcpServer(
+			fakeDeps({ addToReadlist: async () => outcome }),
+		);
+		expect(
+			await call(server, 1, "add_to_readlist", {
+				id: "article",
+				readlist: all.id,
+			}),
+		).toMatchObject({
+			result: {
+				isError: true,
+				content: [{ text: expect.stringContaining(message) }],
+			},
+		});
+	});
+
+	it.each([
+		"create_readlist",
+		"add_to_readlist",
+	])("logs a failed %s write without exposing the cause", async (tool) => {
+		const fail = async (): Promise<never> => {
+			throw new Error("store unavailable");
+		};
+		const logError = jest.fn();
+		const server = initMcpServer(
+			fakeDeps({ createReadlist: fail, addToReadlist: fail, logError }),
+		);
+		expect(
+			await call(server, 1, tool, {
+				name: "Work",
+				id: "article",
+				create_name: "Work",
+			}),
+		).toMatchObject({
+			result: {
+				isError: true,
+				content: [
+					{
+						text: expect.stringContaining(
+							"something went wrong on Readplace's side",
+						),
+					},
+				],
+			},
+		});
+		expect(logError).toHaveBeenCalledWith(
+			`MCP ${tool} failed`,
+			new Error("store unavailable"),
+		);
+	});
+
+	it.each([
+		"create_readlist",
+		"add_to_readlist",
+	])("gates %s when saving is paused", async (tool) => {
+		const createReadlist = jest.fn(fakeDeps().createReadlist);
+		const addToReadlist = jest.fn(fakeDeps().addToReadlist);
+		const server = initMcpServer(
+			fakeDeps({
+				createReadlist,
+				addToReadlist,
+				resolveToolAccess: async () => ({
+					state: "inactive",
+					message: "Saving is paused.",
+				}),
+			}),
+		);
+		expect(
+			await call(server, 1, tool, {
+				name: "Work",
+				id: "article",
+				create_name: "Work",
+			}),
+		).toMatchObject({
+			result: { isError: true, content: [{ text: "Saving is paused." }] },
+		});
+		expect(createReadlist).toHaveBeenCalledTimes(0);
+		expect(addToReadlist).toHaveBeenCalledTimes(0);
+	});
+});
+
+describe("MCP readlist name validation", () => {
+	it("passes a whitespace-padded maximum-length name to the shared readlist operations", async () => {
+		const name = " abcdefghijklmnopqrstuvwx ";
+		const readlist = { id: ReadlistSlugSchema.parse("work"), name: name.trim() };
+		const article = mcpArticle({ readlists: [readlist] });
+		const createReadlist = jest.fn(async (): Promise<CreateReadlistResult> => ({ status: "created", readlist }));
+		const addToReadlist = jest.fn(async (): Promise<AddToReadlistResult> => ({ status: "filed", readlist, article }));
+		const server = initMcpServer(fakeDeps({ createReadlist, addToReadlist }));
+		expect(await call(server, 1, "create_readlist", { name })).toMatchObject({
+			result: { structuredContent: { status: "created", readlist } },
+		});
+		expect(createReadlist).toHaveBeenCalledWith({ userId, name });
+		expect(await call(server, 2, "add_to_readlist", { id: article.id, create_name: name })).toMatchObject({
+			result: { structuredContent: { status: "filed", readlist, article } },
+		});
+		expect(addToReadlist).toHaveBeenCalledWith({ userId, id: article.id, target: { kind: "create", name } });
+	});
+
+	it.each(["", "abcdefghijklmnopqrstuvwxy"])("reports the shared invalid-name result for %p", async (name) => {
+		const createReadlist = jest.fn(async (): Promise<CreateReadlistResult> => ({ status: "invalid_name" }));
+		const addToReadlist = jest.fn(async (): Promise<AddToReadlistResult> => ({ status: "invalid_name" }));
+		const server = initMcpServer(fakeDeps({ createReadlist, addToReadlist }));
+		for (const request of [
+			{ tool: "create_readlist", args: { name } },
+			{ tool: "add_to_readlist", args: { id: "article", create_name: name } },
+		]) {
+			expect(await call(server, 1, request.tool, request.args)).toMatchObject({
+				result: { isError: true, content: [{ text: expect.stringContaining("1–24 characters after trimming") }] },
+			});
+		}
+		expect(createReadlist).toHaveBeenCalledTimes(1);
+		expect(addToReadlist).toHaveBeenCalledTimes(1);
 	});
 });

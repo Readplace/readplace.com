@@ -9,6 +9,8 @@ describe("buildReadplaceTools", () => {
 		const tools = buildReadplaceTools(() => {});
 		expect(tools.map((tool) => tool.name)).toEqual(["save_link"]);
 		expect(tools[0].inputSchema).toMatchObject({ required: ["url"] });
+		expect(tools[0].description).toContain("readlist");
+		expect(tools[0].description).not.toMatch(/queue/i);
 	});
 
 	describe("save_link.execute", () => {
@@ -20,7 +22,7 @@ describe("buildReadplaceTools", () => {
 				`/save?url=${encodeURIComponent("https://example.com/post?x=1")}&save_surface=webmcp`,
 			);
 			expect(result).toMatchObject({
-				content: [{ type: "text", text: expect.stringContaining("Saving") }],
+				content: [{ type: "text", text: "Saving https://example.com/post?x=1 to your Readplace readlist." }],
 			});
 			expect(result.isError).toBeUndefined();
 		});

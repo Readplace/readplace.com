@@ -25,7 +25,7 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { assertExcludedUserIds, assertExcludedVisitorIds } from "../runtime/observability/excluded-identities";
@@ -62,6 +62,7 @@ const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
 const gmailConnectionCapWarnThreshold = config.requireNumber("gmailConnectionCapWarnThreshold");
 const oauthRefreshRefusedDailyThreshold = config.requireNumber("oauthRefreshRefusedDailyThreshold");
+const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 
 // The inbox stack owns the inbox tables and the SES receiving pipeline. hutch
@@ -1385,6 +1386,45 @@ new aws.cloudwatch.MetricAlarm("oauth-refresh-refused-alarm", {
 		"Refresh-token grants from any client are being refused above the expected per-day baseline",
 	alarmActions: [oauthRefreshRefusedTopic.arn],
 });
+
+if (readlistCapWarnThreshold !== undefined) {
+	new aws.cloudwatch.LogMetricFilter("readlist-cap-approached-filter", {
+		name: "readlist-cap-approached",
+		logGroupName: lambda.logGroupName,
+		pattern: `{ $.event = "${READLIST_CAP_APPROACHED_EVENT}" }`,
+		metricTransformation: {
+			name: METRICS.readlistCapApproached.name,
+			namespace: METRICS.readlistCapApproached.namespace,
+			value: "1",
+			defaultValue: "0",
+			unit: "Count",
+		},
+	});
+
+	const readlistCapTopic = new aws.sns.Topic("readlist-cap-topic", {
+		name: "readlist-cap-topic",
+	});
+
+	new aws.sns.TopicSubscription("readlist-cap-alert-email", {
+		topic: readlistCapTopic.arn,
+		protocol: "email",
+		endpoint: alertEmail,
+	});
+
+	new aws.cloudwatch.MetricAlarm("readlist-cap-alarm", {
+		name: "readlist-cap-alarm",
+		comparisonOperator: "GreaterThanOrEqualToThreshold",
+		evaluationPeriods: 1,
+		metricName: METRICS.readlistCapApproached.name,
+		namespace: METRICS.readlistCapApproached.namespace,
+		period: 3600,
+		statistic: "Sum",
+		threshold: readlistCapWarnThreshold,
+		treatMissingData: "notBreaching",
+		alarmDescription: "Readers are approaching their named readlist limit",
+		alarmActions: [readlistCapTopic.arn],
+	});
+}
 
 // --- Analytics log-group split (never-expire forwarder) ---
 // Analytics / conversion / subscription log lines are copied out of each Lambda's

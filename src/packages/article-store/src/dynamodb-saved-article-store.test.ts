@@ -29,7 +29,7 @@ interface CapturedCommand {
 		Key?: Record<string, unknown>;
 		KeyConditionExpression?: string;
 		Limit?: number;
-		RequestItems?: Record<string, { Keys?: Record<string, unknown>[]; ProjectionExpression?: string }>;
+		RequestItems?: Record<string, { Keys?: Record<string, unknown>[]; ProjectionExpression?: string; ConsistentRead?: boolean }>;
 		ReturnValues?: string;
 		ScanIndexForward?: boolean;
 		Select?: string;
@@ -1999,6 +1999,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 		const result = await initStore(client).assignSavedArticleToReadlist({
 			userId: USER,
 			readlist: ReadlistSlugSchema.parse("work"),
+			from: DEFAULT_READLIST_SLUG,
 			url: URL,
 			savedAt: new Date("2026-08-24T10:00:00.000Z"),
 		});
@@ -2025,6 +2026,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 		const result = await initStore(client).assignSavedArticleToReadlist({
 			userId: USER,
 			readlist: ReadlistSlugSchema.parse("work"),
+			from: DEFAULT_READLIST_SLUG,
 			url: URL,
 			savedAt: new Date("2026-08-24T10:00:00.000Z"),
 		});
@@ -2046,6 +2048,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 		const result = await initStore(client).assignSavedArticleToReadlist({
 			userId: USER,
 			readlist: ReadlistSlugSchema.parse("work"),
+			from: DEFAULT_READLIST_SLUG,
 			url: URL,
 			savedAt: new Date("2026-08-24T10:00:00.000Z"),
 		});
@@ -2068,10 +2071,38 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 			initStore(client).assignSavedArticleToReadlist({
 				userId: USER,
 				readlist: ReadlistSlugSchema.parse("work"),
+				from: DEFAULT_READLIST_SLUG,
 				url: URL,
 				savedAt: new Date("2026-08-24T10:00:00.000Z"),
 			}),
 		).rejects.toThrow("throughput exceeded");
+	});
+
+	it("assignSavedArticleToReadlist reads the source readlist partition and files back into the default partition", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem({ userId: WORK_PARTITION }) } },
+		});
+
+		const result = await initStore(client).assignSavedArticleToReadlist({
+			userId: USER,
+			readlist: DEFAULT_READLIST_SLUG,
+			from: ReadlistSlugSchema.parse("work"),
+			url: URL,
+			savedAt: new Date("2026-08-24T10:00:00.000Z"),
+		});
+
+		expect(result).toEqual({ assigned: true });
+		const get = commands.find((c) => c.name === "GetCommand");
+		assert(get, "the source row must be read with a Get");
+		expect(get.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
+		const put = commands.find((c) => c.name === "PutCommand");
+		assert(put, "the copy must be written with a Put");
+		expect(put.input.Item).toEqual({
+			userId: USER,
+			url: RESOURCE_ID,
+			status: "unread",
+			savedAt: "2026-08-24T10:00:00.000Z",
+		});
 	});
 
 	it("assignSavedArticleToReadlist reports an already-filed article without rewriting it", async () => {
@@ -2087,6 +2118,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 		const result = await initStore(client).assignSavedArticleToReadlist({
 			userId: USER,
 			readlist: ReadlistSlugSchema.parse("work"),
+			from: DEFAULT_READLIST_SLUG,
 			url: URL,
 			savedAt: new Date("2026-08-24T10:00:00.000Z"),
 		});
@@ -2251,6 +2283,66 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 			{ userId: WORK_PARTITION, url: RESOURCE_ID },
 			{ userId: USER, url: "example.com/other" },
 			{ userId: WORK_PARTITION, url: "example.com/other" },
+		]);
+	});
+
+	it("reads committed memberships consistently across batches and unprocessed-key retries", async () => {
+		const urls = Array.from({ length: 51 }, (_, index) => `https://example.com/article-${index}`);
+		const pendingKeys = [
+			{ userId: USER, url: "example.com/article-0" },
+			{ userId: WORK_PARTITION, url: "example.com/article-0" },
+		];
+		const { client, commands } = createFakeClient({
+			BatchGetCommand: {
+				readlist: [
+					{ UnprocessedKeys: { "user-articles": { Keys: pendingKeys } } },
+					{ Responses: { "user-articles": [
+						{ userId: WORK_PARTITION, url: "example.com/article-50" },
+					] } },
+					{ Responses: { "user-articles": pendingKeys } },
+				],
+			},
+		});
+
+		const saves = await initStore(client).listUserSavesForUrls({
+			userId: USER,
+			urls,
+			readlists: [DEFAULT_READLIST_SLUG, WORK],
+		});
+
+		expect(saves.get(urls[0])).toEqual([{}, { readlist: WORK }]);
+		expect(saves.get(urls[50])).toEqual([{ readlist: WORK }]);
+		expect(commands.map((command) => ({
+			name: command.name,
+			count: command.input.RequestItems?.["user-articles"]?.Keys?.length,
+			consistentRead: command.input.RequestItems?.["user-articles"]?.ConsistentRead,
+		}))).toEqual([
+			{ name: "BatchGetCommand", count: 100, consistentRead: true },
+			{ name: "BatchGetCommand", count: 2, consistentRead: true },
+			{ name: "BatchGetCommand", count: 2, consistentRead: true },
+		]);
+		expect(commands[2].input.RequestItems?.["user-articles"]?.Keys).toEqual(pendingKeys);
+	});
+
+	it("uses supplied readlists for batched memberships without querying their definitions again", async () => {
+		const { client, commands } = createFakeClient({
+			BatchGetCommand: {
+				default: { Responses: { "user-articles": [
+					{ userId: USER, url: RESOURCE_ID },
+					{ userId: WORK_PARTITION, url: RESOURCE_ID },
+				] } },
+			},
+		});
+		const saves = await initStore(client).listUserSavesForUrls({
+			userId: USER,
+			urls: [URL],
+			readlists: [DEFAULT_READLIST_SLUG, WORK],
+		});
+		expect(saves.get(URL)).toEqual([{}, { readlist: WORK }]);
+		expect(commands.map((command) => command.name)).toEqual(["BatchGetCommand"]);
+		expect(commands[0].input.RequestItems?.["user-articles"]?.Keys).toEqual([
+			{ userId: USER, url: RESOURCE_ID },
+			{ userId: WORK_PARTITION, url: RESOURCE_ID },
 		]);
 	});
 

@@ -916,12 +916,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		});
 	};
 
-	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls }) => {
-		const slugs = await listUserReadlistSlugs(userId);
-		const partitions = [
-			userId,
-			...slugs.map((slug) => readlistPartitionValue({ userId, readlist: slug })),
-		];
+	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
+		const slugs = readlists ?? [DEFAULT_READLIST_SLUG, ...await listUserReadlistSlugs(userId)];
+		const partitions = slugs.map((readlist) => partitionFor({ userId, readlist }));
 		const normalizedUrls = [
 			...new Set(urls.map((url) => ArticleResourceUniqueId.parse(url).value)),
 		];
@@ -933,6 +930,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 				partitions.map((partition) => ({ userId: partition, url })),
 			),
 			projection: ["userId", "url"],
+			consistentRead: true,
 		});
 		const byNormalizedUrl = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const row of rows) {
@@ -952,16 +950,20 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const assignSavedArticleToReadlist: AssignSavedArticleToReadlist = async ({
 		userId,
 		readlist,
+		from,
 		url,
 		savedAt,
 	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const source = await findUserArticle(userId, articleResourceUniqueId.value);
+		const source = await findUserArticle(
+			partitionFor({ userId, readlist: from }),
+			articleResourceUniqueId.value,
+		);
 		if (!source) return { assigned: false };
 		try {
 			await userArticles.put({
 				Item: {
-					userId: readlistPartitionValue({ userId, readlist }),
+					userId: partitionFor({ userId, readlist }),
 					url: articleResourceUniqueId.value,
 					status: source.status,
 					savedAt: savedAt.toISOString(),

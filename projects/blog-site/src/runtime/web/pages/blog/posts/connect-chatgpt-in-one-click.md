@@ -3,6 +3,7 @@ title: "Connect ChatGPT to Your Reading List in One Click"
 description: "ChatGPT can save a page to your Readplace readlist, read back a saved article's clean copy and its TL;DR, surface related saves, and mark one read. Connecting it used to mean turning on Developer Mode and hand-building a custom connector. Readplace is an official ChatGPT plugin now, so the setup is an Add button and one sign-in."
 slug: "connect-chatgpt-in-one-click"
 date: "2026-08-18"
+lastModified: "2026-09-11"
 author: "Fayner Brack"
 keywords: "connect chatgpt to reading list, readplace chatgpt plugin, official chatgpt plugin, chatgpt read it later, save articles from chatgpt, chatgpt readlist, chatgpt mcp connector, add readplace to chatgpt, ai assistant reading list, pocket alternative chatgpt"
 tags: ["changelog"]
@@ -26,13 +27,15 @@ That walkthrough is retired. OpenAI approved Readplace as an official ChatGPT pl
 
 Open the listing, choose Add, approve the sign-in. [The install page](/install?client=chatgpt&utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=install-chatgpt) carries the same button under the label Add Readplace to ChatGPT.
 
-## The 9 tools behind the chat
+## The 12 tools behind the chat
 
-A connected chat reaches 9 tools on the Readplace [MCP](/view/modelcontextprotocol.io?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=read-modelcontextprotocol-io) server, and 8 of them do what they say. [Saving a link](/blog/save-articles-with-your-ai-assistant?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-save-articles-with-your-ai-assistant) puts the URL in your readlist and lets the title, the clean copy, and the TL;DR fill in behind it, the same way a save from the browser extension does. Listing the readlist reads back what is waiting, filtered to unread or already read. [Reading one back](/blog/ai-assistant-reads-your-saved-articles?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-ai-assistant-reads-your-saved-articles) returns its details, its clean text, or its TL;DR, depending on which you asked for.
+A connected chat reaches 12 tools on the Readplace [MCP](/view/modelcontextprotocol.io?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=read-modelcontextprotocol-io) server, and 11 of them do what they say. [Saving a link](/blog/save-articles-with-your-ai-assistant?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-save-articles-with-your-ai-assistant) puts the URL in your readlist and lets the title, the clean copy, and the TL;DR fill in behind it, the same way a save from the browser extension does. Listing the readlist reads back what is waiting, filtered to unread or already read. [Reading one back](/blog/ai-assistant-reads-your-saved-articles?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-ai-assistant-reads-your-saved-articles) returns its details, its clean text, or its TL;DR, depending on which you asked for.
+
+Your assistant can also list your readlists, create one by name, and file saved articles into them.
 
 A newer one hands over [other saves in your own readlist that relate to an article](/blog/the-next-read-under-your-article-stopped-guessing?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-the-next-read-under-your-article-stopped-guessing), each tagged unread or read and carrying a short reason. Marking read and marking unread make the same write the app makes, so a swipe in the iPhone app and a sentence in a chat land in the same place.
 
-The 9th refuses. Ask a connected ChatGPT to delete a saved article and the tool answers with a note pointing you back to Readplace, because it removes nothing. Deleting is the one action on a saved article with no way back, and [the website itself now asks before it happens](/blog/confirm-before-deleting-a-saved-article?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-confirm-before-deleting-a-saved-article). Handing that to an assistant would have skipped the question.
+The 12th refuses. Ask a connected ChatGPT to delete a saved article and the tool answers with a note pointing you back to Readplace, because it removes nothing. Deleting is the one action on a saved article with no way back, and [the website itself now asks before it happens](/blog/confirm-before-deleting-a-saved-article?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-confirm-before-deleting-a-saved-article). Handing that to an assistant would have skipped the question.
 
 ## A switch named for someone else
 

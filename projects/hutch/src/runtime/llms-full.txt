@@ -99,16 +99,32 @@ each URL.
 ### Tools
 
 - save_link: saves a URL to the user's readlist; the title, excerpt, and clean reader view fill in moments later.
-- list_queue: lists what the user has saved, filtered to unread or already-read.
-- get_article: returns one saved article's details.
+- list_readlists: lists the user's readlists, each with the opaque id every other tool takes.
+- list_readlist_articles: lists what the user has saved, filtered to unread or already-read, and optionally narrowed to one readlist.
+- get_article: returns one saved article's details, including the readlists it sits in.
 - get_article_content: returns one saved article's clean reader text.
 - get_article_summary: returns one saved article's AI TL;DR.
 - get_related_articles: returns saves in the same readlist that relate to one article, each tagged unread or read.
+- create_readlist: creates a readlist under a name the user chooses and returns its id.
+- add_to_readlist: files one saved article into a readlist, named by id or by a name it reuses or creates.
 - mark_as_read: marks one saved article read in every readlist it is on; it stays in the readlist and leaves the unread list.
 - mark_as_unread: marks one saved article unread again in every readlist it is on; the undo for mark_as_read.
 - delete_article: answers with a note pointing the user to the app; deleting stays in Readplace.
 
-An assistant saves links, reads the readlist, and marks articles read or unread. Deleting stays with the user in the Readplace app.
+Call list_readlists to discover readlist names and ids. Pass its ids unchanged:
+use readlist to list one readlist, or readlists to save_link to file a new save
+into several. Every save also lands in All. All is a readlist of its own, so an
+article removed from All can still belong to another readlist. Article results
+include their current readlist memberships.
+
+Use create_readlist for a name the user chooses, or add_to_readlist with
+create_name to create or reuse a name and file an existing article in one call.
+With add_to_readlist, pass exactly one of readlist or create_name. Names are
+matched without regard to case. Readers can create up to 7 named readlists
+beside All. An unknown id or a reached limit is a refusal, so do not report a
+successful save or filing when the tool returns an error.
+
+An assistant saves links, organises readlists, and marks articles read or unread. Deleting stays with the user in the Readplace app.
 
 ## Full Comparison: Read-It-Later Apps in 2026
 

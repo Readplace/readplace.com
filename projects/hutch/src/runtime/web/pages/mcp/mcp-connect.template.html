@@ -1,7 +1,7 @@
   <main class="mcp-connect">
     <div class="mcp-connect__container">
       <h1 class="mcp-connect__title">Connect Readplace to your AI assistant</h1>
-      <p class="mcp-connect__lead">Readplace runs an MCP server. Connect it once and your assistant can save pages to your reading queue and read your list back &mdash; right inside the conversation. From then on, &ldquo;Save this research to my readplace&rdquo; is all it takes.</p>
+      <p class="mcp-connect__lead">Readplace runs an MCP server. Connect it once and your assistant can save pages to your readlist and read your list back &mdash; right inside the conversation. From then on, &ldquo;Save this research to my readplace&rdquo; is all it takes.</p>
 
       <div class="mcp-connect__url" data-test-server-url>
         <span class="mcp-connect__url-label">Server URL</span>
@@ -57,7 +57,7 @@
           <li class="mcp-connect__operation" data-test-operation="{{name}}"><code class="mcp-connect__operation-name">{{name}}</code> {{summary}}</li>
           {{/each}}
         </ul>
-        <p class="mcp-connect__tool-req">For your safety, <strong>deleting stays in the Readplace app</strong> &mdash; your assistant can mark an article read or unread, but it can&rsquo;t remove anything from your queue, only point you to the app to do that yourself.</p>
+        <p class="mcp-connect__tool-req">For your safety, <strong>deleting stays in the Readplace app</strong> &mdash; your assistant can mark an article read or unread, but it can&rsquo;t remove anything from your readlist, only point you to the app to do that yourself.</p>
         <ul class="mcp-connect__operations" data-test-section="app-only-operations">
           {{#each appOnlyOperations}}
           <li class="mcp-connect__operation" data-test-operation="{{name}}"><code class="mcp-connect__operation-name">{{name}}</code> {{summary}}</li>

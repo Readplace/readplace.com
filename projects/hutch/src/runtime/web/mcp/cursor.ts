@@ -1,20 +1,18 @@
 import { z } from "zod";
 import type { ArticleStatus } from "@packages/domain/article";
+import {
+	type ReadlistSlug,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import type {
 	SortField,
 	SortOrder,
 } from "@packages/provider-contracts/article-store";
 
-/**
- * The state carried across `list_queue` pages. The MCP layer exposes only an
- * opaque `nextCursor` token; this is what that token wraps so a follow-up call
- * resumes the same filter/sort at the next page over the store's offset
- * pagination. `sort` is the store-level field name, so a decoded cursor passes
- * straight to `findArticlesByUser` without re-mapping.
- */
 export interface ReadlistCursor {
 	readonly page: number;
 	readonly pageSize: number;
+	readonly readlist?: ReadlistSlug;
 	readonly status?: ArticleStatus;
 	readonly sort?: SortField;
 	readonly order?: SortOrder;
@@ -24,6 +22,7 @@ const ReadlistCursorSchema = z
 	.object({
 		page: z.number().int().min(1),
 		pageSize: z.number().int().min(1).max(100),
+		readlist: ReadlistSlugSchema.optional(),
 		status: z.enum(["unread", "read"]).optional(),
 		sort: z.enum(["savedAt", "readAt"]).optional(),
 		order: z.enum(["asc", "desc"]).optional(),
@@ -36,13 +35,6 @@ export function encodeReadlistCursor(cursor: ReadlistCursor): string {
 	return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
-/** Decode a token produced by {@link encodeReadlistCursor}. Returns `null` for any
- * token that doesn't base64url-decode to JSON of the expected shape (garbage,
- * truncated, or wrong-shape — including a cursor that pairs `sort:"readAt"` with
- * a non-read status, which the mint-time guard never produces), so the caller
- * can ask the agent to restart from the first page. The cursor is not signed or
- * scoped to a user; pagination safety comes from `list_queue` always querying
- * `context.userId`, never from anything decoded here. */
 export function decodeReadlistCursor(token: string): ReadlistCursor | null {
 	let parsed: unknown;
 	try {

@@ -257,7 +257,7 @@ export type CreateReadlistDefinition = (params: {
 	slug: ReadlistSlug;
 	label: string;
 	createdAt: Date;
-}) => Promise<{ created: boolean }>;
+}) => Promise<{ created: boolean; ownedCount: number }>;
 
 export type ListReadlistDefinitions = (userId: UserId) => Promise<ReadlistDefinitionData[]>;
 
@@ -327,6 +327,7 @@ export type MarkReadlistArticleViewed = (params: {
 export type AssignSavedArticleToReadlist = (params: {
 	userId: UserId;
 	readlist: ReadlistSlug;
+	from: ReadlistSlug;
 	url: string;
 	savedAt: Date;
 }) => Promise<{ assigned: boolean }>;
@@ -345,4 +346,5 @@ export type ListUserSavesForUrl = (params: {
 export type ListUserSavesForUrls = (params: {
 	userId: UserId;
 	urls: readonly string[];
+	readlists?: readonly ReadlistSlug[];
 }) => Promise<Map<string, { readlist?: ReadlistSlug }[]>>;

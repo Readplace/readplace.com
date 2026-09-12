@@ -63,7 +63,7 @@ export function buildReadplaceTools(
 		{
 			name: "save_link",
 			description:
-				"Save a web page (article, blog post, or PDF) to the user's Readplace reading queue to read later.",
+				"Save a web page (article, blog post, or PDF) to the user's Readplace readlist to read later.",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -93,7 +93,7 @@ export function buildReadplaceTools(
 				);
 				return {
 					content: [
-						{ type: "text", text: `Saving ${url} to your Readplace queue.` },
+						{ type: "text", text: `Saving ${url} to your Readplace readlist.` },
 					],
 				};
 			},

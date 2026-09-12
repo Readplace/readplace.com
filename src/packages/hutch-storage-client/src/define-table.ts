@@ -188,8 +188,9 @@ export async function batchGetFromTable<TSchema extends z.ZodObject>(config: {
 	schema: TSchema;
 	keys: readonly Key[];
 	projection?: readonly (keyof z.infer<TSchema>)[];
+	consistentRead?: boolean;
 }): Promise<z.infer<TSchema>[]> {
-	const { client, tableName, schema, keys, projection } = config;
+	const { client, tableName, schema, keys, projection, consistentRead } = config;
 	if (keys.length === 0) return [];
 
 	const chunks: Key[][] = [];
@@ -212,6 +213,7 @@ export async function batchGetFromTable<TSchema extends z.ZodObject>(config: {
 		RequestItems: {
 			[tableName]: {
 				Keys: [...batchKeys],
+				ConsistentRead: consistentRead,
 				...projectionOptions,
 			},
 		},

@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { z } from "zod";
 import {
 	MCP_TOOL_OUTCOMES,
@@ -5,7 +6,14 @@ import {
 	UNKNOWN_MCP_TOOL,
 } from "@packages/web-analytics";
 import type { AuthenticatedUserId } from "@packages/domain/user";
-import type { ArticleStatus, DisplayableReadTime } from "@packages/domain/article";
+import type {
+	ArticleStatus,
+	DisplayableReadTime,
+} from "@packages/domain/article";
+import {
+	DEFAULT_READLIST_SLUG,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import type {
 	SortField,
 	SortOrder,
@@ -14,14 +22,20 @@ import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
 import { type ToolAccess, UNVERIFIED_ACCESS } from "./tool-access";
 import {
+	AddToReadlistArgs,
 	ArticleIdArgs,
+	CreateReadlistArgs,
+	CREATE_READLIST_TOOL,
+	ADD_TO_READLIST_TOOL,
 	DELETE_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,
 	GET_RELATED_ARTICLES_TOOL,
 	GET_ARTICLE_TOOL,
-	LIST_READLIST_TOOL,
-	ListReadlistArgs,
+	LIST_READLISTS_TOOL,
+	LIST_READLIST_ARTICLES_LEGACY_NAME,
+	LIST_READLIST_ARTICLES_TOOL,
+	ListReadlistArticlesArgs,
 	MARK_AS_READ_TOOL,
 	MARK_AS_UNREAD_TOOL,
 	SAVE_LINK_TOOL,
@@ -33,20 +47,34 @@ import {
  * delete_article points the user at this URL. */
 const APP_READLIST_URL = "https://readplace.com/queue";
 
-/** The tools a read-only (lapsed) subscription pauses. The Terms keep view and
- * export open for a lapsed account and scope the pause to "new saves", so only
- * save_link is gated. Marking read or unread stays open because the web's own
- * status route carries neither the lock gate nor the write-access gate: a
- * lapsed reader can mark read in their readlist, and MCP matches that. */
-const PAYWALLED_TOOLS: ReadonlySet<string> = new Set([SAVE_LINK_TOOL.name]);
+const PAYWALLED_TOOLS: ReadonlySet<string> = new Set([
+	SAVE_LINK_TOOL.name,
+	CREATE_READLIST_TOOL.name,
+	ADD_TO_READLIST_TOOL.name,
+]);
 
 const GATE_OUTCOMES = {
 	inactive: MCP_TOOL_OUTCOMES.paywalled,
 	unverified: MCP_TOOL_OUTCOMES.accessCheckFailed,
 } as const satisfies Record<Exclude<ToolAccess["state"], "ok">, McpToolOutcome>;
 
+const LIST_ARTICLE_TOOL_NAMES: ReadonlySet<string> = new Set([
+	LIST_READLIST_ARTICLES_TOOL.name,
+	LIST_READLIST_ARTICLES_LEGACY_NAME,
+]);
+
+export interface McpReadlist {
+	readonly id: ReadlistSlug;
+	readonly name: string;
+}
+
 type SaveLinkResult =
-	| { readonly ok: true; readonly title: string; readonly url: string }
+	| {
+			readonly ok: true;
+			readonly title: string;
+			readonly url: string;
+			readonly filedInto: readonly McpReadlist[];
+		}
 	| { readonly ok: false; readonly message: string };
 
 /** One saved article as the article tools expose it: metadata only (the reader
@@ -65,7 +93,34 @@ export interface McpArticle {
 	readonly status: ArticleStatus;
 	readonly savedAt: string;
 	readonly readAt?: string;
+	readonly readlists: readonly McpReadlist[];
 }
+
+export type CreateReadlistResult =
+	| { readonly status: "created"; readonly readlist: McpReadlist }
+	| { readonly status: "exists"; readonly readlist: McpReadlist }
+	| { readonly status: "invalid_name" }
+	| { readonly status: "reserved_name"; readonly readlist: McpReadlist }
+	| { readonly status: "limit_reached"; readonly limit: number }
+	| { readonly status: "access_denied"; readonly message: string };
+
+export type AddToReadlistResult =
+	| {
+			readonly status: "filed";
+			readonly readlist: McpReadlist;
+			readonly article: McpArticle;
+		}
+	| {
+			readonly status: "already_filed";
+			readonly readlist: McpReadlist;
+			readonly article: McpArticle;
+		}
+	| { readonly status: "article_not_found" }
+	| { readonly status: "readlist_not_found" }
+	| { readonly status: "invalid_name" }
+	| { readonly status: "reserved_name"; readonly readlist: McpReadlist }
+	| { readonly status: "limit_reached"; readonly limit: number }
+	| { readonly status: "access_denied"; readonly message: string };
 
 export type ArticleContentResult =
 	| { readonly status: "ready"; readonly content: string }
@@ -87,13 +142,20 @@ export type ArticleRelatedResult =
 	| { readonly status: "not_found" }
 	| { readonly status: "pending" }
 	| { readonly status: "skipped" }
-	| { readonly status: "ready"; readonly articles: readonly RelatedArticleResult[] };
+	| {
+			readonly status: "ready";
+			readonly articles: readonly RelatedArticleResult[];
+		};
 
 export type ArticleSummaryResult =
 	| { readonly status: "not_found" }
 	| { readonly status: "not_an_article" }
 	| { readonly status: "pending" }
-	| { readonly status: "ready"; readonly summary: string; readonly excerpt?: string }
+	| {
+			readonly status: "ready";
+			readonly summary: string;
+			readonly excerpt?: string;
+		}
 	| { readonly status: "failed"; readonly reason: string }
 	| { readonly status: "skipped"; readonly reason?: string };
 
@@ -117,16 +179,32 @@ export interface McpServerDeps {
 	saveLink: (params: {
 		userId: AuthenticatedUserId;
 		url: string;
+		readlists: readonly ReadlistSlug[];
 		oauthClientId: string;
 	}) => Promise<SaveLinkResult>;
 	listReadlist: (params: {
 		userId: AuthenticatedUserId;
+		readlist?: ReadlistSlug;
 		status?: ArticleStatus;
 		sort?: SortField;
 		order?: SortOrder;
 		page?: number;
 		pageSize?: number;
 	}) => Promise<ListReadlistResult>;
+	listReadlists: (params: {
+		userId: AuthenticatedUserId;
+	}) => Promise<readonly McpReadlist[]>;
+	createReadlist: (params: {
+		userId: AuthenticatedUserId;
+		name: string;
+	}) => Promise<CreateReadlistResult>;
+	addToReadlist: (params: {
+		userId: AuthenticatedUserId;
+		id: string;
+		target:
+			| { readonly kind: "existing"; readonly readlist: ReadlistSlug }
+			| { readonly kind: "create"; readonly name: string };
+	}) => Promise<AddToReadlistResult>;
 	getArticle: (params: {
 		userId: AuthenticatedUserId;
 		id: string;
@@ -151,10 +229,6 @@ export interface McpServerDeps {
 		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<ArticleStatusResult>;
-	/** The subscription gate for the tool surface, resolved once per
-	 * `tools/call`: it decides whether to refuse a new save (save_link) when
-	 * inactive. Every other tool stays open for a lapsed account. Reads the same
-	 * effective access the web banner does. */
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
 	recordToolCall: RecordMcpToolCall;
 	logError: (message: string, error?: Error) => void;
@@ -204,6 +278,11 @@ interface ToolResult {
 	readonly structuredContent?: unknown;
 	readonly isError?: boolean;
 }
+
+type ToolHandler = (
+	rawArgs: unknown,
+	context: McpRequestContext,
+) => Promise<ToolResult> | ToolResult;
 
 export interface McpServer {
 	/** Handle one JSON-RPC message. Resolves to the response for a request, or
@@ -279,15 +358,27 @@ function formatDate(iso: string): string {
 	return iso.slice(0, 10);
 }
 
+function formatReadlistNames(readlists: readonly McpReadlist[]): string {
+	return readlists.map((readlist) => readlist.name).join(", ");
+}
+
 function formatArticle(article: McpArticle): string {
 	const dates = article.readAt
 		? `Saved ${formatDate(article.savedAt)}; read ${formatDate(article.readAt)}`
 		: `Saved ${formatDate(article.savedAt)}`;
 	const excerpt = article.excerpt ? `\n${article.excerpt}` : "";
-	const meta = [article.siteName, article.readTime?.label, `${article.wordCount} words`]
+	const meta = [
+		article.siteName,
+		article.readTime?.label,
+		`${article.wordCount} words`,
+	]
 		.filter((part) => part !== undefined && part !== "")
 		.join(" · ");
-	return `"${article.title || article.url}" [${article.status}] — ${article.url}\n${meta}\n${dates}${excerpt}`;
+	const readlists =
+		article.readlists.length > 0
+			? `\nIn readlists: ${formatReadlistNames(article.readlists)}`
+			: "";
+	return `"${article.title || article.url}" [${article.status}] — ${article.url}\n${meta}\n${dates}${excerpt}${readlists}`;
 }
 
 export function initMcpServer(deps: McpServerDeps): McpServer {
@@ -311,7 +402,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading readlist; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (saves in their readlist that relate to it, each tagged unread or read). mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
+				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves that relate to it, each tagged unread or read). A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. Pass a readlist id to list_readlist_articles to list only that readlist, or pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
 		};
 	}
 
@@ -327,6 +418,26 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		};
 	}
 
+	async function resolveReadlistIds(
+		userId: AuthenticatedUserId,
+		ids: readonly string[],
+	): Promise<
+		| { readonly ok: true; readonly readlists: readonly McpReadlist[] }
+		| { readonly ok: false; readonly unknownId: string }
+	> {
+		const owned = await deps.listReadlists({ userId });
+		const byId = new Map<string, McpReadlist>(
+			owned.map((readlist) => [readlist.id, readlist]),
+		);
+		const readlists: McpReadlist[] = [];
+		for (const id of ids) {
+			const match = byId.get(id);
+			if (!match) return { ok: false, unknownId: id };
+			readlists.push(match);
+		}
+		return { ok: true, readlists };
+	}
+
 	async function runSaveLink(
 		rawArgs: unknown,
 		context: McpRequestContext,
@@ -336,62 +447,108 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			return toolError("save_link requires a `url` string.");
 		}
 		try {
+			const requested = args.data.readlists ?? [];
+			let named: readonly McpReadlist[] = [];
+			if (requested.length > 0) {
+				const resolved = await resolveReadlistIds(context.userId, requested);
+				if (!resolved.ok) {
+					return toolError(
+						`No readlist with id ${resolved.unknownId}. Call list_readlists and pass one of the ids it returns. Nothing was saved.`,
+					);
+				}
+				named = resolved.readlists;
+			}
 			const outcome = await deps.saveLink({
 				userId: context.userId,
 				url: args.data.url,
+				readlists: named.map((readlist) => readlist.id),
 				oauthClientId: context.oauthClientId,
 			});
 			if (!outcome.ok) return toolError(outcome.message);
+			const filed = outcome.filedInto.filter(
+				(readlist) => readlist.id !== DEFAULT_READLIST_SLUG,
+			);
+			const where =
+				filed.length > 0
+					? ` and filed it into ${formatReadlistNames(filed)}`
+					: "";
 			return text(
-				`Saved "${outcome.title}" to your Readplace readlist (${outcome.url}). The reader view is loading in the background.`,
+				`Saved "${outcome.title}" to your Readplace readlist${where} (${outcome.url}). The reader view is loading in the background.`,
 			);
 		} catch (error) {
 			return unexpectedFailure(SAVE_LINK_TOOL.name, error, "save the link");
 		}
 	}
 
-	async function runListReadlist(
+	async function runListReadlistArticles(
 		rawArgs: unknown,
 		context: McpRequestContext,
 	): Promise<ToolResult> {
-		const args = ListReadlistArgs.safeParse(rawArgs);
+		const args = ListReadlistArticlesArgs.safeParse(rawArgs);
 		if (!args.success) {
 			return toolError(
-				'list_queue arguments are invalid: `status` must be "unread" or "read", `sort` "saved" or "read", `order` "asc" or "desc".',
+				'list_readlist_articles arguments are invalid: `status` must be "unread" or "read", `sort` "saved" or "read", `order` "asc" or "desc".',
 			);
 		}
-		const a = args.data;
-
-		let page: number;
-		let pageSize: number | undefined;
-		let status: ArticleStatus | undefined;
-		let sort: SortField | undefined;
-		let order: SortOrder | undefined;
-		if (a.cursor !== undefined) {
-			const decoded = decodeReadlistCursor(a.cursor);
-			if (!decoded) {
-				return toolError(
-					"That pagination cursor is invalid. Call list_queue again without a cursor to start from the first page.",
-				);
-			}
-			({ page, pageSize, status, sort, order } = decoded);
-		} else {
-			sort =
-				a.sort === "read" ? "readAt" : a.sort === "saved" ? "savedAt" : undefined;
-			if (sort === "readAt" && a.status !== "read") {
-				return toolError(
-					'Sorting by read date (`sort:"read"`) only applies to read articles — pass `status:"read"` as well.',
-				);
-			}
-			page = 1;
-			pageSize = a.limit;
-			status = a.status;
-			order = a.order;
-		}
-
 		try {
+			const a = args.data;
+
+			let page: number;
+			let pageSize: number | undefined;
+			let requestedReadlist: string | undefined;
+			let status: ArticleStatus | undefined;
+			let sort: SortField | undefined;
+			let order: SortOrder | undefined;
+			if (a.cursor !== undefined) {
+				const decoded = decodeReadlistCursor(a.cursor);
+				if (!decoded) {
+					return toolError(
+						"That pagination cursor is invalid. Call list_readlist_articles again without a cursor to start from the first page.",
+					);
+				}
+				({
+					page,
+					pageSize,
+					readlist: requestedReadlist,
+					status,
+					sort,
+					order,
+				} = decoded);
+			} else {
+				requestedReadlist = a.readlist;
+				sort =
+					a.sort === "read"
+						? "readAt"
+						: a.sort === "saved"
+							? "savedAt"
+							: undefined;
+				if (sort === "readAt" && a.status !== "read") {
+					return toolError(
+						'Sorting by read date (`sort:"read"`) only applies to read articles — pass `status:"read"` as well.',
+					);
+				}
+				page = 1;
+				pageSize = a.limit;
+				status = a.status;
+				order = a.order;
+			}
+
+			let selectedReadlist: McpReadlist | undefined;
+			if (requestedReadlist !== undefined) {
+				const resolved = await resolveReadlistIds(context.userId, [
+					requestedReadlist,
+				]);
+				if (!resolved.ok) {
+					return toolError(
+						`No readlist with id ${resolved.unknownId}. Call list_readlists and pass one of the ids it returns.`,
+					);
+				}
+				selectedReadlist = resolved.readlists[0];
+			}
+			const readlist = selectedReadlist?.id;
 			const outcome = await deps.listReadlist({
 				userId: context.userId,
+				readlist,
 				status,
 				sort,
 				order,
@@ -403,6 +560,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				? encodeReadlistCursor({
 						page: outcome.page + 1,
 						pageSize: outcome.pageSize,
+						readlist,
 						status,
 						sort,
 						order,
@@ -412,13 +570,18 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				articles: outcome.articles,
 				total: outcome.total,
 				count: outcome.articles.length,
+				...(selectedReadlist !== undefined
+					? { readlist: selectedReadlist }
+					: {}),
 				...(nextCursor ? { nextCursor } : {}),
 			};
+			const where =
+				selectedReadlist !== undefined ? ` in ${selectedReadlist.name}` : "";
 
 			if (outcome.articles.length === 0) {
 				return data(
 					outcome.total === 0
-						? "Your Readplace readlist is empty."
+						? `Your Readplace readlist${where} is empty.`
 						: "No more saved articles.",
 					structuredContent,
 				);
@@ -431,15 +594,160 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			const shown = outcome.articles.length;
 			let header: string;
 			if (outcome.page > 1) {
-				header = `Showing ${shown} more of your ${outcome.total} saved article(s):`;
+				header = `Showing ${shown} more of your ${outcome.total} saved article(s)${where}:`;
 			} else if (shown < outcome.total) {
-				header = `You have ${outcome.total} saved article(s); showing the first ${shown}:`;
+				header = `You have ${outcome.total} saved article(s)${where}; showing the first ${shown}:`;
 			} else {
-				header = `You have ${outcome.total} saved article(s):`;
+				header = `You have ${outcome.total} saved article(s)${where}:`;
 			}
 			return data(`${header}\n${lines.join("\n")}`, structuredContent);
 		} catch (error) {
-			return unexpectedFailure(LIST_READLIST_TOOL.name, error, "list your readlist");
+			return unexpectedFailure(
+				LIST_READLIST_ARTICLES_TOOL.name,
+				error,
+				"list your readlist",
+			);
+		}
+	}
+
+	async function runListReadlists(
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		try {
+			const readlists = await deps.listReadlists({ userId: context.userId });
+			const lines = readlists.map(
+				(readlist) => `- ${readlist.name} (id ${readlist.id})`,
+			);
+			return data(
+				`You have ${readlists.length} readlist(s):\n${lines.join("\n")}`,
+				{ readlists },
+			);
+		} catch (error) {
+			return unexpectedFailure(
+				LIST_READLISTS_TOOL.name,
+				error,
+				"list your readlists",
+			);
+		}
+	}
+
+	async function runCreateReadlist(
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		const args = CreateReadlistArgs.safeParse(rawArgs);
+		if (!args.success) {
+			return toolError("create_readlist requires a `name` string.");
+		}
+		try {
+			const result = await deps.createReadlist({
+				userId: context.userId,
+				name: args.data.name,
+			});
+			switch (result.status) {
+				case "created":
+					return data(
+						`Created readlist "${result.readlist.name}". Its id is ${result.readlist.id} — pass that to add_to_readlist, save_link, or list_readlist_articles.`,
+						result,
+					);
+				case "exists":
+					return data(
+						`"${result.readlist.name}" already exists (id ${result.readlist.id}); reusing it rather than making a second one.`,
+						result,
+					);
+				case "access_denied":
+					return toolError(result.message);
+				case "invalid_name":
+					return toolError(
+						"A readlist name must be 1–24 characters after trimming. Pick a shorter name.",
+					);
+				case "reserved_name":
+					return toolError(
+						`"${result.readlist.name}" is reserved because All already receives every save. Use its id from list_readlists to file an article back into it, or choose a different name.`,
+					);
+				case "limit_reached":
+					return toolError(
+						`This reader already has the maximum of ${result.limit} readlists. Ask them to delete one in the Readplace app, or file into an existing one.`,
+					);
+			}
+		} catch (error) {
+			return unexpectedFailure(
+				CREATE_READLIST_TOOL.name,
+				error,
+				"create the readlist",
+			);
+		}
+	}
+
+	async function runAddToReadlist(
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		const args = AddToReadlistArgs.safeParse(rawArgs);
+		if (!args.success) {
+			return toolError(
+				"add_to_readlist requires an `id` and exactly one of `readlist` or `create_name`.",
+			);
+		}
+		try {
+			let target: Parameters<McpServerDeps["addToReadlist"]>[0]["target"];
+			if (args.data.readlist !== undefined) {
+				const resolved = await resolveReadlistIds(context.userId, [
+					args.data.readlist,
+				]);
+				if (!resolved.ok) {
+					return toolError(
+						`No readlist with id ${resolved.unknownId}. Call list_readlists and pass one of the ids it returns.`,
+					);
+				}
+				target = { kind: "existing", readlist: resolved.readlists[0].id };
+			} else {
+				assert(args.data.create_name !== undefined);
+				target = { kind: "create", name: args.data.create_name };
+			}
+			const result = await deps.addToReadlist({
+				userId: context.userId,
+				id: args.data.id,
+				target,
+			});
+			switch (result.status) {
+				case "filed":
+					return data(
+						`Filed into "${result.readlist.name}".\n${formatArticle(result.article)}`,
+						result,
+					);
+				case "already_filed":
+					return data(
+						`Already in "${result.readlist.name}"; nothing changed.\n${formatArticle(result.article)}`,
+						result,
+					);
+				case "article_not_found":
+					return notFoundResult(args.data.id);
+				case "readlist_not_found":
+					return toolError(
+						`No readlist with id ${args.data.readlist}. Call list_readlists and pass one of the ids it returns.`,
+					);
+				case "access_denied":
+					return toolError(result.message);
+				case "invalid_name":
+					return toolError(
+						"A readlist name must be 1–24 characters after trimming. Pick a shorter name.",
+					);
+				case "reserved_name":
+					return toolError(
+						`"${result.readlist.name}" is reserved because All already receives every save. Use its id from list_readlists to file an article back into it, or choose a different name.`,
+					);
+				case "limit_reached":
+					return toolError(
+						`This reader already has the maximum of ${result.limit} readlists, so a new one can't be created. Ask them to delete one in the Readplace app, or file into an existing one.`,
+					);
+			}
+		} catch (error) {
+			return unexpectedFailure(
+				ADD_TO_READLIST_TOOL.name,
+				error,
+				"add the article to the readlist",
+			);
 		}
 	}
 
@@ -457,7 +765,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			if (!article) return notFoundResult(args.data.id);
 			return data(formatArticle(article), { found: true, article });
 		} catch (error) {
-			return unexpectedFailure(GET_ARTICLE_TOOL.name, error, "load the article");
+			return unexpectedFailure(
+				GET_ARTICLE_TOOL.name,
+				error,
+				"load the article",
+			);
 		}
 	}
 
@@ -564,7 +876,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 					);
 				case "skipped":
 					return data(
-						"No related saves were worked out for that article.",
+						"No related saves are available for that article.",
 						result,
 					);
 				case "ready":
@@ -671,33 +983,31 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 	 * caller turns into a JSON-RPC method error). Kept separate from the access
 	 * gate and the JSON-RPC envelope so the gate wraps the dispatch rather than
 	 * threading through every case. */
-	async function dispatchTool(
+	const toolHandlers: ReadonlyMap<string, ToolHandler> = new Map<string, ToolHandler>([
+		[SAVE_LINK_TOOL.name, runSaveLink],
+		[
+			LIST_READLISTS_TOOL.name,
+			(_rawArgs, context) => runListReadlists(context),
+		],
+		[LIST_READLIST_ARTICLES_TOOL.name, runListReadlistArticles],
+		[LIST_READLIST_ARTICLES_LEGACY_NAME, runListReadlistArticles],
+		[GET_ARTICLE_TOOL.name, runGetArticle],
+		[GET_ARTICLE_CONTENT_TOOL.name, runGetArticleContent],
+		[GET_ARTICLE_SUMMARY_TOOL.name, runGetArticleSummary],
+		[GET_RELATED_ARTICLES_TOOL.name, runGetRelatedArticles],
+		[CREATE_READLIST_TOOL.name, runCreateReadlist],
+		[ADD_TO_READLIST_TOOL.name, runAddToReadlist],
+		[MARK_AS_READ_TOOL.name, runMarkAsRead],
+		[MARK_AS_UNREAD_TOOL.name, runMarkAsUnread],
+		[DELETE_ARTICLE_TOOL.name, () => runDeleteArticle()],
+	]);
+
+	function dispatchTool(
 		name: string,
 		rawArgs: unknown,
 		context: McpRequestContext,
-	): Promise<ToolResult | undefined> {
-		switch (name) {
-			case SAVE_LINK_TOOL.name:
-				return runSaveLink(rawArgs, context);
-			case LIST_READLIST_TOOL.name:
-				return runListReadlist(rawArgs, context);
-			case GET_ARTICLE_TOOL.name:
-				return runGetArticle(rawArgs, context);
-			case GET_ARTICLE_CONTENT_TOOL.name:
-				return runGetArticleContent(rawArgs, context);
-			case GET_ARTICLE_SUMMARY_TOOL.name:
-				return runGetArticleSummary(rawArgs, context);
-			case GET_RELATED_ARTICLES_TOOL.name:
-				return runGetRelatedArticles(rawArgs, context);
-			case MARK_AS_READ_TOOL.name:
-				return runMarkAsRead(rawArgs, context);
-			case MARK_AS_UNREAD_TOOL.name:
-				return runMarkAsUnread(rawArgs, context);
-			case DELETE_ARTICLE_TOOL.name:
-				return runDeleteArticle();
-			default:
-				return undefined;
-		}
+	): Promise<ToolResult> | ToolResult | undefined {
+		return toolHandlers.get(name)?.(rawArgs, context);
 	}
 
 	function recordCall(call: McpToolCallRecord): void {
@@ -711,22 +1021,21 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		}
 	}
 
-	function submittedSaveUrl(name: string, rawArgs: unknown): string | undefined {
+	function submittedSaveUrl(
+		name: string,
+		rawArgs: unknown,
+	): string | undefined {
 		if (name !== SAVE_LINK_TOOL.name) return undefined;
 		const args = SaveLinkArgs.safeParse(rawArgs);
 		return args.success ? args.data.url : undefined;
 	}
 
-	/** The order a list_queue call asked for, read from the cursor when one is
-	 * present: a follow-up page carries its order only in the opaque token, so
-	 * reading the bare argument would misreport page two of an ascending listing
-	 * as the default. */
 	function requestedSortOrder(
 		name: string,
 		rawArgs: unknown,
 	): SortOrder | undefined {
-		if (name !== LIST_READLIST_TOOL.name) return undefined;
-		const args = ListReadlistArgs.safeParse(rawArgs);
+		if (!LIST_ARTICLE_TOOL_NAMES.has(name)) return undefined;
+		const args = ListReadlistArticlesArgs.safeParse(rawArgs);
 		if (!args.success) return undefined;
 		if (args.data.cursor === undefined) return args.data.order;
 		return decodeReadlistCursor(args.data.cursor)?.order;
@@ -745,7 +1054,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				userId: context.userId,
 				oauthClientId: context.oauthClientId,
 			});
-			return failure(id, -32602, "Invalid params: expected { name, arguments }");
+			return failure(
+				id,
+				-32602,
+				"Invalid params: expected { name, arguments }",
+			);
 		}
 
 		let access: ToolAccess;

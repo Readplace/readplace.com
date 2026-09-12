@@ -1,4 +1,5 @@
 import { refreshContext } from "./oauth-refresh/evidence";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -220,12 +221,16 @@ import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
 import { initRecordMcpToolCall } from "./web/mcp/mcp-analytics";
 import { initMcpArticleOperations } from "./web/mcp/article-operations";
+import { initResolveOwnedArticle } from "./web/mcp/article-lookup";
+import { initResolveReadlistMembership } from "./web/mcp/readlist-membership";
+import { initMcpReadlistOperations } from "./web/mcp/readlist-operations";
+import { DEFAULT_READLIST_SLUG, generateReadlistSlug } from "@packages/domain/readlist";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./web/mcp/protocol";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
-import { initSaveArticleAtReadlistTop, initSaveArticleFromUrl } from "@packages/save-article";
+import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -507,34 +512,45 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 	});
 
-	/** The MCP server's tools are the same writes/reads the hypermedia `/queue`
-	 * API performs, so an agent acting over MCP and the browser extension take
-	 * the identical save and list paths — including the lockout gate the
-	 * extension save clears (resolved here from the bearer-derived userId, since
-	 * the request carries no session), so an MCP save is the identical write
-	 * rather than a back door around it. Listing stays open while locked, matching
-	 * `requireNotLocked`, so only `save_link` is gated; the subscription paywall
-	 * is enforced one level up by `resolveToolAccess`. */
 	const resolveSaveAccess = initResolveSaveAccess({
 		findUserById: deps.findUserById,
 		now: deps.now,
 	});
-	/** The subscription paywall on the MCP surface: a read-only (lapsed)
-	 * subscription has a new save (save_link) refused while every other tool
-	 * stays open. Reads the same effective access the web banner does, so "lapsed"
-	 * means the same thing to an agent as it does in the browser. */
 	const resolveToolAccess = initResolveToolAccess({ getEffectiveAccess });
 	const resolveMcpSaveProvenance = initResolveMcpSaveProvenance({
 		findOAuthClient: deps.findOAuthClient,
 	});
+	const upsertReadlist = initUpsertReadlist({ ...deps, generateReadlistSlug });
+	const fileArticleIntoReadlist = initFileArticleIntoReadlist(deps);
+	const addArticleToReadlist = initAddArticleToReadlist(deps);
+	const resolveOwnedArticle = initResolveOwnedArticle(deps);
+	const resolveReadlistMembership = initResolveReadlistMembership(deps);
+	const readlistOperations = initMcpReadlistOperations({
+		listReadlistDefinitions: deps.listReadlistDefinitions,
+		upsertReadlist,
+		addArticleToReadlist,
+		resolveOwnedArticle,
+		resolveReadlistMembership,
+	});
 	const mcpServer = initMcpServer({
 		resolveToolAccess,
+		listReadlists: readlistOperations.listReadlists,
+		createReadlist: async (params) => {
+			const access = await resolveSaveAccess(params.userId);
+			if (!access.allowed) return { status: "access_denied", message: access.message };
+			return readlistOperations.createReadlist(params);
+		},
+		addToReadlist: async (params) => {
+			const access = await resolveSaveAccess(params.userId);
+			if (!access.allowed) return { status: "access_denied", message: access.message };
+			return readlistOperations.addToReadlist(params);
+		},
 		recordToolCall: initRecordMcpToolCall({
 			recordUngatedAnalyticsEvent,
 			now: deps.now,
 		}),
 		logError: deps.logError,
-		saveLink: async ({ userId, url, oauthClientId }) => {
+		saveLink: async ({ userId, url, readlists, oauthClientId }) => {
 			const access = await resolveSaveAccess(userId);
 			if (!access.allowed) {
 				return { ok: false, message: access.message };
@@ -545,6 +561,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			}
 			try {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+				const provenance = await resolveMcpSaveProvenance(oauthClientId);
 				const { saved } = await initSaveArticleAtReadlistTop({
 					allocateSavedAt: deps.allocateSavedAt,
 					saveArticleFromUrl: initSaveArticleFromUrl(deps),
@@ -552,9 +569,16 @@ export function createApp(dependencies: AppDependencies): Express {
 					userId,
 					url: validation.url,
 					freshness,
-					provenance: await resolveMcpSaveProvenance(oauthClientId),
+					provenance,
 				});
-				return { ok: true, title: saved.metadata.title, url: saved.url };
+				for (const readlist of readlists) {
+					if (readlist === DEFAULT_READLIST_SLUG) continue;
+					await fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
+				}
+				const membership = await resolveReadlistMembership({ userId, urls: [saved.url] });
+				const filedInto = membership.get(saved.url);
+				assert(filedInto, "a saved article must have readlist membership");
+				return { ok: true, title: saved.metadata.title, url: saved.url, filedInto };
 			} catch (error) {
 				deps.logError(
 					"MCP save_link failed",
@@ -562,12 +586,14 @@ export function createApp(dependencies: AppDependencies): Express {
 				);
 				return {
 					ok: false,
-					message: `Could not save the link — something went wrong on Readplace's side. Try again in a moment, or save it from the queue at ${dependencies.baseUrl}/queue.`,
+					message: `Could not save the link — something went wrong on Readplace's side. Try again in a moment, or save it from your readlist at ${dependencies.baseUrl}/queue.`,
 				};
 			}
 		},
 		...initMcpArticleOperations({
-			findArticleById: deps.findArticleById,
+			resolveOwnedArticle,
+			resolveReadlistMembership,
+			findReadlistArticles: deps.findReadlistArticles,
 			findArticlesByUser: deps.findArticlesByUser,
 			readArticleContent: deps.readArticleContent,
 			findGeneratedSummary: deps.findGeneratedSummary,
@@ -1205,8 +1231,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		markReadlistArticleViewed: deps.markReadlistArticleViewed,
 		listUserSavesForUrl: deps.listUserSavesForUrl,
 		listUserSavesForUrls: deps.listUserSavesForUrls,
-		assignSavedArticleToReadlist: deps.assignSavedArticleToReadlist,
-		saveReadlistArticle: deps.saveReadlistArticle,
+		addArticleToReadlist,
+		fileArticleIntoReadlist,
+		upsertReadlist,
 		moveReadlistArticles: deps.moveReadlistArticles,
 		listReadlistDefinitions: deps.listReadlistDefinitions,
 		renameReadlistDefinition: deps.renameReadlistDefinition,

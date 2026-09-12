@@ -1,11 +1,14 @@
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	readerReadlists,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
-import type {
-	ListReadlistDefinitions,
-	ReadlistDefinitionData,
-} from "@packages/provider-contracts/article-store";
+import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
+
+export { readerReadlists };
 
 export interface ReadlistContext {
 	state: ReadlistUrlState;
@@ -14,10 +17,6 @@ export interface ReadlistContext {
 }
 
 const MAINLINE_READLISTS: readonly Readlist[] = [DEFAULT_READLIST];
-
-export function readerReadlists(definitions: readonly ReadlistDefinitionData[]): readonly Readlist[] {
-	return [DEFAULT_READLIST, ...definitions.map(({ slug, label }) => ({ slug, label }))];
-}
 
 export function readlistToFileInto(context: ReadlistContext): ReadlistSlug | undefined {
 	const { slug } = context.activeReadlist;

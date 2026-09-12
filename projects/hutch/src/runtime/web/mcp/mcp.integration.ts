@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import request from "supertest";
+import { ReaderArticleHashId } from "@packages/domain/article";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -89,9 +91,9 @@ async function saveAndGetFirstId(
 	accessToken: string,
 ): Promise<string> {
 	await callTool(harness, accessToken, tool("save_link", { url: "https://example.com/article" }));
-	const list = await callTool(harness, accessToken, tool("list_queue"));
+	const list = await callTool(harness, accessToken, tool("list_readlist_articles"));
 	const id = list.body.result.structuredContent.articles[0]?.id;
-	assert(typeof id === "string", "list_queue must expose an article id");
+	assert(typeof id === "string", "list_readlist_articles must expose an article id");
 	return id;
 }
 
@@ -147,7 +149,7 @@ describe("MCP server over the real app", () => {
 			jsonrpc: "2.0",
 			id: 2,
 			method: "tools/call",
-			params: { name: "list_queue" },
+			params: { name: "list_readlist_articles" },
 		});
 		expect(listResponse.status).toBe(200);
 		expect(listResponse.body.result.content[0].text).toContain(
@@ -189,8 +191,7 @@ describe("MCP server over the real app", () => {
 		expect(save.body.result.isError).toBe(true);
 		expect(save.body.result.content[0].text).toContain("subscription");
 
-		// The Terms keep view and export open for a lapsed account: list_queue runs.
-		const list = await callTool(harness, accessToken, tool("list_queue"));
+		const list = await callTool(harness, accessToken, tool("list_readlist_articles"));
 		expect(list.status).toBe(200);
 		expect(list.body.result.isError).toBeUndefined();
 		expect(list.body.result.structuredContent.total).toBe(0);
@@ -221,7 +222,7 @@ describe("MCP server over the real app", () => {
 			"This link wasn't saved because the subscription check didn't go through. Try again in a moment.",
 		);
 
-		const list = await callTool(harness, accessToken, tool("list_queue"));
+		const list = await callTool(harness, accessToken, tool("list_readlist_articles"));
 		expect(list.status).toBe(200);
 		expect(list.body.result.isError).toBeUndefined();
 		expect(list.body.result.structuredContent.total).toBe(0);
@@ -237,11 +238,14 @@ describe("MCP server over the real app", () => {
 		});
 		expect(response.body.result.tools.map((t: { name: string }) => t.name)).toEqual([
 			"save_link",
-			"list_queue",
+			"list_readlists",
+			"list_readlist_articles",
 			"get_article",
 			"get_article_content",
 			"get_article_summary",
 			"get_related_articles",
+			"create_readlist",
+			"add_to_readlist",
 			"mark_as_read",
 			"mark_as_unread",
 			"delete_article",
@@ -284,7 +288,7 @@ describe("MCP server over the real app", () => {
 		const summary = await callTool(harness, otherToken, tool("get_article_summary", { id }));
 		expect(summary.body.result.structuredContent).toEqual({ found: false });
 
-		const list = await callTool(harness, otherToken, tool("list_queue"));
+		const list = await callTool(harness, otherToken, tool("list_readlist_articles"));
 		expect(list.body.result.structuredContent.total).toBe(0);
 	});
 
@@ -310,7 +314,7 @@ describe("MCP server over the real app", () => {
 		const stillUnread = await callTool(
 			harness,
 			accessToken,
-			tool("list_queue", { status: "unread" }),
+			tool("list_readlist_articles", { status: "unread" }),
 		);
 		expect(stillUnread.body.result.structuredContent.total).toBe(0);
 
@@ -323,7 +327,7 @@ describe("MCP server over the real app", () => {
 		const backInUnread = await callTool(
 			harness,
 			accessToken,
-			tool("list_queue", { status: "unread" }),
+			tool("list_readlist_articles", { status: "unread" }),
 		);
 		expect(backInUnread.body.result.structuredContent.total).toBe(1);
 	});
@@ -342,7 +346,7 @@ describe("MCP server over the real app", () => {
 		// The whole article — not just status/count — is byte-for-byte unchanged.
 		const after = await callTool(harness, accessToken, tool("get_article", { id }));
 		expect(after.body.result.structuredContent.article).toEqual(articleBefore);
-		const list = await callTool(harness, accessToken, tool("list_queue"));
+		const list = await callTool(harness, accessToken, tool("list_readlist_articles"));
 		expect(list.body.result.structuredContent.total).toBe(1);
 	});
 
@@ -368,7 +372,165 @@ describe("MCP server over the real app", () => {
 		const owner = await callTool(harness, ownerToken, tool("get_article", { id }));
 		expect(owner.body.result.structuredContent.article.status).toBe("unread");
 		expect(owner.body.result.structuredContent.article.readAt).toBeUndefined();
-		const ownerList = await callTool(harness, ownerToken, tool("list_queue"));
+		const ownerList = await callTool(harness, ownerToken, tool("list_readlist_articles"));
 		expect(ownerList.body.result.structuredContent.total).toBe(1);
 	});
+	it("accepts the retired listing name while advertising only the new name", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		await saveAndGetFirstId(harness, token);
+		const advertised = await callTool(harness, token, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+		expect(advertised.body.result.tools.filter((entry: { name: string }) => entry.name === "list_queue")).toEqual([]);
+		const legacy = await callTool(harness, token, tool("list_queue", { order: "asc" }));
+		const current = await callTool(harness, token, tool("list_readlist_articles", { order: "asc" }));
+		expect(legacy.body.result).toEqual(current.body.result);
+	});
+
+	it("creates readlists, saves into two, resolves their articles, and files by a new name", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		const initial = await callTool(harness, token, tool("list_readlists"));
+		expect(initial.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		const createdWork = await callTool(harness, token, tool("create_readlist", { name: "Work" }));
+		const work = createdWork.body.result.structuredContent.readlist;
+		const createdRust = await callTool(harness, token, tool("create_readlist", { name: "Rust" }));
+		const rust = createdRust.body.result.structuredContent.readlist;
+		const reused = await callTool(harness, token, tool("create_readlist", { name: "wOrK" }));
+		expect(reused.body.result.structuredContent).toEqual({ status: "exists", readlist: work });
+		const saved = await callTool(harness, token, tool("save_link", {
+			url: "https://example.com/readlist-article", readlists: [work.id, rust.id],
+		}));
+		expect(saved.body.result.isError).toBeUndefined();
+		const lists = await callTool(harness, token, tool("list_readlists"));
+		expect(lists.body.result.structuredContent.readlists).toEqual([
+			{ id: DEFAULT_READLIST_SLUG, name: "All" }, work, rust,
+		]);
+		let articleId = "";
+		for (const readlist of lists.body.result.structuredContent.readlists) {
+			const listed = await callTool(harness, token, tool("list_readlist_articles", { readlist: readlist.id }));
+			expect(listed.body.result.structuredContent.total).toBe(1);
+			for (const article of listed.body.result.structuredContent.articles) {
+				articleId = article.id;
+				const fetched = await callTool(harness, token, tool("get_article", { id: article.id }));
+				const { savedAt: _savedAt, ...sharedDetails } = article;
+				expect(fetched.body.result.structuredContent.article).toMatchObject(sharedDetails);
+				expect(article.readlists).toEqual(lists.body.result.structuredContent.readlists);
+			}
+		}
+		const added = await callTool(harness, token, tool("add_to_readlist", { id: articleId, create_name: "Reading Group" }));
+		expect(added.body.result.structuredContent.status).toBe("filed");
+		expect(added.body.result.structuredContent.article.readlists.map((list: { name: string }) => list.name)).toEqual(["All", "Work", "Rust", "Reading Group"]);
+		const repeat = await callTool(harness, token, tool("add_to_readlist", { id: articleId, create_name: "reading group" }));
+		expect(repeat.body.result.structuredContent.status).toBe("already_filed");
+		const browser = request.agent(harness.server);
+		await browser.post("/login").type("form").send({ email: "mcp@example.com", password: "password123" });
+		const page = await browser.get(`/queue?queue=${work.id}`);
+		expect(page.status).toBe(200);
+		expect(page.text).toContain("https://example.com/readlist-article");
+	});
+
+	it("reaches an article outside All and can file it back into All", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		const created = await callTool(harness, token, tool("create_readlist", { name: "Work" }));
+		const work = created.body.result.structuredContent.readlist;
+		const url = "https://example.com/only-work";
+		await callTool(harness, token, tool("save_link", { url, readlists: [work.id] }));
+		const owner = await harness.auth.findUserByEmail("mcp@example.com");
+		assert(owner);
+		const id = ReaderArticleHashId.from(url);
+		await harness.articleStore.deleteArticle(id, owner.userId);
+		const all = await callTool(harness, token, tool("list_readlist_articles"));
+		expect(all.body.result.structuredContent.total).toBe(0);
+		const listed = await callTool(harness, token, tool("list_readlist_articles", { readlist: work.id }));
+		const article = listed.body.result.structuredContent.articles[0];
+		expect(article.readlists).toEqual([work]);
+		const fetched = await callTool(harness, token, tool("get_article", { id: article.id }));
+		expect(fetched.body.result.structuredContent.article).toEqual(article);
+		const related = await callTool(harness, token, tool("get_related_articles", { id: article.id }));
+		expect(related.body.result.structuredContent).toEqual({ status: "skipped" });
+		expect(related.body.result.content).toEqual([
+			{ type: "text", text: "No related saves are available for that article." },
+		]);
+		const marked = await callTool(harness, token, tool("mark_as_read", { id: article.id }));
+		expect(marked.body.result.structuredContent.article.status).toBe("read");
+		const restored = await callTool(harness, token, tool("add_to_readlist", { id: article.id, readlist: DEFAULT_READLIST_SLUG }));
+		expect(restored.body.result.structuredContent.status).toBe("filed");
+		expect(restored.body.result.structuredContent.article.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }, work]);
+		const backInAll = await callTool(harness, token, tool("list_readlist_articles"));
+		expect(backInAll.body.result.structuredContent.articles[0].id).toBe(article.id);
+	});
+
+	it("refuses another reader's readlists before saving or filing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const ownerToken = await obtainAccessToken(harness);
+		const created = await callTool(harness, ownerToken, tool("create_readlist", { name: "Private Work" }));
+		const privateList = created.body.result.structuredContent.readlist;
+		const ownerArticle = await saveAndGetFirstId(harness, ownerToken);
+		const otherToken = await obtainAccessToken(harness, "other@example.com");
+		for (const body of [
+			tool("list_readlist_articles", { readlist: privateList.id }),
+			tool("save_link", { url: "https://example.com/refused", readlists: [DEFAULT_READLIST_SLUG, privateList.id] }),
+			tool("add_to_readlist", { id: ownerArticle, readlist: privateList.id }),
+		]) {
+			const refused = await callTool(harness, otherToken, body);
+			expect(refused.body.result.isError).toBe(true);
+			expect(refused.body.result.content[0].text).toContain("Call list_readlists");
+		}
+		const missingArticle = await callTool(harness, otherToken, tool("add_to_readlist", { id: ownerArticle, create_name: "Never Created" }));
+		expect(missingArticle.body.result.structuredContent).toEqual({ found: false });
+		const otherLists = await callTool(harness, otherToken, tool("list_readlists"));
+		expect(otherLists.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		const otherArticles = await callTool(harness, otherToken, tool("list_readlist_articles"));
+		expect(otherArticles.body.result.structuredContent.total).toBe(0);
+	});
+
+	it("gates new readlist writes when an account is locked but leaves discovery open", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let locked = false;
+		const harness = useApp({
+			...fixture,
+			auth: {
+				...fixture.auth,
+				findUserById: async (userId) => {
+					const user = await fixture.auth.findUserById(userId);
+					if (!user || !locked) return user;
+					return { ...user, emailVerified: false, registeredAt: "2000-01-01T00:00:00.000Z" };
+				},
+			},
+		});
+		const token = await obtainAccessToken(harness);
+		const id = await saveAndGetFirstId(harness, token);
+		locked = true;
+		for (const body of [
+			tool("create_readlist", { name: "Work" }),
+			tool("add_to_readlist", { id, create_name: "Work" }),
+		]) {
+			const refused = await callTool(harness, token, body);
+			expect(refused.body.result.isError).toBe(true);
+			expect(refused.body.result.content[0].text).toContain("account is locked");
+		}
+		const discovered = await callTool(harness, token, tool("list_readlists"));
+		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+	});
+
+	it("refuses new readlist writes for a lapsed subscription without creating anything", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		const id = await saveAndGetFirstId(harness, token);
+		const user = await harness.auth.findUserByEmail("mcp@example.com");
+		assert(user);
+		await harness.subscriptionProviders.upsertTrialing({ userId: user.userId, trialEndsAt: "2000-01-01T00:00:00.000Z" });
+		for (const body of [
+			tool("create_readlist", { name: "Work" }),
+			tool("add_to_readlist", { id, create_name: "Work" }),
+		]) {
+			const refused = await callTool(harness, token, body);
+			expect(refused.body.result.isError).toBe(true);
+			expect(refused.body.result.content[0].text).toContain("subscription");
+		}
+		const discovered = await callTool(harness, token, tool("list_readlists"));
+		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+	});
+
 });

@@ -70,6 +70,7 @@ config:
   hutch:alertEmail: readplace+devops@readplace.com
   hutch:gmailConnectionCapWarnThreshold: 50
   hutch:oauthRefreshRefusedDailyThreshold: 5
+  hutch:readlistCapWarnThreshold: 1
   hutch:googleWorkspaceMail:
     domain: readplace.com
     # Route53 allows one TXT record per name, so this array is the COMPLETE apex

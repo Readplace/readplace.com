@@ -1,14 +1,14 @@
 import { withInternalTracking } from "@packages/web-shell";
 import {
-	DEFAULT_READLIST_SLUG,
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
 	type ReadlistSlug,
+	readerReadlists,
+	readlistsHoldingArticle,
 } from "@packages/domain/readlist";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { ReaderReadlistTags } from "../../shared/article-body/article-header/article-header.component";
 import type { ReaderReadlistPicker } from "../../shared/article-body/reader-actions/reader-actions.component";
-import { readerReadlists } from "./readlist-context";
 import { READLIST_PATH } from "./readlist.url";
 
 const FILING_SOURCE = "reader-readlists";
@@ -34,7 +34,6 @@ export function buildReaderReadlistFiling(input: {
 	const assignable = holdsDefaultCopy
 		? input.definitions.filter((definition) => !memberSlugs.has(definition.slug))
 		: [];
-	const heldSlugs = new Set(input.saves.map((save) => save.readlist ?? DEFAULT_READLIST_SLUG));
 	const buildPicker = (): ReaderReadlistPicker | undefined => {
 		if (!holdsDefaultCopy) return undefined;
 		const create =
@@ -59,9 +58,10 @@ export function buildReaderReadlistFiling(input: {
 	};
 	return {
 		markStatusConfirmReadlistLabels: input.markStatusConfirmGated
-			? readerReadlists(input.definitions)
-					.filter((readlist) => heldSlugs.has(readlist.slug))
-					.map((readlist) => readlist.label)
+			? readlistsHoldingArticle({
+					saves: input.saves,
+					readlists: readerReadlists(input.definitions),
+				}).map((readlist) => readlist.label)
 			: undefined,
 		tags:
 			assigned.length === 0

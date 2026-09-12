@@ -1,10 +1,13 @@
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesByUser,
+	FindReadlistArticles,
+	FindReadlistArticleById,
+	ListReadlistDefinitions,
 	ReadArticleContent,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
@@ -15,6 +18,9 @@ import {
 	toMcpArticle,
 	toSummaryResult,
 } from "./article-operations";
+
+import { initResolveOwnedArticle } from "./article-lookup";
+import type { ResolveReadlistMembership } from "./readlist-membership";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
@@ -40,6 +46,10 @@ function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 }
 
 interface DepOverrides {
+	findReadlistArticles?: FindReadlistArticles;
+	findReadlistArticleById?: FindReadlistArticleById;
+	listReadlistDefinitions?: ListReadlistDefinitions;
+	resolveReadlistMembership?: ResolveReadlistMembership;
 	findArticleById?: FindArticleById;
 	findArticlesByUser?: FindArticlesByUser;
 	readArticleContent?: ReadArticleContent;
@@ -50,7 +60,15 @@ interface DepOverrides {
 
 function buildOps(overrides: DepOverrides = {}) {
 	return initMcpArticleOperations({
-		findArticleById: overrides.findArticleById ?? (async () => null),
+		resolveOwnedArticle: initResolveOwnedArticle({
+			findArticleById: overrides.findArticleById ?? (async () => null),
+			findReadlistArticleById: overrides.findReadlistArticleById ?? (async () => null),
+			listReadlistDefinitions: overrides.listReadlistDefinitions ?? (async () => []),
+		}),
+		resolveReadlistMembership: overrides.resolveReadlistMembership ?? (async ({ urls }) => new Map(urls.map((url) => [url, []]))),
+		findReadlistArticles: overrides.findReadlistArticles ?? (async () => ({
+			articles: [], total: 0, hasMore: false, page: 1, pageSize: 20,
+		})),
 		findArticlesByUser:
 			overrides.findArticlesByUser ??
 			(async () => ({
@@ -76,8 +94,9 @@ describe("toMcpArticle", () => {
 			status: "read",
 			readAt: new Date("2026-02-02T00:00:00.000Z"),
 		});
-		expect(toMcpArticle(article)).toEqual({
+		expect(toMcpArticle(article, [])).toEqual({
 			id: article.id.value,
+			readlists: [],
 			url: "https://example.com/a",
 			title: "Title",
 			siteName: "Example",
@@ -97,7 +116,7 @@ describe("toMcpArticle", () => {
 			url: "https://example.com/a.html",
 			displayUrl: "https://example.com/a",
 		});
-		expect(toMcpArticle(article).url).toBe("https://example.com/a");
+		expect(toMcpArticle(article, []).url).toBe("https://example.com/a");
 	});
 
 	it("omits imageUrl and readAt when they are absent", () => {
@@ -109,7 +128,7 @@ describe("toMcpArticle", () => {
 				wordCount: 1,
 			},
 		});
-		const mapped = toMcpArticle(article);
+		const mapped = toMcpArticle(article, []);
 		expect(mapped).not.toHaveProperty("imageUrl");
 		expect(mapped).not.toHaveProperty("readAt");
 	});
@@ -124,7 +143,7 @@ describe("toMcpArticle", () => {
 			},
 			estimatedReadTime: MinutesSchema.parse(1),
 		});
-		const mcpArticle = toMcpArticle(article);
+		const mcpArticle = toMcpArticle(article, []);
 		expect([
 			Object.hasOwn(mcpArticle, "estimatedReadTime"),
 			Object.hasOwn(mcpArticle, "readTime"),
@@ -171,6 +190,90 @@ describe("toSummaryResult", () => {
 });
 
 describe("initMcpArticleOperations", () => {
+	it("uses the saved URL for membership while displaying a merged article's destination URL", async () => {
+		const article = buildArticle({ displayUrl: "https://example.com/destination" });
+		const readlist = { id: ReadlistSlugSchema.parse("work"), name: "Work" };
+		const resolveReadlistMembership = jest.fn(async () => new Map([[article.url, [readlist]]]));
+		const findReadlistArticles = jest.fn(async () => ({
+			articles: [article], total: 1, hasMore: false, page: 1, pageSize: 20,
+		}));
+		const ops = buildOps({
+			findArticleById: async () => article,
+			findReadlistArticles,
+			resolveReadlistMembership,
+		});
+		const listing = await ops.listReadlist({ userId, readlist: readlist.id });
+		const fetched = await ops.getArticle({ userId, id: article.id.value });
+		expect(listing.articles).toEqual([fetched]);
+		expect(fetched).toMatchObject({ url: article.displayUrl, readlists: [readlist] });
+		expect(resolveReadlistMembership.mock.calls).toEqual([
+			[{ userId, urls: [article.url] }],
+			[{ userId, urls: [article.url] }],
+		]);
+		expect(findReadlistArticles).toHaveBeenCalledWith({
+			userId, readlist: readlist.id, status: undefined, sort: undefined,
+			order: undefined, page: undefined, pageSize: undefined,
+			excludeContent: true, includeTotal: true,
+		});
+	});
+
+	it("reaches an article removed from All through every by-id operation and writes to its owned readlist", async () => {
+		const article = buildArticle();
+		const earlier = ReadlistSlugSchema.parse("earlier");
+		const work = ReadlistSlugSchema.parse("work");
+		const findReadlistArticleById: FindReadlistArticleById = jest.fn(async ({ readlist }) =>
+			readlist === work ? article : null);
+		const updateArticleStatusAcrossReadlists = jest.fn(async () => ({ ...article, status: "read" as const }));
+		const ops = buildOps({
+			listReadlistDefinitions: async () => [
+				{ slug: earlier, label: "Earlier", createdAt: new Date("2026-01-01") },
+				{ slug: work, label: "Work", createdAt: new Date("2026-01-02") },
+			],
+			findReadlistArticleById,
+			resolveReadlistMembership: async () => new Map([[article.url, [{ id: work, name: "Work" }]]]),
+			updateArticleStatusAcrossReadlists,
+		});
+		const params = { userId, id: article.id.value };
+		expect(await ops.getArticle(params)).toMatchObject({ id: article.id.value, readlists: [{ id: work, name: "Work" }] });
+		expect(await ops.getArticleContent(params)).toEqual({ status: "pending" });
+		expect(await ops.getArticleSummary(params)).toEqual({ status: "pending" });
+		expect(await ops.getRelatedArticles(params)).toEqual({ status: "skipped" });
+		expect(await ops.markAsRead(params)).toMatchObject({ status: "ok", article: { status: "read" } });
+		expect(await ops.markAsUnread(params)).toMatchObject({ status: "ok", article: { status: "unread" } });
+		expect(updateArticleStatusAcrossReadlists.mock.calls).toEqual([[{
+			userId, id: article.id, addressed: work, status: "read",
+		}]]);
+		expect(findReadlistArticleById).toHaveBeenNthCalledWith(1, { userId, id: article.id, readlist: earlier });
+		expect(findReadlistArticleById).toHaveBeenNthCalledWith(2, { userId, id: article.id, readlist: work });
+	});
+
+	it("returns missing after checking only this reader's definitions", async () => {
+		const work = ReadlistSlugSchema.parse("work");
+		const article = buildArticle();
+		const listReadlistDefinitions = jest.fn(async () => [
+			{ slug: work, label: "Work", createdAt: new Date("2026-01-01") },
+		]);
+		const findReadlistArticleById = jest.fn(async () => null);
+		const ops = buildOps({ listReadlistDefinitions, findReadlistArticleById });
+		expect(await ops.getArticle({ userId, id: article.id.value })).toBeNull();
+		expect(listReadlistDefinitions.mock.calls).toEqual([[userId]]);
+		expect(findReadlistArticleById.mock.calls).toEqual([[{ userId, id: article.id, readlist: work }]]);
+	});
+
+	it("does not load named readlists when an article is found in All", async () => {
+		const article = buildArticle();
+		const listReadlistDefinitions = jest.fn();
+		const findReadlistArticleById = jest.fn();
+		const ops = buildOps({
+			findArticleById: async () => article,
+			listReadlistDefinitions,
+			findReadlistArticleById,
+		});
+		expect(await ops.getArticle({ userId, id: article.id.value })).toMatchObject({ id: article.id.value });
+		expect(listReadlistDefinitions.mock.calls).toEqual([]);
+		expect(findReadlistArticleById.mock.calls).toEqual([]);
+	});
+
 	describe("listReadlist", () => {
 		it("forwards the query (excluding content) and maps rows to MCP articles", async () => {
 			const article = buildArticle();
@@ -206,7 +309,7 @@ describe("initMcpArticleOperations", () => {
 				total: 1,
 				page: 2,
 				pageSize: 5,
-				articles: [toMcpArticle(article)],
+				articles: [toMcpArticle(article, [])],
 			});
 		});
 
@@ -231,7 +334,7 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle();
 			const ops = buildOps({ findArticleById: async () => article });
 			expect(await ops.getArticle({ userId, id: article.id.value })).toEqual(
-				toMcpArticle(article),
+				toMcpArticle(article, []),
 			);
 		});
 
@@ -324,6 +427,22 @@ describe("initMcpArticleOperations", () => {
 	});
 
 	describe("getRelatedArticles", () => {
+		it("reports unavailable relations for a named-only save without querying the All-only relation store", async () => {
+			const article = buildArticle();
+			const work = ReadlistSlugSchema.parse("work");
+			const findRelatedArticles = jest.fn(async (): ReturnType<FindRelatedArticles> => ({ status: "pending" }));
+			const ops = buildOps({
+				listReadlistDefinitions: async () => [
+					{ slug: work, label: "Work", createdAt: new Date("2026-01-01") },
+				],
+				findReadlistArticleById: async () => article,
+				findRelatedArticles,
+			});
+
+			expect(await ops.getRelatedArticles({ userId, id: article.id.value })).toEqual({ status: "skipped" });
+			expect(findRelatedArticles.mock.calls).toEqual([]);
+		});
+
 		it("reports not_found when the id does not resolve", async () => {
 			const ops = buildOps({ findArticleById: async () => null });
 			expect(await ops.getRelatedArticles({ userId, id: "0".repeat(32) })).toEqual({
@@ -429,7 +548,7 @@ describe("initMcpArticleOperations", () => {
 				addressed: DEFAULT_READLIST_SLUG,
 				status: "read",
 			});
-			expect(result).toEqual({ status: "ok", article: toMcpArticle(written) });
+			expect(result).toEqual({ status: "ok", article: toMcpArticle(written, []) });
 			expect(result).toMatchObject({
 				article: { status: "read", readAt: "2026-03-03T00:00:00.000Z" },
 			});
@@ -456,7 +575,7 @@ describe("initMcpArticleOperations", () => {
 				addressed: DEFAULT_READLIST_SLUG,
 				status: "unread",
 			});
-			expect(result).toEqual({ status: "ok", article: toMcpArticle(written) });
+			expect(result).toEqual({ status: "ok", article: toMcpArticle(written, []) });
 			expect(result).toMatchObject({ article: { status: "unread" } });
 			expect(result).not.toMatchObject({ article: { readAt: expect.anything() } });
 		});
@@ -475,7 +594,7 @@ describe("initMcpArticleOperations", () => {
 			const result = await ops.markAsRead({ userId, id: stored.id.value });
 
 			expect(updateArticleStatusAcrossReadlists).not.toHaveBeenCalled();
-			expect(result).toEqual({ status: "ok", article: toMcpArticle(stored) });
+			expect(result).toEqual({ status: "ok", article: toMcpArticle(stored, []) });
 			expect(result).toMatchObject({
 				article: { readAt: "2026-03-03T00:00:00.000Z" },
 			});
@@ -492,7 +611,7 @@ describe("initMcpArticleOperations", () => {
 			const result = await ops.markAsUnread({ userId, id: stored.id.value });
 
 			expect(updateArticleStatusAcrossReadlists).not.toHaveBeenCalled();
-			expect(result).toEqual({ status: "ok", article: toMcpArticle(stored) });
+			expect(result).toEqual({ status: "ok", article: toMcpArticle(stored, []) });
 		});
 
 		it("reports not_found and writes nothing for an id the user does not own", async () => {

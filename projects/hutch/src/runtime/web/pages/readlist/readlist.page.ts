@@ -41,7 +41,6 @@ import type {
 	FindArticlesResult,
 	FindReadlistArticleById,
 	FindReadlistArticles,
-	AssignSavedArticleToReadlist,
 	MoveReadlistArticles,
 	FindSavedUrls,
 	ListReadlistDefinitions,
@@ -54,7 +53,6 @@ import type {
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
-	SaveReadlistArticle,
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
@@ -98,6 +96,9 @@ import type {
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import {
+	type AddArticleToReadlist,
+	type FileArticleIntoReadlist,
+	type UpsertReadlist,
 	initDeleteArticleFromReadlist,
 	initPublishLinkDequeuedUnlessSavedElsewhere,
 	initSaveArticleAtReadlistTop, initSaveArticleFromUrl,
@@ -158,13 +159,13 @@ import {
 	ReadlistSlugSchema,
 	type ReadlistRenameRejection,
 	type ReadlistSlug,
-	decideReadlistCreate,
 	decideReadlistDelete,
 	decideReadlistMigration,
 	decideReadlistRename,
 	defaultReadlistLabel,
 	generateReadlistSlug,
 	readlistAfterDelete,
+	readlistsHoldingArticle,
 } from "@packages/domain/readlist";
 import {
 	type ReaderReadlistFiling,
@@ -356,8 +357,9 @@ interface ReadlistDependencies {
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
-	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
-	saveReadlistArticle: SaveReadlistArticle;
+	addArticleToReadlist: AddArticleToReadlist;
+	fileArticleIntoReadlist: FileArticleIntoReadlist;
+	upsertReadlist: UpsertReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	createReadlistDefinition: CreateReadlistDefinition;
@@ -1252,17 +1254,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			urls: params.urls,
 		});
 		return new Map(
-			params.urls.map((url) => {
-				const memberSlugs = new Set(
-					(savesByUrl.get(url) ?? []).map((save) => save.readlist ?? DEFAULT_READLIST_SLUG),
-				);
-				return [
-					url,
-					params.context.readlists
-						.filter((readlist) => memberSlugs.has(readlist.slug))
-						.map((readlist) => readlist.label),
-				];
-			}),
+			params.urls.map((url) => [
+				url,
+				readlistsHoldingArticle({
+					saves: savesByUrl.get(url) ?? [],
+					readlists: params.context.readlists,
+				}).map((readlist) => readlist.label),
+			]),
 		);
 	};
 
@@ -1653,26 +1651,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
 			});
-			const fileInto = async (readlist: ReadlistSlug) => {
-				const filed = await deps.saveReadlistArticle({
-					userId,
-					readlist,
-					url: result.saved.url,
-					metadata: result.saved.metadata,
-					estimatedReadTime: result.saved.estimatedReadTime,
-					provenance: resolveSaveProvenance(req.oauthClientId),
-					savedAt: await deps.allocateSavedAt({ userId }),
-				});
-				if (filed.wroteUserArticle && filed.saved.status === "read") {
-					await deps.updateArticleStatusAcrossReadlists({
-						id: result.saved.id,
-						userId,
-						addressed: readlist,
-						status: "unread",
-					});
-				}
-				return filed;
-			};
 			const addressedFiling = readlistToFileInto(context);
 			const ticked = readlistsAtHrefs({
 				hrefs: SaveArticleQueuesSchema.parse(req.body?.queues) ?? [],
@@ -1687,7 +1665,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			];
 			const filings: { createdUserArticle: boolean; wroteUserArticle: boolean }[] = [result];
 			for (const destination of destinations) {
-				filings.push(await fileInto(destination.slug));
+				filings.push(await deps.fileArticleIntoReadlist({
+					userId,
+					readlist: destination.slug,
+					article: result.saved,
+					provenance: resolveSaveProvenance(req.oauthClientId),
+				}));
 			}
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
@@ -2588,12 +2571,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			}
 			const article = await deps.findArticleById(parsedId.data, userId);
 			if (article) {
-				const savedAt = await deps.allocateSavedAt({ userId });
-				await deps.assignSavedArticleToReadlist({
+				await deps.addArticleToReadlist({
 					userId,
 					readlist: target.slug,
+					from: DEFAULT_READLIST_SLUG,
 					url: article.url,
-					savedAt,
 				});
 			}
 			res.redirect(303, safeReturnPath(req.body.returnTo));
@@ -2614,31 +2596,17 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			}
 			const article = await deps.findArticleById(parsedId.data, userId);
 			if (article) {
-				const definitions = await deps.listReadlistDefinitions(userId);
-				const decision = decideReadlistCreate({
-					label: typeof req.body?.label === "string" ? req.body.label : "",
-					slug: generateReadlistSlug(),
-					readlists: readerReadlists(definitions),
+				const result = await deps.upsertReadlist({
+					userId,
+					name: typeof req.body?.label === "string" ? req.body.label : "",
 				});
-				if (decision.ok) {
-					try {
-						if (decision.create) {
-							await deps.createReadlistDefinition({
-								userId,
-								slug: decision.slug,
-								label: decision.create.label,
-								createdAt: deps.now(),
-							});
-						}
-						await deps.assignSavedArticleToReadlist({
-							userId,
-							readlist: decision.slug,
-							url: article.url,
-							savedAt: await deps.allocateSavedAt({ userId }),
-						});
-					} catch (error) {
-						if (!(error instanceof ReadlistLimitReachedError)) throw error;
-					}
+				if (result.status === "ok") {
+					await deps.addArticleToReadlist({
+						userId,
+						readlist: result.readlist.slug,
+						from: DEFAULT_READLIST_SLUG,
+						url: article.url,
+					});
 				}
 			}
 			res.redirect(303, safeReturnPath(req.body?.returnTo));

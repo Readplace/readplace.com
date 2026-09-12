@@ -92,9 +92,11 @@ export function initDynamoDbReadlistDefinitions(deps: {
 				ConditionExpression: "attribute_not_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
 			});
-			return { created: true };
+			return { created: true, ownedCount: owned.length + 1 };
 		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { created: false };
+			if (error instanceof ConditionalCheckFailedException) {
+				return { created: false, ownedCount: owned.length };
+			}
 			throw error;
 		}
 	};

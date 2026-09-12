@@ -100,7 +100,7 @@ const GETTING_STARTED = [
 const EXAMPLE_PROMPTS = [
 	"Save the top sources from your research to my readplace.",
 	"What's the most relevant unread link in my readplace about the war in Iran?",
-	"Save this page to my reading queue.",
+	"Save this page to my readlist.",
 	"List everything I've saved but haven't read yet.",
 	"Mark the article I just finished as read.",
 ] as const;
@@ -119,7 +119,7 @@ const CANONICAL_URL = `${ORIGIN}/mcp`;
 const MCP_CONNECT_TITLE = "Connect Readplace to your AI assistant";
 
 const MCP_CONNECT_DESCRIPTION =
-	"Readplace runs an MCP server. Connect ChatGPT, Gemini, Claude, Perplexity, or any MCP client and your assistant can save pages to your reading queue and list back what you have saved.";
+	"Readplace runs an MCP server. Connect ChatGPT, Gemini, Claude, Perplexity, or any MCP client and your assistant can save pages to your readlist and list back what you have saved.";
 
 const MCP_COPY_SCRIPT = `<script src="/client-dist/mcp.client.js" defer></script>`;
 

@@ -81,6 +81,8 @@ import { initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import type { AliasName } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
+import { initReportReadlistCap } from "../observability/readlist-cap";
+import type { ReadlistCapApproachedLine } from "../observability/events";
 
 /** `appOrigin` is threaded in rather than read from the environment because the
  * dev server may have bound a different port than `APP_ORIGIN` names, and every
@@ -377,6 +379,10 @@ export function initProdProviders(input: { appOrigin: string }) {
 		...auth,
 		...articleStore,
 		...queueDefinitions,
+		createReadlistDefinition: initReportReadlistCap({
+			createReadlistDefinition: queueDefinitions.createReadlistDefinition,
+			metricLog: HutchLogger.fromJSON<ReadlistCapApproachedLine>().info,
+		}),
 		readArticleContent,
 		readArticleImage,
 		importSessionStore,

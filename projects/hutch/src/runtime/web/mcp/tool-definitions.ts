@@ -1,3 +1,7 @@
+import {
+	READLIST_LABEL_MAX_LENGTH,
+	READLIST_MAX_PER_USER,
+} from "@packages/domain/readlist";
 import { mcpOperationMetadata } from "@packages/domain/mcp";
 import { z } from "zod";
 
@@ -27,11 +31,15 @@ interface McpToolDefinition {
 	readonly annotations: McpToolAnnotations;
 }
 
+export const LIST_READLIST_ARTICLES_LEGACY_NAME = "list_queue";
+
 export const SaveLinkArgs = z.object({
 	url: z.string().min(1),
+	readlists: z.array(z.string().min(1)).max(READLIST_MAX_PER_USER).optional(),
 });
 
-export const ListReadlistArgs = z.object({
+export const ListReadlistArticlesArgs = z.object({
+	readlist: z.string().min(1).optional(),
 	status: z.enum(["unread", "read"]).optional(),
 	sort: z.enum(["saved", "read"]).optional(),
 	order: z.enum(["asc", "desc"]).optional(),
@@ -39,8 +47,20 @@ export const ListReadlistArgs = z.object({
 	cursor: z.string().min(1).optional(),
 });
 
-/** Shared by every by-id tool. The id is the 32-hex hash an agent reads off a
- * `list_queue` result; the server resolves it to an owned article. */
+export const CreateReadlistArgs = z.object({
+	name: z.string(),
+});
+
+export const AddToReadlistArgs = z
+	.object({
+		id: z.string().min(1),
+		readlist: z.string().min(1).optional(),
+		create_name: z.string().optional(),
+	})
+	.refine((a) => (a.readlist === undefined) !== (a.create_name === undefined), {
+		message: "pass exactly one of `readlist` or `create_name`",
+	});
+
 export const ArticleIdArgs = z.object({
 	id: z.string().min(1),
 });
@@ -49,7 +69,7 @@ const ID_PROPERTY = {
 	id: {
 		type: "string",
 		description:
-			"The article's id from a list_queue result (a 32-character hex string).",
+			"The article's id from a list_readlist_articles result (a 32-character hex string).",
 	},
 } as const;
 
@@ -61,6 +81,13 @@ export const SAVE_LINK_TOOL: McpToolDefinition = {
 			url: {
 				type: "string",
 				description: "The absolute http(s) URL of the page to save.",
+			},
+			readlists: {
+				type: "array",
+				items: { type: "string" },
+				maxItems: READLIST_MAX_PER_USER,
+				description:
+					"Readlist ids from a list_readlists result to file the save into, as well as All.",
 			},
 		},
 		required: ["url"],
@@ -74,11 +101,30 @@ export const SAVE_LINK_TOOL: McpToolDefinition = {
 	},
 };
 
-export const LIST_READLIST_TOOL: McpToolDefinition = {
-	...mcpOperationMetadata("list_queue"),
+export const LIST_READLISTS_TOOL: McpToolDefinition = {
+	...mcpOperationMetadata("list_readlists"),
+	inputSchema: {
+		type: "object",
+		properties: {},
+		additionalProperties: false,
+	},
+	annotations: {
+		readOnlyHint: true,
+		destructiveHint: false,
+		openWorldHint: false,
+	},
+};
+
+export const LIST_READLIST_ARTICLES_TOOL: McpToolDefinition = {
+	...mcpOperationMetadata("list_readlist_articles"),
 	inputSchema: {
 		type: "object",
 		properties: {
+			readlist: {
+				type: "string",
+				description:
+					"A readlist id from a list_readlists result. Omit to list All.",
+			},
 			status: {
 				type: "string",
 				enum: ["unread", "read"],
@@ -105,12 +151,16 @@ export const LIST_READLIST_TOOL: McpToolDefinition = {
 			cursor: {
 				type: "string",
 				description:
-					"An opaque nextCursor from a previous list_queue result, to fetch the following page.",
+					"An opaque nextCursor from a previous list_readlist_articles result, to fetch the following page.",
 			},
 		},
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+	annotations: {
+		readOnlyHint: true,
+		destructiveHint: false,
+		openWorldHint: false,
+	},
 };
 
 export const GET_ARTICLE_TOOL: McpToolDefinition = {
@@ -121,7 +171,11 @@ export const GET_ARTICLE_TOOL: McpToolDefinition = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+	annotations: {
+		readOnlyHint: true,
+		destructiveHint: false,
+		openWorldHint: false,
+	},
 };
 
 export const GET_ARTICLE_CONTENT_TOOL: McpToolDefinition = {
@@ -132,7 +186,11 @@ export const GET_ARTICLE_CONTENT_TOOL: McpToolDefinition = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+	annotations: {
+		readOnlyHint: true,
+		destructiveHint: false,
+		openWorldHint: false,
+	},
 };
 
 export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
@@ -143,7 +201,11 @@ export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+	annotations: {
+		readOnlyHint: true,
+		destructiveHint: false,
+		openWorldHint: false,
+	},
 };
 
 export const GET_RELATED_ARTICLES_TOOL: McpToolDefinition = {
@@ -154,7 +216,61 @@ export const GET_RELATED_ARTICLES_TOOL: McpToolDefinition = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+	annotations: {
+		readOnlyHint: true,
+		destructiveHint: false,
+		openWorldHint: false,
+	},
+};
+
+export const CREATE_READLIST_TOOL: McpToolDefinition = {
+	...mcpOperationMetadata("create_readlist"),
+	inputSchema: {
+		type: "object",
+		properties: {
+			name: {
+				type: "string",
+				description:
+					`The name the user chose for the readlist, 1–${READLIST_LABEL_MAX_LENGTH} characters after trimming.`,
+			},
+		},
+		required: ["name"],
+		additionalProperties: false,
+	},
+	annotations: {
+		readOnlyHint: false,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: false,
+	},
+};
+
+export const ADD_TO_READLIST_TOOL: McpToolDefinition = {
+	...mcpOperationMetadata("add_to_readlist"),
+	inputSchema: {
+		type: "object",
+		properties: {
+			...ID_PROPERTY,
+			readlist: {
+				type: "string",
+				description:
+					"A readlist id from a list_readlists result. Pass exactly one of readlist or create_name.",
+			},
+			create_name: {
+				type: "string",
+				description:
+					`A readlist name to file under, 1–${READLIST_LABEL_MAX_LENGTH} characters after trimming, created when no readlist carries it. Pass exactly one of readlist or create_name.`,
+			},
+		},
+		required: ["id"],
+		additionalProperties: false,
+	},
+	annotations: {
+		readOnlyHint: false,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: false,
+	},
 };
 
 export const MARK_AS_READ_TOOL: McpToolDefinition = {
@@ -206,11 +322,14 @@ export const DELETE_ARTICLE_TOOL: McpToolDefinition = {
 
 export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	SAVE_LINK_TOOL,
-	LIST_READLIST_TOOL,
+	LIST_READLISTS_TOOL,
+	LIST_READLIST_ARTICLES_TOOL,
 	GET_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,
 	GET_RELATED_ARTICLES_TOOL,
+	CREATE_READLIST_TOOL,
+	ADD_TO_READLIST_TOOL,
 	MARK_AS_READ_TOOL,
 	MARK_AS_UNREAD_TOOL,
 	DELETE_ARTICLE_TOOL,

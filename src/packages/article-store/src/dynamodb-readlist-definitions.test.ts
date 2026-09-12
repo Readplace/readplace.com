@@ -163,7 +163,7 @@ describe("createReadlistDefinition", () => {
 			createdAt: new Date("2026-08-19T10:00:00.000Z"),
 		});
 
-		expect(result).toEqual({ created: true });
+		expect(result).toEqual({ created: true, ownedCount: 1 });
 		const put = commands.find((c) => c.name === "PutCommand");
 		expect(put?.input).toMatchObject({
 			TableName: TABLE,
@@ -182,7 +182,7 @@ describe("createReadlistDefinition", () => {
 		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
 				[
-					{ Items: [], Count: 0 },
+					{ Items: [definitionItem()], Count: 1 },
 					() => {
 						throw conditionalCheckFailed();
 					},
@@ -199,7 +199,35 @@ describe("createReadlistDefinition", () => {
 				label: "Work Reading",
 				createdAt: new Date("2026-08-19T10:00:00.000Z"),
 			}),
-		).toEqual({ created: false });
+		).toEqual({ created: false, ownedCount: 1 });
+	});
+
+	it("reports the reader's readlist count after a create, so a caller can spot the cap approaching", async () => {
+		const owned = READLIST_MAX_PER_USER - 2;
+		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					{
+						Items: Array.from({ length: owned }, (_, index) =>
+							definitionItem({ queueSlug: `readlist${index}`, url: `readplace:queue-def/readlist${index}` }),
+						),
+						Count: owned,
+					},
+					{},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(
+			await createReadlistDefinition({
+				userId: USER,
+				slug: WORK,
+				label: "Work Reading",
+				createdAt: new Date("2026-08-19T10:00:00.000Z"),
+			}),
+		).toEqual({ created: true, ownedCount: owned + 1 });
 	});
 
 	it("raises the limit error at the per-user cap instead of writing", async () => {

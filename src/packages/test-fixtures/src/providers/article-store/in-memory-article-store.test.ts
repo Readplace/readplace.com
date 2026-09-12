@@ -1132,6 +1132,18 @@ describe("initInMemoryArticleStore", () => {
 			expect(saves.get("https://example.com/never-saved")).toEqual([]);
 		});
 
+		it("restricts batched membership to the supplied readlists, including All only when requested", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			expect((await store.listUserSavesForUrls({ userId: USER_A, urls: [URL], readlists: [WORK] })).get(URL))
+				.toEqual([{ readlist: WORK }]);
+			expect((await store.listUserSavesForUrls({ userId: USER_A, urls: [URL], readlists: [DEFAULT_READLIST_SLUG] })).get(URL))
+				.toEqual([{}]);
+			expect((await store.listUserSavesForUrls({ userId: USER_A, urls: [URL], readlists: [] })).get(URL))
+				.toEqual([]);
+		});
+
 		it("deletes only the copy in the readlist the reader deleted it from", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
@@ -1207,6 +1219,7 @@ describe("initInMemoryArticleStore", () => {
 			const result = await store.assignSavedArticleToReadlist({
 				userId: USER_A,
 				readlist: WORK,
+				from: DEFAULT_READLIST_SLUG,
 				url: "https://example.com/article",
 				savedAt: new Date("2026-08-24T10:00:00.000Z"),
 			});
@@ -1227,6 +1240,7 @@ describe("initInMemoryArticleStore", () => {
 			const result = await store.assignSavedArticleToReadlist({
 				userId: USER_A,
 				readlist: WORK,
+				from: DEFAULT_READLIST_SLUG,
 				url: "https://example.com/article",
 				savedAt: new Date("2026-08-24T10:00:00.000Z"),
 			});
@@ -1240,6 +1254,7 @@ describe("initInMemoryArticleStore", () => {
 			await store.assignSavedArticleToReadlist({
 				userId: USER_A,
 				readlist: WORK,
+				from: DEFAULT_READLIST_SLUG,
 				url: "https://example.com/article",
 				savedAt: new Date("2026-08-24T10:00:00.000Z"),
 			});
@@ -1247,6 +1262,7 @@ describe("initInMemoryArticleStore", () => {
 			const again = await store.assignSavedArticleToReadlist({
 				userId: USER_A,
 				readlist: WORK,
+				from: DEFAULT_READLIST_SLUG,
 				url: "https://example.com/article",
 				savedAt: new Date("2026-08-24T11:00:00.000Z"),
 			});
@@ -1255,6 +1271,33 @@ describe("initInMemoryArticleStore", () => {
 			const copy = await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK });
 			assert(copy, "the readlist must hold the assigned copy");
 			expect(copy.savedAt).toEqual(new Date("2026-08-24T10:00:00.000Z"));
+		});
+
+		it("files an article back into the default readlist, reading it from the readlist it still lives in", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.assignSavedArticleToReadlist({
+				userId: USER_A,
+				readlist: WORK,
+				from: DEFAULT_READLIST_SLUG,
+				url: "https://example.com/article",
+				savedAt: new Date("2026-08-24T10:00:00.000Z"),
+			});
+			await store.deleteArticle(saved.id, USER_A);
+			expect(await store.findArticleById(saved.id, USER_A)).toBeNull();
+
+			const result = await store.assignSavedArticleToReadlist({
+				userId: USER_A,
+				readlist: DEFAULT_READLIST_SLUG,
+				from: WORK,
+				url: "https://example.com/article",
+				savedAt: new Date("2026-08-25T10:00:00.000Z"),
+			});
+
+			expect(result).toEqual({ assigned: true });
+			const backInDefault = await store.findArticleById(saved.id, USER_A);
+			assert(backInDefault, "the default readlist must hold the re-filed article");
+			expect(backInDefault.savedAt).toEqual(new Date("2026-08-25T10:00:00.000Z"));
 		});
 
 		it("stamps viewedAt on the addressed readlist's copy only", async () => {
@@ -1483,6 +1526,18 @@ describe("initInMemoryArticleStore", () => {
 			expect((await store.listReadlistDefinitions(USER_B)).map((d) => d.label)).toEqual(["Theirs"]);
 		});
 
+		it("reports the reader's readlist count after each create", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+
+			expect(
+				await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt }),
+			).toEqual({ created: true, ownedCount: 1 });
+			expect(
+				await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt }),
+			).toEqual({ created: true, ownedCount: 2 });
+		});
+
 		it("refuses a slug the reader already holds", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
@@ -1495,7 +1550,7 @@ describe("initInMemoryArticleStore", () => {
 					label: "Work again",
 					createdAt,
 				}),
-			).toEqual({ created: false });
+			).toEqual({ created: false, ownedCount: 1 });
 		});
 
 		it("raises the limit error at the per-reader cap", async () => {
