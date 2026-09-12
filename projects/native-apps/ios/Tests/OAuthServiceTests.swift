@@ -76,14 +76,14 @@ final class OAuthServiceTests: XCTestCase {
 
 	func testRefreshDiscardsARejectedRefreshToken() async {
 		let store = TestSupport.loggedInStore(access: "a1", refresh: "r1")
-		StubURLProtocol.setHandler { _, _ in .json(400, "{}") }
+		StubURLProtocol.setHandler { _, _ in .json(400, "{\"error\":\"invalid_grant\"}") }
 		do {
 			_ = try await makeService(store: store).refresh()
-			XCTFail("expected .refreshFailed")
+			XCTFail("expected rejection")
 		} catch {
-			XCTAssertEqual((error as? OAuthError)?.errorDescription, OAuthError.refreshFailed.errorDescription)
+			XCTAssertEqual((error as? OAuthError)?.errorDescription, OAuthError.noRefreshToken.errorDescription)
 		}
-		XCTAssertNil(store.tokens, "a rejected refresh token must not be re-sent on the next call")
+		XCTAssertNil(store.tokens)
 	}
 
 	func testRefreshKeepsTheStoredTokensWhenTheServerIsUnavailable() async {
@@ -98,20 +98,96 @@ final class OAuthServiceTests: XCTestCase {
 		XCTAssertEqual(store.tokens?.refreshToken, "r1", "only an outright rejection discards the token")
 	}
 
-	func testRefreshLeavesATokenAnOverlappingRefreshAlreadyStored() async {
+	func testRefreshLeavesATokenAnOverlappingRefreshAlreadyStored() async throws {
 		let store = TestSupport.loggedInStore(access: "a1", refresh: "r1")
 		StubURLProtocol.setHandler { _, _ in
-			store.updateAccessToken("a2", refreshToken: "r2")
-			return .json(400, "{}")
+			store.save(OAuthTokens(accessToken: "a2", refreshToken: "r2"))
+			return .json(400, "{\"error\":\"invalid_grant\"}")
 		}
-		do {
-			_ = try await makeService(store: store).refresh()
-			XCTFail("expected .refreshFailed")
-		} catch {
-			XCTAssertEqual((error as? OAuthError)?.errorDescription, OAuthError.refreshFailed.errorDescription)
+		let access = try await makeService(store: store).refresh()
+		XCTAssertEqual(access, "a2")
+		XCTAssertEqual(store.tokens?.refreshToken, "r2")
+	}
+
+	func testTransientAndMalformedRefusalsPreserveCredentials() async {
+		for status in [400, 429, 500, 503] {
+			let store = TestSupport.loggedInStore()
+			let original = store.tokens
+			StubURLProtocol.setHandler { _, _ in .json(status, "{}") }
+			do { _ = try await makeService(store: store).refresh(); XCTFail("expected failure") }
+			catch { XCTAssertEqual(store.tokens, original) }
 		}
-		XCTAssertEqual(store.tokens?.refreshToken, "r2", "the discard declines when the stored token is no longer the one that was sent")
-		XCTAssertEqual(store.tokens?.accessToken, "a2")
+	}
+
+	func testDelayed401ReusesRefreshedCredentials() async throws {
+		let store = TestSupport.loggedInStore()
+		let oauth = makeService(store: store)
+		let original = try await oauth.snapshot()
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.tokenResponse(access: "new", refresh: "new-r")) }
+		_ = try await oauth.refresh(after: original)
+		let delayed = try await oauth.refresh(after: original)
+		XCTAssertEqual(delayed.snapshot.tokens.accessToken, "new")
+		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
+	}
+
+	func testDelayedSessionClearPreservesReplacementCredentials() async {
+		let store = TestSupport.loggedInStore()
+		let oauth = makeService(store: store)
+		let rejected = store.tokens
+		let replacement = OAuthTokens(accessToken: "replacement", refreshToken: "replacement-r")
+		store.save(replacement)
+		await oauth.clear(ifUnchanged: rejected)
+		XCTAssertEqual(store.tokens, replacement)
+		await oauth.clear(ifUnchanged: replacement)
+		XCTAssertNil(store.tokens)
+	}
+
+	func testEmptySuccessfulRefreshCredentialsPreserveSession() async {
+		for tokens in [Fixtures.tokenResponse(access: "", refresh: "r"), Fixtures.tokenResponse(access: "a", refresh: "")] {
+			let store = TestSupport.loggedInStore()
+			let original = store.tokens
+			StubURLProtocol.setHandler { _, _ in .json(200, tokens) }
+			do { _ = try await makeService(store: store).refresh(); XCTFail("expected malformed response") }
+			catch { XCTAssertEqual(store.tokens, original) }
+		}
+	}
+
+	func testLogoutDuringRefreshCannotRestoreTokens() async throws {
+		let store = TestSupport.loggedInStore()
+		let oauth = makeService(store: store)
+		let started = expectation(description: "refresh started")
+		let gate = DispatchSemaphore(value: 0)
+		StubURLProtocol.setHandler { _, _ in
+			started.fulfill()
+			return .json(200, Fixtures.tokenResponse(access: "late", refresh: "late-r")).held(until: gate)
+		}
+		let refresh = Task { try await oauth.refresh() }
+		await fulfillment(of: [started], timeout: 2)
+		await oauth.clear()
+		gate.signal()
+		do { _ = try await refresh.value; XCTFail("late response must fail") }
+		catch { XCTAssertNil(store.tokens) }
+	}
+
+	func testConcurrentCallersShareRefreshDespiteCallerCancellation() async throws {
+		let store = TestSupport.loggedInStore()
+		let oauth = makeService(store: store)
+		let snapshot = try await oauth.snapshot()
+		let started = expectation(description: "refresh started")
+		let gate = DispatchSemaphore(value: 0)
+		StubURLProtocol.setHandler { _, _ in
+			started.fulfill()
+			return .json(200, Fixtures.tokenResponse(access: "new", refresh: "new-r")).held(until: gate)
+		}
+		let first = Task { try await oauth.refresh(after: snapshot) }
+		await fulfillment(of: [started], timeout: 2)
+		first.cancel()
+		let second = Task { try await oauth.refresh(after: snapshot) }
+		gate.signal()
+		let result = try await second.value
+		_ = try await first.value
+		XCTAssertEqual(result.snapshot.tokens.accessToken, "new")
+		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
 	}
 
 	func testRevokeClearsTokens() async throws {
@@ -205,5 +281,39 @@ final class OAuthServiceTests: XCTestCase {
 			record.request.value(forHTTPHeaderField: "User-Agent"), TestSupport.nativeUserAgent,
 			"revoke builds its own request instead of the token one, so identity added only to the token request leaves sign-out anonymous"
 		)
+	}
+}
+
+extension OAuthServiceTests {
+	func testRecoveryCarriesTheExactRefusalProofAfterAdoptingSharedCredentials() async throws {
+		let store = TestSupport.loggedInStore(access: "old", refresh: "old-r")
+		let oauth = makeService(store: store)
+		let snapshot = try await oauth.snapshot()
+		StubURLProtocol.setHandler { _, _ in
+			store.save(OAuthTokens(accessToken: "winner", refreshToken: "winner-r"))
+			return StubURLProtocol.Stub(status: 400, headers: ["X-Readplace-Refresh-Attempt": "signed-proof"], body: Data("{\"error\":\"invalid_grant\"}".utf8))
+		}
+		let recovered = try await oauth.refresh(after: snapshot)
+		XCTAssertEqual(recovered.snapshot.tokens.accessToken, "winner")
+		XCTAssertEqual(recovered.recoveryProof, "signed-proof")
+	}
+
+	func testNetworkRefreshFailurePreservesCredentials() async {
+		let store = TestSupport.loggedInStore()
+		let tokens = store.tokens
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		do { _ = try await makeService(store: store).refresh(); XCTFail("expected network failure") }
+		catch { XCTAssertEqual(store.tokens, tokens) }
+	}
+
+	func testRecoveryProofCannotFollowACrossOriginRedirect() {
+		var original = URLRequest(url: URL(string: "https://readplace.com/")!)
+		original.setValue("proof", forHTTPHeaderField: "X-Readplace-Refresh-Recovery")
+		let own = RedirectHeaders.preserving(from: original, onto: URLRequest(url: URL(string: "https://readplace.com/queue")!))
+		XCTAssertEqual(own.value(forHTTPHeaderField: "X-Readplace-Refresh-Recovery"), "proof")
+		for target in ["https://other.test/", "http://readplace.com/", "https://readplace.com:8443/"] {
+			let external = RedirectHeaders.preserving(from: original, onto: URLRequest(url: URL(string: target)!))
+			XCTAssertNil(external.value(forHTTPHeaderField: "X-Readplace-Refresh-Recovery"))
+		}
 	}
 }

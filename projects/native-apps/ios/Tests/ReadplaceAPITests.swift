@@ -1,6 +1,84 @@
 import XCTest
 @testable import Readplace
 
+extension ReadplaceAPITests {
+	func testDelayed401RetriesWithCredentialsAnotherRequestRefreshed() async throws {
+		let store = TestSupport.loggedInStore(access: "old", refresh: "old-r")
+		let oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store,
+			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let api = ReadplaceAPI(baseURL: AppConfig.serverBaseURL, oauth: oauth,
+			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: TestSupport.stubbedConfiguration())
+		let delayedStarted = expectation(description: "delayed request sent its original credentials")
+		let gate = DispatchSemaphore(value: 0)
+		defer { gate.signal() }
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path == "/oauth/token" {
+				return .json(200, Fixtures.tokenResponse(access: "fresh", refresh: "fresh-r"))
+			}
+			if request.value(forHTTPHeaderField: "Authorization") == "Bearer old" {
+				if request.url?.path == "/delayed" {
+					delayedStarted.fulfill()
+					return .json(401, "{}").held(until: gate)
+				}
+				return .json(401, "{}")
+			}
+			return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "readable")]))
+		}
+		let delayed = Task { try await api.loadReadlist(path: "/delayed") }
+		await fulfillment(of: [delayedStarted], timeout: 2)
+		_ = try await api.loadReadlist(path: "/immediate")
+		gate.signal()
+		let result = try await delayed.value
+		XCTAssertEqual(result.articles.map(\.id), ["readable"])
+		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
+		XCTAssertEqual(StubURLProtocol.records(path: "/delayed").map {
+			$0.request.value(forHTTPHeaderField: "Authorization")
+		}, ["Bearer old", "Bearer fresh"])
+	}
+
+	func testSeparateProcessRefreshLoserAdoptsWinnerAndReportsItsExactRecovery() async throws {
+		let store = TestSupport.loggedInStore(access: "old", refresh: "old-r")
+		func api(process: String) -> ReadplaceAPI {
+			ReadplaceAPI(baseURL: AppConfig.serverBaseURL,
+				oauth: OAuthService(baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: process,
+					sessionConfiguration: TestSupport.stubbedConfiguration()),
+				nativeUserAgent: process, sessionConfiguration: TestSupport.stubbedConfiguration())
+		}
+		let app = api(process: "app")
+		let share = api(process: "share")
+		let loserStarted = expectation(description: "app refresh reached the server")
+		let gate = DispatchSemaphore(value: 0)
+		defer { gate.signal() }
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path == "/oauth/token" {
+				if request.value(forHTTPHeaderField: "User-Agent") == "app" {
+					loserStarted.fulfill()
+					return StubURLProtocol.Stub(status: 400,
+						headers: ["X-Readplace-Refresh-Attempt": "exact-refusal-proof"],
+						body: Data("{\"error\":\"invalid_grant\"}".utf8)).held(until: gate)
+				}
+				return .json(200, Fixtures.tokenResponse(access: "winner", refresh: "winner-r"))
+			}
+			if request.value(forHTTPHeaderField: "Authorization") == "Bearer old" { return .json(401, "{}") }
+			return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "readable")]))
+		}
+		let loser = Task { try await app.loadReadlist(path: "/app-retry") }
+		await fulfillment(of: [loserStarted], timeout: 2)
+		_ = try await share.loadReadlist(path: "/share-retry")
+		gate.signal()
+		let recovered = try await loser.value
+		XCTAssertEqual(recovered.articles.map(\.id), ["readable"])
+		XCTAssertEqual(store.tokens, OAuthTokens(accessToken: "winner", refreshToken: "winner-r"))
+		let retry = try XCTUnwrap(StubURLProtocol.records(path: "/app-retry").last)
+		XCTAssertEqual(retry.request.value(forHTTPHeaderField: "Authorization"), "Bearer winner")
+		XCTAssertEqual(retry.request.value(forHTTPHeaderField: "X-Readplace-Refresh-Recovery"), "exact-refusal-proof")
+		_ = try await app.loadReadlist(path: "/later")
+		let later = try XCTUnwrap(StubURLProtocol.records(path: "/later").first)
+		XCTAssertEqual(later.request.value(forHTTPHeaderField: "X-Readplace-Refresh-Recovery"), nil)
+		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 2)
+	}
+}
+
 final class ReadplaceAPITests: XCTestCase {
 	override func setUp() {
 		super.setUp()
@@ -190,7 +268,7 @@ final class ReadplaceAPITests: XCTestCase {
 				entryAttempts += 1
 				return .json(401, "{}")
 			case "/oauth/token":
-				return .json(400, "{}")
+				return .json(400, "{\"error\":\"invalid_grant\"}")
 			default:
 				return .json(404, "{}")
 			}

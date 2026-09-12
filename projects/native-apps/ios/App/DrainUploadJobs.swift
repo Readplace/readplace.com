@@ -35,6 +35,8 @@ struct DrainUploadJobs {
 			let body = try Data(contentsOf: jobs.bytesURL(for: ready))
 			try await api.saveContent(action: action, contentType: contentType, body: body)
 			jobs.remove(ready)
+		} catch is OAuthError {
+			return false
 		} catch APIError.unauthorized, APIError.noToken {
 			return false
 		} catch APIError.refused {

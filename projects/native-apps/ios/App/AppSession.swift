@@ -25,6 +25,7 @@ enum AuthFlowError: LocalizedError {
 final class AppSession: ObservableObject {
 	@Published private(set) var isLoggedIn: Bool
 
+	private let oauth: OAuthService
 	private let store: TokenStore
 	private let nativeUserAgent: String
 	private let sessionConfiguration: URLSessionConfiguration
@@ -47,6 +48,8 @@ final class AppSession: ObservableObject {
 		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts,
 		forgetReaderChoices: @escaping () -> Void = AppSession.removeReaderChoices
 	) {
+		self.oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store,
+			nativeUserAgent: nativeUserAgent, sessionConfiguration: sessionConfiguration)
 		self.store = store
 		self.nativeUserAgent = nativeUserAgent
 		self.sessionConfiguration = sessionConfiguration
@@ -92,10 +95,12 @@ final class AppSession: ObservableObject {
 		// concurrently; both finish before the logged-out state is published.
 		let readerWipe = Task { await self.wipeReaderWebStore() }
 		await makeOAuth().revoke()
+		await readerWipe.value
+		refreshLoginState()
+		guard !isLoggedIn else { return }
 		clearSessionCookie()
 		purgeShareArtifacts()
 		forgetReaderChoices()
-		await readerWipe.value
 		isLoggedIn = false
 	}
 
@@ -104,10 +109,12 @@ final class AppSession: ObservableObject {
 	/// the returned wipe task lets tests await the fire-and-forget WebKit wipe.
 	@discardableResult
 	func forceLogout() -> Task<Void, Never> {
-		store.clear()
+		let oauth = self.oauth
+		let rejected = store.tokens
+		let invalidate = Task { await oauth.clear(ifUnchanged: rejected) }
 		clearSessionCookie()
 		purgeShareArtifacts()
-		let readerWipe = Task { await self.wipeReaderWebStore() }
+		let readerWipe = Task { await invalidate.value; await self.wipeReaderWebStore() }
 		isLoggedIn = false
 		return readerWipe
 	}
@@ -170,19 +177,20 @@ final class AppSession: ObservableObject {
 	func makeAPI() -> ReadplaceAPI {
 		ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL,
-			store: store,
+			oauth: oauth,
 			nativeUserAgent: nativeUserAgent,
 			sessionConfiguration: sessionConfiguration
 		)
 	}
 
-	func makeOAuth() -> OAuthService {
-		OAuthService(
-			baseURL: AppConfig.serverBaseURL,
-			store: store,
-			nativeUserAgent: nativeUserAgent,
-			sessionConfiguration: sessionConfiguration
-		)
+	func makeOAuth() -> OAuthService { oauth }
+
+	func reconcileSession() {
+		refreshLoginState()
+		guard !isLoggedIn else { return }
+		clearSessionCookie()
+		purgeShareArtifacts()
+		Task { await self.wipeReaderWebStore() }
 	}
 
 	func makeSloganSource() -> SloganSource {

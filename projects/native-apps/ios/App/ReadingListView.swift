@@ -34,7 +34,7 @@ struct ReadingListView: View {
 			shareTarget: AppGroupContainer.entitled(appGroupId: group)
 				.map { ShareTarget.inSharedContainer($0, appGroupId: group) },
 			lastViewed: LastViewedReadlist(defaults: defaults),
-			onSessionExpired: { [weak session] in session?.forceLogout() }
+			onSessionExpired: { [weak session] in session?.reconcileSession() }
 		))
 	}
 

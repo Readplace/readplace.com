@@ -2,7 +2,10 @@ import UIKit
 
 @MainActor
 final class ShareViewController: UIViewController {
-	private let store = TokenStore()
+	private static let sharedStore = TokenStore()
+	private static let oauth = OAuthService(baseURL: AppConfig.serverBaseURL,
+		store: sharedStore, nativeUserAgent: processNativeUserAgent())
+	private let store = ShareViewController.sharedStore
 	private let haptics = UINotificationFeedbackGenerator()
 
 	private let card = UIView()
@@ -33,7 +36,7 @@ final class ShareViewController: UIViewController {
 			store: store,
 			api: ReadplaceAPI(
 				baseURL: AppConfig.serverBaseURL,
-				store: store,
+				oauth: Self.oauth,
 				nativeUserAgent: ShareViewController.processNativeUserAgent(),
 				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: appGroup?.url)
 			),

@@ -109,7 +109,6 @@ final class ReadplaceAPI {
 	private static let logger = Logger(subsystem: "com.readplace", category: "ReadplaceAPI")
 
 	let baseURL: String
-	private let store: TokenStore
 	private let nativeUserAgent: String
 	private let oauth: OAuthService
 	private let session: URLSession
@@ -134,20 +133,14 @@ final class ReadplaceAPI {
 	// jar where it would outlive the session and leak across sign-outs.
 	init(
 		baseURL: String,
-		store: TokenStore,
+		oauth: OAuthService,
 		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration = .ephemeral,
 		maxExternalContentBytes: Int = ReadplaceAPI.defaultMaxExternalContentBytes
 	) {
 		self.baseURL = baseURL
-		self.store = store
 		self.nativeUserAgent = nativeUserAgent
-		self.oauth = OAuthService(
-			baseURL: baseURL,
-			store: store,
-			nativeUserAgent: nativeUserAgent,
-			sessionConfiguration: sessionConfiguration
-		)
+		self.oauth = oauth
 		// URLSession retains its delegate until invalidated, so the redirect
 		// handler stays alive for the session's lifetime.
 		self.session = URLSession(
@@ -393,9 +386,18 @@ final class ReadplaceAPI {
 
 	// MARK: - Transport
 
-	private func send(_ request: URLRequest, retryOn401: Bool = true) async throws -> (Data, HTTPURLResponse) {
-		guard let token = store.tokens?.accessToken else { throw APIError.noToken }
+	private func send(_ request: URLRequest, retryOn401: Bool = true, refreshed: OAuthService.RefreshResult? = nil) async throws -> (Data, HTTPURLResponse) {
+		let credentials: OAuthService.Snapshot
+		do { credentials = try await oauth.snapshot() }
+		catch OAuthError.noRefreshToken { throw APIError.noToken }
+		if let refreshed, credentials != refreshed.snapshot { throw OAuthError.sessionChanged }
+		let token = credentials.tokens.accessToken
 		var authed = request
+		if let proof = refreshed?.recoveryProof,
+			let origin = URL(string: baseURL), let url = request.url,
+			origin.scheme == url.scheme, origin.host == url.host, origin.port == url.port {
+			authed.setValue(proof, forHTTPHeaderField: "X-Readplace-Refresh-Recovery")
+		}
 		authed.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 		authed.setValue(AppConfig.sirenMediaType, forHTTPHeaderField: "Accept")
 		// Identifies this request as coming from the iOS app so the server records
@@ -407,8 +409,11 @@ final class ReadplaceAPI {
 		let (data, response) = try await session.data(for: authed)
 		guard let http = response as? HTTPURLResponse else { throw APIError.decoding }
 		if http.statusCode == 401 && retryOn401 {
-			guard (try? await oauth.refresh()) != nil else { throw APIError.unauthorized }
-			return try await send(request, retryOn401: false)
+			let result: OAuthService.RefreshResult
+			do { result = try await oauth.refresh(after: credentials) }
+			catch OAuthError.noRefreshToken { throw APIError.unauthorized }
+			try Task.checkCancellation()
+			return try await send(request, retryOn401: false, refreshed: result)
 		}
 		return (data, http)
 	}

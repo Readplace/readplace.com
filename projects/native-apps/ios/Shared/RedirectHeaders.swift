@@ -21,6 +21,11 @@ enum RedirectHeaders {
 				updated.setValue(value, forHTTPHeaderField: header)
 			}
 		}
+		updated.setValue(nil, forHTTPHeaderField: "X-Readplace-Refresh-Recovery")
+		if let source = original?.url, let target = redirected.url,
+			source.scheme == target.scheme, source.host == target.host, source.port == target.port {
+			updated.setValue(original?.value(forHTTPHeaderField: "X-Readplace-Refresh-Recovery"), forHTTPHeaderField: "X-Readplace-Refresh-Recovery")
+		}
 		return updated
 	}
 }

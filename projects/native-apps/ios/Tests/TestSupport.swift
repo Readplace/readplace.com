@@ -329,3 +329,20 @@ enum Fixtures {
 		"""
 	}
 }
+
+
+extension ReadplaceAPI {
+	convenience init(
+		baseURL: String,
+		store: TokenStore,
+		nativeUserAgent: String,
+		sessionConfiguration: URLSessionConfiguration = .ephemeral,
+		maxExternalContentBytes: Int = ReadplaceAPI.defaultMaxExternalContentBytes
+	) {
+		self.init(baseURL: baseURL,
+			oauth: OAuthService(baseURL: baseURL, store: store, nativeUserAgent: nativeUserAgent,
+				sessionConfiguration: sessionConfiguration),
+			nativeUserAgent: nativeUserAgent, sessionConfiguration: sessionConfiguration,
+			maxExternalContentBytes: maxExternalContentBytes)
+	}
+}

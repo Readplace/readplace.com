@@ -164,21 +164,9 @@ struct TokenStore {
 		storage.setValue(tokens.refreshToken, for: .refreshToken)
 	}
 
-	func updateAccessToken(_ accessToken: String, refreshToken: String?) {
-		storage.setValue(accessToken, for: .accessToken)
-		if let refreshToken { storage.setValue(refreshToken, for: .refreshToken) }
-	}
-
 	func clear() {
 		storage.removeValue(for: .accessToken)
 		storage.removeValue(for: .refreshToken)
-	}
-
-	@discardableResult
-	func discardRejected(refreshToken: String) -> Bool {
-		guard storage.value(for: .refreshToken) == refreshToken else { return false }
-		clear()
-		return true
 	}
 
 	var isLoggedIn: Bool { tokens != nil }

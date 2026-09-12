@@ -1305,7 +1305,9 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testLaunchFunnelsAnAuthFailureOnTheRememberedReadlistIntoSignOut() async {
-		StubURLProtocol.setHandler { _, _ in .json(401, "{}") }
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
+		}
 		let defaults = TestSupport.ephemeralDefaults()
 		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
 		var expired = 0
@@ -2650,7 +2652,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		return { request, _ in
 			let url = request.url
 			if accountDeleted() {
-				return url?.path == "/oauth/token" ? .json(400, "{}") : .json(401, "{}")
+				return url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
 			}
 			switch (url?.path, url?.query) {
 			case ("/", _):
@@ -3066,9 +3068,9 @@ final class ReadingListViewModelTests: XCTestCase {
 			lastViewed: LastViewedReadlist(defaults: defaults),
 			onSessionExpired: { expired = true }
 		)
-		// 401 everywhere: the entry-point load 401s, the single refresh 401s, and
-		// the load surfaces .unauthorized.
-		StubURLProtocol.setHandler { _, _ in .json(401, "{}") }
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
+		}
 
 		await viewModel.refresh()
 

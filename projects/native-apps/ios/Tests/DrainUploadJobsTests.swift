@@ -383,6 +383,41 @@ final class DrainUploadJobsTests: XCTestCase {
 		)
 	}
 
+	func testTransientRefreshFailuresPreserveCredentialsAndStagedUploads() async throws {
+		let failures: [() throws -> StubURLProtocol.Stub] = [
+			{ throw URLError(.notConnectedToInternet) },
+			{ throw URLError(.cancelled) },
+			{ .json(429, "{\"error\":\"slow_down\"}") },
+			{ .json(503, "{\"error\":\"server_error\"}") },
+			{ .json(200, "malformed") },
+		]
+		for failure in failures {
+			StubURLProtocol.reset()
+			let store = TestSupport.loggedInStore()
+			let original = store.tokens
+			let jobs = makeStore()
+			let admitted = job()
+			try await jobs.admit(admitted)
+			let form = TestSupport.multipartForm()
+			let ready = try await jobs.stageReady(admitted, form: form)
+			StubURLProtocol.setHandler { request, _ in
+				switch request.url?.path {
+				case "/oauth/token": return try failure()
+				case "/queue/save-content": return .json(401, "{}")
+				default: return .json(200, Fixtures.collection(entitiesJSON: []))
+				}
+			}
+
+			await makeDrain(jobs: jobs, captor: emptyCaptor(), store: store).run()
+
+			XCTAssertEqual(store.tokens, original)
+			XCTAssertEqual(jobs.loadAll(now: Self.epoch), [ready])
+			XCTAssertEqual(try Data(contentsOf: jobs.bytesURL(for: ready)), form.body)
+			XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
+			XCTAssertEqual(StubURLProtocol.records(path: "/queue/save-content").count, 1)
+		}
+	}
+
 	// MARK: - Sweeps that never reach an upload
 
 	func testDropsEveryDueJobWhenTheServerAdvertisesNoSaveContent() async throws {
