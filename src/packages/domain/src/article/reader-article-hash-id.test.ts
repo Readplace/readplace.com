@@ -1,3 +1,4 @@
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "./reader-article-hash-id";
 
 describe("ReaderArticleHashId.from", () => {
@@ -34,6 +35,22 @@ describe("ReaderArticleHashId.from", () => {
 		const id1 = ReaderArticleHashId.from("https://example.com/path?page=1");
 		const id2 = ReaderArticleHashId.from("https://example.com/path?page=2");
 		expect(id1.value).not.toBe(id2.value);
+	});
+});
+
+describe("ReaderArticleHashId.fromResourceUniqueId", () => {
+	it("derives the same id .from() derives for the same URL", () => {
+		const viaUrl = ReaderArticleHashId.from("https://example.com/article?utm_source=x");
+		const viaResourceId = ReaderArticleHashId.fromResourceUniqueId(
+			ArticleResourceUniqueId.parse("https://example.com/article?utm_source=x").value,
+		);
+		expect(viaResourceId.value).toBe(viaUrl.value);
+	});
+
+	it("produces a 32-char hex value", () => {
+		expect(
+			ReaderArticleHashId.fromResourceUniqueId("example.com/article").value,
+		).toMatch(/^[0-9a-f]{32}$/);
 	});
 });
 

@@ -122,6 +122,10 @@ export type FindArticlesByUser = (
 	query: FindArticlesQuery,
 ) => Promise<FindArticlesResult>;
 
+export type FindArticlesAcrossReadlists = (
+	query: FindArticlesQuery,
+) => Promise<FindArticlesResult>;
+
 export type CountArticlesByUser = (
 	query: CountArticlesQuery,
 ) => Promise<number>;

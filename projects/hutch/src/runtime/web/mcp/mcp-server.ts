@@ -402,7 +402,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves that relate to it, each tagged unread or read). A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. Pass a readlist id to list_readlist_articles to list only that readlist, or pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
+				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves that relate to it, each tagged unread or read). A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
 		};
 	}
 
@@ -506,14 +506,15 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 						"That pagination cursor is invalid. Call list_readlist_articles again without a cursor to start from the first page.",
 					);
 				}
-				({
-					page,
-					pageSize,
-					readlist: requestedReadlist,
-					status,
-					sort,
-					order,
-				} = decoded);
+				page = decoded.page;
+				pageSize = decoded.pageSize;
+				status = decoded.status;
+				sort = decoded.sort;
+				order = decoded.order;
+				requestedReadlist =
+					decoded.scope === "combined"
+						? undefined
+						: (decoded.readlist ?? DEFAULT_READLIST_SLUG);
 			} else {
 				requestedReadlist = a.readlist;
 				sort =
@@ -560,7 +561,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				? encodeReadlistCursor({
 						page: outcome.page + 1,
 						pageSize: outcome.pageSize,
-						readlist,
+						...(readlist === undefined ? { scope: "combined" as const } : { readlist }),
 						status,
 						sort,
 						order,

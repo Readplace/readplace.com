@@ -12,6 +12,7 @@ import type {
 export interface ReadlistCursor {
 	readonly page: number;
 	readonly pageSize: number;
+	readonly scope?: "combined";
 	readonly readlist?: ReadlistSlug;
 	readonly status?: ArticleStatus;
 	readonly sort?: SortField;
@@ -22,6 +23,7 @@ const ReadlistCursorSchema = z
 	.object({
 		page: z.number().int().min(1),
 		pageSize: z.number().int().min(1).max(100),
+		scope: z.literal("combined").optional(),
 		readlist: ReadlistSlugSchema.optional(),
 		status: z.enum(["unread", "read"]).optional(),
 		sort: z.enum(["savedAt", "readAt"]).optional(),
@@ -29,6 +31,9 @@ const ReadlistCursorSchema = z
 	})
 	.refine((c) => !(c.sort === "readAt" && c.status !== "read"), {
 		message: 'sort:"readAt" requires status:"read"',
+	})
+	.refine((c) => !(c.scope === "combined" && c.readlist !== undefined), {
+		message: 'scope:"combined" cannot also name a readlist',
 	});
 
 export function encodeReadlistCursor(cursor: ReadlistCursor): string {

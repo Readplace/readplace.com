@@ -38,6 +38,7 @@ import type {
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
+	FindArticlesAcrossReadlists,
 	FindArticlesByUser,
 	FindArticlesQuery,
 	FindArticlesResult,
@@ -191,6 +192,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
+	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	deleteAllUserArticles: DeleteAllUserArticles;
@@ -579,6 +581,120 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const findReadlistArticles: FindReadlistArticles = (query) =>
 		findArticlesInPartition(readlistPartitionValue({ userId: query.userId, readlist: query.readlist }), query);
 
+	const readlistDefinitionRows = defineDynamoTable({
+		client,
+		tableName: userArticlesTableName,
+		schema: z.object({ queueSlug: ReadlistSlugSchema, createdAt: z.string() }),
+	});
+
+	const ownedReadlistSlugsInCreationOrder = async (userId: UserId): Promise<ReadlistSlug[]> => {
+		const rows: { slug: ReadlistSlug; createdAt: string }[] = [];
+		await forEachQueryPage(
+			readlistDefinitionRows,
+			{
+				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
+				ExpressionAttributeNames: { "#url": "url" },
+				ExpressionAttributeValues: {
+					":userId": userId,
+					":prefix": READLIST_DEFINITION_KEY_PREFIX,
+				},
+				ConsistentRead: true,
+			},
+			async (items) => {
+				for (const item of items) rows.push({ slug: item.queueSlug, createdAt: item.createdAt });
+			},
+		);
+		return rows
+			.sort(
+				(a, b) =>
+					new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() ||
+					a.slug.localeCompare(b.slug),
+			)
+			.map((row) => row.slug);
+	};
+
+	const findArticlesAcrossReadlists: FindArticlesAcrossReadlists = async (query) => {
+		const page = query.page ?? 1;
+		const pageSize = query.pageSize ?? 20;
+		const order = query.order ?? "desc";
+		const sort = query.sort ?? "savedAt";
+
+		const partitions = [
+			query.userId,
+			...(await ownedReadlistSlugsInCreationOrder(query.userId)).map((slug) =>
+				readlistPartitionValue({ userId: query.userId, readlist: slug }),
+			),
+		];
+
+		const byUrl = new Map<
+			string,
+			{ representative: z.infer<typeof UserArticleRow>; latestSavedAt: Date }
+		>();
+		for (const partition of partitions) {
+			await forEachPartitionRow(partition, async (rows) => {
+				for (const row of rows) {
+					const savedAt = new Date(row.savedAt);
+					const existing = byUrl.get(row.url);
+					if (existing === undefined) {
+						byUrl.set(row.url, { representative: row, latestSavedAt: savedAt });
+					} else if (savedAt.getTime() > existing.latestSavedAt.getTime()) {
+						existing.latestSavedAt = savedAt;
+					}
+				}
+			});
+		}
+
+		let entries = [...byUrl.values()].map((entry) => ({
+			representative: entry.representative,
+			latestSavedAt: entry.latestSavedAt,
+			id: ReaderArticleHashId.fromResourceUniqueId(entry.representative.url).value,
+		}));
+		if (query.status) {
+			entries = entries.filter((entry) => entry.representative.status === query.status);
+		}
+		entries.sort((a, b) => {
+			const aValue = sort === "readAt" ? toOptionalDate(a.representative.readAt) : a.latestSavedAt;
+			const bValue = sort === "readAt" ? toOptionalDate(b.representative.readAt) : b.latestSavedAt;
+			assert(aValue, "sort field must be set on every row matching this query");
+			assert(bValue, "sort field must be set on every row matching this query");
+			const diff = aValue.getTime() - bValue.getTime();
+			if (diff !== 0) return order === "asc" ? diff : -diff;
+			return a.id.localeCompare(b.id);
+		});
+
+		const total = query.includeTotal ? entries.length : undefined;
+		const start = (page - 1) * pageSize;
+		const pageEntries = entries.slice(start, start + pageSize);
+		const hasMore = entries.length > start + pageSize;
+		if (pageEntries.length === 0) {
+			return { articles: [], total, hasMore, page, pageSize };
+		}
+
+		const batchedArticles = await batchGetFromTable({
+			client,
+			tableName,
+			schema: ArticleRow,
+			keys: pageEntries.map((entry) => ({ url: entry.representative.url })),
+			projection: query.excludeContent ? ArticleMetadataFields : undefined,
+		});
+		const articlesByUrl = new Map<string, z.infer<typeof ArticleRow>>();
+		for (const article of batchedArticles) articlesByUrl.set(article.url, article);
+
+		const articles: SavedArticle[] = [];
+		for (const entry of pageEntries) {
+			const article = articlesByUrl.get(entry.representative.url);
+			assert(article, "every saved row has a global article");
+			articles.push(
+				toSavedArticle(article, {
+					...entry.representative,
+					userId: query.userId,
+					savedAt: entry.latestSavedAt.toISOString(),
+				}),
+			);
+		}
+		return { articles, total, hasMore, page, pageSize };
+	};
+
 	const countArticlesInPartition = async (
 		partition: string,
 		query: { status?: ArticleStatus; countLimit?: number },
@@ -731,7 +847,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const expression =
 			status === "read"
 				? {
-						UpdateExpression: "SET #status = :status, readAt = :readAt",
+						UpdateExpression: "SET #status = :status, readAt = if_not_exists(readAt, :readAt)",
 						ExpressionAttributeValues: { ":status": status, ":readAt": new Date().toISOString() },
 					}
 				: {
@@ -1119,6 +1235,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findArticleByUrl,
 		findArticleUrlById,
 		findArticlesByUser,
+		findArticlesAcrossReadlists,
 		countArticlesByUser,
 		deleteArticle,
 		deleteAllUserArticles,

@@ -123,7 +123,7 @@ export const LIST_READLIST_ARTICLES_TOOL: McpToolDefinition = {
 			readlist: {
 				type: "string",
 				description:
-					"A readlist id from a list_readlists result. Omit to list All.",
+					"A readlist id from a list_readlists result — including All — to list only that readlist. Omit to list every saved article once, combined across all your readlists.",
 			},
 			status: {
 				type: "string",

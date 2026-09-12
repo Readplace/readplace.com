@@ -1061,6 +1061,189 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("findArticlesAcrossReadlists", () => {
+		const D1 = new Date("2026-01-01T00:00:00.000Z");
+		const D2 = new Date("2026-02-01T00:00:00.000Z");
+		const D3 = new Date("2026-03-01T00:00:00.000Z");
+
+		const defineWork = (store: ReturnType<typeof initInMemoryArticleStore>, createdAt = D1) =>
+			store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+
+		it("returns a page the reader saved only to a named readlist", async () => {
+			const store = initInMemoryArticleStore();
+			await defineWork(store);
+			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, includeTotal: true });
+
+			expect(result.total).toBe(1);
+			expect(result.articles.map((a) => a.url)).toEqual([URL]);
+			expect(result.articles[0].status).toBe("unread");
+		});
+
+		it("reports a page saved to All and a named readlist once, at its latest date", async () => {
+			const store = initInMemoryArticleStore();
+			await defineWork(store);
+			await store.saveArticle(makeArticleParams({ savedAt: D1 }));
+			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D3 }), readlist: WORK });
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, includeTotal: true });
+
+			expect(result.total).toBe(1);
+			expect(result.articles).toHaveLength(1);
+			expect(result.articles[0].savedAt.toISOString()).toBe(D3.toISOString());
+		});
+
+		it("orders unique articles by the latest save or filing date across copies", async () => {
+			const store = initInMemoryArticleStore();
+			await defineWork(store);
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/x", savedAt: D1 }));
+			await store.assignSavedArticleToReadlist({
+				userId: USER_A,
+				readlist: WORK,
+				from: DEFAULT_READLIST_SLUG,
+				url: "https://example.com/x",
+				savedAt: D3,
+			});
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/y", savedAt: D2 }));
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A });
+
+			expect(result.articles.map((a) => a.url)).toEqual([
+				"https://example.com/x",
+				"https://example.com/y",
+			]);
+		});
+
+		it("orders ascending when asked", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/x", savedAt: D1 }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/y", savedAt: D2 }));
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, order: "asc" });
+
+			expect(result.articles.map((a) => a.url)).toEqual([
+				"https://example.com/x",
+				"https://example.com/y",
+			]);
+		});
+
+		it("breaks equal-date ties by article id", async () => {
+			const store = initInMemoryArticleStore();
+			const urlA = "https://example.com/aaa";
+			const urlB = "https://example.com/bbb";
+			await store.saveArticle(makeArticleParams({ url: urlA, savedAt: D1 }));
+			await store.saveArticle(makeArticleParams({ url: urlB, savedAt: D1 }));
+			const expected = [ReaderArticleHashId.from(urlA).value, ReaderArticleHashId.from(urlB).value].sort(
+				(a, b) => a.localeCompare(b),
+			);
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A });
+
+			expect(result.articles.map((a) => a.id.value)).toEqual(expected);
+		});
+
+		it("excludes another reader's saves", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_B, url: "https://other.com/p", savedAt: D1 }));
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, includeTotal: true });
+
+			expect(result.total).toBe(0);
+			expect(result.articles).toEqual([]);
+		});
+
+		it("takes status and read date from the All copy, before filtering", async () => {
+			const store = initInMemoryArticleStore();
+			await defineWork(store);
+			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: D1 }));
+			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
+			await store.updateArticleStatus(saved.id, USER_A, "read");
+
+			const readOnly = await store.findArticlesAcrossReadlists({ userId: USER_A, status: "read", includeTotal: true });
+			expect(readOnly.total).toBe(1);
+			expect(readOnly.articles[0].status).toBe("read");
+
+			const unreadOnly = await store.findArticlesAcrossReadlists({ userId: USER_A, status: "unread", includeTotal: true });
+			expect(unreadOnly.total).toBe(0);
+		});
+
+		it("prefers the All copy as representative whatever order the copies were saved", async () => {
+			const store = initInMemoryArticleStore();
+			await defineWork(store);
+			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
+			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: D1 }));
+			await store.updateArticleStatus(saved.id, USER_A, "read");
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A });
+
+			expect(result.articles[0].status).toBe("read");
+		});
+
+		it("uses the first named readlist as representative when the page is not in All", async () => {
+			const store = initInMemoryArticleStore();
+			await defineWork(store, D1);
+			await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt: D2 });
+			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D2 }), readlist: LATER });
+			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, includeTotal: true });
+
+			expect(result.total).toBe(1);
+			expect(result.articles[0].savedAt.toISOString()).toBe(D2.toISOString());
+		});
+
+		it("skips a save in a readlist the reader no longer owns", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, includeTotal: true });
+
+			expect(result.total).toBe(0);
+		});
+
+		it("paginates the combined listing over duplicates that span pages", async () => {
+			const store = initInMemoryArticleStore();
+			await defineWork(store);
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/x", savedAt: D3 }));
+			await store.saveReadlistArticle({ ...makeArticleParams({ url: "https://example.com/x", savedAt: D3 }), readlist: WORK });
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/y", savedAt: D2 }));
+			await store.saveReadlistArticle({ ...makeArticleParams({ url: "https://example.com/z", savedAt: D1 }), readlist: WORK });
+
+			const page1 = await store.findArticlesAcrossReadlists({ userId: USER_A, page: 1, pageSize: 2, includeTotal: true });
+			expect(page1.total).toBe(3);
+			expect(page1.articles.map((a) => a.url)).toEqual(["https://example.com/x", "https://example.com/y"]);
+			expect(page1.hasMore).toBe(true);
+
+			const page2 = await store.findArticlesAcrossReadlists({ userId: USER_A, page: 2, pageSize: 2, includeTotal: true });
+			expect(page2.articles.map((a) => a.url)).toEqual(["https://example.com/z"]);
+			expect(page2.hasMore).toBe(false);
+		});
+
+		it("sorts by read date when sort=readAt", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved: x } = await store.saveArticle(makeArticleParams({ url: "https://example.com/x", savedAt: D1 }));
+			const { saved: y } = await store.saveArticle(makeArticleParams({ url: "https://example.com/y", savedAt: D2 }));
+			await store.updateArticleStatus(x.id, USER_A, "read");
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			await store.updateArticleStatus(y.id, USER_A, "read");
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, status: "read", sort: "readAt" });
+
+			expect(result.articles.map((a) => a.url)).toEqual(["https://example.com/y", "https://example.com/x"]);
+		});
+
+		it("omits the total when includeTotal is not set", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ savedAt: D1 }));
+
+			const result = await store.findArticlesAcrossReadlists({ userId: USER_A });
+
+			expect(result.total).toBeUndefined();
+			expect(result.articles).toHaveLength(1);
+		});
+	});
+
 	describe("multiple readlists", () => {
 		it("keeps the same URL as an independent copy in each readlist the reader saved it into", async () => {
 			const store = initInMemoryArticleStore();
@@ -1116,6 +1299,32 @@ describe("initInMemoryArticleStore", () => {
 			expect(
 				(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK }))?.status,
 			).toBe("unread");
+		});
+
+		it("keeps the read date already earned when a copy is marked read again", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			const first = await store.updateArticleStatusAcrossReadlists({
+				id: saved.id,
+				userId: USER_A,
+				addressed: DEFAULT_READLIST_SLUG,
+				status: "read",
+			});
+			const originalReadAt = first?.readAt?.toISOString();
+
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			const again = await store.updateArticleStatusAcrossReadlists({
+				id: saved.id,
+				userId: USER_A,
+				addressed: DEFAULT_READLIST_SLUG,
+				status: "read",
+			});
+
+			expect(again?.readAt?.toISOString()).toBe(originalReadAt);
+			expect(
+				(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK }))?.readAt?.toISOString(),
+			).toBe(originalReadAt);
 		});
 
 		it("reports every URL's memberships from one batched membership read", async () => {

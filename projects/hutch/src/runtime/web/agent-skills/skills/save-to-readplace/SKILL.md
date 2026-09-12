@@ -58,7 +58,7 @@ Once connected, these are the operations:
 
 - save_link: saves a URL to the user's readlist; the title, excerpt, and clean reader view fill in moments later.
 - list_readlists: lists the user's readlists, each with the opaque id every other tool takes.
-- list_readlist_articles: lists what the user has saved, filtered to unread or already-read, and optionally narrowed to one readlist.
+- list_readlist_articles: lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including All), filtered to unread or already-read.
 - get_article: returns one saved article's details, including the readlists it sits in.
 - get_article_content: returns one saved article's clean reader text.
 - get_article_summary: returns one saved article's AI TL;DR.

@@ -41,6 +41,7 @@ import type {
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
+	FindArticlesAcrossReadlists,
 	FindArticlesByUser,
 	FindArticlesQuery,
 	FindArticlesResult,
@@ -133,6 +134,7 @@ export function initInMemoryArticleStore(): {
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticlesByUser: FindArticlesByUser;
+	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	deleteAllUserArticles: DeleteAllUserArticles;
@@ -413,6 +415,67 @@ export function initInMemoryArticleStore(): {
 
 	const findReadlistArticles: FindReadlistArticles = (query) => listPartition(query.readlist, query);
 
+	const findArticlesAcrossReadlists: FindArticlesAcrossReadlists = async (query) => {
+		const page = query.page ?? 1;
+		const pageSize = query.pageSize ?? 20;
+		const order = query.order ?? "desc";
+		const sort = query.sort ?? "savedAt";
+
+		const owned = await listReadlistDefinitions(query.userId);
+		const rank = new Map<ReadlistSlug | undefined, number>([[undefined, 0]]);
+		owned.forEach((definition, index) => {
+			rank.set(definition.slug, index + 1);
+		});
+
+		const byUrl = new Map<string, { representative: UserArticle; latestSavedAt: Date }>();
+		for (const ua of userArticles.values()) {
+			if (ua.userId !== query.userId) continue;
+			const ownedRank = rank.get(ua.readlist);
+			if (ownedRank === undefined) continue;
+			const existing = byUrl.get(ua.url);
+			if (existing === undefined) {
+				byUrl.set(ua.url, { representative: ua, latestSavedAt: ua.savedAt });
+				continue;
+			}
+			const existingRank = rank.get(existing.representative.readlist);
+			assert(existingRank !== undefined, "the representative must sit in an owned readlist");
+			if (ownedRank < existingRank) existing.representative = ua;
+			if (ua.savedAt.getTime() > existing.latestSavedAt.getTime()) {
+				existing.latestSavedAt = ua.savedAt;
+			}
+		}
+
+		let entries = [...byUrl.values()];
+		if (query.status) {
+			entries = entries.filter((entry) => entry.representative.status === query.status);
+		}
+		entries.sort((a, b) => {
+			const aValue = sort === "readAt" ? a.representative.readAt : a.latestSavedAt;
+			const bValue = sort === "readAt" ? b.representative.readAt : b.latestSavedAt;
+			assert(aValue, "sort field must be set on every row matching this query");
+			assert(bValue, "sort field must be set on every row matching this query");
+			const diff = aValue.getTime() - bValue.getTime();
+			if (diff !== 0) return order === "asc" ? diff : -diff;
+			const aArticle = articles.get(a.representative.url);
+			const bArticle = articles.get(b.representative.url);
+			assert(aArticle && bArticle, "every saved row has a global article");
+			return aArticle.routeId.value.localeCompare(bArticle.routeId.value);
+		});
+
+		const total = query.includeTotal ? entries.length : undefined;
+		const start = (page - 1) * pageSize;
+		const pageEntries = entries.slice(start, start + pageSize);
+		const hasMore = entries.length > start + pageSize;
+
+		const result: SavedArticle[] = [];
+		for (const entry of pageEntries) {
+			const article = articles.get(entry.representative.url);
+			assert(article, "every saved row has a global article");
+			result.push(toSavedArticle(article, { ...entry.representative, savedAt: entry.latestSavedAt }));
+		}
+		return { articles: result, total, hasMore, page, pageSize };
+	};
+
 	const countPartition = (
 		readlist: ReadlistSlug | undefined,
 		query: { userId: UserId; status?: ArticleStatus; countLimit?: number },
@@ -541,7 +604,7 @@ export function initInMemoryArticleStore(): {
 
 		ua.status = status;
 		if (status === "read") {
-			ua.readAt = new Date();
+			ua.readAt = ua.readAt ?? new Date();
 		} else {
 			ua.readAt = undefined;
 		}
@@ -801,6 +864,7 @@ export function initInMemoryArticleStore(): {
 		findArticleFreshness,
 		findArticleCrawlVersions,
 		findArticlesByUser,
+		findArticlesAcrossReadlists,
 		countArticlesByUser,
 		deleteArticle,
 		deleteAllUserArticles,

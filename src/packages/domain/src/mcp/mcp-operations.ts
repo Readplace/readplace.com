@@ -44,9 +44,9 @@ export const MCP_OPERATIONS = [
 		name: "list_readlist_articles",
 		title: "List saved articles",
 		description:
-			"List the pages the user has saved to their Readplace reading list, optionally filtered to unread or already-read items, and optionally narrowed to one readlist by passing a `readlist` id from list_readlists. Each item includes an `id` you can pass to get_article, get_article_content, or get_article_summary, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list.",
+			"List the pages the user has saved to their Readplace reading list. With no `readlist`, returns every saved page once, combined across every readlist the user owns — a page filed into several readlists appears a single time. Pass a `readlist` id from list_readlists — including All, the built-in readlist that receives every save — to list only that one. Optionally filter to unread or already-read items. Each item includes an `id` you can pass to get_article, get_article_content, or get_article_summary, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list.",
 		summary:
-			"lists what the user has saved, filtered to unread or already-read, and optionally narrowed to one readlist.",
+			"lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including All), filtered to unread or already-read.",
 		effect: "read",
 	},
 	{

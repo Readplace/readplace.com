@@ -1439,7 +1439,9 @@ describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
 		const updated = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read");
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toBe("SET #status = :status, readAt = :readAt");
+		expect(update?.input.UpdateExpression).toBe(
+			"SET #status = :status, readAt = if_not_exists(readAt, :readAt)",
+		);
 		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
 		expect(update?.input.ReturnValues).toBe("ALL_NEW");
 		expect(commands.some((c) => c.name === "GetCommand")).toBe(false);
@@ -1734,9 +1736,207 @@ const WORK_PARTITION = `${USER}#queue/work`;
 const LATER = ReadlistSlugSchema.parse("later");
 const LATER_PARTITION = `${USER}#queue/later`;
 
-function queueDefinitionItem(slug = "work"): Record<string, unknown> {
-	return { userId: USER, url: `readplace:queue-def/${slug}`, queueSlug: slug };
+function queueDefinitionItem(
+	slug = "work",
+	createdAt = "2026-01-01T00:00:00.000Z",
+): Record<string, unknown> {
+	return { userId: USER, url: `readplace:queue-def/${slug}`, queueSlug: slug, createdAt };
 }
+
+const norm = (path: string): string => `example.com/${path}`;
+const full = (path: string): string => `https://example.com/${path}`;
+const rid = (path: string): string => ReaderArticleHashId.from(full(path)).value;
+
+function crossReadlistArticleItem(path: string): Record<string, unknown> {
+	return articleItem({ url: norm(path), routeId: rid(path), originalUrl: full(path) });
+}
+
+describe("initDynamoDbSavedArticleStore findArticlesAcrossReadlists", () => {
+	it("dedups a URL across All and a named readlist, ranks it by its latest date, and reads metadata only for the page", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [queueDefinitionItem("work")], Count: 1 },
+					{
+						Items: [
+							userArticleItem({ url: norm("x"), savedAt: "2026-01-01T00:00:00.000Z" }),
+							userArticleItem({ url: norm("y"), savedAt: "2026-02-01T00:00:00.000Z" }),
+						],
+						Count: 2,
+					},
+					{
+						Items: [userArticleItem({ url: norm("x"), savedAt: "2026-03-01T00:00:00.000Z" })],
+						Count: 1,
+					},
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: { articles: [crossReadlistArticleItem("x"), crossReadlistArticleItem("y")] },
+				},
+			},
+		});
+
+		const result = await initStore(client).findArticlesAcrossReadlists({
+			userId: USER,
+			excludeContent: true,
+			includeTotal: true,
+		});
+
+		const partitionQueries = queryCommands(commands).filter(
+			(c) => c.input.IndexName === "userId-savedAt-index",
+		);
+		expect(partitionQueries.map((c) => c.input.ExpressionAttributeValues?.[":userId"])).toEqual([
+			USER,
+			WORK_PARTITION,
+		]);
+		expect(result.total).toBe(2);
+		expect(result.articles.map((a) => a.url)).toEqual([full("x"), full("y")]);
+		expect(result.articles[0].savedAt).toEqual(new Date("2026-03-01T00:00:00.000Z"));
+		expect(batchGetKeys(commands).map((k) => k.url)).toEqual([norm("x"), norm("y")]);
+	});
+
+	it("filters by the All copy's status, sorts by read date ascending, and honours an explicit page size", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [queueDefinitionItem("work")], Count: 1 },
+					{
+						Items: [
+							userArticleItem({ url: norm("x"), status: "read", readAt: "2026-04-01T00:00:00.000Z", savedAt: "2026-01-01T00:00:00.000Z" }),
+							userArticleItem({ url: norm("y"), status: "read", readAt: "2026-05-01T00:00:00.000Z", savedAt: "2026-02-01T00:00:00.000Z" }),
+						],
+						Count: 2,
+					},
+					{
+						Items: [
+							userArticleItem({ url: norm("x"), status: "unread", savedAt: "2025-12-01T00:00:00.000Z" }),
+						],
+						Count: 1,
+					},
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: { articles: [crossReadlistArticleItem("x"), crossReadlistArticleItem("y")] },
+				},
+			},
+		});
+
+		const result = await initStore(client).findArticlesAcrossReadlists({
+			userId: USER,
+			status: "read",
+			sort: "readAt",
+			order: "asc",
+			page: 1,
+			pageSize: 5,
+		});
+
+		expect(result.total).toBeUndefined();
+		expect(result.articles.map((a) => a.url)).toEqual([full("x"), full("y")]);
+	});
+
+	it("breaks equal-date ties by article id", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [], Count: 0 },
+					{
+						Items: [
+							userArticleItem({ url: norm("bbb"), savedAt: "2026-01-01T00:00:00.000Z" }),
+							userArticleItem({ url: norm("aaa"), savedAt: "2026-01-01T00:00:00.000Z" }),
+						],
+						Count: 2,
+					},
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: { articles: [crossReadlistArticleItem("aaa"), crossReadlistArticleItem("bbb")] },
+				},
+			},
+		});
+
+		const result = await initStore(client).findArticlesAcrossReadlists({ userId: USER });
+
+		const expected = [rid("aaa"), rid("bbb")].sort((a, b) => a.localeCompare(b));
+		expect(result.articles.map((a) => a.id.value)).toEqual(expected);
+	});
+
+	it("returns an empty page without reading any article metadata when nothing is saved", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
+				],
+			},
+		});
+
+		const result = await initStore(client).findArticlesAcrossReadlists({
+			userId: USER,
+			includeTotal: true,
+		});
+
+		expect(result).toEqual({ articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 });
+		expect(commands.some((c) => c.name === "BatchGetCommand")).toBe(false);
+	});
+
+	it("reads full article content and omits the total when neither is requested", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [], Count: 0 },
+					{ Items: [userArticleItem({ url: norm("x"), savedAt: "2026-01-01T00:00:00.000Z" })], Count: 1 },
+				],
+			},
+			BatchGetCommand: {
+				default: { Responses: { articles: [crossReadlistArticleItem("x")] } },
+			},
+		});
+
+		const result = await initStore(client).findArticlesAcrossReadlists({ userId: USER });
+
+		const batch = commands.find((c) => c.name === "BatchGetCommand");
+		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBeUndefined();
+		expect(result.total).toBeUndefined();
+		expect(result.articles.map((a) => a.url)).toEqual([full("x")]);
+	});
+
+	it("orders named readlists by creation date, then slug when the dates tie", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{
+						Items: [
+							queueDefinitionItem("later", "2026-02-01T00:00:00.000Z"),
+							queueDefinitionItem("work", "2026-02-01T00:00:00.000Z"),
+							queueDefinitionItem("alpha", "2026-01-01T00:00:00.000Z"),
+						],
+						Count: 3,
+					},
+					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
+				],
+			},
+		});
+
+		await initStore(client).findArticlesAcrossReadlists({ userId: USER });
+
+		const partitionQueries = queryCommands(commands).filter(
+			(c) => c.input.IndexName === "userId-savedAt-index",
+		);
+		expect(partitionQueries.map((c) => c.input.ExpressionAttributeValues?.[":userId"])).toEqual([
+			USER,
+			`${USER}#queue/alpha`,
+			LATER_PARTITION,
+			WORK_PARTITION,
+		]);
+	});
+});
+
 
 describe("initDynamoDbSavedArticleStore readlist-scoped writes", () => {
 	it("saveReadlistArticle keys the copy on the readlist partition and answers with the base user id", async () => {

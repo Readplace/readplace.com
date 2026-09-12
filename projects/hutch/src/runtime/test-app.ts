@@ -160,6 +160,7 @@ function flattenFixtureToAppDependencies(
 		findArticleCrawlVersions: fixture.articleStore.findArticleCrawlVersions,
 		findArticleUrlById: fixture.articleStore.findArticleUrlById,
 		findArticlesByUser: fixture.articleStore.findArticlesByUser,
+		findArticlesAcrossReadlists: fixture.articleStore.findArticlesAcrossReadlists,
 		countArticlesByUser: fixture.articleStore.countArticlesByUser,
 		saveArticle: fixture.articleStore.saveArticle,
 		saveArticleKeepingPosition: fixture.articleStore.saveArticleKeepingPosition,

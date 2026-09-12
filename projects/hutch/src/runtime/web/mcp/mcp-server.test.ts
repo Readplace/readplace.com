@@ -1,7 +1,7 @@
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
-import { encodeReadlistCursor } from "./cursor";
+import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
 import {
 	initMcpServer,
 	type McpArticle,
@@ -373,7 +373,7 @@ describe("initMcpServer", () => {
 		});
 
 		it("continues from a cursor at the next page", async () => {
-			const cursor = encodeReadlistCursor({ page: 2, pageSize: 2 });
+			const cursor = encodeReadlistCursor({ page: 2, pageSize: 2, scope: "combined" });
 			const listReadlist = jest.fn(async () => ({
 				total: 5,
 				page: 2,
@@ -1618,6 +1618,62 @@ describe("MCP readlist tools", () => {
 			page: 2,
 			pageSize: 1,
 		});
+	});
+
+	it("keeps a combined listing combined across a combined-scope cursor", async () => {
+		const listReadlist = jest.fn(async () => ({ total: 0, page: 2, pageSize: 20, articles: [] }));
+		const server = initMcpServer(fakeDeps({ listReadlists: async () => [all, work], listReadlist }));
+		const cursor = encodeReadlistCursor({ page: 2, pageSize: 20, scope: "combined" });
+
+		const response = await call(server, 1, "list_readlist_articles", { cursor });
+
+		expect(response).not.toMatchObject({ result: { structuredContent: { readlist: expect.anything() } } });
+		expect(listReadlist).toHaveBeenCalledWith({
+			userId,
+			status: undefined,
+			sort: undefined,
+			order: undefined,
+			page: 2,
+			pageSize: 20,
+		});
+	});
+
+	it("keeps an All-scoped listing All across a cursor minted before the combined default", async () => {
+		const listReadlist = jest.fn(async () => ({ total: 0, page: 2, pageSize: 20, articles: [] }));
+		const server = initMcpServer(fakeDeps({ listReadlists: async () => [all, work], listReadlist }));
+		const legacyCursor = Buffer.from(
+			JSON.stringify({ page: 2, pageSize: 20 }),
+			"utf8",
+		).toString("base64url");
+
+		const response = await call(server, 1, "list_readlist_articles", { cursor: legacyCursor });
+
+		expect(response).toMatchObject({ result: { structuredContent: { readlist: all } } });
+		expect(listReadlist).toHaveBeenCalledWith({
+			userId,
+			readlist: all.id,
+			status: undefined,
+			sort: undefined,
+			order: undefined,
+			page: 2,
+			pageSize: 20,
+		});
+	});
+
+	it("mints a combined-scope cursor for the next page of a combined listing", async () => {
+		const listReadlist = jest.fn(async () => ({
+			total: 4,
+			page: 1,
+			pageSize: 2,
+			articles: [mcpArticle(), mcpArticle()],
+		}));
+		const server = initMcpServer(fakeDeps({ listReadlists: async () => [all, work], listReadlist }));
+
+		const response = await call(server, 1, "list_readlist_articles", { limit: 2 });
+
+		const nextCursor = (response as { result: { structuredContent: { nextCursor: string } } })
+			.result.structuredContent.nextCursor;
+		expect(decodeReadlistCursor(nextCursor)).toEqual({ page: 2, pageSize: 2, scope: "combined" });
 	});
 
 	it("refuses a cursor scoped to a readlist the caller does not own", async () => {

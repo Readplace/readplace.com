@@ -12,8 +12,13 @@ export class ReaderArticleHashId {
 	}
 
 	static from(url: string): ReaderArticleHashId {
-		const resourceId = ArticleResourceUniqueId.parse(url);
-		const hash = createHash("sha256").update(resourceId.value).digest("hex").slice(0, 32);
+		return ReaderArticleHashId.fromResourceUniqueId(
+			ArticleResourceUniqueId.parse(url).value,
+		);
+	}
+
+	static fromResourceUniqueId(resourceUniqueId: string): ReaderArticleHashId {
+		const hash = createHash("sha256").update(resourceUniqueId).digest("hex").slice(0, 32);
 		return new ReaderArticleHashId(hash);
 	}
 

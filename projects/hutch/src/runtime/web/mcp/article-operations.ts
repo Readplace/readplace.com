@@ -7,6 +7,7 @@ import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
+	FindArticlesAcrossReadlists,
 	FindArticlesByUser,
 	FindReadlistArticles,
 	ReadArticleContent,
@@ -37,6 +38,7 @@ interface McpArticleOperationDeps {
 	resolveReadlistMembership: ResolveReadlistMembership;
 	findReadlistArticles: FindReadlistArticles;
 	findArticlesByUser: FindArticlesByUser;
+	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	findRelatedArticles: FindRelatedArticles;
@@ -152,9 +154,6 @@ export function initMcpArticleOperations(
 		const owned = await deps.resolveOwnedArticle({ userId, id });
 		if (!owned) return { status: "not_found" };
 		const { article, readlist } = owned;
-		if (article.status === status) {
-			return { status: "ok", article: await projectArticle(userId, article) };
-		}
 		const updated = await deps.updateArticleStatusAcrossReadlists({
 			id: article.id,
 			userId,
@@ -166,7 +165,7 @@ export function initMcpArticleOperations(
 	}
 
 	return {
-		listReadlist: async ({ userId, readlist = DEFAULT_READLIST_SLUG, status, sort, order, page, pageSize }) => {
+		listReadlist: async ({ userId, readlist, status, sort, order, page, pageSize }) => {
 			const query = {
 				userId,
 				status,
@@ -177,9 +176,11 @@ export function initMcpArticleOperations(
 				excludeContent: true,
 				includeTotal: true,
 			};
-			const result = await (readlist === DEFAULT_READLIST_SLUG
-				? deps.findArticlesByUser(query)
-				: deps.findReadlistArticles({ ...query, readlist }));
+			const result = await (readlist === undefined
+				? deps.findArticlesAcrossReadlists(query)
+				: readlist === DEFAULT_READLIST_SLUG
+					? deps.findArticlesByUser(query)
+					: deps.findReadlistArticles({ ...query, readlist }));
 			assert(result.total !== undefined, "includeTotal query must return a total");
 			const membership = await deps.resolveReadlistMembership({
 				userId,

@@ -71,4 +71,30 @@ describe("readlist cursor codec", () => {
 		).toString("base64url");
 		expect(decodeReadlistCursor(token)).toBeNull();
 	});
+
+	it("round-trips a combined-scope cursor", () => {
+		const cursor = { page: 2, pageSize: 20, scope: "combined" as const };
+		expect(decodeReadlistCursor(encodeReadlistCursor(cursor))).toEqual(cursor);
+	});
+
+	it("returns null for a cursor that is both combined-scope and readlist-scoped", () => {
+		const token = Buffer.from(
+			JSON.stringify({
+				page: 1,
+				pageSize: 10,
+				scope: "combined",
+				readlist: "work",
+			}),
+			"utf8",
+		).toString("base64url");
+		expect(decodeReadlistCursor(token)).toBeNull();
+	});
+
+	it("returns null for a cursor whose scope is not the combined marker", () => {
+		const token = Buffer.from(
+			JSON.stringify({ page: 1, pageSize: 10, scope: "all" }),
+			"utf8",
+		).toString("base64url");
+		expect(decodeReadlistCursor(token)).toBeNull();
+	});
 });

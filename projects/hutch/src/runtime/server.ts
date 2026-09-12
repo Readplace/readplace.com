@@ -96,6 +96,7 @@ import type {
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
+	FindArticlesAcrossReadlists,
 	FindArticlesByUser,
 	MarkArticleViewed,
 	FindReadlistArticles,
@@ -335,6 +336,7 @@ interface AppDependencies {
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
+	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
@@ -595,6 +597,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			resolveReadlistMembership,
 			findReadlistArticles: deps.findReadlistArticles,
 			findArticlesByUser: deps.findArticlesByUser,
+			findArticlesAcrossReadlists: deps.findArticlesAcrossReadlists,
 			readArticleContent: deps.readArticleContent,
 			findGeneratedSummary: deps.findGeneratedSummary,
 			findRelatedArticles: deps.findRelatedArticles,

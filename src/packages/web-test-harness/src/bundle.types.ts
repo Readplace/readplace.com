@@ -75,6 +75,7 @@ import type {
 	FindArticleFreshness,
 	FindAppleRefreshTokenByUserId,
 	FindArticleUrlById,
+	FindArticlesAcrossReadlists,
 	FindArticlesByUser,
 	FindEmailByUserId,
 	FindGeneratedSummary,
@@ -330,6 +331,7 @@ export interface ArticleStoreBundle {
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticlesByUser: FindArticlesByUser;
+	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;

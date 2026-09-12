@@ -441,7 +441,8 @@ describe("MCP server over the real app", () => {
 		const id = ReaderArticleHashId.from(url);
 		await harness.articleStore.deleteArticle(id, owner.userId);
 		const all = await callTool(harness, token, tool("list_readlist_articles"));
-		expect(all.body.result.structuredContent.total).toBe(0);
+		expect(all.body.result.structuredContent.total).toBe(1);
+		expect(all.body.result.structuredContent.articles[0].readlists).toEqual([work]);
 		const listed = await callTool(harness, token, tool("list_readlist_articles", { readlist: work.id }));
 		const article = listed.body.result.structuredContent.articles[0];
 		expect(article.readlists).toEqual([work]);
@@ -459,6 +460,56 @@ describe("MCP server over the real app", () => {
 		expect(restored.body.result.structuredContent.article.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }, work]);
 		const backInAll = await callTool(harness, token, tool("list_readlist_articles"));
 		expect(backInAll.body.result.structuredContent.articles[0].id).toBe(article.id);
+	});
+
+	it("lists each saved page once across every readlist by default, and only one when scoped", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		const created = await callTool(harness, token, tool("create_readlist", { name: "Work" }));
+		const work = created.body.result.structuredContent.readlist;
+		const owner = await harness.auth.findUserByEmail("mcp@example.com");
+		assert(owner);
+
+		await callTool(harness, token, tool("save_link", { url: "https://example.com/both", readlists: [work.id] }));
+		await callTool(harness, token, tool("save_link", { url: "https://example.com/all-only" }));
+		await callTool(harness, token, tool("save_link", { url: "https://example.com/work-only", readlists: [work.id] }));
+		await harness.articleStore.deleteArticle(ReaderArticleHashId.from("https://example.com/work-only"), owner.userId);
+
+		const combined = await callTool(harness, token, tool("list_readlist_articles"));
+		const combinedUrls = combined.body.result.structuredContent.articles.map((a: { url: string }) => a.url);
+		expect(combined.body.result.structuredContent.total).toBe(3);
+		expect(new Set(combinedUrls).size).toBe(combinedUrls.length);
+		expect(combined.body.result.structuredContent.readlist).toBeUndefined();
+
+		const allScoped = await callTool(harness, token, tool("list_readlist_articles", { readlist: DEFAULT_READLIST_SLUG }));
+		expect(allScoped.body.result.structuredContent.total).toBe(2);
+		expect(allScoped.body.result.structuredContent.readlist).toEqual({ id: DEFAULT_READLIST_SLUG, name: "All" });
+
+		const workScoped = await callTool(harness, token, tool("list_readlist_articles", { readlist: work.id }));
+		expect(workScoped.body.result.structuredContent.total).toBe(2);
+		expect(workScoped.body.result.structuredContent.readlist).toEqual(work);
+	});
+
+	it("marking read reconciles a copy left unread in another readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		const created = await callTool(harness, token, tool("create_readlist", { name: "Work" }));
+		const work = created.body.result.structuredContent.readlist;
+		const url = "https://example.com/divergent";
+		await callTool(harness, token, tool("save_link", { url, readlists: [work.id] }));
+		const owner = await harness.auth.findUserByEmail("mcp@example.com");
+		assert(owner);
+		const id = ReaderArticleHashId.from(url);
+
+		await harness.articleStore.updateArticleStatus(id, owner.userId, "read");
+
+		const marked = await callTool(harness, token, tool("mark_as_read", { id: id.value }));
+		expect(marked.body.result.structuredContent.article.status).toBe("read");
+
+		const workRead = await callTool(harness, token, tool("list_readlist_articles", { readlist: work.id, status: "read" }));
+		expect(workRead.body.result.structuredContent.total).toBe(1);
+		const workUnread = await callTool(harness, token, tool("list_readlist_articles", { readlist: work.id, status: "unread" }));
+		expect(workUnread.body.result.structuredContent.total).toBe(0);
 	});
 
 	it("refuses another reader's readlists before saving or filing", async () => {
