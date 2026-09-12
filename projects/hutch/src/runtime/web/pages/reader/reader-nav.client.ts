@@ -19,8 +19,7 @@ const DELTA_PX = 6;
 /** Slides the global nav up out of view on scroll-down and back on scroll-up (or
  * at the top), so the reader — or the queue's saved cards — gets the whole
  * viewport. The `.nav-hidden` rules in base.styles.ts / reader.styles.css do the
- * movement; this only toggles the class on `<html>`. Only the nav moves: the
- * fixed banner-area stays put, so the changelog and other banners remain visible.
+ * movement; this only toggles the class on `<html>`.
  *
  * Injected per page by the readers and the queue, not loaded globally — a page
  * that omits it keeps a static nav, so there is no gate here. It

@@ -312,12 +312,11 @@ export const HEADER_STYLES = `
 		transition: transform 0.25s ease;
 	}
 	/* Reader views slide the nav offscreen on scroll-down (reader-nav.client.ts).
-		-100% is exactly the header's height — the same distance the sticky mark-read
-		toolbar rises — so the two move in lockstep with no content gap. The strip
-		left at the very top is covered by the opaque fixed .banner-area (z-index 200
-		> 100); keep it -100%, not -100% - banner, or a text sliver flashes through. */
+		-100% is exactly the header's height and the changelog banner rises with it
+		— the same distance the sticky mark-read toolbar rises — so the three move
+		in lockstep with no content gap. */
 	.nav-hidden .header {
-		transform: translateY(-100%);
+		transform: translateY(calc(-100% - var(--changelog-banner-height, 0px)));
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.header {
@@ -872,6 +871,15 @@ export const BANNER_AREA_STYLES = `
 		left: 0;
 		right: 0;
 		z-index: 200;
+		transition: transform 0.25s ease;
+	}
+	.nav-hidden .banner-area {
+		transform: translateY(calc(-1 * var(--changelog-banner-height, 0px)));
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.banner-area {
+			transition: none;
+		}
 	}
 `;
 

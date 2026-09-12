@@ -43,10 +43,10 @@
 }
 
 /* When the nav auto-hides (reader-nav.client.ts toggles .nav-hidden on <html>),
- * the toolbar rises by the header's height to stay pinned at the top, just below
- * the banner — reusing the same --header-height its `top` above already uses. */
+ * the toolbar rises by the header's height plus the changelog banner's to stay
+ * pinned at the top — reusing the same --header-height its `top` above already uses. */
 .nav-hidden .article-body__actions--sticky {
-  transform: translateY(calc(-1 * var(--header-height, 64px)));
+  transform: translateY(calc(-1 * (var(--header-height, 64px) + var(--changelog-banner-height, 0px))));
 }
 
 @media (prefers-reduced-motion: reduce) {
