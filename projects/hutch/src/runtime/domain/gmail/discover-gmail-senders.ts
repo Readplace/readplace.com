@@ -68,10 +68,10 @@ export function initDiscoverGmailSenders(deps: {
 					await fail(input.userId, input.generation, result);
 					return undefined;
 				}
-				await discovery.savePage({ previous, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0 });
+				await discovery.savePage({ previous, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined });
 			} else {
 				const complete = result.value.nextPageToken === undefined;
-				await discovery.savePage({ previous, senders: result.value.senders, mode: "history", pageToken: result.value.nextPageToken, historyId: complete ? result.value.historyId : active.historyId, state: complete ? "complete" : "running", scannedMessages: result.value.scannedMessages });
+				await discovery.savePage({ previous, senders: result.value.senders, mode: "history", pageToken: result.value.nextPageToken, historyId: complete ? result.value.historyId : active.historyId, state: complete ? "complete" : "running", scannedMessages: result.value.scannedMessages, estimatedTotalMessages: undefined });
 			}
 		} else {
 			const result = await mailbox.listMessageSenders({ userId: input.userId, pageToken: active.pageToken });
@@ -79,7 +79,17 @@ export function initDiscoverGmailSenders(deps: {
 				await fail(input.userId, input.generation, result);
 				return undefined;
 			}
-			await discovery.savePage({ previous, senders: result.value.senders, mode: result.value.nextPageToken === undefined ? "history" : "full", pageToken: result.value.nextPageToken, historyId: active.historyId, state: "running", scannedMessages: result.value.scannedMessages });
+			const mode = result.value.nextPageToken === undefined ? "history" : "full";
+			await discovery.savePage({
+				previous,
+				senders: result.value.senders,
+				mode,
+				pageToken: result.value.nextPageToken,
+				historyId: active.historyId,
+				state: "running",
+				scannedMessages: result.value.scannedMessages,
+				estimatedTotalMessages: mode === "full" ? active.estimatedTotalMessages ?? result.value.estimatedTotalMessages : undefined,
+			});
 		}
 		return nextPage(await discovery.findDiscoveryByUserId(input.userId));
 	};

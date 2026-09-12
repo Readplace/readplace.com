@@ -12,6 +12,7 @@ const MessageReference = z.object({ id: z.string() });
 const MessagesResponse = z.object({
 	messages: z.array(MessageReference).optional(),
 	nextPageToken: z.string().optional(),
+	resultSizeEstimate: z.number().int().nonnegative().optional(),
 });
 const MetadataResponse = z.object({
 	labelIds: z.array(z.string()).optional(),
@@ -140,7 +141,7 @@ export function initGmailMailbox(deps: {
 			const query = new URLSearchParams({
 				maxResults: String(PAGE_SIZE),
 				includeSpamTrash: "false",
-				fields: "messages(id),nextPageToken",
+				fields: "messages(id),nextPageToken,resultSizeEstimate",
 			});
 			if (pageToken !== undefined) query.set("pageToken", pageToken);
 			const result = await read(userId, `${ENDPOINT}/messages?${query}`, MessagesResponse);
@@ -152,6 +153,7 @@ export function initGmailMailbox(deps: {
 				senders: found.value,
 				nextPageToken: result.value.nextPageToken,
 				scannedMessages: messageIds.length,
+				estimatedTotalMessages: result.value.resultSizeEstimate,
 			} };
 		},
 		listChangedMessageSenders: async ({ userId, startHistoryId, pageToken }) => {
@@ -183,6 +185,7 @@ export function initGmailMailbox(deps: {
 				senders: found.value,
 				nextPageToken,
 				scannedMessages: batch.length,
+				estimatedTotalMessages: undefined,
 				historyId: result.value.historyId,
 			} };
 		},

@@ -23,6 +23,7 @@ const StateRow = z.object({
 	pageToken: dynamoField(z.string()),
 	historyId: dynamoField(z.string()),
 	scannedCount: z.number(),
+	estimatedTotalMessages: dynamoField(z.number()),
 	updatedAt: z.string(),
 	error: dynamoField(z.string()),
 	requiresReconnect: z.boolean().default(false),
@@ -75,6 +76,7 @@ export function initDynamoDbGmailDiscovery(deps: {
 				page: resume?.page ?? 0,
 				pageToken: resume?.pageToken,
 				scannedCount: resume?.scannedCount ?? 0,
+				estimatedTotalMessages: resume?.estimatedTotalMessages,
 				updatedAt: deps.now().toISOString(),
 				requiresReconnect: false,
 			},
@@ -95,7 +97,7 @@ export function initDynamoDbGmailDiscovery(deps: {
 				":until": deps.now().getTime() + 60_000,
 			},
 		})),
-		savePage: async ({ previous, senders: pageSenders, mode, pageToken, historyId, state, scannedMessages }) => {
+		savePage: async ({ previous, senders: pageSenders, mode, pageToken, historyId, state, scannedMessages, estimatedTotalMessages }) => {
 			const updated: GmailDiscovery = {
 				...previous,
 				mode,
@@ -103,7 +105,8 @@ export function initDynamoDbGmailDiscovery(deps: {
 				historyId,
 				state,
 				page: previous.page + 1,
-				scannedCount: previous.scannedCount + scannedMessages,
+				scannedCount: mode === "profile" ? scannedMessages : previous.scannedCount + scannedMessages,
+				estimatedTotalMessages,
 				updatedAt: deps.now().toISOString(),
 				error: undefined,
 				requiresReconnect: false,

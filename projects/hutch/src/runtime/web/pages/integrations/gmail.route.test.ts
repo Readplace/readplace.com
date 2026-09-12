@@ -16,7 +16,6 @@ const useApp = useTestServer();
 const GMAIL = "/integrations/gmail";
 const ADD = `${GMAIL}/senders/add`;
 const REMOVE = `${GMAIL}/senders/remove`;
-const REMOVE_MAPPING = `${GMAIL}/mappings/remove`;
 const DISCOVER = `${GMAIL}/discovery/start`;
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const MORNING = ForwardableSenderSchema.parse("crew@morningbrew.com");
@@ -26,16 +25,17 @@ function load(text: string): Document {
 	return new JSDOM(text).window.document;
 }
 
-function harnessWithGmail() {
+function harnessWithGmail(now?: () => Date) {
 	const gmail = initInMemoryGmailIntegration({
 		grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
+		...(now === undefined ? {} : { now }),
 	});
 	const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
 	return { harness, gmail };
 }
 
-async function connectedAgent(options: { confirmed?: boolean; scope?: string; discovered?: boolean } = {}) {
-	const { harness, gmail } = harnessWithGmail();
+async function connectedAgent(options: { confirmed?: boolean; scope?: string; discovered?: boolean; now?: () => Date } = {}) {
+	const { harness, gmail } = harnessWithGmail(options.now);
 	const created = await harness.auth.createUser({ email: "reader@example.com", password: "password123" });
 	assert(created.ok);
 	const userId = created.userId;
@@ -52,7 +52,7 @@ async function connectedAgent(options: { confirmed?: boolean; scope?: string; di
 		await store.claimPage({ userId, generation: "initial", page: 0 });
 		const previous = await store.findDiscoveryByUserId(userId);
 		assert(previous);
-		await store.savePage({ previous, senders: [{ email: TLDR, name: "TLDR" }, { email: MORNING, name: "Morning Brew" }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 2 });
+		await store.savePage({ previous, senders: [{ email: TLDR, name: "TLDR" }, { email: MORNING, name: "Morning Brew" }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 2, estimatedTotalMessages: 2 });
 	}
 	const destination = await gmail.bundle.mintInboxAddress({ userId, name: AliasNameSchema.parse("tech") });
 	return { harness, gmail, agent, userId, gatewayAddress, destination };
@@ -64,7 +64,7 @@ describe("Gmail sender mapping page", () => {
 		for (const path of [GMAIL, `${GMAIL}/senders`, `${GMAIL}/status`]) {
 			expect((await request(harness.server).get(path)).headers.location).toBe("/login");
 		}
-		for (const path of [ADD, REMOVE, REMOVE_MAPPING, DISCOVER, `${GMAIL}/disconnect`]) {
+		for (const path of [ADD, REMOVE, DISCOVER, `${GMAIL}/disconnect`]) {
 			expect((await request(harness.server).post(path)).headers.location).toBe("/login");
 		}
 	});
@@ -144,6 +144,83 @@ describe("Gmail sender mapping page", () => {
 		expect(fragment.headers["hx-push-url"]).toBeUndefined();
 	});
 
+	it("swaps the load button progress label without replacing the sender search field", async () => {
+		const { agent, gmail, userId, gatewayAddress } = await connectedAgent();
+		const discovery = gmail.bundle.gmailDiscoveryStore;
+		await discovery.startDiscovery({
+			userId,
+			accountEmail: EMAIL,
+			gatewayAddress,
+			generation: "progress",
+			mode: "full",
+			historyId: "100",
+		});
+		await discovery.claimPage({ userId, generation: "progress", page: 0 });
+		const previous = await discovery.findDiscoveryByUserId(userId);
+		assert(previous);
+		await discovery.savePage({
+			previous,
+			senders: [],
+			mode: "full",
+			pageToken: "next",
+			historyId: "100",
+			state: "running",
+			scannedMessages: 25,
+			estimatedTotalMessages: 125,
+		});
+		const response = await agent.get(`${GMAIL}/senders?discovery=started&poll=1`).set("HX-Request", "true");
+		const fragment = load(response.text);
+		const button = fragment.querySelector("#gmail-load-senders-button");
+		assert(button);
+		expect(button.textContent).toBe("Checking 25 of 125 messages…");
+		expect(button.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(Array.from(fragment.querySelectorAll("[id]"), (element) => element.id).sort()).toEqual([
+			"gmail-load-senders-button",
+			"gmail-sender-results",
+		]);
+	});
+
+	it("exposes a completed load button from the redirected discovery response", async () => {
+		let now = new Date("2026-09-12T00:00:00.000Z");
+		const { agent, gmail, userId, gatewayAddress } = await connectedAgent({ now: () => now });
+		const discovery = gmail.bundle.gmailDiscoveryStore;
+		await discovery.startDiscovery({
+			userId,
+			accountEmail: EMAIL,
+			gatewayAddress,
+			generation: "redirect-race",
+			mode: "history",
+			historyId: "100",
+		});
+		gmail.bundle.publishStartGmailSenderDiscovery = async ({ userId: requestedUserId }) => {
+			expect(requestedUserId).toBe(userId);
+			const running = await discovery.findDiscoveryByUserId(userId);
+			assert(running);
+			now = new Date("2026-09-12T00:00:01.000Z");
+			expect(await discovery.claimPage({ userId, generation: running.generation, page: running.page })).toBe(true);
+			expect(await discovery.savePage({
+				previous: running,
+				senders: [],
+				mode: "history",
+				pageToken: undefined,
+				historyId: "100",
+				state: "complete",
+				scannedMessages: 0,
+				estimatedTotalMessages: undefined,
+			})).toBe(true);
+		};
+
+		const response = await agent.post(DISCOVER).set("HX-Request", "true").redirects(1);
+		expect(response.status).toBe(200);
+		const page = load(response.text);
+		const form = page.querySelector("[data-test-gmail-load-senders]");
+		assert(form);
+		expect(form.getAttribute("hx-select")).toBe("#gmail-sender-results");
+		expect(form.getAttribute("hx-select-oob")).toBe("#gmail-load-senders-button:outerHTML");
+		expect(form.querySelector("#gmail-load-senders-button")?.textContent).toBe("Load senders");
+		expect(page.querySelector("#gmail-sender-results")?.hasAttribute("hx-get")).toBe(false);
+	});
+
 	it("retains setup instructions and polls Gmail confirmation", async () => {
 		const { agent, gatewayAddress } = await connectedAgent({ confirmed: false });
 		const doc = load((await agent.get(GMAIL)).text);
@@ -163,6 +240,32 @@ describe("Gmail sender mapping page", () => {
 });
 
 describe("Save a sender mapping", () => {
+	it("searches and saves mapped-only senders when discovery is empty", async () => {
+		const { agent, gmail, userId, destination } = await connectedAgent({ discovered: false });
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddress: destination });
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: MORNING });
+		const reading = await gmail.addresses.createAddress({
+			userId,
+			domain: "read.place",
+			name: AliasNameSchema.parse("reading"),
+			purpose: "gmail-mapped",
+		});
+
+		for (const [sender, target] of [[MORNING, destination], [TLDR, reading.address]] as const) {
+			const response = await agent
+				.get(`${GMAIL}/senders?search=${encodeURIComponent(sender)}&discovery=started`)
+				.set("HX-Request", "true");
+			const option = load(response.text).querySelector(`[data-test-gmail-sender-option="${sender}"]`);
+			assert(option);
+			const chooser = option.closest("form");
+			assert(chooser);
+			expect(chooser.querySelector<HTMLInputElement>('input[name="sender"]')?.value).toBe(sender);
+			await agent.post(ADD).type("form").send({ sender, destination: target });
+			expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: sender }))?.mappedAddress).toBe(target);
+		}
+	});
+
 	it("maps a discovered sender and can move it to another existing inbox", async () => {
 		const { agent, gmail, userId, destination } = await connectedAgent();
 		const save = await agent.post(ADD).type("form").send({ sender: TLDR, destination });
@@ -236,6 +339,10 @@ describe("Save a sender mapping", () => {
 			const response = await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new", inbox_name: name });
 			expect(response.headers.location).toContain(name === "tech" ? "error=inbox_name_taken" : "error=inbox_name_invalid");
 			expect(response.headers.location).toContain("sender=dan%40tldr.tech");
+			expect(response.headers.location).toContain("destination=new");
+			if (name !== undefined) {
+				expect(new URL(response.headers.location, "https://readplace.com").searchParams.get("inbox_name")).toBe(name);
+			}
 		}
 		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
 	});
@@ -264,38 +371,29 @@ describe("Save a sender mapping", () => {
 	});
 });
 
-describe("Remove sender mappings", () => {
-	it("removes one sender while keeping its inbox and other assignments", async () => {
+describe("Exclude mapped senders", () => {
+	it("removes the mapping card after its final sender is excluded while keeping the inbox", async () => {
 		const { agent, gmail, userId, destination } = await connectedAgent();
 		for (const sender of [TLDR, MORNING]) await agent.post(ADD).type("form").send({ sender, destination });
 		await agent.post(REMOVE).type("form").send({ sender: TLDR });
 		expect((await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).map((row) => row.senderEmail)).toEqual([MORNING]);
 		expect((await gmail.bundle.findInboxAddress(destination))?.disabledAt).toBeUndefined();
 		expect((await gmail.bundle.gmailDiscoveryStore.listSendersByUserId(userId)).map((row) => row.email).sort()).toEqual([MORNING, TLDR].sort());
+		const oneSender = load((await agent.get(GMAIL)).text);
+		expect(Array.from(oneSender.querySelectorAll("[data-test-gmail-mapping]"), (mapping) => mapping.getAttribute("data-test-gmail-mapping"))).toEqual([destination]);
+		await agent.post(REMOVE).type("form").send({ sender: MORNING });
+		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		const noSenders = load((await agent.get(GMAIL)).text);
+		expect(Array.from(noSenders.querySelectorAll("[data-test-gmail-mapping]"), (mapping) => mapping.getAttribute("data-test-gmail-mapping"))).toEqual([]);
+		expect(noSenders.querySelector("[data-test-gmail-empty]")?.textContent).toBe("No mappings yet. Choose a Gmail sender and an inbox above.");
+		expect((await gmail.bundle.findInboxAddress(destination))?.disabledAt).toBeUndefined();
 	});
 
-	it("removes an inbox mapping as a group without disabling or deleting the inbox", async () => {
-		const { agent, gmail, userId, destination } = await connectedAgent();
-		for (const sender of [TLDR, MORNING]) await agent.post(ADD).type("form").send({ sender, destination });
-		const otherSender = ForwardableSenderSchema.parse("another@example.com");
-		const otherInbox = await gmail.bundle.mintInboxAddress({ userId, name: AliasNameSchema.parse("another") });
-		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: otherSender, mappedAddress: otherInbox });
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: otherSender });
-		const response = await agent.post(REMOVE_MAPPING).type("form").send({ destination });
-		expect(response.headers.location).toBe(`${GMAIL}?notice=mapping_removed&discovery=started`);
-		expect((await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).map((sender) => sender.senderEmail)).toEqual([otherSender]);
-		const inbox = await gmail.bundle.findInboxAddress(destination);
-		assert(inbox);
-		expect(inbox.disabledAt).toBeUndefined();
-		expect(gmail.rewriteRequests.at(-1)).toEqual({ userId, reason: "sender-removed" });
-	});
-
-	it("can clear legacy gateway-only mappings and rejects malformed removal requests", async () => {
+	it("excludes a legacy sender individually and rejects a malformed request", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
 		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
-		await agent.post(REMOVE_MAPPING).type("form").send({ destination: "legacy" });
+		await agent.post(REMOVE).type("form").send({ sender: TLDR });
 		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
-		expect((await agent.post(REMOVE_MAPPING).type("form").send({})).headers.location).toBe(`${GMAIL}?error=destination_invalid`);
 		expect((await agent.post(REMOVE).type("form").send({ sender: "bad" })).headers.location).toBe(`${GMAIL}?error=sender_invalid`);
 	});
 

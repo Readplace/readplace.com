@@ -16,6 +16,7 @@ export function initInMemoryGmailDiscovery(deps: { now: () => Date }): GmailDisc
 				page: resume?.page ?? 0,
 				pageToken: resume?.pageToken,
 				scannedCount: resume?.scannedCount ?? 0,
+				estimatedTotalMessages: resume?.estimatedTotalMessages,
 				updatedAt: deps.now().toISOString(),
 				error: undefined,
 				requiresReconnect: false,
@@ -31,7 +32,7 @@ export function initInMemoryGmailDiscovery(deps: { now: () => Date }): GmailDisc
 			claims.set(userId, now + 60_000);
 			return true;
 		},
-		savePage: async ({ previous, senders: pageSenders, mode, pageToken, historyId, state, scannedMessages }) => {
+		savePage: async ({ previous, senders: pageSenders, mode, pageToken, historyId, state, scannedMessages, estimatedTotalMessages }) => {
 			const current = discoveries.get(previous.userId);
 			if (current?.generation !== previous.generation || current.page !== previous.page || current.state !== "running") return false;
 			const owned = senders.get(previous.userId) ?? new Map<string, DiscoveredGmailSender>();
@@ -44,7 +45,8 @@ export function initInMemoryGmailDiscovery(deps: { now: () => Date }): GmailDisc
 				historyId,
 				state,
 				page: previous.page + 1,
-				scannedCount: previous.scannedCount + scannedMessages,
+				scannedCount: mode === "profile" ? scannedMessages : previous.scannedCount + scannedMessages,
+				estimatedTotalMessages,
 				updatedAt: deps.now().toISOString(),
 				error: undefined,
 				requiresReconnect: false,

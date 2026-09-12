@@ -26,7 +26,6 @@ import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-connect.page";
 
 const SenderBodySchema = z.object({ sender: ForwardableSenderSchema });
-const DestinationBodySchema = z.object({ destination: z.string().min(1) });
 const AddSenderBodySchema = z.object({
 	sender: ForwardableSenderSchema,
 	destination: z.string().min(1),
@@ -99,7 +98,9 @@ export function registerGmailPageRoutes(
 			inboxes,
 			gatewayLive: gateway !== undefined && isLiveAddress(gateway),
 			discoveredSenders: sameMailbox ? discoveredSenders : [],
-			discovery: discovery === undefined || !sameMailbox ? { state: "idle", scannedCount: 0 } : discovery,
+			discovery: discovery === undefined || !sameMailbox
+				? { state: "idle", mode: "profile", scannedCount: 0, estimatedTotalMessages: undefined }
+				: discovery,
 			metadataScopeGranted: grantedScope?.split(" ").includes(GMAIL_METADATA_SCOPE) === true,
 			search: queryValue(req, "search") ?? "",
 			selectedSender: queryValue(req, "sender"),
@@ -130,7 +131,7 @@ export function registerGmailPageRoutes(
 		if (queryValue(req, "poll") === undefined) {
 			res.set("HX-Push-Url", buildGmailUrl({ search: vm.search, sender: vm.selectedSender, destination: vm.selectedDestination, discovery: "started", discovery_after: vm.chooser.discoveryAfter }));
 		}
-		res.type("html").send(renderGmailSenderResults(vm));
+		res.type("html").send(renderGmailSenderResults(vm, { outOfBandLoadButton: true }));
 	});
 
 	router.post("/gmail/discovery/start", write, connected, async (req: Request, res: Response) => {
@@ -233,21 +234,6 @@ export function registerGmailPageRoutes(
 		await gmail.gmailSenderStore.removeSender({ userId, senderEmail: body.data.sender });
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-removed" });
 		res.redirect(303, buildGmailUrl({ notice: "sender_removed", discovery: "started" }));
-	});
-
-	router.post("/gmail/mappings/remove", write, connected, async (req: Request, res: Response) => {
-		const userId = ownerOf(req);
-		const body = DestinationBodySchema.safeParse(req.body);
-		if (!body.success) {
-			res.redirect(303, buildGmailUrl({ error: "destination_invalid" }));
-			return;
-		}
-		const senders = await gmail.gmailSenderStore.listSendersByUserId(userId);
-		const mappedAddress = body.data.destination === "legacy" ? undefined : body.data.destination;
-		const group = senders.filter((sender) => sender.addedToFilterAt !== undefined && sender.mappedAddress === mappedAddress);
-		await Promise.all(group.map((sender) => gmail.gmailSenderStore.removeSender({ userId, senderEmail: sender.senderEmail })));
-		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-removed" });
-		res.redirect(303, buildGmailUrl({ notice: "mapping_removed", discovery: "started" }));
 	});
 
 	router.post("/gmail/disconnect", write, async (req: Request, res: Response) => {

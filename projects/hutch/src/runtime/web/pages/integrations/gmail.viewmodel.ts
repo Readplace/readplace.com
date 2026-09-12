@@ -1,12 +1,12 @@
 import { withInternalTracking } from "@packages/web-shell";
-import type { GmailConnection, GmailConnectionState, GmailSenderEntry } from "@packages/domain/gmail";
+import type { GmailConnection, GmailConnectionState, GmailDiscovery, GmailSenderEntry } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { addressCapReached, INBOX_ADDRESS_MAX_PER_USER, isCappedAddress, isLiveAddress } from "@packages/domain/inbox";
 import {
 	buildGmailStatusUrl, buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS,
 	GMAIL_DISCONNECT_PATH, GMAIL_SENDER_ADD_PATH, GMAIL_SENDER_REMOVE_PATH,
-	GMAIL_MAPPING_REMOVE_PATH, GMAIL_DISCOVERY_START_PATH, GMAIL_SENDERS_PATH, GMAIL_PATH,
+	GMAIL_DISCOVERY_START_PATH, GMAIL_SENDERS_PATH, GMAIL_PATH,
 	buildGmailMailboxUrl, type GmailPageError, type GmailPageNotice,
 } from "./gmail.url";
 import { GMAIL_CONNECT_PATH, INTEGRATIONS_PATH } from "./gmail-connect.url";
@@ -18,14 +18,12 @@ interface GmailDestinationOption {
 	label: string;
 	address: string | undefined;
 	fields: FormField[];
-	disabled: boolean;
 }
 interface GmailMappingGroup {
 	destination: string;
-	name: string;
-	address: string | undefined;
+	name: string | undefined;
 	disabled: boolean;
-	senders: { email: string; selectUrl: string }[];
+	senders: { email: string }[];
 }
 export interface GmailBannerViewModel { key: string; message: string }
 
@@ -36,7 +34,13 @@ export interface GmailPageInput {
 	gatewayLive: boolean;
 	metadataScopeGranted: boolean;
 	discoveredSenders: readonly { email: string; name?: string }[];
-	discovery: { state: "idle" | "running" | "complete" | "failed"; scannedCount: number; requiresReconnect?: boolean };
+	discovery: {
+		state: "idle" | GmailDiscovery["state"];
+		mode: GmailDiscovery["mode"];
+		scannedCount: number;
+		estimatedTotalMessages: number | undefined;
+		requiresReconnect?: boolean;
+	};
 	search: string;
 	selectedSender?: string;
 	selectedDestination?: string;
@@ -60,10 +64,10 @@ export interface GmailPageViewModel {
 	searchPath: string;
 	saveAction: string;
 	removeSenderAction: string;
-	removeMappingAction: string;
 	discoveryAction: string;
 	disconnectAction: string;
 	reconnectAction: string;
+	manageInboxesUrl: string;
 	showStep: boolean;
 	showSenders: boolean;
 	showReconnect: boolean;
@@ -75,15 +79,17 @@ export interface GmailPageViewModel {
 	selectedDestination: string | undefined;
 	destinationLabel: string;
 	destinationOptions: GmailDestinationOption[];
-	newInbox: boolean;
+	inboxPickerOpen: boolean;
 	inboxName: string;
 	inboxLimit: boolean;
 	inboxMax: number;
+	canCreateInbox: boolean;
 	canSave: boolean;
 	chooser: {
 		state: string;
 		discoveryAfter: string | undefined;
 		message: string;
+		loadButtonLabel: string;
 		options: GmailSenderOption[];
 		hasOptions: boolean;
 		refineMessage: string | undefined;
@@ -117,13 +123,13 @@ const STATUS_LABELS: Record<GmailConnectionState, string> = {
 
 export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	sender_invalid: "Choose a sender from your Gmail account.",
-	sender_duplicate: "This sender already has a mapping. Choose its inbox below to change it.",
+	sender_duplicate: "This sender already has a mapping.",
 	sender_unknown: "I couldn't find that sender. Load your Gmail senders and try again.",
 	metadata_required: "Reconnect Gmail to choose senders from your mailbox.",
 	destination_invalid: "Choose one of your enabled inboxes, or create a new inbox.",
 	inbox_name_invalid: "Give the inbox a name using letters, numbers and hyphens.",
 	inbox_name_taken: "You already have an inbox with that name. Choose it from the list.",
-	inbox_limit: `You have ${INBOX_ADDRESS_MAX_PER_USER} active inboxes. Choose an existing inbox or disable one on Your inbox emails.`,
+	inbox_limit: `You have ${INBOX_ADDRESS_MAX_PER_USER} active inboxes. Choose an existing inbox or disable one in Manage Your Inboxes below.`,
 };
 
 export const GMAIL_GATEWAY_DISABLED_MESSAGE =
@@ -133,7 +139,6 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	connected: "Gmail is connected.", confirmed: "Forwarding confirmed.",
 	sender_added: "Mapping saved. New mail from this sender will go to the selected inbox.",
 	sender_removed: "Sender removed from the mapping.",
-	mapping_removed: "Mapping removed. Gmail will stop forwarding those senders.",
 	sender_mapped: "Mapping saved.", inbox_created: "Inbox created and mapping saved.",
 	inbox_confirmation_required: "Mapping saved.",
 };
@@ -144,15 +149,24 @@ function bannersFor(key: string | undefined, messages: Record<string, string>): 
 	return message === undefined ? [] : [{ key, message }];
 }
 
-function discoveryMessage(input: GmailPageInput): string {
+function discoveryMessage(input: GmailPageInput, availableSenders: number): string {
 	if (input.discovery.requiresReconnect) return "Reconnect Gmail to continue loading senders. Your existing mappings stay in place.";
-	const found = input.discoveredSenders.length;
 	switch (input.discovery.state) {
 		case "idle": return "Load senders from your Gmail account to choose one.";
-		case "running": return `Finding senders in Gmail… ${found} found from ${input.discovery.scannedCount} messages. You can choose a sender now.`;
+		case "running": return availableSenders > 0 ? "You can select a sender now." : "Gmail is checking for senders.";
 		case "failed": return "I couldn't finish loading your Gmail senders. Your saved choices are still available. Try Load senders again.";
-		case "complete": return `${found} Gmail senders available.`;
+		case "complete": return `${availableSenders} Gmail senders available.`;
 	}
+}
+
+function loadButtonLabel(input: GmailPageInput, polling: boolean): string {
+	if (!polling) return "Load senders";
+	if (input.discoveryPending && input.discovery.state === "complete") return "Checking Gmail for new messages…";
+	if (input.discovery.mode === "history") return "Checking Gmail for new messages…";
+	if (input.discovery.estimatedTotalMessages !== undefined) {
+		return `Checking ${input.discovery.scannedCount} of ${input.discovery.estimatedTotalMessages} messages…`;
+	}
+	return "Checking Gmail messages…";
 }
 
 function mappingGroups(input: GmailPageInput): GmailMappingGroup[] {
@@ -165,17 +179,13 @@ function mappingGroups(input: GmailPageInput): GmailMappingGroup[] {
 			const inbox = input.inboxes.find((entry) => entry.address === destination);
 			group = {
 				destination,
-				name: inbox?.name ?? (destination === "legacy" ? "Choose an inbox" : destination),
-				address: sender.mappedAddress,
+				name: destination === "legacy" ? undefined : inbox?.name ?? destination,
 				disabled: inbox !== undefined && !isLiveAddress(inbox),
 				senders: [],
 			};
 			groups.set(destination, group);
 		}
-		group.senders.push({
-			email: sender.senderEmail,
-			selectUrl: track(buildGmailUrl({ sender: sender.senderEmail, search: "", discovery: "started" }), "change-sender-inbox"),
-		});
+		group.senders.push({ email: sender.senderEmail });
 	}
 	return [...groups.values()];
 }
@@ -196,9 +206,17 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const destinations = input.inboxes.filter((entry) => isCappedAddress(entry) && isLiveAddress(entry));
 	const selectedInbox = destinations.find((entry) => entry.address === input.selectedDestination);
 	const selectedDestination = input.selectedDestination === "new" ? "new" : selectedInbox?.address;
+	const inboxPickerErrors = new Set(["inbox_name_invalid", "inbox_name_taken", "inbox_limit"]);
+	const inboxPickerOpen = input.error !== undefined && inboxPickerErrors.has(input.error) && selectedDestination === "new";
 	const params = { search: input.search, sender: input.selectedSender, destination: selectedDestination, discovery_after: input.discoveryAfter };
 	const needle = input.search.trim().toLowerCase();
-	const matches = input.discoveredSenders
+	const availableSenders = new Map(input.discoveredSenders.map((sender) => [sender.email, sender]));
+	for (const sender of input.senders) {
+		if (sender.addedToFilterAt !== undefined && !availableSenders.has(sender.senderEmail)) {
+			availableSenders.set(sender.senderEmail, { email: sender.senderEmail });
+		}
+	}
+	const matches = [...availableSenders.values()]
 		.filter((sender) => `${sender.email} ${sender.name ?? ""}`.toLowerCase().includes(needle))
 		.sort((left, right) => left.email.localeCompare(right.email));
 	const options = matches.slice(0, 100)
@@ -217,9 +235,9 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		pagePath: GMAIL_PATH, searchPath: GMAIL_SENDERS_PATH,
 		saveAction: track(GMAIL_SENDER_ADD_PATH, "save-mapping"),
 		removeSenderAction: track(GMAIL_SENDER_REMOVE_PATH, "exclude-sender"),
-		removeMappingAction: track(GMAIL_MAPPING_REMOVE_PATH, "remove-mapping"),
 		discoveryAction: track(GMAIL_DISCOVERY_START_PATH, "load-senders"),
 		disconnectAction: track(GMAIL_DISCONNECT_PATH, "disconnect"), reconnectAction: track(GMAIL_CONNECT_PATH, "reconnect"),
+		manageInboxesUrl: track("/inbox/addresses", "manage-inboxes"),
 		showStep: state === "awaiting-confirmation" && input.gatewayLive,
 		showSenders: !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect,
 		showReconnect: revoked, showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
@@ -227,19 +245,17 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		search: input.search,
 		searchFields: fieldsFor(params, "search-senders").filter((field) => field.name !== "search" && field.name !== "discovery_after"),
 		selectedSender: input.selectedSender, selectedDestination,
-		destinationLabel: selectedInbox?.name ?? (selectedDestination === "new" ? "New inbox" : "Choose an inbox"),
-		destinationOptions: [
-			...destinations.map((entry) => ({ value: entry.address, label: entry.name, address: entry.address,
-				fields: fieldsFor({ ...params, destination: entry.address }, "choose-inbox"), disabled: false })),
-			{ value: "new", label: "New inbox", address: undefined,
-				fields: fieldsFor({ ...params, destination: "new" }, "new-inbox"), disabled: inboxLimit },
-		],
-		newInbox: selectedDestination === "new", inboxName: input.inboxName ?? "", inboxLimit, inboxMax: INBOX_ADDRESS_MAX_PER_USER,
-		canSave: input.selectedSender !== undefined && selectedDestination !== undefined && !(selectedDestination === "new" && inboxLimit),
+		destinationLabel: selectedInbox?.name ?? "Choose an inbox",
+		destinationOptions: destinations.map((entry) => ({ value: entry.address, label: entry.name, address: entry.address,
+			fields: fieldsFor({ ...params, destination: entry.address }, "choose-inbox") })),
+		inboxPickerOpen, inboxName: input.inboxName ?? "", inboxLimit, inboxMax: INBOX_ADDRESS_MAX_PER_USER,
+		canCreateInbox: !inboxLimit,
+		canSave: input.selectedSender !== undefined && selectedInbox !== undefined,
 		chooser: {
 			state: input.discovery.state,
 			discoveryAfter: input.discoveryAfter,
-			message: discovering && pollCount >= GMAIL_CONFIRM_MAX_POLLS ? "Still finding senders. Press Load senders to continue." : discoveryMessage(input),
+			message: discovering && pollCount >= GMAIL_CONFIRM_MAX_POLLS ? "Still finding senders. Press Load senders to continue." : discoveryMessage(input, availableSenders.size),
+			loadButtonLabel: loadButtonLabel(input, polling),
 			options, hasOptions: options.length > 0,
 			refineMessage: matches.length > 100 ? `Showing 100 of ${matches.length} matching senders. Refine your search to find another sender.` : undefined,
 			reconnectAction: input.discovery.requiresReconnect ? track(GMAIL_CONNECT_PATH, "reconnect-sender-access") : undefined,

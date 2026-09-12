@@ -101,7 +101,7 @@ describe("initGmailDiscoveryDlqHandler", () => {
 		const previous = await h.discovery.findDiscoveryByUserId(USER);
 		assert(previous);
 		assert.equal(previous.state, "running");
-		await h.discovery.savePage({ previous, senders: [], mode: "history", pageToken: undefined, historyId: "200", state: "complete", scannedMessages: 0 });
+		await h.discovery.savePage({ previous, senders: [], mode: "history", pageToken: undefined, historyId: "200", state: "complete", scannedMessages: 0, estimatedTotalMessages: undefined });
 		await run(handler, [{ messageId: "completed", body: body(StartGmailSenderDiscoveryCommand) }]);
 		assert.equal((await h.discovery.findDiscoveryByUserId(USER))?.state, "complete");
 		assert.deepEqual(h.published, []);

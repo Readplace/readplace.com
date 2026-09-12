@@ -10,6 +10,7 @@ import { toGmailPollViewModel } from "./gmail.viewmodel";
 const GMAIL_TEMPLATE = readFileSync(join(__dirname, "gmail.template.html"), "utf-8");
 const GMAIL_POLL_TEMPLATE = readFileSync(join(__dirname, "gmail-poll.template.html"), "utf-8");
 const GMAIL_SENDER_RESULTS_TEMPLATE = readFileSync(join(__dirname, "gmail-sender-results.template.html"), "utf-8");
+const GMAIL_LOAD_BUTTON_TEMPLATE = readFileSync(join(__dirname, "gmail-load-button.template.html"), "utf-8");
 
 const GMAIL_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
 
@@ -33,8 +34,18 @@ export function renderGmailPoll(vm: GmailPollViewModel): string {
 	return render(GMAIL_POLL_TEMPLATE, vm);
 }
 
-export function renderGmailSenderResults(vm: GmailPageViewModel): string {
-	return render(GMAIL_SENDER_RESULTS_TEMPLATE, vm.chooser);
+function renderGmailLoadButton(vm: GmailPageViewModel, outOfBand: boolean): string {
+	return render(GMAIL_LOAD_BUTTON_TEMPLATE, { label: vm.chooser.loadButtonLabel, outOfBand });
+}
+
+export function renderGmailSenderResults(
+	vm: GmailPageViewModel,
+	options: { outOfBandLoadButton: boolean } = { outOfBandLoadButton: false },
+): string {
+	return render(GMAIL_SENDER_RESULTS_TEMPLATE, {
+		...vm.chooser,
+		loadButton: options.outOfBandLoadButton ? renderGmailLoadButton(vm, true) : undefined,
+	});
 }
 
 export function GmailPage(vm: GmailPageViewModel): PageBody {
@@ -53,6 +64,7 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 				settingsShot: SETTINGS_SHOT,
 				forwardingShot: FORWARDING_SHOT,
 				pollLine: renderGmailPoll(toGmailPollViewModel({ pollCount: 0 })),
+				loadButton: renderGmailLoadButton(vm, false),
 				senderResults: renderGmailSenderResults(vm),
 			}),
 		},

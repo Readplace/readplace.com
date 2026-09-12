@@ -200,20 +200,6 @@
   margin: 0 0 24px;
 }
 
-.gmail__item-body {
-  flex: 1 1 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.gmail__item-name {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-  color: var(--foreground);
-}
-
 .gmail__disconnect {
   margin-top: 32px;
   padding-top: 24px;
@@ -303,9 +289,13 @@
 }
 
 .gmail__search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   gap: 8px;
-  margin-bottom: 8px;
+  padding-bottom: 8px;
+  background: var(--card);
 }
 
 .gmail__options {
@@ -319,6 +309,28 @@
 
 .gmail__options form {
   margin: 0;
+}
+
+.gmail__create-inbox-item {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.gmail__create-inbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gmail__create-inbox-button {
+  flex: none;
+  width: var(--input-height);
+}
+
+.gmail__create-inbox-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .gmail__picker-option {
@@ -361,12 +373,6 @@
   margin: 8px 12px;
 }
 
-.gmail__save > .gmail__add-input {
-  display: block;
-  width: 100%;
-  margin-bottom: 12px;
-}
-
 .gmail__mapping {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -375,7 +381,6 @@
   background: var(--card);
 }
 
-.gmail__mapping-heading,
 .gmail__mapped-sender {
   display: flex;
   flex-wrap: wrap;
@@ -384,26 +389,43 @@
   gap: 12px;
 }
 
-.gmail__mapping-heading h3 {
+.gmail__mapping-source-label,
+.gmail__mapping-destination-label {
   margin: 0;
-  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  text-wrap: pretty;
 }
 
 .gmail__mapped-senders {
-  margin: 12px 0 0;
+  margin: 8px 0;
   padding: 0;
   list-style: none;
 }
 
 .gmail__mapped-sender {
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  margin-top: 12px;
+  padding: 8px 0;
 }
 
-.gmail__mapped-sender > a {
+.gmail__mapped-sender + .gmail__mapped-sender {
+  border-top: 1px solid var(--border);
+}
+
+.gmail__mapped-sender-email {
   flex: 1 1 200px;
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--primary-text);
+  color: var(--foreground);
+}
+
+.gmail__mapping-disabled {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.gmail__manage-inboxes {
+  margin-top: 8px;
 }

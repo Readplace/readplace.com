@@ -1,3 +1,4 @@
+{{#if loadButton}}{{{loadButton}}}{{/if}}
 <div id="gmail-sender-results" data-test-gmail-sender-results data-discovery-state="{{state}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML" hx-sync="#gmail-sender-search-form:drop"{{/if}}>
   <p class="gmail__discovery-status" role="status" data-test-gmail-discovery-status>{{message}}</p>
   {{#if discoveryAfter}}<input type="hidden" form="gmail-sender-search-form" name="discovery_after" value="{{discoveryAfter}}">{{/if}}

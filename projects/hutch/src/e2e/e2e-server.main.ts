@@ -9,7 +9,7 @@ import {
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
-import { UserIdSchema } from '@packages/domain/user'
+import { type UserId, UserIdSchema } from '@packages/domain/user'
 import { ForwardableSenderSchema, GmailAccountEmailSchema, aliasNameForSender } from '@packages/domain/gmail'
 import { GMAIL_SCOPES } from '@packages/provider-contracts/gmail-oauth'
 import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
@@ -121,6 +121,33 @@ const gmailIntegration = initInMemoryGmailIntegration({
 		},
 	},
 })
+const completeGmailDiscoveryOnStart = new Set<UserId>()
+const recordGmailDiscoveryStart = gmailIntegration.bundle.publishStartGmailSenderDiscovery
+gmailIntegration.bundle.publishStartGmailSenderDiscovery = async (detail) => {
+	await recordGmailDiscoveryStart(detail)
+	if (!completeGmailDiscoveryOnStart.delete(detail.userId)) return
+	const discovery = await gmailIntegration.bundle.gmailDiscoveryStore.findDiscoveryByUserId(detail.userId)
+	assert(discovery)
+	assert(
+		await gmailIntegration.bundle.gmailDiscoveryStore.claimPage({
+			userId: detail.userId,
+			generation: discovery.generation,
+			page: discovery.page,
+		}),
+	)
+	assert(
+		await gmailIntegration.bundle.gmailDiscoveryStore.savePage({
+			previous: discovery,
+			senders: [],
+			mode: discovery.mode,
+			pageToken: undefined,
+			historyId: discovery.historyId,
+			state: 'complete',
+			scannedMessages: 0,
+			estimatedTotalMessages: discovery.estimatedTotalMessages,
+		}),
+	)
+}
 // E2E exercises the HTMX polling UI end-to-end, so opt the summary fake into
 // transitioning pending → ready after a few reads. Unit/route tests use the
 // default (stays pending) for deterministic HTML assertions.
@@ -385,6 +412,11 @@ const SeedGmailStateBody = z.object({
 	userId: UserIdSchema,
 	state: z.enum(['awaiting', 'ready', 'filtering', 'filter-failed', 'revoked']),
 	discoveredSenders: z.array(z.object({ email: ForwardableSenderSchema, name: z.string().optional() })).default([]),
+	discoveryState: z.enum(['running', 'complete']).default('complete'),
+	discoveryMode: z.enum(['profile', 'full', 'history']).default('full'),
+	discoveryScannedMessages: z.number().int().nonnegative().optional(),
+	discoveryEstimatedTotalMessages: z.number().int().nonnegative().optional(),
+	completeDiscoveryOnStart: z.boolean().default(false),
 	senders: z
 		.array(
 			z.object({
@@ -401,7 +433,17 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { userId, state, senders, discoveredSenders } = parsed.data
+	const {
+		userId,
+		state,
+		senders,
+		discoveredSenders,
+		discoveryState,
+		discoveryMode,
+		discoveryScannedMessages,
+		discoveryEstimatedTotalMessages,
+		completeDiscoveryOnStart,
+	} = parsed.data
 	const { gmailConnectionStore, gmailSenderStore, gmailCredentialsStore, gmailDiscoveryStore, mintGatewayAddress, mintInboxAddress } =
 		gmailIntegration.bundle
 	const gatewayAddress = await mintGatewayAddress({ userId })
@@ -412,14 +454,17 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 	})
 	await gmailConnectionStore.recordAccountEmail({ userId, accountEmail })
 	await gmailCredentialsStore.saveCredentials({ userId, refreshToken: 'e2e-refresh', grantedScope: GMAIL_SCOPES })
-	await gmailDiscoveryStore.startDiscovery({ userId, accountEmail, gatewayAddress, generation: 'e2e', mode: 'full', historyId: '100' })
+	await gmailDiscoveryStore.startDiscovery({ userId, accountEmail, gatewayAddress, generation: 'e2e', mode: discoveryMode, historyId: '100' })
 	await gmailDiscoveryStore.claimPage({ userId, generation: 'e2e', page: 0 })
 	const previous = await gmailDiscoveryStore.findDiscoveryByUserId(userId)
 	assert(previous)
 	await gmailDiscoveryStore.savePage({ previous,
 		senders: discoveredSenders.map((entry) => ({ email: entry.email, name: entry.name })),
-		mode: 'full', pageToken: undefined, historyId: '100', state: 'complete', scannedMessages: discoveredSenders.length,
+		mode: discoveryMode, pageToken: discoveryState === 'running' ? 'e2e-next' : undefined, historyId: '100', state: discoveryState,
+		scannedMessages: discoveryScannedMessages ?? discoveredSenders.length,
+		estimatedTotalMessages: discoveryEstimatedTotalMessages ?? discoveredSenders.length,
 	})
+	if (completeDiscoveryOnStart) completeGmailDiscoveryOnStart.add(userId)
 	if (state === 'revoked') {
 		await gmailConnectionStore.markRevoked({ userId, reason: 'invalid-grant' })
 	}

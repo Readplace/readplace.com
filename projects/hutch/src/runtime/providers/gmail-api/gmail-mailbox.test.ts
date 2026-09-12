@@ -54,7 +54,7 @@ describe("initGmailMailbox", () => {
 			seven: metadata("invalid sender"),
 		};
 		const { mailbox, requests } = harness((url) => {
-			if (url.pathname.endsWith("/messages")) return { status: 200, body: { messages: [...Object.keys(bodies), "one"].map((id) => ({ id })), nextPageToken: "older-page" } };
+			if (url.pathname.endsWith("/messages")) return { status: 200, body: { messages: [...Object.keys(bodies), "one"].map((id) => ({ id })), nextPageToken: "older-page", resultSizeEstimate: 321 } };
 			const id = url.pathname.split("/").at(-1);
 			assert(id);
 			return { status: 200, body: bodies[id] };
@@ -63,13 +63,14 @@ describe("initGmailMailbox", () => {
 		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER, pageToken: "previous-page" }), {
 			ok: true, value: {
 				senders: [{ email: "sender@example.com", name: "News" }, { email: "other@example.com", name: "Other" }],
-				nextPageToken: "older-page", scannedMessages: 7,
+				nextPageToken: "older-page", scannedMessages: 7, estimatedTotalMessages: 321,
 			},
 		});
 		const list = requests[0].url;
 		assert.equal(list.searchParams.get("pageToken"), "previous-page");
 		assert.equal(list.searchParams.get("includeSpamTrash"), "false");
 		assert.equal(list.searchParams.get("maxResults"), "25");
+		assert.equal(list.searchParams.get("fields"), "messages(id),nextPageToken,resultSizeEstimate");
 		assert.equal(list.searchParams.has("q"), false);
 		for (const { url } of requests.slice(1)) {
 			assert.equal(url.searchParams.get("format"), "METADATA");
@@ -88,13 +89,13 @@ describe("initGmailMailbox", () => {
 
 		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: true, value: {
 			senders: [{ email: "sender4@example.com", name: undefined }, { email: "sender5@example.com", name: undefined }],
-			nextPageToken: undefined, scannedMessages: 6,
+			nextPageToken: undefined, scannedMessages: 6, estimatedTotalMessages: undefined,
 		} });
 	});
 
 	it("handles an empty mailbox", async () => {
 		const { mailbox } = harness(() => ({ status: 200, body: {} }));
-		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: true, value: { senders: [], nextPageToken: undefined, scannedMessages: 0 } });
+		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: true, value: { senders: [], nextPageToken: undefined, scannedMessages: 0, estimatedTotalMessages: undefined } });
 	});
 
 	it("skips a message that disappeared between list and metadata reads", async () => {
@@ -105,7 +106,7 @@ describe("initGmailMailbox", () => {
 				: { status: 200, body: metadata("live@example.com") });
 
 		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: true, value: {
-			senders: [{ email: "live@example.com", name: undefined }], nextPageToken: undefined, scannedMessages: 2,
+			senders: [{ email: "live@example.com", name: undefined }], nextPageToken: undefined, scannedMessages: 2, estimatedTotalMessages: undefined,
 		} });
 	});
 
@@ -145,7 +146,7 @@ describe("initGmailMailbox", () => {
 		assert(second.value.nextPageToken);
 		const third = await mailbox.listChangedMessageSenders({ userId: USER, startHistoryId: "100", pageToken: second.value.nextPageToken });
 		assert.deepEqual(third, { ok: true, value: {
-			senders: [{ email: "senderlast@example.com", name: undefined }], nextPageToken: undefined, scannedMessages: 1, historyId: "200",
+			senders: [{ email: "senderlast@example.com", name: undefined }], nextPageToken: undefined, scannedMessages: 1, estimatedTotalMessages: undefined, historyId: "200",
 		} });
 		const historyRequests = requests.filter(({ url }) => url.pathname.endsWith("/history"));
 		assert.equal(historyRequests[2].url.searchParams.get("pageToken"), "google-page-2");
@@ -155,7 +156,7 @@ describe("initGmailMailbox", () => {
 
 	it("returns the current checkpoint when no messages have changed", async () => {
 		const { mailbox } = harness(() => ({ status: 200, body: { historyId: "200" } }));
-		assert.deepEqual(await mailbox.listChangedMessageSenders({ userId: USER, startHistoryId: "100" }), { ok: true, value: { senders: [], scannedMessages: 0, nextPageToken: undefined, historyId: "200" } });
+		assert.deepEqual(await mailbox.listChangedMessageSenders({ userId: USER, startHistoryId: "100" }), { ok: true, value: { senders: [], scannedMessages: 0, estimatedTotalMessages: undefined, nextPageToken: undefined, historyId: "200" } });
 	});
 
 	it("distinguishes an expired history checkpoint from a transient Gmail failure", async () => {

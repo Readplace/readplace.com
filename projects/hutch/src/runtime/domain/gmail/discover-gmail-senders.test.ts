@@ -14,7 +14,7 @@ const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 const SENDER = { email: ForwardableSenderSchema.parse("sender@example.com"), name: "Sender" };
 const OTHER_SENDER = { email: ForwardableSenderSchema.parse("other@example.com"), name: undefined };
 const NOW = new Date("2026-09-12T00:00:00.000Z");
-const EMPTY_PAGE = { senders: [], nextPageToken: undefined, scannedMessages: 0 };
+const EMPTY_PAGE = { senders: [], nextPageToken: undefined, scannedMessages: 0, estimatedTotalMessages: undefined };
 
 async function harness() {
 	let instant = NOW.getTime();
@@ -26,7 +26,7 @@ async function harness() {
 	const calls: unknown[] = [];
 	const mailbox: GmailMailbox = {
 		findProfile: async (input) => { calls.push({ profile: input }); return { ok: true, value: { accountEmail: ACCOUNT, historyId: "100" } }; },
-		listMessageSenders: async (input) => { calls.push({ messages: input }); return { ok: true, value: { senders: [SENDER], nextPageToken: undefined, scannedMessages: 1 } }; },
+		listMessageSenders: async (input) => { calls.push({ messages: input }); return { ok: true, value: { senders: [SENDER], nextPageToken: undefined, scannedMessages: 1, estimatedTotalMessages: 1 } }; },
 		listChangedMessageSenders: async (input) => { calls.push({ history: input }); return { ok: true, value: { ...EMPTY_PAGE, historyId: "200" } }; },
 	};
 	const discover = initDiscoverGmailSenders({ mailbox, connections, discovery, newGeneration: () => `run-${++generation}` });
@@ -43,31 +43,36 @@ describe("initDiscoverGmailSenders", () => {
 		const h = await harness();
 		h.mailbox.listMessageSenders = async (input) => {
 			h.calls.push({ messages: input });
-			return { ok: true, value: { senders: [SENDER], nextPageToken: input.pageToken === undefined ? "second" : undefined, scannedMessages: 25 } };
+			return { ok: true, value: { senders: [SENDER], nextPageToken: input.pageToken === undefined ? "second" : undefined, scannedMessages: 25, estimatedTotalMessages: input.pageToken === undefined ? 100 : 90 } };
 		};
 		h.mailbox.listChangedMessageSenders = async (input) => {
 			h.calls.push({ history: input });
-			return { ok: true, value: { senders: [OTHER_SENDER], nextPageToken: input.pageToken === undefined && input.startHistoryId === "100" ? "more-history" : undefined, scannedMessages: 1, historyId: "200" } };
+			return { ok: true, value: { senders: [OTHER_SENDER], nextPageToken: input.pageToken === undefined && input.startHistoryId === "100" ? "more-history" : undefined, scannedMessages: 1, estimatedTotalMessages: undefined, historyId: "200" } };
 		};
 		const first = await h.discover.start(USER);
 		assert.deepEqual(first, { userId: USER, generation: "run-1", page: 1 });
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER]);
 		assert.equal((await h.state()).state, "running");
+		assert.equal((await h.state()).estimatedTotalMessages, 100);
 		assert(first);
 		const second = await h.discover.page(first);
 		assert(second);
 		assert.equal((await h.state()).mode, "history");
+		assert.equal((await h.state()).estimatedTotalMessages, undefined);
 		const third = await h.discover.page(second);
 		assert(third);
 		assert.equal((await h.state()).historyId, "100");
+		assert.equal((await h.state()).estimatedTotalMessages, undefined);
 		assert.equal(await h.discover.page(third), undefined);
 		assert.equal((await h.state()).historyId, "200");
 		assert.equal((await h.state()).scannedCount, 52);
 		assert.equal((await h.state()).state, "complete");
+		assert.equal((await h.state()).estimatedTotalMessages, undefined);
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER, OTHER_SENDER]);
 		h.calls.length = 0;
 		assert.equal(await h.discover.start(USER), undefined);
 		assert.deepEqual(h.calls, [{ history: { userId: USER, startHistoryId: "200", pageToken: undefined } }]);
+		assert.equal((await h.state()).estimatedTotalMessages, undefined);
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER, OTHER_SENDER]);
 	});
 
@@ -180,22 +185,31 @@ describe("initDiscoverGmailSenders", () => {
 		const h = await harness();
 		const next = await h.discover.start(USER);
 		assert(next);
+		assert.equal((await h.state()).scannedCount, 1);
+		assert.equal((await h.state()).estimatedTotalMessages, undefined);
 		h.mailbox.listChangedMessageSenders = async () => ({ ok: false, reason: "history-expired" });
 		const restart = await h.discover.page(next);
 		assert(restart);
 		assert.equal((await h.state()).mode, "profile");
 		assert.equal((await h.state()).historyId, undefined);
+		assert.equal((await h.state()).scannedCount, 0);
+		assert.equal((await h.state()).estimatedTotalMessages, undefined);
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER]);
+		h.mailbox.listMessageSenders = async () => ({ ok: true, value: { senders: [SENDER], nextPageToken: "restart-next", scannedMessages: 25, estimatedTotalMessages: 100 } });
 		await h.discover.page(restart);
 		assert.equal((await h.state()).historyId, "100");
+		assert.equal((await h.state()).mode, "full");
+		assert.equal((await h.state()).scannedCount, 25);
+		assert.equal((await h.state()).estimatedTotalMessages, 100);
 		assert.equal(h.calls.filter((call) => "profile" in (call as object)).length, 2);
 	});
 
 	it("retries outages without losing a full-scan cursor and resumes exhausted runs from that cursor", async () => {
 		const h = await harness();
-		h.mailbox.listMessageSenders = async () => ({ ok: true, value: { senders: [SENDER], nextPageToken: "second", scannedMessages: 25 } });
+		h.mailbox.listMessageSenders = async () => ({ ok: true, value: { senders: [SENDER], nextPageToken: "second", scannedMessages: 25, estimatedTotalMessages: 1_000 } });
 		const next = await h.discover.start(USER);
 		assert(next);
+		assert.equal((await h.state()).estimatedTotalMessages, 1_000);
 		h.mailbox.listMessageSenders = async () => ({ ok: false, reason: "unavailable", status: 503 });
 		await assert.rejects(h.discover.page(next), /unavailable \(503\)/);
 		assert.equal((await h.state()).state, "running");
@@ -204,12 +218,14 @@ describe("initDiscoverGmailSenders", () => {
 		h.mailbox.listMessageSenders = async () => ({ ok: false, reason: "rejected", status: 400, message: "bad request" });
 		assert.equal(await h.discover.page(next), undefined);
 		assert.match((await h.state()).error ?? "", /Try again/);
+		assert.equal((await h.state()).estimatedTotalMessages, 1_000);
 		h.mailbox.listMessageSenders = async (input) => {
 			assert.equal(input.pageToken, "second");
-			return { ok: true, value: { senders: [OTHER_SENDER], nextPageToken: undefined, scannedMessages: 2 } };
+			return { ok: true, value: { senders: [OTHER_SENDER], nextPageToken: "third", scannedMessages: 2, estimatedTotalMessages: 900 } };
 		};
 		assert.deepEqual(await h.discover.start(USER), { userId: USER, generation: "run-2", page: 2 });
 		assert.equal((await h.state()).scannedCount, 27);
+		assert.equal((await h.state()).estimatedTotalMessages, 1_000);
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER, OTHER_SENDER]);
 	});
 

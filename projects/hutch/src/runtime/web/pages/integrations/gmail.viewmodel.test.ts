@@ -40,11 +40,17 @@ function inbox(input: { name: string; address: string; disabled?: boolean; purpo
 	};
 }
 
+function discovery(overrides: Partial<GmailPageInput["discovery"]> = {}): GmailPageInput["discovery"] {
+	return {
+		state: "complete", mode: "history", scannedCount: 6, estimatedTotalMessages: undefined, ...overrides,
+	};
+}
+
 function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 	return {
 		connection: connection(), gatewayLive: true, metadataScopeGranted: true,
 		senders: [], inboxes: [], discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: BREW }],
-		discovery: { state: "complete", scannedCount: 6 }, discoveryStarted: false, discoveryPending: false, search: "", ...overrides,
+		discovery: discovery(), discoveryStarted: false, discoveryPending: false, search: "", ...overrides,
 	};
 }
 
@@ -83,6 +89,32 @@ describe("Gmail sender chooser", () => {
 		assert.equal(searched.chooser.refineMessage, undefined);
 	});
 
+	it("keeps mapped and legacy senders searchable without a cached message", () => {
+		const legacy = ForwardableSenderSchema.parse("legacy@example.com");
+		const senders = [
+			sender({ mappedAddress: ALIAS }),
+			sender({ senderEmail: BREW, mappedAddress: ALIAS }),
+			sender({ senderEmail: legacy }),
+			sender({ senderEmail: ForwardableSenderSchema.parse("unmapped@example.com"), addedToFilterAt: undefined }),
+		];
+		const discoveredSenders = [{ email: TLDR, name: "TLDR" }];
+		const vm = toGmailPageViewModel(input({ senders, discoveredSenders }));
+		assert.deepEqual(vm.chooser.options.map(({ email, name }) => ({ email, name })), [
+			{ email: BREW, name: undefined },
+			{ email: TLDR, name: "TLDR" },
+			{ email: legacy, name: undefined },
+		]);
+		assert.equal(vm.chooser.message, "3 Gmail senders available.");
+		for (const email of [BREW, legacy]) {
+			const searched = toGmailPageViewModel(input({ senders, discoveredSenders, search: email.toUpperCase() }));
+			assert.deepEqual(searched.chooser.options.map((option) => option.email), [email]);
+			assert.equal(searched.chooser.options[0].fields.find((field) => field.name === "sender")?.value, email);
+		}
+		const running = toGmailPageViewModel(input({ senders, discoveredSenders: [],
+			discovery: discovery({ state: "running", mode: "full" }) }));
+		assert.equal(running.chooser.message, "You can select a sender now.");
+	});
+
 	it("keeps chooser state and tracking in server-rendered GET choices", () => {
 		const vm = toGmailPageViewModel(input({ search: "tech", selectedSender: TLDR, selectedDestination: ALIAS,
 			discoveryAfter: "previous", inboxes: [inbox({ name: "tech", address: ALIAS })] }));
@@ -99,25 +131,36 @@ describe("Gmail sender chooser", () => {
 		assert.equal(vm.chooser.discoveryAfter, "previous");
 	});
 
-	it("offers only enabled owned inboxes and an explicit new inbox choice", () => {
+	it("offers enabled owned inboxes and keeps inline creation separate from destination choices", () => {
 		const vm = toGmailPageViewModel(input({ selectedSender: TLDR, selectedDestination: ALIAS, inboxes: [
 			inbox({ name: "tech", address: ALIAS, purpose: "user-alias" }),
 			inbox({ name: "cook", address: "cook-c4e5f6@read.place", disabled: true }),
 			inbox({ name: "gmail", address: GATEWAY, purpose: "gmail-forwarding" }),
 		] }));
-		assert.deepEqual(vm.destinationOptions.map((option) => option.value), [ALIAS, "new"]);
+		assert.deepEqual(vm.destinationOptions.map((option) => option.value), [ALIAS]);
 		assert.equal(vm.destinationLabel, "tech");
 		assert.equal(vm.canSave, true);
-		assert.equal(vm.newInbox, false);
-		const fresh = toGmailPageViewModel(input({ selectedSender: TLDR, selectedDestination: "new", inboxName: "science" }));
-		assert.equal(fresh.newInbox, true);
+		assert.equal(vm.inboxPickerOpen, false);
+		assert.equal(vm.canCreateInbox, true);
+		const fresh = toGmailPageViewModel(input({ selectedSender: TLDR, selectedDestination: "new", inboxName: "science", error: "inbox_name_invalid" }));
+		assert.equal(fresh.inboxPickerOpen, true);
 		assert.equal(fresh.inboxName, "science");
-		assert.equal(fresh.destinationLabel, "New inbox");
-		assert.equal(fresh.canSave, true);
+		assert.equal(fresh.destinationLabel, "Choose an inbox");
+		assert.equal(fresh.canSave, false);
 		const invalid = toGmailPageViewModel(input({ selectedSender: TLDR, selectedDestination: GATEWAY }));
 		assert.equal(invalid.selectedDestination, undefined);
 		assert.equal(invalid.destinationLabel, "Choose an inbox");
 		assert.equal(invalid.canSave, false);
+	});
+
+	it("opens the inline creation row for every inbox validation error", () => {
+		for (const error of ["inbox_name_invalid", "inbox_name_taken", "inbox_limit"]) {
+			const vm = toGmailPageViewModel(input({ selectedSender: TLDR, selectedDestination: "new", inboxName: "science", error }));
+			assert.equal(vm.inboxPickerOpen, true);
+			assert.equal(vm.inboxName, "science");
+		}
+		const ordinary = toGmailPageViewModel(input({ selectedSender: TLDR, selectedDestination: "new", inboxName: "science" }));
+		assert.equal(ordinary.inboxPickerOpen, false);
 	});
 
 	it("disables creating at the shared cap while allowing existing destinations", () => {
@@ -127,18 +170,20 @@ describe("Gmail sender chooser", () => {
 		}));
 		const fresh = toGmailPageViewModel(input({ inboxes, selectedSender: TLDR, selectedDestination: "new" }));
 		assert.equal(fresh.inboxLimit, true);
-		assert.equal(fresh.destinationOptions.at(-1)?.disabled, true);
+		assert.equal(fresh.destinationOptions.length, INBOX_ADDRESS_MAX_PER_USER);
+		assert.equal(fresh.canCreateInbox, false);
 		assert.equal(fresh.canSave, false);
 		const existing = toGmailPageViewModel(input({ inboxes, selectedSender: TLDR, selectedDestination: inboxes[0].address }));
 		assert.equal(existing.canSave, true);
-		assert.equal(existing.destinationOptions[0].disabled, false);
+		assert.equal(existing.canCreateInbox, false);
 	});
 
 	it("polls progressive discovery with all chooser state preserved", () => {
-		const vm = toGmailPageViewModel(input({ discoveryStarted: true, discovery: { state: "running", scannedCount: 200 },
+		const vm = toGmailPageViewModel(input({ discoveryStarted: true, discovery: discovery({ state: "running", mode: "full", scannedCount: 200, estimatedTotalMessages: 500 }),
 			search: "tech", selectedSender: TLDR, selectedDestination: "new", pollCount: 4 }));
 		assert.equal(vm.autoDiscover, false);
-		assert.match(vm.chooser.message, /2 found from 200 messages/);
+		assert.equal(vm.chooser.message, "You can select a sender now.");
+		assert.equal(vm.chooser.loadButtonLabel, "Checking 200 of 500 messages…");
 		assert(vm.chooser.pollUrl);
 		const url = new URL(vm.chooser.pollUrl, "https://readplace.com");
 		assert.equal(url.pathname, "/integrations/gmail/senders");
@@ -148,8 +193,23 @@ describe("Gmail sender chooser", () => {
 		assert.equal(url.searchParams.get("destination"), "new");
 	});
 
+	it("labels full scans before the estimate and incremental refreshes truthfully", () => {
+		const full = toGmailPageViewModel(input({ discoveryStarted: true,
+			discovery: discovery({ state: "running", mode: "profile", scannedCount: 0 }) }));
+		assert.equal(full.chooser.loadButtonLabel, "Checking Gmail messages…");
+		const incremental = toGmailPageViewModel(input({ discoveryPending: true,
+			discovery: discovery({ state: "complete", mode: "history", scannedCount: 500, estimatedTotalMessages: 500 }) }));
+		assert.equal(incremental.chooser.loadButtonLabel, "Checking Gmail for new messages…");
+		const catchUp = toGmailPageViewModel(input({
+			discovery: discovery({ state: "running", mode: "history", scannedCount: 50, estimatedTotalMessages: 25 }) }));
+		assert.equal(catchUp.chooser.loadButtonLabel, "Checking Gmail for new messages…");
+		const resumedCatchUp = toGmailPageViewModel(input({ discoveryPending: true,
+			discovery: discovery({ state: "failed", mode: "history", scannedCount: 50, estimatedTotalMessages: 25 }) }));
+		assert.equal(resumedCatchUp.chooser.loadButtonLabel, "Checking Gmail for new messages…");
+	});
+
 	it("polls queued initial and refresh jobs until the bounded retry limit", () => {
-		const idle = { state: "idle" as const, scannedCount: 0 };
+		const idle = discovery({ state: "idle", mode: "profile", scannedCount: 0 });
 		const initial = toGmailPageViewModel(input({ discovery: idle }));
 		assert.equal(initial.chooser.pollUrl, undefined);
 		assert.match(initial.chooser.message, /Load senders/);
@@ -165,7 +225,7 @@ describe("Gmail sender chooser", () => {
 		const complete = toGmailPageViewModel(input({ pollCount: GMAIL_CONFIRM_MAX_POLLS }));
 		assert.equal(complete.chooser.message, "2 Gmail senders available.");
 		assert.equal(complete.chooser.pollUrl, undefined);
-		const failed = toGmailPageViewModel(input({ discovery: { state: "failed", scannedCount: 5 } }));
+		const failed = toGmailPageViewModel(input({ discovery: discovery({ state: "failed", scannedCount: 5 }) }));
 		assert.match(failed.chooser.message, /couldn't finish/);
 		assert.equal(failed.chooser.hasOptions, true);
 		assert.equal(failed.chooser.pollUrl, undefined);
@@ -182,13 +242,10 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.equal(vm.mappings.length, 2);
 		assert.equal(vm.hasMappings, true);
 		assert.equal(vm.mappings[0].name, "tech");
-		assert.equal(vm.mappings[0].address, ALIAS);
 		assert.equal(vm.mappings[0].disabled, true);
 		assert.deepEqual(vm.mappings[0].senders.map((row) => row.email), [TLDR, BREW]);
 		assert.equal(vm.mappings[1].destination, "legacy");
-		assert.equal(vm.mappings[1].name, "Choose an inbox");
-		assert.equal(vm.mappings[1].address, undefined);
-		assert.match(vm.mappings[0].senders[0].selectUrl, /sender=dan%40tldr.tech/);
+		assert.equal(vm.mappings[1].name, undefined);
 		const missingInbox = toGmailPageViewModel(input({ senders: [sender({ mappedAddress: ALIAS })] }));
 		assert.equal(missingInbox.mappings[0].name, ALIAS);
 	});
@@ -204,7 +261,7 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.equal(revoked.showMetadataReconnect, false);
 		assert.equal(revoked.showSenders, false);
 		assert.equal(revoked.hasMappings, true);
-		const denied = toGmailPageViewModel(input({ discovery: { state: "failed", scannedCount: 0, requiresReconnect: true } }));
+		const denied = toGmailPageViewModel(input({ discovery: discovery({ state: "failed", scannedCount: 0, requiresReconnect: true }) }));
 		assert.equal(denied.showMetadataReconnect, true);
 		assert.equal(denied.showSenders, false);
 		assert.match(denied.chooser.message, /Reconnect Gmail/);
@@ -221,12 +278,12 @@ describe("Gmail inbox mappings and connection status", () => {
 	});
 
 	it("shows known operation banners and filter errors but ignores unknown keys", () => {
-		const vm = toGmailPageViewModel(input({ error: "destination_invalid", notice: "mapping_removed",
+		const vm = toGmailPageViewModel(input({ error: "destination_invalid", notice: "sender_removed",
 			connection: connection({ lastFilterError: { code: "query-too-long", message: "Too many senders", at: "2026-08-28" } }) }));
 		assert.equal(vm.state, "filter-failed");
 		assert.deepEqual(vm.alerts.map((entry) => entry.key), ["destination_invalid", "filter"]);
 		assert.equal(vm.alerts[1].message, "Too many senders");
-		assert.equal(vm.notices[0].key, "mapping_removed");
+		assert.equal(vm.notices[0].key, "sender_removed");
 		const unknown = toGmailPageViewModel(input({ error: "unexpected", notice: "unexpected" }));
 		assert.deepEqual(unknown.alerts, []);
 		assert.deepEqual(unknown.notices, []);

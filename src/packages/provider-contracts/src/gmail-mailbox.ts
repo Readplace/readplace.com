@@ -6,6 +6,7 @@ export interface GmailSenderPage {
 	senders: DiscoveredGmailSender[];
 	nextPageToken: string | undefined;
 	scannedMessages: number;
+	estimatedTotalMessages: number | undefined;
 }
 
 export type GmailMailboxResult<T> = GmailApiResult<T> | { ok: false; reason: "metadata-permission-required" };
