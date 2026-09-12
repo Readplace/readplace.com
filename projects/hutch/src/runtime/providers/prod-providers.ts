@@ -52,7 +52,6 @@ import { createPresignerClient } from "./pending-upload/mint-upload-url";
 import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initDynamoDbImportSession } from "./import-session/dynamodb-import-session";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
-import { initGmailAccessToken } from "./gmail-api/gmail-access-token";
 import { initGmailAccountEmail } from "./gmail-api/gmail-account";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
 import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
@@ -60,8 +59,9 @@ import {
 	initDynamoDbGmailConnection,
 	initDynamoDbGmailCredentials,
 	initDynamoDbGmailSender,
+	initDynamoDbGmailDiscovery,
 } from "@packages/inbox-store";
-import { DisconnectGmailCommand, RewriteGmailFilterCommand } from "@packages/hutch-infra-components";
+import { DisconnectGmailCommand, RewriteGmailFilterCommand, StartGmailSenderDiscoveryCommand } from "@packages/hutch-infra-components";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
@@ -283,13 +283,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 			fetch: globalThis.fetch,
 		}),
 		findGmailAccountEmail: initGmailAccountEmail({
-			accessToken: initGmailAccessToken({
-				clientId: gmailClientId,
-				clientSecret: gmailClientSecret,
-				credentials: gmailCredentialsStore,
-				fetch: globalThis.fetch,
-				now: () => new Date(),
-			}),
 			fetch: globalThis.fetch,
 		}),
 		clientId: gmailClientId,
@@ -305,6 +298,14 @@ export function initProdProviders(input: { appOrigin: string }) {
 			tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"),
 			now: () => new Date(),
 		}),
+		gmailDiscoveryStore: initDynamoDbGmailDiscovery({
+			client,
+			tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"),
+			now: () => new Date(),
+		}),
+		publishStartGmailSenderDiscovery: async (detail: { userId: UserId }) => {
+			await publishEvent(StartGmailSenderDiscoveryCommand, detail);
+		},
 		mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
 			const entry = await inboxAddressStore.createAddress({
 				userId,

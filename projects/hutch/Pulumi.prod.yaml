@@ -45,6 +45,7 @@ config:
   hutch:dynamodbDigestQueueTable: hutch-digest-queue-prod
   hutch:dynamodbGmailCredentialsTable: hutch-gmail-credentials-prod
   hutch:dynamodbGmailConnectionsTable: hutch-gmail-connections-prod
+  hutch:dynamodbGmailDiscoveryTable: hutch-gmail-discovery-prod
   hutch:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-prod
   hutch:rateLimitViewCrawl: 100/3600
   hutch:rateLimitArticleDownload: 10/3600

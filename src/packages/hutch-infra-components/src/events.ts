@@ -1018,4 +1018,28 @@ export const GmailDisconnectedEvent = defineEvent({
 });
 export type GmailDisconnectedDetail = z.infer<typeof GmailDisconnectedEvent.detailSchema>;
 
+export const StartGmailSenderDiscoveryCommand = defineEvent({
+	name: "start-gmail-sender-discovery",
+	source: "hutch.app",
+	detailType: "StartGmailSenderDiscovery",
+	detailSchema: z.object({ userId: z.string() }),
+});
+
+export const DiscoverGmailSendersPageCommand = defineEvent({
+	name: "discover-gmail-senders-page",
+	source: "hutch.app",
+	detailType: "DiscoverGmailSendersPage",
+	detailSchema: z.object({ userId: z.string(), generation: z.string(), page: z.number().int().nonnegative() }),
+});
+
+export const GmailSenderDiscoveryProgressedEvent = defineEvent({
+	name: "gmail-sender-discovery-progressed",
+	source: "hutch.app",
+	detailType: "GmailSenderDiscoveryProgressed",
+	detailSchema: z.object({
+		userId: z.string(),
+		nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(),
+	}),
+});
+
 export type { HutchEvent, HutchCommand };

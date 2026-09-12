@@ -9,6 +9,7 @@ import { toGmailPollViewModel } from "./gmail.viewmodel";
 
 const GMAIL_TEMPLATE = readFileSync(join(__dirname, "gmail.template.html"), "utf-8");
 const GMAIL_POLL_TEMPLATE = readFileSync(join(__dirname, "gmail-poll.template.html"), "utf-8");
+const GMAIL_SENDER_RESULTS_TEMPLATE = readFileSync(join(__dirname, "gmail-sender-results.template.html"), "utf-8");
 
 const GMAIL_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
 
@@ -32,6 +33,10 @@ export function renderGmailPoll(vm: GmailPollViewModel): string {
 	return render(GMAIL_POLL_TEMPLATE, vm);
 }
 
+export function renderGmailSenderResults(vm: GmailPageViewModel): string {
+	return render(GMAIL_SENDER_RESULTS_TEMPLATE, vm.chooser);
+}
+
 export function GmailPage(vm: GmailPageViewModel): PageBody {
 	return {
 		seo: {
@@ -48,6 +53,7 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 				settingsShot: SETTINGS_SHOT,
 				forwardingShot: FORWARDING_SHOT,
 				pollLine: renderGmailPoll(toGmailPollViewModel({ pollCount: 0 })),
+				senderResults: renderGmailSenderResults(vm),
 			}),
 		},
 		scripts: GMAIL_COPY_SCRIPT,

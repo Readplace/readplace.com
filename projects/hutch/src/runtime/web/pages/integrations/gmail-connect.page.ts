@@ -7,13 +7,14 @@ import { baseCookieOptions } from "@packages/web-analytics";
 import type {
 	GmailConnectionStore,
 	GmailCredentialsStore,
+	GmailDiscoveryStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import type { AliasName, InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
-import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { signState, verifyState } from "../../auth/oauth-state";
@@ -34,6 +35,8 @@ export interface GmailIntegrationDependencies {
 	gmailCredentialsStore: GmailCredentialsStore;
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
+	gmailDiscoveryStore: GmailDiscoveryStore;
+	publishStartGmailSenderDiscovery: (input: { userId: UserId }) => Promise<void>;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
 	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
 	mintInboxAddress: (input: { userId: UserId; name: AliasName }) => Promise<InboxAddress>;
@@ -80,7 +83,7 @@ export function registerGmailConnectRoutes(
 			client_id: gmail.clientId,
 			redirect_uri: redirectUri,
 			response_type: "code",
-			scope: GMAIL_SETTINGS_SCOPE,
+			scope: GMAIL_SCOPES,
 			// Google issues a refresh token only for an offline grant, and re-issues
 			// one only when consent is forced; without both, a reconnect returns an
 			// access token with nothing to renew it.
@@ -134,6 +137,10 @@ export function registerGmailConnectRoutes(
 
 		const grant = await gmail.exchangeGmailCode({ code: parsedQuery.data.code });
 		if (!grant.ok) {
+			if (grant.reason === "metadata-scope-not-granted") {
+				res.redirect(303, buildIntegrationsUrl({ error: "oauth_metadata_scope" }));
+				return;
+			}
 			if (grant.reason === "scope-not-granted") {
 				res.redirect(303, buildIntegrationsUrl({ error: "oauth_scope" }));
 				return;
@@ -143,13 +150,23 @@ export function registerGmailConnectRoutes(
 			return;
 		}
 
+		const existing = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
+		const found = await gmail.findGmailAccountEmail({ accessToken: grant.grant.accessToken });
+		if (!found.ok) {
+			context.logError(`[gmail-connect] account email unavailable: ${found.reason}`);
+			res.redirect(303, buildIntegrationsUrl({ error: "oauth_exchange" }));
+			return;
+		}
+		if (existing !== undefined && existing.accountEmail?.trim().toLowerCase() !== found.value.trim().toLowerCase()) {
+			res.redirect(303, buildIntegrationsUrl({ error: "oauth_account_changed" }));
+			return;
+		}
 		await gmail.gmailCredentialsStore.saveCredentials({
 			userId,
 			refreshToken: grant.grant.refreshToken,
 			grantedScope: grant.grant.grantedScope,
 		});
 
-		const existing = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		if (existing === undefined) {
 			await gmail.gmailConnectionStore.createConnection({
 				userId,
@@ -159,12 +176,7 @@ export function registerGmailConnectRoutes(
 			await gmail.gmailConnectionStore.clearRevoked({ userId });
 		}
 
-		const found = await gmail.findGmailAccountEmail({ userId });
-		if (found.ok) {
-			await gmail.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: found.value });
-		} else {
-			context.logError(`[gmail-connect] account email unavailable: ${found.reason}`);
-		}
+		await gmail.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: found.value });
 		res.redirect(303, buildGmailUrl({ notice: "connected" }));
 	});
 }

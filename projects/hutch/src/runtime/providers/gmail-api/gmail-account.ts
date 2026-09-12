@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
-import type { GetGmailAccessToken } from "@packages/provider-contracts/gmail-filters";
-import { classify, initCallGmail } from "./gmail-call";
+import { classify } from "./gmail-call";
 
 const SEND_AS_ENDPOINT = "https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs";
 
@@ -10,7 +9,7 @@ const SendAsListResponse = z.object({
 	sendAs: z
 		.array(
 			z.object({
-				sendAsEmail: GmailAccountEmailSchema,
+				sendAsEmail: z.string().trim().toLowerCase().pipe(GmailAccountEmailSchema),
 				isPrimary: z.boolean().optional(),
 			}),
 		)
@@ -18,14 +17,16 @@ const SendAsListResponse = z.object({
 });
 
 export function initGmailAccountEmail(deps: {
-	accessToken: GetGmailAccessToken;
 	fetch: typeof globalThis.fetch;
 }): FindGmailAccountEmail {
-	const callGmail = initCallGmail(deps);
-
-	return async ({ userId }) =>
-		classify(
-			await callGmail(userId, { url: SEND_AS_ENDPOINT, method: "GET" }),
+	return async ({ accessToken }) => {
+		const response = await deps.fetch(SEND_AS_ENDPOINT, {
+			method: "GET",
+			headers: { Authorization: `Bearer ${accessToken}` },
+		});
+		if (response.status === 401) return { ok: false, reason: "reauth-required" };
+		return classify(
+			{ ok: true, value: response },
 			async (response) => {
 				const parsed = SendAsListResponse.safeParse(await response.json());
 				const primary = parsed.success
@@ -42,4 +43,5 @@ export function initGmailAccountEmail(deps: {
 				return { ok: true, value: primary.sendAsEmail };
 			},
 		);
+	};
 }

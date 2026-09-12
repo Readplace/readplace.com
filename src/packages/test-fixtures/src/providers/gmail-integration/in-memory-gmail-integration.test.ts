@@ -61,9 +61,11 @@ describe("initInMemoryGmailIntegration", () => {
 
 		await gmail.bundle.publishRewriteGmailFilter({ userId: owner, reason: "sender-added" });
 		await gmail.bundle.publishDisconnectGmail({ userId: owner });
+		await gmail.bundle.publishStartGmailSenderDiscovery({ userId: owner });
 
 		assert.deepEqual(gmail.rewriteRequests, [{ userId: owner, reason: "sender-added" }]);
 		assert.deepEqual(gmail.disconnectRequests, [{ userId: owner }]);
+		assert.deepEqual(gmail.discoveryRequests, [{ userId: owner }]);
 	});
 
 	it("shares one clock with the stores it builds", async () => {

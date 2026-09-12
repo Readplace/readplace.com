@@ -65,6 +65,10 @@
       "types": "./dist/providers/gmail-credentials/index.d.ts",
       "default": "./dist/providers/gmail-credentials/index.js"
     },
+    "./providers/gmail-discovery": {
+      "types": "./dist/providers/gmail-discovery/index.d.ts",
+      "default": "./dist/providers/gmail-discovery/index.js"
+    },
     "./providers/gmail-held-mail": {
       "types": "./dist/providers/gmail-held-mail/index.d.ts",
       "default": "./dist/providers/gmail-held-mail/index.js"
@@ -205,6 +209,9 @@
       ],
       "providers/gmail-credentials": [
         "./dist/providers/gmail-credentials/index.d.ts"
+      ],
+      "providers/gmail-discovery": [
+        "./dist/providers/gmail-discovery/index.d.ts"
       ],
       "providers/gmail-held-mail": [
         "./dist/providers/gmail-held-mail/index.d.ts"

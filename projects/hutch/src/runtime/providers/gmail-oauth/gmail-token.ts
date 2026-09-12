@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_METADATA_SCOPE, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 
 const GmailTokenResponse = z.object({
@@ -8,10 +8,6 @@ const GmailTokenResponse = z.object({
 	scope: z.string(),
 	token_type: z.string(),
 });
-
-function grantsSettingsScope(scope: string): boolean {
-	return scope.split(" ").includes(GMAIL_SETTINGS_SCOPE);
-}
 
 export function initExchangeGmailCode(deps: {
 	clientId: string;
@@ -34,7 +30,9 @@ export function initExchangeGmailCode(deps: {
 
 		const parsed = GmailTokenResponse.safeParse(await response.json());
 		if (!parsed.success) return { ok: false, reason: "exchange-failed" };
-		if (!grantsSettingsScope(parsed.data.scope)) return { ok: false, reason: "scope-not-granted" };
+		const scopes = parsed.data.scope.split(/\s+/);
+		if (!scopes.includes(GMAIL_SETTINGS_SCOPE)) return { ok: false, reason: "scope-not-granted" };
+		if (!scopes.includes(GMAIL_METADATA_SCOPE)) return { ok: false, reason: "metadata-scope-not-granted" };
 		const refreshToken = parsed.data.refresh_token;
 		if (refreshToken === undefined) return { ok: false, reason: "no-refresh-token" };
 

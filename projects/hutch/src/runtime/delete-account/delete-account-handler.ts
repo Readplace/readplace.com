@@ -49,6 +49,7 @@ import type {
 } from "@packages/domain/inbox";
 import type { DeleteUserExports } from "../providers/user-data-export/user-data-export.types";
 import type { RevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
+import type { GmailConnectionStore, GmailCredentialsStore, GmailSenderStore, GmailDiscoveryStore } from "@packages/domain/gmail";
 
 export interface DeleteAccountHandlerDependencies {
 	findEmailByUserId: FindEmailByUserId;
@@ -65,6 +66,10 @@ export interface DeleteAccountHandlerDependencies {
 	deleteAllInboxLinks: InboxEmailLinkStore["deleteAllLinksByUserId"];
 	deleteAllInboxSavedLinks: InboxSavedLinkStore["deleteAllByUserId"];
 	tombstoneInboxAddresses: InboxAddressStore["tombstoneUserAddresses"];
+	deleteGmailConnection: GmailConnectionStore["deleteConnection"];
+	deleteGmailCredentials: GmailCredentialsStore["deleteCredentials"];
+	deleteGmailSenders: GmailSenderStore["deleteAllSendersByUserId"];
+	deleteGmailDiscovery: GmailDiscoveryStore["deleteDiscoveryByUserId"];
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
 	deleteEmailContentObjects: (keys: string[]) => Promise<void>;
 	deleteEmailImageObjects: (prefixes: string[]) => Promise<void>;
@@ -141,6 +146,10 @@ async function processCommand(
 	await deps.deleteAllInboxSavedLinks(userId);
 	await deps.deleteAllInboxEmails(userId);
 	await deps.tombstoneInboxAddresses(userId);
+	await deps.deleteGmailConnection(userId);
+	await deps.deleteGmailCredentials(userId);
+	await deps.deleteGmailSenders(userId);
+	await deps.deleteGmailDiscovery(userId);
 
 	// Saved articles: purge every URL the user was the last saver of BEFORE
 	// dropping the per-user rows, so a crash mid-purge re-lists the same URLs on

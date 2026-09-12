@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
@@ -7,6 +7,7 @@ import type { RevokeGmailGrantResult } from "@packages/provider-contracts/gmail-
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
+import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
 import { initDisconnectGmail } from "./disconnect-gmail";
 import type { RewriteGmailFilterOutcome } from "./rewrite-gmail-filter";
 
@@ -25,8 +26,10 @@ async function makeHarness(options: {
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
 	const credentials = initInMemoryGmailCredentials({ now: () => NOW });
 	const senders = initInMemoryGmailSender({ now: () => NOW });
+	const discovery = initInMemoryGmailDiscovery({ now: () => NOW });
 	const rewrites: string[] = [];
 	const revokes: string[] = [];
+	await discovery.startDiscovery({ userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gatewayAddress: GATEWAY, generation: "initial", mode: "profile", historyId: undefined });
 
 	if (options.connected !== false) {
 		await connections.createConnection({
@@ -48,6 +51,7 @@ async function makeHarness(options: {
 		connections,
 		credentials,
 		senders,
+		discovery,
 		rewriteGmailFilter: async ({ userId }) => {
 			rewrites.push(userId);
 			return options.rewritten ?? { ok: true, filterCount: 0, senderCount: 0 };
@@ -59,7 +63,7 @@ async function makeHarness(options: {
 		logger: HutchLogger.from(noopLogger),
 	});
 
-	return { disconnect, connections, credentials, senders, rewrites, revokes };
+	return { disconnect, connections, credentials, senders, discovery, rewrites, revokes };
 }
 
 describe("initDisconnectGmail", () => {
@@ -73,6 +77,7 @@ describe("initDisconnectGmail", () => {
 		assert.deepEqual(harness.rewrites, [USER]);
 		assert.deepEqual(harness.revokes, ["refresh-1"]);
 		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), undefined);
+		assert.equal(await harness.discovery.findDiscoveryByUserId(USER), undefined);
 	});
 
 	it("deletes the connection so the next connect mints a fresh gateway address", async () => {
@@ -136,5 +141,36 @@ describe("initDisconnectGmail", () => {
 			reason: "not-connected",
 		});
 		assert.deepEqual(harness.rewrites, []);
+		assert.equal(await harness.discovery.findDiscoveryByUserId(USER), undefined);
+	});
+
+	it("retries discovered-sender deletion after the connection was already removed", async () => {
+		const harness = await makeHarness();
+		const previous = await harness.discovery.findDiscoveryByUserId(USER);
+		assert(previous, "the discovery state must exist before disconnect");
+		await harness.discovery.savePage({
+			previous,
+			senders: [{ email: TLDR, name: "TLDR" }],
+			mode: "history",
+			pageToken: undefined,
+			historyId: "100",
+			state: "complete",
+			scannedMessages: 1,
+		});
+		const deleteDiscovery = harness.discovery.deleteDiscoveryByUserId;
+		let attempts = 0;
+		harness.discovery.deleteDiscoveryByUserId = async (userId) => {
+			if (++attempts === 1) throw new Error("DynamoDB unavailable");
+			await deleteDiscovery(userId);
+		};
+
+		await assert.rejects(harness.disconnect({ userId: USER }), /DynamoDB unavailable/);
+		assert.equal(await harness.connections.findConnectionByUserId(USER), undefined);
+		assert.equal((await harness.discovery.listSendersByUserId(USER)).length, 1);
+
+		assert.deepEqual(await harness.disconnect({ userId: USER }), { ok: false, reason: "not-connected" });
+		assert.equal(await harness.discovery.findDiscoveryByUserId(USER), undefined);
+		assert.deepEqual(await harness.discovery.listSendersByUserId(USER), []);
+		assert.deepEqual(harness.revokes, ["refresh-1"]);
 	});
 });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_METADATA_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { initExchangeGmailCode } from "./gmail-token";
 
 function exchangeWith(body: unknown, status = 200) {
@@ -25,7 +25,7 @@ describe("initExchangeGmailCode", () => {
 		const { exchange } = exchangeWith({
 			access_token: "access-value",
 			refresh_token: "refresh-value",
-			scope: GMAIL_SETTINGS_SCOPE,
+			scope: GMAIL_SCOPES,
 			token_type: "Bearer",
 		});
 
@@ -34,14 +34,14 @@ describe("initExchangeGmailCode", () => {
 		assert(result.ok);
 		assert.equal(result.grant.refreshToken, "refresh-value");
 		assert.equal(result.grant.accessToken, "access-value");
-		assert.equal(result.grant.grantedScope, GMAIL_SETTINGS_SCOPE);
+		assert.equal(result.grant.grantedScope, GMAIL_SCOPES);
 	});
 
 	it("posts the authorization code against the registered redirect URI", async () => {
 		const { exchange, calls } = exchangeWith({
 			access_token: "a",
 			refresh_token: "r",
-			scope: GMAIL_SETTINGS_SCOPE,
+			scope: GMAIL_SCOPES,
 			token_type: "Bearer",
 		});
 
@@ -86,13 +86,18 @@ describe("initExchangeGmailCode", () => {
 	it("refuses a grant with no refresh token, which a re-consent without prompt returns", async () => {
 		const { exchange } = exchangeWith({
 			access_token: "a",
-			scope: GMAIL_SETTINGS_SCOPE,
+			scope: GMAIL_SCOPES,
 			token_type: "Bearer",
 		});
 
 		const result = await exchange({ code: "auth-code" });
 
 		assert.deepEqual(result, { ok: false, reason: "no-refresh-token" });
+	});
+
+	it.each([GMAIL_SETTINGS_SCOPE, `${GMAIL_SETTINGS_SCOPE} ${GMAIL_METADATA_SCOPE}.readonly`])("reports missing metadata access separately for scope %s", async (scope) => {
+		const { exchange } = exchangeWith({ access_token: "a", refresh_token: "r", scope, token_type: "Bearer" });
+		assert.deepEqual(await exchange({ code: "auth-code" }), { ok: false, reason: "metadata-scope-not-granted" });
 	});
 
 	it("reports an exchange failure when Google answers with an error body", async () => {

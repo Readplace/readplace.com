@@ -34,6 +34,9 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initDeleteAccountHandler } from "./delete-account-handler";
 import { initRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
+import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
+import { GmailAccountEmailSchema, ForwardableSenderSchema } from "@packages/domain/gmail";
+import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 
 const SEED_NOW = new Date("2026-07-05T00:00:00.000Z");
 const COOLDOWN_MS = 1000 * 60 * 60 * 24 * 365;
@@ -65,6 +68,7 @@ function buildSubject() {
 	const inboxLink = initInMemoryInboxEmailLink();
 	const inboxSavedLink = initInMemoryInboxSavedLink();
 	const inboxAddress = initInMemoryInboxAddress({ now: () => SEED_NOW });
+	const gmail = initInMemoryGmailIntegration({ grant: { ok: false, reason: "exchange-failed" } });
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
 	const deleteSubscriptionCalls: UserId[] = [];
@@ -148,6 +152,10 @@ function buildSubject() {
 		deleteAllInboxLinks: inboxLink.deleteAllLinksByUserId,
 		deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
 		tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
+		deleteGmailConnection: gmail.bundle.gmailConnectionStore.deleteConnection,
+		deleteGmailCredentials: gmail.bundle.gmailCredentialsStore.deleteCredentials,
+		deleteGmailSenders: gmail.bundle.gmailSenderStore.deleteAllSendersByUserId,
+		deleteGmailDiscovery: gmail.bundle.gmailDiscoveryStore.deleteDiscoveryByUserId,
 		deleteRawEmailObjects: async (keys: string[]) => {
 			if (injectedFailures.deleteRawEmailOnce) {
 				injectedFailures.deleteRawEmailOnce = false;
@@ -218,6 +226,7 @@ function buildSubject() {
 		inboxEmail,
 		inboxLink,
 		inboxAddress,
+		gmail,
 		deleteCustomerCalls,
 		deleteSubscriptionCalls,
 		trialEndCalls,
@@ -285,6 +294,11 @@ async function seedAccount(
 	const storedEmail = await s.auth.findEmailByUserId(userId);
 	assert(storedEmail !== null, "expected the seeded user to resolve an email");
 	const sessionId = await s.auth.createSession({ userId, emailVerified: true });
+	const gatewayAddress = await s.gmail.bundle.mintGatewayAddress({ userId });
+	await s.gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
+	await s.gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: `gmail-${label}`, grantedScope: GMAIL_SCOPES });
+	await s.gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: ForwardableSenderSchema.parse("newsletter@example.com") });
+	await s.gmail.bundle.gmailDiscoveryStore.startDiscovery({ userId, accountEmail: GmailAccountEmailSchema.parse(email), gatewayAddress, generation: label, mode: "profile", historyId: undefined });
 
 	await s.articleStore.saveArticle({
 		userId,
@@ -433,6 +447,11 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg-u1", body: bodyFor(victim.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
+		assert.equal(await s.gmail.bundle.gmailConnectionStore.findConnectionByUserId(victim.userId), undefined);
+		assert.equal(await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(victim.userId), undefined);
+		assert.deepEqual(await s.gmail.bundle.gmailSenderStore.listSendersByUserId(victim.userId), []);
+		assert.equal(await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(victim.userId), undefined);
+		assert.equal((await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(bystander.userId))?.generation, "u2");
 
 		// Victim: every store now returns empty / none.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId, includeTotal: true })).total, 0);

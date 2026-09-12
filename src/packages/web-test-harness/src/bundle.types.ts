@@ -4,6 +4,7 @@ import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth
 import type {
 	GmailConnectionStore,
 	GmailCredentialsStore,
+	GmailDiscoveryStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -514,6 +515,8 @@ export interface GmailIntegrationBundle {
 	gmailCredentialsStore: GmailCredentialsStore;
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
+	gmailDiscoveryStore: GmailDiscoveryStore;
+	publishStartGmailSenderDiscovery: (input: { userId: UserId }) => Promise<void>;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
 	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
 	mintInboxAddress: (input: { userId: UserId; name: AliasName }) => Promise<InboxAddress>;

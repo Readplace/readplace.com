@@ -31,6 +31,7 @@ import { initDeleteAccountHandler } from "./delete-account/delete-account-handle
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
 import { initHandleByDetailType } from "./handle-by-detail-type";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
+import { initDynamoDbGmailDiscovery, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
 	initPurgeArticleContent,
@@ -220,6 +221,10 @@ export const handler = initHandleByDetailType({
 				deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,
 				deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
 				tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
+				deleteGmailConnection: initDynamoDbGmailConnection({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"), now }).deleteConnection,
+				deleteGmailCredentials: initDynamoDbGmailCredentials({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"), now }).deleteCredentials,
+				deleteGmailSenders: initDynamoDbGmailSender({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"), now }).deleteAllSendersByUserId,
+				deleteGmailDiscovery: initDynamoDbGmailDiscovery({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now }).deleteDiscoveryByUserId,
 				deleteRawEmailObjects,
 				deleteEmailContentObjects,
 				deleteEmailImageObjects,

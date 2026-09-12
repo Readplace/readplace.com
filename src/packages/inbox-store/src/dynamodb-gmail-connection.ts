@@ -89,7 +89,7 @@ export function initDynamoDbGmailConnection(deps: {
 			};
 		},
 		findConnectionByUserId: async (userId) => {
-			const row = await table.get({ userId });
+			const row = await table.get({ userId }, { consistentRead: true });
 			return row === undefined ? undefined : toConnection(row);
 		},
 		markForwardingConfirmed: async ({ userId }) => {

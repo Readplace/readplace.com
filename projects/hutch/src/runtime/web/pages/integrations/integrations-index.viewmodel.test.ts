@@ -186,6 +186,8 @@ describe("toIntegrationsIndexViewModel", () => {
 			"oauth_denied",
 			"oauth_state",
 			"oauth_scope",
+			"oauth_metadata_scope",
+			"oauth_account_changed",
 			"oauth_exchange",
 		]) {
 			const vm = toIntegrationsIndexViewModel({ connection: undefined, error });

@@ -12,8 +12,8 @@ import {
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
 import { UserIdSchema } from '@packages/domain/user'
-import { ForwardableSenderSchema, aliasNameForSender } from '@packages/domain/gmail'
-import { GMAIL_SETTINGS_SCOPE } from '@packages/provider-contracts/gmail-oauth'
+import { ForwardableSenderSchema, GmailAccountEmailSchema, aliasNameForSender } from '@packages/domain/gmail'
+import { GMAIL_SCOPES } from '@packages/provider-contracts/gmail-oauth'
 import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
 import { createTestApp } from '../runtime/test-app'
 import { initBokoProcessSpawner, initConvertEpubToAzw3 } from '../runtime/web/shared/epub/boko-converter'
@@ -120,7 +120,7 @@ const gmailIntegration = initInMemoryGmailIntegration({
 		grant: {
 			refreshToken: 'e2e-refresh',
 			accessToken: 'e2e-access',
-			grantedScope: GMAIL_SETTINGS_SCOPE,
+			grantedScope: GMAIL_SCOPES,
 		},
 	},
 })
@@ -392,6 +392,7 @@ server.post('/e2e/seed-inbox-article-queued', async (req, res) => {
 const SeedGmailStateBody = z.object({
 	userId: UserIdSchema,
 	state: z.enum(['awaiting', 'ready', 'filtering', 'filter-failed', 'revoked']),
+	discoveredSenders: z.array(z.object({ email: ForwardableSenderSchema, name: z.string().optional() })).default([]),
 	senders: z
 		.array(
 			z.object({
@@ -408,12 +409,24 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { userId, state, senders } = parsed.data
-	const { gmailConnectionStore, gmailSenderStore, mintGatewayAddress, mintInboxAddress } =
+	const { userId, state, senders, discoveredSenders } = parsed.data
+	const { gmailConnectionStore, gmailSenderStore, gmailCredentialsStore, gmailDiscoveryStore, mintGatewayAddress, mintInboxAddress } =
 		gmailIntegration.bundle
+	const gatewayAddress = await mintGatewayAddress({ userId })
+	const accountEmail = GmailAccountEmailSchema.parse('reader@gmail.com')
 	await gmailConnectionStore.createConnection({
 		userId,
-		gatewayAddress: await mintGatewayAddress({ userId }),
+		gatewayAddress,
+	})
+	await gmailConnectionStore.recordAccountEmail({ userId, accountEmail })
+	await gmailCredentialsStore.saveCredentials({ userId, refreshToken: 'e2e-refresh', grantedScope: GMAIL_SCOPES })
+	await gmailDiscoveryStore.startDiscovery({ userId, accountEmail, gatewayAddress, generation: 'e2e', mode: 'full', historyId: '100' })
+	await gmailDiscoveryStore.claimPage({ userId, generation: 'e2e', page: 0 })
+	const previous = await gmailDiscoveryStore.findDiscoveryByUserId(userId)
+	assert(previous)
+	await gmailDiscoveryStore.savePage({ previous,
+		senders: discoveredSenders.map((entry) => ({ email: entry.email, name: entry.name })),
+		mode: 'full', pageToken: undefined, historyId: '100', state: 'complete', scannedMessages: discoveredSenders.length,
 	})
 	if (state === 'revoked') {
 		await gmailConnectionStore.markRevoked({ userId, reason: 'invalid-grant' })

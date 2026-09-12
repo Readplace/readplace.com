@@ -1,4 +1,6 @@
 export const GMAIL_SETTINGS_SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic";
+export const GMAIL_METADATA_SCOPE = "https://www.googleapis.com/auth/gmail.metadata";
+export const GMAIL_SCOPES = `${GMAIL_SETTINGS_SCOPE} ${GMAIL_METADATA_SCOPE}`;
 
 export interface GmailGrant {
 	refreshToken: string;
@@ -9,6 +11,7 @@ export interface GmailGrant {
 export type GmailGrantResult =
 	| { ok: true; grant: GmailGrant }
 	| { ok: false; reason: "scope-not-granted" }
+	| { ok: false; reason: "metadata-scope-not-granted" }
 	| { ok: false; reason: "no-refresh-token" }
 	| { ok: false; reason: "exchange-failed" };
 

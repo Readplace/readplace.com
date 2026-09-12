@@ -1,6 +1,7 @@
 import type {
 	GmailConnectionStore,
 	GmailCredentialsStore,
+	GmailDiscoveryStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
@@ -19,6 +20,7 @@ export function initDisconnectGmail(deps: {
 	connections: GmailConnectionStore;
 	credentials: GmailCredentialsStore;
 	senders: GmailSenderStore;
+	discovery: GmailDiscoveryStore;
 	rewriteGmailFilter: RewriteGmailFilter;
 	revokeGmailGrant: RevokeGmailGrant;
 	logger: HutchLogger;
@@ -27,7 +29,10 @@ export function initDisconnectGmail(deps: {
 
 	return async ({ userId }) => {
 		const connection = await connections.findConnectionByUserId(userId);
-		if (connection === undefined) return { ok: false, reason: "not-connected" };
+		if (connection === undefined) {
+			await deps.discovery.deleteDiscoveryByUserId(userId);
+			return { ok: false, reason: "not-connected" };
+		}
 
 		await senders.deleteAllSendersByUserId(userId);
 		const rewritten = await rewriteGmailFilter({ userId });
@@ -52,6 +57,7 @@ export function initDisconnectGmail(deps: {
 
 		await credentials.deleteCredentials(userId);
 		await connections.deleteConnection(userId);
+		await deps.discovery.deleteDiscoveryByUserId(userId);
 		return { ok: true, filterRemoved, grantRevoked };
 	};
 }

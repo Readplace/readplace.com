@@ -1,7 +1,7 @@
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbInboxAddress } from "@packages/inbox-store";
+import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import {
 	DisconnectGmailCommand,
@@ -87,6 +87,7 @@ export const handler = initHandleByDetailType({
 					connections,
 					credentials,
 					senders,
+					discovery: initDynamoDbGmailDiscovery({ client, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now }),
 					rewriteGmailFilter,
 					revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
 					logger,

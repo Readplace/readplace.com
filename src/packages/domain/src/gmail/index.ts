@@ -1,4 +1,5 @@
 export { aliasNameForSender } from "./alias-name-for-sender";
+export { parseGmailFrom } from "./parse-gmail-from";
 export { GmailAccountEmailSchema } from "./gmail-account-email.schema";
 export type { GmailAccountEmail } from "./gmail-account-email.schema";
 export {
@@ -26,3 +27,4 @@ export type {
 export type { GmailCredentialsStore } from "./gmail-credentials.types";
 export type { GmailHeldMailEntry, GmailHeldMailStore } from "./gmail-held-mail.types";
 export type { GmailSenderEntry, GmailSenderStore } from "./gmail-sender.types";
+export type { DiscoveredGmailSender, GmailDiscovery, GmailDiscoveryStore } from "./gmail-discovery.types";

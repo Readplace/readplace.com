@@ -17,6 +17,7 @@ interface CapturedCommand {
 	input: {
 		Item?: Record<string, unknown>;
 		Key?: Record<string, unknown>;
+		ConsistentRead?: boolean;
 		IndexName?: string;
 		Select?: string;
 		UpdateExpression?: string;
@@ -75,7 +76,7 @@ describe("initDynamoDbGmailConnection", () => {
 		});
 	});
 
-	it("reads a live connection back without leaking the index marker", async () => {
+	it("reads current connection lifecycle state strongly without leaking the index marker", async () => {
 		const { store, commands } = harness(() => ({
 			Item: {
 				userId: USER,
@@ -93,6 +94,7 @@ describe("initDynamoDbGmailConnection", () => {
 		const connection = await store.findConnectionByUserId(USER);
 
 		assert.deepEqual(commands[0].input.Key, { userId: USER });
+		assert.equal(commands[0].input.ConsistentRead, true);
 		assert.deepEqual(connection, {
 			userId: USER,
 			gatewayAddress: GATEWAY,

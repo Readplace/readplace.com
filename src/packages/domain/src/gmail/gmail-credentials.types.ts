@@ -7,5 +7,6 @@ export interface GmailCredentialsStore {
 		grantedScope: string;
 	}) => Promise<void>;
 	findRefreshTokenByUserId: (userId: UserId) => Promise<string | undefined>;
+	findGrantedScopeByUserId: (userId: UserId) => Promise<string | undefined>;
 	deleteCredentials: (userId: UserId) => Promise<void>;
 }

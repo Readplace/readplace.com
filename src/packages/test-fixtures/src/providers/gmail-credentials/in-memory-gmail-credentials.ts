@@ -19,6 +19,7 @@ export function initInMemoryGmailCredentials(deps: { now: () => Date }): GmailCr
 			});
 		},
 		findRefreshTokenByUserId: async (userId) => rows.get(userId)?.refreshToken,
+		findGrantedScopeByUserId: async (userId) => rows.get(userId)?.grantedScope,
 		deleteCredentials: async (userId) => {
 			rows.delete(userId);
 		},

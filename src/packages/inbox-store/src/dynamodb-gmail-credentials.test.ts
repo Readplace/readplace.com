@@ -15,6 +15,7 @@ interface CapturedCommand {
 	input: {
 		Item?: Record<string, unknown>;
 		Key?: Record<string, unknown>;
+		ConsistentRead?: boolean;
 	};
 }
 
@@ -68,12 +69,25 @@ describe("initDynamoDbGmailCredentials", () => {
 
 		assert.equal(token, "refresh-token-value");
 		assert.deepEqual(commands[0].input.Key, { userId: USER });
+		assert.equal(commands[0].input.ConsistentRead, true);
+	});
+
+	it("reads the latest granted scope so an existing account can be offered metadata consent", async () => {
+		const grantedScope = "https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/gmail.metadata";
+		const { store, commands } = harness(() => ({ Item: {
+			userId: USER, refreshToken: "refresh-token-value", grantedScope, connectedAt: NOW.toISOString(),
+		} }));
+
+		assert.equal(await store.findGrantedScopeByUserId(USER), grantedScope);
+		assert.deepEqual(commands[0].input.Key, { userId: USER });
+		assert.equal(commands[0].input.ConsistentRead, true);
 	});
 
 	it("returns undefined when the user has never connected Gmail", async () => {
 		const { store } = harness(() => ({}));
 
 		assert.equal(await store.findRefreshTokenByUserId(USER), undefined);
+		assert.equal(await store.findGrantedScopeByUserId(USER), undefined);
 	});
 
 	it("deletes the credentials row by user id", async () => {

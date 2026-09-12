@@ -9,6 +9,7 @@ import { initInMemoryInboxAddress } from "../inbox-address";
 import { initInMemoryGmailConnection } from "../gmail-connection";
 import { initInMemoryGmailCredentials } from "../gmail-credentials";
 import { initInMemoryGmailSender } from "../gmail-sender";
+import { initInMemoryGmailDiscovery } from "../gmail-discovery";
 
 export interface InMemoryGmailIntegration {
 	bundle: GmailIntegrationBundle;
@@ -16,6 +17,7 @@ export interface InMemoryGmailIntegration {
 	exchangedCodes: string[];
 	rewriteRequests: { userId: UserId; reason: string }[];
 	disconnectRequests: { userId: UserId }[];
+	discoveryRequests: { userId: UserId }[];
 }
 
 export function initInMemoryGmailIntegration(input: {
@@ -34,12 +36,14 @@ export function initInMemoryGmailIntegration(input: {
 	const exchangedCodes: string[] = [];
 	const rewriteRequests: { userId: UserId; reason: string }[] = [];
 	const disconnectRequests: { userId: UserId }[] = [];
+	const discoveryRequests: { userId: UserId }[] = [];
 
 	return {
 		addresses,
 		exchangedCodes,
 		rewriteRequests,
 		disconnectRequests,
+		discoveryRequests,
 		bundle: {
 			exchangeGmailCode: async ({ code }) => {
 				exchangedCodes.push(code);
@@ -51,6 +55,10 @@ export function initInMemoryGmailIntegration(input: {
 			gmailCredentialsStore: initInMemoryGmailCredentials({ now }),
 			gmailConnectionStore: initInMemoryGmailConnection({ now }),
 			gmailSenderStore: initInMemoryGmailSender({ now }),
+			gmailDiscoveryStore: initInMemoryGmailDiscovery({ now }),
+			publishStartGmailSenderDiscovery: async (detail) => {
+				discoveryRequests.push(detail);
+			},
 			mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
 				const entry = await addresses.createAddress({
 					userId,

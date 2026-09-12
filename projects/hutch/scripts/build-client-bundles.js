@@ -36,6 +36,12 @@ const OUT_DIR = path.join(PROJECT_ROOT, "src", "runtime", "web", "client-dist");
  */
 const BUNDLES = [
   {
+    entry: path.join(PROJECT_ROOT, "src/runtime/web/pages/integrations/gmail-picker.client.ts"),
+    outfile: path.join(OUT_DIR, "gmail-picker.client.js"),
+    globalName: "GmailPicker",
+    footer: "GmailPicker.initGmailPicker({ document: window.document });",
+  },
+  {
     entry: path.join(
       PROJECT_ROOT,
       "src/runtime/web/shared/share-balloon/share-balloon.client.ts",

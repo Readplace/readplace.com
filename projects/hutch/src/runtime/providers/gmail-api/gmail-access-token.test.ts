@@ -111,6 +111,22 @@ describe("initGmailAccessToken", () => {
 		assert.equal(harness.requests.length, 0);
 	});
 
+	it("replaces a cached access token immediately after the saved grant changes", async () => {
+		const harness = makeHarness([
+			{ status: 200, body: { access_token: "old-scope-token", expires_in: 3600 } },
+			{ status: 200, body: { access_token: "new-scope-token", expires_in: 3600 } },
+		]);
+		await harness.credentials.saveCredentials({ userId: USER, refreshToken: "old-grant", grantedScope: SCOPE });
+		await harness.accessToken({ userId: USER, forceRefresh: false });
+		await harness.credentials.saveCredentials({ userId: USER, refreshToken: "new-grant", grantedScope: `${SCOPE} https://www.googleapis.com/auth/gmail.metadata` });
+
+		assert.deepEqual(await harness.accessToken({ userId: USER, forceRefresh: false }), { ok: true, value: "new-scope-token" });
+		assert.equal(harness.requests[1].get("refresh_token"), "new-grant");
+
+		await harness.credentials.deleteCredentials(USER);
+		assert.deepEqual(await harness.accessToken({ userId: USER, forceRefresh: false }), { ok: false, reason: "reauth-required" });
+	});
+
 	it("asks the user to reconnect when Google rejects the refresh token", async () => {
 		const harness = makeHarness([{ status: 400, body: { error: "invalid_grant" } }]);
 		await harness.credentials.saveCredentials({

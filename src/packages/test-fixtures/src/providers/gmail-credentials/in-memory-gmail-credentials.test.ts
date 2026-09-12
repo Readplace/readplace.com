@@ -13,6 +13,7 @@ describe("initInMemoryGmailCredentials", () => {
 		await store.saveCredentials({ userId: owner, refreshToken: "refresh-1", grantedScope: SCOPE });
 
 		assert.equal(await store.findRefreshTokenByUserId(owner), "refresh-1");
+		assert.equal(await store.findGrantedScopeByUserId(owner), SCOPE);
 	});
 
 	it("scopes credentials to their owner", async () => {
@@ -21,6 +22,7 @@ describe("initInMemoryGmailCredentials", () => {
 		await store.saveCredentials({ userId: owner, refreshToken: "refresh-1", grantedScope: SCOPE });
 
 		assert.equal(await store.findRefreshTokenByUserId(otherUser), undefined);
+		assert.equal(await store.findGrantedScopeByUserId(otherUser), undefined);
 	});
 
 	it("replaces the token when the user reconnects", async () => {
@@ -39,6 +41,7 @@ describe("initInMemoryGmailCredentials", () => {
 		await store.deleteCredentials(owner);
 
 		assert.equal(await store.findRefreshTokenByUserId(owner), undefined);
+		assert.equal(await store.findGrantedScopeByUserId(owner), undefined);
 	});
 
 	it("reports no token for a user who never connected", async () => {

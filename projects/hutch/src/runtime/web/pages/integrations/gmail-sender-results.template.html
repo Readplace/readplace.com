@@ -1,0 +1,21 @@
+<div id="gmail-sender-results" data-test-gmail-sender-results data-discovery-state="{{state}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML" hx-sync="#gmail-sender-search-form:drop"{{/if}}>
+  <p class="gmail__discovery-status" role="status" data-test-gmail-discovery-status>{{message}}</p>
+  {{#if discoveryAfter}}<input type="hidden" form="gmail-sender-search-form" name="discovery_after" value="{{discoveryAfter}}">{{/if}}
+  {{#if reconnectAction}}<form method="POST" action="{{reconnectAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"><button class="btn btn--primary" type="submit" data-test-gmail-discovery-reconnect>Reconnect Gmail</button></form>{{/if}}
+  <ul class="gmail__options gmail__sender-options">
+    {{#each options}}
+    <li>
+      <form method="GET" action="{{../pagePath}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+        {{#each fields}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        <button class="gmail__picker-option" type="submit" data-test-gmail-sender-option="{{email}}">
+          {{#if name}}<span>{{name}}</span>{{/if}}<span class="gmail__option-email">{{email}}</span>
+        </button>
+      </form>
+    </li>
+    {{/each}}
+  </ul>
+  {{#unless hasOptions}}<p class="gmail__discovery-status" data-test-gmail-no-senders>No matching senders yet.</p>{{/unless}}
+  {{#if refineMessage}}<p class="gmail__discovery-status" data-test-gmail-refine-search>{{refineMessage}}</p>{{/if}}
+</div>

@@ -1,11 +1,15 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import { randomUUID } from "node:crypto";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
 import { initGmailAccessToken } from "./gmail-api/gmail-access-token";
 import { initGmailAccountEmail } from "./gmail-api/gmail-account";
+import { initGmailMailbox } from "./gmail-api/gmail-mailbox";
+import { initDiscoverGmailSenders, initRunGmailDiscovery } from "../domain/gmail/discover-gmail-senders";
+import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
 import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
@@ -164,6 +168,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 		"GMAIL_INTEGRATION_CLIENT_ID, GMAIL_INTEGRATION_CLIENT_SECRET and GMAIL_INTEGRATION_STATE_SECRET must all be set or all unset",
 	);
 	const gmailCredentialsStore = initInMemoryGmailCredentials({ now: () => new Date() });
+	const gmailConnectionStore = initInMemoryGmailConnection({ now: () => new Date() });
+	const gmailDiscoveryStore = initInMemoryGmailDiscovery({ now: () => new Date() });
 
 	const gmailIntegration =
 		gmailClientId && gmailClientSecret && gmailStateSeed
@@ -175,19 +181,28 @@ export function initDevProviders(input: { appOrigin: string }) {
 						fetch: globalThis.fetch,
 					}),
 					findGmailAccountEmail: initGmailAccountEmail({
-						accessToken: initGmailAccessToken({
-							clientId: gmailClientId,
-							clientSecret: gmailClientSecret,
-							credentials: gmailCredentialsStore,
-							fetch: globalThis.fetch,
-							now: () => new Date(),
-						}),
 						fetch: globalThis.fetch,
 					}),
 					clientId: gmailClientId,
 					stateSecret: deriveGmailStateSigningSecret(gmailStateSeed),
 					gmailCredentialsStore,
-					gmailConnectionStore: initInMemoryGmailConnection({ now: () => new Date() }),
+					gmailConnectionStore,
+					gmailDiscoveryStore,
+					publishStartGmailSenderDiscovery: async ({ userId }: { userId: UserId }) => {
+						const run = initRunGmailDiscovery({
+							discover: initDiscoverGmailSenders({
+								connections: gmailConnectionStore,
+								discovery: gmailDiscoveryStore,
+								newGeneration: randomUUID,
+								mailbox: initGmailMailbox({
+									accessToken: initGmailAccessToken({ clientId: gmailClientId, clientSecret: gmailClientSecret, credentials: gmailCredentialsStore, fetch: globalThis.fetch, now: () => new Date() }),
+									fetch: globalThis.fetch,
+								}),
+							}),
+							waitForNextPage: () => new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+						});
+						void run({ userId }).catch((error: unknown) => logger.error("Gmail sender discovery failed", { error }));
+					},
 					gmailSenderStore: initInMemoryGmailSender({ now: () => new Date() }),
 					mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
 						const entry = await inboxAddressStore.createAddress({

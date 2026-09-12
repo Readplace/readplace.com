@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { GmailAccountEmailSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import type { GmailAccountEmail } from "@packages/domain/gmail";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
-import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
@@ -22,14 +22,14 @@ function grantOk(): GmailGrantResult {
 		grant: {
 			refreshToken: "refresh-value",
 			accessToken: "access-value",
-			grantedScope: GMAIL_SETTINGS_SCOPE,
+			grantedScope: GMAIL_SCOPES,
 		},
 	};
 }
 
 function fixtureWithGmail(
 	grant: GmailGrantResult = grantOk(),
-	accountEmail?: GmailApiResult<GmailAccountEmail>,
+	accountEmail: GmailApiResult<GmailAccountEmail> = { ok: true, value: GmailAccountEmailSchema.parse("reader@gmail.com") },
 ) {
 	const gmail = initInMemoryGmailIntegration({ grant, accountEmail });
 	const fixture = {
@@ -57,7 +57,7 @@ async function connectAndCallback(
 }
 
 describe("POST /integrations/gmail/connect", () => {
-	it("redirects to Google asking only for the settings scope, offline and with forced consent", async () => {
+	it("requests settings and message metadata access, offline and with forced consent", async () => {
 		const { fixture } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -67,7 +67,7 @@ describe("POST /integrations/gmail/connect", () => {
 		expect(response.status).toBe(303);
 		const url = new URL(response.headers.location);
 		expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
-		expect(url.searchParams.get("scope")).toBe(GMAIL_SETTINGS_SCOPE);
+		expect(url.searchParams.get("scope")).toBe(GMAIL_SCOPES);
 		expect(url.searchParams.get("access_type")).toBe("offline");
 		expect(url.searchParams.get("prompt")).toBe("consent");
 		expect(url.searchParams.get("response_type")).toBe("code");
@@ -145,7 +145,7 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(response.headers.location).toBe("/integrations/gmail?notice=connected");
 		expect(codes).toEqual(["auth-code"]);
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("refresh-value");
-		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.accountEmail).toBeUndefined();
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.accountEmail).toBe("reader@gmail.com");
 	});
 
 	it("records the connected mailbox address on a first connect", async () => {
@@ -184,6 +184,43 @@ describe("GET /integrations/gmail/callback", () => {
 		const second = await gmailConnectionStore.findConnectionByUserId(userId);
 		expect(second?.accountEmail).toBe(accountEmail);
 		expect(second?.gatewayAddress).toBe(first?.gatewayAddress);
+	});
+
+	it.each(["different@gmail.com", undefined])("requires disconnect before replacing a connection whose identity is %s", async (priorEmail) => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		if (priorEmail !== undefined) await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse(priorEmail) });
+		await gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmailCredentialsStore.saveCredentials({ userId, refreshToken: "prior-grant", grantedScope: GMAIL_SETTINGS_SCOPE });
+		const senderEmail = ForwardableSenderSchema.parse("sender@example.com");
+		await fixture.gmailIntegration.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
+		const original = await gmailConnectionStore.findConnectionByUserId(userId);
+
+		const response = await connectAndCallback(agent);
+
+		expect(response.headers.location).toBe("/integrations?error=oauth_account_changed");
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("prior-grant");
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toEqual(original);
+		expect((await fixture.gmailIntegration.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
+	});
+
+	it("does not persist an unidentified grant when the mailbox lookup fails", async () => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail(grantOk(), { ok: false, reason: "unavailable", status: 503 });
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+
+		const response = await connectAndCallback(agent);
+
+		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
 	});
 
 	it("refuses a callback whose state was not the one this browser was issued", async () => {
@@ -242,6 +279,42 @@ describe("GET /integrations/gmail/callback", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
+	});
+
+	it("reports withheld metadata permission without replacing an existing forwarding grant", async () => {
+		const { fixture, gmailCredentialsStore } = fixtureWithGmail({ ok: false, reason: "metadata-scope-not-granted" });
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await gmailCredentialsStore.saveCredentials({ userId, refreshToken: "existing-grant", grantedScope: GMAIL_SETTINGS_SCOPE });
+
+		const response = await connectAndCallback(agent);
+
+		expect(response.headers.location).toBe("/integrations?error=oauth_metadata_scope");
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("existing-grant");
+		expect(await gmailCredentialsStore.findGrantedScopeByUserId(userId)).toBe(GMAIL_SETTINGS_SCOPE);
+	});
+
+	it("upgrades an existing settings-only connection without replacing its forwarding address", async () => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await connectAndCallback(agent);
+		const original = await gmailConnectionStore.findConnectionByUserId(userId);
+		assert(original, "the original Gmail connection must exist");
+		await gmailCredentialsStore.saveCredentials({ userId, refreshToken: "old-grant", grantedScope: GMAIL_SETTINGS_SCOPE });
+		await gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse(" Reader@Gmail.com ") });
+
+		await connectAndCallback(agent);
+
+		const upgraded = await gmailConnectionStore.findConnectionByUserId(userId);
+		expect(upgraded?.gatewayAddress).toBe(original.gatewayAddress);
+		expect(upgraded?.forwardingConfirmedAt).toBeDefined();
+		expect(await gmailCredentialsStore.findGrantedScopeByUserId(userId)).toBe(GMAIL_SCOPES);
 	});
 
 	it("reports a failed token exchange", async () => {

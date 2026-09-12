@@ -1,773 +1,325 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
-import { AliasNameSchema, INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
-import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import {
+	AliasNameSchema,
+	INBOX_ADDRESS_MAX_PER_USER,
+	InboxAddressLimitReachedError,
+} from "@packages/domain/inbox";
+import { GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
-
 const GMAIL = "/integrations/gmail";
-const STATUS = "/integrations/gmail/status";
-const ADD = "/integrations/gmail/senders/add?utm_source=integrations-gmail&utm_medium=internal&utm_content=add-sender";
-const REMOVE = "/integrations/gmail/senders/remove?utm_source=integrations-gmail&utm_medium=internal&utm_content=remove-sender";
-const MAP = "/integrations/gmail/senders/map?utm_source=integrations-gmail&utm_medium=internal&utm_content=map-sender";
-const DISCONNECT = "/integrations/gmail/disconnect?utm_source=integrations-gmail&utm_medium=internal&utm_content=disconnect";
-const CONNECT = "/integrations/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=reconnect";
+const ADD = `${GMAIL}/senders/add`;
+const REMOVE = `${GMAIL}/senders/remove`;
+const REMOVE_MAPPING = `${GMAIL}/mappings/remove`;
+const DISCOVER = `${GMAIL}/discovery/start`;
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const MORNING = ForwardableSenderSchema.parse("crew@morningbrew.com");
-
-const BOOST = {
-	"hx-boost": "true",
-	"hx-target": "main",
-	"hx-select": "main",
-	"hx-swap": "outerHTML show:none",
-};
+const EMAIL = GmailAccountEmailSchema.parse("reader@gmail.com");
 
 function load(text: string): Document {
 	return new JSDOM(text).window.document;
 }
 
-function sections(doc: Document): string[] {
-	const present: string[] = [];
-	if (doc.querySelector("[data-test-gmail-step]")) present.push("step");
-	if (doc.querySelector("[data-test-gmail-senders]")) present.push("senders");
-	if (doc.querySelector("[data-test-gmail-reconnect]")) present.push("reconnect");
-	return present;
-}
-
-function assertBoosted(form: Element | null): void {
-	assert(form, "the mutation form is rendered");
-	for (const [attr, value] of Object.entries(BOOST)) {
-		assert.equal(form.getAttribute(attr), value, `form must carry ${attr}="${value}"`);
-	}
-}
-
 function harnessWithGmail() {
 	const gmail = initInMemoryGmailIntegration({
-		grant: {
-			ok: true,
-			grant: {
-				refreshToken: "refresh-value",
-				accessToken: "access-value",
-				grantedScope: GMAIL_SETTINGS_SCOPE,
-			},
-		},
+		grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
 	});
-	const harness = useApp({
-		...createDefaultTestAppFixture(TEST_APP_ORIGIN),
-		gmailIntegration: gmail.bundle,
-	});
+	const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
 	return { harness, gmail };
 }
 
-async function connectedAgent(options: { confirmed?: boolean } = {}) {
+async function connectedAgent(options: { confirmed?: boolean; scope?: string; discovered?: boolean } = {}) {
 	const { harness, gmail } = harnessWithGmail();
-	const created = await harness.auth.createUser({
-		email: "reader@example.com",
-		password: "password123",
-	});
-	assert(created.ok, "the test user is created before the agent signs in");
+	const created = await harness.auth.createUser({ email: "reader@example.com", password: "password123" });
+	assert(created.ok);
 	const userId = created.userId;
 	const agent = request.agent(harness.server);
-	await agent
-		.post("/login")
-		.type("form")
-		.send({ email: "reader@example.com", password: "password123" });
+	await agent.post("/login").type("form").send({ email: "reader@example.com", password: "password123" });
 	const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
 	await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
-	if (options.confirmed !== false) {
-		await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
+	await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: EMAIL });
+	await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: options.scope ?? GMAIL_SCOPES });
+	if (options.confirmed !== false) await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
+	if (options.discovered !== false) {
+		const store = gmail.bundle.gmailDiscoveryStore;
+		await store.startDiscovery({ userId, accountEmail: EMAIL, gatewayAddress, generation: "initial", mode: "full", historyId: "100" });
+		await store.claimPage({ userId, generation: "initial", page: 0 });
+		const previous = await store.findDiscoveryByUserId(userId);
+		assert(previous);
+		await store.savePage({ previous, senders: [{ email: TLDR, name: "TLDR" }, { email: MORNING, name: "Morning Brew" }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 2 });
 	}
-	return { harness, gmail, agent, userId, gatewayAddress };
+	const destination = await gmail.bundle.mintInboxAddress({ userId, name: AliasNameSchema.parse("tech") });
+	return { harness, gmail, agent, userId, gatewayAddress, destination };
 }
 
-describe("GET /integrations/gmail", () => {
-	it("sends an anonymous reader to the login page", async () => {
+describe("Gmail sender mapping page", () => {
+	it("requires authentication on page, discovery, and mapping endpoints", async () => {
 		const { harness } = harnessWithGmail();
-
-		const response = await request(harness.server).get(GMAIL);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		for (const path of [GMAIL, `${GMAIL}/senders`, `${GMAIL}/status`]) {
+			expect((await request(harness.server).get(path)).headers.location).toBe("/login");
+		}
+		for (const path of [ADD, REMOVE, REMOVE_MAPPING, DISCOVER, `${GMAIL}/disconnect`]) {
+			expect((await request(harness.server).post(path)).headers.location).toBe("/login");
+		}
 	});
 
-	it("sends a reader with no connection back to the integrations list", async () => {
+	it("requires a current connection before reading or changing mappings", async () => {
 		const { harness } = harnessWithGmail();
 		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(GMAIL);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations");
+		expect((await agent.get(GMAIL)).headers.location).toBe("/integrations");
+		expect((await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new" })).headers.location).toBe("/integrations");
+		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations");
+		expect((await agent.get(`${GMAIL}/senders`).set("HX-Request", "true")).headers["hx-redirect"]).toBe("/integrations");
 	});
 
-	it("sends a reader whose teardown is already running back to the integrations list", async () => {
+	it("redirects while disconnect is running", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
 		await gmail.bundle.gmailConnectionStore.markDisconnectRequested({ userId });
-
-		const response = await agent.get(GMAIL);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations");
+		expect((await agent.get(GMAIL)).headers.location).toBe("/integrations");
 	});
 
-	it("shows only step 2 with the address to paste into Gmail", async () => {
-		const { agent, gatewayAddress } = await connectedAgent({ confirmed: false });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		expect(sections(doc)).toEqual(["step"]);
-		const address = doc.querySelector("[data-test-gmail-address]");
-		assert(address, "the gateway address is always rendered");
-		assert.equal(address.textContent, gatewayAddress);
-		const disconnect = doc.querySelector(`form[action="${DISCONNECT}"]`);
-		assert(disconnect, "disconnect is reachable while awaiting confirmation");
-		const disconnectParent = disconnect.parentElement;
-		assert(disconnectParent, "the disconnect form sits directly in the page container");
-		assert.equal(disconnectParent.classList.contains("gmail__container"), true);
-		const back = doc.querySelector("a.gmail__back");
-		assert(back, "the page links back to the integrations list");
-		assert.equal(
-			back.getAttribute("href"),
-			"/integrations?utm_source=integrations-gmail&utm_medium=internal&utm_content=back-to-integrations",
-		);
-	});
-
-	it("polls the status route for a self-updating confirmation while awaiting", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		const poll = doc.querySelector("[data-test-gmail-poll]");
-		assert(poll, "the awaiting page carries a poll line");
-		assert.equal(poll.getAttribute("hx-get"), `${STATUS}?poll=1`);
-		assert.equal(poll.getAttribute("hx-trigger"), "every 3s");
-		assert.equal(poll.getAttribute("hx-target"), "this");
-		assert.equal(poll.getAttribute("hx-swap"), "outerHTML");
-		assert.equal(poll.getAttribute("hx-select"), ".gmail__poll");
-	});
-
-	it("does not poll once forwarding is confirmed", async () => {
-		const { agent } = await connectedAgent();
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		assert.equal(doc.querySelector("[data-test-gmail-poll]"), null);
-	});
-
-	it("stops handing out a gateway address that has been switched off", async () => {
-		const { agent, gmail, userId, gatewayAddress } = await connectedAgent({ confirmed: false });
-		await gmail.addresses.disableAddress({ userId, address: gatewayAddress });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		expect(sections(doc)).toEqual([]);
-		const alerts = Array.from(doc.querySelectorAll("[data-test-gmail-alert]")).map((el) =>
-			el.getAttribute("data-test-gmail-alert-key"),
-		);
-		expect(alerts).toEqual(["gateway_disabled"]);
-	});
-
-	it("boosts the awaiting-state mutations so they swap in place", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		assertBoosted(doc.querySelector(`form[action="${DISCONNECT}"]`));
-	});
-
-	it("boosts the sender mutations once the address is confirmed", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
-		await gmail.bundle.gmailSenderStore.recordSenderSeen({
-			userId,
-			senderEmail: MORNING,
-			subject: "Morning Brew",
-		});
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		assertBoosted(doc.querySelector(`form[action="${ADD}"]`));
-		assertBoosted(doc.querySelector(`form[action="${REMOVE}"]`));
-		assertBoosted(doc.querySelector(`form[action="${MAP}"]`));
-		assertBoosted(doc.querySelector(`form[action="${DISCONNECT}"]`));
-	});
-
-	it("boosts the reconnect once Google ends the grant", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		expect(sections(doc)).toEqual(["reconnect"]);
-		assertBoosted(doc.querySelector(`form[action="${CONNECT}"]`));
-	});
-
-	it("invites the first sender when none are forwarded yet", async () => {
-		const { agent } = await connectedAgent();
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		expect(sections(doc)).toEqual(["senders"]);
-		const empty = doc.querySelector("[data-test-gmail-empty]");
-		assert(empty, "the empty state invites the first sender");
-		assert.equal(doc.querySelector("[data-test-gmail-sender-list]"), null);
-	});
-
-	it("targets the rendered copy button with the selector its built bundle wires", async () => {
-		const bundleSource = readFileSync(
-			join(__dirname, "..", "..", "client-dist", "integrations.client.js"),
-			"utf-8",
-		);
-		const copySelector = bundleSource.match(/copySelector:\s*'([^']+)'/)?.[1];
-		const textAttr = bundleSource.match(/textAttr:\s*'([^']+)'/)?.[1];
-		assert(copySelector, "the integrations bundle footer must wire a copySelector");
-		assert(textAttr, "the integrations bundle footer must wire a textAttr");
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const response = await agent.get(GMAIL);
-		const doc = load(response.text);
-
-		const targeted = Array.from(doc.querySelectorAll(copySelector));
-		expect(targeted.length).toBeGreaterThan(0);
-		for (const button of targeted) {
-			assert(button.hasAttribute(textAttr), `copy button must carry ${textAttr}`);
-			assert(button.hasAttribute("hidden"), "the copy button stays hidden until the script reveals it");
-		}
-		expect(response.text).toContain("/client-dist/integrations.client.js");
-	});
-
-	it("walks the reader to the forwarding pane through Gmail's own menus", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		const steps = Array.from(doc.querySelectorAll("[data-test-gmail-steps] li")).map((step) =>
-			step.textContent?.replace(/\s+/g, " ").trim(),
-		);
-		expect(steps).toEqual([
-			"Open Gmail and click the gear icon",
-			"Choose See all settings",
-			"Open Forwarding and POP/IMAP",
-			"Click Add a forwarding address, paste the address below, then Next and Proceed",
-		]);
-	});
-
-	it("shows where to click in Gmail beside the steps that need it", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		const shots = Array.from(doc.querySelectorAll("[data-test-gmail-shot]"));
-		expect(shots.map((shot) => shot.getAttribute("data-test-gmail-shot"))).toEqual([
-			"see-all-settings",
-			"add-forwarding-address",
-		]);
-		for (const shot of shots) {
-			assert.equal(shot.getAttribute("loading"), "lazy");
-			assert.match(String(shot.getAttribute("src")), /\/screenshots\/gmail-[a-z-]+\.webp$/);
-			assert(shot.getAttribute("alt"), "every screenshot describes what it circles");
-			assert(shot.getAttribute("width"), "intrinsic width reserves layout before the image lands");
-			assert(shot.getAttribute("height"), "intrinsic height reserves layout before the image lands");
-		}
-	});
-
-	it("points Open Gmail at the connected mailbox", async () => {
-		const { agent, gmail, userId } = await connectedAgent({ confirmed: false });
-		await gmail.bundle.gmailConnectionStore.recordAccountEmail({
-			userId,
-			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
-		});
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		const link = doc.querySelector("[data-test-gmail-open]");
-		assert(link, "step 2 offers a link into Gmail");
-		assert.equal(
-			link.getAttribute("href"),
-			"https://mail.google.com/mail/u/0/?authuser=reader%40gmail.com",
-		);
-	});
-
-	it("keeps the first-account Gmail link when no mailbox was captured", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		const link = doc.querySelector("[data-test-gmail-open]");
-		assert(link, "step 2 offers a link into Gmail");
-		assert.equal(link.getAttribute("href"), "https://mail.google.com/mail/u/0/");
-	});
-
-	it("serves only the awaiting content to a markdown reader while awaiting", async () => {
-		const { agent, gatewayAddress } = await connectedAgent({ confirmed: false });
-
-		const response = await agent.get(GMAIL).set("Accept", "text/markdown");
-
-		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
-		expect(response.text).toContain("Add the forwarding address");
-		expect(response.text).toContain(gatewayAddress);
-		expect(response.text).not.toContain("Newsletters you forward");
-	});
-
-	it("serves only the sender content to a markdown reader once confirmed", async () => {
-		const { agent } = await connectedAgent();
-
-		const response = await agent.get(GMAIL).set("Accept", "text/markdown");
-
-		expect(response.text).toContain("Newsletters you forward");
-		expect(response.text).not.toContain("Add the forwarding address");
-	});
-
-	it("shows the sender list once the address is confirmed", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		const senders = Array.from(doc.querySelectorAll("[data-test-gmail-sender]")).map((el) =>
-			el.getAttribute("data-test-gmail-sender"),
-		);
-		expect(senders).toEqual([TLDR]);
-	});
-
-	it("offers the reader's named inboxes as destinations on the add form", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.addresses.createAddress({
-			userId,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-
-		const doc = load((await agent.get(GMAIL)).text);
-
-		const options = Array.from(doc.querySelectorAll("[data-test-gmail-destination-option]")).map(
-			(el) => el.getAttribute("data-test-gmail-destination-option"),
-		);
-		assert(options.includes(""), "the default inbox is offered");
-		assert(options.includes("new"), "a new inbox is offered");
-		assert.equal(
-			options.some((value) => value?.startsWith("tech-")),
-			true,
-		);
-	});
-
-	it("renders a flash message off the query string", async () => {
-		const { agent } = await connectedAgent();
-
-		const doc = load((await agent.get(`${GMAIL}?notice=sender_added`)).text);
-
-		const notice = doc.querySelector("[data-test-gmail-notice-key='sender_added']");
-		assert(notice, "a known notice renders");
-	});
-
-	it("greets a fresh connection with the connected notice", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const doc = load((await agent.get(`${GMAIL}?notice=connected`)).text);
-
-		const notice = doc.querySelector("[data-test-gmail-notice-key='connected']");
-		assert(notice, "the connected notice renders after the callback lands here");
-	});
-});
-
-describe("GET /integrations/gmail/status", () => {
-	it("keeps a still-awaiting poll ticking with the next cursor", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const response = await agent.get(`${STATUS}?poll=3`);
-
-		expect(response.status).toBe(200);
-		const poll = load(response.text).querySelector("[data-test-gmail-poll]");
-		assert(poll, "the status fragment is a poll line");
-		assert.equal(poll.getAttribute("hx-get"), `${STATUS}?poll=4`);
-	});
-
-	it("stops a stalled poll and drops the trigger at the confirmation budget", async () => {
-		const { agent } = await connectedAgent({ confirmed: false });
-
-		const response = await agent.get(`${STATUS}?poll=100`);
-
-		const poll = load(response.text).querySelector("[data-test-gmail-poll]");
-		assert(poll, "the stalled fragment still renders a line");
-		assert.equal(poll.getAttribute("hx-get"), null);
-	});
-
-	it("full-navigates a polling htmx client once forwarding is confirmed", async () => {
-		const { agent } = await connectedAgent();
-
-		const response = await agent.get(`${STATUS}?poll=1`).set("HX-Request", "true");
-
-		expect(response.status).toBe(200);
-		expect(response.headers["hx-redirect"]).toBe("/integrations/gmail?notice=confirmed");
-		expect(response.headers.location).toBeUndefined();
-	});
-
-	it("redirects a plain confirmed poll to the confirmed page", async () => {
-		const { agent } = await connectedAgent();
-
-		const response = await agent.get(`${STATUS}?poll=1`);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations/gmail?notice=confirmed");
-	});
-
-	it("sends a poller whose connection has vanished back to the integrations list", async () => {
-		const { harness } = harnessWithGmail();
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(`${STATUS}?poll=1`);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations");
-	});
-});
-
-describe("POST /integrations/gmail/senders/add", () => {
-	it("puts the sender on the filter and asks for a rewrite", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-
-		const response = await agent.post(ADD).type("form").send({ sender: " Dan@TLDR.tech " });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations/gmail?notice=sender_added");
-		const sender = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-		assert(sender?.addedToFilterAt, "the sender is on the filter");
-		assert.deepEqual(
-			gmail.rewriteRequests.map((request) => request.reason),
-			["sender-added"],
-		);
-	});
-
-	it("refuses something that is not an address", async () => {
+	it("renders discovered senders without querying Gmail or changing forwarding on GET", async () => {
 		const { agent, gmail } = await connectedAgent();
-
-		const response = await agent.post(ADD).type("form").send({ sender: "not an address" });
-
-		expect(response.headers.location).toBe(
-			"/integrations/gmail?error=sender_invalid",
-		);
-		assert.deepEqual(gmail.rewriteRequests, []);
+		const response = await agent.get(GMAIL);
+		expect(response.status).toBe(200);
+		expect(response.headers["cache-control"]).toBe("private, no-store");
+		expect(response.text).toContain("Morning Brew");
+		expect(response.text).toContain(TLDR);
+		expect(gmail.discoveryRequests).toEqual([]);
+		expect(gmail.rewriteRequests).toEqual([]);
+		const doc = load(response.text);
+		expect(Array.from(doc.querySelectorAll('input[type="email"]'))).toHaveLength(0);
 	});
 
-	it("refuses a body with no sender at all", async () => {
+	it("searches sender names and addresses through an HTML fragment and works without JavaScript", async () => {
 		const { agent } = await connectedAgent();
-
-		const response = await agent.post(ADD).type("form").send({});
-
-		expect(response.headers.location).toBe(
-			"/integrations/gmail?error=sender_invalid",
-		);
+		const response = await agent.get(`${GMAIL}/senders?search=morning&discovery=started`).set("HX-Request", "true");
+		expect(response.status).toBe(200);
+		expect(response.text).toContain(MORNING);
+		const results = load(response.text).querySelector("#gmail-sender-results");
+		assert(results);
+		expect(results.textContent).toContain("Morning Brew");
+		const full = await agent.get(`${GMAIL}/senders?search=TLDR`);
+		expect(full.text).toContain('class="gmail"');
 	});
 
-	it("refuses a sender that is already on the filter", async () => {
+	it("renders pending discovery and preserves inbox selection across a page reload", async () => {
+		const { agent } = await connectedAgent({ discovered: false });
+		const response = await agent.get(`${GMAIL}?discovery=started&search=test`);
+		expect(response.status).toBe(200);
+		expect(response.text).toContain('name="search"');
+	});
+
+	it("starts background discovery only through POST and requests reconsent for older grants", async () => {
+		const { agent, gmail, userId } = await connectedAgent();
+		expect((await agent.post(DISCOVER)).headers.location).toContain(`${GMAIL}?discovery=started&discovery_after=`);
+		expect(gmail.discoveryRequests).toEqual([{ userId }]);
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "old", grantedScope: GMAIL_SETTINGS_SCOPE });
+		expect((await agent.post(DISCOVER)).headers.location).toBe(`${GMAIL}?error=metadata_required`);
+		expect(gmail.discoveryRequests).toEqual([{ userId }]);
+		expect((await agent.get(GMAIL)).text).toContain("Reconnect");
+	});
+
+	it("keeps polling a cached list until the queued refresh starts without replacing entered inbox details", async () => {
+		const { agent } = await connectedAgent();
+		const started = await agent.post(DISCOVER).type("form").send({ search: "tldr", sender: TLDR, destination: "new" });
+		const page = await agent.get(`${started.headers.location}&inbox_name=science`);
+		const doc = load(page.text);
+		const poll = doc.querySelector("#gmail-sender-results");
+		assert(poll);
+		const pollUrl = poll.getAttribute("hx-get");
+		assert(pollUrl);
+		expect(pollUrl).toContain("discovery_after=");
+		expect(doc.querySelector('input[name="inbox_name"]')?.getAttribute("value")).toBe("science");
+		const fragment = await agent.get(pollUrl).set("HX-Request", "true");
+		const fragmentDoc = load(fragment.text);
+		expect(fragmentDoc.querySelector("#gmail-sender-results")?.getAttribute("hx-get")).toContain("poll=2");
+		expect(fragmentDoc.querySelectorAll('input[name="inbox_name"]').length).toBe(0);
+		expect(fragment.headers["hx-push-url"]).toBeUndefined();
+	});
+
+	it("retains setup instructions and polls Gmail confirmation", async () => {
+		const { agent, gatewayAddress } = await connectedAgent({ confirmed: false });
+		const doc = load((await agent.get(GMAIL)).text);
+		expect(doc.querySelector("[data-test-gmail-address]")?.textContent).toBe(gatewayAddress);
+		const response = await agent.get(`${GMAIL}/status?poll=1`);
+		expect(load(response.text).querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get")).toBe(`${GMAIL}/status?poll=2`);
+		expect((await agent.get(`${GMAIL}/status?poll=100`)).text).toContain("Still waiting");
+	});
+
+	it("redirects completed confirmation with and without htmx", async () => {
+		const { agent, gmail, userId } = await connectedAgent();
+		expect((await agent.get(`${GMAIL}/status`)).headers.location).toBe(`${GMAIL}?notice=confirmed`);
+		expect((await agent.get(`${GMAIL}/status`).set("HX-Request", "true")).headers["hx-redirect"]).toBe(`${GMAIL}?notice=confirmed`);
+		await gmail.bundle.gmailConnectionStore.deleteConnection(userId);
+		expect((await agent.get(`${GMAIL}/status`)).headers.location).toBe("/integrations");
+	});
+});
+
+describe("Save a sender mapping", () => {
+	it("maps a discovered sender and can move it to another existing inbox", async () => {
+		const { agent, gmail, userId, destination } = await connectedAgent();
+		const save = await agent.post(ADD).type("form").send({ sender: TLDR, destination });
+		expect(save.headers.location).toBe(`${GMAIL}?notice=sender_mapped&discovery=started`);
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddress).toBe(destination);
+		const ordinary = await gmail.addresses.createAddress({ userId, domain: "read.place", name: AliasNameSchema.parse("reading"), purpose: "user-alias" });
+		await agent.post(ADD).type("form").send({ sender: TLDR, destination: ordinary.address });
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddress).toBe(ordinary.address);
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }, { userId, reason: "sender-added" }]);
+	});
+
+	it("lets an existing mapping be reassigned before mailbox reconsent", async () => {
+		const { agent, gmail, userId, destination } = await connectedAgent({ discovered: false, scope: GMAIL_SETTINGS_SCOPE });
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		await agent.post(ADD).type("form").send({ sender: TLDR, destination });
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddress).toBe(destination);
+	});
+
+	it("requires a real discovered or already mapped sender and an explicit destination", async () => {
+		const { agent, gmail, destination } = await connectedAgent();
+		for (const body of [{}, { sender: "bad", destination }, { sender: TLDR }]) {
+			expect((await agent.post(ADD).type("form").send(body)).headers.location).toBe(`${GMAIL}?error=sender_invalid`);
+		}
+		expect((await agent.post(ADD).type("form").send({ sender: "unknown@example.com", destination })).headers.location).toContain("error=sender_unknown");
+		expect(gmail.rewriteRequests).toEqual([]);
+	});
+
+	it.each(["account", "gateway", "missing"])("rejects a stale picker submission when its discovery %s no longer matches the connection", async (change) => {
+		const { agent, gmail, userId } = await connectedAgent();
+		if (change === "account") {
+			await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse("another@gmail.com") });
+		} else if (change === "gateway") {
+			const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+			await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
+			await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: EMAIL });
+		} else {
+			await gmail.bundle.gmailDiscoveryStore.deleteDiscoveryByUserId(userId);
+		}
+		const before = await gmail.bundle.listInboxAddresses(userId);
+		const response = await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new", inbox_name: "stale" });
+		expect(response.headers.location).toContain("error=sender_unknown");
+		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(await gmail.bundle.listInboxAddresses(userId)).toEqual(before);
+		expect(gmail.rewriteRequests).toEqual([]);
+	});
+
+	it("refuses disabled, unknown, gateway, and another user's destinations", async () => {
+		const { agent, gmail, userId, destination, gatewayAddress, harness } = await connectedAgent();
+		await gmail.addresses.disableAddress({ userId, address: destination });
+		const other = await harness.auth.createUser({ email: "other@example.com", password: "password123" });
+		assert(other.ok);
+		const foreign = await gmail.bundle.mintInboxAddress({ userId: other.userId, name: AliasNameSchema.parse("foreign") });
+		for (const address of [destination, gatewayAddress, foreign, "missing"]) {
+			expect((await agent.post(ADD).type("form").send({ sender: TLDR, destination: address })).headers.location).toContain("error=destination_invalid");
+		}
+		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+	});
+
+	it("creates a named inbox and assigns the selected sender in one save", async () => {
+		const { agent, gmail, userId } = await connectedAgent();
+		await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new", inbox_name: "Science" });
+		const row = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		assert(row?.mappedAddress);
+		expect((await gmail.bundle.findInboxAddress(row.mappedAddress))?.name).toBe("science");
+		expect(row.addedToFilterAt).toBeDefined();
+	});
+
+	it("keeps the sender and entered inbox name when name validation fails", async () => {
+		const { agent, gmail, userId } = await connectedAgent();
+		for (const name of [undefined, "!!!", "tech"]) {
+			const response = await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new", inbox_name: name });
+			expect(response.headers.location).toContain(name === "tech" ? "error=inbox_name_taken" : "error=inbox_name_invalid");
+			expect(response.headers.location).toContain("sender=dan%40tldr.tech");
+		}
+		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+	});
+
+	it("shares the account cap across regular and Gmail inboxes while permitting existing destinations", async () => {
+		const { agent, gmail, userId, destination } = await connectedAgent();
+		for (let index = 1; index < INBOX_ADDRESS_MAX_PER_USER; index++) {
+			await gmail.addresses.createAddress({ userId, domain: "read.place", name: AliasNameSchema.parse(`inbox-${index}`), purpose: index % 2 === 0 ? "gmail-mapped" : "user-alias" });
+		}
+		const blocked = await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new", inbox_name: "overflow" });
+		expect(blocked.headers.location).toContain("error=inbox_limit");
+		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		await agent.post(ADD).type("form").send({ sender: TLDR, destination });
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddress).toBe(destination);
+		await gmail.addresses.disableAddress({ userId, address: destination });
+		await agent.post(ADD).type("form").send({ sender: MORNING, destination: "new", inbox_name: "available" });
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: MORNING }))?.mappedAddress).toBeDefined();
+	});
+
+	it("turns a store-level inbox cap refusal into a form error", async () => {
+		const { agent, gmail } = await connectedAgent();
+		gmail.bundle.mintInboxAddress = async () => { throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER); };
+		const response = await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new", inbox_name: "science" });
+		expect(response.headers.location).toContain("error=inbox_limit");
+		expect(gmail.rewriteRequests).toEqual([]);
+	});
+});
+
+describe("Remove sender mappings", () => {
+	it("removes one sender while keeping its inbox and other assignments", async () => {
+		const { agent, gmail, userId, destination } = await connectedAgent();
+		for (const sender of [TLDR, MORNING]) await agent.post(ADD).type("form").send({ sender, destination });
+		await agent.post(REMOVE).type("form").send({ sender: TLDR });
+		expect((await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).map((row) => row.senderEmail)).toEqual([MORNING]);
+		expect((await gmail.bundle.findInboxAddress(destination))?.disabledAt).toBeUndefined();
+		expect((await gmail.bundle.gmailDiscoveryStore.listSendersByUserId(userId)).map((row) => row.email).sort()).toEqual([MORNING, TLDR].sort());
+	});
+
+	it("removes an inbox mapping as a group without disabling or deleting the inbox", async () => {
+		const { agent, gmail, userId, destination } = await connectedAgent();
+		for (const sender of [TLDR, MORNING]) await agent.post(ADD).type("form").send({ sender, destination });
+		const otherSender = ForwardableSenderSchema.parse("another@example.com");
+		const otherInbox = await gmail.bundle.mintInboxAddress({ userId, name: AliasNameSchema.parse("another") });
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: otherSender, mappedAddress: otherInbox });
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: otherSender });
+		const response = await agent.post(REMOVE_MAPPING).type("form").send({ destination });
+		expect(response.headers.location).toBe(`${GMAIL}?notice=mapping_removed&discovery=started`);
+		expect((await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).map((sender) => sender.senderEmail)).toEqual([otherSender]);
+		const inbox = await gmail.bundle.findInboxAddress(destination);
+		assert(inbox);
+		expect(inbox.disabledAt).toBeUndefined();
+		expect(gmail.rewriteRequests.at(-1)).toEqual({ userId, reason: "sender-removed" });
+	});
+
+	it("can clear legacy gateway-only mappings and rejects malformed removal requests", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
 		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
-
-		const response = await agent.post(ADD).type("form").send({ sender: TLDR });
-
-		expect(response.headers.location).toBe(
-			"/integrations/gmail?error=sender_duplicate",
-		);
+		await agent.post(REMOVE_MAPPING).type("form").send({ destination: "legacy" });
+		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect((await agent.post(REMOVE_MAPPING).type("form").send({})).headers.location).toBe(`${GMAIL}?error=destination_invalid`);
+		expect((await agent.post(REMOVE).type("form").send({ sender: "bad" })).headers.location).toBe(`${GMAIL}?error=sender_invalid`);
 	});
 
-	it("accepts a sender that has only been seen so far", async () => {
+	it("disconnects through the existing background teardown", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.bundle.gmailSenderStore.recordSenderSeen({
-			userId,
-			senderEmail: TLDR,
-			subject: "TLDR",
-		});
-
-		const response = await agent.post(ADD).type("form").send({ sender: TLDR });
-
-		expect(response.headers.location).toBe("/integrations/gmail?notice=sender_added");
+		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations");
+		expect(gmail.disconnectRequests).toEqual([{ userId }]);
+		expect((await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId))?.disconnectRequestedAt).toBeDefined();
 	});
 
-	it("creates a named inbox and maps the sender to it", async () => {
+	it("republishes a pending disconnect when its first dispatch failed", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
-
-		const response = await agent
-			.post(ADD)
-			.type("form")
-			.send({ sender: TLDR, destination: "new", inbox_name: "tech" });
-
-		expect(response.headers.location).toBe("/integrations/gmail?notice=inbox_created");
-		const sender = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-		assert.match(String(sender?.mappedAddress), /^tech-[0-9a-z]{6}@read\.place$/);
-		assert(sender?.addedToFilterAt, "the mapped sender is on the filter");
-		assert.deepEqual(
-			gmail.rewriteRequests.map((request) => request.reason),
-			["sender-added"],
-		);
-	});
-
-	it("names a new inbox after the sender when the name box is left blank", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-
-		const response = await agent
-			.post(ADD)
-			.type("form")
-			.send({ sender: TLDR, destination: "new" });
-
-		expect(response.headers.location).toBe("/integrations/gmail?notice=inbox_created");
-		const sender = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-		assert.match(String(sender?.mappedAddress), /^tldr-[0-9a-z]{6}@read\.place$/);
-	});
-
-	it("refuses an inbox name that is not a usable alias", async () => {
-		const { agent } = await connectedAgent();
-
-		const response = await agent
-			.post(ADD)
-			.type("form")
-			.send({ sender: TLDR, destination: "new", inbox_name: "!!!" });
-
-		expect(response.headers.location).toBe("/integrations/gmail?error=inbox_name_invalid");
-	});
-
-	it("refuses a name the reader already uses for an inbox", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.addresses.createAddress({
-			userId,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-
-		const response = await agent
-			.post(ADD)
-			.type("form")
-			.send({ sender: TLDR, destination: "new", inbox_name: "tech" });
-
-		expect(response.headers.location).toBe("/integrations/gmail?error=inbox_name_taken");
-	});
-
-	it("refuses a new inbox once the reader is at the address cap", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		for (let index = 0; index < INBOX_ADDRESS_MAX_PER_USER; index++) {
-			await gmail.addresses.createAddress({
-				userId,
-				domain: "read.place",
-				name: AliasNameSchema.parse(`n${index}`),
-				purpose: "gmail-mapped",
-			});
-		}
-
-		const response = await agent
-			.post(ADD)
-			.type("form")
-			.send({ sender: TLDR, destination: "new", inbox_name: "another" });
-
-		expect(response.headers.location).toBe("/integrations/gmail?error=inbox_limit");
-	});
-
-	it("adds a sender to an existing confirmed named inbox", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		const inbox = await gmail.addresses.createAddress({
-			userId,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-		await gmail.addresses.markGmailForwardingConfirmed({ userId, address: inbox.address });
-
-		const response = await agent
-			.post(ADD)
-			.type("form")
-			.send({ sender: TLDR, destination: inbox.address });
-
-		expect(response.headers.location).toBe("/integrations/gmail?notice=sender_mapped");
-		const sender = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-		assert.equal(sender?.mappedAddress, inbox.address);
-		assert(sender?.addedToFilterAt, "the sender is on the filter");
-	});
-
-	it("asks for Gmail setup when adding a sender to an unconfirmed inbox", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		const inbox = await gmail.addresses.createAddress({
-			userId,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-
-		const response = await agent
-			.post(ADD)
-			.type("form")
-			.send({ sender: TLDR, destination: inbox.address });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations/gmail?notice=inbox_confirmation_required");
-		const doc = load((await agent.get(response.headers.location)).text);
-		assert.deepEqual(
-			Array.from(doc.querySelectorAll("[data-test-gmail-notice]")).map((notice) =>
-				notice.getAttribute("data-test-gmail-notice-key"),
-			),
-			["inbox_confirmation_required"],
-		);
-		const address = doc.querySelector("[data-test-gmail-sender-mapped]");
-		assert(address, "the inbox address is shown for the reader to add in Gmail");
-		assert.equal(address.textContent, inbox.address);
-		const sender = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-		assert.equal(sender?.mappedAddress, inbox.address);
-		assert(sender?.addedToFilterAt, "the sender is ready for the confirmation-triggered rewrite");
-	});
-
-	it("refuses a destination that is not one of the reader's inboxes", async () => {
-		const { agent } = await connectedAgent();
-
-		const response = await agent
-			.post(ADD)
-			.type("form")
-			.send({ sender: TLDR, destination: "made-up-3f9a2c@read.place" });
-
-		expect(response.headers.location).toBe("/integrations/gmail?error=inbox_name_invalid");
-	});
-});
-
-describe("POST /integrations/gmail/senders/remove", () => {
-	it("takes the sender off the filter and asks for a rewrite", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
-
-		const response = await agent.post(REMOVE).type("form").send({ sender: TLDR });
-
-		expect(response.headers.location).toBe(
-			"/integrations/gmail?notice=sender_removed",
-		);
-		assert.equal(
-			await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }),
-			undefined,
-		);
-		assert.deepEqual(
-			gmail.rewriteRequests.map((request) => request.reason),
-			["sender-removed"],
-		);
-	});
-
-	it("refuses something that is not an address", async () => {
-		const { agent } = await connectedAgent();
-
-		const response = await agent.post(REMOVE).type("form").send({ sender: "nope" });
-
-		expect(response.headers.location).toBe(
-			"/integrations/gmail?error=sender_invalid",
-		);
-	});
-});
-
-describe("POST /integrations/gmail/senders/map", () => {
-	it("gives the sender its own alias and explains the required Gmail setup", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.bundle.gmailSenderStore.recordSenderSeen({
-			userId,
-			senderEmail: TLDR,
-			subject: "TLDR",
-		});
-
-		const response = await agent.post(MAP).type("form").send({ sender: TLDR });
-
-		expect(response.headers.location).toBe(
-			"/integrations/gmail?notice=inbox_created",
-		);
-		const sender = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-		assert.match(String(sender?.mappedAddress), /^tldr-[0-9a-z]{6}@read\.place$/);
-		assert(sender?.addedToFilterAt, "mapping prepares the sender for forwarding after confirmation");
-		const doc = load((await agent.get(response.headers.location)).text);
-		assert.deepEqual(
-			Array.from(doc.querySelectorAll("[data-test-gmail-notice]")).map((notice) =>
-				notice.getAttribute("data-test-gmail-notice-key"),
-			),
-			["inbox_created"],
-		);
-		const address = doc.querySelector("[data-test-gmail-sender-mapped]");
-		assert(address, "the new address is shown for the reader to add in Gmail");
-		assert.equal(address.textContent, sender.mappedAddress);
-	});
-
-	it("keeps an unsorted sender unchanged and explains when the inbox limit is reached", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-		await gmail.bundle.gmailSenderStore.recordSenderSeen({
-			userId,
-			senderEmail: TLDR,
-			subject: "TLDR",
-		});
-		for (let index = 0; index < INBOX_ADDRESS_MAX_PER_USER; index++) {
-			await gmail.addresses.createAddress({
-				userId,
-				domain: "read.place",
-				name: AliasNameSchema.parse(`n${index}`),
-				purpose: "gmail-mapped",
-			});
-		}
-		const senderBefore = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-
-		const response = await agent.post(MAP).type("form").send({ sender: TLDR });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations/gmail?error=inbox_limit");
-		assert.deepEqual(
-			await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }),
-			senderBefore,
-		);
-		assert.deepEqual(gmail.rewriteRequests, []);
-	});
-
-	it("refuses a sender it has never seen", async () => {
-		const { agent } = await connectedAgent();
-
-		const response = await agent.post(MAP).type("form").send({ sender: TLDR });
-
-		expect(response.headers.location).toBe(
-			"/integrations/gmail?error=sender_unknown",
-		);
-	});
-
-	it("refuses something that is not an address", async () => {
-		const { agent } = await connectedAgent();
-
-		const response = await agent.post(MAP).type("form").send({ sender: "nope" });
-
-		expect(response.headers.location).toBe(
-			"/integrations/gmail?error=sender_invalid",
-		);
-	});
-});
-
-describe("POST /integrations/gmail/disconnect", () => {
-	it("hands the teardown to the worker and returns to the integrations list", async () => {
-		const { agent, gmail, userId } = await connectedAgent();
-
-		const response = await agent.post(DISCONNECT).send();
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations");
-		assert.deepEqual(gmail.disconnectRequests, [{ userId }]);
-	});
-
-	it("stops calling Gmail connected on the page the redirect lands on, before the worker has run", async () => {
-		const { agent } = await connectedAgent();
-
-		await agent.post(DISCONNECT).send();
-		const doc = load((await agent.get("/integrations")).text);
-
-		const status = doc.querySelector("[data-test-integration-status]");
-		assert(status, "the Gmail row must carry a status");
-		assert.equal(status.getAttribute("data-test-integration-status"), "disconnecting");
-		assert.equal(status.textContent, "Disconnecting\u2026");
-		assert.deepEqual(
-			Array.from(doc.querySelectorAll("[data-test-integration-action]")).map((el) =>
-				el.getAttribute("data-test-integration-action"),
-			),
-			[],
-		);
+		const publish = gmail.bundle.publishDisconnectGmail;
+		let attempts = 0;
+		gmail.bundle.publishDisconnectGmail = async (input) => {
+			attempts += 1;
+			if (attempts === 1) throw new Error("EventBridge unavailable");
+			await publish(input);
+		};
+		expect((await agent.post(`${GMAIL}/disconnect`)).status).toBe(500);
+		expect((await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId))?.disconnectRequestedAt).toBeDefined();
+		expect(gmail.disconnectRequests).toEqual([]);
+		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations");
+		expect(gmail.disconnectRequests).toEqual([{ userId }]);
+		expect(attempts).toBe(2);
 	});
 });

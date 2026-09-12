@@ -19,16 +19,16 @@ export function initGmailAccessToken(deps: {
 	fetch: typeof globalThis.fetch;
 	now: () => Date;
 }): GetGmailAccessToken {
-	const cached = new Map<UserId, { accessToken: string; expiresAt: number }>();
+	const cached = new Map<UserId, { accessToken: string; expiresAt: number; refreshToken: string }>();
 
 	return async ({ userId, forceRefresh }) => {
+		const refreshToken = await deps.credentials.findRefreshTokenByUserId(userId);
 		const live = cached.get(userId);
-		if (!forceRefresh && live !== undefined && live.expiresAt > deps.now().getTime()) {
+		if (!forceRefresh && live !== undefined && live.refreshToken === refreshToken && live.expiresAt > deps.now().getTime()) {
 			return { ok: true, value: live.accessToken };
 		}
 		cached.delete(userId);
 
-		const refreshToken = await deps.credentials.findRefreshTokenByUserId(userId);
 		if (refreshToken === undefined) return { ok: false, reason: "reauth-required" };
 
 		const response = await deps.fetch(TOKEN_ENDPOINT, {
@@ -51,6 +51,7 @@ export function initGmailAccessToken(deps: {
 		if (!parsed.success) return { ok: false, reason: "unavailable", status: response.status };
 
 		cached.set(userId, {
+			refreshToken,
 			accessToken: parsed.data.access_token,
 			expiresAt: deps.now().getTime() + parsed.data.expires_in * 1000 - EXPIRY_SKEW_MS,
 		});

@@ -3,7 +3,7 @@ import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/hutch-infra-components/infra";
+import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchDLQEventHandler, HutchStripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/hutch-infra-components/infra";
 import {
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
@@ -12,6 +12,8 @@ import {
 	DisconnectGmailCommand,
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
+	StartGmailSenderDiscoveryCommand,
+	GmailSenderDiscoveryProgressedEvent,
 	SendTrialFeedbackEmailCommand,
 	SendFirstInboxEmailNoticeCommand,
 	ReaderViewLoadingSucceeded,
@@ -92,6 +94,7 @@ const tableNames = {
 	digestQueue: config.require("dynamodbDigestQueueTable"),
 	gmailCredentials: config.require("dynamodbGmailCredentialsTable"),
 	gmailConnections: config.require("dynamodbGmailConnectionsTable"),
+	gmailDiscovery: config.require("dynamodbGmailDiscoveryTable"),
 	gmailSenders: config.require("dynamodbGmailSendersTable"),
 };
 
@@ -214,6 +217,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
 		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
@@ -382,6 +386,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 		GMAIL_INTEGRATION_STATE_SECRET: requireEnv("GMAIL_INTEGRATION_STATE_SECRET"),
+		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
@@ -555,6 +560,10 @@ if (googleWorkspaceMail) {
 
 const userDataJobsDynamodb = new HutchDynamoDBAccess("user-data-jobs-dynamodb", {
 	tables: [
+		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
+		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
 		{ arn: storage.usersTable.arn, includeIndexes: true },
 		{ arn: storage.sessionsTable.arn, includeIndexes: true },
 		{ arn: storage.oauthTable.arn, includeIndexes: true },
@@ -632,6 +641,10 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 	memorySize: 1024,
 	timeout: 900,
 	environment: {
+		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
@@ -1189,6 +1202,7 @@ eventBus.subscribe(SendFirstInboxEmailNoticeCommand, sendFirstInboxEmailNoticeWi
 
 const rewriteGmailFilterDynamodb = new HutchDynamoDBAccess("hutch-rewrite-gmail-filter-tables", {
 	tables: [
+		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
@@ -1215,6 +1229,7 @@ const rewriteGmailFilterLambda = new HutchLambda("rewrite-gmail-filter", {
 	timeout: 60,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
@@ -1243,6 +1258,50 @@ eventBus.subscribeAll(
 	rewriteGmailFilterWithSQS,
 	{ name: "hutch-rewrite-gmail-filter" },
 );
+
+const gmailDiscoveryAccess = new HutchDynamoDBAccess("hutch-gmail-discovery-tables", {
+	tables: [
+		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
+		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem"],
+});
+const gmailDiscoveryQueue = new HutchSQS("gmail-discovery", { visibilityTimeoutSeconds: 90, dlqMaxReceiveCount: 5 });
+const gmailDiscoveryLambda = new HutchLambda("gmail-discovery", {
+	entryPoint: "./src/runtime/gmail-discovery.main.ts",
+	outputDir: ".lib/gmail-discovery",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		GMAIL_DISCOVERY_QUEUE_URL: gmailDiscoveryQueue.queueUrl,
+		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+	},
+	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryQueue.policies],
+});
+eventBus.grantPublish(gmailDiscoveryLambda);
+const gmailDiscoveryWithSqs = new HutchSQSBackedLambda("gmail-discovery", {
+	lambda: gmailDiscoveryLambda,
+	queue: gmailDiscoveryQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+eventBus.subscribeAll([StartGmailSenderDiscoveryCommand, GmailSenderDiscoveryProgressedEvent], gmailDiscoveryWithSqs, { name: "hutch-gmail-discovery" });
+new HutchDLQEventHandler("gmail-discovery-dlq", {
+	deadLetterQueueArn: gmailDiscoveryQueue.dlqArn,
+	tableArn: storage.gmailDiscoveryTable.arn,
+	tableName: storage.gmailDiscoveryTable.name,
+	eventBus,
+	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: { DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name },
+});
 
 // --- Analytics Dashboard ---
 // The widget builder lives outside the Pulumi runtime so the dashboard JSON is

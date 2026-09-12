@@ -33,8 +33,12 @@ export function initDynamoDbGmailCredentials(deps: {
 			});
 		},
 		findRefreshTokenByUserId: async (userId) => {
-			const row = await table.get({ userId });
+			const row = await table.get({ userId }, { consistentRead: true });
 			return row?.refreshToken;
+		},
+		findGrantedScopeByUserId: async (userId) => {
+			const row = await table.get({ userId }, { consistentRead: true });
+			return row?.grantedScope;
 		},
 		deleteCredentials: async (userId) => {
 			await table.delete({ Key: { userId } });
