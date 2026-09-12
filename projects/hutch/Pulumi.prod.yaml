@@ -101,4 +101,6 @@ config:
     c6f587a1e604f02595c1032a764543d7,
     342d72290cd7570617cc1f99d8e1bc30
   ]
+  hutch:dynamodbOAuthOutcomesTable: hutch-oauth-refresh-outcomes-prod
+  hutch:oauthTestGrants: []
 encryptionsalt: v1:l9Qbc2Rjk0w=:v1:atrW398hQVu5eMhu:NQ2XG9vAOXAa+XxkU2+ksKYFAJJLTA==

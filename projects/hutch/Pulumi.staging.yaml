@@ -77,4 +77,6 @@ config:
   hutch:foundingMemberLimit: '5'
   hutch:excludedVisitorIds: []
   hutch:excludedUserIds: []
+  hutch:dynamodbOAuthOutcomesTable: hutch-oauth-refresh-outcomes-staging
+  hutch:oauthTestGrants: []
 encryptionsalt: v1:fILgDgnVVEY=:v1:sFKytKYEpZU4Qs+9:o/Q+JSj6rS/qo7p6WyjaekWrgFAk5A==

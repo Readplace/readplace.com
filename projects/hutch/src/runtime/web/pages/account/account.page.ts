@@ -513,7 +513,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		}
 		await deps.markAccountDeleted({ userId, at: deps.now().toISOString() });
 		await deps.destroyUserSessions(userId);
-		await deps.revokeAllUserOAuthTokens(userId);
+		await deps.revokeAllUserOAuthTokens(userId, "account-deletion");
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
 		await deps.publishDeleteAccountCommand({ userId });
 		// Deletion logs the user out, so the whole page (nav, banner) must reset to

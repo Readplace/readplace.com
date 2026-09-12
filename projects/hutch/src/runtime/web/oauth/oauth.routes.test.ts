@@ -9,6 +9,7 @@ import {
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 
 import type { UserId } from "@packages/domain/user";
+import { initIngestRefreshRefusal } from "../../oauth-refresh/ingest-refusal";
 
 const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 
@@ -67,6 +68,18 @@ const TEST_CLIENT_ID = "hutch-firefox-extension";
 const TEST_REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
 
 const useApp = useTestServer();
+
+it.each(["refresh_token=one&refresh_token=two", "refresh_token[nested]=invalid"])("keeps malformed refresh credentials visible to monitoring: %s", async refreshToken => {
+	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	const response = await request(harness.server).post("/oauth/token").type("form")
+		.send(`grant_type=refresh_token&client_id=${TEST_CLIENT_ID}&${refreshToken}`);
+	expect(response.status).toBe(400);
+	const refused = harness.analytics.events.find(event => event.event === "oauth_token_refused");
+	expect(refused).toMatchObject({ event: "oauth_token_refused", grant_type: "refresh_token", refresh_refusal: { status: 400, reason: "unknown" } });
+	const record = jest.fn();
+	await initIngestRefreshRefusal(record)({ message: JSON.stringify(refused), timestamp: 123, source: "source", id: "id" });
+	expect(record.mock.calls).toHaveLength(1);
+});
 
 describe("OAuth routes", () => {
 	describe("GET /oauth/authorize", () => {

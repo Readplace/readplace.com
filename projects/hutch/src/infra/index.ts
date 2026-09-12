@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchDLQEventHandler, HutchStripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/hutch-infra-components/infra";
 import {
+	type EvaluateOAuthRefreshCommand,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
 	DeleteAccountCommand,
@@ -202,6 +203,21 @@ const ssrEdgeSecret = ssrEdgeSecretFromPlatformStack(config);
 // it a crawl that falls through to curl dies on `spawn curl_chrome131 ENOENT`.
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
 
+
+const oauthOutcomes = new aws.dynamodb.Table("oauth-refresh-outcomes", {
+	name: config.require("dynamodbOAuthOutcomesTable"),
+	billingMode: "PAY_PER_REQUEST",
+	deletionProtectionEnabled: deletionProtection,
+	hashKey: "day",
+	rangeKey: "order",
+	attributes: [{ name: "day", type: "S" }, { name: "order", type: "S" }],
+	ttl: { attributeName: "expiresAt", enabled: true },
+});
+const oauthOutcomesWrite = new HutchDynamoDBAccess("oauth-outcomes-write", {
+	tables: [{ arn: oauthOutcomes.arn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
 const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 	tables: [
 		{ arn: storage.articlesTable.arn, includeIndexes: true },
@@ -362,6 +378,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
+		DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name,
 		DYNAMODB_VERIFICATION_TOKENS_TABLE: storage.verificationTokensTable.name,
 		DYNAMODB_PASSWORD_RESET_TOKENS_TABLE: storage.passwordResetTokensTable.name,
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
@@ -413,6 +430,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	},
 	policies: [
 		...dynamodb.policies,
+		...oauthOutcomesWrite.policies,
 		...webUsersScan.policies,
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
@@ -664,6 +682,7 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		USER_EXPORT_BUCKET_NAME: userExportBucketName,
+		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		APPLE_LOGIN_CLIENT_ID: requireEnv("APPLE_LOGIN_CLIENT_ID"),
 		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
@@ -1448,6 +1467,10 @@ const analyticsFailurePolicy = {
 	),
 };
 
+const oauthHistoryRead = new HutchDynamoDBAccess("oauth-history-read", {
+	tables: [{ arn: storage.oauthTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
 const forwardAnalyticsLambda = new HutchLambda(FORWARD_ANALYTICS_LAMBDA_NAME, {
 	entryPoint: "./src/runtime/forward-analytics.main.ts",
 	outputDir: ".lib/forward-analytics",
@@ -1455,10 +1478,12 @@ const forwardAnalyticsLambda = new HutchLambda(FORWARD_ANALYTICS_LAMBDA_NAME, {
 	memorySize: 128,
 	timeout: 30,
 	environment: {
+		DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name,
+		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
 		ANALYTICS_LOG_GROUP_NAME: analyticsLogGroup.name,
 		ERRORS_LOG_GROUP_NAME: errorsLogGroup.name,
 	},
-	policies: [analyticsWritePolicy, analyticsFailurePolicy],
+	policies: [analyticsWritePolicy, analyticsFailurePolicy, ...oauthOutcomesWrite.policies, ...oauthHistoryRead.policies],
 });
 
 // A CloudWatch Logs subscription can only target Lambda/Kinesis/Firehose, so the
@@ -1616,3 +1641,42 @@ export const apiGatewayId = gateway.apiGatewayId;
 export const apiGatewayExecutionArn = gateway.apiGatewayExecutionArn;
 export const staticBaseUrl = staticAssets.baseUrl;
 export const _dependencies = [gateway.defaultRoute];
+
+
+const evaluateRefreshQueue = new HutchSQS("evaluate-oauth-refresh", { visibilityTimeoutSeconds: 180 });
+const evaluateRefreshRead = new HutchDynamoDBAccess("evaluate-oauth-refresh-read", {
+	tables: [{ arn: oauthOutcomes.arn, includeIndexes: false }], actions: ["dynamodb:Query"],
+});
+const evaluateRefreshLambda = new HutchLambda("evaluate-oauth-refresh", {
+	entryPoint: "./src/runtime/evaluate-oauth-refresh.main.ts", outputDir: ".lib/evaluate-oauth-refresh", assetDir: "./src/runtime",
+	memorySize: 256, timeout: 30,
+	environment: { EVENT_BUS_NAME: eventBus.eventBusName, DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name, OAUTH_TEST_GRANTS: JSON.stringify(config.requireObject("oauthTestGrants")) },
+	policies: [...evaluateRefreshRead.policies, { name: "oauth-refresh-metrics", policy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "cloudwatch:PutMetricData", Resource: "*", Condition: { StringEquals: { "cloudwatch:namespace": "Readplace/OAuth" } } }] }) }],
+});
+eventBus.grantPublish(evaluateRefreshLambda);
+new HutchSQSBackedLambda("evaluate-oauth-refresh", { lambda: evaluateRefreshLambda, queue: evaluateRefreshQueue, alertEmailDLQEntry: alertEmail, batchSize: 1 });
+const evaluateRefreshRole = new aws.iam.Role("evaluate-oauth-refresh-scheduler", {
+	assumeRolePolicy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }] }),
+});
+new aws.iam.RolePolicy("evaluate-oauth-refresh-scheduler-send", {
+	role: evaluateRefreshRole.id,
+	policy: evaluateRefreshQueue.queueArn.apply(arn => JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "sqs:SendMessage", Resource: arn }] })),
+});
+new aws.scheduler.Schedule("evaluate-oauth-refresh", {
+	scheduleExpression: "rate(1 minute)", flexibleTimeWindow: { mode: "OFF" },
+	target: { arn: evaluateRefreshQueue.queueArn, roleArn: evaluateRefreshRole.arn, input: JSON.stringify({ scheduledAt: "<aws.scheduler.scheduled-time>" } satisfies z.infer<typeof EvaluateOAuthRefreshCommand.detailSchema>) },
+});
+new aws.cloudwatch.MetricAlarm("oauth-refresh-unexpected-comparison", {
+	name: "oauth-refresh-unexpected-comparison", namespace: "Readplace/OAuth", metricName: "OAuthRefreshUnexpected24h",
+	comparisonOperator: "GreaterThanOrEqualToThreshold", threshold: 5, period: 60, evaluationPeriods: 1, statistic: "Maximum", treatMissingData: "missing",
+	alarmDescription: "Five qualifying refresh failures in the preceding 24 hours; comparison alarm before production cutover",
+});
+new aws.cloudwatch.MetricAlarm("oauth-refresh-monitoring-health", {
+	name: "oauth-refresh-monitoring-health",
+	comparisonOperator: "LessThanThreshold", threshold: 1, evaluationPeriods: 5, datapointsToAlarm: 5, treatMissingData: "breaching",
+	metricQueries: [
+		{ id: "heartbeat", metric: { namespace: "Readplace/OAuth", metricName: "OAuthRefreshEvaluationSucceeded", period: 60, stat: "Maximum" }, returnData: false },
+		{ id: "completed", expression: "FILL(heartbeat, 0)", returnData: true },
+	],
+	alarmActions: [oauthRefreshRefusedTopic.arn], alarmDescription: "OAuth refresh monitoring has not completed an evaluation for five minutes",
+});

@@ -52,6 +52,7 @@ const auth = initDynamoDbAuth({
 });
 
 const revokeAllUserOAuthTokens = initRevokeAllUserOAuthTokens({
+	secret: requireEnv("ANALYTICS_SALT"),
 	client: dynamoClient,
 	tableName: requireEnv("DYNAMODB_OAUTH_TABLE"),
 });

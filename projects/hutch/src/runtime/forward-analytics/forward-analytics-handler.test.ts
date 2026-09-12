@@ -30,6 +30,7 @@ function line(tag: string): string {
 
 function createHandler(overrides: Partial<ForwardAnalyticsDeps> = {}) {
 	const deps: ForwardAnalyticsDeps = {
+		recordRefreshRefusal: jest.fn().mockResolvedValue(undefined),
 		createLogStream: jest.fn().mockResolvedValue(undefined),
 		putLogEvents: jest.fn().mockResolvedValue(undefined),
 		analyticsLogGroupName: DESTINATION,
@@ -409,4 +410,25 @@ describe("extractJsonPayload", () => {
 	it("returns the message unchanged when a closing brace precedes the opening brace", () => {
 		expect(extractJsonPayload("} then {")).toBe("} then {");
 	});
+});
+
+it("waits for durable refusal ingestion before completing a log delivery", async () => {
+	let release = () => {};
+	const pending = new Promise<void>(resolve => { release = resolve; });
+	const recordRefreshRefusal = jest.fn(() => pending);
+	const { handler } = createHandler({ recordRefreshRefusal });
+	const refusal = { refusalId: "exact-attempt", occurredAt: 123, fingerprint: "credential", status: 400, reason: "unknown" };
+	let completed = false;
+	const delivery = run(handler, dataMessage([{ timestamp: 999, message: JSON.stringify({ stream: "analytics", event: "oauth_token_refused", grant_type: "refresh_token", status: 400, refresh_refusal: refusal }) }])).then(() => { completed = true; });
+	await Promise.resolve();
+	expect(recordRefreshRefusal.mock.calls).toEqual([[refusal]]);
+	expect(completed).toBe(false);
+	release();
+	await delivery;
+	expect(completed).toBe(true);
+});
+
+it("propagates an outcomes storage failure to the existing retry and dead-letter path", async () => {
+	const { handler } = createHandler({ recordRefreshRefusal: async () => { throw new Error("outcomes unavailable"); } });
+	await expect(run(handler, dataMessage([{ timestamp: 123, message: JSON.stringify({ stream: "analytics", event: "oauth_token_refused", grant_type: "refresh_token", status: 400 }) }]))).rejects.toThrow("outcomes unavailable");
 });

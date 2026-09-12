@@ -1,9 +1,11 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import assert from "node:assert";
+import { randomUUID } from "node:crypto";
+import { OAuthGrantId } from "../../oauth-refresh/evidence";
+import { OAuthTokenRow, initOAuthCredentialLifecycle } from "./oauth-credential-lifecycle";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import type {
@@ -38,68 +40,15 @@ const AuthCodeRow = z.object({
 	codeChallengeMethod: z.enum(["S256", "plain"]),
 	scope: z.array(z.string()).optional(),
 	emailVerified: z.boolean(),
+	grantId: OAuthGrantId.optional(),
 });
 
-const TokenRow = z.object({
-	pk: z.string(),
-	accessToken: z.string(),
-	refreshToken: z.string(),
-	accessTokenExpiresAt: z.number(),
-	refreshTokenExpiresAt: z.number(),
-	clientId: z.string(),
-	userId: z.string(),
-	scope: z.array(z.string()).optional(),
-	emailVerified: z.boolean().optional(),
-});
-
-const RefreshIndexRow = z.object({
-	pk: z.string(),
-	accessToken: z.string(),
-});
-
-/** Bulk-revoke every OAuth grant a user holds (account deletion + logout-all).
- * Needs only the table — the delete worker reuses it without wiring the full
- * OAuth2 model. The userId-index projects both token# and code# rows, so query
- * it through a permissive schema and branch on the pk prefix; refresh# rows
- * carry no userId and are reached via each token row's refreshToken. */
 export function initRevokeAllUserOAuthTokens(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
+	secret: string;
 }): RevokeAllUserOAuthTokens {
-	const { client, tableName } = deps;
-	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
-	const tokens = defineDynamoTable({ client, tableName, schema: TokenRow });
-	const refreshIndex = defineDynamoTable({ client, tableName, schema: RefreshIndexRow });
-	const byUser = defineDynamoTable({
-		client,
-		tableName,
-		schema: z.object({ pk: z.string(), userId: z.string(), refreshToken: z.string().optional() }),
-	});
-
-	return async (userId) => {
-		await forEachQueryPage(
-			byUser,
-			{
-				IndexName: "userId-index",
-				KeyConditionExpression: "userId = :userId",
-				ExpressionAttributeValues: { ":userId": userId },
-			},
-			async (rows) => {
-				await Promise.all(
-					rows.map(async (row) => {
-						if (row.pk.startsWith("token#")) {
-							await tokens.delete({ Key: { pk: row.pk } });
-							if (row.refreshToken) {
-								await refreshIndex.delete({ Key: { pk: `refresh#${row.refreshToken}` } });
-							}
-						} else if (row.pk.startsWith("code#")) {
-							await authCodes.delete({ Key: { pk: row.pk } });
-						}
-					}),
-				);
-			},
-		);
-	};
+	return initOAuthCredentialLifecycle(deps).revokeAll;
 }
 
 export function initDynamoDbOAuthModel(deps: {
@@ -108,12 +57,12 @@ export function initDynamoDbOAuthModel(deps: {
 	findUserById: FindUserById;
 	findClient: FindOAuthClient;
 	markClientActive: MarkOAuthClientActive;
+	secret: string;
 }): OAuthModel & { revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens } {
 	const { client, tableName, findUserById, findClient, markClientActive } = deps;
 	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
-	const tokens = defineDynamoTable({ client, tableName, schema: TokenRow });
-	const refreshIndex = defineDynamoTable({ client, tableName, schema: RefreshIndexRow });
-	const revokeAllUserOAuthTokens = initRevokeAllUserOAuthTokens({ client, tableName });
+	const tokens = defineDynamoTable({ client, tableName, schema: OAuthTokenRow });
+	const credentials = initOAuthCredentialLifecycle(deps);
 
 	async function resolveClient(clientId: string): Promise<Client | null> {
 		const found = await findClient(clientId);
@@ -122,7 +71,7 @@ export function initDynamoDbOAuthModel(deps: {
 	}
 
 	return {
-		revokeAllUserOAuthTokens,
+		revokeAllUserOAuthTokens: credentials.revokeAll,
 		async getClient(clientId: string, _clientSecret: string): Promise<Client | Falsey> {
 			return resolveClient(clientId);
 		},
@@ -137,6 +86,7 @@ export function initDynamoDbOAuthModel(deps: {
 			await authCodes.put({
 				Item: {
 					pk: `code#${code.authorizationCode}`,
+					grantId: OAuthGrantId.parse(randomUUID()),
 					clientId: oauthClient.id,
 					userId: user.id,
 					redirectUri: code.redirectUri,
@@ -174,7 +124,7 @@ export function initDynamoDbOAuthModel(deps: {
 				codeChallenge: row.codeChallenge,
 				codeChallengeMethod: row.codeChallengeMethod,
 				client: oauthClient,
-				user: { id: row.userId, emailVerified: row.emailVerified },
+				user: { id: row.userId, emailVerified: row.emailVerified, grantId: row.grantId },
 			};
 		},
 
@@ -188,6 +138,7 @@ export function initDynamoDbOAuthModel(deps: {
 
 		async saveToken(token: Token, oauthClient: Client, user: User): Promise<Token> {
 			const refreshToken = token.refreshToken ?? "";
+			const grant = credentials.grant(user);
 			const accessTokenExpiresAt =
 				token.accessTokenExpiresAt ?? new Date(Date.now() + 24 * 3600000);
 			const refreshTokenExpiresAt =
@@ -199,30 +150,19 @@ export function initDynamoDbOAuthModel(deps: {
 					: accessTokenExpiresAt,
 			);
 
-			await tokens.put({
-				Item: {
-					pk: `token#${token.accessToken}`,
-					userId: user.id,
-					clientId: oauthClient.id,
-					accessToken: token.accessToken,
-					refreshToken,
-					accessTokenExpiresAt: toEpochSeconds(accessTokenExpiresAt),
-					refreshTokenExpiresAt: toEpochSeconds(refreshTokenExpiresAt),
-					scope: token.scope,
-					expiresAt: ttl,
-					emailVerified: user.emailVerified === true,
-				},
+			await credentials.save({
+				pk: `token#${token.accessToken}`,
+				...grant,
+				userId: user.id,
+				clientId: oauthClient.id,
+				accessToken: token.accessToken,
+				refreshToken,
+				accessTokenExpiresAt: toEpochSeconds(accessTokenExpiresAt),
+				refreshTokenExpiresAt: toEpochSeconds(refreshTokenExpiresAt),
+				scope: token.scope,
+				expiresAt: ttl,
+				emailVerified: user.emailVerified === true,
 			});
-
-			if (refreshToken) {
-				await refreshIndex.put({
-					Item: {
-						pk: `refresh#${refreshToken}`,
-						accessToken: token.accessToken,
-						expiresAt: toEpochSeconds(refreshTokenExpiresAt),
-					},
-				});
-			}
 
 			// Token issuance is the "used" signal that extends a dynamic client's
 			// sliding TTL past the refresh-token lifetime; no-op for built-ins.
@@ -232,7 +172,7 @@ export function initDynamoDbOAuthModel(deps: {
 		},
 
 		async getAccessToken(accessToken: string): Promise<Token | Falsey> {
-			const row = await tokens.get({ pk: `token#${accessToken}` });
+			const row = await tokens.get({ pk: `token#${accessToken}` }, { consistentRead: true });
 			if (!row) return null;
 
 			const accessTokenExpiresAt = new Date(row.accessTokenExpiresAt * 1000);
@@ -253,14 +193,10 @@ export function initDynamoDbOAuthModel(deps: {
 		},
 
 		async getRefreshToken(refreshToken: string): Promise<RefreshToken | Falsey> {
-			const indexRow = await refreshIndex.get({ pk: `refresh#${refreshToken}` });
-			if (!indexRow) return null;
-
-			const row = await tokens.get({ pk: `token#${indexRow.accessToken}` });
-			if (!row) return null;
-
+			const found = await credentials.findRefresh(refreshToken);
+			if (!found) return null;
+			const { row, credential } = found;
 			const refreshTokenExpiresAt = new Date(row.refreshTokenExpiresAt * 1000);
-			if (refreshTokenExpiresAt < new Date()) return null;
 
 			const oauthClient = await resolveClient(row.clientId);
 			if (!oauthClient) return null;
@@ -283,18 +219,12 @@ export function initDynamoDbOAuthModel(deps: {
 				refreshTokenExpiresAt,
 				scope: row.scope,
 				client: oauthClient,
-				user: { id: row.userId, emailVerified },
+				user: { id: row.userId, emailVerified, grantId: credential.grantId, parentFingerprint: credential.fingerprint },
 			};
 		},
 
-		async revokeToken(token: RefreshToken): Promise<boolean> {
-			const indexRow = await refreshIndex.get({ pk: `refresh#${token.refreshToken}` });
-			if (!indexRow) return false;
-
-			await refreshIndex.delete({ Key: { pk: `refresh#${token.refreshToken}` } });
-			await tokens.delete({ Key: { pk: `token#${indexRow.accessToken}` } });
-
-			return true;
+		revokeToken(token: RefreshToken): Promise<boolean> {
+			return credentials.revoke(token.refreshToken);
 		},
 
 		async verifyScope(_token: Token, _scope: string | string[]): Promise<boolean> {

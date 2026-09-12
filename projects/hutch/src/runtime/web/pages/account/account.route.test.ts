@@ -2695,8 +2695,15 @@ describe("POST /account/cards/confirm — server-side setup verification and cap
 
 describe("POST /account/delete", () => {
 	it("destroys the session, clears the cookie, and redirects to the logged-out home when the confirmation phrase is typed", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent } = await loginUser(harness, "delete-me@example.com");
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const revocations: Array<{ userId: string; cause: string }> = [];
+		const revoke = fixture.oauth.revokeAllUserOAuthTokens;
+		fixture.oauth.revokeAllUserOAuthTokens = async (userId, cause) => {
+			revocations.push({ userId, cause });
+			await revoke(userId, cause);
+		};
+		const harness = useApp(fixture);
+		const { agent, userId } = await loginUser(harness, "delete-me@example.com");
 
 		const response = await agent
 			.post("/account/delete")
@@ -2705,6 +2712,7 @@ describe("POST /account/delete", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/");
+		expect(revocations).toEqual([{ userId, cause: "account-deletion" }]);
 		const rawSetCookie = response.headers["set-cookie"];
 		const setCookie = Array.isArray(rawSetCookie) ? rawSetCookie : [];
 		assert(

@@ -188,7 +188,7 @@ async function processCommand(
 	// Credentials last: revoke external IdP tokens, kill OAuth grants and every
 	// session, then delete the identity row (and its Gmail uniqueness claim).
 	await deps.revokeExternalIdpTokens(userId);
-	await deps.revokeAllUserOAuthTokens(userId);
+	await deps.revokeAllUserOAuthTokens(userId, "account-deletion");
 	await deps.destroyUserSessions(userId);
 	await deps.closeUserAccount(userId);
 

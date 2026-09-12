@@ -1,5 +1,10 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import { initRecoverAuthenticatedToken } from "../oauth-refresh/authenticate";
+import { CredentialHistory } from "../oauth-refresh/evidence";
+import { initVerifyRefreshRecovery } from "../oauth-refresh/recovery";
+import { initDynamoRefreshOutcomes } from "../oauth-refresh/dynamodb-outcomes";
+import { defineDynamoTable } from "@packages/hutch-storage-client";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
@@ -151,7 +156,18 @@ export function initProdProviders(input: { appOrigin: string }) {
 		findUserById: auth.findUserById,
 		findClient: oauthClientLookup.findClient,
 		markClientActive: oauthClientLookup.markClientActive,
+		secret: requireEnv("ANALYTICS_SALT"),
 	});
+	const credentialHistory = defineDynamoTable({ client, tableName: oauthTable, schema: CredentialHistory });
+	const outcomes = initDynamoRefreshOutcomes({ client, tableName: requireEnv("DYNAMODB_OAUTH_OUTCOMES_TABLE") });
+	const verifyRecovery = initVerifyRefreshRecovery({
+		secret: requireEnv("ANALYTICS_SALT"),
+		findHistory: fingerprint => credentialHistory.get({ pk: `credential#${fingerprint}` }, { consistentRead: true }),
+		recover: outcomes.recover,
+		now: Date.now,
+		logger,
+	});
+	const validateAccessToken = createValidateAccessToken({ ...oauthModel, getAccessToken: initRecoverAuthenticatedToken({ getAccessToken: oauthModel.getAccessToken, recover: verifyRecovery }) });
 	const summaryStore = initDynamoDbGeneratedSummary({ client, tableName: articlesTable });
 	const relatedArticlesStore = initDynamoDbRelatedArticles({
 		client,
@@ -395,7 +411,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,
-		validateAccessToken: createValidateAccessToken(oauthModel),
+		validateAccessToken,
 		findOAuthClient: oauthClientLookup.findClient,
 		validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
 		registerOAuthClient: oauthClients.registerClient,

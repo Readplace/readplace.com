@@ -1043,3 +1043,28 @@ export const GmailSenderDiscoveryProgressedEvent = defineEvent({
 });
 
 export type { HutchEvent, HutchCommand };
+
+export const EvaluateOAuthRefreshCommand = defineEvent({
+	name: "evaluate-oauth-refresh",
+	source: "hutch.oauth-refresh",
+	detailType: "EvaluateOAuthRefreshCommand",
+	detailSchema: z.object({ scheduledAt: z.iso.datetime() }),
+});
+
+export const OAuthRefreshEvaluatedEvent = defineEvent({
+	name: "oauth-refresh-evaluated",
+	source: "hutch.oauth-refresh",
+	detailType: "OAuthRefreshEvaluatedEvent",
+	detailSchema: z.object({
+		minute: z.number(),
+		counts: z.object({
+			raw: z.number(),
+			test: z.number(),
+			expected: z.number(),
+			recovered: z.number(),
+			unexpected: z.number(),
+			unknown: z.number(),
+			pending: z.number(),
+		}),
+	}),
+});

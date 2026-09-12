@@ -27,6 +27,7 @@ import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { sendComponent } from "@packages/web-shell";
 import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics";
 import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
+import { refreshContext } from "../../oauth-refresh/evidence";
 import { initObserveTokenOutcome } from "./token-refusal";
 
 const authorizeQuerySchema = z.object({
@@ -400,7 +401,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				// re-mint a session on next use instead of being signed out too.
 				await deps.destroyUserSessions(userId);
 			}
-			await deps.model.revokeToken(refreshRecord);
+			await refreshContext.run({ revocationCause: "logout" }, () => deps.model.revokeToken(refreshRecord));
 		}
 
 		res.status(200).json({});

@@ -85,6 +85,7 @@ function buildSubject() {
 	const verificationTokenDeleteCalls: UserId[] = [];
 	const pendingSignupDeleteCalls: Array<{ userId: UserId; email: string | null }> = [];
 	const revokeIdpCalls: UserId[] = [];
+	const oauthRevocations: Array<{ userId: UserId; cause: string }> = [];
 
 	// The real revoker runs against the in-memory auth store and a fake Apple
 	// endpoint, so the scrub tests prove revocation happens while the auth row
@@ -208,7 +209,10 @@ function buildSubject() {
 			revokeIdpCalls.push(userId);
 			await revokeIdpTokens(userId);
 		},
-		revokeAllUserOAuthTokens: createRevokeAllUserOAuthTokens(oauthDeps),
+		revokeAllUserOAuthTokens: async (userId, cause) => {
+			oauthRevocations.push({ userId, cause });
+			await createRevokeAllUserOAuthTokens(oauthDeps)(userId, cause);
+		},
 		destroyUserSessions: auth.destroyUserSessions,
 		closeUserAccount: auth.closeUserAccount,
 		logger: HutchLogger.from(noopLogger),
@@ -242,6 +246,7 @@ function buildSubject() {
 		verificationTokenDeleteCalls,
 		pendingSignupDeleteCalls,
 		revokeIdpCalls,
+		oauthRevocations,
 		appleRevokeCalls,
 		purgeContentCalls,
 		tombstoneCalls,
@@ -532,6 +537,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.deleteSubscriptionCalls, [victim.userId]);
 		assert.deepEqual(s.deleteExportsCalls, [victim.userId]);
 		assert.deepEqual(s.revokeIdpCalls, [victim.userId]);
+		assert.deepEqual(s.oauthRevocations, [{ userId: victim.userId, cause: "account-deletion" }]);
 
 		// The victim was the only saver of their article, so its global content is
 		// purged and the row tombstoned — not just delisted.

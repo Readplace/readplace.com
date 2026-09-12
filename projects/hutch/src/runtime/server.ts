@@ -1,3 +1,4 @@
+import { refreshContext } from "./oauth-refresh/evidence";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -486,6 +487,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const recordSubscriptionEvent = initRecordAudienceEvent({ logger: subscriptionLogger });
 	const recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent> = (event) => analytics.info(event);
 	const app: Express = express();
+	app.use((req, _res, next) => refreshContext.run({ recoveryProof: req.get("X-Readplace-Refresh-Recovery") }, next));
 
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
 	app.use(utmValidationMiddleware);

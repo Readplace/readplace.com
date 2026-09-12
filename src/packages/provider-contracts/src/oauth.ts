@@ -15,7 +15,7 @@ export type ValidateAccessToken = (
 	oauthClientId: string;
 } | null>;
 
-export type RevokeAllUserOAuthTokens = (userId: UserId) => Promise<void>;
+export type RevokeAllUserOAuthTokens = (userId: UserId, cause: "logout-all" | "account-deletion") => Promise<void>;
 
 export interface RegisterOAuthClientInput {
 	redirectUris: string[];

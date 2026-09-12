@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { initIngestRefreshRefusal } from "../oauth-refresh/ingest-refusal";
+import type { RefreshRefusal } from "../oauth-refresh/outcomes";
 import { gunzipSync } from "node:zlib";
 import { z } from "zod";
 import type { CloudWatchLogsEvent, Handler } from "aws-lambda";
@@ -34,6 +37,7 @@ export type PutLogEvents = (params: {
 }) => Promise<RejectedLogEventsInfo | undefined>;
 
 export interface ForwardAnalyticsDeps {
+	recordRefreshRefusal: (refusal: RefreshRefusal) => Promise<void>;
 	createLogStream: CreateLogStream;
 	putLogEvents: PutLogEvents;
 	analyticsLogGroupName: string;
@@ -119,7 +123,7 @@ const DataMessageSchema = z.object({
 	messageType: z.literal("DATA_MESSAGE"),
 	logGroup: z.string(),
 	logStream: z.string(),
-	logEvents: z.array(z.object({ timestamp: z.number(), message: z.string() })),
+	logEvents: z.array(z.object({ id: z.string().optional(), timestamp: z.number(), message: z.string() })),
 });
 
 /** PutLogEvents batch limits (AWS CloudWatch Logs). A batch may hold at most
@@ -212,6 +216,7 @@ function isAlreadyExists(error: unknown): boolean {
 export function initForwardAnalyticsHandler(
 	deps: ForwardAnalyticsDeps,
 ): Handler<CloudWatchLogsEvent, void> {
+	const ingest = initIngestRefreshRefusal(deps.recordRefreshRefusal);
 	const { createLogStream, putLogEvents, analyticsLogGroupName, errorsLogGroupName, analyticsStreams, logger } = deps;
 
 	async function deliver(input: {
@@ -275,10 +280,13 @@ export function initForwardAnalyticsHandler(
 					message: logEvent.message,
 					analyticsStreams,
 				}),
+				id: logEvent.id ?? createHash("sha256").update(`${logEvent.timestamp}\0${logEvent.message}`).digest("hex"),
 				timestamp: logEvent.timestamp,
 				message: extractJsonPayload(logEvent.message),
 			}))
 			.sort((a, b) => a.timestamp - b.timestamp);
+
+		for (const entry of sorted) await ingest({ ...entry, source: logStreamName });
 
 		const routed: Record<ForwardDestination, ForwardLogEvent[]> = { analytics: [], errors: [] };
 		for (const entry of sorted) {

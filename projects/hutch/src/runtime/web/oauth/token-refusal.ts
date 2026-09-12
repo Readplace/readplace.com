@@ -1,3 +1,4 @@
+import { initRefreshProof, refreshContext, type RefreshContext } from "../../oauth-refresh/evidence";
 import type { RequestHandler } from "express";
 import { z } from "zod";
 import {
@@ -11,8 +12,9 @@ import {
 
 const TokenRequestFields = z
 	.object({
-		grant_type: z.string().optional(),
-		client_id: z.string().optional(),
+		grant_type: z.string().optional().catch(undefined),
+		client_id: z.string().optional().catch(undefined),
+		refresh_token: z.string().optional().catch(undefined),
 	})
 	.catch({});
 
@@ -33,27 +35,36 @@ export function initObserveTokenOutcome(deps: {
 	now: () => Date;
 	salt: string;
 }): RequestHandler {
+	const proof = initRefreshProof(deps.salt);
 	return (req, res, next) => {
+		const requestFields = TokenRequestFields.parse(req.body);
+		const context: RefreshContext = {};
+		if (requestFields.grant_type === "refresh_token") {
+			context.attempt = proof.attempt(requestFields.refresh_token ?? "", deps.now().getTime());
+			res.setHeader("X-Readplace-Refresh-Attempt", proof.sign(context.attempt));
+		}
 		res.on("finish", () => {
 			const fields = TokenRequestFields.parse(req.body);
 			const grantType = grantTypeOf(fields.grant_type);
 			const clientId = fields.client_id ?? "missing";
 			if (isSuccess(res.statusCode)) {
 				deps.recordUngatedAnalyticsEvent(
-					buildOAuthTokenIssuedEvent(
+					{ ...buildOAuthTokenIssuedEvent(
 						{ now: deps.now, salt: deps.salt },
 						{ req, grantType, clientId },
-					),
+					), ...(context.credential ? { grant_id: context.credential.grantId } : {}) },
 				);
 				return;
 			}
-			deps.recordUngatedAnalyticsEvent(
-				buildOAuthTokenRefusedEvent(
+			const event = buildOAuthTokenRefusedEvent(
 					{ now: deps.now, salt: deps.salt },
 					{ req, grantType, clientId, status: res.statusCode },
-				),
-			);
+				);
+			deps.recordUngatedAnalyticsEvent({ ...event, ...(context.attempt ? { refresh_refusal: {
+				...context.attempt, status: res.statusCode, reason: context.reason ?? "unknown",
+				...(context.credential ? { grantId: context.credential.grantId, credentialExpiresAt: context.credential.credentialExpiresAt, revocation: context.credential.revocation } : {}),
+			} } : {}) });
 		});
-		next();
+		refreshContext.run(context, next);
 	};
 }

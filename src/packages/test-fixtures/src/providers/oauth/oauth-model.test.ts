@@ -819,7 +819,7 @@ describe("createRevokeAllUserOAuthTokens", () => {
 		);
 
 		const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(deps);
-		await revokeAllUserOAuthTokens(TEST_USER_ID);
+		await revokeAllUserOAuthTokens(TEST_USER_ID, "logout-all");
 
 		expect(deps.tokens.has("access-1")).toBe(false);
 		expect(deps.refreshTokenIndex.has("refresh-1")).toBe(false);
@@ -846,7 +846,7 @@ describe("createRevokeAllUserOAuthTokens", () => {
 		);
 
 		const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(deps);
-		await revokeAllUserOAuthTokens(TEST_USER_ID);
+		await revokeAllUserOAuthTokens(TEST_USER_ID, "logout-all");
 
 		expect(deps.tokens.has("access-no-refresh")).toBe(false);
 		expect(deps.userIdIndex.has(TEST_USER_ID)).toBe(false);
@@ -857,7 +857,7 @@ describe("createRevokeAllUserOAuthTokens", () => {
 		const deps = initInMemoryOAuthModel();
 
 		const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(deps);
-		await revokeAllUserOAuthTokens(TEST_USER_ID);
+		await revokeAllUserOAuthTokens(TEST_USER_ID, "logout-all");
 
 		expect(deps.tokens.size).toBe(0);
 		expect(deps.userIdIndex.size).toBe(0);
@@ -869,7 +869,7 @@ describe("createRevokeAllUserOAuthTokens", () => {
 		deps.userIdIndex.set(TEST_USER_ID, new Set(["missing-access"]));
 
 		const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(deps);
-		await revokeAllUserOAuthTokens(TEST_USER_ID);
+		await revokeAllUserOAuthTokens(TEST_USER_ID, "logout-all");
 
 		expect(deps.userIdIndex.has(TEST_USER_ID)).toBe(false);
 	});
