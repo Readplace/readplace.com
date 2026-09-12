@@ -82,6 +82,36 @@ final class ReaderNavigationTests: XCTestCase {
 		)
 	}
 
+	/// The one readplace.com link that does not leave the app: handing an EPUB to a
+	/// browser would drop the reader the user was reading, for a file WebKit can
+	/// fetch in place.
+	func testTappedEpubDownloadStaysInTheApp() {
+		let url = URL(string: "https://readplace.com/view/example.com/a?format=epub&utm_source=reader")!
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
+			.download(url)
+		)
+	}
+
+	/// A `format=epub` route on someone else's site is theirs, not ours — claiming
+	/// it would break a link the app has no business interpreting.
+	func testTappedForeignEpubLinkStillOpensExternally() {
+		let url = URL(string: "https://example.com/view?format=epub")!
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
+			.openExternally(url)
+		)
+	}
+
+	/// A download is a tap, never a redirect the page performs on its own.
+	func testEpubDownloadReachedWithoutATapIsAllowedThrough() {
+		let url = URL(string: "https://readplace.com/view/example.com/a?format=epub")!
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .other, currentURL: current),
+			.allow
+		)
+	}
+
 	func testTappedNonHTTPSchemeLinkOpensExternally() {
 		let url = URL(string: "mailto:hello@readplace.com")!
 		XCTAssertEqual(

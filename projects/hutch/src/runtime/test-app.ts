@@ -25,7 +25,6 @@ import type {
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { createApp } from "./server";
-import type { ConvertEpubToAzw3 } from "./web/shared/epub/article-azw3";
 import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
@@ -80,7 +79,6 @@ interface TestAppOverrides {
 	getChangelogBanner?: GetChangelogBanner;
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
-	convertEpubToAzw3?: ConvertEpubToAzw3;
 }
 
 export interface AnalyticsBundle {
@@ -191,7 +189,6 @@ function flattenFixtureToAppDependencies(
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,
 		readArticleImage: fixture.articleStore.readArticleImage,
-		convertEpubToAzw3: async () => new Uint8Array([0x41, 0x5a, 0x57, 0x33]),
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(fixture.articleCrawl.findArticleCrawlStatus),
 		markCrawlPending: fixture.articleCrawl.markCrawlPending,

@@ -156,7 +156,7 @@ describe("ViewPage", () => {
 		expect(links[1]?.getAttribute("href")).toBe("/?utm_source=view-article");
 	});
 
-	it("renders Download after the actions as a disclosure with EPUB then AZW3 links", () => {
+	it("renders Download after the actions as one direct EPUB link", () => {
 		const doc = render({
 			...baseInput,
 			actions: [
@@ -175,44 +175,22 @@ describe("ViewPage", () => {
 					variant: "secondary",
 				},
 			],
-			downloads: {
-				epubHref: "/view/example.com/a?format=epub",
-				azw3Href: "/view/example.com/a?format=azw3",
-			},
+			epubDownloadHref: "/view/example.com/a?format=epub",
 		});
 
-		const downloads = doc.querySelector("[data-test-view-downloads]");
-		assert(downloads, "the public Download disclosure must render");
-		expect(downloads.id).toBe("view-cta-downloads");
-		expect(downloads.tagName).toBe("DETAILS");
+		const download = doc.querySelector("[data-test-view-download]");
+		assert(download, "the public Download link must render");
+		expect(download.tagName).toBe("A");
+		expect(download.getAttribute("data-test-view-download")).toBe("epub");
+		expect(download.getAttribute("href")).toBe("/view/example.com/a?format=epub");
+		expect(download.querySelector(".view__download-label")?.textContent).toBe("Download EPUB");
+		expect(doc.querySelectorAll("[data-test-view-download]")).toHaveLength(1);
 		expect(
 			Array.from(doc.querySelectorAll(".view__cta-item"), (item) => {
 				const action = item.querySelector("[data-test-view-cta-action]");
-				const menu = item.querySelector("[data-test-view-downloads]");
-				return action?.id ?? menu?.id;
+				return action?.id ?? item.id;
 			}),
-		).toEqual(["view-cta-save", "view-cta-paste-another-link", "view-cta-downloads"]);
-		const trigger = doc.querySelector("[data-test-view-downloads-trigger]");
-		assert(trigger, "the public Download trigger must render");
-		expect(trigger.querySelector(".view__downloads-label")?.textContent).toBe("Download");
-		expect(
-			Array.from(doc.querySelectorAll("[data-test-view-download]"), (link) => ({
-				format: link.getAttribute("data-test-view-download"),
-				href: link.getAttribute("href"),
-				label: link.textContent,
-			})),
-		).toEqual([
-			{
-				format: "epub",
-				href: "/view/example.com/a?format=epub",
-				label: "EPUB",
-			},
-			{
-				format: "azw3",
-				href: "/view/example.com/a?format=azw3",
-				label: "AZW3",
-			},
-		]);
+		).toEqual(["view-cta-save", "view-cta-paste-another-link", "view-cta-downloads-slot"]);
 	});
 
 	it("keeps the Download slot hidden when downloads are unavailable", () => {

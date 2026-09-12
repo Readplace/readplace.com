@@ -1,5 +1,4 @@
 import type { Handler } from "aws-lambda";
-import { execFileSync } from "node:child_process";
 import type { Request, Response } from "express";
 import express from "express";
 import helmet from "helmet";
@@ -15,7 +14,6 @@ import { logAndRespondOnError } from "./web/middleware/error-handler";
 import { createReadplaceApp, localServer } from "./app";
 import { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "@packages/crawl-article";
 import { getEnv, requireEnv } from "@packages/require-env";
-import { assertBokoAvailable, bokoAvailabilityProbe } from "./web/shared/epub/boko-converter";
 
 const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
 
@@ -25,7 +23,6 @@ const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
 // dev server and E2E harness have no layer.
 if (lambda) {
 	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
-	assertBokoAvailable({ probe: bokoAvailabilityProbe({ runBoko: execFileSync }) });
 }
 
 const { app, analyticsLogger } = createReadplaceApp();
@@ -63,5 +60,5 @@ if (!lambda) {
 }
 
 export const handler: Handler = lambda
-	? serverless(application, { binary: ["application/epub\\+zip", "application/vnd.amazon.mobi8-ebook"] })
+	? serverless(application, { binary: ["application/epub\\+zip"] })
 	: () => {};

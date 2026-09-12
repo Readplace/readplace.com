@@ -16,7 +16,7 @@ import type { PageBody } from "@packages/web-shell";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
-import { articleDownloadLinks, type ArticleDownloadFormat, type ArticleDownloadLinks } from "../../shared/epub/epub-link";
+import { articleEpubHref } from "../../shared/epub/epub-link";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
@@ -90,31 +90,12 @@ export function renderViewCtaActionOob(action: ViewAction): string {
 	return renderViewCtaAction(action, true);
 }
 
-const DOWNLOAD_OPTIONS = [
-	{ format: "epub", label: "EPUB", hrefKey: "epubHref" },
-	{ format: "azw3", label: "AZW3", hrefKey: "azw3Href" },
-] as const satisfies ReadonlyArray<{
-	format: ArticleDownloadFormat;
-	label: string;
-	hrefKey: keyof ArticleDownloadLinks;
-}>;
-
-function renderViewDownloads(downloads: ArticleDownloadLinks | undefined, oob: boolean): string {
-	return render(VIEW_DOWNLOADS_TEMPLATE, {
-		oob,
-		options:
-			downloads === undefined
-				? undefined
-				: DOWNLOAD_OPTIONS.map((option) => ({
-						format: option.format,
-						label: option.label,
-						href: downloads[option.hrefKey],
-					})),
-	});
+function renderViewDownloads(downloadHref: string | undefined, oob: boolean): string {
+	return render(VIEW_DOWNLOADS_TEMPLATE, { oob, downloadHref });
 }
 
 export function renderViewDownloadsOob(articleUrl: string): string {
-	return renderViewDownloads(articleDownloadLinks({ articleUrl, utmSource: "view-article" }), true);
+	return renderViewDownloads(articleEpubHref({ articleUrl, utmSource: "view-article" }), true);
 }
 
 export interface ViewPageInput {
@@ -133,7 +114,7 @@ export interface ViewPageInput {
 	summaryPollUrl?: string;
 	progress?: ProgressTick;
 	actions: ViewAction[];
-	downloads?: ArticleDownloadLinks;
+	epubDownloadHref?: string;
 	saveTip: SaveTip;
 	extensionInstallUrl?: string;
 	crawlVersions?: LocalTime[];
@@ -179,7 +160,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			html: `<div class="view__cta-item">${renderViewCtaAction(action, false)}</div>`,
 		})),
 		{
-			html: renderViewDownloads(input.downloads, false),
+			html: renderViewDownloads(input.epubDownloadHref, false),
 		},
 	];
 

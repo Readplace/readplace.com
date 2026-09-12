@@ -40,7 +40,7 @@ describe("renderReaderSkeleton", () => {
 		expect(template.getAttribute("data-body-class-from")).toBe("page-readlist");
 	});
 
-	it("shows the back, readlists and mark-read toolbar slots and hides the downloads slot", () => {
+	it("shows every toolbar slot the real reader shows, so the row does not reflow at the swap", () => {
 		const content = templateContent();
 		const slots = [
 			".article-body__back-slot",
@@ -52,13 +52,14 @@ describe("renderReaderSkeleton", () => {
 			assert(slot, `${selector} must be present`);
 			return slot.classList.contains(`${selector.slice(1)}--visible`);
 		});
-		expect(slots).toEqual([true, true, true, false]);
+		expect(slots).toEqual([true, true, true, true]);
 	});
 
-	it("makes the two dummy controls inert so the skeleton cannot be interacted with", () => {
+	it("makes the dummy controls inert so the skeleton cannot be interacted with", () => {
 		const content = templateContent();
 		expect(content.querySelector(".article-body__readlists-slot")?.hasAttribute("inert")).toBe(true);
 		expect(content.querySelector(".article-body__mark-read-slot")?.hasAttribute("inert")).toBe(true);
+		expect(content.querySelector(".article-body__downloads-slot")?.hasAttribute("inert")).toBe(true);
 	});
 
 	it("gives the back link the reader's own back destination", () => {

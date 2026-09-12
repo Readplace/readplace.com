@@ -36,7 +36,6 @@ import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
-import type { ArticleDownloadLinks } from "../../shared/epub/epub-link";
 import { viewPathFor } from "../view/view-path";
 import {
 	type ExitConfirmScopes,
@@ -114,7 +113,7 @@ export function ReaderPage(
 		readerPathFor: (articleId: string) => string;
 		markStatusConfirmReadlistLabels?: readonly string[];
 		readerNotice?: ReaderFailedVariant;
-		downloads?: ArticleDownloadLinks;
+		epubDownloadHref?: string;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -152,7 +151,7 @@ export function ReaderPage(
 			backLink: options.backLink,
 			markReadActions,
 			readlistPicker: options.readlistFiling.picker,
-			downloads: options.downloads,
+			epubDownloadHref: options.epubDownloadHref,
 		},
 	});
 	const innerContent = renderArticleBody({

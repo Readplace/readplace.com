@@ -24,27 +24,13 @@ function slugify(value: string): string {
 		.slice(0, 80);
 }
 
-export function articleDownloadFilename(params: {
-	title: string;
-	articleUrl: string;
-	extension: string;
-}): string {
-	const titleSlug = slugify(params.title);
-	if (titleSlug) return `${titleSlug}.${params.extension}`;
-	return `${slugify(articleHostFrom(params.articleUrl))}.${params.extension}`;
-}
-
 export function epubFilename(params: { title: string; articleUrl: string }): string {
-	return articleDownloadFilename({ ...params, extension: "epub" });
+	const titleSlug = slugify(params.title);
+	if (titleSlug) return `${titleSlug}.epub`;
+	return `${slugify(articleHostFrom(params.articleUrl))}.epub`;
 }
 
 export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildArticleEpub {
-	return initBuildArticleEpubWithImageFilter({ ...deps, canEmbedImage: () => true });
-}
-
-export function initBuildArticleEpubWithImageFilter(
-	deps: BuildArticleEpubDependencies & { canEmbedImage: (filename: string) => boolean },
-): BuildArticleEpub {
 	const { readArticleImage, logError, now } = deps;
 
 	return async (params): Promise<Uint8Array> => {
@@ -56,7 +42,6 @@ export function initBuildArticleEpubWithImageFilter(
 		const images: { filename: string; body: Uint8Array }[] = [];
 		let usedBytes = 0;
 		for (const candidate of candidates) {
-			if (!deps.canEmbedImage(candidate.filename)) continue;
 			const bytes = await readArticleImage({ url: params.articleUrl, filename: candidate.filename });
 			if (!bytes) {
 				logError(`[ArticleEpub] image ${candidate.filename} missing from store; skipping`);

@@ -48,7 +48,6 @@ config:
   hutch:dynamodbGmailDiscoveryTable: hutch-gmail-discovery-prod
   hutch:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-prod
   hutch:rateLimitViewCrawl: 100/3600
-  hutch:rateLimitArticleDownload: 10/3600
   hutch:rateLimitLogin: 10/900
   hutch:rateLimitLoginAccount: 20/900
   hutch:rateLimitSignup: 10/3600

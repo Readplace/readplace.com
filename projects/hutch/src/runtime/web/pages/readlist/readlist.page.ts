@@ -87,7 +87,7 @@ import type {
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import { renderReaderDownloadsOob, type RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
-import { articleDownloadLinks, revealsEpubDownload } from "../../shared/epub/epub-link";
+import { articleEpubHref } from "../../shared/epub/epub-link";
 import type {
 	PublishLinkDequeued,
 	PublishLinkQueued,
@@ -797,12 +797,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
-		const feature = revealsEpubDownload(req.query.feature) ? "&feature=epub" : "";
 		const surface = joinedSurfaceQuery(nativeSurfaceQuery(req));
 		return {
-			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${surface}${feature}`,
+			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${surface}`,
 			reader: (n, capturing) =>
-				`${READLIST_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${surface}${feature}`,
+				`${READLIST_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${surface}`,
 		};
 	}
 
@@ -1020,10 +1019,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				readerPathFor: readerPathFor(req),
 				markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
 				readerNotice: state.notice,
-				downloads:
-					state.content === undefined || !revealsEpubDownload(req.query.feature)
+				epubDownloadHref:
+					state.content === undefined
 						? undefined
-						: articleDownloadLinks({ articleUrl: ownedArticle.url, utmSource: "reader" }),
+						: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -1105,10 +1104,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					],
 					readerPathFor: readerPathFor(req),
 					readerNotice: state.notice,
-					downloads:
-						state.content === undefined || !revealsEpubDownload(req.query.feature)
+					epubDownloadHref:
+						state.content === undefined
 							? undefined
-							: articleDownloadLinks({ articleUrl: ownedArticle.url, utmSource: "reader" }),
+							: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
 				}), {
 					...(await deps.buildBannerState(req)),
 					showExtensionSuggestionBanner,
@@ -2267,7 +2266,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			provenance: article.provenance,
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
-			renderDownloadsOob: revealsEpubDownload(req.query.feature) ? renderReaderDownloadsOob : undefined,
+			renderDownloadsOob: renderReaderDownloadsOob,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -2303,7 +2302,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			provenance: article.provenance,
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
-			renderDownloadsOob: revealsEpubDownload(req.query.feature) ? renderReaderDownloadsOob : undefined,
+			renderDownloadsOob: renderReaderDownloadsOob,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});

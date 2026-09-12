@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { IconName } from "@packages/ui-icons";
 import { type Component, HtmlPage, render, renderInFlightDots } from "@packages/web-shell";
-import { articleDownloadLinks, type ArticleDownloadFormat, type ArticleDownloadLinks } from "../../epub/epub-link";
+import { articleEpubHref } from "../../epub/epub-link";
 
 export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker.client.js" defer></script>`;
 
@@ -34,7 +34,7 @@ export interface ActionButtons {
 	backLink?: { topHref: string; bottomHref?: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
 	readlistPicker: ReaderReadlistPicker | undefined;
-	downloads?: ArticleDownloadLinks;
+	epubDownloadHref?: string;
 }
 
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
@@ -76,27 +76,9 @@ function markReadFields(action: MarkReadAction | undefined) {
 	};
 }
 
-const DOWNLOAD_OPTIONS = [
-	{ format: "epub", label: "EPUB", hrefKey: "epubHref" },
-	{ format: "azw3", label: "AZW3", hrefKey: "azw3Href" },
-] as const satisfies ReadonlyArray<{
-	format: ArticleDownloadFormat;
-	label: string;
-	hrefKey: keyof ArticleDownloadLinks;
-}>;
-
-function downloadOptions(downloads: ArticleDownloadLinks | undefined) {
-	if (downloads === undefined) return undefined;
-	return DOWNLOAD_OPTIONS.map((option) => ({
-		format: option.format,
-		label: option.label,
-		href: downloads[option.hrefKey],
-	}));
-}
-
 export function renderReaderDownloadsOob(articleUrl: string): string {
 	return render(DOWNLOADS_TEMPLATE, {
-		downloads: downloadOptions(articleDownloadLinks({ articleUrl, utmSource: "reader" })),
+		downloadHref: articleEpubHref({ articleUrl, utmSource: "reader" }),
 		oob: true,
 	});
 }
@@ -107,7 +89,7 @@ function topBar(actionBtns: ActionButtons): string {
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
 		readlistPicker: actionBtns.readlistPicker,
-		downloadsHtml: render(DOWNLOADS_TEMPLATE, { downloads: downloadOptions(actionBtns.downloads), oob: false }),
+		downloadsHtml: render(DOWNLOADS_TEMPLATE, { downloadHref: actionBtns.epubDownloadHref, oob: false }),
 		markRead: markReadFields(actionBtns.markReadActions?.find((action) => action.position === "top")),
 	});
 }

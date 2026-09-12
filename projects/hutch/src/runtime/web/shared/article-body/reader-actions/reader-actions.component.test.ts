@@ -137,45 +137,23 @@ describe("readlist picker", () => {
 });
 
 describe("downloads", () => {
-	it("renders EPUB then AZW3 links in a visible Download disclosure when both hrefs are offered", () => {
+	it("renders one direct EPUB link, not a disclosure, when a download is offered", () => {
 		const { top } = StickyReader({
-			actionBtns: {
-				...ACTION_BTNS,
-				downloads: {
-					epubHref: "/view/example.com/a?format=epub",
-					azw3Href: "/view/example.com/a?format=azw3",
-				},
-			},
+			actionBtns: { ...ACTION_BTNS, epubDownloadHref: "/view/example.com/a?format=epub" },
 		});
 		const doc = parse(top.to("text/html").body);
 
 		const slot = doc.querySelector("[data-test-downloads-slot]");
 		assert(slot, "the downloads slot must render");
 		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
-		const downloads = doc.querySelector(".article-body__downloads");
-		assert(downloads, "the downloads control must render");
-		expect(downloads.tagName).toBe("DETAILS");
-		const trigger = doc.querySelector("[data-test-downloads-trigger]");
-		assert(trigger, "the downloads trigger must render");
-		expect(trigger.querySelector(".article-body__action-label")?.textContent).toBe("Download");
-		expect(
-			Array.from(doc.querySelectorAll("[data-test-download]"), (link) => ({
-				format: link.getAttribute("data-test-download"),
-				href: link.getAttribute("href"),
-				label: link.textContent,
-			})),
-		).toEqual([
-			{
-				format: "epub",
-				href: "/view/example.com/a?format=epub",
-				label: "EPUB",
-			},
-			{
-				format: "azw3",
-				href: "/view/example.com/a?format=azw3",
-				label: "AZW3",
-			},
-		]);
+		const download = doc.querySelector("[data-test-download]");
+		assert(download, "the download link must render");
+		expect(download.tagName).toBe("A");
+		expect(download.getAttribute("data-test-download")).toBe("epub");
+		expect(download.getAttribute("href")).toBe("/view/example.com/a?format=epub");
+		expect(download.className).toBe("btn btn--secondary btn--compact article-body__download");
+		expect(download.querySelector(".article-body__action-label")?.textContent).toBe("Download EPUB");
+		expect(doc.querySelectorAll("[data-test-download]")).toHaveLength(1);
 	});
 
 	it("keeps the slot in the bar, hidden, when no downloads are offered", () => {
@@ -197,10 +175,7 @@ describe("narrow-viewport labels", () => {
 			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
 			create: undefined,
 		},
-		downloads: {
-			epubHref: "/view/example.com/a?format=epub",
-			azw3Href: "/view/example.com/a?format=azw3",
-		},
+		epubDownloadHref: "/view/example.com/a?format=epub",
 	};
 
 	function topBarOf(actionBtns: ActionButtons): Document {
@@ -214,14 +189,14 @@ describe("narrow-viewport labels", () => {
 			"[data-test-back-link]",
 			"[data-test-readlists-trigger]",
 			"[data-test-mark-read-btn]",
-			"[data-test-downloads-trigger]",
+			"[data-test-download]",
 		];
 		expect(
 			labelled.map(
 				(selector) =>
 					doc.querySelector(`${selector} .article-body__action-label`)?.textContent ?? null,
 			),
-		).toEqual(["Back to readlist", "Add to readlist", "Mark as read", "Download"]);
+		).toEqual(["Back to readlist", "Add to readlist", "Mark as read", "Download EPUB"]);
 	});
 
 	it("keeps the needed short labels hidden from assistive technology", () => {

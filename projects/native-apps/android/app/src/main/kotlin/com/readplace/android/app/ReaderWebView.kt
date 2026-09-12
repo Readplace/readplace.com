@@ -1,11 +1,17 @@
 package com.readplace.android.app
 
 import android.annotation.SuppressLint
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.os.Environment
+import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.JsResult
+import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -102,6 +108,20 @@ fun ReaderWebView(
 				// Let the sheet's background show through until the page paints, so the
 				// moment the skeleton lifts there is no white flash before the first paint.
 				setBackgroundColor(Color.TRANSPARENT)
+
+				// A tapped EPUB link reaches here rather than a browser (see
+				// ReaderNavigationDecision.Download): the system downloader takes the
+				// file into Downloads and posts its own notification, so the reader
+				// the user was reading stays open behind it.
+				setDownloadListener { downloadUrl, userAgent, contentDisposition, mimeType, _ ->
+					enqueueArticleDownload(
+						context = context,
+						url = downloadUrl,
+						userAgent = userAgent,
+						contentDisposition = contentDisposition,
+						mimeType = mimeType,
+					)
+				}
 
 				val load = ReaderLoadReporter(onLoadPhaseChange)
 				webViewClient = ReaderNavigationClient(
@@ -207,6 +227,31 @@ private class ReaderLoadReporter(private val onLoadPhaseChange: (ReaderLoadPhase
 	}
 }
 
+/** Hands a tapped article file to Android's own downloader, which writes it into
+ * the public Downloads collection and posts the completion notification. No
+ * storage permission is involved: `DIRECTORY_DOWNLOADS` is the one public location
+ * scoped storage leaves open to an app's own writes. */
+private fun enqueueArticleDownload(
+	context: Context,
+	url: String,
+	userAgent: String?,
+	contentDisposition: String?,
+	mimeType: String?,
+) {
+	val filename = URLUtil.guessFileName(url, contentDisposition, mimeType)
+	val request = DownloadManager.Request(Uri.parse(url))
+		.setMimeType(mimeType)
+		.addRequestHeader("User-Agent", userAgent)
+		.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+		.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+	val manager = context.getSystemService(DownloadManager::class.java)
+	if (manager == null) {
+		Log.e("ReaderDownload", "no DownloadManager on this device")
+		return
+	}
+	manager.enqueue(request)
+}
+
 private class ReaderNavigationClient(
 	private val load: ReaderLoadReporter,
 	private val onClose: () -> Unit,
@@ -222,6 +267,9 @@ private class ReaderNavigationClient(
 		)
 		return when (decision) {
 			ReaderNavigationDecision.Allow -> false
+			// Not overridden, so the WebView loads it and its DownloadListener
+			// receives the attachment instead of a browser taking the user away.
+			ReaderNavigationDecision.Download -> false
 			ReaderNavigationDecision.Close -> {
 				onClose()
 				true

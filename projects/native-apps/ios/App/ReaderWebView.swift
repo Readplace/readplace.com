@@ -1,6 +1,9 @@
+import OSLog
 import SwiftUI
 import UIKit
 import WebKit
+
+private let downloadLogger = Logger(subsystem: "com.readplace.app", category: "reader-download")
 
 /// Presents the server's authenticated reader in a WKWebView — the app acting as
 /// a browser over the server's HTML. The reader page and its in-reader XHRs are
@@ -98,7 +101,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		coordinator.invalidate()
 	}
 
-	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
 		private let onMarkedRead: () -> Void
 		private let onStatusChanged: () -> Void
 		private let onCaptureBlocked: (HTMLCapturing) async -> Void
@@ -115,6 +118,15 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		/// back/forward swipe) must not re-show the skeleton over a good page.
 		private var committed = false
 		private var terminal = false
+		/// Held between `decideDestinationUsing` and `downloadDidFinish`, which
+		/// WebKit delivers as two separate callbacks with nothing threading the
+		/// destination between them. Keyed by the download rather than kept in one
+		/// slot: the coordinator is the delegate for every download the reader
+		/// starts, so a second tap while the first is still fetching would otherwise
+		/// overwrite the first one's destination and hand the share sheet a file
+		/// that has not been written yet.
+		private var downloadedFiles: [ObjectIdentifier: URL] = [:]
+		private weak var downloadHost: WKWebView?
 
 		init(
 			onMarkedRead: @escaping () -> Void,
@@ -260,6 +272,11 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				// Cancelled, so WebKit never tries to resolve the custom scheme.
 				decisionHandler(.cancel)
 				onLogout()
+			case .download:
+				// WebKit fetches the file with the web view's own cookies and hands
+				// it back through `WKDownloadDelegate` below, so a download never
+				// costs the user the reader they were reading.
+				decisionHandler(.download)
 			case let .openExternally(target):
 				decisionHandler(.cancel)
 				// Chrome-first for our own links (the changelog banner's "Read more"):
@@ -268,6 +285,46 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				// someone else's site is opened untouched — see `chromeURLFor`.
 				openURLChromeFirst(target, browser: externalBrowser)
 			}
+		}
+
+		func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+			downloadHost = webView
+			download.delegate = self
+		}
+
+		/// The file lands in a per-download temporary directory so a second download
+		/// of the same article cannot be refused for colliding with the first — the
+		/// completion handler must be given a URL that does not exist yet.
+		func download(
+			_ download: WKDownload,
+			decideDestinationUsing response: URLResponse,
+			suggestedFilename: String,
+			completionHandler: @escaping (URL?) -> Void
+		) {
+			let directory = FileManager.default.temporaryDirectory
+				.appendingPathComponent(UUID().uuidString, isDirectory: true)
+			do {
+				try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+			} catch {
+				downloadLogger.error("reader download directory failed: \(error.localizedDescription, privacy: .public)")
+				completionHandler(nil)
+				return
+			}
+			let destination = articleDownloadDestination(suggestedFilename: suggestedFilename, in: directory)
+			downloadedFiles[ObjectIdentifier(download)] = destination
+			completionHandler(destination)
+		}
+
+		func downloadDidFinish(_ download: WKDownload) {
+			guard let file = downloadedFiles.removeValue(forKey: ObjectIdentifier(download)),
+				let webView = downloadHost
+			else { return }
+			presentShareSheet(for: file, over: webView)
+		}
+
+		func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+			downloadedFiles.removeValue(forKey: ObjectIdentifier(download))
+			downloadLogger.error("reader download failed: \(error.localizedDescription, privacy: .public)")
 		}
 
 		/// Without a UI delegate WKWebView suppresses JS dialogs and answers
@@ -319,6 +376,30 @@ func presentWebDialog(_ dialog: WebDialog, over webView: WKWebView, answer: @esc
 		})
 	}
 	presenter.present(alert, animated: true)
+}
+
+/// Offers a finished download to the share sheet, which is how a file reaches
+/// Books, Files, or anywhere else the user keeps EPUBs. The web view lives inside
+/// a SwiftUI sheet, so the presenter is the window's topmost presented controller
+/// for the same reason `presentWebDialog` walks to it: presenting from a root that
+/// is already presenting silently does nothing. On iPad the popover needs an
+/// anchor, and the web view is the only rect the file can be said to come from.
+/// A web view with no window (the sheet was dismissed mid-download) presents
+/// nowhere rather than crashing.
+func presentShareSheet(for file: URL, over webView: WKWebView) {
+	guard var presenter = webView.window?.rootViewController else { return }
+	while let presented = presenter.presentedViewController {
+		presenter = presented
+	}
+	let share = UIActivityViewController(activityItems: [file], applicationActivities: nil)
+	share.popoverPresentationController?.sourceView = webView
+	share.popoverPresentationController?.sourceRect = CGRect(
+		x: webView.bounds.midX,
+		y: webView.bounds.midY,
+		width: 0,
+		height: 0
+	)
+	presenter.present(share, animated: true)
 }
 
 /// The native side of the reader's mark-read bridge. The reader's mark-read is an

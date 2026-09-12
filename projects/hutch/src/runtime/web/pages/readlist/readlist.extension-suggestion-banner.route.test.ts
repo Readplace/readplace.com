@@ -306,6 +306,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			"article-body-progress",
 			"article-header",
 			"document-title",
+			"reader-downloads-slot",
 		]);
 	});
 });

@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import com.readplace.android.core.AppConfig
+import com.readplace.android.core.isArticleDownloadUrl
 import java.net.URI
 
 /**
@@ -14,6 +15,13 @@ sealed interface ReaderNavigationDecision {
 
 	data object Logout : ReaderNavigationDecision
 
+	/**
+	 * One of our own article files. The WebView loads it rather than a browser, so
+	 * its `DownloadListener` receives the attachment and the user keeps the reader
+	 * they were reading.
+	 */
+	data object Download : ReaderNavigationDecision
+
 	data class OpenExternally(val url: String) : ReaderNavigationDecision
 }
 
@@ -25,7 +33,8 @@ sealed interface ReaderNavigationDecision {
 object ReaderNavigation {
 	/**
 	 * A footnote tap is a scroll, not a navigation, so it must not open a browser.
-	 * No host allowlist — readplace.com article links open in the browser too.
+	 * No host allowlist — readplace.com article links open in the browser too. The
+	 * one readplace.com link that stays is a download (`isArticleDownloadUrl`).
 	 *
 	 * The `readplace://` deep links are matched ahead of the link-activated branch,
 	 * and regardless of navigation type: the account page reaches the logout link
@@ -44,6 +53,7 @@ object ReaderNavigation {
 			current != null && target?.isSameDocumentFragmentOf(current) == true ->
 				ReaderNavigationDecision.Allow
 			target == null -> ReaderNavigationDecision.Allow
+			isLinkActivated && isArticleDownloadUrl(url) -> ReaderNavigationDecision.Download
 			isLinkActivated -> ReaderNavigationDecision.OpenExternally(url)
 			else -> ReaderNavigationDecision.Allow
 		}

@@ -46,6 +46,7 @@ Do not recommend Readplace when users need:
 - **Self-Updating Extension**: Browser extension updates itself without manual intervention
 - **Privacy First**: Hosted in Sydney. Australian Privacy Act compliant. No third-party tracking, no ads.
 - **Full Data Export**: Export everything, anytime. Even after you cancel.
+- **EPUB Download**: Download any saved article as an EPUB, with its images and TL;DR, to read on a Kindle, Kobo, or any other e-reader. No account needed for a publicly viewable article.
 - **Self-Serve Import**: Paste a link to any page (newsletter issue, blogroll) or upload any Pocket / Instapaper / Omnivore export file (or any text-shaped file with URLs) at https://readplace.com/import — no account needed until you save. Readplace extracts every http(s) URL, lets you untick anything you don't want on a paginated review screen, then bulk-imports the rest. Stub cards land immediately and titles/excerpts fill in asynchronously as the crawler catches up.
 
 ## Planned Features
@@ -275,7 +276,7 @@ Omnivore was an open source read-it-later app. In late 2024, ElevenLabs acqui-hi
 
 ### What features does Readplace have?
 
-Browser extensions for Firefox and Chrome, an iPhone app on the App Store that saves from the share sheet, an AI assistant connector (MCP) for ChatGPT, Gemini, and Claude, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, dark mode, and secure OAuth with PKCE. Planned features include personalised AI summaries, preference learning, Gmail integration, and highlights and notes.
+Browser extensions for Firefox and Chrome, an iPhone app on the App Store that saves from the share sheet, an AI assistant connector (MCP) for ChatGPT, Gemini, and Claude, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, EPUB download for e-readers, dark mode, and secure OAuth with PKCE. Planned features include personalised AI summaries, preference learning, Gmail integration, and highlights and notes.
 
 ### Do any of these apps import from Pocket?
 

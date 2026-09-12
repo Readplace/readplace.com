@@ -4,7 +4,6 @@ import type { RateLimitDecision, RateLimitRule } from "@packages/domain/rate-lim
  * the crawl allowance never locks the same visitor out of logging in. */
 export type RateLimitBucket =
 	| "view-crawl"
-	| "article-download"
 	| "login"
 	| "login-account"
 	| "signup"
@@ -28,7 +27,6 @@ export type ConsumeRateLimit = (params: {
 
 export interface RateLimitRules {
 	viewCrawl: RateLimitRule;
-	articleDownload: RateLimitRule;
 	login: RateLimitRule;
 	/** Per-account (normalized email) login throttle — the credential-stuffing
 	 * defense that the per-IP `login` limit cannot provide against a distributed

@@ -411,7 +411,6 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const { consumeRateLimit } = initInMemoryRateLimit({ now: () => new Date() });
 	const rateLimitRules: RateLimitRules = {
 		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
-		articleDownload: parseRateLimitRule(requireEnv("RATE_LIMIT_ARTICLE_DOWNLOAD")),
 		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
 		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),

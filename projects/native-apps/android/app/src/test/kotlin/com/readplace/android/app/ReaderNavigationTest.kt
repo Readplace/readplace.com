@@ -1,10 +1,15 @@
 package com.readplace.android.app
 
+import com.readplace.android.core.AppConfig
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ReaderNavigationTest {
 	private val current = "https://readplace.com/queue/a1/view?platform=android"
+
+	/** Derived from the flavor under test, because the download rule is scoped to
+	 * whichever host this build talks to. */
+	private val serverOrigin = AppConfig.serverBaseUrl.trimEnd('/')
 
 	@Test
 	fun closeDeepLinkClosesViaLinkActivation() {
@@ -131,6 +136,47 @@ class ReaderNavigationTest {
 			ReaderNavigation.decide(
 				url = "https://readplace.com/about",
 				isLinkActivated = true,
+				currentUrl = current,
+			),
+		)
+	}
+
+	/** The one readplace.com link that does not leave the app: handing an EPUB to a
+	 * browser would drop the reader the user was reading, for a file the WebView can
+	 * fetch in place. */
+	@Test
+	fun tappedEpubDownloadStaysInTheApp() {
+		assertEquals(
+			ReaderNavigationDecision.Download,
+			ReaderNavigation.decide(
+				url = "$serverOrigin/view/example.com/a?format=epub&utm_source=reader",
+				isLinkActivated = true,
+				currentUrl = current,
+			),
+		)
+	}
+
+	/** A `format=epub` route on someone else's site is theirs, not ours. */
+	@Test
+	fun tappedForeignEpubLinkStillOpensExternally() {
+		assertEquals(
+			ReaderNavigationDecision.OpenExternally("https://example.com/view?format=epub"),
+			ReaderNavigation.decide(
+				url = "https://example.com/view?format=epub",
+				isLinkActivated = true,
+				currentUrl = current,
+			),
+		)
+	}
+
+	/** A download is a tap, never a redirect the page performs on its own. */
+	@Test
+	fun epubDownloadReachedWithoutATapIsAllowedThrough() {
+		assertEquals(
+			ReaderNavigationDecision.Allow,
+			ReaderNavigation.decide(
+				url = "$serverOrigin/view/example.com/a?format=epub",
+				isLinkActivated = false,
 				currentUrl = current,
 			),
 		)

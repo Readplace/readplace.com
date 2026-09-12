@@ -6,6 +6,7 @@ enum ReaderNavigationDecision: Equatable {
 	case allow
 	case close
 	case logout
+	case download(URL)
 	case openExternally(URL)
 }
 
@@ -15,7 +16,9 @@ enum ReaderNavigationDecision: Equatable {
 enum ReaderNavigation {
 	/// A footnote tap is a scroll, not a navigation, so it must not open a
 	/// browser. No host allowlist — readplace.com article links open in the
-	/// browser too.
+	/// browser too. The one readplace.com link that stays is a download
+	/// (`isArticleDownloadURL`): handing a file to a browser would cost the user
+	/// the reader they were reading, for a file the app can take itself.
 	///
 	/// The `readplace://` deep links are matched ahead of the `.linkActivated`
 	/// branch, and regardless of navigation type: the account page reaches the
@@ -34,6 +37,9 @@ enum ReaderNavigation {
 		}
 
 		if navigationType == .linkActivated {
+			if isArticleDownloadURL(url) {
+				return .download(url)
+			}
 			return .openExternally(url)
 		}
 

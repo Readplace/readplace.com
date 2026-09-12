@@ -40,7 +40,6 @@ config:
   hutch:dynamodbGmailDiscoveryTable: hutch-gmail-discovery-staging
   hutch:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-staging
   hutch:rateLimitViewCrawl: 10000/3600
-  hutch:rateLimitArticleDownload: 5000/3600
   hutch:rateLimitLogin: 5000/900
   hutch:rateLimitLoginAccount: 5000/900
   hutch:rateLimitSignup: 5000/3600
