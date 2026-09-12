@@ -180,7 +180,7 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatViewDocumentTitle,
-		summaryOpen: true,
+		summaryOpen: false,
 		now: deps.now,
 	};
 }

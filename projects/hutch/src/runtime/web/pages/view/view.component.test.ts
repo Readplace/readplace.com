@@ -464,17 +464,14 @@ describe("ViewPage", () => {
 		).toBe(true);
 	});
 
-	// The public /view reader intentionally keeps the TL;DR expanded — anonymous
-	// visitors can't be measured per-cohort anyway, so there's no reason to gate
-	// the summary behind a deliberate expand the way the internal reader does.
-	it("renders the summary expanded by default on the public view", () => {
+	it("renders the summary collapsed by default on the public view", () => {
 		const doc = render({
 			...baseInput,
 			summary: { status: "ready", summary: "Key points." },
 		});
 		const details = doc.querySelector(".article-body__summary");
 		assert(details, "summary details element must be rendered");
-		expect(details.hasAttribute("open")).toBe(true);
+		expect(details.hasAttribute("open")).toBe(false);
 		// Public reader records no toggles, so the <details> carries no beacon URL.
 		expect(details.hasAttribute("data-summary-toggle-url")).toBe(false);
 	});

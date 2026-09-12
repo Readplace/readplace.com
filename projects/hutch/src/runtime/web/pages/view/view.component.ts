@@ -135,7 +135,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		readerPollUrl: input.readerPollUrl,
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
-		summaryOpen: true,
+		summaryOpen: false,
 		progress: input.progress,
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
