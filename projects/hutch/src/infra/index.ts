@@ -1293,6 +1293,7 @@ const gmailDiscoveryLambda = new HutchLambda("gmail-discovery", {
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 	},
 	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryQueue.policies],
+	recursiveLoop: "Allow",
 });
 eventBus.grantPublish(gmailDiscoveryLambda);
 const gmailDiscoveryWithSqs = new HutchSQSBackedLambda("gmail-discovery", {

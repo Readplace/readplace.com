@@ -218,6 +218,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 			 * auto-created — those are adopted out-of-band via `pulumi import`.
 			 */
 			priorLogGroupLogicalName?: string;
+			recursiveLoop?: "Allow";
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -371,6 +372,13 @@ export class HutchLambda extends pulumi.ComponentResource {
 				...layersArg,
 				...architecturesArg,
 			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });
+		}
+
+		if (args.recursiveLoop) {
+			new aws.lambda.FunctionRecursionConfig(`${lambdaName}-recursion`, {
+				functionName: lambdaFunction.name,
+				recursiveLoop: args.recursiveLoop,
+			}, { parent: this });
 		}
 
 		this.functionName = lambdaFunction.name;
