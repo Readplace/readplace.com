@@ -69,6 +69,10 @@
       "types": "./dist/providers/gmail-discovery/index.d.ts",
       "default": "./dist/providers/gmail-discovery/index.js"
     },
+    "./providers/gmail-filters": {
+      "types": "./dist/providers/gmail-filters/index.d.ts",
+      "default": "./dist/providers/gmail-filters/index.js"
+    },
     "./providers/gmail-held-mail": {
       "types": "./dist/providers/gmail-held-mail/index.d.ts",
       "default": "./dist/providers/gmail-held-mail/index.js"
@@ -212,6 +216,9 @@
       ],
       "providers/gmail-discovery": [
         "./dist/providers/gmail-discovery/index.d.ts"
+      ],
+      "providers/gmail-filters": [
+        "./dist/providers/gmail-filters/index.d.ts"
       ],
       "providers/gmail-held-mail": [
         "./dist/providers/gmail-held-mail/index.d.ts"

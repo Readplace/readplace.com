@@ -5,6 +5,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { GmailFilter, GmailFilters } from "@packages/provider-contracts/gmail-filters";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
+import { initInMemoryGmailFilters } from "@packages/test-fixtures/providers/gmail-filters";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { AliasNameSchema } from "@packages/domain/inbox";
@@ -16,36 +17,6 @@ const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const BREW = ForwardableSenderSchema.parse("crew@morningbrew.com");
 const NOW = new Date("2026-08-27T00:00:00.000Z");
 
-function inMemoryGmail(seed: GmailFilter[] = []) {
-	const store = new Map(seed.map((filter) => [filter.id, filter]));
-	const deleted: string[] = [];
-	const created: { query: string; forwardTo: string }[] = [];
-	let nextId = 100;
-
-	const api: GmailFilters = {
-		listFilters: async () => ({ ok: true, value: [...store.values()] }),
-		createForwardingFilter: async ({ query, forwardTo }) => {
-			created.push({ query, forwardTo });
-			nextId += 1;
-			const filter: GmailFilter = { id: `f-${nextId}`, query, forwardTo };
-			store.set(filter.id, filter);
-			return { ok: true, value: filter };
-		},
-		getFilter: async ({ filterId }) => {
-			const found = store.get(filterId);
-			assert(found, "getFilter must be called with an id Gmail knows");
-			return { ok: true, value: found };
-		},
-		deleteFilter: async ({ filterId }) => {
-			deleted.push(filterId);
-			store.delete(filterId);
-			return { ok: true, value: undefined };
-		},
-	};
-
-	return { store, deleted, created, api };
-}
-
 async function makeHarness(options: {
 	gmail?: GmailFilters;
 	seedFilters?: GmailFilter[];
@@ -55,7 +26,7 @@ async function makeHarness(options: {
 	onFilter?: readonly (typeof TLDR)[];
 	listAddressesByUserId?: InboxAddressStore["listAddressesByUserId"];
 } = {}) {
-	const gmail = inMemoryGmail(options.seedFilters);
+	const gmail = initInMemoryGmailFilters(options.seedFilters);
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
 	const senders = initInMemoryGmailSender({ now: () => NOW });
 	const addresses = initInMemoryInboxAddress({ now: () => NOW });
@@ -187,7 +158,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("deletes the filter Gmail silently rewrote and records the mismatch", async () => {
-		const gmail = inMemoryGmail();
+		const gmail = initInMemoryGmailFilters();
 		const { rewrite, connections } = await makeHarness({
 			gmail: {
 				...gmail.api,
@@ -208,7 +179,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("names the missing query when Gmail reads the filter back with none", async () => {
-		const gmail = inMemoryGmail();
+		const gmail = initInMemoryGmailFilters();
 		const { rewrite, connections } = await makeHarness({
 			gmail: {
 				...gmail.api,
@@ -244,7 +215,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("marks the connection revoked when Gmail refuses the grant", async () => {
-		const gmail = inMemoryGmail();
+		const gmail = initInMemoryGmailFilters();
 		const { rewrite, connections } = await makeHarness({
 			gmail: { ...gmail.api, listFilters: async () => ({ ok: false, reason: "reauth-required" }) },
 		});
@@ -256,7 +227,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("passes a Gmail outage back for redrive without recording an error", async () => {
-		const gmail = inMemoryGmail();
+		const gmail = initInMemoryGmailFilters();
 		const { rewrite, connections } = await makeHarness({
 			gmail: {
 				...gmail.api,
@@ -271,7 +242,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("records why Gmail refused to create the filter", async () => {
-		const gmail = inMemoryGmail();
+		const gmail = initInMemoryGmailFilters();
 		const { rewrite, connections } = await makeHarness({
 			gmail: {
 				...gmail.api,
@@ -298,7 +269,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("stops when the filter it just wrote cannot be read back", async () => {
-		const gmail = inMemoryGmail();
+		const gmail = initInMemoryGmailFilters();
 		const { rewrite } = await makeHarness({
 			gmail: {
 				...gmail.api,
@@ -314,7 +285,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("stops when the superseded filter cannot be deleted", async () => {
-		const gmail = inMemoryGmail([
+		const gmail = initInMemoryGmailFilters([
 			{ id: "f-old", query: "from:(old@example.com)", forwardTo: GATEWAY },
 		]);
 		const { rewrite } = await makeHarness({
@@ -332,7 +303,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("stops when the last filter cannot be removed after the last sender goes", async () => {
-		const gmail = inMemoryGmail([
+		const gmail = initInMemoryGmailFilters([
 			{ id: "f-live", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY },
 		]);
 		const { rewrite, senders } = await makeHarness({
@@ -470,7 +441,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("keeps existing gateway forwarding if Gmail rejects the new named-inbox filter", async () => {
-		const gmail = inMemoryGmail([{
+		const gmail = initInMemoryGmailFilters([{
 			id: "f-existing",
 			query: "from:(crew@morningbrew.com OR dan@tldr.tech)",
 			forwardTo: GATEWAY,
