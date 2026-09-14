@@ -348,4 +348,79 @@ describe("GlobalNav component", () => {
 		expect(disclosure.hasAttribute("open")).toBe(false);
 		expect(disclosure.querySelector("#nav-menu")?.className).toBe("nav__menu");
 	});
+
+	describe("clickSurface marks which page rendered the shared chrome", () => {
+		it("stamps utm_term on the brand link so a logo click is attributable to the reader view", () => {
+			const doc = parse(
+				GlobalNav({
+					variant: "default",
+					isAuthenticated: false,
+					accessIsReadOnly: false,
+					gmailFeatureEnabled: false,
+					clickSurface: "reader-public",
+				}),
+			);
+
+			const brand = doc.querySelector(".header__brand");
+			assert(brand, "brand link must render");
+			const href = new URL(brand.getAttribute("href") ?? "", "https://internal.invalid");
+			expect(href.searchParams.get("utm_content")).toBe("brand");
+			expect(href.searchParams.get("utm_term")).toBe("reader-public");
+		});
+
+		it("adds a utm_term hidden input to each guest nav GET form so a submit carries the surface", () => {
+			const doc = parse(
+				GlobalNav({
+					variant: "default",
+					isAuthenticated: false,
+					accessIsReadOnly: false,
+					gmailFeatureEnabled: false,
+					clickSurface: "reader-public",
+				}),
+			);
+
+			const install = doc.querySelector('[data-test-nav-item="install"]')?.closest("form");
+			assert(install, "install nav item must be inside a form");
+			const hiddenInputNames = Array.from(install.querySelectorAll('input[type="hidden"]')).map((el) =>
+				el.getAttribute("name"),
+			);
+			expect(hiddenInputNames).toEqual(["utm_source", "utm_medium", "utm_content", "utm_term"]);
+			expect(install.querySelector('input[name="utm_term"]')?.getAttribute("value")).toBe("reader-public");
+		});
+
+		it("adds the utm_term hidden input to authenticated nav forms too", () => {
+			const doc = parse(
+				GlobalNav({
+					variant: "default",
+					isAuthenticated: true,
+					accessIsReadOnly: false,
+					gmailFeatureEnabled: false,
+					clickSurface: "reader-public",
+				}),
+			);
+
+			const queue = doc.querySelector('[data-test-nav-item="queue"]')?.closest("form");
+			assert(queue, "queue nav item must be inside a form");
+			expect(queue.querySelector('input[name="utm_term"]')?.getAttribute("value")).toBe("reader-public");
+		});
+
+		it("carries the surface into the logout POST action, whose fields ride the request body not the query", () => {
+			const doc = parse(
+				GlobalNav({
+					variant: "default",
+					isAuthenticated: true,
+					accessIsReadOnly: false,
+					gmailFeatureEnabled: false,
+					clickSurface: "reader-public",
+				}),
+			);
+
+			const logout = doc.querySelector('[data-test-nav-item="logout"]')?.closest("form");
+			assert(logout, "logout nav item must be inside a form");
+			expect(logout.getAttribute("method")).toBe("POST");
+			const action = new URL(logout.getAttribute("action") ?? "", "https://internal.invalid");
+			expect(action.searchParams.get("utm_content")).toBe("logout");
+			expect(action.searchParams.get("utm_term")).toBe("reader-public");
+		});
+	});
 });

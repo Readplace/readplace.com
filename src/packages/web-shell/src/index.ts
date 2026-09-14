@@ -6,7 +6,8 @@ export {
 	SUBSCRIBE_CTA_LABEL,
 } from "./pricing";
 export type { PricingPanel, PricingPlan } from "./pricing";
-export { withInternalTracking } from "./internal-link-tracking";
+export { CLICK_SURFACES, withClickSurface, withInternalTracking } from "./internal-link-tracking";
+export type { ClickSurface } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
 export type { PageBody, SeoMetadata } from "./page-body.types";
 export { HtmlPage } from "./html-page";

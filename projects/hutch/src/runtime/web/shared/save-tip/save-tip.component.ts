@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
+import { type ClickSurface, render, renderConfirmPopover, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import {
 	buildExtensionInstallUrl,
 	detectPlatform,
@@ -31,7 +31,7 @@ export type SaveTipMode = "advisory" | "gating";
  * call to action — an import has no navigation to hold back. */
 export type SaveTipSpec =
 	| { kind: SaveTipKind; mode: "advisory" }
-	| { kind: "article"; mode: "gating" };
+	| { kind: "article"; mode: "gating"; clickSurface: ClickSurface };
 
 /** The content-capture client this visitor already has, which decides whether
  * the panel pitches an install or tells them to use what they have. */
@@ -114,21 +114,23 @@ export function buildSaveTip(req: Request, spec: SaveTipSpec): SaveTip {
 function renderSaveTip(req: Request, spec: SaveTipSpec): string {
 	const client = resolveSaveTipClient(req);
 	const copy = COPY[spec.kind];
+	const surface = spec.mode === "gating" ? spec.clickSurface : undefined;
+	const installUrl = INSTALL_URL_BY_CLIENT[client](req);
 	return renderConfirmPopover({
 		id: SAVE_TIP_PANEL_ID,
 		key: "save-tip",
 		subject: spec.kind,
 		title: copy.title,
 		body: copy.body(client),
-		openBeaconUrl: OPEN_BEACON_URL,
-		dismissBeaconUrl: DISMISS_BEACON_URL,
+		openBeaconUrl: withClickSurface(OPEN_BEACON_URL, surface),
+		dismissBeaconUrl: withClickSurface(DISMISS_BEACON_URL, surface),
 		actionsHtml: render(SAVE_TIP_ACTIONS_TEMPLATE, {
 			client,
 			mode: spec.mode,
 			primaryHtml: render(PRIMARY_CONTROL[spec.mode], {
 				acknowledgeBeaconUrl: ACKNOWLEDGE_BEACON_URL,
 			}),
-			installUrl: INSTALL_URL_BY_CLIENT[client](req),
+			installUrl: installUrl === undefined ? undefined : withClickSurface(installUrl, surface),
 		}),
 	});
 }

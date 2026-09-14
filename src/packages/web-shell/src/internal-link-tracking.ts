@@ -47,3 +47,17 @@ export function withInternalTracking(href: string, tracking: InternalTracking): 
 	if (tracking.term) url.searchParams.set("utm_term", tracking.term);
 	return `${url.pathname}${url.search}${url.hash}`;
 }
+
+export const CLICK_SURFACES = {
+	readerPublic: "reader-public",
+} as const;
+
+export type ClickSurface = (typeof CLICK_SURFACES)[keyof typeof CLICK_SURFACES];
+
+export function withClickSurface(href: string, surface: ClickSurface | undefined): string {
+	if (surface === undefined) return href;
+	if (!href.startsWith("/") || href.startsWith("//")) return href;
+	const url = new URL(href, PARSE_ORIGIN);
+	url.searchParams.set("utm_term", surface);
+	return `${url.pathname}${url.search}${url.hash}`;
+}

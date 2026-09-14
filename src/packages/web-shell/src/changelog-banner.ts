@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import type { CspNonce } from "./csp-nonce.middleware";
+import { type ClickSurface, withClickSurface } from "./internal-link-tracking";
 import { render } from "./render";
 
 /** An opaque lowercase-hex fingerprint of the announcing post (`CHANGELOG_VERSION_LENGTH`
@@ -108,20 +109,22 @@ export const CHANGELOG_SEEN_SCRIPT = `(function(){var banner=document.querySelec
  * (so the dismiss route sends the reader back where they were rather than the
  * homepage — it cannot read `Referer`, which helmet's default `no-referrer`
  * policy strips from the POST). */
-const CHANGELOG_SHELL_TEMPLATE = `<div class="changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner{{#if visible}} data-changelog-version="{{version}}"{{/if}}>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__chip" aria-hidden="true">NEW</span><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Read more</a><form class="changelog-banner__dismiss" method="POST" action="{{track '/banner/changelog/dismiss' source='changelog-banner' content='dismiss'}}"><input type="hidden" name="version" value="{{version}}"><input type="hidden" name="returnTo" value="{{returnTo}}"><button type="submit" class="changelog-banner__close" aria-label="Dismiss changelog banner">{{icon "x"}}</button></form></div>{{#if seenScript}}<script nonce="{{cspNonce}}">${CHANGELOG_SEEN_SCRIPT}</script>{{/if}}{{/if}}</div>`;
+const CHANGELOG_SHELL_TEMPLATE = `<div class="changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner{{#if visible}} data-changelog-version="{{version}}"{{/if}}>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__chip" aria-hidden="true">NEW</span><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Read more</a><form class="changelog-banner__dismiss" method="POST" action="{{track '/banner/changelog/dismiss' source='changelog-banner' content='dismiss' term=clickSurface}}"><input type="hidden" name="version" value="{{version}}"><input type="hidden" name="returnTo" value="{{returnTo}}"><button type="submit" class="changelog-banner__close" aria-label="Dismiss changelog banner">{{icon "x"}}</button></form></div>{{#if seenScript}}<script nonce="{{cspNonce}}">${CHANGELOG_SEEN_SCRIPT}</script>{{/if}}{{/if}}</div>`;
 
 export function renderChangelogBannerShell(input: {
 	banner?: ChangelogBanner;
 	returnTo?: string;
 	cspNonce: CspNonce;
+	clickSurface?: ClickSurface;
 }): string {
 	return render(CHANGELOG_SHELL_TEMPLATE, {
 		visible: Boolean(input.banner),
 		hook: input.banner?.hook,
-		href: input.banner?.href,
+		href: input.banner ? withClickSurface(input.banner.href, input.clickSurface) : undefined,
 		version: input.banner?.version,
 		returnTo: input.returnTo,
 		cspNonce: input.cspNonce,
 		seenScript: Boolean(input.banner),
+		clickSurface: input.clickSurface,
 	});
 }

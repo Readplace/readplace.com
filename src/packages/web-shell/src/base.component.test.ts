@@ -1172,4 +1172,21 @@ describe("initBase config", () => {
 			}),
 		).toBe("");
 	});
+
+	it("leaves the footer links untagged by a surface when the page body sets none", () => {
+		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window.document;
+		const blog = doc.querySelector(".footer__link");
+		assert(blog, "the footer must render its links");
+		expect(new URL(blog.getAttribute("href") ?? "", "https://internal.invalid").searchParams.has("utm_term")).toBe(false);
+	});
+
+	it("stamps the page's click surface onto the footer links so a footer click is attributable to the page", () => {
+		const doc = new JSDOM(
+			Base(createTestPageBody({ clickSurface: "reader-public" }), GUEST_STATE).to("text/html").body,
+		).window.document;
+		const links = Array.from(doc.querySelectorAll(".footer__link")).map(
+			(el) => new URL(el.getAttribute("href") ?? "", "https://internal.invalid").searchParams.get("utm_term"),
+		);
+		expect(links).toEqual(["reader-public", "reader-public", "reader-public"]);
+	});
 });

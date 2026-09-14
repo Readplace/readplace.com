@@ -32,7 +32,7 @@ import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, typ
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
-import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
+import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
 
 import { Base } from "../../base.component";
@@ -135,9 +135,18 @@ const PASTE_ANOTHER_ACTION: ViewAction = {
 	key: "paste-another-link",
 	name: "Paste another link",
 	shortName: "Paste",
-	href: "/?utm_source=view-article&utm_medium=internal&utm_content=paste-another-link",
+	href: withInternalTracking("/", {
+		source: "view-article",
+		content: "paste-another-link",
+		term: CLICK_SURFACES.readerPublic,
+	}),
 	variant: "secondary",
 };
+
+function readerPublicInstallUrl(req: Request): string | undefined {
+	const url = extensionInstallUrlIfMissing(req);
+	return url === undefined ? undefined : withClickSurface(url, CLICK_SURFACES.readerPublic);
+}
 
 function viewReaderViewFailedOob(input: {
 	req: Request;
@@ -380,7 +389,11 @@ function handleViewArticle(
 			setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
 		}
 
-		const saveTip = buildSaveTip(req, { kind: "article", mode: "gating" });
+		const saveTip = buildSaveTip(req, {
+			kind: "article",
+			mode: "gating",
+			clickSurface: CLICK_SURFACES.readerPublic,
+		});
 		const actions: ViewAction[] = [
 			saveAction({
 				articleUrl,
@@ -412,9 +425,9 @@ function handleViewArticle(
 					epubDownloadHref:
 						state.content === undefined
 							? undefined
-							: articleEpubHref({ articleUrl, utmSource: "view-article" }),
+							: withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article" }), CLICK_SURFACES.readerPublic),
 					saveTip,
-					extensionInstallUrl: extensionInstallUrlIfMissing(req),
+					extensionInstallUrl: readerPublicInstallUrl(req),
 					crawlVersions: state.crawlVersions,
 					readerNotice: state.notice,
 				}),
@@ -449,7 +462,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
 			capturing: false,
-			extensionInstallUrl: extensionInstallUrlIfMissing(req),
+			extensionInstallUrl: readerPublicInstallUrl(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readlistTags: undefined,
@@ -480,7 +493,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
 			capturing: false,
-			extensionInstallUrl: extensionInstallUrlIfMissing(req),
+			extensionInstallUrl: readerPublicInstallUrl(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readlistTags: undefined,

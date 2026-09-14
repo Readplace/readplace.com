@@ -27,6 +27,7 @@ import { injectPageStylesIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
+import type { ClickSurface } from "./internal-link-tracking";
 import type { NavProps } from "./nav.component";
 import type { TrialDisplay } from "./trial-countdown.format";
 import type { PageBody, SeoMetadata } from "./page-body.types";
@@ -39,9 +40,10 @@ import { EXTENSION_SUGGESTION_BANNER_STYLES } from "./shared/extension-suggestio
 import { renderVerifyBanner } from "./shared/verify-banner/verify-banner.component";
 import { TOAST_STYLES } from "./shared/toast/toast.styles";
 
-function renderFooter(): string {
+function renderFooter(clickSurface: ClickSurface | undefined): string {
 	return render(FOOTER_TEMPLATE, {
 		year: new Date().getFullYear(),
+		clickSurface,
 	});
 }
 
@@ -283,6 +285,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				banner: state.changelogBanner,
 				returnTo: state.currentPath,
 				cspNonce: state.cspNonce,
+				clickSurface: body.clickSurface,
 			}),
 			verifyBanner: renderVerifyBanner(state),
 			extensionSuggestionBanner: renderExtensionSuggestionBanner({
@@ -297,13 +300,14 @@ export function initBase(config: BaseConfig): RenderBase {
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
 				gmailFeatureEnabled: state.gmailFeatureEnabled ?? false,
 				trialCounter: state.trial,
+				clickSurface: body.clickSurface,
 			}),
 			content: injectPageStylesIntoMain({
 				content: body.content.html,
 				styles: body.styles,
 				cspNonce: state.cspNonce,
 			}),
-			footer: renderFooter(),
+			footer: renderFooter(body.clickSurface),
 			navScript: navScript(state.cspNonce),
 			offlineScript: offlineIndicatorScript(state.cspNonce),
 			scripts:

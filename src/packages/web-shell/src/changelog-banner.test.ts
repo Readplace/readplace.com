@@ -251,6 +251,20 @@ describe("renderChangelogBannerShell", () => {
 		assert(returnTo, "the dismiss form must always carry the return-path input");
 		expect(returnTo.getAttribute("value")).toBe("");
 	});
+
+	it("stamps the click surface onto both Read more and the dismiss action when the page supplies one", () => {
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE, clickSurface: "reader-public" }));
+		const link = doc.querySelector(".changelog-banner__link");
+		assert(link, "the read-more link must render");
+		expect(new URL(link.getAttribute("href") ?? "", "https://internal.invalid").searchParams.get("utm_term")).toBe(
+			"reader-public",
+		);
+		const form = doc.querySelector(".changelog-banner__dismiss");
+		assert(form, "the dismiss form must render");
+		expect(new URL(form.getAttribute("action") ?? "", "https://internal.invalid").searchParams.get("utm_term")).toBe(
+			"reader-public",
+		);
+	});
 });
 
 describe("CHANGELOG_SEEN_SCRIPT", () => {

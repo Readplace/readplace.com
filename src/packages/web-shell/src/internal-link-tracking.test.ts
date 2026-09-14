@@ -1,4 +1,4 @@
-import { withInternalTracking } from "./internal-link-tracking";
+import { CLICK_SURFACES, withClickSurface, withInternalTracking } from "./internal-link-tracking";
 
 describe("withInternalTracking", () => {
 	it("stamps a root-relative href with the section (utm_source), the element (utm_content), and utm_medium=internal so the click middleware can count it", () => {
@@ -55,5 +55,38 @@ describe("withInternalTracking", () => {
 	it("leaves a protocol-relative URL untouched — it resolves to another origin, so stamping it would both leak our params and strip the host", () => {
 		const external = "//cdn.example.com/x?a=1";
 		expect(withInternalTracking(external, { source: "home-hero", content: "cdn" })).toBe(external);
+	});
+});
+
+describe("withClickSurface", () => {
+	it("stamps only utm_term with the surface, leaving an href's existing source/medium/content query untouched", () => {
+		const tagged = withInternalTracking("/", { source: "view-article", content: "paste-another-link" });
+		const href = withClickSurface(tagged, CLICK_SURFACES.readerPublic);
+		const params = new URL(href, "https://internal.invalid").searchParams;
+		expect(params.get("utm_source")).toBe("view-article");
+		expect(params.get("utm_medium")).toBe("internal");
+		expect(params.get("utm_content")).toBe("paste-another-link");
+		expect(params.get("utm_term")).toBe("reader-public");
+	});
+
+	it("preserves a hash fragment when stamping the surface", () => {
+		const href = withClickSurface("/install?client=chrome#top", CLICK_SURFACES.readerPublic);
+		expect(href.endsWith("#top")).toBe(true);
+		expect(new URL(href, "https://internal.invalid").searchParams.get("utm_term")).toBe("reader-public");
+	});
+
+	it("returns the href unchanged when no surface is supplied, so a caller passes its optional surface straight through", () => {
+		const tagged = withInternalTracking("/", { source: "view-article", content: "paste-another-link" });
+		expect(withClickSurface(tagged, undefined)).toBe(tagged);
+	});
+
+	it("leaves an absolute external URL untouched — tagging it would leak the surface to another site", () => {
+		const external = "https://apps.apple.com/app/readplace";
+		expect(withClickSurface(external, CLICK_SURFACES.readerPublic)).toBe(external);
+	});
+
+	it("leaves a protocol-relative URL untouched — it resolves to another origin", () => {
+		const external = "//cdn.example.com/x?a=1";
+		expect(withClickSurface(external, CLICK_SURFACES.readerPublic)).toBe(external);
 	});
 });

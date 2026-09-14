@@ -1,3 +1,5 @@
+import type { ClickSurface } from "./internal-link-tracking";
+
 export interface SeoMetadata {
 	title: string;
 	description: string;
@@ -34,6 +36,7 @@ export interface PageBody {
 	seo: SeoMetadata;
 	styles: string;
 	headerVariant?: "default" | "transparent";
+	clickSurface?: ClickSurface;
 	bodyClass?: string;
 	/** Whether this page follows the viewer's system theme even with nobody
 	 * signed in. Only the public reader sets it: dark mode there is a reading

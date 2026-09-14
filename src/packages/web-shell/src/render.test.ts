@@ -47,6 +47,23 @@ describe("render", () => {
 		expect(result).toBe('<a href="https://github.com/Readplace/readplace.com">GitHub</a>');
 	});
 
+	it("{{track}} stamps utm_term when a term= argument resolves to a string, so a page can mark the surface a shared link was rendered on", () => {
+		const result = render("<a href=\"{{track '/' source='header' content='brand' term=surface}}\">Home</a>", { surface: "reader-public" });
+		const decoded = result.replaceAll("&amp;", "&").replaceAll("&#x3D;", "=");
+		expect(decoded).toBe('<a href="/?utm_source=header&utm_medium=internal&utm_content=brand&utm_term=reader-public">Home</a>');
+	});
+
+	it("{{track}} omits utm_term when term= resolves to undefined, so pages that render no surface are byte-identical", () => {
+		const result = render("<a href=\"{{track '/' source='header' content='brand' term=surface}}\">Home</a>", {});
+		expect(result).not.toContain("utm_term");
+	});
+
+	it("{{track}} throws when term= is present but not a string, so a mis-wired surface fails loudly instead of stamping garbage", () => {
+		expect(() => render("<a href=\"{{track '/' source='header' content='brand' term=surface}}\">Home</a>", { surface: 7 })).toThrow(
+			"{{track}} term= must be a string when present",
+		);
+	});
+
 	it("{{icon}} emits the icon's markup unescaped, unlike a double-stache value", () => {
 		expect(render('{{icon "arrow-right"}}', {})).toBe(iconSvg("arrow-right"));
 	});

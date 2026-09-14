@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Request } from "express";
 import { parseHTML } from "linkedom";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
+import { CLICK_SURFACES } from "@packages/web-shell";
 import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { type SaveTipSpec, buildSaveTip } from "./save-tip.component";
 import { SAVE_TIP_ELEMENTS, SAVE_TIP_EVENT_PATH, SAVE_TIP_UTM_SOURCE } from "./save-tip-tracking";
@@ -30,7 +31,7 @@ function request(input: {
 
 const ADVISORY_ARTICLE: SaveTipSpec = { kind: "article", mode: "advisory" };
 const ADVISORY_IMPORT: SaveTipSpec = { kind: "import", mode: "advisory" };
-const GATING_ARTICLE: SaveTipSpec = { kind: "article", mode: "gating" };
+const GATING_ARTICLE: SaveTipSpec = { kind: "article", mode: "gating", clickSurface: CLICK_SURFACES.readerPublic };
 
 function panelFor(req: Request, spec: SaveTipSpec = ADVISORY_ARTICLE) {
 	const { document } = parseHTML(`<main>${buildSaveTip(req, spec).html}</main>`);
@@ -175,6 +176,27 @@ describe("buildSaveTip", () => {
 			expect(elementOf(beaconOn(doc, "[data-test-confirm-popover='save-tip']"))).toBe(
 				SAVE_TIP_ELEMENTS.opened,
 			);
+		});
+
+		it("marks the gated panel's beacons and install pitch with the reader-public surface so they attribute to the reader view", () => {
+			const doc = panelFor(request({ userAgent: DESKTOP_CHROME }), GATING_ARTICLE);
+
+			expect(beaconOn(doc, "[data-test-confirm-popover='save-tip']").searchParams.get("utm_term")).toBe("reader-public");
+			expect(beaconOn(doc, "[data-test-action='save-tip-dismiss']").searchParams.get("utm_term")).toBe("reader-public");
+			const install = doc.querySelector("[data-test-action='save-tip-install']");
+			assert(install, "a visitor with no client must be offered one on the gated surface");
+			expect(new URL(install.getAttribute("href") ?? "", "https://readplace.com").searchParams.get("utm_term")).toBe(
+				"reader-public",
+			);
+		});
+
+		it("leaves the advisory panel's beacons and install pitch unmarked by a surface, since it renders on the homepage too", () => {
+			const doc = panelFor(request({ userAgent: DESKTOP_CHROME }));
+
+			expect(beaconOn(doc, "[data-test-confirm-popover='save-tip']").searchParams.has("utm_term")).toBe(false);
+			const install = doc.querySelector("[data-test-action='save-tip-install']");
+			assert(install, "a visitor with no client must be offered one");
+			expect(new URL(install.getAttribute("href") ?? "", "https://readplace.com").searchParams.has("utm_term")).toBe(false);
 		});
 	});
 

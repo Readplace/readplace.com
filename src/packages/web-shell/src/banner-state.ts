@@ -3,7 +3,7 @@ import type { AppearanceSetting } from "./base.styles";
 import type { ChangelogBanner } from "./changelog-banner";
 import { type CspNonce, requireCspNonce } from "./csp-nonce.middleware";
 import { QuerystringFeatureToggle } from "./feature-toggle";
-import { withInternalTracking } from "./internal-link-tracking";
+import { type ClickSurface, withInternalTracking } from "./internal-link-tracking";
 import type { TrialDisplay } from "./trial-countdown.format";
 
 /** Presentational standing of an *unverified* account, mirroring TrialDisplay:
@@ -100,6 +100,7 @@ export interface NavItem {
 	iconName: IconName;
 	trackSource: string;
 	trackContent: string;
+	trackTerm?: ClickSurface;
 }
 
 const NAV_SOURCE = "header-nav";

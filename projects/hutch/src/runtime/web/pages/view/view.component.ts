@@ -10,7 +10,7 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { requireEnv } from "@packages/require-env";
-import { CONFIRM_POPOVER_STYLES, render } from "@packages/web-shell";
+import { CLICK_SURFACES, CONFIRM_POPOVER_STYLES, render, withClickSurface } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
@@ -95,7 +95,10 @@ function renderViewDownloads(downloadHref: string | undefined, oob: boolean): st
 }
 
 export function renderViewDownloadsOob(articleUrl: string): string {
-	return renderViewDownloads(articleEpubHref({ articleUrl, utmSource: "view-article" }), true);
+	return renderViewDownloads(
+		withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article" }), CLICK_SURFACES.readerPublic),
+		true,
+	);
 }
 
 export interface ViewPageInput {
@@ -207,6 +210,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		},
 		styles: `${VIEW_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: "page-view",
+		clickSurface: CLICK_SURFACES.readerPublic,
 		followsSystemTheme: true,
 		content: { html: content },
 		scripts: readerScripts({

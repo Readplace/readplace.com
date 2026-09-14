@@ -1,5 +1,6 @@
 import { render } from "./render";
-import { buildNavGroups, buildGuestNavItems } from "./banner-state";
+import { buildNavGroups, buildGuestNavItems, type NavGroup, type NavItem } from "./banner-state";
+import { type ClickSurface, withClickSurface } from "./internal-link-tracking";
 import { NAV_TEMPLATE } from "./nav.template";
 import { SERVER_TIME_ZONE } from "./local-time.format";
 import {
@@ -21,6 +22,7 @@ export interface NavProps {
 	 * those requests have no userId, so the async builder would also short-circuit
 	 * to undefined. */
 	trialCounter?: TrialDisplay;
+	clickSurface?: ClickSurface;
 }
 
 function endsAtIsoFor(trial: TrialDisplay | undefined): string {
@@ -57,10 +59,20 @@ export function GlobalEmptyNav(_props: NavProps): string {
 	return "";
 }
 
+function itemOnSurface(item: NavItem, surface: ClickSurface | undefined): NavItem {
+	return { ...item, href: withClickSurface(item.href, surface), trackTerm: surface };
+}
+
+function groupsOnSurface(groups: NavGroup[], surface: ClickSurface | undefined): NavGroup[] {
+	return groups.map((group) => ({ ...group, items: group.items.map((item) => itemOnSurface(item, surface)) }));
+}
+
 export function GlobalNav(props: NavProps): string {
 	const trial = props.trialCounter;
+	const surface = props.clickSurface;
 	return render(NAV_TEMPLATE, {
 		transparent: props.variant === "transparent",
+		clickSurface: surface,
 		trialVisibility: trial ? "visible" : "hidden",
 		trialDisplayText: trial ? formatTrialDisplay(trial, SERVER_TIME_ZONE) : "",
 		trialState: trial?.state ?? "",
@@ -75,12 +87,17 @@ export function GlobalNav(props: NavProps): string {
 		trialEndsAtIso: endsAtIsoFor(trial),
 		serverNowIso: serverNowIsoFor(trial),
 		navGroups: props.isAuthenticated
-			? buildNavGroups({
-					accessIsReadOnly: props.accessIsReadOnly,
-					gmailFeatureEnabled: props.gmailFeatureEnabled,
-				})
+			? groupsOnSurface(
+					buildNavGroups({
+						accessIsReadOnly: props.accessIsReadOnly,
+						gmailFeatureEnabled: props.gmailFeatureEnabled,
+					}),
+					surface,
+				)
 			: undefined,
-		navItems: props.isAuthenticated ? undefined : buildGuestNavItems(),
+		navItems: props.isAuthenticated
+			? undefined
+			: buildGuestNavItems().map((item) => itemOnSurface(item, surface)),
 		navVariant: props.isAuthenticated ? "authenticated" : "guest",
 	});
 }

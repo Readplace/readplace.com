@@ -275,7 +275,7 @@ describe("GET /view/<url>?format=<download>", () => {
 		).toEqual([
 			{
 				format: "epub",
-				href: "/view/example.com/post?format=epub&utm_source=view-article&utm_medium=internal&utm_content=download-epub",
+				href: "/view/example.com/post?format=epub&utm_source=view-article&utm_medium=internal&utm_content=download-epub&utm_term=reader-public",
 			},
 		]);
 	});
@@ -322,7 +322,7 @@ describe("GET /view/<url>?format=<download>", () => {
 		}))).toEqual([
 			{
 				format: "epub",
-				href: "/view/example.com/post?format=epub&utm_source=view-article&utm_medium=internal&utm_content=download-epub",
+				href: "/view/example.com/post?format=epub&utm_source=view-article&utm_medium=internal&utm_content=download-epub&utm_term=reader-public",
 			},
 		]);
 	});

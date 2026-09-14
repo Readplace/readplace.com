@@ -702,6 +702,99 @@ describe("View routes", () => {
 			expect(parsed.searchParams.get("utm_source")).toBe("view-article");
 			expect(parsed.searchParams.get("utm_medium")).toBe("internal");
 			expect(parsed.searchParams.get("utm_content")).toBe("paste-another-link");
+			expect(parsed.searchParams.get("utm_term")).toBe("reader-public");
+		});
+	});
+
+	describe("reader-public click surface on internal links", () => {
+		function assertEveryInternalLinkOnReaderPublic(doc: Document): void {
+			const internal = Array.from(doc.querySelectorAll("a[href], form[action]")).flatMap((el) => {
+				const raw = el.getAttribute("href") ?? el.getAttribute("action");
+				assert(raw !== null, "a matched a[href]/form[action] must carry the attribute it was matched on");
+				if (!raw.startsWith("/") || raw.startsWith("//")) return [];
+				const url = new URL(raw, "http://localhost");
+				return url.searchParams.get("utm_medium") === "internal" ? [{ raw, url }] : [];
+			});
+			assert(internal.length > 0, "the reader view must render at least one internal-click link to check");
+			for (const { raw, url } of internal) {
+				expect(`${raw} -> ${url.searchParams.get("utm_term")}`).toBe(`${raw} -> reader-public`);
+			}
+			const getFormsWithUtm = Array.from(doc.querySelectorAll("form")).filter(
+				(form) =>
+					(form.getAttribute("method") ?? "GET").toUpperCase() === "GET" &&
+					form.querySelector('input[name="utm_medium"]') !== null,
+			);
+			assert(getFormsWithUtm.length > 0, "the guest reader view must render tracked GET nav forms");
+			for (const form of getFormsWithUtm) {
+				expect(form.querySelector('input[name="utm_term"]')?.getAttribute("value")).toBe("reader-public");
+			}
+		}
+
+		it("stamps every internal chrome, paste, download and save-tip-install link a guest reader view renders", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set(BROWSER_REQUEST_HEADERS);
+
+			const doc = new JSDOM(response.text).window.document;
+			assertEveryInternalLinkOnReaderPublic(doc);
+
+			const download = doc.querySelector('[data-test-view-download="epub"]');
+			assert(download, "a ready article must offer the EPUB download");
+			expect(new URL(download.getAttribute("href") ?? "", "http://localhost").searchParams.get("utm_term")).toBe(
+				"reader-public",
+			);
+			const saveTipInstall = doc.querySelector("[data-test-action='save-tip-install']");
+			assert(saveTipInstall, "the gating save tip must pitch an install to a client-less guest");
+			expect(new URL(saveTipInstall.getAttribute("href") ?? "", "http://localhost").searchParams.get("utm_term")).toBe(
+				"reader-public",
+			);
+		});
+
+		it("leaves the Save CTA on its own surface=reader_view identity, unmarked by a click surface", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set(BROWSER_REQUEST_HEADERS);
+
+			const doc = new JSDOM(response.text).window.document;
+			const save = doc.querySelector("#view-cta-save");
+			assert(save, "the Save CTA must render");
+			const href = new URL(save.getAttribute("href") ?? "", "http://localhost");
+			expect(href.pathname).toBe("/save");
+			expect(href.searchParams.get(SAVE_SURFACE_QUERY)).toBe(SAVE_SURFACES.readerView);
+			expect(href.searchParams.has("utm_term")).toBe(false);
+		});
+
+		it("marks the reader-failed install pitch with the reader-public surface on a failed reader poll", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				articleCrawl: {
+					...fixture.articleCrawl,
+					findArticleCrawlStatus: async () => ({ status: "failed", reason: "blocked" }),
+				},
+				summary: { ...fixture.summary, findGeneratedSummary: async () => ({ status: "skipped" }) },
+			});
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "Seeded", siteName: "example.com", excerpt: "", wordCount: 500 },
+				estimatedReadTime: calculateReadTime(500),
+				savedAt: new Date("2026-05-03T13:00:00.000Z"),
+			});
+
+			const response = await request(harness.server)
+				.get(`/view/reader?url=${ENCODED}&poll=1`)
+				.set(BROWSER_REQUEST_HEADERS);
+
+			const doc = new JSDOM(response.text).window.document;
+			const install = doc.querySelector("[data-test-reader-failed-install]");
+			assert(install, "the reader-failed card must pitch an install for a client-capable guest");
+			const href = new URL(install.getAttribute("href") ?? "", "http://localhost");
+			expect(href.searchParams.get("utm_medium")).toBe("internal");
+			expect(href.searchParams.get("utm_term")).toBe("reader-public");
 		});
 	});
 

@@ -13,10 +13,11 @@ import { withInternalTracking } from './internal-link-tracking';
  */
 Handlebars.registerHelper('track', (href: unknown, options: Handlebars.HelperOptions): string => {
 	assert(typeof href === 'string', '{{track}} requires a string href');
-	const { source, content } = options.hash;
+	const { source, content, term } = options.hash;
 	assert(typeof source === 'string', "{{track}} requires a source= named arg");
 	assert(typeof content === 'string', "{{track}} requires a content= named arg");
-	return withInternalTracking(href, { source, content });
+	if (term !== undefined) assert(typeof term === 'string', "{{track}} term= must be a string when present");
+	return withInternalTracking(href, { source, content, term });
 });
 
 /**
