@@ -399,7 +399,7 @@ describe("Exclude mapped senders", () => {
 
 	it("disconnects through the existing background teardown", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
-		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations");
+		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 		expect((await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId))?.disconnectRequestedAt).toBeDefined();
 	});
@@ -416,7 +416,7 @@ describe("Exclude mapped senders", () => {
 		expect((await agent.post(`${GMAIL}/disconnect`)).status).toBe(500);
 		expect((await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId))?.disconnectRequestedAt).toBeDefined();
 		expect(gmail.disconnectRequests).toEqual([]);
-		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations");
+		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 		expect(attempts).toBe(2);
 	});

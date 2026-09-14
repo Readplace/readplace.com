@@ -8,4 +8,11 @@ describe("buildIntegrationsUrl", () => {
 			"/integrations?error=oauth_state",
 		);
 	});
+
+	it("carries a notice code back to the index", () => {
+		assert.equal(
+			buildIntegrationsUrl({ notice: "gmail_disconnected" }),
+			"/integrations?notice=gmail_disconnected",
+		);
+	});
 });

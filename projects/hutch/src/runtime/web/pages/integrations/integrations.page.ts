@@ -56,6 +56,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 		const vm = toIntegrationsIndexViewModel({
 			connection,
 			error: typeof req.query.error === "string" ? req.query.error : undefined,
+			notice: typeof req.query.notice === "string" ? req.query.notice : undefined,
 		});
 		sendComponent(req, res, Base(IntegrationsIndexPage(vm), await deps.buildBannerState(req)));
 	});

@@ -109,6 +109,18 @@
   flex: none;
 }
 
+.integrations__notice {
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--foreground);
+}
+
 .integrations__alert {
   border-radius: var(--radius-sm);
   padding: 12px 16px;

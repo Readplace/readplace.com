@@ -203,4 +203,36 @@ describe("toIntegrationsIndexViewModel", () => {
 
 		assert.deepEqual(vm.alerts, []);
 	});
+
+	it("explains what the reader must remove in Gmail after a disconnect", () => {
+		const vm = toIntegrationsIndexViewModel({
+			connection: connection({
+				forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
+				filterCount: 1,
+				disconnectRequestedAt: "2026-08-27T03:00:00.000Z",
+			}),
+			notice: "gmail_disconnected",
+		});
+
+		assert.deepEqual(
+			vm.notices.map((n) => n.key),
+			["gmail_disconnected"],
+		);
+		const notice = vm.notices[0];
+		assert(notice, "the disconnect notice must render");
+		assert(
+			notice.message.includes("forwarding address"),
+			"the notice names what the reader must remove",
+		);
+		assert(
+			notice.message.includes("Forwarding and POP/IMAP"),
+			"the notice names the Gmail menu path to remove it under",
+		);
+	});
+
+	it("ignores a notice key it does not recognise rather than rendering an empty notice", () => {
+		const vm = toIntegrationsIndexViewModel({ connection: undefined, notice: "made-up" });
+
+		assert.deepEqual(vm.notices, []);
+	});
 });

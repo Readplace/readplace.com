@@ -22,7 +22,7 @@ import { HxRedirectPage } from "../../hx-redirect-page";
 import { GmailPage, renderGmailPoll, renderGmailSenderResults } from "./gmail.component";
 import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, type GmailPageError } from "./gmail.url";
 import { toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
-import { INTEGRATIONS_PATH } from "./gmail-connect.url";
+import { buildIntegrationsUrl, INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-connect.page";
 
 const SenderBodySchema = z.object({ sender: ForwardableSenderSchema });
@@ -245,6 +245,6 @@ export function registerGmailPageRoutes(
 		}
 		await gmail.gmailConnectionStore.markDisconnectRequested({ userId });
 		await gmail.publishDisconnectGmail({ userId });
-		res.redirect(303, INTEGRATIONS_PATH);
+		res.redirect(303, buildIntegrationsUrl({ notice: "gmail_disconnected" }));
 	});
 }

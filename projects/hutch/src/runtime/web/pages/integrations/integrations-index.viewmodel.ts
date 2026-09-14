@@ -47,8 +47,14 @@ export interface IntegrationsAlertViewModel {
 	message: string;
 }
 
+export interface IntegrationsNoticeViewModel {
+	key: string;
+	message: string;
+}
+
 export interface IntegrationsIndexViewModel {
 	services: IntegrationRowViewModel[];
+	notices: IntegrationsNoticeViewModel[];
 	alerts: IntegrationsAlertViewModel[];
 }
 
@@ -123,6 +129,11 @@ export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
 	oauth_exchange: "Google couldn't complete the connection. Try again in a moment.",
 };
 
+export const GMAIL_NOTICES: Record<string, string> = {
+	gmail_disconnected:
+		"Gmail is disconnecting. I'm removing the Readplace filter and Readplace's access to your Google account. I can't remove the forwarding address, so in Gmail open Settings, See all settings, then Forwarding and POP/IMAP, and remove the address that starts with gmail-. If a filter forwarding to that address is still listed under Filters and Blocked Addresses, delete it too.",
+};
+
 function alertsFor(error: string | undefined): IntegrationsAlertViewModel[] {
 	if (error === undefined) return [];
 	const message = GMAIL_CONNECT_ERRORS[error];
@@ -130,12 +141,21 @@ function alertsFor(error: string | undefined): IntegrationsAlertViewModel[] {
 	return [{ key: error, message }];
 }
 
+function noticesFor(notice: string | undefined): IntegrationsNoticeViewModel[] {
+	if (notice === undefined) return [];
+	const message = GMAIL_NOTICES[notice];
+	if (message === undefined) return [];
+	return [{ key: notice, message }];
+}
+
 export function toIntegrationsIndexViewModel(input: {
 	connection: GmailConnection | undefined;
 	error?: string;
+	notice?: string;
 }): IntegrationsIndexViewModel {
 	const state = gmailConnectionState(input.connection);
 	const alerts = alertsFor(input.error);
+	const notices = noticesFor(input.notice);
 	return {
 		services: [
 			{
@@ -149,6 +169,7 @@ export function toIntegrationsIndexViewModel(input: {
 				actions: GMAIL_ACTIONS[state].map(trackedAction),
 			},
 		],
+		notices,
 		alerts,
 	};
 }

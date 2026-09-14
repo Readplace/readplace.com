@@ -128,6 +128,17 @@ describe("GET /integrations", () => {
 		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_state");
 	});
 
+	it("renders the notice a disconnect redirects back with", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = load((await agent.get("/integrations?notice=gmail_disconnected")).text);
+
+		const notice = doc.querySelector("[data-test-integrations-notice-key]");
+		assert(notice, "the index must render a notice for a redirect that carried one");
+		expect(notice.getAttribute("data-test-integrations-notice-key")).toBe("gmail_disconnected");
+	});
+
 	it("keeps the page out of search results", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
