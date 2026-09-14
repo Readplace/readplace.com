@@ -213,7 +213,7 @@ describe("Reader previously-read-on-this-topic slot", () => {
 	it("asks for a computation from the reader but never from its poll", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const reader = await agent.get(`/queue/${articleId}/view`);
+		const reader = await agent.get(`/queue/${articleId}/view?feature=past`);
 		const poll = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
 
 		expect(slotOf(reader.text).querySelectorAll("form.past-reads__request")).toHaveLength(1);
@@ -223,7 +223,7 @@ describe("Reader previously-read-on-this-topic slot", () => {
 	it("offers the no-JS fallback outside the hidden slot", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/view`);
+		const response = await agent.get(`/queue/${articleId}/view?feature=past`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const slot = doc.querySelector("[data-test-reader-topic-reads]");
