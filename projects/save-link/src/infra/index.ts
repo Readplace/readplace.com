@@ -1390,7 +1390,7 @@ const computeRelatedArticlesLambdaWithSQS = new HutchSQSBackedLambda("compute-re
 eventBus.subscribeAll(
 	[{ ...QueueEntryCreatedEvent, name: "compute-related-articles" }, ComputeRelatedPastReadsCommand],
 	computeRelatedArticlesLambdaWithSQS,
-	{ name: "compute-related-articles", retiringPolicyNames: ["compute-related-past-reads"] },
+	{ name: "compute-related-articles" },
 );
 
 // --- RecrawlLinkInitiated handler ---
