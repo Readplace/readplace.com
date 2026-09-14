@@ -13,15 +13,15 @@
   </ul>
   {{/if}}
   {{#if computeUrl}}
-  <form class="past-reads__request" hidden method="POST" action="{{computeUrl}}" hx-post="{{computeUrl}}" hx-trigger="load" hx-swap="none">
+  <form class="past-reads__request" hidden method="POST" action="{{computeUrl}}" hx-post="{{computeUrl}}" hx-trigger="load" hx-swap="none ignoreTitle:true">
     <button type="submit" tabindex="-1" aria-hidden="true">Refresh previously read</button>
   </form>
   {{/if}}
-  {{#if showNoscriptFallback}}
-  <noscript>
-    <form class="past-reads__fallback" method="POST" action="{{computeUrl}}">
-      <button type="submit" class="past-reads__fallback-btn">Find previously read on this topic</button>
-    </form>
-  </noscript>
-  {{/if}}
 </section>
+{{#if showNoscriptFallback}}
+<noscript>
+  <form class="past-reads__fallback" method="POST" action="{{computeUrl}}">
+    <button type="submit" class="btn btn--secondary btn--compact past-reads__fallback-btn">Find previously read on this topic</button>
+  </form>
+</noscript>
+{{/if}}

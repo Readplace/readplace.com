@@ -518,6 +518,8 @@ async function loadRelatedArticles(
 	}
 }
 
+const HTMX_STOP_POLLING_STATUS = 286;
+
 const pastReadsPollUrlFor = (params: {
 	articleId: string;
 	pollCount: number;
@@ -2409,7 +2411,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			: null;
 
 		if (!article) {
-			res.status(404).type("html").send("");
+			res.status(HTMX_STOP_POLLING_STATUS).type("html").send("");
 			return;
 		}
 
@@ -2474,7 +2476,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			: null;
 
 		if (!article) {
-			res.status(404).type("html").send("");
+			res.status(HTMX_STOP_POLLING_STATUS).type("html").send("");
 			return;
 		}
 
@@ -2495,10 +2497,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 							surfaceQuery: nativeSurfaceQuery(req),
 						})
 					: undefined,
-			computeUrl: pastReadsComputeUrlFor({
-				articleId: article.id.value,
-				surfaceQuery: nativeSurfaceQuery(req),
-			}),
 			sourceArticleId: article.id.value,
 			readerPathForReadlist: readerPathForReadlist(req),
 		});
@@ -2509,7 +2507,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	// fingerprint-guards, so re-firing on every visit is cheap when nothing
 	// changed. htmx fires it on load and ignores the reply (204); the no-JS
 	// fallback form lands back on the reader (303).
-	router.post("/:id/topic-reads", async (req: Request<{ id: string }>, res: Response) => {
+	router.post("/:id/topic-reads", requireNotLocked, deps.requireWriteAccess, async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 

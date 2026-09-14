@@ -169,12 +169,38 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		expect(slotOf(last.text).getAttribute("hx-get")).toBe(null);
 	});
 
-	it("answers 404 for an article the reader has not saved", async () => {
+	it("stops the poll for an article the reader has not saved", async () => {
 		const { agent } = await buildHarness();
 
 		const response = await agent.get(`/queue/${UNSAVED_ID.value}/topic-reads?poll=1`);
 
-		expect(response.status).toBe(404);
+		expect(response.status).toBe(286);
+	});
+
+	it("asks for a computation from the reader but never from its poll", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const reader = await agent.get(`/queue/${articleId}/view`);
+		const poll = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
+
+		expect(slotOf(reader.text).querySelectorAll("form.past-reads__request")).toHaveLength(1);
+		expect(slotOf(poll.text).querySelectorAll("form.past-reads__request")).toHaveLength(0);
+	});
+
+	it("offers the no-JS fallback outside the hidden slot", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		const doc = new JSDOM(response.text).window.document;
+		const slot = doc.querySelector("[data-test-reader-topic-reads]");
+		assert(slot, "the reader renders the topic-reads slot");
+		const fallback = Array.from(doc.querySelectorAll("noscript")).find((noscript) =>
+			noscript.innerHTML.includes("past-reads__fallback"),
+		);
+		assert(fallback, "the reader offers a no-JS fallback");
+		expect(slot.classList.contains("past-reads--hidden")).toBe(true);
+		expect(slot.contains(fallback)).toBe(false);
 	});
 
 	it("requests computation on an htmx POST and answers 204", async () => {
@@ -206,6 +232,47 @@ describe("Reader previously-read-on-this-topic slot", () => {
 			.set("HX-Request", "true");
 
 		expect(response.status).toBe(204);
+		expect(publishedComputeRequests).toEqual([]);
+	});
+
+	it("never requests computation for a read-only reader", async () => {
+		const { agent, harness, userId, articleId, publishedComputeRequests } = await buildHarness();
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_ro",
+			customerId: "cus_ro",
+		});
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent
+			.post(`/queue/${articleId}/topic-reads`)
+			.set("HX-Request", "true");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(publishedComputeRequests).toEqual([]);
+	});
+
+	it("never requests computation for a locked reader", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.now = () => new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
+		const publishedComputeRequests: string[] = [];
+		const harness = useApp({
+			...fixture,
+			events: {
+				...fixture.events,
+				publishComputeRelatedPastReads: async (params) => {
+					publishedComputeRequests.push(params.url);
+				},
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post(`/queue/${UNSAVED_ID.value}/topic-reads`)
+			.set("HX-Request", "true");
+
+		expect(response.status).toBe(403);
 		expect(publishedComputeRequests).toEqual([]);
 	});
 

@@ -343,22 +343,22 @@ describe("Reader related-articles slot", () => {
 });
 
 describe("GET /queue/:id/related", () => {
-	it("404s for an id that is not an article id at all", async () => {
+	it("stops the poll for an id that is not an article id at all", async () => {
 		const { agent } = await buildHarness();
 
 		const response = await agent.get("/queue/not-an-article-id/related?poll=1");
 
-		expect(response.status).toBe(404);
+		expect(response.status).toBe(286);
 	});
 
-	it("404s for an article this reader has not saved", async () => {
+	it("stops the poll for an article this reader has not saved", async () => {
 		const { agent } = await buildHarness();
 
 		const response = await agent.get(
 			`/queue/${UNSAVED_ID.value}/related?poll=1`,
 		);
 
-		expect(response.status).toBe(404);
+		expect(response.status).toBe(286);
 	});
 
 	it("answers with the hidden slot and the next tick while still computing", async () => {

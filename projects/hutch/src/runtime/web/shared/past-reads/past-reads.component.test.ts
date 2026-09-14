@@ -28,7 +28,8 @@ describe("renderPastReadsSection", () => {
 			sourceArticleId: SOURCE_ID,
 			readerPathForReadlist,
 		});
-		const slot = parse(html).querySelector("[data-test-reader-topic-reads]");
+		const doc = parse(html);
+		const slot = doc.querySelector("[data-test-reader-topic-reads]");
 		assert(slot, "the slot always renders");
 
 		expect(slot.getAttribute("data-topic-reads-status")).toBe("pending");
@@ -39,7 +40,10 @@ describe("renderPastReadsSection", () => {
 		const requestForm = slot.querySelector("form.past-reads__request");
 		assert(requestForm, "the htmx compute request form is present");
 		expect(requestForm.getAttribute("hx-trigger")).toBe("load");
-		expect(html).toContain("<noscript>");
+		expect(requestForm.getAttribute("hx-swap")).toBe("none ignoreTitle:true");
+		const noscript = doc.querySelector("noscript");
+		assert(noscript, "the no-JS fallback is rendered");
+		expect(slot.contains(noscript)).toBe(false);
 	});
 
 	it("renders up to three compact rows, opening each in its owned reading list", () => {

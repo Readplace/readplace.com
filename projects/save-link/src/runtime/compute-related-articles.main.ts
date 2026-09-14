@@ -39,6 +39,7 @@ const deepseekClient = new OpenAI({
 	apiKey: deepseekApiKey,
 	baseURL: "https://api.deepseek.com",
 	timeout: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
+	maxRetries: 0,
 });
 
 const createMessage = initCreateDeepseekMessage({
