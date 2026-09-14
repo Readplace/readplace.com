@@ -26,17 +26,19 @@ function load(text: string): Document {
 	return new JSDOM(text).window.document;
 }
 
-function harnessWithGmail(now?: () => Date) {
+function harnessWithGmail(now?: () => Date, appNow?: () => Date) {
 	const gmail = initInMemoryGmailIntegration({
 		grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
 		...(now === undefined ? {} : { now }),
 	});
-	const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
+	const fixture = { ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle };
+	if (appNow !== undefined) fixture.shared.now = appNow;
+	const harness = useApp(fixture);
 	return { harness, gmail };
 }
 
-async function connectedAgent(options: { confirmed?: boolean; scope?: string; discovered?: boolean; now?: () => Date } = {}) {
-	const { harness, gmail } = harnessWithGmail(options.now);
+async function connectedAgent(options: { confirmed?: boolean; scope?: string; discovered?: boolean; now?: () => Date; appNow?: () => Date } = {}) {
+	const { harness, gmail } = harnessWithGmail(options.now, options.appNow);
 	const created = await harness.auth.createUser({ email: "reader@example.com", password: "password123" });
 	assert(created.ok);
 	const userId = created.userId;
@@ -446,6 +448,19 @@ describe("Exclude mapped senders", () => {
 		});
 
 		const response = await agent.post(`${GMAIL}/disconnect`).send();
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/integrations?notice=gmail_disconnected");
+		expect((await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId))?.disconnectRequestedAt).toBeDefined();
+		expect(gmail.disconnectRequests).toEqual([{ userId }]);
+	});
+
+	it("lets a locked reader disconnect Gmail", async () => {
+		const { agent, gmail, userId } = await connectedAgent({
+			appNow: () => new Date(Date.now() + 8 * ONE_DAY_MS),
+		});
+
+		const response = await agent.post(`${GMAIL}/disconnect`).set("Accept", "text/html").send();
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/integrations?notice=gmail_disconnected");

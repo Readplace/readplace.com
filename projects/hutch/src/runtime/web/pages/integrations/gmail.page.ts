@@ -60,7 +60,7 @@ export function registerGmailPageRoutes(
 ): void {
 	const { requireAuth, requireNotLocked, requireWriteAccess } = context;
 	const write = [requireAuth, requireNotLocked, requireWriteAccess];
-	const teardown = [requireAuth, requireNotLocked];
+	const teardown = [requireAuth];
 	const ownerOf = (req: Request): UserId => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		return UserIdSchema.parse(req.userId);
