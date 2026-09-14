@@ -3,7 +3,7 @@ import { GmailAccountEmailSchema, parseGmailFrom } from "@packages/domain/gmail"
 import type { DiscoveredGmailSender } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { GetGmailAccessToken } from "@packages/provider-contracts/gmail-filters";
-import type { GmailMailbox, GmailMailboxResult } from "@packages/provider-contracts/gmail-mailbox";
+import type { GmailMailbox, GmailMailboxResult, GmailSenderPage } from "@packages/provider-contracts/gmail-mailbox";
 
 const ENDPOINT = "https://gmail.googleapis.com/gmail/v1/users/me";
 const PAGE_SIZE = 25;
@@ -16,6 +16,7 @@ const MessagesResponse = z.object({
 });
 const MetadataResponse = z.object({
 	labelIds: z.array(z.string()).optional(),
+	internalDate: z.coerce.number().int().optional(),
 	payload: z.object({
 		headers: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
 	}).optional(),
@@ -43,6 +44,8 @@ const ErrorResponse = z.object({
 function encodeHistoryCursor(cursor: z.infer<typeof HistoryCursor>): string {
 	return Buffer.from(JSON.stringify(cursor)).toString("base64url");
 }
+
+type ScannedMessages = Pick<GmailSenderPage, "senders" | "newestMessageAt" | "oldestMessageAt">;
 
 export function initGmailMailbox(deps: {
 	accessToken: GetGmailAccessToken;
@@ -100,14 +103,15 @@ export function initGmailMailbox(deps: {
 		return attempt(false);
 	}
 
-	async function findSenders(userId: UserId, messageIds: string[]): Promise<GmailMailboxResult<DiscoveredGmailSender[]>> {
+	async function findSenders(userId: UserId, messageIds: string[]): Promise<GmailMailboxResult<ScannedMessages>> {
 		const senders = new Map<string, DiscoveredGmailSender>();
+		const dates: number[] = [];
 		for (let offset = 0; offset < messageIds.length; offset += CONCURRENCY) {
 			const responses = await Promise.all(messageIds.slice(offset, offset + CONCURRENCY).map((id) => {
 				const query = new URLSearchParams({
 					format: "METADATA",
 					metadataHeaders: "From",
-					fields: "labelIds,payload(headers)",
+					fields: "labelIds,internalDate,payload(headers)",
 				});
 				return read(userId, `${ENDPOINT}/messages/${encodeURIComponent(id)}?${query}`, MetadataResponse);
 			}));
@@ -116,6 +120,7 @@ export function initGmailMailbox(deps: {
 					if (result.reason === "rejected" && result.status === 404) continue;
 					return result;
 				}
+				if (result.value.internalDate !== undefined) dates.push(result.value.internalDate);
 				const labels = result.value.labelIds ?? [];
 				if (labels.some((label) => label === "SPAM" || label === "TRASH" || label === "DRAFT")) continue;
 				if (labels.includes("SENT") && !labels.includes("INBOX")) continue;
@@ -128,7 +133,11 @@ export function initGmailMailbox(deps: {
 				}
 			}
 		}
-		return { ok: true, value: [...senders.values()] };
+		return { ok: true, value: {
+			senders: [...senders.values()],
+			newestMessageAt: dates.length === 0 ? undefined : Math.max(...dates),
+			oldestMessageAt: dates.length === 0 ? undefined : Math.min(...dates),
+		} };
 	}
 
 	return {
@@ -150,7 +159,7 @@ export function initGmailMailbox(deps: {
 			const found = await findSenders(userId, messageIds);
 			if (!found.ok) return found;
 			return { ok: true, value: {
-				senders: found.value,
+				...found.value,
 				nextPageToken: result.value.nextPageToken,
 				scannedMessages: messageIds.length,
 				estimatedTotalMessages: result.value.resultSizeEstimate,
@@ -182,7 +191,7 @@ export function initGmailMailbox(deps: {
 			if (offset < messageIds.length) nextPageToken = encodeHistoryCursor({ pageToken: cursor.pageToken, offset });
 			else if (result.value.nextPageToken !== undefined) nextPageToken = encodeHistoryCursor({ pageToken: result.value.nextPageToken, offset: 0 });
 			return { ok: true, value: {
-				senders: found.value,
+				...found.value,
 				nextPageToken,
 				scannedMessages: batch.length,
 				estimatedTotalMessages: undefined,

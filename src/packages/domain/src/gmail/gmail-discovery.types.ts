@@ -20,6 +20,7 @@ export interface GmailDiscovery {
 	historyId: string | undefined;
 	scannedCount: number;
 	estimatedTotalMessages: number | undefined;
+	oldestScannedAt: number | undefined;
 	updatedAt: string;
 	error: string | undefined;
 	requiresReconnect?: boolean;
@@ -35,7 +36,7 @@ export interface GmailDiscoveryStore {
 		generation: string;
 		mode: GmailDiscovery["mode"];
 		historyId: string | undefined;
-		resume?: Pick<GmailDiscovery, "page" | "pageToken" | "scannedCount" | "estimatedTotalMessages">;
+		resume?: Pick<GmailDiscovery, "page" | "pageToken" | "scannedCount" | "estimatedTotalMessages" | "oldestScannedAt">;
 	}) => Promise<boolean>;
 	claimPage: (input: { userId: UserId; generation: string; page: number }) => Promise<boolean>;
 	savePage: (input: {
@@ -47,6 +48,7 @@ export interface GmailDiscoveryStore {
 		state: "running" | "complete";
 		scannedMessages: number;
 		estimatedTotalMessages: number | undefined;
+		oldestScannedAt: number | undefined;
 	}) => Promise<boolean>;
 	failDiscovery: (input: { userId: UserId; generation: string; error: string; requiresReconnect?: boolean }) => Promise<void>;
 	deleteDiscoveryByUserId: (userId: UserId) => Promise<void>;

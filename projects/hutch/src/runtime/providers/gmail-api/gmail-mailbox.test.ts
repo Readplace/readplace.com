@@ -29,8 +29,10 @@ function harness(reply: (url: URL) => Reply | Promise<Reply>, tokens?: GmailAcce
 	return { mailbox, requests, refreshes };
 }
 
-function metadata(from: string, labelIds: string[] = []) {
-	return { labelIds, payload: { headers: [{ name: "From", value: from }] } };
+const SENT_AT = 1_700_000_000_000;
+
+function metadata(from: string, labelIds: string[] = [], internalDate = SENT_AT) {
+	return { labelIds, internalDate: String(internalDate), payload: { headers: [{ name: "From", value: from }] } };
 }
 
 describe("initGmailMailbox", () => {
@@ -46,12 +48,12 @@ describe("initGmailMailbox", () => {
 	it("paginates all historical messages using metadata scope and deduplicates From addresses", async () => {
 		const bodies: Record<string, unknown> = {
 			one: metadata("Sender@Example.com"),
-			two: metadata("News <sender@example.com>"),
-			three: metadata("Later name <sender@example.com>"),
+			two: metadata("News <sender@example.com>", [], SENT_AT - 1_000),
+			three: metadata("Later name <sender@example.com>", [], SENT_AT - 2_000),
 			four: { payload: { headers: [{ name: "To", value: "ignore@example.com" }, { name: "fRoM", value: "Other <other@example.com>" }] } },
 			five: { payload: {} },
 			six: {},
-			seven: metadata("invalid sender"),
+			seven: metadata("invalid sender", [], SENT_AT + 5_000),
 		};
 		const { mailbox, requests } = harness((url) => {
 			if (url.pathname.endsWith("/messages")) return { status: 200, body: { messages: [...Object.keys(bodies), "one"].map((id) => ({ id })), nextPageToken: "older-page", resultSizeEstimate: 321 } };
@@ -64,6 +66,7 @@ describe("initGmailMailbox", () => {
 			ok: true, value: {
 				senders: [{ email: "sender@example.com", name: "News" }, { email: "other@example.com", name: "Other" }],
 				nextPageToken: "older-page", scannedMessages: 7, estimatedTotalMessages: 321,
+				newestMessageAt: SENT_AT + 5_000, oldestMessageAt: SENT_AT - 2_000,
 			},
 		});
 		const list = requests[0].url;
@@ -75,7 +78,7 @@ describe("initGmailMailbox", () => {
 		for (const { url } of requests.slice(1)) {
 			assert.equal(url.searchParams.get("format"), "METADATA");
 			assert.equal(url.searchParams.get("metadataHeaders"), "From");
-			assert.equal(url.searchParams.get("fields"), "labelIds,payload(headers)");
+			assert.equal(url.searchParams.get("fields"), "labelIds,internalDate,payload(headers)");
 		}
 	});
 
@@ -90,12 +93,13 @@ describe("initGmailMailbox", () => {
 		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: true, value: {
 			senders: [{ email: "sender4@example.com", name: undefined }, { email: "sender5@example.com", name: undefined }],
 			nextPageToken: undefined, scannedMessages: 6, estimatedTotalMessages: undefined,
+			newestMessageAt: SENT_AT, oldestMessageAt: SENT_AT,
 		} });
 	});
 
 	it("handles an empty mailbox", async () => {
 		const { mailbox } = harness(() => ({ status: 200, body: {} }));
-		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: true, value: { senders: [], nextPageToken: undefined, scannedMessages: 0, estimatedTotalMessages: undefined } });
+		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: true, value: { senders: [], nextPageToken: undefined, scannedMessages: 0, estimatedTotalMessages: undefined, newestMessageAt: undefined, oldestMessageAt: undefined } });
 	});
 
 	it("skips a message that disappeared between list and metadata reads", async () => {
@@ -107,6 +111,7 @@ describe("initGmailMailbox", () => {
 
 		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: true, value: {
 			senders: [{ email: "live@example.com", name: undefined }], nextPageToken: undefined, scannedMessages: 2, estimatedTotalMessages: undefined,
+			newestMessageAt: SENT_AT, oldestMessageAt: SENT_AT,
 		} });
 	});
 
@@ -146,7 +151,8 @@ describe("initGmailMailbox", () => {
 		assert(second.value.nextPageToken);
 		const third = await mailbox.listChangedMessageSenders({ userId: USER, startHistoryId: "100", pageToken: second.value.nextPageToken });
 		assert.deepEqual(third, { ok: true, value: {
-			senders: [{ email: "senderlast@example.com", name: undefined }], nextPageToken: undefined, scannedMessages: 1, estimatedTotalMessages: undefined, historyId: "200",
+			senders: [{ email: "senderlast@example.com", name: undefined }], nextPageToken: undefined, scannedMessages: 1, estimatedTotalMessages: undefined,
+			newestMessageAt: SENT_AT, oldestMessageAt: SENT_AT, historyId: "200",
 		} });
 		const historyRequests = requests.filter(({ url }) => url.pathname.endsWith("/history"));
 		assert.equal(historyRequests[2].url.searchParams.get("pageToken"), "google-page-2");
@@ -156,7 +162,7 @@ describe("initGmailMailbox", () => {
 
 	it("returns the current checkpoint when no messages have changed", async () => {
 		const { mailbox } = harness(() => ({ status: 200, body: { historyId: "200" } }));
-		assert.deepEqual(await mailbox.listChangedMessageSenders({ userId: USER, startHistoryId: "100" }), { ok: true, value: { senders: [], scannedMessages: 0, estimatedTotalMessages: undefined, nextPageToken: undefined, historyId: "200" } });
+		assert.deepEqual(await mailbox.listChangedMessageSenders({ userId: USER, startHistoryId: "100" }), { ok: true, value: { senders: [], scannedMessages: 0, estimatedTotalMessages: undefined, nextPageToken: undefined, newestMessageAt: undefined, oldestMessageAt: undefined, historyId: "200" } });
 	});
 
 	it("distinguishes an expired history checkpoint from a transient Gmail failure", async () => {

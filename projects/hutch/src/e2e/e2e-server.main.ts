@@ -145,6 +145,7 @@ gmailIntegration.bundle.publishStartGmailSenderDiscovery = async (detail) => {
 			state: 'complete',
 			scannedMessages: 0,
 			estimatedTotalMessages: discovery.estimatedTotalMessages,
+			oldestScannedAt: discovery.oldestScannedAt,
 		}),
 	)
 }
@@ -489,6 +490,7 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		mode: discoveryMode, pageToken: discoveryState === 'running' ? 'e2e-next' : undefined, historyId: '100', state: discoveryState,
 		scannedMessages: discoveryScannedMessages ?? discoveredSenders.length,
 		estimatedTotalMessages: discoveryEstimatedTotalMessages ?? discoveredSenders.length,
+		oldestScannedAt: undefined,
 	})
 	if (completeDiscoveryOnStart) completeGmailDiscoveryOnStart.add(userId)
 	if (state === 'revoked') {

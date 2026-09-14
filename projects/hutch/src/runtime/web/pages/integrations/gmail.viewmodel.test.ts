@@ -3,7 +3,7 @@ import type { GmailConnection, GmailSenderEntry } from "@packages/domain/gmail";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { AliasNameSchema, INBOX_ADDRESS_MAX_PER_USER, type InboxAddressEntry, type InboxAddressPurpose, InboxAddressSchema, InboxTokenSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { GMAIL_CONFIRM_MAX_POLLS } from "./gmail.url";
+import { GMAIL_CONFIRM_MAX_POLLS, GMAIL_DISCOVERY_MAX_POLLS } from "./gmail.url";
 import { GMAIL_GATEWAY_DISABLED_MESSAGE, type GmailPageInput, toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -197,6 +197,12 @@ describe("Gmail sender chooser", () => {
 		const full = toGmailPageViewModel(input({ discoveryStarted: true,
 			discovery: discovery({ state: "running", mode: "profile", scannedCount: 0 }) }));
 		assert.equal(full.chooser.loadButtonLabel, "Checking Gmail messages…");
+		const windowed = toGmailPageViewModel(input({ discoveryStarted: true,
+			discovery: discovery({ state: "running", mode: "full", scannedCount: 200, estimatedTotalMessages: 48_000 }) }));
+		assert.equal(windowed.chooser.loadButtonLabel, "Checking 200 of your 5000 most recent messages…");
+		const stillScanningAtWindow = toGmailPageViewModel(input({ discoveryStarted: true,
+			discovery: discovery({ state: "running", mode: "full", scannedCount: 5_000, estimatedTotalMessages: 48_000 }) }));
+		assert.equal(stillScanningAtWindow.chooser.loadButtonLabel, "Checking 5000 of 48000 messages…");
 		const incremental = toGmailPageViewModel(input({ discoveryPending: true,
 			discovery: discovery({ state: "complete", mode: "history", scannedCount: 500, estimatedTotalMessages: 500 }) }));
 		assert.equal(incremental.chooser.loadButtonLabel, "Checking Gmail for new messages…");
@@ -208,17 +214,29 @@ describe("Gmail sender chooser", () => {
 		assert.equal(resumedCatchUp.chooser.loadButtonLabel, "Checking Gmail for new messages…");
 	});
 
-	it("polls queued initial and refresh jobs until the bounded retry limit", () => {
+	it("backs off polling from three to fifteen seconds and stops honestly at the discovery budget", () => {
 		const idle = discovery({ state: "idle", mode: "profile", scannedCount: 0 });
+		const running = discovery({ state: "running", mode: "full", scannedCount: 200, estimatedTotalMessages: 500 });
 		const initial = toGmailPageViewModel(input({ discovery: idle }));
 		assert.equal(initial.chooser.pollUrl, undefined);
+		assert.equal(initial.chooser.pollTrigger, undefined);
 		assert.match(initial.chooser.message, /Load senders/);
 		assert(toGmailPageViewModel(input({ discovery: idle, discoveryStarted: true })).chooser.pollUrl);
 		const refresh = toGmailPageViewModel(input({ discoveryPending: true, discoveryAfter: "previous" }));
 		assert.match(refresh.chooser.pollUrl ?? "", /discovery_after=previous/);
-		const stopped = toGmailPageViewModel(input({ discovery: idle, discoveryStarted: true, pollCount: GMAIL_CONFIRM_MAX_POLLS }));
+		const fast = toGmailPageViewModel(input({ discoveryStarted: true, discovery: running, pollCount: 0 }));
+		assert.equal(fast.chooser.pollTrigger, "every 3s");
+		const slow = toGmailPageViewModel(input({ discoveryStarted: true, discovery: running, pollCount: GMAIL_DISCOVERY_MAX_POLLS - 1 }));
+		assert.equal(slow.chooser.pollTrigger, "every 15s");
+		const boundary = toGmailPageViewModel(input({ discoveryStarted: true, discovery: running, pollCount: 20 }));
+		assert.equal(boundary.chooser.pollTrigger, "every 15s");
+		const stopped = toGmailPageViewModel(input({ discoveryStarted: true, discovery: running, pollCount: GMAIL_DISCOVERY_MAX_POLLS }));
 		assert.equal(stopped.chooser.pollUrl, undefined);
-		assert.match(stopped.chooser.message, /Press Load senders/);
+		assert.equal(stopped.chooser.pollTrigger, undefined);
+		assert.equal(stopped.chooser.message, "Still checking your mailbox: 200 of 500 messages so far. Choose a sender from the list, or refresh this page to keep watching.");
+		const stoppedHistory = toGmailPageViewModel(input({ discoveryPending: true,
+			discovery: discovery({ state: "running", mode: "history", scannedCount: 50, estimatedTotalMessages: undefined }), pollCount: GMAIL_DISCOVERY_MAX_POLLS }));
+		assert.equal(stoppedHistory.chooser.message, "Still checking your mailbox. Choose a sender from the list, or refresh this page to keep watching.");
 	});
 
 	it("keeps cached choices usable when discovery completes or fails", () => {

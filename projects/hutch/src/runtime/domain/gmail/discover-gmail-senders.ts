@@ -2,6 +2,7 @@ import assert from "node:assert";
 import type { GmailConnectionStore, GmailDiscovery, GmailDiscoveryStore } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { GmailMailbox, GmailMailboxResult } from "@packages/provider-contracts/gmail-mailbox";
+import { GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW } from "./gmail-discovery-window";
 
 export interface GmailDiscoveryPage {
 	userId: UserId;
@@ -12,6 +13,12 @@ export interface GmailDiscoveryPage {
 export interface DiscoverGmailSenders {
 	start: (userId: UserId) => Promise<GmailDiscoveryPage | undefined>;
 	page: (input: GmailDiscoveryPage) => Promise<GmailDiscoveryPage | undefined>;
+}
+
+function earliest(left: number | undefined, right: number | undefined): number | undefined {
+	if (left === undefined) return right;
+	if (right === undefined) return left;
+	return Math.min(left, right);
 }
 
 function nextPage(discovery: GmailDiscovery | undefined): GmailDiscoveryPage | undefined {
@@ -68,10 +75,10 @@ export function initDiscoverGmailSenders(deps: {
 					await fail(input.userId, input.generation, result);
 					return undefined;
 				}
-				await discovery.savePage({ previous, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined });
+				await discovery.savePage({ previous, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
 			} else {
 				const complete = result.value.nextPageToken === undefined;
-				await discovery.savePage({ previous, senders: result.value.senders, mode: "history", pageToken: result.value.nextPageToken, historyId: complete ? result.value.historyId : active.historyId, state: complete ? "complete" : "running", scannedMessages: result.value.scannedMessages, estimatedTotalMessages: undefined });
+				await discovery.savePage({ previous, senders: result.value.senders, mode: "history", pageToken: result.value.nextPageToken, historyId: complete ? result.value.historyId : active.historyId, state: complete ? "complete" : "running", scannedMessages: result.value.scannedMessages, estimatedTotalMessages: undefined, oldestScannedAt: active.oldestScannedAt });
 			}
 		} else {
 			const result = await mailbox.listMessageSenders({ userId: input.userId, pageToken: active.pageToken });
@@ -79,16 +86,22 @@ export function initDiscoverGmailSenders(deps: {
 				await fail(input.userId, input.generation, result);
 				return undefined;
 			}
-			const mode = result.value.nextPageToken === undefined ? "history" : "full";
+			const pastRecentMail = result.value.newestMessageAt !== undefined
+				&& active.oldestScannedAt !== undefined
+				&& result.value.newestMessageAt <= active.oldestScannedAt;
+			const windowReached = active.scannedCount + result.value.scannedMessages >= GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW && pastRecentMail;
+			const lastFullPage = result.value.nextPageToken === undefined || windowReached;
+			const mode = lastFullPage ? "history" : "full";
 			await discovery.savePage({
 				previous,
 				senders: result.value.senders,
 				mode,
-				pageToken: result.value.nextPageToken,
+				pageToken: lastFullPage ? undefined : result.value.nextPageToken,
 				historyId: active.historyId,
 				state: "running",
 				scannedMessages: result.value.scannedMessages,
 				estimatedTotalMessages: mode === "full" ? active.estimatedTotalMessages ?? result.value.estimatedTotalMessages : undefined,
+				oldestScannedAt: earliest(active.oldestScannedAt, result.value.oldestMessageAt),
 			});
 		}
 		return nextPage(await discovery.findDiscoveryByUserId(input.userId));

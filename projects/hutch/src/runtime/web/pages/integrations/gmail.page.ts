@@ -20,7 +20,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { GmailPage, renderGmailPoll, renderGmailSenderResults } from "./gmail.component";
-import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, type GmailPageError } from "./gmail.url";
+import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, GMAIL_DISCOVERY_MAX_POLLS, type GmailPageError } from "./gmail.url";
 import { toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 import { buildIntegrationsUrl, INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-connect.page";
@@ -109,7 +109,7 @@ export function registerGmailPageRoutes(
 			inboxName: queryValue(req, "inbox_name"),
 			discoveryAfter: queryValue(req, "discovery_after"),
 			discoveryPending: queryValue(req, "discovery_after") === (discovery?.updatedAt ?? "none"),
-			pollCount: parsePollParam(req.query.poll, GMAIL_CONFIRM_MAX_POLLS),
+			pollCount: parsePollParam(req.query.poll, GMAIL_DISCOVERY_MAX_POLLS),
 			discoveryStarted: queryValue(req, "discovery") === "started",
 			error: queryValue(req, "error"),
 			notice: queryValue(req, "notice"),

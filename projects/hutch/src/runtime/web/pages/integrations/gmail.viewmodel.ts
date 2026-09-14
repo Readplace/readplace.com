@@ -5,10 +5,12 @@ import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { addressCapReached, INBOX_ADDRESS_MAX_PER_USER, isCappedAddress, isLiveAddress } from "@packages/domain/inbox";
 import {
 	buildGmailStatusUrl, buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS,
+	GMAIL_DISCOVERY_FAST_POLLS, GMAIL_DISCOVERY_MAX_POLLS,
 	GMAIL_DISCONNECT_PATH, GMAIL_SENDER_ADD_PATH, GMAIL_SENDER_REMOVE_PATH,
 	GMAIL_DISCOVERY_START_PATH, GMAIL_SENDERS_PATH, GMAIL_PATH,
 	buildGmailMailboxUrl, type GmailPageError, type GmailPageNotice,
 } from "./gmail.url";
+import { GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW } from "../../../domain/gmail/gmail-discovery-window";
 import { GMAIL_CONNECT_PATH, INTEGRATIONS_PATH } from "./gmail-connect.url";
 
 interface FormField { name: string; value: string }
@@ -95,6 +97,7 @@ export interface GmailPageViewModel {
 		refineMessage: string | undefined;
 		reconnectAction: string | undefined;
 		pollUrl: string | undefined;
+		pollTrigger: string | undefined;
 		pagePath: string;
 	};
 	mappings: GmailMappingGroup[];
@@ -159,14 +162,32 @@ function discoveryMessage(input: GmailPageInput, availableSenders: number): stri
 	}
 }
 
+function fullScanProgress(discovery: GmailPageInput["discovery"]): string | undefined {
+	const { scannedCount, estimatedTotalMessages } = discovery;
+	if (estimatedTotalMessages === undefined) return undefined;
+	return estimatedTotalMessages > GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW && scannedCount < GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW
+		? `${scannedCount} of your ${GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW} most recent messages`
+		: `${scannedCount} of ${estimatedTotalMessages} messages`;
+}
+
+function discoveryStoppedMessage(discovery: GmailPageInput["discovery"]): string {
+	const progress = fullScanProgress(discovery);
+	const tail = "Choose a sender from the list, or refresh this page to keep watching.";
+	return progress === undefined
+		? `Still checking your mailbox. ${tail}`
+		: `Still checking your mailbox: ${progress} so far. ${tail}`;
+}
+
+function discoveryPollTrigger(nextPoll: number): "every 3s" | "every 15s" {
+	return nextPoll <= GMAIL_DISCOVERY_FAST_POLLS ? "every 3s" : "every 15s";
+}
+
 function loadButtonLabel(input: GmailPageInput, polling: boolean): string {
 	if (!polling) return "Load senders";
 	if (input.discoveryPending && input.discovery.state === "complete") return "Checking Gmail for new messages…";
 	if (input.discovery.mode === "history") return "Checking Gmail for new messages…";
-	if (input.discovery.estimatedTotalMessages !== undefined) {
-		return `Checking ${input.discovery.scannedCount} of ${input.discovery.estimatedTotalMessages} messages…`;
-	}
-	return "Checking Gmail messages…";
+	const progress = fullScanProgress(input.discovery);
+	return progress === undefined ? "Checking Gmail messages…" : `Checking ${progress}…`;
 }
 
 function mappingGroups(input: GmailPageInput): GmailMappingGroup[] {
@@ -223,7 +244,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		.map((sender) => ({ email: sender.email, name: sender.name, fields: fieldsFor({ ...params, sender: sender.email }, "choose-sender") }));
 	const pollCount = input.pollCount ?? 0;
 	const discovering = input.discoveryPending || input.discovery.state === "running" || (input.discoveryStarted && input.discovery.state === "idle");
-	const polling = discovering && pollCount < GMAIL_CONFIRM_MAX_POLLS;
+	const polling = discovering && pollCount < GMAIL_DISCOVERY_MAX_POLLS;
 	const poll = new URL(GMAIL_SENDERS_PATH, "https://readplace.com");
 	for (const field of fieldsFor(params, "load-senders")) poll.searchParams.set(field.name, field.value);
 	poll.searchParams.set("poll", String(pollCount + 1));
@@ -254,12 +275,13 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		chooser: {
 			state: input.discovery.state,
 			discoveryAfter: input.discoveryAfter,
-			message: discovering && pollCount >= GMAIL_CONFIRM_MAX_POLLS ? "Still finding senders. Press Load senders to continue." : discoveryMessage(input, availableSenders.size),
+			message: discovering && pollCount >= GMAIL_DISCOVERY_MAX_POLLS ? discoveryStoppedMessage(input.discovery) : discoveryMessage(input, availableSenders.size),
 			loadButtonLabel: loadButtonLabel(input, polling),
 			options, hasOptions: options.length > 0,
 			refineMessage: matches.length > 100 ? `Showing 100 of ${matches.length} matching senders. Refine your search to find another sender.` : undefined,
 			reconnectAction: input.discovery.requiresReconnect ? track(GMAIL_CONNECT_PATH, "reconnect-sender-access") : undefined,
-			pollUrl: polling ? `${poll.pathname}${poll.search}` : undefined, pagePath: GMAIL_PATH,
+			pollUrl: polling ? `${poll.pathname}${poll.search}` : undefined,
+			pollTrigger: polling ? discoveryPollTrigger(pollCount + 1) : undefined, pagePath: GMAIL_PATH,
 		},
 		mappings, hasMappings: mappings.length > 0,
 		alerts: [

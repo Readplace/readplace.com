@@ -171,6 +171,7 @@ describe("initDisconnectGmail", () => {
 			state: "complete",
 			scannedMessages: 1,
 			estimatedTotalMessages: undefined,
+			oldestScannedAt: undefined,
 		});
 		const deleteDiscovery = harness.discovery.deleteDiscoveryByUserId;
 		let attempts = 0;

@@ -55,7 +55,7 @@ async function connectedAgent(options: { confirmed?: boolean; scope?: string; di
 		await store.claimPage({ userId, generation: "initial", page: 0 });
 		const previous = await store.findDiscoveryByUserId(userId);
 		assert(previous);
-		await store.savePage({ previous, senders: [{ email: TLDR, name: "TLDR" }, { email: MORNING, name: "Morning Brew" }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 2, estimatedTotalMessages: 2 });
+		await store.savePage({ previous, senders: [{ email: TLDR, name: "TLDR" }, { email: MORNING, name: "Morning Brew" }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 2, estimatedTotalMessages: 2, oldestScannedAt: undefined });
 	}
 	const destination = await gmail.bundle.mintInboxAddress({ userId, name: AliasNameSchema.parse("tech") });
 	return { harness, gmail, agent, userId, gatewayAddress, destination };
@@ -139,6 +139,7 @@ describe("Gmail sender mapping page", () => {
 		const pollUrl = poll.getAttribute("hx-get");
 		assert(pollUrl);
 		expect(pollUrl).toContain("discovery_after=");
+		expect(poll.getAttribute("hx-trigger")).toBe("every 3s");
 		expect(doc.querySelector('input[name="inbox_name"]')?.getAttribute("value")).toBe("science");
 		const fragment = await agent.get(pollUrl).set("HX-Request", "true");
 		const fragmentDoc = load(fragment.text);
@@ -170,6 +171,7 @@ describe("Gmail sender mapping page", () => {
 			state: "running",
 			scannedMessages: 25,
 			estimatedTotalMessages: 125,
+			oldestScannedAt: undefined,
 		});
 		const response = await agent.get(`${GMAIL}/senders?discovery=started&poll=1`).set("HX-Request", "true");
 		const fragment = load(response.text);
@@ -181,6 +183,28 @@ describe("Gmail sender mapping page", () => {
 			"gmail-load-senders-button",
 			"gmail-sender-results",
 		]);
+	});
+
+	it("slows polling after the first minute and stops honestly once the discovery budget runs out", async () => {
+		const { agent, gmail, userId, gatewayAddress } = await connectedAgent();
+		const discovery = gmail.bundle.gmailDiscoveryStore;
+		await discovery.startDiscovery({ userId, accountEmail: EMAIL, gatewayAddress, generation: "budget", mode: "full", historyId: "100" });
+		await discovery.claimPage({ userId, generation: "budget", page: 0 });
+		const previous = await discovery.findDiscoveryByUserId(userId);
+		assert(previous);
+		await discovery.savePage({ previous, senders: [], mode: "full", pageToken: "next", historyId: "100", state: "running", scannedMessages: 25, estimatedTotalMessages: 125, oldestScannedAt: undefined });
+
+		const slow = load((await agent.get(`${GMAIL}/senders?discovery=started&poll=20`).set("HX-Request", "true")).text);
+		expect(slow.querySelector("#gmail-sender-results")?.getAttribute("hx-trigger")).toBe("every 15s");
+
+		const stopped = load((await agent.get(`${GMAIL}/senders?discovery=started&poll=260`).set("HX-Request", "true")).text);
+		const results = stopped.querySelector("#gmail-sender-results");
+		assert(results);
+		expect(results.hasAttribute("hx-get")).toBe(false);
+		expect(stopped.querySelector("[data-test-gmail-discovery-status]")?.textContent).toBe(
+			"Still checking your mailbox: 25 of 125 messages so far. Choose a sender from the list, or refresh this page to keep watching.",
+		);
+		expect(stopped.querySelector("#gmail-load-senders-button")?.textContent).toBe("Load senders");
 	});
 
 	it("exposes a completed load button from the redirected discovery response", async () => {
@@ -210,6 +234,7 @@ describe("Gmail sender mapping page", () => {
 				state: "complete",
 				scannedMessages: 0,
 				estimatedTotalMessages: undefined,
+				oldestScannedAt: undefined,
 			})).toBe(true);
 		};
 

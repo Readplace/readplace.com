@@ -14,7 +14,8 @@ const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 const SENDER = { email: ForwardableSenderSchema.parse("sender@example.com"), name: "Sender" };
 const OTHER_SENDER = { email: ForwardableSenderSchema.parse("other@example.com"), name: undefined };
 const NOW = new Date("2026-09-12T00:00:00.000Z");
-const EMPTY_PAGE = { senders: [], nextPageToken: undefined, scannedMessages: 0, estimatedTotalMessages: undefined };
+const EMPTY_PAGE = { senders: [], nextPageToken: undefined, scannedMessages: 0, estimatedTotalMessages: undefined, newestMessageAt: undefined, oldestMessageAt: undefined };
+const NEWEST = Date.parse("2026-09-14T00:00:00.000Z");
 
 async function harness() {
 	let instant = NOW.getTime();
@@ -26,7 +27,7 @@ async function harness() {
 	const calls: unknown[] = [];
 	const mailbox: GmailMailbox = {
 		findProfile: async (input) => { calls.push({ profile: input }); return { ok: true, value: { accountEmail: ACCOUNT, historyId: "100" } }; },
-		listMessageSenders: async (input) => { calls.push({ messages: input }); return { ok: true, value: { senders: [SENDER], nextPageToken: undefined, scannedMessages: 1, estimatedTotalMessages: 1 } }; },
+		listMessageSenders: async (input) => { calls.push({ messages: input }); return { ok: true, value: { senders: [SENDER], nextPageToken: undefined, scannedMessages: 1, estimatedTotalMessages: 1, newestMessageAt: NEWEST, oldestMessageAt: NEWEST } }; },
 		listChangedMessageSenders: async (input) => { calls.push({ history: input }); return { ok: true, value: { ...EMPTY_PAGE, historyId: "200" } }; },
 	};
 	const discover = initDiscoverGmailSenders({ mailbox, connections, discovery, newGeneration: () => `run-${++generation}` });
@@ -43,11 +44,11 @@ describe("initDiscoverGmailSenders", () => {
 		const h = await harness();
 		h.mailbox.listMessageSenders = async (input) => {
 			h.calls.push({ messages: input });
-			return { ok: true, value: { senders: [SENDER], nextPageToken: input.pageToken === undefined ? "second" : undefined, scannedMessages: 25, estimatedTotalMessages: input.pageToken === undefined ? 100 : 90 } };
+			return { ok: true, value: { senders: [SENDER], nextPageToken: input.pageToken === undefined ? "second" : undefined, scannedMessages: 25, estimatedTotalMessages: input.pageToken === undefined ? 100 : 90, newestMessageAt: NEWEST, oldestMessageAt: NEWEST } };
 		};
 		h.mailbox.listChangedMessageSenders = async (input) => {
 			h.calls.push({ history: input });
-			return { ok: true, value: { senders: [OTHER_SENDER], nextPageToken: input.pageToken === undefined && input.startHistoryId === "100" ? "more-history" : undefined, scannedMessages: 1, estimatedTotalMessages: undefined, historyId: "200" } };
+			return { ok: true, value: { senders: [OTHER_SENDER], nextPageToken: input.pageToken === undefined && input.startHistoryId === "100" ? "more-history" : undefined, scannedMessages: 1, estimatedTotalMessages: undefined, newestMessageAt: NEWEST, oldestMessageAt: NEWEST, historyId: "200" } };
 		};
 		const first = await h.discover.start(USER);
 		assert.deepEqual(first, { userId: USER, generation: "run-1", page: 1 });
@@ -83,8 +84,8 @@ describe("initDiscoverGmailSenders", () => {
 			h.calls.push({ messages: input });
 			calls += 1;
 			return calls === 1
-				? { ok: true, value: { senders: [SENDER], nextPageToken: "second", scannedMessages: 25, estimatedTotalMessages: 100 } }
-				: { ok: true, value: { senders: [{ ...SENDER, name: undefined }], nextPageToken: undefined, scannedMessages: 25, estimatedTotalMessages: 90 } };
+				? { ok: true, value: { senders: [SENDER], nextPageToken: "second", scannedMessages: 25, estimatedTotalMessages: 100, newestMessageAt: NEWEST, oldestMessageAt: NEWEST } }
+				: { ok: true, value: { senders: [{ ...SENDER, name: undefined }], nextPageToken: undefined, scannedMessages: 25, estimatedTotalMessages: 90, newestMessageAt: NEWEST, oldestMessageAt: NEWEST } };
 		};
 		const first = await h.discover.start(USER);
 		assert.deepEqual(first, { userId: USER, generation: "run-1", page: 1 });
@@ -93,6 +94,96 @@ describe("initDiscoverGmailSenders", () => {
 		const second = await h.discover.page(first);
 		assert.deepEqual(second, { userId: USER, generation: "run-1", page: 2 });
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER]);
+	});
+
+	it("ends the full pass once the window is reached and a page holds nothing newer than everything counted, then catches up from the opening checkpoint", async () => {
+		const h = await harness();
+		let messagePages = 0;
+		h.mailbox.listMessageSenders = async (input) => {
+			messagePages += 1;
+			h.calls.push({ messages: input });
+			const newestMessageAt = NEWEST - (messagePages - 1) * 1_000;
+			return { ok: true, value: { senders: [SENDER], nextPageToken: `page-${messagePages}`, scannedMessages: 2_000, estimatedTotalMessages: 60_000, newestMessageAt, oldestMessageAt: newestMessageAt - 1_000 } };
+		};
+		const first = await h.discover.start(USER);
+		assert(first);
+		assert.equal((await h.state()).mode, "full");
+		assert.equal((await h.state()).oldestScannedAt, NEWEST - 1_000);
+		const second = await h.discover.page(first);
+		assert(second);
+		assert.equal((await h.state()).mode, "full");
+		assert.equal((await h.state()).pageToken, "page-2");
+		assert.equal((await h.state()).scannedCount, 4_000);
+		const third = await h.discover.page(second);
+		assert(third);
+		assert.equal((await h.state()).mode, "history");
+		assert.equal((await h.state()).pageToken, undefined);
+		assert.equal((await h.state()).scannedCount, 6_000);
+		assert.equal((await h.state()).historyId, "100");
+		assert.equal((await h.state()).oldestScannedAt, NEWEST - 3_000);
+		assert.equal(messagePages, 3);
+		assert.equal(await h.discover.page(third), undefined);
+		assert.deepEqual(h.calls.at(-1), { history: { userId: USER, startHistoryId: "100", pageToken: undefined } });
+		assert.equal((await h.state()).state, "complete");
+	});
+
+	it("keeps scanning past the window while pages carry newer mail or no dates to compare", async () => {
+		const h = await harness();
+		const pages = [
+			{ nextPageToken: "page-1", newestMessageAt: NEWEST + 1_000, oldestMessageAt: NEWEST - 10_000 },
+			{ nextPageToken: "page-2", newestMessageAt: NEWEST + 2_000, oldestMessageAt: NEWEST - 6_000 },
+			{ nextPageToken: "page-3", newestMessageAt: undefined, oldestMessageAt: undefined },
+			{ nextPageToken: undefined, newestMessageAt: NEWEST + 4_000, oldestMessageAt: NEWEST - 8_000 },
+		];
+		h.mailbox.listMessageSenders = async (input) => {
+			h.calls.push({ messages: input });
+			const next = pages.shift();
+			assert(next, "the fake mailbox has no more pages");
+			return { ok: true, value: { senders: [SENDER], scannedMessages: 2_500, estimatedTotalMessages: 60_000, ...next } };
+		};
+		const first = await h.discover.start(USER);
+		assert(first);
+		const second = await h.discover.page(first);
+		assert(second);
+		assert.equal((await h.state()).mode, "full");
+		assert.equal((await h.state()).pageToken, "page-2");
+		assert.equal((await h.state()).scannedCount, 5_000);
+		assert.equal((await h.state()).oldestScannedAt, NEWEST - 10_000);
+		const third = await h.discover.page(second);
+		assert(third);
+		assert.equal((await h.state()).mode, "full");
+		assert.equal((await h.state()).pageToken, "page-3");
+		assert.equal((await h.state()).oldestScannedAt, NEWEST - 10_000);
+		assert(await h.discover.page(third));
+		assert.equal((await h.state()).mode, "history");
+		assert.equal((await h.state()).scannedCount, 10_000);
+		assert.equal((await h.state()).oldestScannedAt, NEWEST - 10_000);
+		assert.equal(pages.length, 0);
+	});
+
+	it("does not end a scan saved before message dates were tracked until it has a page to compare against", async () => {
+		const h = await harness();
+		await h.discovery.startDiscovery({ userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "legacy", mode: "full", historyId: "100",
+			resume: { page: 3, pageToken: "legacy-cursor", scannedCount: 7_500, estimatedTotalMessages: 60_000, oldestScannedAt: undefined } });
+		const pages = [
+			{ nextPageToken: "after-legacy", newestMessageAt: NEWEST - 50_000, oldestMessageAt: NEWEST - 51_000 },
+			{ nextPageToken: "more", newestMessageAt: NEWEST - 52_000, oldestMessageAt: NEWEST - 53_000 },
+		];
+		h.mailbox.listMessageSenders = async (input) => {
+			h.calls.push({ messages: input });
+			const next = pages.shift();
+			assert(next, "the fake mailbox has no more pages");
+			return { ok: true, value: { senders: [SENDER], scannedMessages: 2_500, estimatedTotalMessages: 60_000, ...next } };
+		};
+		const resumed = await h.discover.start(USER);
+		assert(resumed);
+		assert.deepEqual(h.calls, [{ messages: { userId: USER, pageToken: "legacy-cursor" } }]);
+		assert.equal((await h.state()).mode, "full");
+		assert.equal((await h.state()).pageToken, "after-legacy");
+		assert.equal((await h.state()).oldestScannedAt, NEWEST - 51_000);
+		await h.discover.page(resumed);
+		assert.equal((await h.state()).mode, "history");
+		assert.equal((await h.state()).scannedCount, 12_500);
 	});
 
 	it("replays a committed continuation without scanning its messages again and suppresses overlapping claims", async () => {
@@ -214,7 +305,7 @@ describe("initDiscoverGmailSenders", () => {
 		assert.equal((await h.state()).scannedCount, 0);
 		assert.equal((await h.state()).estimatedTotalMessages, undefined);
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER]);
-		h.mailbox.listMessageSenders = async () => ({ ok: true, value: { senders: [SENDER], nextPageToken: "restart-next", scannedMessages: 25, estimatedTotalMessages: 100 } });
+		h.mailbox.listMessageSenders = async () => ({ ok: true, value: { senders: [SENDER], nextPageToken: "restart-next", scannedMessages: 25, estimatedTotalMessages: 100, newestMessageAt: NEWEST, oldestMessageAt: NEWEST } });
 		await h.discover.page(restart);
 		assert.equal((await h.state()).historyId, "100");
 		assert.equal((await h.state()).mode, "full");
@@ -225,7 +316,7 @@ describe("initDiscoverGmailSenders", () => {
 
 	it("retries outages without losing a full-scan cursor and resumes exhausted runs from that cursor", async () => {
 		const h = await harness();
-		h.mailbox.listMessageSenders = async () => ({ ok: true, value: { senders: [SENDER], nextPageToken: "second", scannedMessages: 25, estimatedTotalMessages: 1_000 } });
+		h.mailbox.listMessageSenders = async () => ({ ok: true, value: { senders: [SENDER], nextPageToken: "second", scannedMessages: 25, estimatedTotalMessages: 1_000, newestMessageAt: NEWEST, oldestMessageAt: NEWEST } });
 		const next = await h.discover.start(USER);
 		assert(next);
 		assert.equal((await h.state()).estimatedTotalMessages, 1_000);
@@ -240,7 +331,7 @@ describe("initDiscoverGmailSenders", () => {
 		assert.equal((await h.state()).estimatedTotalMessages, 1_000);
 		h.mailbox.listMessageSenders = async (input) => {
 			assert.equal(input.pageToken, "second");
-			return { ok: true, value: { senders: [OTHER_SENDER], nextPageToken: "third", scannedMessages: 2, estimatedTotalMessages: 900 } };
+			return { ok: true, value: { senders: [OTHER_SENDER], nextPageToken: "third", scannedMessages: 2, estimatedTotalMessages: 900, newestMessageAt: NEWEST, oldestMessageAt: NEWEST } };
 		};
 		assert.deepEqual(await h.discover.start(USER), { userId: USER, generation: "run-2", page: 2 });
 		assert.equal((await h.state()).scannedCount, 27);

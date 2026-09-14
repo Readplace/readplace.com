@@ -17,6 +17,9 @@ export function buildGmailMailboxUrl(accountEmail: GmailAccountEmail | undefined
 
 export const GMAIL_CONFIRM_MAX_POLLS = 100;
 
+export const GMAIL_DISCOVERY_MAX_POLLS = 260;
+export const GMAIL_DISCOVERY_FAST_POLLS = 20;
+
 export type GmailPageError =
 	| "sender_invalid"
 	| "sender_duplicate"

@@ -11,7 +11,7 @@ const STATE: GmailDiscovery = {
 	userId: USER,
 	accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
 	gatewayAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
-	generation: "run-1", state: "running", mode: "full", page: 0, pageToken: undefined, historyId: "100", scannedCount: 0, estimatedTotalMessages: 250, updatedAt: NOW.toISOString(), error: undefined,
+	generation: "run-1", state: "running", mode: "full", page: 0, pageToken: undefined, historyId: "100", scannedCount: 0, estimatedTotalMessages: 250, oldestScannedAt: undefined, updatedAt: NOW.toISOString(), error: undefined,
 };
 const SENDER = { email: ForwardableSenderSchema.parse("sender@example.com"), name: "Sender" };
 interface Command {
@@ -65,7 +65,7 @@ describe("initDynamoDbGmailDiscovery", () => {
 		assert.equal(await store.claimPage({ userId: USER, generation: "run-1", page: 0 }), true);
 		assert.match(String(commands[1].input.ConditionExpression), /claimUntil/);
 		assert.equal(commands[1].input.ExpressionAttributeValues?.[":until"], NOW.getTime() + 60_000);
-		assert.equal(await store.savePage({ previous: STATE, senders: [SENDER, SENDER], mode: "full", pageToken: "next", historyId: "102", state: "running", scannedMessages: 25, estimatedTotalMessages: 250 }), true);
+		assert.equal(await store.savePage({ previous: STATE, senders: [SENDER, SENDER], mode: "full", pageToken: "next", historyId: "102", state: "running", scannedMessages: 25, estimatedTotalMessages: 250, oldestScannedAt: 1_700_000_000_000 }), true);
 		const writes = commands[2].input.TransactItems;
 		assert(writes);
 		assert.equal(writes.length, 2);
@@ -73,6 +73,7 @@ describe("initDynamoDbGmailDiscovery", () => {
 		assert.equal(writes[0].Put.Item.page, 1);
 		assert.equal(writes[0].Put.Item.scannedCount, 25);
 		assert.equal(writes[0].Put.Item.estimatedTotalMessages, 250);
+		assert.equal(writes[0].Put.Item.oldestScannedAt, 1_700_000_000_000);
 		assert.match(String(writes[0].Put.ConditionExpression), /generation = :generation/);
 		assert(writes[1].Update);
 		assert.deepEqual(writes[1].Update.Key, { userId: USER, recordKey: `SENDER#${SENDER.email}` });
@@ -82,16 +83,17 @@ describe("initDynamoDbGmailDiscovery", () => {
 		await store.failDiscovery({ userId: USER, generation: "run-1", error: "Try again", requiresReconnect: true });
 		assert.equal(commands[3].input.ExpressionAttributeValues?.[":error"], "Try again");
 		assert.equal(commands[3].input.ExpressionAttributeValues?.[":requiresReconnect"], true);
-		await store.startDiscovery({ ...STATE, resume: { page: 4, pageToken: "resume", scannedCount: 100, estimatedTotalMessages: 500 } });
+		await store.startDiscovery({ ...STATE, resume: { page: 4, pageToken: "resume", scannedCount: 100, estimatedTotalMessages: 500, oldestScannedAt: 1_700_000_000_000 } });
 		assert.equal(commands[4].input.Item?.page, 4);
 		assert.equal(commands[4].input.Item?.pageToken, "resume");
 		assert.equal(commands[4].input.Item?.scannedCount, 100);
 		assert.equal(commands[4].input.Item?.estimatedTotalMessages, 500);
+		assert.equal(commands[4].input.Item?.oldestScannedAt, 1_700_000_000_000);
 	});
 
 	it("leaves a stored display name alone when a page carries the sender without one", async () => {
 		const { store, commands } = harness();
-		assert.equal(await store.savePage({ previous: STATE, senders: [{ email: SENDER.email, name: undefined }], mode: "full", pageToken: "next", historyId: "102", state: "running", scannedMessages: 25, estimatedTotalMessages: 250 }), true);
+		assert.equal(await store.savePage({ previous: STATE, senders: [{ email: SENDER.email, name: undefined }], mode: "full", pageToken: "next", historyId: "102", state: "running", scannedMessages: 25, estimatedTotalMessages: 250, oldestScannedAt: undefined }), true);
 		const writes = commands[0].input.TransactItems;
 		assert(writes);
 		assert(writes[1].Update);
@@ -101,7 +103,7 @@ describe("initDynamoDbGmailDiscovery", () => {
 
 	it("resets accumulated scan progress when a new full pass is required", async () => {
 		const { store, commands } = harness();
-		assert.equal(await store.savePage({ previous: { ...STATE, scannedCount: 75 }, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined }), true);
+		assert.equal(await store.savePage({ previous: { ...STATE, scannedCount: 75 }, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined, oldestScannedAt: undefined }), true);
 		const checkpoint = commands[0].input.TransactItems?.[0];
 		assert(checkpoint?.Put);
 		assert.equal(checkpoint.Put.Item.scannedCount, 0);
@@ -113,7 +115,7 @@ describe("initDynamoDbGmailDiscovery", () => {
 		assert.equal(await denied.startDiscovery(STATE), false);
 		assert.equal(await denied.claimPage({ userId: USER, generation: "run-1", page: 0 }), false);
 		await denied.failDiscovery({ userId: USER, generation: "run-1", error: "late" });
-		const page = { previous: STATE, senders: [SENDER], mode: "history", pageToken: undefined, historyId: "102", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined } as const;
+		const page = { previous: STATE, senders: [SENDER], mode: "history", pageToken: undefined, historyId: "102", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined, oldestScannedAt: undefined } as const;
 		const cancelled = new TransactionCanceledException({ $metadata: {}, message: "race", CancellationReasons: [{ Code: "ConditionalCheckFailed" }] });
 		assert.equal(await harness(() => { throw cancelled; }).store.savePage(page), false);
 		for (const failure of [new Error("offline"), new TransactionCanceledException({ $metadata: {}, message: "unknown" }), new TransactionCanceledException({ $metadata: {}, message: "capacity", CancellationReasons: [{ Code: "ProvisionedThroughputExceeded" }] })]) {
@@ -131,7 +133,7 @@ describe("initDynamoDbGmailDiscovery", () => {
 
 	it("fences multi-author pages in bounded transactions and advances the checkpoint only after all senders are saved", async () => {
 		const senders = Array.from({ length: 101 }, (_, index) => ({ email: ForwardableSenderSchema.parse(`author${index}@example.com`), name: undefined }));
-		const page = { previous: STATE, senders, mode: "history", pageToken: undefined, historyId: "102", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined } as const;
+		const page = { previous: STATE, senders, mode: "history", pageToken: undefined, historyId: "102", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined, oldestScannedAt: undefined } as const;
 		const { store, commands } = harness();
 		assert.equal(await store.savePage(page), true);
 		assert.equal(commands.length, 2);

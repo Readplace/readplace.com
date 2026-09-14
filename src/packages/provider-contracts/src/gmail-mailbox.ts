@@ -7,6 +7,8 @@ export interface GmailSenderPage {
 	nextPageToken: string | undefined;
 	scannedMessages: number;
 	estimatedTotalMessages: number | undefined;
+	newestMessageAt: number | undefined;
+	oldestMessageAt: number | undefined;
 }
 
 export type GmailMailboxResult<T> = GmailApiResult<T> | { ok: false; reason: "metadata-permission-required" };

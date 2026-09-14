@@ -21,11 +21,12 @@ describe("initInMemoryGmailDiscovery", () => {
 		assert.equal(await store.startDiscovery({ ...START, generation: "duplicate" }), false);
 		const previous = await store.findDiscoveryByUserId(USER);
 		assert(previous);
-		const page = { previous, senders: [{ email: EMAIL, name: "Sender" }], mode: "history", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 25, estimatedTotalMessages: 250 } as const;
+		const page = { previous, senders: [{ email: EMAIL, name: "Sender" }], mode: "history", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 25, estimatedTotalMessages: 250, oldestScannedAt: 1_700_000_000_000 } as const;
 		assert.equal(await store.savePage(page), true);
 		assert.equal(await store.savePage(page), false);
 		assert.equal((await store.findDiscoveryByUserId(USER))?.scannedCount, 25);
 		assert.equal((await store.findDiscoveryByUserId(USER))?.estimatedTotalMessages, 250);
+		assert.equal((await store.findDiscoveryByUserId(USER))?.oldestScannedAt, 1_700_000_000_000);
 		assert.equal(await store.startDiscovery({ ...START, generation: "run-2", mode: "history", historyId: "100" }), true);
 		const refreshed = await store.findDiscoveryByUserId(USER);
 		assert(refreshed);
@@ -42,10 +43,10 @@ describe("initInMemoryGmailDiscovery", () => {
 		assert.equal(await store.startDiscovery(START), true);
 		const first = await store.findDiscoveryByUserId(USER);
 		assert(first);
-		assert.equal(await store.savePage({ previous: first, senders: [{ email: EMAIL, name: "Sender" }], mode: "full", pageToken: "next", historyId: "100", state: "running", scannedMessages: 25, estimatedTotalMessages: undefined }), true);
+		assert.equal(await store.savePage({ previous: first, senders: [{ email: EMAIL, name: "Sender" }], mode: "full", pageToken: "next", historyId: "100", state: "running", scannedMessages: 25, estimatedTotalMessages: undefined, oldestScannedAt: undefined }), true);
 		const second = await store.findDiscoveryByUserId(USER);
 		assert(second);
-		assert.equal(await store.savePage({ previous: second, senders: [{ email: EMAIL, name: undefined }, { email: OTHER, name: undefined }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined }), true);
+		assert.equal(await store.savePage({ previous: second, senders: [{ email: EMAIL, name: undefined }, { email: OTHER, name: undefined }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined, oldestScannedAt: undefined }), true);
 		assert.deepEqual(await store.listSendersByUserId(USER), [{ email: EMAIL, name: "Sender" }, { email: OTHER, name: undefined }]);
 	});
 
@@ -66,12 +67,13 @@ describe("initInMemoryGmailDiscovery", () => {
 		assert.equal((await store.findDiscoveryByUserId(USER))?.error, "Try again");
 		assert.equal((await store.findDiscoveryByUserId(USER))?.requiresReconnect, true);
 		assert.equal(await store.claimPage(claim), false);
-		await store.startDiscovery({ ...START, generation: "resumed", resume: { page: 4, pageToken: "resume", scannedCount: 100, estimatedTotalMessages: 500 } });
+		await store.startDiscovery({ ...START, generation: "resumed", resume: { page: 4, pageToken: "resume", scannedCount: 100, estimatedTotalMessages: 500, oldestScannedAt: 1_700_000_000_000 } });
 		const resumed = await store.findDiscoveryByUserId(USER);
 		assert.equal(resumed?.page, 4);
 		assert.equal(resumed?.pageToken, "resume");
 		assert.equal(resumed?.scannedCount, 100);
 		assert.equal(resumed?.estimatedTotalMessages, 500);
+		assert.equal(resumed?.oldestScannedAt, 1_700_000_000_000);
 		assert.equal(resumed?.requiresReconnect, false);
 	});
 
@@ -80,10 +82,10 @@ describe("initInMemoryGmailDiscovery", () => {
 		await store.startDiscovery(START);
 		const initial = await store.findDiscoveryByUserId(USER);
 		assert(initial);
-		await store.savePage({ previous: initial, senders: [], mode: "history", pageToken: "next", historyId: "100", state: "running", scannedMessages: 75, estimatedTotalMessages: undefined });
+		await store.savePage({ previous: initial, senders: [], mode: "history", pageToken: "next", historyId: "100", state: "running", scannedMessages: 75, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
 		const accumulated = await store.findDiscoveryByUserId(USER);
 		assert(accumulated);
-		await store.savePage({ previous: accumulated, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined });
+		await store.savePage({ previous: accumulated, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
 		assert.equal((await store.findDiscoveryByUserId(USER))?.scannedCount, 0);
 	});
 
@@ -92,7 +94,7 @@ describe("initInMemoryGmailDiscovery", () => {
 		await store.startDiscovery(START);
 		const previous = await store.findDiscoveryByUserId(USER);
 		assert(previous);
-		const page = { previous, senders: [{ email: EMAIL, name: undefined }], mode: "full", pageToken: "next", historyId: "100", state: "running", scannedMessages: 1, estimatedTotalMessages: 10 } as const;
+		const page = { previous, senders: [{ email: EMAIL, name: undefined }], mode: "full", pageToken: "next", historyId: "100", state: "running", scannedMessages: 1, estimatedTotalMessages: 10, oldestScannedAt: undefined } as const;
 		assert.equal(await store.savePage({ ...page, previous: { ...previous, generation: "old" } }), false);
 		assert.equal(await store.savePage({ ...page, previous: { ...previous, page: 3 } }), false);
 		await store.failDiscovery({ userId: USER, generation: previous.generation, error: "failed" });

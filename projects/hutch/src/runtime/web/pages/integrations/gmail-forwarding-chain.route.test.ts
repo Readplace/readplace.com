@@ -166,6 +166,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 			state: "complete",
 			scannedMessages: 1,
 			estimatedTotalMessages: 1,
+			oldestScannedAt: undefined,
 		});
 
 		const added = await agent
