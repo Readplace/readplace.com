@@ -1387,16 +1387,11 @@ const computeRelatedArticlesLambdaWithSQS = new HutchSQSBackedLambda("compute-re
 	batchSize: 1,
 });
 
-eventBus.subscribe(QueueEntryCreatedEvent, computeRelatedArticlesLambdaWithSQS, {
-	name: "compute-related-articles",
-});
-
-// The same Lambda also computes the independent "Previously read on this topic"
-// section: a new save precomputes it off QueueEntryCreated (above), and an
-// explicit command re-runs it for an existing or stale save the reader revisits.
-eventBus.subscribe(ComputeRelatedPastReadsCommand, computeRelatedArticlesLambdaWithSQS, {
-	name: "compute-related-past-reads",
-});
+eventBus.subscribeAll(
+	[{ ...QueueEntryCreatedEvent, name: "compute-related-articles" }, ComputeRelatedPastReadsCommand],
+	computeRelatedArticlesLambdaWithSQS,
+	{ name: "compute-related-articles", retiringPolicyNames: ["compute-related-past-reads"] },
+);
 
 // --- RecrawlLinkInitiated handler ---
 

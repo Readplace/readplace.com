@@ -69,7 +69,7 @@ export class HutchEventBus {
 	subscribeAll(
 		events: ReadonlyArray<{ name: string; source: string; detailType: string }>,
 		target: HutchSQSBackedLambda,
-		opts: { name: string },
+		opts: { name: string; retiringPolicyNames?: readonly string[] },
 	): void {
 		const ruleArns = events.map((event) => {
 			const rule = new aws.cloudwatch.EventRule(`${event.name}-rule`, {
@@ -92,21 +92,39 @@ export class HutchEventBus {
 			return rule.arn;
 		});
 
+		const retiringPolicyNames = opts.retiringPolicyNames ?? [];
+
+		const queuePolicy = pulumi
+			.all([target.queueArn, pulumi.all(ruleArns)])
+			.apply(([queueArn, arns]) => allowRulesToSend(queueArn, arns));
 		new aws.sqs.QueuePolicy(`${opts.name}-queue-policy`, {
 			queueUrl: target.queueUrl,
-			policy: pulumi
-				.all([target.queueArn, pulumi.all(ruleArns)])
-				.apply(([queueArn, arns]) => allowRulesToSend(queueArn, arns)),
+			policy: queuePolicy,
 		});
+		for (const retiringName of retiringPolicyNames) {
+			new aws.sqs.QueuePolicy(
+				`${retiringName}-queue-policy`,
+				{ queueUrl: target.queueUrl, policy: queuePolicy },
+				{ retainOnDelete: true },
+			);
+		}
 
 		const ownDlq = target.ownDlq;
 		if (ownDlq) {
+			const dlqPolicy = pulumi
+				.all([ownDlq.arn, pulumi.all(ruleArns)])
+				.apply(([dlqArn, arns]) => allowRulesToSend(dlqArn, arns));
 			new aws.sqs.QueuePolicy(`${opts.name}-dlq-policy`, {
 				queueUrl: ownDlq.url,
-				policy: pulumi
-					.all([ownDlq.arn, pulumi.all(ruleArns)])
-					.apply(([dlqArn, arns]) => allowRulesToSend(dlqArn, arns)),
+				policy: dlqPolicy,
 			});
+			for (const retiringName of retiringPolicyNames) {
+				new aws.sqs.QueuePolicy(
+					`${retiringName}-dlq-policy`,
+					{ queueUrl: ownDlq.url, policy: dlqPolicy },
+					{ retainOnDelete: true },
+				);
+			}
 		}
 	}
 }
