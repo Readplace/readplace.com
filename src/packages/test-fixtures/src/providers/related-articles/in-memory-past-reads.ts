@@ -42,6 +42,7 @@ export function initInMemoryPastReads(deps: {
 				title: saved.metadata.title,
 				siteName: saved.metadata.siteName,
 				reason: link.reason,
+				...(saved.readAt !== undefined ? { readAt: saved.readAt } : {}),
 				...(link.readlist !== undefined ? { readlist: link.readlist } : {}),
 			});
 		}

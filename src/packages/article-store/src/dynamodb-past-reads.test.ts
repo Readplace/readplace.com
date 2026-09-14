@@ -530,6 +530,118 @@ describe("initDynamoDbPastReads", () => {
 			]);
 		});
 
+		it("names when a match was last read, taking the most recent read across its lists", async () => {
+			const workPartition = `${USER_ID}#queue/work`;
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [
+								{ url: "example.com/newer-in-work", reason: "Same subject" },
+								{ url: "example.com/newer-in-default", reason: "Also the subject" },
+							],
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") {
+					return { Items: [{ queueSlug: "work", createdAt: "2026-01-01T00:00:00.000Z" }] };
+				}
+				if (tableOf(command) === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								// Read later in work than in the default list: the newer instant wins.
+								{ userId: USER_ID, url: "example.com/newer-in-work", status: "read", readAt: "2026-09-01T00:00:00.000Z" },
+								{ userId: workPartition, url: "example.com/newer-in-work", status: "read", readAt: "2026-09-10T00:00:00.000Z" },
+								// Read later in the default list than in work: the earlier work read is kept out.
+								{ userId: USER_ID, url: "example.com/newer-in-default", status: "read", readAt: "2026-09-12T00:00:00.000Z" },
+								{ userId: workPartition, url: "example.com/newer-in-default", status: "read", readAt: "2026-09-02T00:00:00.000Z" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "example.com/newer-in-work",
+								routeId: "44444444444444444444444444444444",
+								title: "Newer in work",
+								siteName: "Example",
+								excerpt: "",
+							},
+							{
+								url: "example.com/newer-in-default",
+								routeId: "55555555555555555555555555555555",
+								title: "Newer in default",
+								siteName: "Example",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => ({ id: item.id.value, readAt: item.readAt }))).toEqual([
+				{ id: "44444444444444444444444444444444", readAt: new Date("2026-09-10T00:00:00.000Z") },
+				{ id: "55555555555555555555555555555555", readAt: new Date("2026-09-12T00:00:00.000Z") },
+			]);
+		});
+
+		it("omits the last-read line for a read match whose row carries no timestamp", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [{ url: "example.com/legacy", reason: "Same subject" }],
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") return { Items: [] };
+				if (tableOf(command) === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ userId: USER_ID, url: "example.com/legacy", status: "read" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "example.com/legacy",
+								routeId: "66666666666666666666666666666666",
+								title: "Legacy",
+								siteName: "Example",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items).toHaveLength(1);
+			expect(result.items[0]?.readAt).toBeUndefined();
+		});
+
 		it("reports a cached-but-now-empty result when no match is still read", async () => {
 			const { store } = build((command) => {
 				if (command.constructorName === "GetCommand") {

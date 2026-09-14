@@ -128,10 +128,10 @@ function slotOf(html: string) {
 }
 
 describe("Reader previously-read-on-this-topic slot", () => {
-	it("renders a hidden, polling slot with a compute trigger while nothing is computed, once the feature is asked for", async () => {
+	it("renders a hidden, polling slot with a compute trigger while nothing is computed", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=past`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		const slot = slotOf(response.text);
 		expect(slot.getAttribute("data-topic-reads-status")).toBe("pending");
@@ -142,26 +142,11 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		);
 	});
 
-	it("leaves the section, its poll and its compute trigger out of the reader until the feature is asked for", async () => {
-		const { agent, articleId } = await buildHarness();
-
-		const response = await agent.get(`/queue/${articleId}/view`);
-
-		const doc = new JSDOM(response.text).window.document;
-		assert(doc.querySelector("body.page-reader"), "the reader page rendered");
-		expect(doc.querySelectorAll("[data-test-reader-topic-reads]")).toHaveLength(0);
-		expect(
-			doc.querySelectorAll(
-				'[hx-get*="/topic-reads"], [hx-post*="/topic-reads"], form[action*="/topic-reads"]',
-			),
-		).toHaveLength(0);
-	});
-
-	it("shows a computed match collapsed under its disclosure without spreading the feature onto its links", async () => {
+	it("shows a computed match collapsed under its disclosure", async () => {
 		const { agent, articleId, past, seedPastReads } = await buildHarness();
 		await seedPastReads("work");
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=past`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		const card = new JSDOM(response.text).window.document.querySelector("details.past-reads__card");
 		assert(card, "the reader collapses the match under a disclosure");
@@ -171,7 +156,6 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		const href =
 			card.querySelector(`[data-test-topic-read-item="${past.id.value}"]`)?.getAttribute("href") ?? "";
 		const rowParams = new URL(href, TEST_APP_ORIGIN).searchParams;
-		expect(rowParams.get("feature")).toBeNull();
 		expect(rowParams.get("queue")).toBe("work");
 	});
 
@@ -190,6 +174,18 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		expect(href).toContain(`/queue/${past.id.value}/view`);
 		expect(href).toContain("queue=work");
 		expect(href).toContain("utm_content=topic-read");
+
+		// A read match names when it was last read, wrapped in a client-localised <time>.
+		const readTime = row.querySelector("[data-test-topic-read-time]");
+		assert(readTime, "a read match shows when it was last read");
+		expect(readTime.textContent).toContain("You read this");
+		const time = readTime.querySelector("time");
+		assert(time, "the last-read label is wrapped in a <time>");
+		expect(time.getAttribute("data-local-time")).toBe("relative");
+		assert(
+			!Number.isNaN(Date.parse(time.getAttribute("datetime") ?? "")),
+			"the <time> carries a parseable read instant",
+		);
 	});
 
 	it("advances the poll cursor until the budget is spent", async () => {
@@ -213,7 +209,7 @@ describe("Reader previously-read-on-this-topic slot", () => {
 	it("asks for a computation from the reader but never from its poll", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const reader = await agent.get(`/queue/${articleId}/view?feature=past`);
+		const reader = await agent.get(`/queue/${articleId}/view`);
 		const poll = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
 
 		expect(slotOf(reader.text).querySelectorAll("form.past-reads__request")).toHaveLength(1);
@@ -223,7 +219,7 @@ describe("Reader previously-read-on-this-topic slot", () => {
 	it("offers the no-JS fallback outside the hidden slot", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=past`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const slot = doc.querySelector("[data-test-reader-topic-reads]");
@@ -321,10 +317,10 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		expect(slotOf(response.text).getAttribute("data-topic-reads-status")).toBe("pending");
 	});
 
-	it("renders the section on the app surface too, once the feature is asked for", async () => {
+	it("renders the section on the app surface too", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/view?platform=ios&feature=past`);
+		const response = await agent.get(`/queue/${articleId}/view?platform=ios`);
 
 		expect(slotOf(response.text).getAttribute("data-topic-reads-status")).toBe("pending");
 	});

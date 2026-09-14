@@ -187,3 +187,17 @@
   color: var(--color-text-secondary);
   text-wrap: pretty; /* 4 */
 }
+
+/* The "last read" line borrows Next read's meta row: a small, secondary caption
+ * under the connection sentence. */
+.past-reads__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.past-reads__read-time {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}

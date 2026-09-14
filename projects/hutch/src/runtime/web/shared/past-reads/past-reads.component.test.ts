@@ -13,6 +13,8 @@ const SOURCE_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const IN_WORK = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const IN_DEFAULT = ReaderArticleHashIdSchema.parse("fedcba9876543210fedcba9876543210");
 const WORK = ReadlistSlugSchema.parse("work");
+const NOW = new Date("2026-09-15T12:00:00.000Z");
+const READ_THREE_DAYS_AGO = new Date("2026-09-12T12:00:00.000Z");
 
 const readerPathForReadlist = (articleId: string, readlist?: string) =>
 	readlist === undefined
@@ -26,6 +28,7 @@ describe("renderPastReadsSection", () => {
 			pollUrl: "/queue/x/topic-reads?poll=2",
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		const doc = parse(html);
@@ -50,7 +53,7 @@ describe("renderPastReadsSection", () => {
 		const pastReads: PastReads = {
 			status: "ready",
 			items: [
-				{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK },
+				{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readAt: READ_THREE_DAYS_AGO, readlist: WORK },
 				{ id: IN_DEFAULT, title: "In the default list", siteName: "Example", reason: "Also the subject" },
 			],
 		};
@@ -59,6 +62,7 @@ describe("renderPastReadsSection", () => {
 			pollUrl: "/queue/x/topic-reads?poll=2",
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		const doc = parse(html);
@@ -94,6 +98,38 @@ describe("renderPastReadsSection", () => {
 		expect(defaultHref).not.toContain("queue=");
 	});
 
+	it("labels each row with when it was last read, as a relative time anchored on now", () => {
+		const html = renderPastReadsSection({
+			pastReads: {
+				status: "ready",
+				items: [
+					{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readAt: READ_THREE_DAYS_AGO, readlist: WORK },
+					{ id: IN_DEFAULT, title: "In the default list", siteName: "Example", reason: "Also the subject" },
+				],
+			},
+			computeUrl: "/queue/x/topic-reads",
+			sourceArticleId: SOURCE_ID,
+			now: NOW,
+			readerPathForReadlist,
+		});
+		const doc = parse(html);
+
+		const workRow = doc.querySelector(`[data-test-topic-read-item="${IN_WORK.value}"]`);
+		assert(workRow, "the row with a read timestamp renders");
+		const readTime = workRow.querySelector("[data-test-topic-read-time]");
+		assert(readTime, "a row with a read timestamp shows when it was last read");
+		expect(readTime.textContent).toBe("You read this 3 days ago");
+		const time = readTime.querySelector("time");
+		assert(time, "the relative label is wrapped in a <time> the client can localise");
+		expect(time.getAttribute("datetime")).toBe(READ_THREE_DAYS_AGO.toISOString());
+		expect(time.getAttribute("data-local-time")).toBe("relative");
+
+		// A match whose read row carries no timestamp shows no invented "last read".
+		const defaultRow = doc.querySelector(`[data-test-topic-read-item="${IN_DEFAULT.value}"]`);
+		assert(defaultRow, "the row without a read timestamp still renders");
+		expect(defaultRow.querySelector("[data-test-topic-read-time]")).toBeNull();
+	});
+
 	it("collapses the ready rows under a closed disclosure headed by the section title", () => {
 		const html = renderPastReadsSection({
 			pastReads: {
@@ -105,6 +141,7 @@ describe("renderPastReadsSection", () => {
 			},
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		const card = parse(html).querySelector("details.past-reads__card");
@@ -131,6 +168,7 @@ describe("renderPastReadsSection", () => {
 			},
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		const preview = parse(html).querySelector(".past-reads__preview");
@@ -149,6 +187,7 @@ describe("renderPastReadsSection", () => {
 			},
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		expect(parse(html).querySelector(".past-reads__preview")?.getAttribute("aria-hidden")).toBe("true");
@@ -162,6 +201,7 @@ describe("renderPastReadsSection", () => {
 			},
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		const summary = parse(html).querySelector("summary.past-reads__toggle");
@@ -178,6 +218,7 @@ describe("renderPastReadsSection", () => {
 			},
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		const doc = parse(html);
@@ -191,6 +232,7 @@ describe("renderPastReadsSection", () => {
 			pastReads: { status: "ready", items: [] },
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		const slot = parse(html).querySelector("[data-test-reader-topic-reads]");
@@ -205,6 +247,7 @@ describe("renderPastReadsSection", () => {
 	it("treats a missing selection as pending", () => {
 		const html = renderPastReadsSection({
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		expect(
@@ -218,6 +261,7 @@ describe("renderPastReadsSection", () => {
 		const html = renderPastReadsSection({
 			pastReads: { status: "pending" },
 			sourceArticleId: SOURCE_ID,
+			now: NOW,
 			readerPathForReadlist,
 		});
 		const slot = parse(html).querySelector("[data-test-reader-topic-reads]");

@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { PastReads } from "@packages/provider-contracts/related-articles";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, toRelativePhrase, withInternalTracking } from "@packages/web-shell";
+import type { LocalTime } from "@packages/web-shell/local-time.format";
 
 const PAST_READS_TEMPLATE = readFileSync(
 	join(__dirname, "past-reads.template.html"),
@@ -27,6 +28,9 @@ export interface PastReadsSectionInput {
 	/** POST endpoint that requests (re)computation. Owner reader only. */
 	computeUrl?: string;
 	sourceArticleId: string;
+	/** Anchors the relative "last read" phrase, exactly as Next read anchors its
+	 * saved/read line. */
+	now: Date;
 	readerPathForReadlist: (articleId: string, readlist?: ReadlistSlug) => string;
 }
 
@@ -37,26 +41,41 @@ interface PastReadRow {
 	siteName: string;
 	reason: string;
 	accessibleLabel: string;
+	/** Mirrors Next read's dated line; absent for a match whose read row carries
+	 * no timestamp, so the row omits it rather than inventing one. */
+	readDated?: { lead: string; time: LocalTime };
+}
+
+function readDatedOf(
+	readAt: Date | undefined,
+	now: Date,
+): { lead: string; time: LocalTime } | undefined {
+	if (readAt === undefined) return undefined;
+	return { lead: "You read this", time: toRelativePhrase({ iso: readAt.toISOString(), now }) };
 }
 
 function rowsOf(input: PastReadsSectionInput): PastReadRow[] {
 	const pastReads = input.pastReads;
 	if (pastReads?.status !== "ready") return [];
-	return pastReads.items.map((item) => ({
-		id: item.id.value,
-		href: withInternalTracking(
-			input.readerPathForReadlist(item.id.value, item.readlist),
-			{
-				source: "reader",
-				content: TOPIC_READ_CLICK_CONTENT,
-				term: input.sourceArticleId,
-			},
-		),
-		title: item.title,
-		siteName: item.siteName,
-		reason: item.reason,
-		accessibleLabel: `${item.title} — ${item.siteName}`,
-	}));
+	return pastReads.items.map((item) => {
+		const readDated = readDatedOf(item.readAt, input.now);
+		return {
+			id: item.id.value,
+			href: withInternalTracking(
+				input.readerPathForReadlist(item.id.value, item.readlist),
+				{
+					source: "reader",
+					content: TOPIC_READ_CLICK_CONTENT,
+					term: input.sourceArticleId,
+				},
+			),
+			title: item.title,
+			siteName: item.siteName,
+			reason: item.reason,
+			accessibleLabel: `${item.title} — ${item.siteName}`,
+			...(readDated !== undefined ? { readDated } : {}),
+		};
+	});
 }
 
 interface PastReadsPreview {

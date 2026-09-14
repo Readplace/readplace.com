@@ -143,6 +143,11 @@ export interface PastReadDisplay {
 	title: string;
 	siteName: string;
 	reason: string;
+	/** When the reader last read this match, taken as the most recent read across
+	 * every list it is still read in. Absent only for a legacy read row that
+	 * carries no timestamp, so the reader omits the "last read" line rather than
+	 * inventing one. */
+	readAt?: Date;
 	/** The reading list the reader should open this match in (absent = default). */
 	readlist?: ReadlistSlug;
 }

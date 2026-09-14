@@ -160,7 +160,7 @@ async function openReader(
 		assert.equal(seeded.status(), 201, "the seed endpoint must settle the past reads");
 	}
 
-	await page.goto(`${BASE_URL}/queue/${articleId}/view?feature=past`, {
+	await page.goto(`${BASE_URL}/queue/${articleId}/view`, {
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector("body.page-reader");

@@ -12,6 +12,11 @@
         <a class="past-reads__link" href="{{href}}" data-test-topic-read-item="{{id}}" aria-label="{{accessibleLabel}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top">
           <span class="past-reads__heading"><span class="past-reads__title">{{title}}</span> <span class="past-reads__site">{{siteName}}</span></span>
           <span class="past-reads__reason">{{reason}}</span>
+          {{#if readDated}}
+          <span class="past-reads__meta">
+            <span class="past-reads__read-time" data-test-topic-read-time>{{readDated.lead}} <time datetime="{{readDated.time.iso}}" data-local-time="{{readDated.time.mode}}">{{readDated.time.label}}</time></span>
+          </span>
+          {{/if}}
         </a>
       </li>
       {{/each}}

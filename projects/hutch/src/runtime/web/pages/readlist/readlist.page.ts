@@ -117,7 +117,7 @@ import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
 import { selectChangelogBanner } from "../../banner-state";
 import type { GetChangelogBanner } from "../../changelog-banner-source";
-import { QuerystringFeatureToggle, requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
+import { requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
@@ -534,9 +534,6 @@ const pastReadsComputeUrlFor = (params: {
 	const surface = joinedSurfaceQuery(params.surfaceQuery);
 	return `${READLIST_PATH}/${params.articleId}/topic-reads${surface === "" ? "" : `?${params.surfaceQuery}`}`;
 };
-
-const PAST_READS_FEATURE = "past";
-const pastReadsToggle = new QuerystringFeatureToggle();
 
 async function loadPastReads(
 	findPastReads: FindPastReads,
@@ -1069,17 +1066,15 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			readlistFiling,
 			contentVersion,
 		} = resolved;
-		const pastReadsOptions = pastReadsToggle.isEnabled({ query: req.query }, PAST_READS_FEATURE)
-			? {
-					previouslyRead,
-					previouslyReadPollUrl,
-					previouslyReadComputeUrl: pastReadsComputeUrlFor({
-						articleId: ownedArticle.id.value,
-						surfaceQuery: nativeSurfaceQuery(req),
-					}),
-					readerPathForReadlist: readerPathForReadlist(req),
-				}
-			: {};
+		const pastReadsOptions = {
+			previouslyRead,
+			previouslyReadPollUrl,
+			previouslyReadComputeUrl: pastReadsComputeUrlFor({
+				articleId: ownedArticle.id.value,
+				surfaceQuery: nativeSurfaceQuery(req),
+			}),
+			readerPathForReadlist: readerPathForReadlist(req),
+		};
 
 		const cspNonce = requireCspNonce(req);
 		const readerSettled =
@@ -2502,6 +2497,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						})
 					: undefined,
 			sourceArticleId: article.id.value,
+			now: deps.now(),
 			readerPathForReadlist: readerPathForReadlist(req),
 		});
 		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));

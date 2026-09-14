@@ -283,13 +283,22 @@ export function initDynamoDbPastReads(deps: {
 		});
 		const ownedListsByUrl = new Map<string, ReadlistSlug[]>();
 		const readSomewhere = new Set<string>();
+		// The latest read instant across every list a match is still read in, so
+		// the reader can say when it last saw it.
+		const lastReadByUrl = new Map<string, string>();
 		for (const entry of saved) {
 			const readlist =
 				decodeUserArticlePartition(entry.userId).readlist ?? DEFAULT_READLIST_SLUG;
 			const lists = ownedListsByUrl.get(entry.url) ?? [];
 			lists.push(readlist);
 			ownedListsByUrl.set(entry.url, lists);
-			if (entry.status === "read") readSomewhere.add(entry.url);
+			if (entry.status !== "read") continue;
+			readSomewhere.add(entry.url);
+			if (entry.readAt === undefined) continue;
+			const latest = lastReadByUrl.get(entry.url);
+			if (latest === undefined || entry.readAt > latest) {
+				lastReadByUrl.set(entry.url, entry.readAt);
+			}
 		}
 
 		const stillLinked = links.filter((link) => readSomewhere.has(link.url));
@@ -311,11 +320,13 @@ export function initDynamoDbPastReads(deps: {
 			assert(lists, "a match read somewhere is owned in at least one list");
 			const destination = priority.find((readlist) => lists.includes(readlist));
 			assert(destination, "an owned list is always within the priority order");
+			const lastReadAt = lastReadByUrl.get(link.url);
 			items.push({
 				id: ReaderArticleHashIdSchema.parse(article.routeId),
 				title: article.title,
 				siteName: article.siteName,
 				reason: link.reason,
+				...(lastReadAt !== undefined ? { readAt: new Date(lastReadAt) } : {}),
 				...(destination === DEFAULT_READLIST_SLUG ? {} : { readlist: destination }),
 			});
 		}

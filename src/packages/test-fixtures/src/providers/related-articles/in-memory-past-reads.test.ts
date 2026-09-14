@@ -73,6 +73,7 @@ describe("initInMemoryPastReads", () => {
 					title: "In a custom list",
 					siteName: "Example",
 					reason: "Same subject",
+					readAt: expect.any(Date),
 					readlist: WORK,
 				},
 				{
@@ -80,6 +81,7 @@ describe("initInMemoryPastReads", () => {
 					title: "In the default list",
 					siteName: "Example",
 					reason: "Also the subject",
+					readAt: expect.any(Date),
 				},
 			],
 		});

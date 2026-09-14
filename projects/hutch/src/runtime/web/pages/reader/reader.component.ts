@@ -174,6 +174,7 @@ export function ReaderPage(
 					pollUrl: options.previouslyReadPollUrl,
 					computeUrl: options.previouslyReadComputeUrl,
 					sourceArticleId: articleId,
+					now: options.now,
 					readerPathForReadlist: options.readerPathForReadlist,
 				});
 	const innerContent = renderArticleBody({
