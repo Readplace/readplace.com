@@ -45,7 +45,7 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
 		timeout: options.timeout ?? 120000,
 		expect: {
 			toHaveScreenshot: {
-				maxDiffPixelRatio: 0.1,
+				maxDiffPixelRatio: 0,
 				threshold: 0.2,
 				animations: 'disabled',
 				caret: 'hide',

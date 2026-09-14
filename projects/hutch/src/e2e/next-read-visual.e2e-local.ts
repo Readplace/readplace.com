@@ -162,6 +162,7 @@ async function openShareBalloon(page: Page): Promise<void> {
 
 async function cardRevealed(page: Page): Promise<void> {
 	await page.waitForSelector(OPEN_CARD);
+	await page.mouse.move(5, 5);
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
 		document.querySelector(".trial-countdown")?.remove();

@@ -20,7 +20,6 @@ const EINK_VIEWPORT = { width: 758, height: 1024 };
 const CONTRAST_SENSITIVE = {
 	stylePath: join(__dirname, "eink-greyscale.css"),
 	threshold: 0.02,
-	maxDiffPixelRatio: 0.0005,
 } as const;
 
 const READER_ROOT = "main.reader";

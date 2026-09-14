@@ -249,7 +249,6 @@ const CHECKLIST_STEP_HIDDEN: VisualCheckpoint = {
 	target: ONBOARDING_CARD,
 	capture: "element",
 	pinnedText: [],
-	maxDiffPixelRatio: 0,
 };
 
 const FIRST_RUN_INSTALL_STEP: VisualCheckpoint = {
@@ -259,7 +258,6 @@ const FIRST_RUN_INSTALL_STEP: VisualCheckpoint = {
 	target: ONBOARDING_CARD,
 	capture: "element",
 	pinnedText: [],
-	maxDiffPixelRatio: 0,
 };
 
 const EMAIL_STEP_OUTSTANDING: VisualCheckpoint = {
@@ -269,7 +267,6 @@ const EMAIL_STEP_OUTSTANDING: VisualCheckpoint = {
 	target: ONBOARDING_CARD,
 	capture: "element",
 	pinnedText: [],
-	maxDiffPixelRatio: 0,
 };
 
 const EMAIL_STEP_AUTO_TICKED: VisualCheckpoint = {
@@ -279,7 +276,6 @@ const EMAIL_STEP_AUTO_TICKED: VisualCheckpoint = {
 	target: ONBOARDING_CARD,
 	capture: "element",
 	pinnedText: [],
-	maxDiffPixelRatio: 0,
 };
 
 const SUCCESS_RETURNING_USER: VisualCheckpoint = {
@@ -289,7 +285,6 @@ const SUCCESS_RETURNING_USER: VisualCheckpoint = {
 	target: ONBOARDING_CARD,
 	capture: "element",
 	pinnedText: [],
-	maxDiffPixelRatio: 0,
 };
 
 test.describe("Onboarding card", () => {

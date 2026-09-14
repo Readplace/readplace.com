@@ -7,6 +7,7 @@ import {
 	test,
 	type VisualCheckpoint,
 } from "@packages/e2e-harness";
+import { pinCopyableAddresses } from "./inbox-visual.browser";
 
 /** A fixed instant, so the list's wall-clock-relative label is the same on every
  * run and the baseline is not a slowly rotting screenshot of "1 hour ago". */
@@ -55,6 +56,10 @@ async function copyableAddressReady(page: Page): Promise<void> {
 	await expect(page.locator(".inbox-copyable__copy").first()).toBeVisible();
 }
 
+async function pinMintedAddress(page: Page): Promise<void> {
+	await page.evaluate(pinCopyableAddresses, "e2e-pinned@read.place");
+}
+
 async function seedSettledEmail(page: Page): Promise<string> {
 	await page.request.post("/e2e/session");
 	await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
@@ -80,6 +85,7 @@ const emptyInbox: VisualCheckpoint = {
 	settled: async (page) => {
 		await expect(page.locator("[data-test-inbox-emails-empty]")).toBeVisible();
 		await copyableAddressReady(page);
+		await pinMintedAddress(page);
 	},
 	geometry: async (page) => {
 		const box = await measuredBox(page, "[data-test-inbox-emails-empty]");
@@ -99,13 +105,12 @@ const addressesPage: VisualCheckpoint = {
 			"list",
 		);
 		await copyableAddressReady(page);
+		await pinMintedAddress(page);
 	},
 	geometry: copyButtonSeatedInField,
 	target: "main",
 	capture: "element",
-	// The address itself carries a freshly minted random token, so pin it —
-	// otherwise every run mints a different string and the baseline never matches.
-	pinnedText: [{ selector: "[data-test-inbox-name]", text: "e2e" }],
+	pinnedText: [],
 };
 
 const articlesTab: VisualCheckpoint = {

@@ -79,7 +79,7 @@ describe("createPlaywrightConfig", () => {
 		expect(config.testDir).toBe("./src/e2e");
 		expect(config.testMatch).toBe("**/*.e2e-local.ts");
 		expect(config.expect?.toHaveScreenshot).toEqual({
-			maxDiffPixelRatio: 0.1,
+			maxDiffPixelRatio: 0,
 			threshold: 0.2,
 			animations: "disabled",
 			caret: "hide",
