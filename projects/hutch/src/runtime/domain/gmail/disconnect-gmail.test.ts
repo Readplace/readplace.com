@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
-import { InboxAddressSchema } from "@packages/domain/inbox";
+import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { RevokeGmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
@@ -8,11 +8,11 @@ import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/g
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
+import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initDisconnectGmail } from "./disconnect-gmail";
 import type { RewriteGmailFilterOutcome } from "./rewrite-gmail-filter";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
-const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const NOW = new Date("2026-08-27T00:00:00.000Z");
 const SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic";
@@ -27,14 +27,22 @@ async function makeHarness(options: {
 	const credentials = initInMemoryGmailCredentials({ now: () => NOW });
 	const senders = initInMemoryGmailSender({ now: () => NOW });
 	const discovery = initInMemoryGmailDiscovery({ now: () => NOW });
+	const addresses = initInMemoryInboxAddress({ now: () => NOW });
 	const rewrites: string[] = [];
 	const revokes: string[] = [];
-	await discovery.startDiscovery({ userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gatewayAddress: GATEWAY, generation: "initial", mode: "profile", historyId: undefined });
+	const gatewayEntry = await addresses.createAddress({
+		userId: USER,
+		domain: "read.place",
+		name: GMAIL_FORWARDING_ALIAS,
+		purpose: "gmail-forwarding",
+	});
+	const gateway = gatewayEntry.address;
+	await discovery.startDiscovery({ userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gatewayAddress: gateway, generation: "initial", mode: "profile", historyId: undefined });
 
 	if (options.connected !== false) {
 		await connections.createConnection({
 			userId: USER,
-			gatewayAddress: GATEWAY,
+			gatewayAddress: gateway,
 		});
 		await connections.markForwardingConfirmed({ userId: USER });
 		await senders.addSenderToFilter({ userId: USER, senderEmail: TLDR });
@@ -52,6 +60,7 @@ async function makeHarness(options: {
 		credentials,
 		senders,
 		discovery,
+		addresses,
 		rewriteGmailFilter: async ({ userId }) => {
 			rewrites.push(userId);
 			return options.rewritten ?? { ok: true, filterCount: 0, senderCount: 0 };
@@ -63,7 +72,7 @@ async function makeHarness(options: {
 		logger: HutchLogger.from(noopLogger),
 	});
 
-	return { disconnect, connections, credentials, senders, discovery, rewrites, revokes };
+	return { disconnect, connections, credentials, senders, discovery, addresses, gateway, rewrites, revokes };
 }
 
 describe("initDisconnectGmail", () => {
@@ -80,12 +89,15 @@ describe("initDisconnectGmail", () => {
 		assert.equal(await harness.discovery.findDiscoveryByUserId(USER), undefined);
 	});
 
-	it("deletes the connection so the next connect mints a fresh gateway address", async () => {
+	it("deletes the connection and retires the gateway so a leftover rule no longer routes", async () => {
 		const harness = await makeHarness();
 
 		await harness.disconnect({ userId: USER });
 
 		assert.equal(await harness.connections.findConnectionByUserId(USER), undefined);
+		const gateway = await harness.addresses.findByAddress(harness.gateway);
+		assert(gateway, "the gateway row survives disconnect, disabled rather than deleted");
+		assert.equal(gateway.disabledAt, NOW.toISOString());
 	});
 
 	it("still disconnects when the Gmail filter could not be removed", async () => {
@@ -110,6 +122,7 @@ describe("initDisconnectGmail", () => {
 		});
 		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), "refresh-1");
 		assert.deepEqual(harness.revokes, []);
+		assert.equal((await harness.addresses.findByAddress(harness.gateway))?.disabledAt, undefined);
 	});
 
 	it("keeps the token when Google cannot be reached to revoke it", async () => {
@@ -122,6 +135,7 @@ describe("initDisconnectGmail", () => {
 			reason: "unavailable",
 		});
 		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), "refresh-1");
+		assert.equal((await harness.addresses.findByAddress(harness.gateway))?.disabledAt, undefined);
 	});
 
 	it("finishes without calling Google when there is no token left to revoke", async () => {

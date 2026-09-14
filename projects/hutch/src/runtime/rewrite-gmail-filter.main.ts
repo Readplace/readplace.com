@@ -88,6 +88,7 @@ export const handler = initHandleByDetailType({
 					credentials,
 					senders,
 					discovery: initDynamoDbGmailDiscovery({ client, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now }),
+					addresses,
 					rewriteGmailFilter,
 					revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
 					logger,
