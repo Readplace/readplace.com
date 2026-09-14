@@ -60,6 +60,7 @@ export function registerGmailPageRoutes(
 ): void {
 	const { requireAuth, requireNotLocked, requireWriteAccess } = context;
 	const write = [requireAuth, requireNotLocked, requireWriteAccess];
+	const teardown = [requireAuth, requireNotLocked];
 	const ownerOf = (req: Request): UserId => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		return UserIdSchema.parse(req.userId);
@@ -224,7 +225,7 @@ export function registerGmailPageRoutes(
 		res.redirect(303, buildGmailUrl({ notice: "sender_mapped", discovery: "started" }));
 	});
 
-	router.post("/gmail/senders/remove", write, connected, async (req: Request, res: Response) => {
+	router.post("/gmail/senders/remove", teardown, connected, async (req: Request, res: Response) => {
 		const userId = ownerOf(req);
 		const body = SenderBodySchema.safeParse(req.body);
 		if (!body.success) {
@@ -236,7 +237,7 @@ export function registerGmailPageRoutes(
 		res.redirect(303, buildGmailUrl({ notice: "sender_removed", discovery: "started" }));
 	});
 
-	router.post("/gmail/disconnect", write, async (req: Request, res: Response) => {
+	router.post("/gmail/disconnect", teardown, async (req: Request, res: Response) => {
 		const userId = ownerOf(req);
 		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		if (connection === undefined) {

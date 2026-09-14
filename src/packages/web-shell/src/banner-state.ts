@@ -230,8 +230,8 @@ export function buildNavGroups(input: {
 	// addresses by direct link.
 	if (!input.accessIsReadOnly) {
 		library.push(NAV_IMPORT, NAV_INBOX);
-		if (input.gmailFeatureEnabled) library.push(NAV_INTEGRATIONS);
 	}
+	if (input.gmailFeatureEnabled) library.push(NAV_INTEGRATIONS);
 	const account: NavItem[] = [];
 	if (!input.accessIsReadOnly) {
 		account.push(NAV_ACCOUNT);

@@ -20,6 +20,7 @@ const DISCOVER = `${GMAIL}/discovery/start`;
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const MORNING = ForwardableSenderSchema.parse("crew@morningbrew.com");
 const EMAIL = GmailAccountEmailSchema.parse("reader@gmail.com");
+const ONE_DAY_MS = 86_400_000;
 
 function load(text: string): Document {
 	return new JSDOM(text).window.document;
@@ -419,5 +420,53 @@ describe("Exclude mapped senders", () => {
 		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 		expect(attempts).toBe(2);
+	});
+
+	it("lets a read-only reader exclude a mapped sender", async () => {
+		const { agent, gmail, userId, harness } = await connectedAgent();
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post(REMOVE).type("form").send({ sender: TLDR });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`${GMAIL}?notice=sender_removed&discovery=started`);
+		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-removed" }]);
+	});
+
+	it("lets a read-only reader disconnect Gmail", async () => {
+		const { agent, gmail, userId, harness } = await connectedAgent();
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post(`${GMAIL}/disconnect`).send();
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/integrations?notice=gmail_disconnected");
+		expect((await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId))?.disconnectRequestedAt).toBeDefined();
+		expect(gmail.disconnectRequests).toEqual([{ userId }]);
+	});
+
+	it("still bounces a read-only reader's save actions to the inactive queue", async () => {
+		const { agent, gmail, userId, destination, harness } = await connectedAgent();
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		for (const path of [ADD, DISCOVER]) {
+			const response = await agent.post(path).set("Accept", "text/html").type("form").send({ sender: TLDR, destination });
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?inactive=1");
+		}
+
+		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(gmail.discoveryRequests).toEqual([]);
 	});
 });

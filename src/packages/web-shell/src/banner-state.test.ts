@@ -115,10 +115,10 @@ describe("buildNavGroups", () => {
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox", "integrations"]);
 	});
 
-	it("keeps the Integrations entry hidden from a read-only user even with the feature on", () => {
+	it("shows the Integrations entry to a read-only user with the feature on so they can stop forwarding", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: true, gmailFeatureEnabled: true });
 		const [library] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "integrations"]);
 	});
 
 	it("tags the Integrations href for internal-click tracking", () => {
