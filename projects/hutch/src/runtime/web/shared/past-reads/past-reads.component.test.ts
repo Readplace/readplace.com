@@ -94,6 +94,98 @@ describe("renderPastReadsSection", () => {
 		expect(defaultHref).not.toContain("queue=");
 	});
 
+	it("collapses the ready rows under a closed disclosure headed by the section title", () => {
+		const html = renderPastReadsSection({
+			pastReads: {
+				status: "ready",
+				items: [
+					{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK },
+					{ id: IN_DEFAULT, title: "In the default list", siteName: "Example", reason: "Also the subject" },
+				],
+			},
+			computeUrl: "/queue/x/topic-reads",
+			sourceArticleId: SOURCE_ID,
+			readerPathForReadlist,
+		});
+		const card = parse(html).querySelector("details.past-reads__card");
+		assert(card, "a ready result renders a collapsible card");
+		expect(card.hasAttribute("open")).toBe(false);
+		expect(card.querySelector(".past-reads__eyebrow")?.textContent).toBe(
+			"You've already seen this before",
+		);
+		const rows = Array.from(card.querySelectorAll("[data-test-topic-read-item]"));
+		expect(rows.map((row) => row.getAttribute("data-test-topic-read-item"))).toEqual([
+			IN_WORK.value,
+			IN_DEFAULT.value,
+		]);
+	});
+
+	it("previews the first past read's title and site with a see-more cue inside the toggle", () => {
+		const html = renderPastReadsSection({
+			pastReads: {
+				status: "ready",
+				items: [
+					{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK },
+					{ id: IN_DEFAULT, title: "In the default list", siteName: "Elsewhere", reason: "Also the subject" },
+				],
+			},
+			computeUrl: "/queue/x/topic-reads",
+			sourceArticleId: SOURCE_ID,
+			readerPathForReadlist,
+		});
+		const preview = parse(html).querySelector(".past-reads__preview");
+		assert(preview, "the toggle previews the first past read");
+		expect(preview.closest("summary.past-reads__toggle")).not.toBeNull();
+		expect(preview.querySelector(".past-reads__preview-title")?.textContent).toBe("In a custom list");
+		expect(preview.querySelector(".past-reads__preview-site")?.textContent).toBe("Example");
+		expect(preview.querySelector(".past-reads__more")?.textContent).toBe("See more…");
+	});
+
+	it("hides the preview from assistive technology so the toggle is named by its heading", () => {
+		const html = renderPastReadsSection({
+			pastReads: {
+				status: "ready",
+				items: [{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK }],
+			},
+			computeUrl: "/queue/x/topic-reads",
+			sourceArticleId: SOURCE_ID,
+			readerPathForReadlist,
+		});
+		expect(parse(html).querySelector(".past-reads__preview")?.getAttribute("aria-hidden")).toBe("true");
+	});
+
+	it("keeps links and controls out of the toggle so opening it never navigates", () => {
+		const html = renderPastReadsSection({
+			pastReads: {
+				status: "ready",
+				items: [{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK }],
+			},
+			computeUrl: "/queue/x/topic-reads",
+			sourceArticleId: SOURCE_ID,
+			readerPathForReadlist,
+		});
+		const summary = parse(html).querySelector("summary.past-reads__toggle");
+		assert(summary, "the card has a toggle");
+		expect(summary.querySelectorAll("a, button, input, select, textarea, [tabindex]")).toHaveLength(0);
+		expect(summary.querySelector(".past-reads__caret svg")).not.toBeNull();
+	});
+
+	it("previews the only past read when a single one qualifies", () => {
+		const html = renderPastReadsSection({
+			pastReads: {
+				status: "ready",
+				items: [{ id: IN_DEFAULT, title: "The lone match", siteName: "Solo", reason: "Same subject" }],
+			},
+			computeUrl: "/queue/x/topic-reads",
+			sourceArticleId: SOURCE_ID,
+			readerPathForReadlist,
+		});
+		const doc = parse(html);
+		expect(doc.querySelector(".past-reads__preview-title")?.textContent).toBe("The lone match");
+		expect(doc.querySelector(".past-reads__preview-site")?.textContent).toBe("Solo");
+		expect(doc.querySelectorAll("[data-test-topic-read-item]")).toHaveLength(1);
+	});
+
 	it("stays hidden but keeps the section (and its refresh) for a cached empty result", () => {
 		const html = renderPastReadsSection({
 			pastReads: { status: "ready", items: [] },

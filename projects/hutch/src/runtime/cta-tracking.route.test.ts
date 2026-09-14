@@ -53,6 +53,12 @@ function untrackedOn(path: string, html: string): string[] {
 	).map((line) => `${path}  ${line}`);
 }
 
+function withPastReadsFeature(readerPath: string): string {
+	const url = new URL(readerPath, TEST_APP_ORIGIN);
+	url.searchParams.set("feature", "past");
+	return `${url.pathname}${url.search}`;
+}
+
 describe("every same-origin CTA carries its own utm_source", () => {
 	it("holds across the logged-out funnel", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -82,7 +88,11 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			: [];
 
 		const untracked: string[] = [];
-		for (const path of [...MEMBER_PATHS, ...readlistPaths, ...(readerHref ? [readerHref] : [])]) {
+		for (const path of [
+			...MEMBER_PATHS,
+			...readlistPaths,
+			...(readerHref ? [withPastReadsFeature(readerHref)] : []),
+		]) {
 			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
 			untracked.push(...untrackedOn(path, response.text));
 		}

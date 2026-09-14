@@ -22,11 +22,18 @@ const SEEDED_PARAGRAPH =
 
 const SECTION = "[data-test-reader-topic-reads]";
 const READY_SECTION = '[data-test-reader-topic-reads][data-topic-reads-status="ready"]';
+const CARD = ".past-reads__card";
+const TOGGLE = ".past-reads__toggle";
+const PREVIEW = ".past-reads__preview";
+const PREVIEW_TITLE = ".past-reads__preview-title";
+const MORE = ".past-reads__more";
 const ROW = ".past-reads__row";
 const LINK = ".past-reads__link";
-const TITLE = ".past-reads__title";
+const TITLE = `${ROW} .past-reads__title`;
 const REASON = ".past-reads__reason";
 const SUMMARY_SLOT = "#article-body-summary-slot";
+const SUMMARY_CARD = ".article-body__summary";
+const SUMMARY_TOGGLE = ".article-body__summary-toggle";
 const READER_SLOT = "#article-body-reader-slot";
 const ROW_GAP_PX = 8;
 
@@ -153,7 +160,9 @@ async function openReader(
 		assert.equal(seeded.status(), 201, "the seed endpoint must settle the past reads");
 	}
 
-	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/queue/${articleId}/view?feature=past`, {
+		waitUntil: "domcontentloaded",
+	});
 	await page.waitForSelector("body.page-reader");
 	await waitForBrandFonts(page, ["Inter"]);
 }
@@ -267,51 +276,163 @@ async function rowsCompactAndPlain(page: Page): Promise<void> {
 	);
 }
 
-function sectionCheckpoint(name: string): VisualCheckpoint {
+async function setCardOpen(page: Page, open: boolean): Promise<void> {
+	await page.locator(CARD).evaluate((el, shouldOpen) => {
+		if (shouldOpen) el.setAttribute("open", "");
+		else el.removeAttribute("open");
+	}, open);
+	// Drop any hover tint the pointer left on the rounded toggle, so it never
+	// bakes into a baseline (mirrors next-read-visual).
+	await page.mouse.move(5, 5);
+}
+
+async function collapsedSettled(page: Page): Promise<void> {
+	await sectionSettled(page);
+	await setCardOpen(page, false);
+}
+
+async function expandedSettled(page: Page): Promise<void> {
+	await sectionSettled(page);
+	await setCardOpen(page, true);
+}
+
+async function cardCollapsed(page: Page): Promise<void> {
+	await sectionBetweenSummaryAndBody(page);
+	assert.equal(await page.locator(CARD).getAttribute("open"), null, "the card starts collapsed");
+
+	const summaryBackground = await page
+		.locator(SUMMARY_CARD)
+		.evaluate((el) => window.getComputedStyle(el).backgroundColor);
+	const summaryBorderColor = await page
+		.locator(SUMMARY_CARD)
+		.evaluate((el) => window.getComputedStyle(el).borderTopColor);
+	const summaryTogglePadding = await page
+		.locator(SUMMARY_TOGGLE)
+		.evaluate((el) => window.getComputedStyle(el).padding);
+
+	assert.notEqual(summaryBackground, "rgba(0, 0, 0, 0)", "the summary card paints a surface");
+	await expect(page.locator(CARD)).toHaveCSS("background-color", summaryBackground);
+	await expect(page.locator(CARD)).toHaveCSS("border-top-width", "1px");
+	await expect(page.locator(CARD)).toHaveCSS("border-top-color", summaryBorderColor);
+	await expect(page.locator(CARD)).toHaveCSS("border-top-left-radius", "8px");
+	await expect(page.locator(TOGGLE)).toHaveCSS("padding", summaryTogglePadding);
+
+	const previewTitle = await page.locator(PREVIEW_TITLE).evaluate((el) => ({
+		clipped: el.scrollWidth > el.clientWidth,
+		wrapped: el.scrollHeight > el.clientHeight + 1,
+	}));
+	assert.equal(previewTitle.clipped, true, "a long preview title ellipsizes");
+	assert.equal(previewTitle.wrapped, false, "the preview title stays on one line");
+
+	const cardBox = await measuredBox(page, CARD);
+	const more = await page.locator(MORE).evaluate((el) => {
+		const box = el.getBoundingClientRect();
+		return { clipped: el.scrollWidth > el.clientWidth, width: box.width, right: box.right };
+	});
+	assert.equal(more.clipped, false, "the see-more cue is not clipped");
+	assert.ok(more.width > 0, "the see-more cue is visible");
+	assert.ok(more.right <= cardBox.x + cardBox.width + 0.5, "the see-more cue stays inside the card");
+
+	await expect(page.locator(ROW).first()).toBeHidden();
+
+	const cardOverflows = await page.locator(CARD).evaluate((el) => el.scrollWidth > el.clientWidth);
+	assert.equal(cardOverflows, false, "the collapsed card has no horizontal overflow");
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "past-reads checkpoints run with an explicit viewport");
+	assert.ok(
+		cardBox.x >= 0 && cardBox.x + cardBox.width <= viewport.width,
+		"the card fits the viewport horizontally",
+	);
+}
+
+async function cardExpanded(page: Page): Promise<void> {
+	assert.equal(await page.locator(CARD).getAttribute("open"), "", "the card is open");
+	await expect(page.locator(PREVIEW)).toBeHidden();
+	await rowsCompactAndPlain(page);
+
+	const cardBox = await measuredBox(page, CARD);
+	const rowRights = await page
+		.locator(ROW)
+		.evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().right));
+	for (const right of rowRights) {
+		assert.ok(right <= cardBox.x + cardBox.width + 0.5, "each row sits inside the card");
+	}
+}
+
+function collapsedSectionCheckpoint(name: string): VisualCheckpoint {
 	return {
 		name,
-		settled: sectionSettled,
-		geometry: rowsCompactAndPlain,
+		settled: collapsedSettled,
+		geometry: cardCollapsed,
 		target: SECTION,
 		capture: "element",
 		pinnedText: [],
 	};
 }
 
-function inReaderCheckpoint(name: string): VisualCheckpoint {
+function collapsedInReaderCheckpoint(name: string): VisualCheckpoint {
 	return {
 		name,
-		settled: sectionSettled,
-		geometry: rowsCompactAndPlain,
+		settled: collapsedSettled,
+		geometry: cardCollapsed,
 		target: SECTION,
 		capture: "page-from-top",
 		pinnedText: [],
 	};
 }
 
-test.describe("Previously read on this topic (desktop)", () => {
+function expandedSectionCheckpoint(name: string): VisualCheckpoint {
+	return {
+		name,
+		settled: expandedSettled,
+		geometry: cardExpanded,
+		target: SECTION,
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
+test.describe("You've already seen this before (desktop)", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("lists compact past reads between the summary and the body (light)", async ({ page }) => {
+	test("collapses past reads into a card between the summary and the body (light)", async ({
+		page,
+	}) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openReader(page, {
 			stamp: `desktop-light-${test.info().workerIndex}-${Date.now()}`,
 			seedPastReads: true,
 		});
-		await captureCheckpoint(page, inReaderCheckpoint("past-reads-in-reader-desktop-light"));
-		await captureCheckpoint(page, sectionCheckpoint("past-reads-section-desktop-light"));
+		await captureCheckpoint(page, collapsedInReaderCheckpoint("past-reads-in-reader-desktop-light"));
+		await captureCheckpoint(page, collapsedSectionCheckpoint("past-reads-section-desktop-light"));
+		await captureCheckpoint(
+			page,
+			expandedSectionCheckpoint("past-reads-section-expanded-desktop-light"),
+		);
 
+		await page.locator(TOGGLE).focus();
+		await expect(page.locator(TOGGLE)).toBeFocused();
+		await page.keyboard.press("Enter");
+		await expect(page.locator(CARD)).toHaveJSProperty("open", false);
+		await page.keyboard.press("Enter");
+		await expect(page.locator(CARD)).toHaveJSProperty("open", true);
 		await page.locator(LINK).first().focus();
 		await expect(page.locator(LINK).first()).toBeFocused();
 	});
 
-	test("lists compact past reads between the summary and the body (dark)", async ({ page }) => {
+	test("collapses past reads into a card between the summary and the body (dark)", async ({
+		page,
+	}) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openReader(page, {
 			stamp: `desktop-dark-${test.info().workerIndex}-${Date.now()}`,
 			seedPastReads: true,
 		});
-		await captureCheckpoint(page, sectionCheckpoint("past-reads-section-desktop-dark"));
+		await captureCheckpoint(page, collapsedSectionCheckpoint("past-reads-section-desktop-dark"));
+		await captureCheckpoint(
+			page,
+			expandedSectionCheckpoint("past-reads-section-expanded-desktop-dark"),
+		);
 	});
 
 	test("reserves no space while nothing qualifies yet", async ({ page }) => {
@@ -327,25 +448,33 @@ test.describe("Previously read on this topic (desktop)", () => {
 	});
 });
 
-test.describe("Previously read on this topic (mobile)", () => {
+test.describe("You've already seen this before (mobile)", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 390, height: 844 } });
 
-	test("keeps compact rows readable on a phone (light)", async ({ page }) => {
+	test("keeps the collapsed card and its rows readable on a phone (light)", async ({ page }) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openReader(page, {
 			stamp: `mobile-light-${test.info().workerIndex}-${Date.now()}`,
 			seedPastReads: true,
 		});
-		await captureCheckpoint(page, inReaderCheckpoint("past-reads-in-reader-mobile-light"));
-		await captureCheckpoint(page, sectionCheckpoint("past-reads-section-mobile-light"));
+		await captureCheckpoint(page, collapsedInReaderCheckpoint("past-reads-in-reader-mobile-light"));
+		await captureCheckpoint(page, collapsedSectionCheckpoint("past-reads-section-mobile-light"));
+		await captureCheckpoint(
+			page,
+			expandedSectionCheckpoint("past-reads-section-expanded-mobile-light"),
+		);
 	});
 
-	test("keeps compact rows readable on a phone (dark)", async ({ page }) => {
+	test("keeps the collapsed card and its rows readable on a phone (dark)", async ({ page }) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openReader(page, {
 			stamp: `mobile-dark-${test.info().workerIndex}-${Date.now()}`,
 			seedPastReads: true,
 		});
-		await captureCheckpoint(page, sectionCheckpoint("past-reads-section-mobile-dark"));
+		await captureCheckpoint(page, collapsedSectionCheckpoint("past-reads-section-mobile-dark"));
+		await captureCheckpoint(
+			page,
+			expandedSectionCheckpoint("past-reads-section-expanded-mobile-dark"),
+		);
 	});
 });

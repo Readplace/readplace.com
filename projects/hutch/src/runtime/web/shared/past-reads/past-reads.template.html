@@ -1,16 +1,22 @@
 <section id="article-body-topic-reads-slot" class="past-reads {{stateClass}}" data-test-reader-topic-reads data-topic-reads-status="{{status}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
-  {{#if hasRows}}
-  <p class="past-reads__eyebrow">Previously read on this topic</p>
-  <ul class="past-reads__list">
-    {{#each rows}}
-    <li class="past-reads__row">
-      <a class="past-reads__link" href="{{href}}" data-test-topic-read-item="{{id}}" aria-label="{{accessibleLabel}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top">
-        <span class="past-reads__heading"><span class="past-reads__title">{{title}}</span> <span class="past-reads__site">{{siteName}}</span></span>
-        <span class="past-reads__reason">{{reason}}</span>
-      </a>
-    </li>
-    {{/each}}
-  </ul>
+  {{#if preview}}
+  <details class="past-reads__card">
+    <summary class="past-reads__toggle">
+      <span class="past-reads__eyebrow">You've already seen this before</span>
+      <span class="past-reads__caret">{{icon "chevron-down"}}</span>
+      <span class="past-reads__preview" aria-hidden="true"><span class="past-reads__preview-title">{{preview.title}}</span> <span class="past-reads__preview-site">{{preview.siteName}}</span> <span class="past-reads__more">See more…</span></span>
+    </summary>
+    <ul class="past-reads__list">
+      {{#each rows}}
+      <li class="past-reads__row">
+        <a class="past-reads__link" href="{{href}}" data-test-topic-read-item="{{id}}" aria-label="{{accessibleLabel}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top">
+          <span class="past-reads__heading"><span class="past-reads__title">{{title}}</span> <span class="past-reads__site">{{siteName}}</span></span>
+          <span class="past-reads__reason">{{reason}}</span>
+        </a>
+      </li>
+      {{/each}}
+    </ul>
+  </details>
   {{/if}}
   {{#if computeUrl}}
   <form class="past-reads__request" hidden method="POST" action="{{computeUrl}}" hx-post="{{computeUrl}}" hx-trigger="load" hx-swap="none ignoreTitle:true">

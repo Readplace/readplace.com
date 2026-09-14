@@ -123,23 +123,56 @@ async function buildHarness(options: { findPastReads?: FindPastReads } = {}) {
 
 function slotOf(html: string) {
 	const slot = new JSDOM(html).window.document.querySelector("[data-test-reader-topic-reads]");
-	assert(slot, "the reader always renders the topic-reads slot");
+	assert(slot, "the response renders the topic-reads slot");
 	return slot;
 }
 
 describe("Reader previously-read-on-this-topic slot", () => {
-	it("renders a hidden, polling slot with a compute trigger while nothing is computed", async () => {
+	it("renders a hidden, polling slot with a compute trigger while nothing is computed, once the feature is asked for", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/view`);
+		const response = await agent.get(`/queue/${articleId}/view?feature=past`);
 
 		const slot = slotOf(response.text);
 		expect(slot.getAttribute("data-topic-reads-status")).toBe("pending");
 		expect(slot.classList.contains("past-reads--hidden")).toBe(true);
-		expect(slot.getAttribute("hx-get")).toContain(`/queue/${articleId}/topic-reads?poll=`);
-		expect(slot.querySelector("form.past-reads__request")?.getAttribute("hx-post")).toContain(
+		expect(slot.getAttribute("hx-get")).toBe(`/queue/${articleId}/topic-reads?poll=1`);
+		expect(slot.querySelector("form.past-reads__request")?.getAttribute("hx-post")).toBe(
 			`/queue/${articleId}/topic-reads`,
 		);
+	});
+
+	it("leaves the section, its poll and its compute trigger out of the reader until the feature is asked for", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		const doc = new JSDOM(response.text).window.document;
+		assert(doc.querySelector("body.page-reader"), "the reader page rendered");
+		expect(doc.querySelectorAll("[data-test-reader-topic-reads]")).toHaveLength(0);
+		expect(
+			doc.querySelectorAll(
+				'[hx-get*="/topic-reads"], [hx-post*="/topic-reads"], form[action*="/topic-reads"]',
+			),
+		).toHaveLength(0);
+	});
+
+	it("shows a computed match collapsed under its disclosure without spreading the feature onto its links", async () => {
+		const { agent, articleId, past, seedPastReads } = await buildHarness();
+		await seedPastReads("work");
+
+		const response = await agent.get(`/queue/${articleId}/view?feature=past`);
+
+		const card = new JSDOM(response.text).window.document.querySelector("details.past-reads__card");
+		assert(card, "the reader collapses the match under a disclosure");
+		expect(card.hasAttribute("open")).toBe(false);
+		expect(card.querySelector(".past-reads__preview-title")?.textContent).toBe("Earlier read");
+
+		const href =
+			card.querySelector(`[data-test-topic-read-item="${past.id.value}"]`)?.getAttribute("href") ?? "";
+		const rowParams = new URL(href, TEST_APP_ORIGIN).searchParams;
+		expect(rowParams.get("feature")).toBeNull();
+		expect(rowParams.get("queue")).toBe("work");
 	});
 
 	it("shows a computed match and opens it in its owned reading list", async () => {
@@ -288,11 +321,11 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		expect(slotOf(response.text).getAttribute("data-topic-reads-status")).toBe("pending");
 	});
 
-	it("renders the section on the app surface too", async () => {
+	it("renders the section on the app surface too, once the feature is asked for", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/view?platform=ios`);
+		const response = await agent.get(`/queue/${articleId}/view?platform=ios&feature=past`);
 
-		expect(new JSDOM(response.text).window.document.querySelector("[data-test-reader-topic-reads]")).not.toBeNull();
+		expect(slotOf(response.text).getAttribute("data-topic-reads-status")).toBe("pending");
 	});
 });

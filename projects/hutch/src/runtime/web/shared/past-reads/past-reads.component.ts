@@ -59,6 +59,16 @@ function rowsOf(input: PastReadsSectionInput): PastReadRow[] {
 	}));
 }
 
+interface PastReadsPreview {
+	title: string;
+	siteName: string;
+}
+
+function previewOf(rows: PastReadRow[]): PastReadsPreview | undefined {
+	const first = rows.at(0);
+	return first === undefined ? undefined : { title: first.title, siteName: first.siteName };
+}
+
 export function renderPastReadsSection(input: PastReadsSectionInput): string {
 	const rows = rowsOf(input);
 	const status = input.pastReads?.status ?? "pending";
@@ -66,7 +76,7 @@ export function renderPastReadsSection(input: PastReadsSectionInput): string {
 	return render(PAST_READS_TEMPLATE, {
 		status,
 		stateClass: hasRows ? READY_CLASS : HIDDEN_CLASS,
-		hasRows,
+		preview: previewOf(rows),
 		rows,
 		pollUrl: status === "pending" ? input.pollUrl : undefined,
 		computeUrl: input.computeUrl,
