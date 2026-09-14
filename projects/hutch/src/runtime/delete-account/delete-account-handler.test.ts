@@ -34,6 +34,8 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initDeleteAccountHandler } from "./delete-account-handler";
 import { initRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
+import { initDisconnectGmail } from "../domain/gmail/disconnect-gmail";
+import { initRevokeGmailGrant } from "../providers/gmail-api/gmail-revoke";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { GmailAccountEmailSchema, ForwardableSenderSchema } from "@packages/domain/gmail";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
@@ -104,6 +106,36 @@ function buildSubject() {
 		logger: HutchLogger.from(noopLogger),
 	});
 
+	const rewriteCalls: UserId[] = [];
+	const teardownOrder: string[] = [];
+	const gmailRevokeTokens: string[] = [];
+	let failGmailRevokeOnce = false;
+	const disconnectGmail = initDisconnectGmail({
+		connections: gmail.bundle.gmailConnectionStore,
+		credentials: gmail.bundle.gmailCredentialsStore,
+		senders: gmail.bundle.gmailSenderStore,
+		discovery: gmail.bundle.gmailDiscoveryStore,
+		addresses: gmail.addresses,
+		rewriteGmailFilter: async ({ userId }) => {
+			rewriteCalls.push(userId);
+			teardownOrder.push("rewrite");
+			return { ok: true, filterCount: 0, senderCount: 0 };
+		},
+		revokeGmailGrant: initRevokeGmailGrant({
+			fetch: async (_input, init) => {
+				const body = init?.body;
+				assert(typeof body === "string", "Gmail revocation must send a form-encoded body");
+				gmailRevokeTokens.push(new URLSearchParams(body).get("token") ?? "");
+				if (failGmailRevokeOnce) {
+					failGmailRevokeOnce = false;
+					return new Response(null, { status: 503 });
+				}
+				return new Response(null, { status: 200 });
+			},
+		}),
+		logger: HutchLogger.from(noopLogger),
+	});
+
 	// Test-only failure injection: the article-store fake throws for any user id
 	// added here, so a batch can carry one poisoned record beside a healthy one.
 	const articleDeleteThrowIds = new Set<string>();
@@ -152,11 +184,11 @@ function buildSubject() {
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 		deleteAllInboxLinks: inboxLink.deleteAllLinksByUserId,
 		deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
-		tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
-		deleteGmailConnection: gmail.bundle.gmailConnectionStore.deleteConnection,
-		deleteGmailCredentials: gmail.bundle.gmailCredentialsStore.deleteCredentials,
-		deleteGmailSenders: gmail.bundle.gmailSenderStore.deleteAllSendersByUserId,
-		deleteGmailDiscovery: gmail.bundle.gmailDiscoveryStore.deleteDiscoveryByUserId,
+		tombstoneInboxAddresses: async (userId: UserId) => {
+			teardownOrder.push("tombstone");
+			await inboxAddress.tombstoneUserAddresses(userId);
+		},
+		disconnectGmail,
 		deleteRawEmailObjects: async (keys: string[]) => {
 			if (injectedFailures.deleteRawEmailOnce) {
 				injectedFailures.deleteRawEmailOnce = false;
@@ -248,10 +280,16 @@ function buildSubject() {
 		revokeIdpCalls,
 		oauthRevocations,
 		appleRevokeCalls,
+		rewriteCalls,
+		teardownOrder,
+		gmailRevokeTokens,
 		purgeContentCalls,
 		tombstoneCalls,
 		setOtherSavers: (url: string, count: number): void => {
 			otherSaversByUrl.set(url, count);
+		},
+		failGmailRevokeOnce: (): void => {
+			failGmailRevokeOnce = true;
 		},
 		failArticleDeleteFor: (userId: UserId): void => {
 			articleDeleteThrowIds.add(userId);
@@ -457,6 +495,10 @@ describe("delete-account handler", () => {
 		assert.deepEqual(await s.gmail.bundle.gmailSenderStore.listSendersByUserId(victim.userId), []);
 		assert.equal(await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(victim.userId), undefined);
 		assert.equal((await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(bystander.userId))?.generation, "u2");
+
+		assert.deepEqual(s.rewriteCalls, [victim.userId]);
+		assert.deepEqual(s.gmailRevokeTokens, ["gmail-u1"]);
+		assert.equal(await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(bystander.userId), "gmail-u2");
 
 		// Victim: every store now returns empty / none.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId, includeTotal: true })).total, 0);
@@ -879,5 +921,69 @@ describe("delete-account handler", () => {
 		// reminder schedule live at AWS after a redrive.
 		assert.deepEqual(s.trialReminderCalls, [account.userId, account.userId]);
 		assert.deepEqual(s.chargeReminderCalls, [account.userId, account.userId]);
+	});
+
+	it("runs the Gmail teardown before the addresses are tombstoned", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "order",
+			email: "order@example.com",
+			subscription: "none",
+		});
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(s.teardownOrder, ["rewrite", "tombstone"]);
+	});
+
+	it("redrives when Google cannot revoke the grant, then completes on the retry", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "revoke-fail",
+			email: "revoke-fail@example.com",
+			subscription: "none",
+		});
+		s.failGmailRevokeOnce();
+
+		const first = await run(s, [{ messageId: "msg-1", body: bodyFor(account.userId) }]);
+		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
+		assert.equal(
+			await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(account.userId),
+			"gmail-revoke-fail",
+		);
+		assert.equal(await s.auth.findEmailByUserId(account.userId), account.email);
+
+		const second = await run(s, [{ messageId: "msg-2", body: bodyFor(account.userId) }]);
+		assert.deepEqual(second.batchItemFailures, []);
+		assert.equal(
+			await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(account.userId),
+			undefined,
+		);
+		assert.equal(await s.auth.findEmailByUserId(account.userId), null);
+	});
+
+	it("erases an account whose earlier Gmail disconnect left only a stray discovery row", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "stray",
+			email: "stray@example.com",
+			subscription: "none",
+		});
+		await s.gmail.bundle.gmailConnectionStore.deleteConnection(account.userId);
+		await s.gmail.bundle.gmailCredentialsStore.deleteCredentials(account.userId);
+		await s.gmail.bundle.gmailSenderStore.deleteAllSendersByUserId(account.userId);
+		assert(
+			await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(account.userId),
+			"the stray discovery row must survive the simulated crash",
+		);
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.equal(await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(account.userId), undefined);
+		assert.deepEqual(s.rewriteCalls, []);
+		assert.deepEqual(s.gmailRevokeTokens, []);
+		assert.equal(await s.auth.findEmailByUserId(account.userId), null);
 	});
 });

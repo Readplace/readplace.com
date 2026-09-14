@@ -683,6 +683,8 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroupName,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 	},
 	policies: [
 		...userDataJobsDynamodb.policies,
