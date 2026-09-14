@@ -1,3 +1,12 @@
+declare global {
+	interface Window {
+		__popupSaveMessages: { url: string; title: string }[];
+		__popupReleaseItems?: () => void;
+		__popupReleaseSave?: () => void;
+		__popupReleaseLoadPage?: () => void;
+	}
+}
+
 /** The instant every captured popup is frozen at. Relative timestamps ("2h
  * ago") are the popup's only clock-derived copy, so the capture pins the clock
  * rather than choosing ages that merely round the same way for a while. */
@@ -56,12 +65,50 @@ function pages(): unknown[] {
 	}));
 }
 
+const SAVED_URL = "https://example.com/article";
+
+function savedReply(): unknown {
+	return {
+		ok: true,
+		item: {
+			id: "visual-saved",
+			url: SAVED_URL,
+			title: "Example Article",
+			savedAt: new Date(FIXED_NOW - 45_000).toISOString(),
+			actions: [],
+			links: [
+				{ rel: "read", title: "Read", href: SAVED_URL },
+				{ rel: "collection", title: "View Readlist", href: "https://readplace.com/queue" },
+			],
+			needsBrowserCapture: false,
+		},
+		messages: [
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to your reading list" } },
+		],
+	};
+}
+
+export type SaveReply = "hold" | "error" | "saved";
+
 /** Installs the extension runtime the popup expects, answering only what the
  * list state reads. Both globals are defined so `webextension-polyfill` takes
  * its passthrough branch — given only `chrome` it wraps every method in
  * callback-to-promise adapters that a stub would then have to imitate. */
-export function popupRuntimeStub(): string {
+export function popupRuntimeStub(options?: {
+	holdItems?: boolean;
+	holdLoadPage?: boolean;
+	saveReplies?: SaveReply[];
+}): string {
+	const holdItems = options?.holdItems === true;
+	const holdLoadPage = options?.holdLoadPage === true;
+	const saveReplies = JSON.stringify(options?.saveReplies ?? []);
+	const itemsReply = `{ ok: true, value: { items: ${JSON.stringify(items())}, pages: ${JSON.stringify(pages())} } }`;
 	return `
+		globalThis.__popupSaveMessages = [];
+		const __saveReplies = ${saveReplies};
+		const __savedReply = { ok: true, value: ${JSON.stringify(savedReply())} };
+		let __saveCall = 0;
 		globalThis.chrome = { runtime: { id: "visual-fixture" } };
 		globalThis.browser = {
 			runtime: {
@@ -69,11 +116,38 @@ export function popupRuntimeStub(): string {
 				getURL: function (resource) { return resource; },
 				sendMessage: function (message) {
 					if (message && message.type === "get-all-items") {
-						return Promise.resolve({
-							ok: true,
-							value: { items: ${JSON.stringify(items())}, pages: ${JSON.stringify(pages())} },
-						});
+						${
+							holdItems
+								? `return new Promise(function (resolve) {
+										globalThis.__popupReleaseItems = function () { resolve(${itemsReply}); };
+									});`
+								: `return Promise.resolve(${itemsReply});`
+						}
 					}
+					if (message && message.type === "load-page") {
+						${
+							holdLoadPage
+								? `return new Promise(function (resolve) {
+										globalThis.__popupReleaseLoadPage = function () { resolve(${itemsReply}); };
+									});`
+								: `return Promise.resolve(${itemsReply});`
+						}
+					}
+					if (message && message.type === "save-current-tab") {
+						globalThis.__popupSaveMessages.push({ url: message.url, title: message.title });
+						const reply = __saveReplies.length === 0
+							? null
+							: __saveReplies[Math.min(__saveCall, __saveReplies.length - 1)];
+						__saveCall += 1;
+						if (reply === "hold") {
+							return new Promise(function (resolve) {
+								globalThis.__popupReleaseSave = function () { resolve(__savedReply); };
+							});
+						}
+						if (reply === "error") { return Promise.resolve({ ok: false, reason: "error" }); }
+						if (reply === "saved") { return Promise.resolve(__savedReply); }
+					}
+					if (message && message.type === "logout") { return Promise.resolve({ ok: true }); }
 					return Promise.resolve({ ok: true, value: null });
 				},
 			},
@@ -101,4 +175,8 @@ export function popupRuntimeStub(): string {
  * is what sends it straight to the list instead of saving anything. */
 export function popupListUrl(packagedPopupPath: string): string {
 	return `file://${packagedPopupPath}?url=${encodeURIComponent("http://localhost/")}`;
+}
+
+export function popupSaveUrl(packagedPopupPath: string): string {
+	return `file://${packagedPopupPath}?url=${encodeURIComponent(SAVED_URL)}&title=${encodeURIComponent("Example Article")}`;
 }

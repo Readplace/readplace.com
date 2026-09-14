@@ -71,8 +71,9 @@ export type { PaginationView, PaginationPageView, PaginationGap } from "./popup/
 export { avatarColor } from "./popup/avatar-color";
 export { relativeTime } from "./popup/relative-time";
 export { buildMessageView } from "./popup/message-view";
-export { buildSavedView, SAVE_RENDERED_MARK } from "./popup/saved-view";
+export { buildSavedView, SAVE_RENDERED_MARK, POPUP_FIRST_FRAME_MARK } from "./popup/saved-view";
 export type { SavedViewLine } from "./popup/saved-view";
+export { initPaintAfterDelay, LIST_SKELETON_DELAY_MS } from "./popup/paint-after-delay";
 export type { MessageView } from "./popup/message-view";
 export { isAppUrl } from "./popup/is-app-url";
 export { itemDisplay } from "./popup/item-display";

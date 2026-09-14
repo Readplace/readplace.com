@@ -70,3 +70,48 @@ describe("shortcut hints", () => {
 		expect(template.split('id="save-all-shortcut-hint"')).toHaveLength(2);
 	});
 });
+
+describe("saving view", () => {
+	it("opens on a placeholder of the saved card rather than a Saving… line", () => {
+		expect(template).toContain(
+			[
+				'    <div id="saving-progress" class="saving-view__skeleton" aria-hidden="true">',
+				'      <span class="saving-view__icon"></span>',
+				"      <div>",
+				'        <p class="saved-view__title"><span class="saving-view__bar saving-view__bar--title"></span></p>',
+				'        <p class="saved-view__subtitle"><span class="saving-view__bar saving-view__bar--subtitle"></span></p>',
+				"      </div>",
+				"      <div>",
+				'        <span class="saving-view__action"><span class="saving-view__bar saving-view__bar--action"></span></span>',
+				"      </div>",
+				'      <p class="shortcut-hint"><span class="saving-view__bar saving-view__bar--hint"></span></p>',
+				"    </div>",
+			].join("\n"),
+		);
+	});
+
+	it("paints the save failure in place, with a control that re-runs the save", () => {
+		expect(template).toContain(
+			[
+				'    <div id="save-failure" class="saving-view__failure" hidden>',
+				'      <p class="saved-view__title" role="alert">Couldn&rsquo;t save this page. Try again?</p>',
+				'      <button id="save-retry-button" class="saved-view__action" type="button">Try again</button>',
+				"    </div>",
+			].join("\n"),
+		);
+	});
+
+	it("carries the saving progress region exactly once", () => {
+		expect(template.split('id="saving-progress"')).toHaveLength(2);
+	});
+});
+
+describe("list skeleton view", () => {
+	it("carries the exact brandMarkSvg output, so the mark never flashes into a bar", () => {
+		expect(template).toContain(brandMarkSvg({ className: "list-skeleton__brand-icon" }));
+	});
+
+	it("stands in six placeholder rows, matching the list it fills", () => {
+		expect(template.split('class="list-skeleton__row"')).toHaveLength(7);
+	});
+});

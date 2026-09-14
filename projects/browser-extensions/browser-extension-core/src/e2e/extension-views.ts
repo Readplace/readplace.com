@@ -3,6 +3,7 @@ export const EXTENSION_VIEW_IDS = [
 	"saved-view",
 	"list-view",
 	"saving-view",
+	"list-skeleton-view",
 ] as const;
 
 export type ExtensionViewId = (typeof EXTENSION_VIEW_IDS)[number];

@@ -13,7 +13,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, classifyTabs, saveAllTabsLabel, summarizeBulkSave, buildSaveAllDetailLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
+import { initPaintAfterDelay, LIST_SKELETON_DELAY_MS, filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, classifyTabs, saveAllTabsLabel, summarizeBulkSave, buildSaveAllDetailLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, POPUP_FIRST_FRAME_MARK, type ContentShortcuts } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -49,6 +49,12 @@ function showView(id: string) {
 	if (target) target.hidden = false;
 }
 
+const paintAfterDelay = initPaintAfterDelay({
+	setTimeoutFn: (callback, ms) => window.setTimeout(callback, ms),
+	clearTimeoutFn: (id) => window.clearTimeout(id),
+	delayMs: LIST_SKELETON_DELAY_MS,
+});
+
 /** Isolated boundary wrapper: the single contained assertion for the untyped
  * webextension-polyfill response, so call sites stay free of `as`. */
 function send<T>(message: PopupMessage): Promise<T> {
@@ -78,7 +84,7 @@ function stepButton(step: {
 	button.textContent = step.glyph;
 	button.title = step.label;
 	button.setAttribute("aria-label", step.label);
-	button.disabled = step.target === undefined || loadingPage;
+	button.disabled = step.target === undefined;
 	button.addEventListener("click", () => {
 		if (step.target !== undefined) void loadPage(step.target);
 	});
@@ -112,7 +118,7 @@ function renderPagination(view: PaginationView) {
 			pageButton.classList.add("pagination__page--active");
 			pageButton.setAttribute("aria-current", "page");
 		}
-		pageButton.disabled = page.active || loadingPage;
+		pageButton.disabled = page.active;
 		pageButton.addEventListener("click", () => {
 			void loadPage(page.index);
 		});
@@ -317,15 +323,18 @@ async function loadAllItems(): Promise<"loaded" | "failed" | "logged-out"> {
 async function loadPage(index: number): Promise<void> {
 	if (loadingPage) return;
 	loadingPage = true;
-	let result: GuardedResult<LoadPageResult>;
 	try {
-		result = await send<GuardedResult<LoadPageResult>>({
-			type: "load-page",
-			index,
-		});
+		await withSpinner(() => fetchPage(index));
 	} finally {
 		loadingPage = false;
 	}
+}
+
+async function fetchPage(index: number): Promise<void> {
+	const result = await send<GuardedResult<LoadPageResult>>({
+		type: "load-page",
+		index,
+	});
 
 	if (isNotLoggedIn(result)) {
 		await performLogout();
@@ -372,6 +381,42 @@ function setListError(message: string | null): void {
 		errorEl.textContent = "";
 		errorEl.hidden = true;
 	}
+}
+
+function setSaveFailure(retry: (() => void) | null): void {
+	const view = document.getElementById("saving-view");
+	const progress = document.getElementById("saving-progress");
+	const failure = document.getElementById("save-failure");
+	const retryButton = document.getElementById("save-retry-button");
+	if (!view) throw new Error("saving-view element not found");
+	if (!progress) throw new Error("saving-progress element not found");
+	if (!failure) throw new Error("save-failure element not found");
+	if (!retryButton) throw new Error("save-retry-button element not found");
+	view.setAttribute("aria-busy", String(retry === null));
+	progress.hidden = retry !== null;
+	failure.hidden = retry === null;
+	retryButton.onclick = retry;
+}
+
+function showSaving(): void {
+	setSaveFailure(null);
+	showView("saving-view");
+}
+
+async function withSpinner<T>(work: () => Promise<T>): Promise<T> {
+	const overlay = document.getElementById("spinner-overlay");
+	if (overlay) overlay.hidden = false;
+	try {
+		return await work();
+	} finally {
+		if (overlay) overlay.hidden = true;
+	}
+}
+
+function showListLoadFailure(error: unknown): void {
+	logger.error("Failed to initialize popup:", error);
+	showView("list-view");
+	setListError("Failed to load links");
 }
 
 // Server-driven messages: the extension knows only how to render them, never
@@ -427,18 +472,26 @@ function renderSavedView(saved: { item: ReadingListItem; messages: Message[] }):
 			control.rel = "noopener noreferrer";
 		} else {
 			control.addEventListener("click", () => {
-				void showListView();
+				void showListView().catch(showListLoadFailure);
 			});
 		}
 		affordances.appendChild(control);
 	}
 }
 
+async function loadThenRevealList(): Promise<void> {
+	const outcome = await paintAfterDelay({
+		paint: () => showView("list-skeleton-view"),
+		load: loadAllItems,
+	});
+	if (outcome === "logged-out") return;
+	showView("list-view");
+}
+
 async function showListView() {
 	setListWarning(null);
 	renderMessages([]);
-	if ((await loadAllItems()) === "logged-out") return;
-	showView("list-view");
+	await loadThenRevealList();
 }
 
 async function getActiveTab(): Promise<{ url: string; title: string; tabId?: number } | null> {
@@ -474,32 +527,49 @@ async function saveAndShowList() {
 	if (!activeTab) throw new Error("No active tab or URL parameters");
 
 	if (isAppUrl({ tabUrl: activeTab.url, appDomains: __APP_DOMAINS__ })) {
+		showView("list-skeleton-view");
 		await showListView();
 		return;
 	}
 
-	showView("saving-view");
+	await saveTarget(activeTab);
+}
 
-	const saveResult = await send<GuardedResult<SaveUrlResult>>({
-		type: "save-current-tab",
-		url: activeTab.url,
-		title: activeTab.title,
-		tabId: activeTab.tabId,
-	});
+async function saveTarget(target: { url: string; title: string; tabId?: number }) {
+	showSaving();
+
+	let saveResult: GuardedResult<SaveUrlResult>;
+	try {
+		saveResult = await send<GuardedResult<SaveUrlResult>>({
+			type: "save-current-tab",
+			url: target.url,
+			title: target.title,
+			tabId: target.tabId,
+		});
+	} catch (error) {
+		logger.error("Failed to save the current tab:", error);
+		setSaveFailure(() => void saveTarget(target));
+		return;
+	}
 
 	if (isNotLoggedIn(saveResult)) {
 		await performLogout();
 		return;
 	}
 
-	if (saveResult.ok && saveResult.value.ok) {
+	if (!saveResult.ok) {
+		setSaveFailure(() => void saveTarget(target));
+		return;
+	}
+
+	if (saveResult.value.ok) {
 		renderSavedView(saveResult.value);
 		showView("saved-view");
 		performance.mark(SAVE_RENDERED_MARK);
 		return;
 	}
 
-	if (saveResult.ok && !saveResult.value.ok && "reason" in saveResult.value && saveResult.value.reason === "not-saveable") {
+	if ("reason" in saveResult.value && saveResult.value.reason === "not-saveable") {
 		currentItems = saveResult.value.items;
 		pageList = saveResult.value.pages;
 		showView("list-view");
@@ -508,15 +578,14 @@ async function saveAndShowList() {
 		renderLinks(filterItems());
 	}
 
-	if (saveResult.ok && !saveResult.value.ok && "messages" in saveResult.value) {
+	if ("messages" in saveResult.value) {
 		/** Interceptor: the server refused the save with messages to show.
 		 * Render them and drop the user into their list — existing items stay
 		 * manageable, but the new link was not saved. The two server-message
 		 * channels are mutually exclusive, so clear the warning one. */
-		showView("list-view");
 		setListWarning(null);
 		renderMessages(saveResult.value.messages);
-		await loadAllItems();
+		await loadThenRevealList();
 	}
 }
 
@@ -630,7 +699,7 @@ async function bootstrap() {
 document
 	.getElementById("save-all-view-readlist")
 	?.addEventListener("click", async () => {
-		await showListView();
+		await showListView().catch(showListLoadFailure);
 	});
 
 document.getElementById("login-button")?.addEventListener("click", async () => {
@@ -658,8 +727,8 @@ document.getElementById("login-button")?.addEventListener("click", async () => {
 		return;
 	}
 
-	showView("saving-view");
-	await saveAndShowList();
+	showSaving();
+	await saveAndShowList().catch(showListLoadFailure);
 });
 
 document
@@ -717,6 +786,8 @@ async function renderShortcutHints() {
 	suppressed.saveAll = resolveShortcut({ stored: bindings.saveAll, fallback: DEFAULT_SAVE_ALL_SHORTCUT });
 }
 
+requestAnimationFrame(() => setTimeout(() => performance.mark(POPUP_FIRST_FRAME_MARK)));
+
 renderShortcutHints().catch((error) =>
 	logger.error("Failed to read command shortcuts:", error),
 );
@@ -725,9 +796,5 @@ revealSaveAllTabs().catch((error) =>
 	logger.error("Failed to read advertised capabilities:", error),
 );
 
-bootstrap().catch((error) => {
-	logger.error("Failed to initialize popup:", error);
-	showView("list-view");
-	setListError("Failed to load links");
-});
+bootstrap().catch(showListLoadFailure);
 /* c8 ignore stop */

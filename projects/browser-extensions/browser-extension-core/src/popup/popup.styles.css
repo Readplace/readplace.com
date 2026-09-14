@@ -208,15 +208,74 @@ body {
 .saving-view {
   align-items: center;
   text-align: center;
-  padding: 32px 24px 24px;
-  gap: 16px;
+  padding: 16px 24px 8px;
+  gap: 4px;
 }
 
-.saving-view__title {
-  font-size: 16px;
+.saving-view__skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.saving-view__skeleton[hidden] {
+  display: none;
+}
+
+.saving-view__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+  background: currentColor;
+  opacity: 0.25;
+}
+
+.saving-view__action {
+  display: inline-block;
+  padding: 10px 24px;
+  border: 2px solid var(--popup-border);
+  border-radius: 6px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--popup-text);
-  margin: 0;
+  margin-top: 4px;
+}
+
+.saving-view__bar {
+  display: inline-block;
+  vertical-align: middle;
+  height: 0.7em;
+  border-radius: 4px;
+  background: currentColor;
+  opacity: 0.25;
+}
+
+.saving-view__bar--title {
+  width: 7em;
+}
+
+.saving-view__bar--subtitle {
+  width: 12em;
+}
+
+.saving-view__bar--action {
+  width: 7em;
+}
+
+.saving-view__bar--hint {
+  width: 16em;
+}
+
+.saving-view__failure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.saving-view__failure[hidden] {
+  display: none;
 }
 
 /* --- Shortcut hint --- */
@@ -704,6 +763,172 @@ body {
   margin: 0;
 }
 
+.list-skeleton {
+  color: var(--popup-label);
+}
+
+.list-skeleton__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--popup-border);
+}
+
+.list-skeleton__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.list-skeleton__brand-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.list-skeleton__brand-name {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--popup-heading);
+  line-height: 1;
+}
+
+.list-skeleton__actions {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.list-skeleton__control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border: 1px solid var(--popup-border);
+  border-radius: 6px;
+}
+
+.list-skeleton__line {
+  display: block;
+}
+
+.list-skeleton__line--count {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.list-skeleton__line--scope {
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.list-skeleton__line--logout {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.list-skeleton__search {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--popup-border);
+}
+
+.list-skeleton__status {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--popup-border);
+  border-radius: 6px;
+  background: var(--popup-surface);
+  color: var(--popup-placeholder);
+  font-size: 13px;
+  line-height: normal;
+}
+
+.list-skeleton__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.list-skeleton__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--popup-border);
+}
+
+.list-skeleton__row:last-child {
+  border-bottom: none;
+}
+
+.list-skeleton__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+  opacity: 0.25;
+}
+
+.list-skeleton__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.list-skeleton__line--title {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.list-skeleton__line--domain {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.list-skeleton__line--time {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.list-skeleton__bar {
+  display: inline-block;
+  vertical-align: middle;
+  height: 0.7em;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.25;
+}
+
+.list-skeleton__bar--count {
+  width: 6em;
+}
+
+.list-skeleton__bar--scope {
+  width: 5em;
+}
+
+.list-skeleton__bar--logout {
+  width: 3.5em;
+}
+
+.list-skeleton__bar--title {
+  width: 70%;
+}
+
+.list-skeleton__bar--domain {
+  width: 40%;
+}
+
+.list-skeleton__bar--time {
+  width: 3.5em;
+}
+
 /* --- Spinner overlay --- */
 
 /**
@@ -741,6 +966,12 @@ body {
 @keyframes spinner-pulse {
   0%, 100% { opacity: 0.3; transform: scale(0.8); }
   50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-overlay__dot {
+    animation: none;
+  }
 }
 
 /* --- Focus accessibility --- */

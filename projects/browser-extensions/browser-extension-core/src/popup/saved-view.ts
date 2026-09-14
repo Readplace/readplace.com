@@ -16,6 +16,8 @@ export interface SavedViewLine {
  * than when the server answered. */
 export const SAVE_RENDERED_MARK = "save-rendered";
 
+export const POPUP_FIRST_FRAME_MARK = "popup-first-frame";
+
 export function buildSavedView(messages: Message[]): SavedViewLine[] {
 	return messages
 		.filter((message) => message.content.type === RENDERABLE_MEDIA_TYPE)
