@@ -35,6 +35,7 @@
   {{else}}
   <div class="article-body__readlists-slot article-body__readlists-slot--hidden" data-test-readlists-slot></div>
   {{/if}}
+  {{{downloadsHtml}}}
   {{#if markRead}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--visible" data-test-mark-read-slot>
     {{#each markRead.confirmTriggers}}
@@ -50,5 +51,4 @@
   {{else}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--hidden" data-test-mark-read-slot></div>
   {{/if}}
-  {{{downloadsHtml}}}
 </div>
