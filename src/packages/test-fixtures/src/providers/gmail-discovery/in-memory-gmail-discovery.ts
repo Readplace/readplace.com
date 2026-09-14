@@ -36,7 +36,9 @@ export function initInMemoryGmailDiscovery(deps: { now: () => Date }): GmailDisc
 			const current = discoveries.get(previous.userId);
 			if (current?.generation !== previous.generation || current.page !== previous.page || current.state !== "running") return false;
 			const owned = senders.get(previous.userId) ?? new Map<string, DiscoveredGmailSender>();
-			for (const sender of pageSenders) owned.set(sender.email, sender);
+			for (const sender of pageSenders) {
+				owned.set(sender.email, { email: sender.email, name: sender.name ?? owned.get(sender.email)?.name });
+			}
 			senders.set(previous.userId, owned);
 			discoveries.set(previous.userId, {
 				...previous,

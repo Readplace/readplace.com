@@ -22,7 +22,10 @@ interface Command {
 		ConditionExpression?: string;
 		KeyConditionExpression?: string;
 		ExpressionAttributeValues?: Record<string, unknown>;
-		TransactItems?: { Put: { Item: Record<string, unknown>; ConditionExpression?: string } }[];
+		TransactItems?: {
+			Put?: { Item: Record<string, unknown>; ConditionExpression?: string };
+			Update?: { Key: Record<string, unknown>; UpdateExpression: string; ExpressionAttributeNames?: Record<string, unknown>; ExpressionAttributeValues?: Record<string, unknown> };
+		}[];
 	};
 }
 
@@ -66,11 +69,16 @@ describe("initDynamoDbGmailDiscovery", () => {
 		const writes = commands[2].input.TransactItems;
 		assert(writes);
 		assert.equal(writes.length, 2);
+		assert(writes[0].Put);
 		assert.equal(writes[0].Put.Item.page, 1);
 		assert.equal(writes[0].Put.Item.scannedCount, 25);
 		assert.equal(writes[0].Put.Item.estimatedTotalMessages, 250);
 		assert.match(String(writes[0].Put.ConditionExpression), /generation = :generation/);
-		assert.equal(writes[1].Put.Item.email, SENDER.email);
+		assert(writes[1].Update);
+		assert.deepEqual(writes[1].Update.Key, { userId: USER, recordKey: `SENDER#${SENDER.email}` });
+		assert.match(writes[1].Update.UpdateExpression, /#name = :name/);
+		assert.deepEqual(writes[1].Update.ExpressionAttributeNames, { "#name": "name" });
+		assert.equal(writes[1].Update.ExpressionAttributeValues?.[":name"], "Sender");
 		await store.failDiscovery({ userId: USER, generation: "run-1", error: "Try again", requiresReconnect: true });
 		assert.equal(commands[3].input.ExpressionAttributeValues?.[":error"], "Try again");
 		assert.equal(commands[3].input.ExpressionAttributeValues?.[":requiresReconnect"], true);
@@ -81,10 +89,22 @@ describe("initDynamoDbGmailDiscovery", () => {
 		assert.equal(commands[4].input.Item?.estimatedTotalMessages, 500);
 	});
 
+	it("leaves a stored display name alone when a page carries the sender without one", async () => {
+		const { store, commands } = harness();
+		assert.equal(await store.savePage({ previous: STATE, senders: [{ email: SENDER.email, name: undefined }], mode: "full", pageToken: "next", historyId: "102", state: "running", scannedMessages: 25, estimatedTotalMessages: 250 }), true);
+		const writes = commands[0].input.TransactItems;
+		assert(writes);
+		assert(writes[1].Update);
+		assert.equal(writes[1].Update.UpdateExpression, "SET email = :email");
+		assert.deepEqual(writes[1].Update.ExpressionAttributeValues, { ":email": SENDER.email });
+	});
+
 	it("resets accumulated scan progress when a new full pass is required", async () => {
 		const { store, commands } = harness();
 		assert.equal(await store.savePage({ previous: { ...STATE, scannedCount: 75 }, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined }), true);
-		assert.equal(commands[0].input.TransactItems?.[0].Put.Item.scannedCount, 0);
+		const checkpoint = commands[0].input.TransactItems?.[0];
+		assert(checkpoint?.Put);
+		assert.equal(checkpoint.Put.Item.scannedCount, 0);
 	});
 
 	it("treats conditional races as no-ops and propagates storage failures", async () => {
@@ -117,8 +137,11 @@ describe("initDynamoDbGmailDiscovery", () => {
 		assert.equal(commands.length, 2);
 		assert.equal(commands[0].input.TransactItems?.length, 100);
 		assert.match(JSON.stringify(commands[0].input.TransactItems?.[0]), /ConditionCheck/);
+		assert.equal(commands[0].input.TransactItems?.[1].Update?.UpdateExpression, "SET email = :email");
 		assert.equal(commands[1].input.TransactItems?.length, 3);
-		assert.equal(commands[1].input.TransactItems?.[0].Put.Item.recordKey, "STATE");
+		const finalCheckpoint = commands[1].input.TransactItems?.[0];
+		assert(finalCheckpoint?.Put);
+		assert.equal(finalCheckpoint.Put.Item.recordKey, "STATE");
 		const cancelled = harness(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "deleted" }); });
 		assert.equal(await cancelled.store.savePage(page), false);
 		assert.equal(cancelled.commands.length, 1);

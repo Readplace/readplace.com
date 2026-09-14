@@ -8,9 +8,9 @@ import {
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { ForwardableSenderSchema, GmailAccountEmailSchema, type GmailDiscovery, type GmailDiscoveryStore } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema, type DiscoveredGmailSender, type GmailDiscovery, type GmailDiscoveryStore } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
+import { UserIdSchema, type UserId } from "@packages/domain/user";
 
 const StateRow = z.object({
 	userId: UserIdSchema,
@@ -59,6 +59,21 @@ export function initDynamoDbGmailDiscovery(deps: {
 		ExpressionAttributeValues: { ":uid": userId, ":prefix": "SENDER#" },
 		ConsistentRead: true,
 	});
+	const senderWrite = (userId: UserId, sender: DiscoveredGmailSender) => {
+		const Key = { userId, recordKey: `SENDER#${sender.email}` };
+		if (sender.name === undefined) {
+			return { Update: { TableName: deps.tableName, Key, UpdateExpression: "SET email = :email", ExpressionAttributeValues: { ":email": sender.email } } };
+		}
+		return {
+			Update: {
+				TableName: deps.tableName,
+				Key,
+				UpdateExpression: "SET email = :email, #name = :name",
+				ExpressionAttributeNames: { "#name": "name" },
+				ExpressionAttributeValues: { ":email": sender.email, ":name": sender.name },
+			},
+		};
+	};
 	return {
 		findDiscoveryByUserId: async (userId) => states.get({ userId, recordKey: "STATE" }, { consistentRead: true }),
 		listSendersByUserId: async (userId) => {
@@ -112,9 +127,7 @@ export function initDynamoDbGmailDiscovery(deps: {
 				requiresReconnect: false,
 			};
 			const uniqueSenders = new Map(pageSenders.map((sender) => [sender.email, sender]));
-			const senderWrites = [...uniqueSenders.values()].map((sender) => ({
-				Put: { TableName: deps.tableName, Item: { userId: previous.userId, recordKey: `SENDER#${sender.email}`, ...sender } },
-			}));
+			const senderWrites = [...uniqueSenders.values()].map((sender) => senderWrite(previous.userId, sender));
 			while (senderWrites.length > 99) {
 				const committed = await conditionalWrite(() => deps.client.send(new TransactWriteCommand({
 					TransactItems: [

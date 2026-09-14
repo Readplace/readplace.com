@@ -36,6 +36,19 @@ describe("initInMemoryGmailDiscovery", () => {
 		assert.equal((await store.findDiscoveryByUserId(USER))?.state, "complete");
 	});
 
+	it("keeps a display name once seen and stores a first sighting without one", async () => {
+		const store = initInMemoryGmailDiscovery({ now: () => NOW });
+		const OTHER = ForwardableSenderSchema.parse("other@example.com");
+		assert.equal(await store.startDiscovery(START), true);
+		const first = await store.findDiscoveryByUserId(USER);
+		assert(first);
+		assert.equal(await store.savePage({ previous: first, senders: [{ email: EMAIL, name: "Sender" }], mode: "full", pageToken: "next", historyId: "100", state: "running", scannedMessages: 25, estimatedTotalMessages: undefined }), true);
+		const second = await store.findDiscoveryByUserId(USER);
+		assert(second);
+		assert.equal(await store.savePage({ previous: second, senders: [{ email: EMAIL, name: undefined }, { email: OTHER, name: undefined }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined }), true);
+		assert.deepEqual(await store.listSendersByUserId(USER), [{ email: EMAIL, name: "Sender" }, { email: OTHER, name: undefined }]);
+	});
+
 	it("claims one page at a time and releases expired claims for redelivery", async () => {
 		let instant = NOW.getTime();
 		const store = initInMemoryGmailDiscovery({ now: () => new Date(instant) });

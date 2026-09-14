@@ -76,6 +76,25 @@ describe("initDiscoverGmailSenders", () => {
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER, OTHER_SENDER]);
 	});
 
+	it("keeps a display name a later full-scan page omits", async () => {
+		const h = await harness();
+		let calls = 0;
+		h.mailbox.listMessageSenders = async (input) => {
+			h.calls.push({ messages: input });
+			calls += 1;
+			return calls === 1
+				? { ok: true, value: { senders: [SENDER], nextPageToken: "second", scannedMessages: 25, estimatedTotalMessages: 100 } }
+				: { ok: true, value: { senders: [{ ...SENDER, name: undefined }], nextPageToken: undefined, scannedMessages: 25, estimatedTotalMessages: 90 } };
+		};
+		const first = await h.discover.start(USER);
+		assert.deepEqual(first, { userId: USER, generation: "run-1", page: 1 });
+		assert(first);
+		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER]);
+		const second = await h.discover.page(first);
+		assert.deepEqual(second, { userId: USER, generation: "run-1", page: 2 });
+		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER]);
+	});
+
 	it("replays a committed continuation without scanning its messages again and suppresses overlapping claims", async () => {
 		const h = await harness();
 		const next = await h.discover.start(USER);
