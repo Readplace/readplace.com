@@ -46,6 +46,12 @@ export type PublishQueueEntryCreated = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+export type PublishComputeRelatedPastReads = (params: {
+	url: string;
+	userId: UserId;
+	readlist?: string;
+}) => Promise<void>;
+
 export type PublishRecrawlLinkInitiated = (params: {
 	url: string;
 }) => Promise<void>;

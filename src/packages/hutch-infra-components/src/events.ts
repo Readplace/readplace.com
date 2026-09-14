@@ -271,6 +271,43 @@ export type RelatedArticlesComputedDetail = z.infer<
 	typeof RelatedArticlesComputedEvent.detailSchema
 >;
 
+/* An explicit request to (re)compute the "Previously read on this topic"
+ * selection for one article the reader owns. Carries the source reading list so
+ * a match can be resolved back into an owned list. Emitted by the new-save
+ * workflow (precompute) and by the reader when it revisits an existing or stale
+ * save; consumed by the same `compute-related-articles` Lambda. Kept independent
+ * of the Next-read cache: it never reads or writes `relatedStatus`. */
+export const ComputeRelatedPastReadsCommand = defineEvent({
+	name: "compute-related-past-reads",
+	source: "hutch.save-link",
+	detailType: "ComputeRelatedPastReads",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+		readlist: z.string().optional(),
+	}),
+});
+export type ComputeRelatedPastReadsDetail = z.infer<
+	typeof ComputeRelatedPastReadsCommand.detailSchema
+>;
+
+export const RelatedPastReadsComputedEvent = defineEvent({
+	name: "related-past-reads-computed",
+	source: "hutch.save-link",
+	detailType: "RelatedPastReadsComputed",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+		outcome: z.enum(["ready", "unchanged"]),
+		relatedCount: z.number(),
+		inputTokens: z.number(),
+		outputTokens: z.number(),
+	}),
+});
+export type RelatedPastReadsComputedDetail = z.infer<
+	typeof RelatedPastReadsComputedEvent.detailSchema
+>;
+
 /** Irreversible fact: a `SubmitLinkCommand` exhausted its accept-phase retries
  * and dead-lettered, so the save never reached its terminal accept state.
  *

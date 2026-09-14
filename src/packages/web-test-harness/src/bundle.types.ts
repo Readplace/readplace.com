@@ -17,7 +17,9 @@ import type {
 } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type {
+	FindPastReads,
 	FindRelatedArticles,
+	MarkPastReadsReady,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 } from "@packages/provider-contracts/related-articles";
@@ -136,6 +138,7 @@ import type {
 	SavedCard,
 	SetPrimaryCard,
 	PublishCancelSubscriptionCommand,
+	PublishComputeRelatedPastReads,
 	PublishDeleteAccountCommand,
 	PublishExportUserDataCommand,
 	PublishLinkDequeued,
@@ -416,6 +419,7 @@ export interface EventsBundle {
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
+	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -598,6 +602,7 @@ export interface TestAppFixture {
 	pendingUpload: PendingUploadBundle;
 	summary: SummaryBundle;
 	relatedArticles: RelatedArticlesBundle;
+	pastReads: { findPastReads: FindPastReads; markPastReadsReady: MarkPastReadsReady };
 	freshness: FreshnessBundle;
 	oauth: OAuthBundle;
 	email: EmailBundle;

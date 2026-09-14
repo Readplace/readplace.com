@@ -57,6 +57,8 @@ import { initInMemoryLinkDequeued } from "./providers/events/in-memory-link-dequ
 import { initInMemoryQueueEntryCreated } from "./providers/events/in-memory-queue-entry-created";
 import { initInMemoryLinkQueued } from "./providers/events/in-memory-link-queued";
 import { initInMemoryRelatedArticles } from "./providers/related-articles/in-memory-related-articles";
+import { initInMemoryPastReads } from "./providers/related-articles/in-memory-past-reads";
+import { initInMemoryComputeRelatedPastReads } from "./providers/events/in-memory-compute-related-past-reads";
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
@@ -236,6 +238,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const articleStoreMemory = initInMemoryArticleStore();
 	const articleCrawl = initInMemoryArticleCrawl();
 	const queueEntryCreated = initInMemoryQueueEntryCreated({ logger: noopLogger });
+	const computeRelatedPastReads = initInMemoryComputeRelatedPastReads({ logger: noopLogger });
 	const crawlArticle = stubCrawlArticle;
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
@@ -406,6 +409,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishLinkQueued: initInMemoryLinkQueued({ logger: noopLogger }).publishLinkQueued,
 			publishLinkDequeued: initInMemoryLinkDequeued({ logger: noopLogger }).publishLinkDequeued,
 			publishQueueEntryCreated: queueEntryCreated.publishQueueEntryCreated,
+			publishComputeRelatedPastReads: computeRelatedPastReads.publishComputeRelatedPastReads,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,
@@ -429,6 +433,10 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		pendingUpload,
 		summary,
 		relatedArticles: initInMemoryRelatedArticles({
+			findArticleByUrl: articleStoreMemory.findArticleByUrl,
+			findArticleById: articleStoreMemory.findArticleById,
+		}),
+		pastReads: initInMemoryPastReads({
 			findArticleByUrl: articleStoreMemory.findArticleByUrl,
 			findArticleById: articleStoreMemory.findArticleById,
 		}),

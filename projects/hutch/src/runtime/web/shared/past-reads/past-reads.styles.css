@@ -1,0 +1,82 @@
+/**
+ * "Previously read on this topic" — compact stacked rows between the summary and
+ * the article body. Deliberately plain: no thumbnails, dates, read badges,
+ * dismiss controls, shadows, or per-row card backgrounds (see the plan). The
+ * whole section is hidden when there is nothing to show, reserving no space.
+ */
+.past-reads {
+  display: block;
+  margin-bottom: 2rem;
+}
+
+.past-reads--hidden {
+  display: none;
+}
+
+.past-reads__eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+}
+
+.past-reads__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* 1. 8px vertical spacing between rows */
+}
+
+.past-reads__link {
+  display: block;
+  text-decoration: none;
+  color: var(--primary-text);
+}
+
+/**
+ * 2. Title and site share a line when both fit; otherwise the site wraps below
+ *    the title, so a long host can never squeeze the title to nothing.
+ * 3. Either one still ellipsizes when it alone outgrows the line; the link's
+ *    aria-label keeps the full title and site available to assistive technology.
+ */
+.past-reads__heading {
+  display: flex;
+  flex-wrap: wrap; /* 2 */
+  align-items: baseline;
+  column-gap: 0.5rem;
+  min-width: 0;
+}
+
+.past-reads__title {
+  min-width: 0;
+  max-width: 100%;
+  font-weight: 600;
+  color: var(--primary-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 3 */
+}
+
+.past-reads__site {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 3 */
+}
+
+/* 4. Connection sentences wrap naturally rather than truncating. */
+.past-reads__reason {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  text-wrap: pretty; /* 4 */
+}

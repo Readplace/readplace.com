@@ -68,6 +68,30 @@ describe("initSelectRelatedArticles", () => {
 		expect(prompt).not.toContain("https://example.com/earlier-0");
 	});
 
+	it("sends an overriding system prompt when one is provided, for an independent selection", async () => {
+		const captured: Captured = { prompts: [], systems: [] };
+		const createMessage: CreateAiMessage = async (params) => {
+			captured.systems.push(params.system);
+			return {
+				content: [{ type: "text", text: JSON.stringify({ related: [] }) }],
+				usage: { input_tokens: 1, output_tokens: 1 },
+			};
+		};
+		const { selectRelatedArticles } = initSelectRelatedArticles({
+			createMessage,
+			logger: noopLogger,
+			system: "STRICTER PAST-READS PROMPT",
+		});
+
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: [],
+			readCandidates: candidates(1),
+		});
+
+		expect(captured.systems[0]).toBe("STRICTER PAST-READS PROMPT");
+	});
+
 	it("repeats the saved article after the candidates so a long list cannot bury it", async () => {
 		const { selectRelatedArticles, captured } = selectorReturning(
 			JSON.stringify({ related: [] }),

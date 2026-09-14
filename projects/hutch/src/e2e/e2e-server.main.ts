@@ -225,6 +225,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		publishLinkQueued: fixture.events.publishLinkQueued,
 		publishLinkDequeued: fixture.events.publishLinkDequeued,
 		publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
+		publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
 		publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 		publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -394,6 +395,31 @@ server.post('/e2e/seed-related-articles', async (req, res) => {
 		res.status(409).json({ error: 'relations already settled for this article' })
 		return
 	}
+	res.status(201).json({ ok: true })
+})
+
+const SeedPastReadsBody = z.object({
+	userId: UserIdSchema,
+	sourceUrl: z.string(),
+	pastReads: z.array(z.object({ url: z.string(), reason: z.string() })).min(1),
+	computedAt: z.string(),
+})
+server.post('/e2e/seed-past-reads', async (req, res) => {
+	const parsed = SeedPastReadsBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const { userId, sourceUrl, pastReads, computedAt } = parsed.data
+	await fixture.pastReads.markPastReadsReady({
+		userId,
+		url: sourceUrl,
+		pastReads,
+		fingerprint: 'e2e-seeded',
+		inputTokens: 0,
+		outputTokens: 0,
+		at: new Date(computedAt),
+	})
 	res.status(201).json({ ok: true })
 })
 

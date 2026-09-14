@@ -61,12 +61,16 @@ import {
 	initInMemorySubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
 import {
+	initInMemoryComputeRelatedPastReads,
 	initInMemoryQueueEntryCreated,
 	initInMemoryLinkDequeued,
 	initInMemoryLinkQueued,
 	initInMemoryLinkSaved,
 } from "@packages/test-fixtures/providers/events";
-import { initInMemoryRelatedArticles } from "@packages/test-fixtures/providers/related-articles";
+import {
+	initInMemoryPastReads,
+	initInMemoryRelatedArticles,
+} from "@packages/test-fixtures/providers/related-articles";
 import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveAnonymousLink } from "@packages/test-fixtures/providers/events";
 import { initInMemoryStaleCheckRequested } from "@packages/test-fixtures/providers/events";
@@ -353,7 +357,14 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const { publishLinkQueued } = initInMemoryLinkQueued({ logger: consoleLogger });
 	const { publishLinkDequeued } = initInMemoryLinkDequeued({ logger: consoleLogger });
 	const { publishQueueEntryCreated } = initInMemoryQueueEntryCreated({ logger: consoleLogger });
+	const { publishComputeRelatedPastReads } = initInMemoryComputeRelatedPastReads({
+		logger: consoleLogger,
+	});
 	const { findRelatedArticles } = initInMemoryRelatedArticles({
+		findArticleByUrl: articleStore.findArticleByUrl,
+		findArticleById: articleStore.findArticleById,
+	});
+	const { findPastReads } = initInMemoryPastReads({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
 	});
@@ -467,6 +478,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		publishLinkQueued,
 		publishLinkDequeued,
 		publishQueueEntryCreated,
+		publishComputeRelatedPastReads,
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,
@@ -484,6 +496,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		statPendingUpload,
 		readPendingUploadPrefix,
 		findRelatedArticles,
+		findPastReads,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		findGeneratedSummaries: batchFromSingular(summaryStore.findGeneratedSummary),
 		markSummaryPending: summaryStore.markSummaryPending,

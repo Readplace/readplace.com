@@ -56,6 +56,48 @@ const TEST_CURRENT_PATH = "/queue/abc/view";
 const TEST_READER_PATH = (id: string) => `/queue/${id}/view`;
 
 describe("ReaderPage", () => {
+	it("renders the previously-read section when the owner reader supplies its reading-list link builder", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions: StickyReader,
+				readlistFiling: NO_QUEUE_FILING,
+				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
+				readerPathFor: TEST_READER_PATH,
+				readerPathForReadlist: (id: string) => `/queue/${id}/view`,
+				previouslyRead: { status: "pending" },
+				previouslyReadPollUrl: "/queue/abc/topic-reads?poll=1",
+				previouslyReadComputeUrl: "/queue/abc/topic-reads",
+			}),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const section = doc.querySelector("[data-test-reader-topic-reads]");
+		assert(section, "the past-reads section renders inside the article body");
+		expect(section.getAttribute("data-topic-reads-status")).toBe("pending");
+	});
+
+	it("omits the previously-read section when no reading-list link builder is supplied", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions: StickyReader,
+				readlistFiling: NO_QUEUE_FILING,
+				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
+				readerPathFor: TEST_READER_PATH,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		expect(doc.querySelector("[data-test-reader-topic-reads]")).toBeNull();
+	});
+
 	it("renders the share balloon wrap so client init can attach to it", () => {
 		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, readlistFiling: NO_QUEUE_FILING, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }), {
 			isAuthenticated: true,

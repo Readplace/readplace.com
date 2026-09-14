@@ -105,8 +105,11 @@ import {
 	rankNewLinksAbove,
 } from "@packages/save-article";
 import type { PublishQueueEntryCreated } from "@packages/provider-contracts/events";
+import type { PublishComputeRelatedPastReads } from "@packages/provider-contracts/events";
 import type {
+	FindPastReads,
 	FindRelatedArticles,
+	PastReads,
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
 import { Base, ChromelessPage } from "../../base.component";
@@ -203,6 +206,7 @@ import { VIEW_BACK_LINK } from "./reader-skeleton/reader-skeleton.component";
 import { etagMatches } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
+import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingStep } from "../../onboarding/onboarding.steps";
 import {
@@ -372,7 +376,9 @@ interface ReadlistDependencies {
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
+	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	findRelatedArticles: FindRelatedArticles;
+	findPastReads: FindPastReads;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -506,6 +512,42 @@ async function loadRelatedArticles(
 	} catch (error) {
 		logError(
 			"Failed to load related articles",
+			error instanceof Error ? error : undefined,
+		);
+		return { status: "pending" };
+	}
+}
+
+const pastReadsPollUrlFor = (params: {
+	articleId: string;
+	pollCount: number;
+	surfaceQuery: string;
+}): string =>
+	`${READLIST_PATH}/${params.articleId}/topic-reads?poll=${params.pollCount}${joinedSurfaceQuery(params.surfaceQuery)}`;
+
+const pastReadsComputeUrlFor = (params: {
+	articleId: string;
+	surfaceQuery: string;
+}): string => {
+	const surface = joinedSurfaceQuery(params.surfaceQuery);
+	return `${READLIST_PATH}/${params.articleId}/topic-reads${surface === "" ? "" : `?${params.surfaceQuery}`}`;
+};
+
+async function loadPastReads(
+	findPastReads: FindPastReads,
+	article: SavedArticle,
+	sourceReadlist: ReadlistSlug,
+	logError: (message: string, error?: Error) => void,
+): Promise<PastReads> {
+	try {
+		return await findPastReads({
+			userId: article.userId,
+			url: article.url,
+			sourceReadlist,
+		});
+	} catch (error) {
+		logError(
+			"Failed to load previously read on this topic",
 			error instanceof Error ? error : undefined,
 		);
 		return { status: "pending" };
@@ -819,6 +861,22 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				: `${READLIST_PATH}/${articleId}/view?${surface}`;
 		};
 
+	// A past-read match opens where the reader owns it: the destination readlist
+	// (resolved server-side, absent for the default list) rides the `queue` param
+	// alongside the preserved native-surface markers.
+	const readerPathForReadlist =
+		(req: Request) =>
+		(articleId: string, readlist?: ReadlistSlug): string => {
+			const parts: string[] = [];
+			const surface = nativeSurfaceQuery(req);
+			if (surface !== "") parts.push(surface);
+			if (readlist !== undefined) parts.push(`queue=${encodeURIComponent(readlist)}`);
+			const query = parts.join("&");
+			return query === ""
+				? `${READLIST_PATH}/${articleId}/view`
+				: `${READLIST_PATH}/${articleId}/view?${query}`;
+		};
+
 	const readerReturnPath = (req: Request, articleId: string): string =>
 		readerPathFor(req)(articleId);
 
@@ -875,6 +933,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				state: ResolvedReaderState;
 				related: RelatedArticles;
 				relatedPollUrl: string | undefined;
+				previouslyRead: PastReads;
+				previouslyReadPollUrl: string | undefined;
 				readlistFiling: ReaderReadlistFiling;
 				contentVersion: string;
 			};
@@ -910,8 +970,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			at: deps.now(),
 		});
 
-		const [related, state, readlistFiling] = await Promise.all([
+		const [related, previouslyRead, state, readlistFiling] = await Promise.all([
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
+			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, deps.logError),
 			reader.resolveReaderState({
 				article: {
 					url: ownedArticle.url,
@@ -935,6 +996,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						surfaceQuery: nativeSurfaceQuery(req),
 					})
 				: undefined;
+		// Never gated on Next-read dismissal — the topic section polls until its own
+		// selection settles regardless of whether the end suggestion was dismissed.
+		const previouslyReadPollUrl = pastReadsPollUrlFor({
+			articleId: ownedArticle.id.value,
+			pollCount: 1,
+			surfaceQuery: nativeSurfaceQuery(req),
+		});
 		const contentVersion = computeArticleContentVersion({
 			article: ownedArticle,
 			crawl: state.crawl,
@@ -954,6 +1022,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				state,
 				related: { status: "skipped" },
 				relatedPollUrl: undefined,
+				previouslyRead: { status: "ready", items: [] },
+				previouslyReadPollUrl: undefined,
 				readlistFiling,
 				contentVersion,
 			};
@@ -965,6 +1035,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			state,
 			related,
 			relatedPollUrl,
+			previouslyRead,
+			previouslyReadPollUrl,
 			readlistFiling,
 			contentVersion,
 		};
@@ -982,8 +1054,20 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		const { article: ownedArticle, state, related, relatedPollUrl, readlistFiling, contentVersion } =
-			resolved;
+		const {
+			article: ownedArticle,
+			state,
+			related,
+			relatedPollUrl,
+			previouslyRead,
+			previouslyReadPollUrl,
+			readlistFiling,
+			contentVersion,
+		} = resolved;
+		const previouslyReadComputeUrl = pastReadsComputeUrlFor({
+			articleId: ownedArticle.id.value,
+			surfaceQuery: nativeSurfaceQuery(req),
+		});
 
 		const cspNonce = requireCspNonce(req);
 		const readerSettled =
@@ -1009,6 +1093,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				progress: state.progress,
 				related,
 				relatedPollUrl,
+				previouslyRead,
+				previouslyReadPollUrl,
+				previouslyReadComputeUrl,
+				readerPathForReadlist: readerPathForReadlist(req),
 				currentPath: req.originalUrl,
 				now: deps.now(),
 				extensionInstallUrl: undefined,
@@ -1089,6 +1177,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					progress: state.progress,
 					related,
 					relatedPollUrl,
+					previouslyRead,
+					previouslyReadPollUrl,
+					previouslyReadComputeUrl,
+					readerPathForReadlist: readerPathForReadlist(req),
 					currentPath: req.originalUrl,
 					now: deps.now(),
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
@@ -2367,6 +2459,81 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 
 		res.redirect(303, safeReturnPath(req.body.returnTo));
+	});
+
+	// Poll fragment for the "Previously read on this topic" section. A pure read,
+	// like the Next-read poll — it never triggers computation. Its own poll budget
+	// is independent of Next-read dismissal.
+	router.get("/:id/topic-reads", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (!article) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
+		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
+		const sourceReadlist = requestReadlistContext(req).state.readlist;
+		const html = renderPastReadsSection({
+			pastReads: await loadPastReads(
+				deps.findPastReads,
+				article,
+				sourceReadlist,
+				deps.logError,
+			),
+			pollUrl:
+				pollCount < MAX_POLLS
+					? pastReadsPollUrlFor({
+							articleId: article.id.value,
+							pollCount: pollCount + 1,
+							surfaceQuery: nativeSurfaceQuery(req),
+						})
+					: undefined,
+			computeUrl: pastReadsComputeUrlFor({
+				articleId: article.id.value,
+				surfaceQuery: nativeSurfaceQuery(req),
+			}),
+			sourceArticleId: article.id.value,
+			readerPathForReadlist: readerPathForReadlist(req),
+		});
+		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
+	});
+
+	// The ONLY thing that requests a past-reads (re)computation. The worker
+	// fingerprint-guards, so re-firing on every visit is cheap when nothing
+	// changed. htmx fires it on load and ignores the reply (204); the no-JS
+	// fallback form lands back on the reader (303).
+	router.post("/:id/topic-reads", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (article) {
+			const sourceReadlist = requestReadlistContext(req).state.readlist;
+			await deps.publishComputeRelatedPastReads({
+				url: article.url,
+				userId,
+				...(sourceReadlist === DEFAULT_READLIST_SLUG
+					? {}
+					: { readlist: sourceReadlist }),
+			});
+		}
+
+		if (req.get("HX-Request") !== undefined) {
+			res.status(204).end();
+			return;
+		}
+		res.redirect(303, readerReturnPath(req, req.params.id));
 	});
 
 	/** Fire-and-forget beacon target for the TL;DR open/close toggle. Records the

@@ -53,6 +53,10 @@ export interface ArticleBodyInput {
 	provenance?: SaveProvenance;
 	readlistTags?: ReaderReadlistTags;
 	readerNotice?: ReaderFailedVariant;
+	/** Pre-rendered "Previously read on this topic" section, sitting below the
+	 * summary and above the body. Owner-reader only — the public `/view` and the
+	 * admin recrawl leave it unset, so reading history never appears there. */
+	previouslyReadHtml?: string;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -97,6 +101,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		headerHtml,
 		readerSlotHtml,
 		summarySlotHtml,
+		previouslyReadHtml: input.previouslyReadHtml ?? "",
 		progressBarHtml,
 		crawlBookmarkHtml,
 		bottomActionsHtml: input.bottomActionsHtml,

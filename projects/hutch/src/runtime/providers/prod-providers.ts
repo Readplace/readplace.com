@@ -23,7 +23,11 @@ import { initDynamoDbPasswordReset } from "./password-reset/dynamodb-password-re
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { initDynamoDbRateLimit } from "./rate-limit/dynamodb-rate-limit";
-import { initDynamoDbGeneratedSummary, initDynamoDbRelatedArticles } from "@packages/article-store";
+import {
+	initDynamoDbGeneratedSummary,
+	initDynamoDbPastReads,
+	initDynamoDbRelatedArticles,
+} from "@packages/article-store";
 import { initDynamoDbArticleCrawl } from "@packages/article-store";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
@@ -37,6 +41,7 @@ import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "@packages
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkDequeued } from "./events/eventbridge-link-dequeued";
 import { initEventBridgeQueueEntryCreated } from "./events/eventbridge-queue-entry-created";
+import { initEventBridgeComputeRelatedPastReads } from "./events/eventbridge-compute-related-past-reads";
 import { initEventBridgeLinkQueued } from "./events/eventbridge-link-queued";
 import { initEventBridgeLinkSaved } from "./events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./events/eventbridge-recrawl-link-initiated";
@@ -176,6 +181,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		tableName: articlesTable,
 		userArticlesTableName: userArticlesTable,
 	});
+	const pastReadsStore = initDynamoDbPastReads({
+		client,
+		tableName: articlesTable,
+		userArticlesTableName: userArticlesTable,
+	});
 	const crawlStore = initDynamoDbArticleCrawl({
 		client,
 		tableName: articlesTable,
@@ -189,6 +199,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { publishLinkQueued } = initEventBridgeLinkQueued({ publishEvent });
 	const { publishLinkDequeued } = initEventBridgeLinkDequeued({ publishEvent });
 	const { publishQueueEntryCreated } = initEventBridgeQueueEntryCreated({ publishEvent });
+	const { publishComputeRelatedPastReads } = initEventBridgeComputeRelatedPastReads({ publishEvent });
 	const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 	const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 	const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
@@ -424,6 +435,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		publishLinkQueued,
 		publishLinkDequeued,
 		publishQueueEntryCreated,
+		publishComputeRelatedPastReads,
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,
@@ -441,6 +453,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		statPendingUpload,
 		readPendingUploadPrefix,
 		findRelatedArticles: relatedArticlesStore.findRelatedArticles,
+		findPastReads: pastReadsStore.findPastReads,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		findGeneratedSummaries: summaryStore.findGeneratedSummaries,
 		markSummaryPending: summaryStore.markSummaryPending,

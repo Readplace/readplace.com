@@ -53,6 +53,7 @@ describe("Readlist freshness integration", () => {
 				publishLinkQueued: fixture.events.publishLinkQueued,
 				publishLinkDequeued: fixture.events.publishLinkDequeued,
 				publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
+				publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
 				publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 				publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 				publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

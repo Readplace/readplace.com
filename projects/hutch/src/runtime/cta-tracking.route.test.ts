@@ -6,7 +6,13 @@ import { BROWSER_REQUEST_HEADERS, loginAgent, useTestServer } from "./test-app";
 
 const useApp = useTestServer();
 
-const ARTICLE_CONTENT_REGIONS = ["[data-test-reader-content]"];
+const ARTICLE_CONTENT_REGIONS = [
+	"[data-test-reader-content]",
+	// The past-reads compute triggers fire automatically on load rather than on a
+	// reader click, so tagging them would count a click on every reader open.
+	".past-reads__request",
+	".past-reads__fallback",
+];
 
 const GUEST_PATHS = [
 	"/",

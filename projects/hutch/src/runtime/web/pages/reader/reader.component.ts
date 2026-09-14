@@ -7,7 +7,11 @@ import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import type { RelatedArticles } from "@packages/provider-contracts/related-articles";
+import type {
+	PastReads,
+	RelatedArticles,
+} from "@packages/provider-contracts/related-articles";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -32,6 +36,7 @@ import {
 	NEXT_READ_SCRIPT,
 	renderNextRead,
 } from "../../shared/next-read/next-read.component";
+import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
 import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
@@ -97,6 +102,13 @@ export function ReaderPage(
 		progress?: ProgressTick;
 		related?: RelatedArticles;
 		relatedPollUrl?: string;
+		previouslyRead?: PastReads;
+		previouslyReadPollUrl?: string;
+		previouslyReadComputeUrl?: string;
+		readerPathForReadlist?: (
+			articleId: string,
+			readlist?: ReadlistSlug,
+		) => string;
 		currentPath: string;
 		now: Date;
 		extensionInstallUrl?: string;
@@ -154,6 +166,16 @@ export function ReaderPage(
 			epubDownloadHref: options.epubDownloadHref,
 		},
 	});
+	const previouslyReadHtml =
+		options.readerPathForReadlist === undefined
+			? undefined
+			: renderPastReadsSection({
+					pastReads: options.previouslyRead,
+					pollUrl: options.previouslyReadPollUrl,
+					computeUrl: options.previouslyReadComputeUrl,
+					sourceArticleId: articleId,
+					readerPathForReadlist: options.readerPathForReadlist,
+				});
 	const innerContent = renderArticleBody({
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
@@ -179,6 +201,7 @@ export function ReaderPage(
 		crawlBookmarkRemoval: options.crawlBookmarkRemoval,
 		extensionInstallUrl: options.extensionInstallUrl,
 		readerNotice: options.readerNotice,
+		previouslyReadHtml,
 	});
 	const shareBalloon = renderShareBalloon({
 		shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,

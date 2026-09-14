@@ -46,6 +46,7 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 			publishLinkQueued: fixture.events.publishLinkQueued,
 			publishLinkDequeued: fixture.events.publishLinkDequeued,
 			publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
+			publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

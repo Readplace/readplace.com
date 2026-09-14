@@ -4,6 +4,7 @@ export { initDynamoDbReadlistDefinitions } from "./dynamodb-readlist-definitions
 export { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
 export { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 export { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";
+export { initDynamoDbPastReads } from "./dynamodb-past-reads";
 export {
 	initCanonicalAliasStore,
 	initResolveCanonicalIdentity,

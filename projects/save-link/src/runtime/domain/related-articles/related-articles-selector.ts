@@ -125,11 +125,16 @@ function selectValidRelations(params: {
 export function initSelectRelatedArticles(deps: {
 	createMessage: CreateAiMessage;
 	logger: HutchLogger;
+	/** Overrides the Next-read prompt so an independent selection (e.g. the
+	 * stricter past-reads-on-this-topic pass) can reuse this exact message shape,
+	 * structured-output schema, and validation with its own instructions. */
+	system?: string;
 }): { selectRelatedArticles: SelectRelatedArticles } {
+	const system = deps.system ?? RELATED_ARTICLES_PROMPT;
 	const selectRelatedArticles: SelectRelatedArticles = async (params) => {
 		const response = await deps.createMessage({
 			max_tokens: RELATED_MAX_OUTPUT_TOKENS,
-			system: RELATED_ARTICLES_PROMPT,
+			system,
 			messages: [
 				{
 					role: "user",

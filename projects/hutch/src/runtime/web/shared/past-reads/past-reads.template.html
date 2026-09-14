@@ -1,0 +1,27 @@
+<section id="article-body-topic-reads-slot" class="past-reads {{stateClass}}" data-test-reader-topic-reads data-topic-reads-status="{{status}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
+  {{#if hasRows}}
+  <p class="past-reads__eyebrow">Previously read on this topic</p>
+  <ul class="past-reads__list">
+    {{#each rows}}
+    <li class="past-reads__row">
+      <a class="past-reads__link" href="{{href}}" data-test-topic-read-item="{{id}}" aria-label="{{accessibleLabel}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top">
+        <span class="past-reads__heading"><span class="past-reads__title">{{title}}</span> <span class="past-reads__site">{{siteName}}</span></span>
+        <span class="past-reads__reason">{{reason}}</span>
+      </a>
+    </li>
+    {{/each}}
+  </ul>
+  {{/if}}
+  {{#if computeUrl}}
+  <form class="past-reads__request" hidden method="POST" action="{{computeUrl}}" hx-post="{{computeUrl}}" hx-trigger="load" hx-swap="none">
+    <button type="submit" tabindex="-1" aria-hidden="true">Refresh previously read</button>
+  </form>
+  {{/if}}
+  {{#if showNoscriptFallback}}
+  <noscript>
+    <form class="past-reads__fallback" method="POST" action="{{computeUrl}}">
+      <button type="submit" class="past-reads__fallback-btn">Find previously read on this topic</button>
+    </form>
+  </noscript>
+  {{/if}}
+</section>

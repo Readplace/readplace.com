@@ -136,12 +136,16 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import type {
+	PublishComputeRelatedPastReads,
 	PublishQueueEntryCreated,
 	PublishLinkDequeued,
 	PublishLinkQueued,
 	PublishLinkSaved,
 } from "@packages/provider-contracts/events";
-import type { FindRelatedArticles } from "@packages/provider-contracts/related-articles";
+import type {
+	FindPastReads,
+	FindRelatedArticles,
+} from "@packages/provider-contracts/related-articles";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
@@ -379,7 +383,9 @@ interface AppDependencies {
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
+	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	findRelatedArticles: FindRelatedArticles;
+	findPastReads: FindPastReads;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -1247,7 +1253,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkQueued: deps.publishLinkQueued,
 		publishLinkDequeued: deps.publishLinkDequeued,
 		publishQueueEntryCreated: deps.publishQueueEntryCreated,
+		publishComputeRelatedPastReads: deps.publishComputeRelatedPastReads,
 		findRelatedArticles: deps.findRelatedArticles,
+		findPastReads: deps.findPastReads,
 		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,

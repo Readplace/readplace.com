@@ -116,6 +116,28 @@ describe("renderArticleBody", () => {
 		expect(html.indexOf("data-test-bottom-actions")).toBeGreaterThan(html.indexOf("data-test-reader-content"));
 	});
 
+	it("splices the previously-read section below the summary and above the body, and omits it when unset", () => {
+		const withSection = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+			previouslyReadHtml: '<section data-test-reader-topic-reads>past reads</section>',
+		});
+		const doc = parse(withSection);
+		assert(
+			doc.querySelector("[data-test-reader-topic-reads]"),
+			"the section is spliced into the body",
+		);
+		expect(withSection.indexOf("data-test-reader-topic-reads")).toBeGreaterThan(
+			withSection.indexOf('id="article-body-summary-slot"'),
+		);
+		expect(withSection.indexOf("data-test-reader-topic-reads")).toBeLessThan(
+			withSection.indexOf('id="article-body-reader-slot"'),
+		);
+
+		const withoutSection = renderArticleBody({ ...baseInput, content: "<p>Body</p>" });
+		expect(parse(withoutSection).querySelector("[data-test-reader-topic-reads]")).toBeNull();
+	});
+
 	it("renders the reader-pending slot when content is undefined and no crawl status is provided (read-after-write race)", () => {
 		const html = renderArticleBody({
 			...baseInput,
