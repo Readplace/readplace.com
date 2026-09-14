@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
+import { CLICK_SURFACES } from "@packages/web-shell";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
@@ -1019,7 +1020,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 206, width: 8, height: 4,
+			x: index * 8, y: 214, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1060,6 +1061,49 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| limit 40",
 			].join(" "),
 			x: 12, y: 186, width: 12, height: 8,
+			view: "table",
+		}),
+	);
+
+	const readerPublicClick = `stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.click}" and coalesce(utm_term, "") = "${CLICK_SURFACES.readerPublic}"`;
+	const readerPublicSave = `stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and coalesce(surface, "") = "${SAVE_SURFACES.readerView}"`;
+	const readerPublicTouch = `((${readerPublicClick}) or (${readerPublicSave}))`;
+	const readerPublicControl = `if(event = "${ANALYTICS_EVENTS.viewSaveIntent}", "save", coalesce(utm_content, "-"))`;
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Public reader controls: clicks and visitors per control (save = save intents)",
+			logGroupNames: analyticsSource,
+			query: [
+				`fields @timestamp, visitor_id, ${readerPublicControl} as control`,
+				`| filter (${readerPublicClick}) or (${readerPublicSave})`,
+				...exclude,
+				"| filter ispresent(visitor_id)",
+				"| stats count(*) as visitor_clicks, sum(is_authenticated) as visitor_signed_in_clicks by control, visitor_id",
+				"| stats sum(visitor_clicks) as clicks, sum(visitor_signed_in_clicks) as signed_in_clicks, count(*) as visitors by control",
+				"| sort clicks desc",
+				"| limit 50",
+			].join(" "),
+			x: 0, y: 206, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Public reader controls: anonymous visitors by first control touched, and signups after it",
+			logGroupNames: analyticsSource,
+			query: [
+				`fields @timestamp, visitor_id, if(${readerPublicTouch}, 1, 0) as is_touch, if(${readerPublicTouch}, ${readerPublicControl}, no_control) as control, if(${readerPublicTouch}, toMillis(@timestamp), 99999999999999) as touch_ms, if(event = "${CONVERSION_EVENTS.userCreated}", toMillis(@timestamp), 0) as signup_ms`,
+				`| filter stream = "${STREAMS.analytics}" or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}")`,
+				...exclude,
+				"| filter ispresent(visitor_id)",
+				"| filter is_touch = 0 or coalesce(is_authenticated, 0) = 0",
+				"| stats earliest(control) as first_control, sum(is_touch) as touches, count(*) as visitor_events, min(touch_ms) as first_touch_ms, max(signup_ms) as last_signup_ms by visitor_id",
+				"| filter touches > 0",
+				"| stats count(*) as visitors, sum(last_signup_ms > first_touch_ms) as signed_up_after, sum(visitor_events = touches) as touch_only_visitors by first_control",
+				"| sort visitors desc",
+			].join(" "),
+			x: 12, y: 206, width: 12, height: 8,
 			view: "table",
 		}),
 	);

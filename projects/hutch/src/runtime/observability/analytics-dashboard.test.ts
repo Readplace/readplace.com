@@ -79,9 +79,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 49 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 3 key-event-counters) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 51 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 3 key-event-counters) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(49);
+		expect(body.widgets).toHaveLength(51);
 	});
 
 	it("carries oauth_client_id on the recent-conversions table so a consent-screen signup names the client that sent it", () => {
@@ -236,6 +236,59 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(clicks).toContain('coalesce(utm_source, "-") as section');
 		expect(clicks).toContain('coalesce(utm_content, "-") as element');
 		expect(clicks).toContain("stats count(*) as clicks by section, element");
+	});
+
+	describe("public reader control widgets", () => {
+		function perControlQuery(): string {
+			const query = widgetQueries().find((q) => q.includes("sum(visitor_clicks) as clicks"));
+			assert(query, "the per-control clicks/visitors widget must exist");
+			return query;
+		}
+
+		function firstControlSignupQuery(): string {
+			const query = widgetQueries().find((q) => q.includes("earliest(control) as first_control"));
+			assert(query, "the first-control signup widget must exist");
+			return query;
+		}
+
+		it("counts reader-view clicks per control off utm_term=reader-public, not the interim view-article proxy", () => {
+			const query = perControlQuery();
+			expect(query).toContain('coalesce(utm_term, "") = "reader-public"');
+			expect(query).not.toContain('utm_source = "view-article"');
+		});
+
+		it("folds the Save button into the per-control table as a save-intent row on the reader_view surface", () => {
+			const query = perControlQuery();
+			expect(query).toContain(`coalesce(surface, "") = "${SAVE_SURFACES.readerView}"`);
+			expect(query).toContain(`if(event = "${ANALYTICS_EVENTS.viewSaveIntent}", "save", coalesce(utm_content, "-"))`);
+		});
+
+		it("counts distinct visitors exactly via a per-visitor stage rather than the approximate count_distinct", () => {
+			const query = perControlQuery();
+			expect(query).toContain("by control, visitor_id");
+			expect(query).toContain("count(*) as visitors by control");
+			expect(query).not.toContain("count_distinct");
+		});
+
+		it("credits each anonymous visitor's signup to the first reader-view control they touched, only when the signup follows the touch", () => {
+			const query = firstControlSignupQuery();
+			expect(query).toContain(`stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`);
+			expect(query).toContain("earliest(control) as first_control");
+			expect(query).toContain("sum(last_signup_ms > first_touch_ms) as signed_up_after");
+			expect(query).not.toContain("count_distinct");
+		});
+
+		it("guards is_authenticated so an absent field cannot silently drop signups, and surfaces crawler-only visitors", () => {
+			const query = firstControlSignupQuery();
+			expect(query).toContain("coalesce(is_authenticated, 0) = 0");
+			expect(query).toContain("sum(visitor_events = touches) as touch_only_visitors");
+		});
+
+		it("uses one identical reader-view click condition across both widgets so the two never drift apart", () => {
+			const clickCondition = 'event = "click" and coalesce(utm_term, "") = "reader-public"';
+			expect(perControlQuery()).toContain(clickCondition);
+			expect(firstControlSignupQuery()).toContain(clickCondition);
+		});
 	});
 
 	it("scopes the reader funnel to the reader_view surface plus the saves recorded before the surface dimension existed", () => {
