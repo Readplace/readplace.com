@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_triggers" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_triggers" name="triggers" isExecutable="false">
+    <bpmn:sendTask id="n_open" name="GET /queue/:id/view owner reader, web or app shell">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:task id="n_topicSlot" name="past-reads section hidden load-fired form">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_noscriptForm" name="noscript button emitted only with no rows hidden with the section">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_pollFragment" name="GET /queue/:id/topic-reads poll fragment re-renders the form">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_post" name="POST /queue/:id/topic-reads">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_signedIn" name="session for HTML bearer token for Siren?">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_login" name="303 to /login HTML without a session">
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_unauthorized" name="401 Siren error missing or invalid bearer">
+      <bpmn:incoming>f_8</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="n_owned" name="article found in the default list?">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="n_reply" name="204 for htmx 303 to the reader otherwise queue param dropped">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:incoming>f_12</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sendTask id="n_cmdEvt" name="ComputeRelatedPastReads url canonical, userId readlist only when queue names another list">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_saves" name="save surfaces except import shared accept phase">
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:intermediateThrowEvent id="n_created" name="QueueEntryCreated url canonical, userId">
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="n_queue" name="compute-related-articles-q">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:incoming>f_15</bpmn:incoming>
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_lambda" name="compute-related-articles Lambda">
+      <bpmn:incoming>f_16</bpmn:incoming>
+      <bpmn:outgoing>f_17</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="n_dispatch" name="detail-type?">
+      <bpmn:incoming>f_17</bpmn:incoming>
+      <bpmn:outgoing>f_18</bpmn:outgoing>
+      <bpmn:outgoing>f_19</bpmn:outgoing>
+      <bpmn:outgoing>f_20</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_nextRead" name="Next-read pass">
+      <bpmn:incoming>f_18</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_pastReads" name="past-reads pass">
+      <bpmn:incoming>f_19</bpmn:incoming>
+      <bpmn:incoming>f_20</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_open" targetRef="n_topicSlot" />
+    <bpmn:sequenceFlow id="f_1" name="htmx load" sourceRef="n_topicSlot" targetRef="n_post" />
+    <bpmn:sequenceFlow id="f_2" name="no rows" sourceRef="n_topicSlot" targetRef="n_noscriptForm" />
+    <bpmn:sequenceFlow id="f_3" name="unreachable" sourceRef="n_noscriptForm" targetRef="n_post" />
+    <bpmn:sequenceFlow id="f_4" name="every 3s while pending" sourceRef="n_topicSlot" targetRef="n_pollFragment" />
+    <bpmn:sequenceFlow id="f_5" name="swapped-in form fires again" sourceRef="n_pollFragment" targetRef="n_post" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_post" targetRef="n_signedIn" />
+    <bpmn:sequenceFlow id="f_7" name="no session" sourceRef="n_signedIn" targetRef="n_login" />
+    <bpmn:sequenceFlow id="f_8" name="no token" sourceRef="n_signedIn" targetRef="n_unauthorized" />
+    <bpmn:sequenceFlow id="f_9" name="yes" sourceRef="n_signedIn" targetRef="n_owned" />
+    <bpmn:sequenceFlow id="f_10" name="no" sourceRef="n_owned" targetRef="n_reply" />
+    <bpmn:sequenceFlow id="f_11" name="yes" sourceRef="n_owned" targetRef="n_cmdEvt" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_cmdEvt" targetRef="n_reply" />
+    <bpmn:sequenceFlow id="f_13" name="row created by this save" sourceRef="n_saves" targetRef="n_created" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_cmdEvt" targetRef="n_queue" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_created" targetRef="n_queue" />
+    <bpmn:sequenceFlow id="f_16" name="" sourceRef="n_queue" targetRef="n_lambda" />
+    <bpmn:sequenceFlow id="f_17" name="" sourceRef="n_lambda" targetRef="n_dispatch" />
+    <bpmn:sequenceFlow id="f_18" name="QueueEntryCreated" sourceRef="n_dispatch" targetRef="n_nextRead" />
+    <bpmn:sequenceFlow id="f_19" name="QueueEntryCreated" sourceRef="n_dispatch" targetRef="n_pastReads" />
+    <bpmn:sequenceFlow id="f_20" name="ComputeRelatedPastReads" sourceRef="n_dispatch" targetRef="n_pastReads" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_triggers">
+    <bpmndi:BPMNPlane id="Plane_triggers" bpmnElement="Process_triggers">
+      <bpmndi:BPMNShape id="n_open_di" bpmnElement="n_open">
+        <dc:Bounds x="297.66" y="28" width="189.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_topicSlot_di" bpmnElement="n_topicSlot">
+        <dc:Bounds x="284.74" y="164" width="170.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_noscriptForm_di" bpmnElement="n_noscriptForm">
+        <dc:Bounds x="77.66" y="284" width="195.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_pollFragment_di" bpmnElement="n_pollFragment">
+        <dc:Bounds x="308.91" y="284" width="201.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_post_di" bpmnElement="n_post">
+        <dc:Bounds x="208.16" y="410" width="171.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_signedIn_di" bpmnElement="n_signedIn">
+        <dc:Bounds x="205.29" y="520" width="177.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_login_di" bpmnElement="n_login">
+        <dc:Bounds x="28" y="658.73" width="179.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_unauthorized_di" bpmnElement="n_unauthorized">
+        <dc:Bounds x="376.58" y="658.73" width="183.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_owned_di" bpmnElement="n_owned">
+        <dc:Bounds x="253.43" y="630" width="77.46" height="77.46" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_reply_di" bpmnElement="n_reply">
+        <dc:Bounds x="305.31" y="939.46" width="158" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_cmdEvt_di" bpmnElement="n_cmdEvt">
+        <dc:Bounds x="196.66" y="797.46" width="194.75" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_saves_di" bpmnElement="n_saves">
+        <dc:Bounds x="101.16" y="28" width="160.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_created_di" bpmnElement="n_created">
+        <dc:Bounds x="170.66" y="154" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_queue_di" bpmnElement="n_queue">
+        <dc:Bounds x="177.04" y="945.46" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_lambda_di" bpmnElement="n_lambda">
+        <dc:Bounds x="198.91" y="1081.46" width="190.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_dispatch_di" bpmnElement="n_dispatch">
+        <dc:Bounds x="265.15" y="1191.46" width="57.78" height="57.78" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_nextRead_di" bpmnElement="n_nextRead">
+        <dc:Bounds x="150.54" y="1325.24" width="122.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_pastReads_di" bpmnElement="n_pastReads">
+        <dc:Bounds x="309.29" y="1325.24" width="128.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="392.29" y="96" />
+        <di:waypoint x="392.29" y="130" />
+        <di:waypoint x="370.12" y="130" />
+        <di:waypoint x="370.12" y="164" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="370.12" y="216" />
+        <di:waypoint x="370.12" y="313" />
+        <di:waypoint x="294.04" y="313" />
+        <di:waypoint x="294.04" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="370.12" y="216" />
+        <di:waypoint x="370.12" y="250" />
+        <di:waypoint x="175.29" y="250" />
+        <di:waypoint x="175.29" y="284" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="175.29" y="352" />
+        <di:waypoint x="175.29" y="381" />
+        <di:waypoint x="294.04" y="381" />
+        <di:waypoint x="294.04" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="370.12" y="216" />
+        <di:waypoint x="370.12" y="250" />
+        <di:waypoint x="409.67" y="250" />
+        <di:waypoint x="409.67" y="284" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="409.67" y="352" />
+        <di:waypoint x="409.67" y="381" />
+        <di:waypoint x="294.04" y="381" />
+        <di:waypoint x="294.04" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="294.04" y="462" />
+        <di:waypoint x="294.04" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="294.04" y="572" />
+        <di:waypoint x="294.04" y="615.37" />
+        <di:waypoint x="117.88" y="615.37" />
+        <di:waypoint x="117.88" y="658.73" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="294.04" y="572" />
+        <di:waypoint x="294.04" y="615.37" />
+        <di:waypoint x="468.33" y="615.37" />
+        <di:waypoint x="468.33" y="658.73" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="294.04" y="572" />
+        <di:waypoint x="292.16" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="292.16" y="707.46" />
+        <di:waypoint x="292.16" y="823.46" />
+        <di:waypoint x="384.31" y="823.46" />
+        <di:waypoint x="384.31" y="939.46" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="292.16" y="707.46" />
+        <di:waypoint x="294.04" y="797.46" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="294.04" y="881.46" />
+        <di:waypoint x="294.04" y="910.46" />
+        <di:waypoint x="384.31" y="910.46" />
+        <di:waypoint x="384.31" y="939.46" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="181.41" y="96" />
+        <di:waypoint x="181.41" y="125" />
+        <di:waypoint x="190.66" y="125" />
+        <di:waypoint x="190.66" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="294.04" y="881.46" />
+        <di:waypoint x="294.04" y="913.46" />
+        <di:waypoint x="197.04" y="913.46" />
+        <di:waypoint x="197.04" y="945.46" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="190.66" y="194" />
+        <di:waypoint x="190.66" y="569.73" />
+        <di:waypoint x="197.04" y="569.73" />
+        <di:waypoint x="197.04" y="945.46" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="197.04" y="985.46" />
+        <di:waypoint x="197.04" y="1033.46" />
+        <di:waypoint x="294.04" y="1033.46" />
+        <di:waypoint x="294.04" y="1081.46" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="294.04" y="1133.46" />
+        <di:waypoint x="294.04" y="1191.46" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="294.04" y="1249.24" />
+        <di:waypoint x="294.04" y="1287.24" />
+        <di:waypoint x="211.91" y="1287.24" />
+        <di:waypoint x="211.91" y="1325.24" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_19_di" bpmnElement="f_19">
+        <di:waypoint x="294.04" y="1249.24" />
+        <di:waypoint x="294.04" y="1287.24" />
+        <di:waypoint x="373.42" y="1287.24" />
+        <di:waypoint x="373.42" y="1325.24" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_20_di" bpmnElement="f_20">
+        <di:waypoint x="294.04" y="1249.24" />
+        <di:waypoint x="294.04" y="1287.24" />
+        <di:waypoint x="373.42" y="1287.24" />
+        <di:waypoint x="373.42" y="1325.24" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
