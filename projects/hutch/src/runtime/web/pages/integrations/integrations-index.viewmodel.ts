@@ -133,6 +133,8 @@ export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
 		"Readplace needs permission to manage forwarding rules. Connect again and leave that permission ticked.",
 	oauth_metadata_scope:
 		"Reconnect Gmail and allow Readplace to read message headers so you can choose senders from your mailbox. Existing mappings stay in place.",
+	oauth_metadata_scope_first_connect:
+		"Readplace needs permission to read message headers so you can choose senders from your mailbox. Connect again and leave that permission ticked.",
 	oauth_account_changed: "Disconnect your current Gmail account before connecting a different one.",
 	oauth_exchange: "Google couldn't complete the connection. Try again in a moment.",
 };
