@@ -645,13 +645,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.redirect(303, `${addressesPath}?error=name`);
 			return;
 		}
-		// Soft duplicate guard: reject a name the user already holds on a live
-		// address so two of their newsletters don't share a label. Best-effort like
-		// the per-user cap — the eventually-consistent list read can miss a
-		// just-minted row — so a rare racing pair may both land; harmless, since the
-		// random token still keeps the two addresses distinct.
+		// Best-effort like the per-user cap — the eventually-consistent list read can
+		// miss a just-minted row — so a rare racing pair may both land; harmless, since
+		// the random token still keeps the two addresses distinct.
 		const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
-		if (owned.some((entry) => isLiveAddress(entry) && entry.name === name)) {
+		if (owned.some((entry) => isCappedAddress(entry) && isLiveAddress(entry) && entry.name === name)) {
 			res.redirect(303, `${addressesPath}?error=name-taken&name=${encodeURIComponent(name)}`);
 			return;
 		}

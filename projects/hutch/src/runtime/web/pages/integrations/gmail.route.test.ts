@@ -361,6 +361,21 @@ describe("Save a sender mapping", () => {
 		expect(row.addedToFilterAt).toBeDefined();
 	});
 
+	it("creates an inbox named gmail even though the machine-owned gateway already carries that alias", async () => {
+		const { agent, gmail, userId, gatewayAddress } = await connectedAgent();
+		const response = await agent
+			.post(ADD)
+			.type("form")
+			.send({ sender: TLDR, destination: "new", inbox_name: "gmail" });
+		expect(response.headers.location).toBe(`${GMAIL}?notice=sender_mapped&discovery=started`);
+		const row = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		assert(row?.mappedAddress);
+		const mapped = await gmail.bundle.findInboxAddress(row.mappedAddress);
+		expect(mapped?.name).toBe("gmail");
+		expect(mapped?.address).not.toBe(gatewayAddress);
+		expect((await gmail.bundle.findInboxAddress(gatewayAddress))?.name).toBe("gmail");
+	});
+
 	it("keeps the sender and entered inbox name when name validation fails", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
 		for (const name of [undefined, "!!!", "tech"]) {

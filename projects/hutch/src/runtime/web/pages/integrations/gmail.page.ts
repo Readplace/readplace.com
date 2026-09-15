@@ -195,7 +195,7 @@ export function registerGmailPageRoutes(
 				return;
 			}
 			const owned = await gmail.listInboxAddresses(userId);
-			if (owned.some((entry) => isLiveAddress(entry) && entry.name === name)) {
+			if (owned.some((entry) => isCappedAddress(entry) && isLiveAddress(entry) && entry.name === name)) {
 				invalid("inbox_name_taken");
 				return;
 			}

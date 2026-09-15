@@ -258,6 +258,31 @@ describe("Inbox address routes", () => {
 			expect(recreated.headers.location).toBe("/inbox/addresses?created=my-newsletter");
 		});
 
+		it("lets the reader name an inbox gmail even though the hidden Gmail gateway carries that alias", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			await fixture.inboxAddress.inboxAddressStore.createAddress({
+				userId,
+				domain: "read.place",
+				name: AliasNameSchema.parse("gmail"),
+				purpose: "gmail-forwarding",
+			});
+
+			const created = await agent.post("/inbox/create").type("form").send({ name: "gmail" });
+
+			expect(created.status).toBe(303);
+			expect(created.headers.location).toBe("/inbox/addresses?created=gmail");
+			const names = Array.from(
+				new JSDOM(
+					(await agent.get("/inbox/addresses")).text,
+				).window.document.querySelectorAll("[data-test-inbox-name]"),
+			).map((el) => el.textContent);
+			expect(names).toEqual(["gmail"]);
+		});
+
 		it("redirects a read-only user to /queue?inactive=1 and mints nothing", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
