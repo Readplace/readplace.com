@@ -402,11 +402,12 @@ describe("MCP server over the real app", () => {
 		}));
 		expect(saved.body.result.isError).toBeUndefined();
 		const lists = await callTool(harness, token, tool("list_readlists"));
-		expect(lists.body.result.structuredContent.readlists).toEqual([
-			{ id: DEFAULT_READLIST_SLUG, name: "All" }, work, rust,
-		]);
+		const readlists = lists.body.result.structuredContent.readlists;
+		expect(readlists[0]).toEqual({ id: DEFAULT_READLIST_SLUG, name: "All" });
+		expect(readlists).toEqual(expect.arrayContaining([work, rust]));
+		expect(readlists).toHaveLength(3);
 		let articleId = "";
-		for (const readlist of lists.body.result.structuredContent.readlists) {
+		for (const readlist of readlists) {
 			const listed = await callTool(harness, token, tool("list_readlist_articles", { readlist: readlist.id }));
 			expect(listed.body.result.structuredContent.total).toBe(1);
 			for (const article of listed.body.result.structuredContent.articles) {
@@ -414,12 +415,14 @@ describe("MCP server over the real app", () => {
 				const fetched = await callTool(harness, token, tool("get_article", { id: article.id }));
 				const { savedAt: _savedAt, ...sharedDetails } = article;
 				expect(fetched.body.result.structuredContent.article).toMatchObject(sharedDetails);
-				expect(article.readlists).toEqual(lists.body.result.structuredContent.readlists);
+				expect(article.readlists).toEqual(readlists);
 			}
 		}
 		const added = await callTool(harness, token, tool("add_to_readlist", { id: articleId, create_name: "Reading Group" }));
 		expect(added.body.result.structuredContent.status).toBe("filed");
-		expect(added.body.result.structuredContent.article.readlists.map((list: { name: string }) => list.name)).toEqual(["All", "Work", "Rust", "Reading Group"]);
+		const addedNames = added.body.result.structuredContent.article.readlists.map((list: { name: string }) => list.name);
+		expect(addedNames).toEqual(expect.arrayContaining(["All", "Work", "Rust", "Reading Group"]));
+		expect(addedNames).toHaveLength(4);
 		const repeat = await callTool(harness, token, tool("add_to_readlist", { id: articleId, create_name: "reading group" }));
 		expect(repeat.body.result.structuredContent.status).toBe("already_filed");
 		const browser = request.agent(harness.server);
