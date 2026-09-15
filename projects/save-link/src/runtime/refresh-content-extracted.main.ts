@@ -25,6 +25,9 @@ const deepseekClient = new OpenAI({
 	apiKey: deepseekApiKey,
 	baseURL: "https://api.deepseek.com",
 	timeout: SELECT_CONTENT_TIMEOUTS.deepseekMs,
+	maxRetries: 0,
+	logger: consoleLogger,
+	logLevel: "info",
 });
 
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
@@ -34,7 +37,10 @@ const selectContent = initSelectContentDepBundle({
 	dynamoClient,
 	contentBucketName,
 	articlesTable,
-	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
+	createChatCompletion: (params) =>
+		deepseekClient.chat.completions.create(params, {
+			signal: AbortSignal.timeout(SELECT_CONTENT_TIMEOUTS.deepseekMs),
+		}),
 	logger: consoleLogger,
 });
 
