@@ -13,14 +13,12 @@ banner: "I taught the iPhone share sheet where your links belong"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-From the iPhone share sheet, one save can now drop a link into several readlists at once. The Readplace app asks on the first share which lists shared articles should land in, keeps the answer on the account, and lets you change it from a checkbox on any list. The app itself now opens on the readlist you left it on and switches to the others from a menu. Every confirmation names where the link went, so "Saved to 'Work'" becomes "Saved to 'Work' and 'Recipes'".
+From the iPhone share sheet, one save can now drop a link into several readlists at once. The Readplace app asks on the first share which lists shared articles should land in, remembers the answer on this iPhone, and lets you change it from a checkbox on any list. The app itself now opens on the readlist you left it on and switches to the others from a menu. Every confirmation names where the link went, so "Saved to 'Work'" becomes "Saved to 'Work' and 'Recipes'".
 
 </div>
 </details>
 
-"The rail hasn't made that trip yet, so creating lists and filing into them is on the website for now."
-
-That sentence shipped in [the readlists announcement](/blog/sort-your-saves-into-readlists?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=post-sort-your-saves-into-readlists), dated 1 day before this post. The filing half of it is already out of date.
+1 day before this post, [the readlists announcement](/blog/sort-your-saves-into-readlists?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=post-sort-your-saves-into-readlists) put creating lists and filing into them "on the website for now". Filing is the half that has already moved.
 
 The iPhone app now opens on a readlist instead of the undivided pile, and the share sheet files one shared link into several lists at once.
 
@@ -32,11 +30,13 @@ The To Read and Read tabs keep their counts inside whichever list is showing, an
 
 ## The share sheet asks once
 
-The first share after this update grows a question inside the card the sheet already draws: which readlists should shared articles drop into? Tick 1 list or several, or press Done with nothing ticked, and shares keep landing in All alone, the way they did last week. Each of those is an answer, and the question doesn't come back.
+The first share after this update opens on a card of its own, ahead of the save, with 1 question: which readlists should shared articles drop into? Tick 1 list or several, or press Done with nothing ticked, and shares keep landing in All alone, the way they did last week. Each of those is an answer, and the question doesn't come back.
 
-Changing the answer doesn't mean finding a settings screen. Each list carries a checkbox above its articles that reads "Shared articles drop here" when the list takes shares, and asks whether it should when it doesn't. It sits on the To Read side only, because a shared article doesn't arrive already read. The menu badges the ticked lists.
+Changing the answer doesn't mean finding a settings screen. Each list carries a checkbox above its articles that reads "Shared articles drop here" when the list takes shares, and asks whether it should when it doesn't.
 
-All has no checkbox. Every save lands in All regardless, so a tick there could only repeat what happens anyway.
+It sits on the To Read side only, because a shared article doesn't arrive already read. The menu badges the ticked lists.
+
+All's box comes already ticked and carries a lock. Every save lands in All regardless, and tapping the box says so instead of changing anything.
 
 ## One request, all destinations
 
@@ -52,8 +52,8 @@ Sharing a link a list already holds moves it back to the top of that list instea
 
 Renaming a list, deleting one, and the rail itself stay on the saved-links page. The app reads lists and files into them, and the housekeeping hasn't made the trip.
 
-Both share answers belong to the account rather than the phone. Signing out clears them, so the next account on the device is asked for its own, and a session that expires on its own keeps them for when you sign back in.
+Both answers stay on this iPhone for whoever is signed in. Signing out clears them, so the next account on the device is asked for its own, and a session that expires on its own keeps them for when you sign back in.
 
 ## After the first Done
 
-The question is already waiting in the share sheet of [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store). Tick the lists that keep coming up, press Done, and the links you share after that file themselves. If there is nothing to tick yet, a first list is 1 typed name away at [readplace.com](/?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=home).
+Lists get their names at [readplace.com](/?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=home) and their ticks in the share sheet of [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-one-share-every-readlist-it-belongs-in&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store), so every link shared after that first Done files itself.
