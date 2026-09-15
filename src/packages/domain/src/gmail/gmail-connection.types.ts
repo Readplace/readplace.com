@@ -12,12 +12,20 @@ export interface GmailFilterError {
 
 export type GmailFilterErrorCode = "query-too-long" | "rejected";
 
+export type GmailConfirmFailureReason = "token-rejected" | "not-confirmed" | "invalid-url";
+
+export interface GmailConfirmError {
+	reason: GmailConfirmFailureReason;
+	at: string;
+}
+
 export interface GmailConnection {
 	userId: UserId;
 	gatewayAddress: InboxAddress;
 	accountEmail: GmailAccountEmail | undefined;
 	connectedAt: string;
 	forwardingConfirmedAt: string | undefined;
+	lastConfirmError: GmailConfirmError | undefined;
 	filterCount: number | undefined;
 	filterSenderCount: number | undefined;
 	filterUpdatedAt: string | undefined;
@@ -37,6 +45,10 @@ export interface GmailConnectionStore {
 	) => Promise<GmailConnection | undefined>;
 	markForwardingConfirmed: (input: { userId: UserId }) => Promise<void>;
 	clearForwardingConfirmed: (input: { userId: UserId }) => Promise<void>;
+	recordConfirmError: (input: {
+		userId: UserId;
+		error: GmailConfirmError;
+	}) => Promise<void>;
 	recordAccountEmail: (input: {
 		userId: UserId;
 		accountEmail: GmailAccountEmail;

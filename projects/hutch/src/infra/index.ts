@@ -11,6 +11,7 @@ import {
 	DeleteAccountCommand,
 	ExportUserDataCommand,
 	DisconnectGmailCommand,
+	GmailForwardingConfirmFailedEvent,
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
 	StartGmailSenderDiscoveryCommand,
@@ -1264,6 +1265,7 @@ eventBus.subscribeAll(
 	[
 		{ ...RewriteGmailFilterCommand, name: "hutch-rewrite-gmail-filter" },
 		{ ...GmailForwardingConfirmedEvent, name: "hutch-gmail-forwarding-confirmed" },
+		{ ...GmailForwardingConfirmFailedEvent, name: "hutch-gmail-forwarding-confirm-failed" },
 		{ ...DisconnectGmailCommand, name: "hutch-disconnect-gmail" },
 	],
 	rewriteGmailFilterWithSQS,

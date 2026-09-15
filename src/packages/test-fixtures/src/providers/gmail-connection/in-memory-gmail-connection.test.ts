@@ -106,6 +106,37 @@ describe("initInMemoryGmailConnection", () => {
 		});
 	});
 
+	it("records why the last confirmation failed", async () => {
+		const { store, connect } = connectedStore();
+		await connect();
+
+		await store.recordConfirmError({
+			userId: owner,
+			error: { reason: "token-rejected", at: "2026-08-27T00:01:00.000Z" },
+		});
+
+		const connection = await store.findConnectionByUserId(owner);
+		assert.deepEqual(connection?.lastConfirmError, {
+			reason: "token-rejected",
+			at: "2026-08-27T00:01:00.000Z",
+		});
+	});
+
+	it("drops the failed confirmation once Google confirms", async () => {
+		const { store, connect } = connectedStore();
+		await connect();
+		await store.recordConfirmError({
+			userId: owner,
+			error: { reason: "token-rejected", at: "2026-08-27T00:01:00.000Z" },
+		});
+
+		await store.markForwardingConfirmed({ userId: owner });
+
+		const connection = await store.findConnectionByUserId(owner);
+		assert.equal(connection?.lastConfirmError, undefined);
+		assert.equal(connection?.forwardingConfirmedAt, "2026-08-27T00:00:00.000Z");
+	});
+
 	it("records why the grant went away", async () => {
 		const { store, connect } = connectedStore();
 		await connect();

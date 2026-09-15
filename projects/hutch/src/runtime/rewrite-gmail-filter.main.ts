@@ -5,11 +5,13 @@ import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDb
 import { requireEnv } from "@packages/require-env";
 import {
 	DisconnectGmailCommand,
+	GmailForwardingConfirmFailedEvent,
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
 } from "@packages/hutch-infra-components";
 import { initDisconnectGmail } from "./domain/gmail/disconnect-gmail";
 import { initDisconnectGmailHandler } from "./domain/gmail/disconnect-gmail-handler";
+import { initGmailForwardingConfirmFailedHandler } from "./domain/gmail/gmail-forwarding-confirm-failed-handler";
 import { initGmailForwardingConfirmedHandler } from "./domain/gmail/gmail-forwarding-confirmed-handler";
 import { initRewriteGmailFilter } from "./domain/gmail/rewrite-gmail-filter";
 import { initRewriteGmailFilterHandler } from "./domain/gmail/rewrite-gmail-filter-handler";
@@ -80,6 +82,9 @@ export const handler = initHandleByDetailType({
 		[RewriteGmailFilterCommand.detailType]: [rewriteHandler],
 		[GmailForwardingConfirmedEvent.detailType]: [
 			initGmailForwardingConfirmedHandler({ connections, addresses, publishEvent, logger }),
+		],
+		[GmailForwardingConfirmFailedEvent.detailType]: [
+			initGmailForwardingConfirmFailedHandler({ connections, now, logger }),
 		],
 		[DisconnectGmailCommand.detailType]: [
 			initDisconnectGmailHandler({

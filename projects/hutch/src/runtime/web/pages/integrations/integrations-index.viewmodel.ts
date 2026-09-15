@@ -63,6 +63,7 @@ const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	disconnecting: "Disconnecting…",
 	revoked: "Reconnect needed",
 	"filter-failed": "Needs attention",
+	"confirm-failed": "Needs attention",
 	"awaiting-confirmation": "Step 2 of 2",
 	"ready-to-filter": "Connected",
 	filtering: "Connected",
@@ -81,6 +82,13 @@ const GMAIL_ACTIONS: Record<
 	}],
 	disconnecting: [],
 	"awaiting-confirmation": [{
+		key: "finish-setup",
+		method: "GET",
+		href: GMAIL_PATH,
+		label: "Finish setup",
+		variant: "primary",
+	}],
+	"confirm-failed": [{
 		key: "finish-setup",
 		method: "GET",
 		href: GMAIL_PATH,

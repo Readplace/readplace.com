@@ -100,7 +100,8 @@
 }
 
 .integrations__status--revoked,
-.integrations__status--filter-failed {
+.integrations__status--filter-failed,
+.integrations__status--confirm-failed {
   color: var(--error-text);
 }
 /* purgecss-ignore-end */

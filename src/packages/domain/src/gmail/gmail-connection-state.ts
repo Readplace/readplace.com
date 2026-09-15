@@ -5,6 +5,7 @@ export type GmailConnectionState =
 	| "disconnecting"
 	| "revoked"
 	| "filter-failed"
+	| "confirm-failed"
 	| "awaiting-confirmation"
 	| "ready-to-filter"
 	| "filtering";
@@ -14,7 +15,10 @@ export function gmailConnectionState(connection: GmailConnection | undefined): G
 	if (connection.disconnectRequestedAt !== undefined) return "disconnecting";
 	if (connection.revokedAt !== undefined) return "revoked";
 	if (connection.lastFilterError !== undefined) return "filter-failed";
-	if (connection.forwardingConfirmedAt === undefined) return "awaiting-confirmation";
+	if (connection.forwardingConfirmedAt === undefined) {
+		if (connection.lastConfirmError !== undefined) return "confirm-failed";
+		return "awaiting-confirmation";
+	}
 	if (!connection.filterCount) return "ready-to-filter";
 	return "filtering";
 }

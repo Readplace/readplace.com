@@ -19,13 +19,14 @@ const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 const ALIAS = InboxAddressSchema.parse("tech-b8c3d0@read.place");
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 
-function connection(): GmailConnection {
+function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 	return {
 		userId: USER,
 		gatewayAddress: GATEWAY,
 		accountEmail: undefined,
 		connectedAt: "2026-08-27T00:00:00.000Z",
 		forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
+		lastConfirmError: undefined,
 		filterCount: undefined,
 		filterSenderCount: undefined,
 		filterUpdatedAt: undefined,
@@ -33,6 +34,7 @@ function connection(): GmailConnection {
 		revokedAt: undefined,
 		revokedReason: undefined,
 		disconnectRequestedAt: undefined,
+		...overrides,
 	};
 }
 
@@ -164,6 +166,18 @@ describe("Gmail sender mapping presentation", () => {
 		assert.equal(manageUrl.pathname, "/inbox/addresses");
 		assert.equal(manageUrl.searchParams.get("utm_source"), "integrations-gmail");
 		assert.equal(manageUrl.searchParams.get("utm_content"), "manage-inboxes");
+	});
+});
+
+describe("Gmail forwarding confirmation step", () => {
+	it("renders the poll line under step 2 for an unconfirmed connection", () => {
+		const doc = pageDocument(input({ connection: connection({ forwardingConfirmedAt: undefined }) }));
+		const poll = doc.querySelector("[data-test-gmail-poll]");
+		assert(poll, "the poll line must render while awaiting confirmation");
+		assert.equal(
+			poll.getAttribute("hx-get"),
+			"/integrations/gmail/status?poll=1&state=awaiting-confirmation",
+		);
 	});
 });
 

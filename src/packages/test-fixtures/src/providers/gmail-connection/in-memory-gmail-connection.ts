@@ -18,6 +18,7 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 				accountEmail: undefined,
 				connectedAt: deps.now().toISOString(),
 				forwardingConfirmedAt: undefined,
+				lastConfirmError: undefined,
 				filterCount: undefined,
 				filterSenderCount: undefined,
 				filterUpdatedAt: undefined,
@@ -33,10 +34,16 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 		markForwardingConfirmed: async ({ userId }) => {
 			const existing = rows.get(userId);
 			if (existing?.forwardingConfirmedAt !== undefined) return;
-			update(userId, { forwardingConfirmedAt: deps.now().toISOString() });
+			update(userId, {
+				forwardingConfirmedAt: deps.now().toISOString(),
+				lastConfirmError: undefined,
+			});
 		},
 		clearForwardingConfirmed: async ({ userId }) => {
 			update(userId, { forwardingConfirmedAt: undefined });
+		},
+		recordConfirmError: async ({ userId, error }) => {
+			update(userId, { lastConfirmError: error });
 		},
 		recordAccountEmail: async ({ userId, accountEmail }) => {
 			update(userId, { accountEmail });

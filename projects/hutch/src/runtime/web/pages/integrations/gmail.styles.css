@@ -57,7 +57,8 @@
 }
 
 .gmail__status--revoked,
-.gmail__status--filter-failed {
+.gmail__status--filter-failed,
+.gmail__status--confirm-failed {
   color: var(--error-text);
 }
 /* purgecss-ignore-end */

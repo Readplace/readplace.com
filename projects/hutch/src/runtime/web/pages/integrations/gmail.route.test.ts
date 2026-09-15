@@ -253,9 +253,38 @@ describe("Gmail sender mapping page", () => {
 		const { agent, gatewayAddress } = await connectedAgent({ confirmed: false });
 		const doc = load((await agent.get(GMAIL)).text);
 		expect(doc.querySelector("[data-test-gmail-address]")?.textContent).toBe(gatewayAddress);
-		const response = await agent.get(`${GMAIL}/status?poll=1`);
-		expect(load(response.text).querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get")).toBe(`${GMAIL}/status?poll=2`);
-		expect((await agent.get(`${GMAIL}/status?poll=100`)).text).toContain("Still waiting");
+		expect(doc.querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get")).toBe(`${GMAIL}/status?poll=1&state=awaiting-confirmation`);
+		const response = await agent.get(`${GMAIL}/status?poll=1&state=awaiting-confirmation`);
+		expect(load(response.text).querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get")).toBe(`${GMAIL}/status?poll=2&state=awaiting-confirmation`);
+		expect((await agent.get(`${GMAIL}/status?poll=100&state=awaiting-confirmation`)).text).toContain("Still waiting");
+	});
+
+	it("surfaces a failed confirmation, keeps watching, and confirms once Google sends a new link", async () => {
+		const { agent, gmail, userId, gatewayAddress } = await connectedAgent({ confirmed: false });
+		await gmail.bundle.gmailConnectionStore.recordConfirmError({
+			userId,
+			error: { reason: "token-rejected", at: "2026-09-14T00:00:00.000Z" },
+		});
+
+		const doc = load((await agent.get(GMAIL)).text);
+		expect(doc.querySelector("[data-test-gmail-state]")?.getAttribute("data-test-gmail-state")).toBe("confirm-failed");
+		expect(doc.querySelector('[data-test-gmail-alert-key="confirm_failed"]')?.textContent).toContain("already been used or had expired");
+		expect(doc.querySelector("[data-test-gmail-address]")?.textContent).toBe(gatewayAddress);
+		expect(doc.querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get")).toBe(`${GMAIL}/status?poll=1&state=confirm-failed`);
+
+		const fragment = await agent.get(`${GMAIL}/status?poll=1&state=confirm-failed`);
+		expect(load(fragment.text).querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get")).toBe(`${GMAIL}/status?poll=2&state=confirm-failed`);
+
+		expect((await agent.get(`${GMAIL}/status?poll=1&state=awaiting-confirmation`)).headers.location).toBe(GMAIL);
+		expect((await agent.get(`${GMAIL}/status?poll=1&state=awaiting-confirmation`).set("HX-Request", "true")).headers["hx-redirect"]).toBe(GMAIL);
+
+		await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
+		expect((await agent.get(`${GMAIL}/status?poll=1&state=confirm-failed`)).headers.location).toBe(`${GMAIL}?notice=confirmed`);
+	});
+
+	it("redirects a poll that names no state so the page re-renders", async () => {
+		const { agent } = await connectedAgent({ confirmed: false });
+		expect((await agent.get(`${GMAIL}/status?poll=1`)).headers.location).toBe(GMAIL);
 	});
 
 	it("redirects completed confirmation with and without htmx", async () => {

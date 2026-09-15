@@ -20,8 +20,8 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { GmailPage, renderGmailPoll, renderGmailSenderResults } from "./gmail.component";
-import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, GMAIL_DISCOVERY_MAX_POLLS, type GmailPageError } from "./gmail.url";
-import { toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
+import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, GMAIL_DISCOVERY_MAX_POLLS, type GmailPageError, GmailPollStateSchema } from "./gmail.url";
+import { gmailPollState, toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 import { buildIntegrationsUrl, INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-connect.page";
 
@@ -154,13 +154,19 @@ export function registerGmailPageRoutes(
 			redirectFullPage(req, res, INTEGRATIONS_PATH);
 			return;
 		}
-		if (gmailConnectionState(connection) !== "awaiting-confirmation") {
+		const pollState = gmailPollState(gmailConnectionState(connection));
+		if (pollState === undefined) {
 			redirectFullPage(req, res, buildGmailUrl({ notice: "confirmed" }));
+			return;
+		}
+		const requestedState = GmailPollStateSchema.safeParse(req.query.state);
+		if (!requestedState.success || requestedState.data !== pollState) {
+			redirectFullPage(req, res, buildGmailUrl());
 			return;
 		}
 		const pollCount = parsePollParam(req.query.poll, GMAIL_CONFIRM_MAX_POLLS);
 		res.status(200).set("Cache-Control", "private, no-cache").type("html")
-			.send(renderGmailPoll(toGmailPollViewModel({ pollCount })));
+			.send(renderGmailPoll(toGmailPollViewModel({ pollCount, state: pollState })));
 	});
 
 	router.post("/gmail/senders/add", write, connected, async (req: Request, res: Response) => {

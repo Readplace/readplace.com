@@ -18,12 +18,18 @@ const GmailFilterErrorRow = z.object({
 	at: z.string(),
 });
 
+const GmailConfirmErrorRow = z.object({
+	reason: z.enum(["token-rejected", "not-confirmed", "invalid-url"]),
+	at: z.string(),
+});
+
 const GmailConnectionRow = z.object({
 	userId: UserIdSchema,
 	gatewayAddress: InboxAddressSchema,
 	accountEmail: dynamoField(GmailAccountEmailSchema),
 	connectedAt: z.string(),
 	forwardingConfirmedAt: dynamoField(z.string()),
+	lastConfirmError: dynamoField(GmailConfirmErrorRow),
 	filterCount: dynamoField(z.number()),
 	filterSenderCount: dynamoField(z.number()),
 	filterUpdatedAt: dynamoField(z.string()),
@@ -41,6 +47,7 @@ function toConnection(row: z.infer<typeof GmailConnectionRow>): GmailConnection 
 		accountEmail: row.accountEmail,
 		connectedAt: row.connectedAt,
 		forwardingConfirmedAt: row.forwardingConfirmedAt,
+		lastConfirmError: row.lastConfirmError,
 		filterCount: row.filterCount,
 		filterSenderCount: row.filterSenderCount,
 		filterUpdatedAt: row.filterUpdatedAt,
@@ -79,6 +86,7 @@ export function initDynamoDbGmailConnection(deps: {
 				accountEmail: undefined,
 				connectedAt,
 				forwardingConfirmedAt: undefined,
+				lastConfirmError: undefined,
 				filterCount: undefined,
 				filterSenderCount: undefined,
 				filterUpdatedAt: undefined,
@@ -96,7 +104,7 @@ export function initDynamoDbGmailConnection(deps: {
 			await table.update({
 				Key: { userId },
 				UpdateExpression:
-					"SET forwardingConfirmedAt = if_not_exists(forwardingConfirmedAt, :now)",
+					"SET forwardingConfirmedAt = if_not_exists(forwardingConfirmedAt, :now) REMOVE lastConfirmError",
 				ExpressionAttributeValues: { ":now": deps.now().toISOString() },
 			});
 		},
@@ -104,6 +112,13 @@ export function initDynamoDbGmailConnection(deps: {
 			await table.update({
 				Key: { userId },
 				UpdateExpression: "REMOVE forwardingConfirmedAt",
+			});
+		},
+		recordConfirmError: async ({ userId, error }) => {
+			await table.update({
+				Key: { userId },
+				UpdateExpression: "SET lastConfirmError = :err",
+				ExpressionAttributeValues: { ":err": error },
 			});
 		},
 		recordAccountEmail: async ({ userId, accountEmail }) => {

@@ -11,6 +11,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 		accountEmail: undefined,
 		connectedAt: "2026-08-24T00:00:00.000Z",
 		forwardingConfirmedAt: undefined,
+		lastConfirmError: undefined,
 		filterCount: undefined,
 		filterSenderCount: undefined,
 		filterUpdatedAt: undefined,
@@ -64,6 +65,18 @@ describe("gmailConnectionState", () => {
 		assert.equal(state, "filter-failed");
 	});
 
+	it("reports confirm-failed when Google rejected the last confirmation", () => {
+		const state = gmailConnectionState(
+			connection({
+				lastConfirmError: {
+					reason: "token-rejected",
+					at: "2026-08-24T02:00:00.000Z",
+				},
+			}),
+		);
+		assert.equal(state, "confirm-failed");
+	});
+
 	it("reports awaiting-confirmation until Google confirms the forwarding address", () => {
 		assert.equal(gmailConnectionState(connection()), "awaiting-confirmation");
 	});
@@ -71,6 +84,19 @@ describe("gmailConnectionState", () => {
 	it("reports ready-to-filter once confirmed but before a filter exists", () => {
 		const state = gmailConnectionState(
 			connection({ forwardingConfirmedAt: "2026-08-24T00:30:00.000Z" }),
+		);
+		assert.equal(state, "ready-to-filter");
+	});
+
+	it("reports ready-to-filter when a stale confirmation error sits beside a confirmation", () => {
+		const state = gmailConnectionState(
+			connection({
+				forwardingConfirmedAt: "2026-08-24T00:30:00.000Z",
+				lastConfirmError: {
+					reason: "token-rejected",
+					at: "2026-08-24T02:00:00.000Z",
+				},
+			}),
 		);
 		assert.equal(state, "ready-to-filter");
 	});

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { GmailConnection, GmailSenderEntry } from "@packages/domain/gmail";
+import type { GmailConfirmFailureReason, GmailConnection, GmailSenderEntry } from "@packages/domain/gmail";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { AliasNameSchema, INBOX_ADDRESS_MAX_PER_USER, type InboxAddressEntry, type InboxAddressPurpose, InboxAddressSchema, InboxTokenSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
@@ -16,6 +16,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 	return {
 		userId: USER, gatewayAddress: GATEWAY, accountEmail: undefined,
 		connectedAt: "2026-08-27T00:00:00.000Z", forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
+		lastConfirmError: undefined,
 		filterCount: undefined, filterSenderCount: undefined, filterUpdatedAt: undefined,
 		lastFilterError: undefined, revokedAt: undefined, revokedReason: undefined,
 		disconnectRequestedAt: undefined, ...overrides,
@@ -312,13 +313,50 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.equal(vm.showStep, false);
 		assert.equal(vm.alerts[0].message, GMAIL_GATEWAY_DISABLED_MESSAGE);
 	});
+
+	it("explains a failed confirmation and keeps step 2 on the page", () => {
+		const cases: [GmailConfirmFailureReason, RegExp][] = [
+			["token-rejected", /already been used or had expired/],
+			["not-confirmed", /didn't finish confirming/],
+			["invalid-url", /without a link I could use/],
+		];
+		for (const [reason, expected] of cases) {
+			const vm = toGmailPageViewModel(
+				input({
+					connection: connection({
+						forwardingConfirmedAt: undefined,
+						lastConfirmError: { reason, at: "2026-08-28T00:00:00.000Z" },
+					}),
+				}),
+			);
+			assert.equal(vm.state, "confirm-failed");
+			assert.equal(vm.statusLabel, "Needs attention");
+			assert.equal(vm.showStep, true);
+			assert.equal(vm.pollState, "confirm-failed");
+			const alert = vm.alerts.find((entry) => entry.key === "confirm_failed");
+			assert(alert, "the confirm-failed alert must render");
+			assert.match(alert.message, expected);
+		}
+	});
 });
 
 describe("Gmail forwarding confirmation polling", () => {
 	it("keeps polling until its budget is exhausted", () => {
-		assert.equal(toGmailPollViewModel({ pollCount: 0 }).pollUrl, "/integrations/gmail/status?poll=1");
-		const stopped = toGmailPollViewModel({ pollCount: GMAIL_CONFIRM_MAX_POLLS });
+		assert.equal(
+			toGmailPollViewModel({ pollCount: 0, state: "awaiting-confirmation" }).pollUrl,
+			"/integrations/gmail/status?poll=1&state=awaiting-confirmation",
+		);
+		const stopped = toGmailPollViewModel({ pollCount: GMAIL_CONFIRM_MAX_POLLS, state: "awaiting-confirmation" });
 		assert.equal(stopped.pollUrl, undefined);
 		assert.match(stopped.message, /refresh this page/);
+	});
+
+	it("changes the watching and exhausted copy after a failure", () => {
+		const watching = toGmailPollViewModel({ pollCount: 0, state: "confirm-failed" });
+		assert.equal(watching.pollUrl, "/integrations/gmail/status?poll=1&state=confirm-failed");
+		assert.match(watching.message, /send a new confirmation/);
+		const exhausted = toGmailPollViewModel({ pollCount: GMAIL_CONFIRM_MAX_POLLS, state: "confirm-failed" });
+		assert.equal(exhausted.pollUrl, undefined);
+		assert.match(exhausted.message, /added the address again/);
 	});
 });

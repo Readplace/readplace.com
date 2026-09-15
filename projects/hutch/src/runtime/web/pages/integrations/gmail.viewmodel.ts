@@ -1,5 +1,5 @@
 import { withInternalTracking } from "@packages/web-shell";
-import type { GmailConnection, GmailConnectionState, GmailDiscovery, GmailSenderEntry } from "@packages/domain/gmail";
+import type { GmailConfirmFailureReason, GmailConnection, GmailConnectionState, GmailDiscovery, GmailSenderEntry } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { addressCapReached, INBOX_ADDRESS_MAX_PER_USER, isCappedAddress, isLiveAddress } from "@packages/domain/inbox";
@@ -8,7 +8,7 @@ import {
 	GMAIL_DISCOVERY_FAST_POLLS, GMAIL_DISCOVERY_MAX_POLLS,
 	GMAIL_DISCONNECT_PATH, GMAIL_SENDER_ADD_PATH, GMAIL_SENDER_REMOVE_PATH,
 	GMAIL_DISCOVERY_START_PATH, GMAIL_SENDERS_PATH, GMAIL_PATH,
-	buildGmailMailboxUrl, type GmailPageError, type GmailPageNotice,
+	buildGmailMailboxUrl, type GmailPageError, type GmailPageNotice, type GmailPollState,
 } from "./gmail.url";
 import { GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW } from "../../../domain/gmail/gmail-discovery-window";
 import { GMAIL_CONNECT_PATH, INTEGRATIONS_PATH } from "./gmail-connect.url";
@@ -59,6 +59,7 @@ export interface GmailPageViewModel {
 	state: GmailConnectionState;
 	stateModifier: string;
 	statusLabel: string;
+	pollState: GmailPollState | undefined;
 	integrationsPath: string;
 	gatewayAddress: string;
 	mailboxUrl: string;
@@ -120,9 +121,21 @@ function fieldsFor(params: { search: string; sender?: string; destination?: stri
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	disconnected: "Not connected", disconnecting: "Disconnecting…", revoked: "Reconnect needed",
-	"filter-failed": "Needs attention", "awaiting-confirmation": "Step 2 of 2",
+	"filter-failed": "Needs attention", "confirm-failed": "Needs attention",
+	"awaiting-confirmation": "Step 2 of 2",
 	"ready-to-filter": "Connected", filtering: "Forwarding",
 };
+
+const GMAIL_POLL_STATE_BY_STATE: Record<GmailConnectionState, GmailPollState | undefined> = {
+	disconnected: undefined, disconnecting: undefined, revoked: undefined,
+	"filter-failed": undefined, "confirm-failed": "confirm-failed",
+	"awaiting-confirmation": "awaiting-confirmation",
+	"ready-to-filter": undefined, filtering: undefined,
+};
+
+export function gmailPollState(state: GmailConnectionState): GmailPollState | undefined {
+	return GMAIL_POLL_STATE_BY_STATE[state];
+}
 
 export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	sender_invalid: "Choose a sender from your Gmail account.",
@@ -137,6 +150,15 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 
 export const GMAIL_GATEWAY_DISABLED_MESSAGE =
 	"This forwarding address has been switched off, so Gmail can't deliver to it. Disconnect Gmail below, then connect again to get a working one.";
+
+export const GMAIL_CONFIRM_FAILED_MESSAGES: Record<GmailConfirmFailureReason, string> = {
+	"token-rejected":
+		"Google's confirmation link had already been used or had expired by the time I opened it. In Gmail, remove the forwarding address and add it again, and Google will send a fresh one. I'll confirm it as soon as it arrives.",
+	"not-confirmed":
+		"I opened Google's confirmation link, but Google didn't finish confirming the address. In Gmail, remove the forwarding address and add it again so Google sends a new link.",
+	"invalid-url":
+		"Google's confirmation email arrived without a link I could use. In Gmail, remove the forwarding address and add it again. If that doesn't help, disconnect Gmail below and connect again.",
+};
 
 export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	connected: "Gmail is connected.", confirmed: "Forwarding confirmed.",
@@ -211,17 +233,30 @@ function mappingGroups(input: GmailPageInput): GmailMappingGroup[] {
 	return [...groups.values()];
 }
 
-export function toGmailPollViewModel(input: { pollCount: number }): GmailPollViewModel {
+const GMAIL_POLL_COPY: Record<GmailPollState, { watching: string; exhausted: string }> = {
+	"awaiting-confirmation": {
+		watching: "Watching for Gmail to confirm the forwarding address.",
+		exhausted:
+			"Still waiting. If you haven't added the address in Gmail yet, add it and refresh this page. If you added it more than a few minutes ago, remove it in Gmail and add it again so Google sends a new confirmation.",
+	},
+	"confirm-failed": {
+		watching: "Watching for Gmail to send a new confirmation.",
+		exhausted: "Still waiting. Once you've added the address again in Gmail, refresh this page.",
+	},
+};
+
+export function toGmailPollViewModel(input: { pollCount: number; state: GmailPollState }): GmailPollViewModel {
 	const canPoll = input.pollCount < GMAIL_CONFIRM_MAX_POLLS;
+	const copy = GMAIL_POLL_COPY[input.state];
 	return {
-		pollUrl: canPoll ? buildGmailStatusUrl(input.pollCount + 1) : undefined,
-		message: canPoll ? "Watching for Gmail to confirm the forwarding address."
-			: "Still waiting. Once you've added the address in Gmail, refresh this page.",
+		pollUrl: canPoll ? buildGmailStatusUrl({ pollCount: input.pollCount + 1, state: input.state }) : undefined,
+		message: canPoll ? copy.watching : copy.exhausted,
 	};
 }
 
 export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel {
 	const state = gmailConnectionState(input.connection);
+	const pollState = gmailPollState(state);
 	const revoked = state === "revoked";
 	const inboxLimit = addressCapReached({ purpose: "gmail-mapped", owned: input.inboxes });
 	const destinations = input.inboxes.filter((entry) => isCappedAddress(entry) && isLiveAddress(entry));
@@ -250,7 +285,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	poll.searchParams.set("poll", String(pollCount + 1));
 	const mappings = mappingGroups(input);
 	return {
-		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state],
+		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state], pollState,
 		integrationsPath: track(INTEGRATIONS_PATH, "back-to-integrations"),
 		gatewayAddress: input.connection.gatewayAddress, mailboxUrl: buildGmailMailboxUrl(input.connection.accountEmail),
 		pagePath: GMAIL_PATH, searchPath: GMAIL_SENDERS_PATH,
@@ -259,7 +294,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		discoveryAction: track(GMAIL_DISCOVERY_START_PATH, "load-senders"),
 		disconnectAction: track(GMAIL_DISCONNECT_PATH, "disconnect"), reconnectAction: track(GMAIL_CONNECT_PATH, "reconnect"),
 		manageInboxesUrl: track("/inbox/addresses", "manage-inboxes"),
-		showStep: state === "awaiting-confirmation" && input.gatewayLive,
+		showStep: pollState !== undefined && input.gatewayLive,
 		showSenders: !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect,
 		showReconnect: revoked, showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
 		autoDiscover: !input.discoveryStarted,
@@ -288,6 +323,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			...(input.gatewayLive ? [] : [{ key: "gateway_disabled", message: GMAIL_GATEWAY_DISABLED_MESSAGE }]),
 			...bannersFor(input.error, GMAIL_PAGE_ERRORS),
 			...(input.connection.lastFilterError === undefined ? [] : [{ key: "filter", message: input.connection.lastFilterError.message }]),
+			...(input.connection.lastConfirmError === undefined ? [] : [{ key: "confirm_failed", message: GMAIL_CONFIRM_FAILED_MESSAGES[input.connection.lastConfirmError.reason] }]),
 		],
 		notices: bannersFor(input.notice, GMAIL_PAGE_NOTICES),
 	};

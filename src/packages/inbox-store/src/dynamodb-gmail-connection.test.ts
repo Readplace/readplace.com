@@ -66,6 +66,7 @@ describe("initDynamoDbGmailConnection", () => {
 			accountEmail: undefined,
 			connectedAt: NOW.toISOString(),
 			forwardingConfirmedAt: undefined,
+			lastConfirmError: undefined,
 			filterCount: undefined,
 			filterSenderCount: undefined,
 			filterUpdatedAt: undefined,
@@ -101,6 +102,7 @@ describe("initDynamoDbGmailConnection", () => {
 			accountEmail: ACCOUNT_EMAIL,
 			connectedAt: NOW.toISOString(),
 			forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
+			lastConfirmError: undefined,
 			filterCount: 1,
 			filterSenderCount: 1,
 			filterUpdatedAt: "2026-08-27T00:06:00.000Z",
@@ -122,10 +124,9 @@ describe("initDynamoDbGmailConnection", () => {
 
 		await store.markForwardingConfirmed({ userId: USER });
 
-		assert.match(
-			String(commands[0].input.UpdateExpression),
-			/if_not_exists\(forwardingConfirmedAt, :now\)/,
-		);
+		const expression = String(commands[0].input.UpdateExpression);
+		assert.match(expression, /if_not_exists\(forwardingConfirmedAt, :now\)/);
+		assert.match(expression, /REMOVE lastConfirmError/);
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
 			":now": NOW.toISOString(),
 		});
@@ -177,6 +178,19 @@ describe("initDynamoDbGmailConnection", () => {
 
 		await store.recordFilterError({ userId: USER, error });
 
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":err": error });
+	});
+
+	it("records a failed confirmation so the page can surface it", async () => {
+		const { store, commands } = harness();
+		const error = {
+			reason: "token-rejected",
+			at: NOW.toISOString(),
+		} as const;
+
+		await store.recordConfirmError({ userId: USER, error });
+
+		assert.match(String(commands[0].input.UpdateExpression), /SET lastConfirmError = :err/);
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":err": error });
 	});
 

@@ -63,7 +63,10 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 				...vm,
 				settingsShot: SETTINGS_SHOT,
 				forwardingShot: FORWARDING_SHOT,
-				pollLine: renderGmailPoll(toGmailPollViewModel({ pollCount: 0 })),
+				pollLine:
+					vm.pollState === undefined
+						? ""
+						: renderGmailPoll(toGmailPollViewModel({ pollCount: 0, state: vm.pollState })),
 				loadButton: renderGmailLoadButton(vm, false),
 				senderResults: renderGmailSenderResults(vm),
 			}),

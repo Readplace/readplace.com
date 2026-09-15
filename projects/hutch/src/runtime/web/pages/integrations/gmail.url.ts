@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { GmailAccountEmail } from "@packages/domain/gmail";
 
 export const GMAIL_PATH = "/integrations/gmail";
@@ -57,6 +58,11 @@ export function buildGmailUrl(params: {
 	return suffix === "" ? GMAIL_PATH : `${GMAIL_PATH}?${suffix}`;
 }
 
-export function buildGmailStatusUrl(pollCount: number): string {
-	return `${GMAIL_STATUS_PATH}?poll=${pollCount}`;
+export const GMAIL_POLL_STATES = ["awaiting-confirmation", "confirm-failed"] as const;
+export const GmailPollStateSchema = z.enum(GMAIL_POLL_STATES);
+export type GmailPollState = z.infer<typeof GmailPollStateSchema>;
+
+export function buildGmailStatusUrl(input: { pollCount: number; state: GmailPollState }): string {
+	const params = new URLSearchParams({ poll: String(input.pollCount), state: input.state });
+	return `${GMAIL_STATUS_PATH}?${params.toString()}`;
 }

@@ -16,6 +16,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 		accountEmail: undefined,
 		connectedAt: "2026-08-27T00:00:00.000Z",
 		forwardingConfirmedAt: undefined,
+		lastConfirmError: undefined,
 		filterCount: undefined,
 		filterSenderCount: undefined,
 		filterUpdatedAt: undefined,
@@ -64,6 +65,26 @@ describe("toIntegrationsIndexViewModel", () => {
 
 		assert.equal(gmail.statusKey, "awaiting-confirmation");
 		assert.equal(gmail.statusLabel, "Step 2 of 2");
+		assert.deepEqual(
+			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
+			[[
+				"finish-setup",
+				"GET",
+				`${GMAIL_PATH}?utm_source=integrations&utm_medium=internal&utm_content=finish-setup`,
+				"primary",
+			]],
+		);
+	});
+
+	it("sends a failed confirmation back to step 2 as the pressing action", () => {
+		const gmail = gmailRow({
+			connection: connection({
+				lastConfirmError: { reason: "token-rejected", at: "2026-08-28T00:00:00.000Z" },
+			}),
+		});
+
+		assert.equal(gmail.statusKey, "confirm-failed");
+		assert.equal(gmail.statusLabel, "Needs attention");
 		assert.deepEqual(
 			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
 			[[

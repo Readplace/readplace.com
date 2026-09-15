@@ -18,6 +18,8 @@ export type { GmailConnectionState } from "./gmail-connection-state";
 export { groupSendersByDestination } from "./group-senders-by-destination";
 export type { GmailDestinationGroup } from "./group-senders-by-destination";
 export type {
+	GmailConfirmError,
+	GmailConfirmFailureReason,
 	GmailConnection,
 	GmailConnectionStore,
 	GmailFilterError,
