@@ -21,6 +21,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 			deadLetterQueueArn: pulumi.Input<string>;
 			tableArn: pulumi.Input<string>;
 			tableName: pulumi.Input<string>;
+			tableNameEnvVar: string;
 			eventBus: HutchEventBus;
 			/** Valid range: 1–10 (AWS SQS EventSourceMapping limit for standard queues). */
 			batchSize: number;
@@ -44,7 +45,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 			memorySize: 256,
 			timeout: 30,
 			environment: {
-				DYNAMODB_ARTICLES_TABLE: args.tableName,
+				[args.tableNameEnvVar]: args.tableName,
 				EVENT_BUS_NAME: args.eventBus.eventBusName,
 				...args.additionalEnvironment,
 			},

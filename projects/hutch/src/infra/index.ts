@@ -1311,10 +1311,10 @@ new HutchDLQEventHandler("gmail-discovery-dlq", {
 	deadLetterQueueArn: gmailDiscoveryQueue.dlqArn,
 	tableArn: storage.gmailDiscoveryTable.arn,
 	tableName: storage.gmailDiscoveryTable.name,
+	tableNameEnvVar: "DYNAMODB_GMAIL_DISCOVERY_TABLE",
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: { DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name },
 });
 
 // --- Analytics Dashboard ---

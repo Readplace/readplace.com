@@ -342,6 +342,7 @@ new HutchDLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
 	deadLetterQueueArn: failuresDlq.arn,
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
+	tableNameEnvVar: "DYNAMODB_ARTICLES_TABLE",
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem"],
