@@ -8,6 +8,7 @@ import { GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -417,6 +418,68 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(codes).toEqual([]);
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
+	});
+
+	it("sends a signed-out callback to sign in and back to the integrations page", async () => {
+		const { fixture, codes } = fixtureWithGmail();
+		const harness = useApp(fixture);
+
+		const response = await request(harness.server)
+			.get(CALLBACK)
+			.query({ code: "auth-code", state: "whatever" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			"/login?return=%2Fintegrations%3Ferror%3Doauth_signed_out",
+		);
+		expect(codes).toEqual([]);
+	});
+
+	it("drops a grant whose session ended between consent and callback", async () => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore, codes } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const started = await agent.post(CONNECT).send();
+		const state = new URL(started.headers.location).searchParams.get("state") ?? "";
+		await harness.auth.destroyUserSessions(userId);
+
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			"/login?return=%2Fintegrations%3Ferror%3Doauth_signed_out",
+		);
+		expect(codes).toEqual([]);
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
+	});
+
+	it("lands the reader on the integrations page with the signed-out notice after signing in", async () => {
+		const { fixture } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+		const signedOut = await request(harness.server)
+			.get(CALLBACK)
+			.query({ code: "auth-code", state: "whatever" });
+		const loginPath = signedOut.headers.location;
+
+		const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
+		const signedIn = await agent
+			.post(loginPath)
+			.type("form")
+			.send({ email: "test@example.com", password: "password123" });
+
+		expect(signedIn.status).toBe(303);
+		expect(signedIn.headers.location).toBe("/integrations?error=oauth_signed_out");
+
+		const index = await agent.get(signedIn.headers.location);
+		const alert = new JSDOM(index.text).window.document.querySelector(
+			"[data-test-integrations-alert-key]",
+		);
+		assert(alert, "the integrations index must render the signed-out alert after signing in");
+		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_signed_out");
 	});
 });
 

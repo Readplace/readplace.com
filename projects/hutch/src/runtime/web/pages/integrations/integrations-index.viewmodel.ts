@@ -135,6 +135,8 @@ export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
 		"Reconnect Gmail and allow Readplace to read message headers so you can choose senders from your mailbox. Existing mappings stay in place.",
 	oauth_account_changed: "Disconnect your current Gmail account before connecting a different one.",
 	oauth_exchange: "Google couldn't complete the connection. Try again in a moment.",
+	oauth_signed_out:
+		"You were signed out before Google sent you back, so nothing was connected. Connect Gmail again.",
 };
 
 export const GMAIL_NOTICES: Record<string, string> = {

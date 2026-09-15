@@ -210,6 +210,7 @@ describe("toIntegrationsIndexViewModel", () => {
 			"oauth_metadata_scope",
 			"oauth_account_changed",
 			"oauth_exchange",
+			"oauth_signed_out",
 		]) {
 			const vm = toIntegrationsIndexViewModel({ connection: undefined, error });
 			assert.deepEqual(
