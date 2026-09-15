@@ -421,7 +421,9 @@ describe("MCP server over the real app", () => {
 		const added = await callTool(harness, token, tool("add_to_readlist", { id: articleId, create_name: "Reading Group" }));
 		expect(added.body.result.structuredContent.status).toBe("filed");
 		const addedNames = added.body.result.structuredContent.article.readlists.map((list: { name: string }) => list.name);
-		expect(addedNames).toEqual(expect.arrayContaining(["All", "Work", "Rust", "Reading Group"]));
+		expect(addedNames[0]).toBe("All");
+		expect(addedNames.slice(1, 3)).toEqual(expect.arrayContaining(["Work", "Rust"]));
+		expect(addedNames.at(-1)).toBe("Reading Group");
 		expect(addedNames).toHaveLength(4);
 		const repeat = await callTool(harness, token, tool("add_to_readlist", { id: articleId, create_name: "reading group" }));
 		expect(repeat.body.result.structuredContent.status).toBe("already_filed");
