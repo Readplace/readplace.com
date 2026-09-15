@@ -3,6 +3,7 @@ import { attachDlqConsumer } from "./attach-dlq-consumer";
 import type { HutchEventBus } from "./event-bus";
 import { HutchDynamoDBAccess } from "./hutch-dynamodb-access";
 import { HutchLambda, type LambdaPolicy } from "./hutch-lambda";
+import type { AlarmedDeadLetterQueue } from "./hutch-shared-dlq";
 
 /**
  * `additionalDynamoActions`, `additionalEnvironment`, and `additionalPolicies`
@@ -18,7 +19,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 	constructor(
 		name: string,
 		args: {
-			deadLetterQueueArn: pulumi.Input<string>;
+			deadLetterQueue: AlarmedDeadLetterQueue;
 			tableArn: pulumi.Input<string>;
 			tableName: pulumi.Input<string>;
 			eventBus: HutchEventBus;
@@ -54,7 +55,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 		args.eventBus.grantPublish(lambda);
 
 		attachDlqConsumer(name, {
-			deadLetterQueueArn: args.deadLetterQueueArn,
+			deadLetterQueue: args.deadLetterQueue,
 			lambda,
 			batchSize: args.batchSize,
 		}, { parent: this });

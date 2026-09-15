@@ -496,7 +496,7 @@ const failuresDlqLambda = new HutchLambda(`${INBOX_FAILURES_DLQ}-dlq`, {
 });
 
 attachDlqConsumer(`${INBOX_FAILURES_DLQ}-dlq`, {
-	deadLetterQueueArn: failuresDlq.arn,
+	deadLetterQueue: failuresDlq,
 	lambda: failuresDlqLambda,
 	batchSize: 1,
 });
