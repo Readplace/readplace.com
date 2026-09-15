@@ -4,6 +4,8 @@ import type { UserId } from "@packages/domain/user";
 import type { GmailMailbox, GmailMailboxResult } from "@packages/provider-contracts/gmail-mailbox";
 import { GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW } from "./gmail-discovery-window";
 
+export const GMAIL_DISCOVERY_PAUSED_MESSAGE = "Gmail sender loading paused. Try again to continue.";
+
 export interface GmailDiscoveryPage {
 	userId: UserId;
 	generation: string;
