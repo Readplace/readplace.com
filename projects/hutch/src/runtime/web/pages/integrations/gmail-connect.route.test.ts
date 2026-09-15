@@ -73,6 +73,15 @@ describe("POST /integrations/gmail/connect", () => {
 		expect(url.searchParams.get("response_type")).toBe("code");
 		expect(url.searchParams.get("client_id")).toBe("test-client-id");
 		expect(url.searchParams.get("redirect_uri")).toBe(`${TEST_APP_ORIGIN}${CALLBACK}`);
+		expect([...url.searchParams.keys()].sort()).toEqual([
+			"access_type",
+			"client_id",
+			"prompt",
+			"redirect_uri",
+			"response_type",
+			"scope",
+			"state",
+		]);
 	});
 
 	it("hands an htmx client an HX-Redirect to Google instead of a cross-origin 303", async () => {
@@ -88,6 +97,63 @@ describe("POST /integrations/gmail/connect", () => {
 		assert(typeof hxRedirect === "string", "an htmx connect must carry an HX-Redirect header");
 		const url = new URL(hxRedirect);
 		expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+	});
+
+	it("steers a reconnect to the connected mailbox", async () => {
+		const { fixture, gmailConnectionStore } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({
+			userId,
+			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+		});
+
+		const response = await agent.post(CONNECT).send();
+
+		const url = new URL(response.headers.location);
+		expect(url.searchParams.get("login_hint")).toBe("reader@gmail.com");
+		expect([...url.searchParams.keys()].sort()).toEqual([
+			"access_type",
+			"client_id",
+			"login_hint",
+			"prompt",
+			"redirect_uri",
+			"response_type",
+			"scope",
+			"state",
+		]);
+
+		const boosted = await agent.post(CONNECT).set("HX-Request", "true").send();
+		const hxRedirect = boosted.headers["hx-redirect"];
+		assert(typeof hxRedirect === "string", "an htmx reconnect must carry an HX-Redirect header");
+		expect(new URL(hxRedirect).searchParams.get("login_hint")).toBe("reader@gmail.com");
+	});
+
+	it("sends no mailbox hint for a connection that never recorded its address", async () => {
+		const { fixture, gmailConnectionStore } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+
+		const response = await agent.post(CONNECT).send();
+
+		const url = new URL(response.headers.location);
+		expect([...url.searchParams.keys()].sort()).toEqual([
+			"access_type",
+			"client_id",
+			"prompt",
+			"redirect_uri",
+			"response_type",
+			"scope",
+			"state",
+		]);
 	});
 
 	it("requires a signed-in reader", async () => {
