@@ -23,7 +23,6 @@ export const GMAIL_DISCOVERY_FAST_POLLS = 20;
 
 export type GmailPageError =
 	| "sender_invalid"
-	| "sender_duplicate"
 	| "sender_unknown"
 	| "metadata_required"
 	| "destination_invalid"
@@ -34,11 +33,9 @@ export type GmailPageError =
 export type GmailPageNotice =
 	| "connected"
 	| "confirmed"
-	| "sender_added"
 	| "sender_removed"
 	| "sender_mapped"
-	| "inbox_created"
-	| "inbox_confirmation_required";
+	| "inbox_created";
 
 export function buildGmailUrl(params: {
 	error?: GmailPageError;

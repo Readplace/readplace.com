@@ -139,7 +139,6 @@ export function gmailPollState(state: GmailConnectionState): GmailPollState | un
 
 export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	sender_invalid: "Choose a sender from your Gmail account.",
-	sender_duplicate: "This sender already has a mapping.",
 	sender_unknown: "I couldn't find that sender. Load your Gmail senders and try again.",
 	metadata_required: "Reconnect Gmail to choose senders from your mailbox.",
 	destination_invalid: "Choose one of your enabled inboxes, or create a new inbox.",
@@ -162,10 +161,16 @@ export const GMAIL_CONFIRM_FAILED_MESSAGES: Record<GmailConfirmFailureReason, st
 
 export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	connected: "Gmail is connected.", confirmed: "Forwarding confirmed.",
-	sender_added: "Mapping saved. New mail from this sender will go to the selected inbox.",
 	sender_removed: "Sender removed from the mapping.",
-	sender_mapped: "Mapping saved.", inbox_created: "Inbox created and mapping saved.",
-	inbox_confirmation_required: "Mapping saved.",
+	sender_mapped: "Mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.",
+	inbox_created: "Inbox created and mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.",
+};
+
+type GmailSaveNotice = Extract<GmailPageNotice, "sender_mapped" | "inbox_created">;
+
+const GMAIL_SAVE_NOTICES_AWAITING_CONFIRMATION: Record<GmailSaveNotice, string> = {
+	sender_mapped: "Mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.",
+	inbox_created: "Inbox created and mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.",
 };
 
 function bannersFor(key: string | undefined, messages: Record<string, string>): GmailBannerViewModel[] {
@@ -325,6 +330,11 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			...(input.connection.lastFilterError === undefined ? [] : [{ key: "filter", message: input.connection.lastFilterError.message }]),
 			...(input.connection.lastConfirmError === undefined ? [] : [{ key: "confirm_failed", message: GMAIL_CONFIRM_FAILED_MESSAGES[input.connection.lastConfirmError.reason] }]),
 		],
-		notices: bannersFor(input.notice, GMAIL_PAGE_NOTICES),
+		notices: bannersFor(
+			input.notice,
+			pollState === undefined
+				? GMAIL_PAGE_NOTICES
+				: { ...GMAIL_PAGE_NOTICES, ...GMAIL_SAVE_NOTICES_AWAITING_CONFIRMATION },
+		),
 	};
 }

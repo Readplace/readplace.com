@@ -308,6 +308,31 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.deepEqual(unknown.notices, []);
 	});
 
+	it("tells the reader when forwarding starts after a save", () => {
+		const confirmedMapped = toGmailPageViewModel(input({ notice: "sender_mapped" }));
+		assert.equal(confirmedMapped.notices[0].key, "sender_mapped");
+		assert.equal(confirmedMapped.notices[0].message, "Mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.");
+		const confirmedCreated = toGmailPageViewModel(input({ notice: "inbox_created" }));
+		assert.equal(confirmedCreated.notices[0].key, "inbox_created");
+		assert.equal(confirmedCreated.notices[0].message, "Inbox created and mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.");
+
+		const awaiting = { connection: connection({ forwardingConfirmedAt: undefined }) };
+		const awaitingMapped = toGmailPageViewModel(input({ ...awaiting, notice: "sender_mapped" }));
+		assert.equal(awaitingMapped.state, "awaiting-confirmation");
+		assert.equal(awaitingMapped.notices[0].key, "sender_mapped");
+		assert.equal(awaitingMapped.notices[0].message, "Mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.");
+		const awaitingCreated = toGmailPageViewModel(input({ ...awaiting, notice: "inbox_created" }));
+		assert.equal(awaitingCreated.notices[0].message, "Inbox created and mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.");
+
+		const awaitingRemoved = toGmailPageViewModel(input({ ...awaiting, notice: "sender_removed" }));
+		assert.equal(awaitingRemoved.notices[0].message, "Sender removed from the mapping.");
+
+		const confirmFailed = toGmailPageViewModel(input({ notice: "sender_mapped",
+			connection: connection({ forwardingConfirmedAt: undefined, lastConfirmError: { reason: "not-confirmed", at: "2026-08-28T00:00:00.000Z" } }) }));
+		assert.equal(confirmFailed.state, "confirm-failed");
+		assert.equal(confirmFailed.notices[0].message, "Mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.");
+	});
+
 	it("explains recovery for a disabled gateway", () => {
 		const vm = toGmailPageViewModel(input({ gatewayLive: false, connection: connection({ forwardingConfirmedAt: undefined }) }));
 		assert.equal(vm.showStep, false);

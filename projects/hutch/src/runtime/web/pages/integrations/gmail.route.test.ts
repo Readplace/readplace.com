@@ -334,6 +334,17 @@ describe("Save a sender mapping", () => {
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }, { userId, reason: "sender-added" }]);
 	});
 
+	it("saves a mapping during Step 2 and says forwarding starts after confirmation", async () => {
+		const { agent, gmail, userId, destination } = await connectedAgent({ confirmed: false });
+		const save = await agent.post(ADD).type("form").send({ sender: TLDR, destination });
+		const doc = load((await agent.get(save.headers.location)).text);
+		expect(doc.querySelector("[data-test-gmail-state]")?.getAttribute("data-test-gmail-state")).toBe("awaiting-confirmation");
+		const notice = doc.querySelector('[data-test-gmail-notice-key="sender_mapped"]');
+		assert(notice);
+		expect(notice.textContent).toBe("Mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.");
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }]);
+	});
+
 	it("lets an existing mapping be reassigned before mailbox reconsent", async () => {
 		const { agent, gmail, userId, destination } = await connectedAgent({ discovered: false, scope: GMAIL_SETTINGS_SCOPE });
 		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
@@ -383,7 +394,8 @@ describe("Save a sender mapping", () => {
 
 	it("creates a named inbox and assigns the selected sender in one save", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
-		await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new", inbox_name: "Science" });
+		const created = await agent.post(ADD).type("form").send({ sender: TLDR, destination: "new", inbox_name: "Science" });
+		expect(created.headers.location).toBe(`${GMAIL}?notice=inbox_created&discovery=started`);
 		const row = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
 		assert(row?.mappedAddress);
 		expect((await gmail.bundle.findInboxAddress(row.mappedAddress))?.name).toBe("science");
@@ -396,7 +408,7 @@ describe("Save a sender mapping", () => {
 			.post(ADD)
 			.type("form")
 			.send({ sender: TLDR, destination: "new", inbox_name: "gmail" });
-		expect(response.headers.location).toBe(`${GMAIL}?notice=sender_mapped&discovery=started`);
+		expect(response.headers.location).toBe(`${GMAIL}?notice=inbox_created&discovery=started`);
 		const row = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
 		assert(row?.mappedAddress);
 		const mapped = await gmail.bundle.findInboxAddress(row.mappedAddress);

@@ -20,7 +20,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { GmailPage, renderGmailPoll, renderGmailSenderResults } from "./gmail.component";
-import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, GMAIL_DISCOVERY_MAX_POLLS, type GmailPageError, GmailPollStateSchema } from "./gmail.url";
+import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, GMAIL_DISCOVERY_MAX_POLLS, type GmailPageError, type GmailPageNotice, GmailPollStateSchema } from "./gmail.url";
 import { gmailPollState, toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 import { buildIntegrationsUrl, INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-connect.page";
@@ -228,7 +228,8 @@ export function registerGmailPageRoutes(
 		await gmail.gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddress });
 		await gmail.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
-		res.redirect(303, buildGmailUrl({ notice: "sender_mapped", discovery: "started" }));
+		const notice: GmailPageNotice = destination === "new" ? "inbox_created" : "sender_mapped";
+		res.redirect(303, buildGmailUrl({ notice, discovery: "started" }));
 	});
 
 	router.post("/gmail/senders/remove", teardown, connected, async (req: Request, res: Response) => {

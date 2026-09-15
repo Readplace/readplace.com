@@ -174,7 +174,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 			.type("form")
 			.send({ sender: senderEmail, destination: "new", inbox_name: "tldr" });
 		assert.equal(added.status, 303);
-		assert.equal(added.headers.location, "/integrations/gmail?notice=sender_mapped&discovery=started");
+		assert.equal(added.headers.location, "/integrations/gmail?notice=inbox_created&discovery=started");
 		assert.deepEqual(gmail.rewriteRequests, [{ userId, reason: "sender-added" }]);
 		const senderRow = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail });
 		assert(senderRow?.mappedAddress, "the sender must be mapped to a live inbox");
