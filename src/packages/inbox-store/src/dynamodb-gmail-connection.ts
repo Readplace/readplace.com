@@ -1,4 +1,5 @@
 import {
+	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -58,6 +59,17 @@ function toConnection(row: z.infer<typeof GmailConnectionRow>): GmailConnection 
 	};
 }
 
+const CONNECTION_EXISTS = "attribute_exists(userId)";
+
+async function updateWhenConnected(write: () => Promise<unknown>): Promise<void> {
+	try {
+		await write();
+	} catch (error) {
+		if (error instanceof ConditionalCheckFailedException) return;
+		throw error;
+	}
+}
+
 export function initDynamoDbGmailConnection(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -100,81 +112,101 @@ export function initDynamoDbGmailConnection(deps: {
 			const row = await table.get({ userId }, { consistentRead: true });
 			return row === undefined ? undefined : toConnection(row);
 		},
-		markForwardingConfirmed: async ({ userId }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression:
-					"SET forwardingConfirmedAt = if_not_exists(forwardingConfirmedAt, :now) REMOVE lastConfirmError",
-				ExpressionAttributeValues: { ":now": deps.now().toISOString() },
-			});
-		},
-		clearForwardingConfirmed: async ({ userId }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression: "REMOVE forwardingConfirmedAt",
-			});
-		},
-		recordConfirmError: async ({ userId, error }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression: "SET lastConfirmError = :err",
-				ExpressionAttributeValues: { ":err": error },
-			});
-		},
-		recordAccountEmail: async ({ userId, accountEmail }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression: "SET accountEmail = :email",
-				ExpressionAttributeValues: { ":email": accountEmail },
-			});
-		},
-		recordFilter: async ({ userId, filterCount, filterSenderCount }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression:
-					"SET filterCount = :c, filterSenderCount = :n, filterUpdatedAt = :now REMOVE lastFilterError",
-				ExpressionAttributeValues: {
-					":c": filterCount,
-					":n": filterSenderCount,
-					":now": deps.now().toISOString(),
-				},
-			});
-		},
-		clearFilter: async ({ userId }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression:
-					"REMOVE filterCount, filterSenderCount, filterUpdatedAt, lastFilterError",
-			});
-		},
-		recordFilterError: async ({ userId, error }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression: "SET lastFilterError = :err",
-				ExpressionAttributeValues: { ":err": error },
-			});
-		},
-		markRevoked: async ({ userId, reason }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression: "SET revokedAt = :now, revokedReason = :reason REMOVE connected",
-				ExpressionAttributeValues: { ":now": deps.now().toISOString(), ":reason": reason },
-			});
-		},
-		clearRevoked: async ({ userId }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression: "SET connected = :c REMOVE revokedAt, revokedReason",
-				ExpressionAttributeValues: { ":c": CONNECTED_MARKER },
-			});
-		},
-		markDisconnectRequested: async ({ userId }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression: "SET disconnectRequestedAt = :now",
-				ExpressionAttributeValues: { ":now": deps.now().toISOString() },
-			});
-		},
+		markForwardingConfirmed: async ({ userId }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression:
+						"SET forwardingConfirmedAt = if_not_exists(forwardingConfirmedAt, :now) REMOVE lastConfirmError",
+					ConditionExpression: CONNECTION_EXISTS,
+					ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+				}),
+			),
+		clearForwardingConfirmed: async ({ userId }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression: "REMOVE forwardingConfirmedAt",
+					ConditionExpression: CONNECTION_EXISTS,
+				}),
+			),
+		recordConfirmError: async ({ userId, error }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression: "SET lastConfirmError = :err",
+					ConditionExpression: CONNECTION_EXISTS,
+					ExpressionAttributeValues: { ":err": error },
+				}),
+			),
+		recordAccountEmail: async ({ userId, accountEmail }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression: "SET accountEmail = :email",
+					ConditionExpression: CONNECTION_EXISTS,
+					ExpressionAttributeValues: { ":email": accountEmail },
+				}),
+			),
+		recordFilter: async ({ userId, filterCount, filterSenderCount }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression:
+						"SET filterCount = :c, filterSenderCount = :n, filterUpdatedAt = :now REMOVE lastFilterError",
+					ConditionExpression: CONNECTION_EXISTS,
+					ExpressionAttributeValues: {
+						":c": filterCount,
+						":n": filterSenderCount,
+						":now": deps.now().toISOString(),
+					},
+				}),
+			),
+		clearFilter: async ({ userId }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression:
+						"REMOVE filterCount, filterSenderCount, filterUpdatedAt, lastFilterError",
+					ConditionExpression: CONNECTION_EXISTS,
+				}),
+			),
+		recordFilterError: async ({ userId, error }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression: "SET lastFilterError = :err",
+					ConditionExpression: CONNECTION_EXISTS,
+					ExpressionAttributeValues: { ":err": error },
+				}),
+			),
+		markRevoked: async ({ userId, reason }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression: "SET revokedAt = :now, revokedReason = :reason REMOVE connected",
+					ConditionExpression: CONNECTION_EXISTS,
+					ExpressionAttributeValues: { ":now": deps.now().toISOString(), ":reason": reason },
+				}),
+			),
+		clearRevoked: async ({ userId }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression: "SET connected = :c REMOVE revokedAt, revokedReason",
+					ConditionExpression: CONNECTION_EXISTS,
+					ExpressionAttributeValues: { ":c": CONNECTED_MARKER },
+				}),
+			),
+		markDisconnectRequested: async ({ userId }) =>
+			updateWhenConnected(() =>
+				table.update({
+					Key: { userId },
+					UpdateExpression: "SET disconnectRequestedAt = :now",
+					ConditionExpression: CONNECTION_EXISTS,
+					ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+				}),
+			),
 		deleteConnection: async (userId) => {
 			await table.delete({ Key: { userId } });
 		},

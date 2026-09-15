@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+} from "@packages/hutch-storage-client";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
@@ -21,6 +24,7 @@ interface CapturedCommand {
 		IndexName?: string;
 		Select?: string;
 		UpdateExpression?: string;
+		ConditionExpression?: string;
 		KeyConditionExpression?: string;
 		ExpressionAttributeValues?: Record<string, unknown>;
 	};
@@ -241,6 +245,55 @@ describe("initDynamoDbGmailConnection", () => {
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
 			":now": NOW.toISOString(),
 		});
+	});
+
+	it("pins every lifecycle write to an existing connection row", async () => {
+		const { store, commands } = harness();
+
+		await store.markForwardingConfirmed({ userId: USER });
+		await store.clearForwardingConfirmed({ userId: USER });
+		await store.recordConfirmError({
+			userId: USER,
+			error: { reason: "token-rejected", at: NOW.toISOString() } as const,
+		});
+		await store.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT_EMAIL });
+		await store.recordFilter({ userId: USER, filterCount: 2, filterSenderCount: 3 });
+		await store.clearFilter({ userId: USER });
+		await store.recordFilterError({
+			userId: USER,
+			error: { code: "rejected", message: "nope", at: NOW.toISOString() } as const,
+		});
+		await store.markRevoked({ userId: USER, reason: "invalid-grant" });
+		await store.clearRevoked({ userId: USER });
+		await store.markDisconnectRequested({ userId: USER });
+
+		assert.deepEqual(
+			commands.map((command) => command.input.ConditionExpression),
+			Array(10).fill("attribute_exists(userId)"),
+		);
+	});
+
+	it("treats a lifecycle write for a deleted connection as nothing to do", async () => {
+		const { store } = harness(() => {
+			throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
+		});
+
+		await assert.doesNotReject(
+			store.recordFilter({ userId: USER, filterCount: 1, filterSenderCount: 1 }),
+		);
+		await assert.doesNotReject(store.markDisconnectRequested({ userId: USER }));
+	});
+
+	it("lets a storage failure that is not a conditional rejection reach the caller", async () => {
+		const failure = new Error("offline");
+		const { store } = harness(() => {
+			throw failure;
+		});
+
+		await assert.rejects(
+			store.clearFilter({ userId: USER }),
+			(error: unknown) => error === failure,
+		);
 	});
 
 	it("deletes the connection row by user id", async () => {

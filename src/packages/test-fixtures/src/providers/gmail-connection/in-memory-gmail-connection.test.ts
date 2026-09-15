@@ -58,6 +58,32 @@ describe("initInMemoryGmailConnection", () => {
 		assert.equal(await store.findConnectionByUserId(owner), undefined);
 	});
 
+	it("ignores every lifecycle write for a user who never connected", async () => {
+		const { store } = connectedStore();
+
+		await store.markForwardingConfirmed({ userId: owner });
+		await store.clearForwardingConfirmed({ userId: owner });
+		await store.recordConfirmError({
+			userId: owner,
+			error: { reason: "token-rejected", at: "2026-08-27T00:01:00.000Z" },
+		});
+		await store.recordAccountEmail({
+			userId: owner,
+			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+		});
+		await store.recordFilter({ userId: owner, filterCount: 1, filterSenderCount: 1 });
+		await store.clearFilter({ userId: owner });
+		await store.recordFilterError({
+			userId: owner,
+			error: { code: "rejected", message: "nope", at: "2026-08-27T00:01:00.000Z" },
+		});
+		await store.markRevoked({ userId: owner, reason: "invalid-grant" });
+		await store.clearRevoked({ userId: owner });
+		await store.markDisconnectRequested({ userId: owner });
+
+		assert.equal(await store.findConnectionByUserId(owner), undefined);
+	});
+
 	it("drops back to awaiting confirmation when Google stops recognising the address", async () => {
 		const { store, connect } = connectedStore();
 		await connect();
