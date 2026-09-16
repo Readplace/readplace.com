@@ -22,6 +22,7 @@ interface GmailSeed {
 		email: string;
 		place: "filter" | "unsorted" | "mapped";
 		subject?: string;
+		name?: string;
 	}[];
 	discoveredSenders?: { email: string; name?: string }[];
 	discoveryState?: "running" | "complete";
@@ -46,8 +47,7 @@ async function openGmail(
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, {
 		data: {
 			userId,
-			state: "filtering",
-			senders: seed.senders ?? [{ email: TLDR, place: "mapped" }],
+			senders: seed.senders ?? [{ email: TLDR, place: "mapped", name: "tldr" }],
 			discoveredSenders: seed.discoveredSenders ?? [
 				{ email: TLDR, name: "TLDR" },
 				{ email: BREW, name: "Morning Brew" },
@@ -127,8 +127,8 @@ test.describe("Gmail sender picker", () => {
 		);
 		await openGmail(page, `mapping-${testInfo.workerIndex}-${Date.now()}`, {
 			senders: [
-				{ email: TLDR, place: "mapped" },
-				{ email: BREW, place: "mapped" },
+				{ email: TLDR, place: "mapped", name: "tldr" },
+				{ email: BREW, place: "mapped", name: "morningbrew" },
 				{ email: KALE, place: "filter" },
 			],
 			discoveredSenders: [],
@@ -326,6 +326,7 @@ test.describe("Gmail sender picker", () => {
 		const mappedSenders = Array.from({ length: 25 }, (_, index) => ({
 			email: `news@publisher-${index}.com`,
 			place: "mapped" as const,
+			name: `publisher-${index}`,
 		}));
 		await openGmail(page, `cap-${testInfo.workerIndex}-${Date.now()}`, {
 			senders: mappedSenders,

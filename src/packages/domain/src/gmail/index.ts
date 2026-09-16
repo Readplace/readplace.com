@@ -1,4 +1,3 @@
-export { aliasNameForSender } from "./alias-name-for-sender";
 export { parseGmailFrom } from "./parse-gmail-from";
 export { GmailAccountEmailSchema } from "./gmail-account-email.schema";
 export type { GmailAccountEmail } from "./gmail-account-email.schema";

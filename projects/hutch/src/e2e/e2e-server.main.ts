@@ -10,7 +10,8 @@ import {
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
 import { type UserId, UserIdSchema } from '@packages/domain/user'
-import { ForwardableSenderSchema, GmailAccountEmailSchema, aliasNameForSender } from '@packages/domain/gmail'
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from '@packages/domain/gmail'
+import { AliasNameSchema } from '@packages/domain/inbox'
 import { GMAIL_SCOPES } from '@packages/provider-contracts/gmail-oauth'
 import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
 import { createTestApp } from '../runtime/test-app'
@@ -437,7 +438,6 @@ server.post('/e2e/seed-inbox-article-queued', async (req, res) => {
 
 const SeedGmailStateBody = z.object({
 	userId: UserIdSchema,
-	state: z.enum(['awaiting', 'ready', 'filtering', 'filter-failed', 'revoked']),
 	discoveredSenders: z.array(z.object({ email: ForwardableSenderSchema, name: z.string().optional() })).default([]),
 	discoveryState: z.enum(['running', 'complete']).default('complete'),
 	discoveryMode: z.enum(['profile', 'full', 'history']).default('full'),
@@ -450,6 +450,7 @@ const SeedGmailStateBody = z.object({
 				email: z.string(),
 				place: z.enum(['filter', 'unsorted', 'mapped']),
 				subject: z.string().optional(),
+				name: AliasNameSchema.optional(),
 			}),
 		)
 		.default([]),
@@ -462,7 +463,6 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 	}
 	const {
 		userId,
-		state,
 		senders,
 		discoveredSenders,
 		discoveryState,
@@ -493,29 +493,12 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		oldestScannedAt: undefined,
 	})
 	if (completeDiscoveryOnStart) completeGmailDiscoveryOnStart.add(userId)
-	if (state === 'revoked') {
-		await gmailConnectionStore.markRevoked({ userId, reason: 'invalid-grant' })
-	}
-	if (state === 'ready' || state === 'filtering' || state === 'filter-failed') {
-		await gmailConnectionStore.markForwardingConfirmed({ userId })
-	}
-	if (state === 'filtering') {
-		await gmailConnectionStore.recordFilter({
-			userId,
-			filterCount: 1,
-			filterSenderCount: senders.filter((s) => s.place !== 'unsorted').length,
-		})
-	}
-	if (state === 'filter-failed') {
-		await gmailConnectionStore.recordFilterError({
-			userId,
-			error: {
-				code: 'query-too-long',
-				message: '40 senders produce a 2396-character query',
-				at: '2026-04-27T08:00:00.000Z',
-			},
-		})
-	}
+	await gmailConnectionStore.markForwardingConfirmed({ userId })
+	await gmailConnectionStore.recordFilter({
+		userId,
+		filterCount: 1,
+		filterSenderCount: senders.filter((s) => s.place !== 'unsorted').length,
+	})
 	for (const entry of senders) {
 		const senderEmail = ForwardableSenderSchema.parse(entry.email)
 		if (entry.place === 'unsorted') {
@@ -530,10 +513,11 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 			await gmailSenderStore.recordSenderSeen({ userId, senderEmail, subject: entry.subject })
 		}
 		if (entry.place === 'mapped') {
+			assert(entry.name, 'a mapped sender must carry the inbox name to route it to')
 			await gmailSenderStore.mapSenderToAddress({
 				userId,
 				senderEmail,
-				mappedAddress: await mintInboxAddress({ userId, name: aliasNameForSender(senderEmail) }),
+				mappedAddress: await mintInboxAddress({ userId, name: entry.name }),
 			})
 		}
 		await gmailSenderStore.addSenderToFilter({ userId, senderEmail })
