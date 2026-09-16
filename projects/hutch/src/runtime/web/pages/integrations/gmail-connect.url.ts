@@ -9,7 +9,8 @@ export type GmailConnectError =
 	| "oauth_scope"
 	| "oauth_metadata_scope"
 	| "oauth_account_changed"
-	| "oauth_exchange";
+	| "oauth_exchange"
+	| "oauth_signed_out";
 
 export type IntegrationsNotice = "gmail_disconnected";
 
