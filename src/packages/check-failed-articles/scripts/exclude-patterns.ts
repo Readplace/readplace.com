@@ -309,6 +309,12 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// still surface.
 	/^https:\/\/www\.g2\.com\/products\/convertkit\/reviews$/i,
 	/^https:\/\/www\.g2\.com\/products\/mailchimp-all-in-one-marketing-platform\/reviews$/i,
+	// (m) A blog tag index, not an article (issue #1123). The origin answers
+	// 200 and the crawl landed; the row is terminal on the summary axis with
+	// `exhausted-retries`, and there is no article the operator can re-save
+	// behind a tag listing. Anchored exact: other jwz.org tag indexes and
+	// posts must still surface.
+	/^https:\/\/www\.jwz\.org\/blog\/tag\/regexp\/$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

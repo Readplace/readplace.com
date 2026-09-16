@@ -953,3 +953,17 @@ describe("EXCLUDE_PATTERNS — g2.com products renamed out from under a save (is
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — jwz.org tag index (issue #1123)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://www.jwz.org/blog/tag/regexp/", excluded: true, label: "the saved regexp tag index" },
+		{ url: "https://www.jwz.org/blog/tag/regexp", excluded: false, label: "slashless form — a different stored URL must still surface" },
+		{ url: "https://www.jwz.org/blog/tag/computers/", excluded: false, label: "another tag index — must still surface" },
+		{ url: "https://www.jwz.org/blog/2026/09/some-post/", excluded: false, label: "a real jwz.org post — must still surface" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
