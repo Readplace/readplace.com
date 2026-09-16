@@ -33,7 +33,7 @@ export function initInterceptGmailConfirmation(deps: {
 			});
 			return false;
 		}
-		const { recipientAddress, resolved } = resolvedRecipients[0];
+		const { recipientAddress, resolved, userId } = resolvedRecipients[0];
 		if (
 			resolved === undefined ||
 			resolved.disabledAt !== undefined ||
@@ -41,7 +41,7 @@ export function initInterceptGmailConfirmation(deps: {
 		) {
 			logger.warn(
 				"[intercept-gmail-confirmation] confirmation not addressed to a live forwarding address",
-				{ recipientAddress },
+				{ userId },
 			);
 			return false;
 		}
@@ -50,7 +50,7 @@ export function initInterceptGmailConfirmation(deps: {
 			forwardingAddress: recipientAddress,
 			verifyUrl,
 		});
-		logger.info("[intercept-gmail-confirmation] confirmation dispatched", { recipientAddress });
+		logger.info("[intercept-gmail-confirmation] confirmation dispatched", { userId });
 		return true;
 	};
 }

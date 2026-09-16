@@ -9,7 +9,7 @@ import {
 	MessageIdSchema,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { HutchLogger } from "@packages/hutch-logger";
 import { GOOGLE_FORWARDING_SENDER } from "./google-confirmation-link";
 import {
 	type InterceptionRecipient,
@@ -56,13 +56,17 @@ function recipient(
 
 function harness() {
 	const published: { userId: string; forwardingAddress: string; verifyUrl: string }[] = [];
+	const logs: { message: string; data: unknown }[] = [];
+	const capture = (...args: unknown[]) => {
+		logs.push({ message: String(args[0]), data: args[1] });
+	};
 	const intercept = initInterceptGmailConfirmation({
 		publishConfirmGmailForwarding: async (detail) => {
 			published.push(detail);
 		},
-		logger: HutchLogger.from(noopLogger),
+		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
-	return { intercept, published };
+	return { intercept, published, logs };
 }
 
 describe("initInterceptGmailConfirmation", () => {
@@ -167,5 +171,31 @@ describe("initInterceptGmailConfirmation", () => {
 
 		assert.equal(handled, false);
 		assert.deepEqual(published, []);
+	});
+
+	it("logs dispatch and the not-live rejection by user id, never the address", async () => {
+		const dispatch = harness();
+		const gateway = recipient();
+		await dispatch.intercept({ email: confirmationEmail(), resolvedRecipients: [gateway] });
+
+		const rejected = harness();
+		const alias = recipient({ purpose: "user-alias" });
+		await rejected.intercept({ email: confirmationEmail(), resolvedRecipients: [alias] });
+
+		const dispatched = dispatch.logs.find(
+			(line) => line.message === "[intercept-gmail-confirmation] confirmation dispatched",
+		);
+		assert(dispatched, "the dispatch path logs a line");
+		assert.equal(JSON.stringify(dispatched.data).includes(OWNER), true);
+		assert.equal(JSON.stringify(dispatched.data).includes(gateway.recipientAddress), false);
+
+		const notLive = rejected.logs.find(
+			(line) =>
+				line.message ===
+				"[intercept-gmail-confirmation] confirmation not addressed to a live forwarding address",
+		);
+		assert(notLive, "the not-live path logs a line");
+		assert.equal(JSON.stringify(notLive.data).includes(OWNER), true);
+		assert.equal(JSON.stringify(notLive.data).includes(alias.recipientAddress), false);
 	});
 });

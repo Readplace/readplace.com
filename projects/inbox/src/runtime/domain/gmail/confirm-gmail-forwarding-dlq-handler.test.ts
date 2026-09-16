@@ -31,7 +31,7 @@ function makeHarness() {
 }
 
 describe("initConfirmGmailForwardingDlqHandler", () => {
-	it("names the address that never got confirmed and ACKs the dead letter", async () => {
+	it("names the reader whose confirmation gave up and ACKs the dead letter", async () => {
 		const { run, errors } = makeHarness();
 
 		const response = await run(
@@ -46,7 +46,11 @@ describe("initConfirmGmailForwardingDlqHandler", () => {
 
 		assert.deepEqual(response, { batchItemFailures: [] });
 		assert.equal(errors.length, 1);
-		assert.equal(JSON.stringify(errors[0].data).includes(GATEWAY), true);
+		assert.equal(
+			JSON.stringify(errors[0].data).includes("00000000000000000000000000000001"),
+			true,
+		);
+		assert.equal(JSON.stringify(errors[0].data).includes(GATEWAY), false);
 	});
 
 	it("ACKs an unidentifiable command rather than replaying it forever", async () => {

@@ -34,12 +34,12 @@ export function initConfirmGmailForwardingHandler(deps: {
 				const result = await confirmForwardingAddress({ verifyUrl });
 				if (result.ok) {
 					await publishEvent(GmailForwardingConfirmedEvent, { userId, forwardingAddress });
-					logger.info("[confirm-gmail-forwarding] confirmed", { forwardingAddress });
+					logger.info("[confirm-gmail-forwarding] confirmed", { userId });
 					continue;
 				}
 				if (result.reason === "unavailable") {
 					logger.warn("[confirm-gmail-forwarding] google unavailable, retrying", {
-						forwardingAddress,
+						userId,
 						status: result.status,
 					});
 					batchItemFailures.push({ itemIdentifier: record.messageId });
@@ -52,12 +52,12 @@ export function initConfirmGmailForwardingHandler(deps: {
 				});
 				if (result.reason === "token-rejected") {
 					logger.warn("[confirm-gmail-forwarding] token spent or expired", {
-						forwardingAddress,
+						userId,
 					});
 					continue;
 				}
 				logger.error("[confirm-gmail-forwarding] confirmation did not complete", {
-					forwardingAddress,
+					userId,
 					reason: result.reason,
 				});
 			} catch (error) {

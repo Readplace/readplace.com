@@ -21,7 +21,7 @@ export function initConfirmGmailForwardingDlqHandler(deps: {
 					continue;
 				}
 				logger.error("[confirm-gmail-forwarding-dlq] confirmation gave up", {
-					forwardingAddress: parsed.data.forwardingAddress,
+					userId: parsed.data.userId,
 					receiveCount,
 				});
 			} catch (error) {

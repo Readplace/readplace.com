@@ -36,7 +36,7 @@ export function initRouteGmailForwardedEmail(deps: {
 		const senderEmail = parseForwardableSender(email.from);
 		if (senderEmail === undefined) {
 			logger.warn("[route-gmail-forwarded-email] unreadable sender, delivered as addressed", {
-				recipientAddress,
+				userId,
 			});
 			return recipientAddress;
 		}
@@ -63,7 +63,7 @@ export function initRouteGmailForwardedEmail(deps: {
 			rawEmailS3Key,
 			recipientAddress,
 		});
-		logger.info("[route-gmail-forwarded-email] held an unmapped sender", { senderEmail });
+		logger.info("[route-gmail-forwarded-email] held an unmapped sender", { userId });
 		return undefined;
 	};
 }

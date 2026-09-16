@@ -3,7 +3,7 @@ import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import type { InboxAddress, ParsedEmail } from "@packages/domain/inbox";
 import { InboxAddressSchema, MessageIdSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { HutchLogger } from "@packages/hutch-logger";
 import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gmail-held-mail";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
@@ -32,10 +32,14 @@ function forwardedEmail(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
 function harness() {
 	const senders = initInMemoryGmailSender({ now: () => new Date(RECEIVED_AT) });
 	const heldMail = initInMemoryGmailHeldMail();
+	const logs: { message: string; data: unknown }[] = [];
+	const capture = (...args: unknown[]) => {
+		logs.push({ message: String(args[0]), data: args[1] });
+	};
 	const route = initRouteGmailForwardedEmail({
 		senders,
 		heldMail,
-		logger: HutchLogger.from(noopLogger),
+		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 	const run = (
 		email: ParsedEmail = forwardedEmail(),
@@ -53,7 +57,7 @@ function harness() {
 			receivedAt: RECEIVED_AT,
 			rawEmailS3Key: "raw/user-1/tldr.eml",
 		});
-	return { run, senders, heldMail };
+	return { run, senders, heldMail, logs };
 }
 
 describe("initRouteGmailForwardedEmail", () => {
@@ -132,5 +136,27 @@ describe("initRouteGmailForwardedEmail", () => {
 
 		assert.equal(delivered, ALIAS);
 		assert.equal(await senders.findSender({ userId: USER, senderEmail: TLDR }), undefined);
+	});
+
+	it("logs the held and unreadable paths by user id and never the sender or an inbox address", async () => {
+		const { run, logs } = harness();
+
+		await run();
+		await run(forwardedEmail({ from: "Dan <dan at tldr>" }));
+
+		assert.deepEqual(
+			logs.map((line) => line.message),
+			[
+				"[route-gmail-forwarded-email] held an unmapped sender",
+				"[route-gmail-forwarded-email] unreadable sender, delivered as addressed",
+			],
+		);
+		for (const line of logs) {
+			const serialized = JSON.stringify(line);
+			assert.equal(serialized.includes("tldr.tech"), false);
+			assert.equal(serialized.includes(GATEWAY), false);
+			assert.equal(serialized.includes(ALIAS), false);
+			assert.equal(JSON.stringify(line.data).includes(USER), true);
+		}
 	});
 });

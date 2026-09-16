@@ -5,7 +5,7 @@ import {
 	GmailForwardingConfirmFailedEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { HutchLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { ConfirmForwardingAddressResult } from "./confirm-forwarding-address";
@@ -27,6 +27,10 @@ function commandBody(): string {
 function makeHarness(result: ConfirmForwardingAddressResult | (() => never)) {
 	const posts: string[] = [];
 	const published: { event: unknown; detail: unknown }[] = [];
+	const logs: { message: string; data: unknown }[] = [];
+	const capture = (...args: unknown[]) => {
+		logs.push({ message: String(args[0]), data: args[1] });
+	};
 	const handler = initConfirmGmailForwardingHandler({
 		confirmForwardingAddress: async ({ verifyUrl }) => {
 			posts.push(verifyUrl);
@@ -36,14 +40,14 @@ function makeHarness(result: ConfirmForwardingAddressResult | (() => never)) {
 		publishEvent: (async (event, detail) => {
 			published.push({ event, detail });
 		}) as PublishEvent,
-		logger: HutchLogger.from(noopLogger),
+		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 	const run = async (event: SQSEvent) => {
 		const response = await handler(event, buildLambdaContext(), () => {});
 		assert(response, "the handler always returns a batch response");
 		return response;
 	};
-	return { run, posts, published };
+	return { run, posts, published, logs };
 }
 
 describe("initConfirmGmailForwardingHandler", () => {
@@ -127,5 +131,26 @@ describe("initConfirmGmailForwardingHandler", () => {
 		const response = await run(buildSqsEvent([{ messageId: "cmd-1", body: commandBody() }]));
 
 		assert.equal(response.batchItemFailures.length, 1);
+	});
+
+	it("logs each outcome by user id and never writes the gateway address", async () => {
+		const outcomes: ConfirmForwardingAddressResult[] = [
+			{ ok: true },
+			{ ok: false, reason: "unavailable", status: 503 },
+			{ ok: false, reason: "token-rejected", status: 400 },
+			{ ok: false, reason: "not-confirmed" },
+		];
+		for (const outcome of outcomes) {
+			const { run, logs } = makeHarness(outcome);
+
+			await run(buildSqsEvent([{ messageId: "cmd-1", body: commandBody() }]));
+
+			assert.equal(logs.length, 1);
+			assert.equal(JSON.stringify(logs[0]).includes(GATEWAY), false);
+			assert.equal(
+				JSON.stringify(logs[0].data).includes("00000000000000000000000000000001"),
+				true,
+			);
+		}
 	});
 });
