@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GMAIL_FILTER_QUERY_MAX_LENGTH } from "@packages/domain/gmail";
 import { InboxAddressSchema, type InboxAddressStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger } from "@packages/hutch-logger";
@@ -62,6 +62,16 @@ async function makeHarness(options: {
 	});
 
 	return { rewrite, gmail, connections, senders, addresses, logs };
+}
+
+function overCapSender(index: number) {
+	return ForwardableSenderSchema.parse(`s${String(index).padStart(4, "0")}@example.com`);
+}
+
+function sendersExceedingQueryCap() {
+	const perSenderQueryLength = overCapSender(1).length + " OR ".length;
+	const count = Math.ceil(GMAIL_FILTER_QUERY_MAX_LENGTH / perSenderQueryLength) + 1;
+	return Array.from({ length: count }, (_unused, index) => overCapSender(index + 1));
 }
 
 describe("initRewriteGmailFilter", () => {
@@ -169,10 +179,9 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("refuses to write a query longer than Gmail accepts and says why", async () => {
-		const longSenders = Array.from({ length: 40 }, (_unused, index) =>
-			ForwardableSenderSchema.parse(`${"newsletter".repeat(3)}${index}@publisher.example.com`),
-		);
-		const { rewrite, gmail, connections } = await makeHarness({ onFilter: longSenders });
+		const { rewrite, gmail, connections } = await makeHarness({
+			onFilter: sendersExceedingQueryCap(),
+		});
 
 		const result = await rewrite({ userId: USER });
 
@@ -569,10 +578,7 @@ describe("initRewriteGmailFilter", () => {
 		await addresses.markGmailForwardingConfirmed({ userId: USER, address: news.address });
 		await senders.addSenderToFilter({ userId: USER, senderEmail: TLDR });
 		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: tech.address });
-		for (let index = 0; index < 40; index++) {
-			const sender = ForwardableSenderSchema.parse(
-				`${"newsletter".repeat(3)}${index}@publisher.example.com`,
-			);
+		for (const sender of sendersExceedingQueryCap()) {
 			await senders.addSenderToFilter({ userId: USER, senderEmail: sender });
 			await senders.mapSenderToAddress({ userId: USER, senderEmail: sender, mappedAddress: news.address });
 		}
