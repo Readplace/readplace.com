@@ -36,7 +36,7 @@ export function initGmailForwardingConfirmFailedHandler(deps: {
 					connection.forwardingConfirmedAt !== undefined
 				) {
 					logger.info("[gmail-forwarding-confirm-failed] no unconfirmed gateway to mark", {
-						forwardingAddress: parsed.data.forwardingAddress,
+						userId,
 						reason: parsed.data.reason,
 					});
 					continue;
@@ -46,7 +46,7 @@ export function initGmailForwardingConfirmFailedHandler(deps: {
 					error: { reason: parsed.data.reason, at: now().toISOString() },
 				});
 				logger.info("[gmail-forwarding-confirm-failed] confirmation failure recorded", {
-					forwardingAddress: parsed.data.forwardingAddress,
+					userId,
 					reason: parsed.data.reason,
 				});
 			} catch (error) {

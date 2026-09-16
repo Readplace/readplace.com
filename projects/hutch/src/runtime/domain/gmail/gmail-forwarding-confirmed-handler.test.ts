@@ -4,7 +4,7 @@ import { RewriteGmailFilterCommand } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { AliasNameSchema, GMAIL_FORWARDING_ALIAS, type InboxAddress } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { HutchLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -23,6 +23,10 @@ function makeHarness(options: { failWrite?: boolean } = {}) {
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
 	const addresses = initInMemoryInboxAddress({ now: () => NOW });
 	const published: { event: unknown; detail: unknown }[] = [];
+	const logs: { message: string; data: unknown }[] = [];
+	const capture = (...args: unknown[]) => {
+		logs.push({ message: String(args[0]), data: args[1] });
+	};
 	const handler = initGmailForwardingConfirmedHandler({
 		connections: options.failWrite
 			? {
@@ -36,14 +40,14 @@ function makeHarness(options: { failWrite?: boolean } = {}) {
 		publishEvent: (async (event, detail) => {
 			published.push({ event, detail });
 		}) as PublishEvent,
-		logger: HutchLogger.from(noopLogger),
+		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 	const run = async (event: SQSEvent) => {
 		const response = await handler(event, buildLambdaContext(), () => {});
 		assert(response, "the handler always returns a batch response");
 		return response;
 	};
-	return { run, connections, addresses, published };
+	return { run, connections, addresses, published, logs };
 }
 
 describe("initGmailForwardingConfirmedHandler", () => {
@@ -69,6 +73,26 @@ describe("initGmailForwardingConfirmedHandler", () => {
 		);
 		assert.equal(published[0].event, RewriteGmailFilterCommand);
 		assert.deepEqual(published[0].detail, { userId: USER, reason: "forwarding-confirmed" });
+	});
+
+	it("logs the confirmed address by user id, not the address itself", async () => {
+		const { run, connections, addresses, logs } = makeHarness();
+		const gateway = await addresses.createAddress({
+			userId: USER,
+			domain: DOMAIN,
+			name: GMAIL_FORWARDING_ALIAS,
+			purpose: "gmail-forwarding",
+		});
+		await connections.createConnection({ userId: USER, gatewayAddress: gateway.address });
+
+		await run(buildSqsEvent([{ messageId: "evt-1", body: eventBody(gateway.address) }]));
+
+		const confirmed = logs.find(
+			(line) => line.message === "[gmail-forwarding-confirmed] address confirmed",
+		);
+		assert(confirmed, "the confirmed path logs a line");
+		assert.equal(JSON.stringify(confirmed.data).includes(USER), true);
+		assert.equal(JSON.stringify(confirmed.data).includes(gateway.address), false);
 	});
 
 	it("confirms a named inbox without flipping the gateway confirmation", async () => {

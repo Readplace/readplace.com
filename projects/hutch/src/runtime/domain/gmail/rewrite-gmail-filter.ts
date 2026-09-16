@@ -108,7 +108,6 @@ export function initRewriteGmailFilter(deps: {
 			logger.info("[rewrite-gmail-filter] replaced filter", {
 				userId,
 				removedFilterId: filter.id,
-				removedQuery: filter.query,
 			});
 		}
 		return { ok: true, filterCount: 1, senderCount: accepted.length };

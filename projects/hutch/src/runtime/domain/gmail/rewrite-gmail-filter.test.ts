@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema, type InboxAddressStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { HutchLogger } from "@packages/hutch-logger";
 import type { GmailFilter, GmailFilters } from "@packages/provider-contracts/gmail-filters";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailFilters } from "@packages/test-fixtures/providers/gmail-filters";
@@ -45,6 +45,10 @@ async function makeHarness(options: {
 		await senders.addSenderToFilter({ userId: USER, senderEmail: sender });
 	}
 
+	const logs: { message: string; data: unknown }[] = [];
+	const capture = (...args: unknown[]) => {
+		logs.push({ message: String(args[0]), data: args[1] });
+	};
 	const rewrite = initRewriteGmailFilter({
 		filters: options.gmail ?? gmail.api,
 		connections,
@@ -54,10 +58,10 @@ async function makeHarness(options: {
 			listAddressesByUserId: options.listAddressesByUserId ?? addresses.listAddressesByUserId,
 		},
 		now: () => NOW,
-		logger: HutchLogger.from(noopLogger),
+		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 
-	return { rewrite, gmail, connections, senders, addresses };
+	return { rewrite, gmail, connections, senders, addresses, logs };
 }
 
 describe("initRewriteGmailFilter", () => {
@@ -88,6 +92,28 @@ describe("initRewriteGmailFilter", () => {
 			[...gmail.store.values()].map((filter) => filter.query),
 			["from:(crew@morningbrew.com OR dan@tldr.tech)"],
 		);
+	});
+
+	it("logs the replaced filter by id without leaking the query or its senders", async () => {
+		const { rewrite, logs } = await makeHarness({
+			seedFilters: [{ id: "f-old", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }],
+			onFilter: [TLDR, BREW],
+		});
+
+		await rewrite({ userId: USER });
+
+		for (const line of logs) {
+			const serialized = JSON.stringify(line);
+			assert.equal(serialized.includes("from:("), false);
+			assert.equal(serialized.includes("dan@tldr.tech"), false);
+			assert.equal(serialized.includes("crew@morningbrew.com"), false);
+		}
+		const replaced = logs.find(
+			(line) => line.message === "[rewrite-gmail-filter] replaced filter",
+		);
+		assert(replaced, "the replacement path logs a replaced-filter line");
+		assert.equal(JSON.stringify(replaced.data).includes("f-old"), true);
+		assert.equal(JSON.stringify(replaced.data).includes(USER), true);
 	});
 
 	it("leaves a filter alone when it already carries the query the senders produce", async () => {

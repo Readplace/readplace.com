@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
 import { type InboxAddress, InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { HutchLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -19,6 +19,10 @@ function eventBody(forwardingAddress: InboxAddress, reason: string): string {
 
 function makeHarness(options: { failWrite?: boolean } = {}) {
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
+	const logs: { message: string; data: unknown }[] = [];
+	const capture = (...args: unknown[]) => {
+		logs.push({ message: String(args[0]), data: args[1] });
+	};
 	const handler = initGmailForwardingConfirmFailedHandler({
 		connections: options.failWrite
 			? {
@@ -29,14 +33,14 @@ function makeHarness(options: { failWrite?: boolean } = {}) {
 				}
 			: connections,
 		now: () => NOW,
-		logger: HutchLogger.from(noopLogger),
+		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 	const run = async (event: SQSEvent) => {
 		const response = await handler(event, buildLambdaContext(), () => {});
 		assert(response, "the handler always returns a batch response");
 		return response;
 	};
-	return { run, connections };
+	return { run, connections, logs };
 }
 
 describe("initGmailForwardingConfirmFailedHandler", () => {
@@ -108,5 +112,29 @@ describe("initGmailForwardingConfirmFailedHandler", () => {
 		);
 
 		assert.deepEqual(response, { batchItemFailures: [{ itemIdentifier: "evt-1" }] });
+	});
+
+	it("logs failures by user id, never the forwarding address", async () => {
+		const recorded = makeHarness();
+		await recorded.connections.createConnection({ userId: USER, gatewayAddress: GATEWAY });
+		await recorded.run(
+			buildSqsEvent([{ messageId: "evt-1", body: eventBody(GATEWAY, "token-rejected") }]),
+		);
+
+		const skipped = makeHarness();
+		await skipped.run(
+			buildSqsEvent([{ messageId: "evt-1", body: eventBody(GATEWAY, "invalid-url") }]),
+		);
+
+		const lines = [...recorded.logs, ...skipped.logs];
+		assert.deepEqual(lines.map((line) => line.message), [
+			"[gmail-forwarding-confirm-failed] confirmation failure recorded",
+			"[gmail-forwarding-confirm-failed] no unconfirmed gateway to mark",
+		]);
+		for (const line of lines) {
+			const serialized = JSON.stringify(line);
+			assert.equal(serialized.includes(GATEWAY), false);
+			assert.equal(JSON.stringify(line.data).includes(USER), true);
+		}
 	});
 });

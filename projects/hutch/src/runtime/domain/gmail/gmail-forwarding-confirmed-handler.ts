@@ -44,7 +44,7 @@ export function initGmailForwardingConfirmedHandler(deps: {
 					reason: "forwarding-confirmed",
 				});
 				logger.info("[gmail-forwarding-confirmed] address confirmed", {
-					forwardingAddress: parsed.data.forwardingAddress,
+					userId,
 				});
 			} catch (error) {
 				logger.error("[gmail-forwarding-confirmed] record failed", {
