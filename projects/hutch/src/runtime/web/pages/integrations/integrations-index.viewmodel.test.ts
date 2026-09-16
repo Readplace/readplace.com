@@ -208,6 +208,7 @@ describe("toIntegrationsIndexViewModel", () => {
 			"oauth_state",
 			"oauth_scope",
 			"oauth_metadata_scope",
+			"oauth_metadata_scope_first_connect",
 			"oauth_account_changed",
 			"oauth_exchange",
 		]) {
@@ -217,6 +218,20 @@ describe("toIntegrationsIndexViewModel", () => {
 				[error],
 			);
 		}
+	});
+
+	it.each([
+		[
+			"oauth_metadata_scope_first_connect",
+			"Readplace needs permission to read message headers so you can choose senders from your mailbox. Connect again and leave that permission ticked.",
+		],
+		[
+			"oauth_metadata_scope",
+			"Reconnect Gmail and allow Readplace to read message headers so you can choose senders from your mailbox. Existing mappings stay in place.",
+		],
+	])("says the right thing for %s", (error, message) => {
+		const vm = toIntegrationsIndexViewModel({ connection: undefined, error });
+		assert.deepEqual(vm.alerts, [{ key: error, message }]);
 	});
 
 	it("ignores an error code it does not recognise rather than rendering an empty alert", () => {
