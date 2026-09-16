@@ -1273,12 +1273,15 @@ eventBus.subscribeAll(
 );
 
 const gmailDiscoveryAccess = new HutchDynamoDBAccess("hutch-gmail-discovery-tables", {
+	tables: [{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem"],
+});
+const gmailDiscoveryAccountRead = new HutchDynamoDBAccess("hutch-gmail-discovery-account-read", {
 	tables: [
-		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 	],
-	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem"],
+	actions: ["dynamodb:GetItem"],
 });
 const gmailDiscoveryQueue = new HutchSQS("gmail-discovery", { visibilityTimeoutSeconds: 90, dlqMaxReceiveCount: 5 });
 const gmailDiscoveryLambda = new HutchLambda("gmail-discovery", {
@@ -1296,7 +1299,7 @@ const gmailDiscoveryLambda = new HutchLambda("gmail-discovery", {
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 	},
-	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryQueue.policies],
+	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryAccountRead.policies, ...gmailDiscoveryQueue.policies],
 	recursiveLoop: "Allow",
 });
 eventBus.grantPublish(gmailDiscoveryLambda);
