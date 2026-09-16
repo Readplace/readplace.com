@@ -128,6 +128,26 @@ describe("GET /integrations", () => {
 		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_state");
 	});
 
+	it("tells a first-time reader to connect again with header access beside a Not set up Gmail row", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = load((await agent.get("/integrations?error=oauth_metadata_scope_first_connect")).text);
+
+		const alert = doc.querySelector("[data-test-integrations-alert-key]");
+		assert(alert, "the index must render the first-connect metadata alert");
+		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_metadata_scope_first_connect");
+		expect(alert.textContent).toBe(
+			"Readplace needs permission to read message headers so you can choose senders from your mailbox. Connect again and leave that permission ticked.",
+		);
+		const gmail = doc.querySelector('[data-test-integration="gmail"]');
+		assert(gmail, "the Gmail row must render");
+		const status = gmail.querySelector("[data-test-integration-status]");
+		assert(status, "the Gmail row must carry a status");
+		expect(status.textContent).toBe("Not set up");
+		expect(integrationActions(doc)).toEqual(["connect"]);
+	});
+
 	it("renders the notice a disconnect redirects back with", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

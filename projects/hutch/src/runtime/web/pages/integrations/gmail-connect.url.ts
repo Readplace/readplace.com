@@ -8,6 +8,7 @@ export type GmailConnectError =
 	| "oauth_state"
 	| "oauth_scope"
 	| "oauth_metadata_scope"
+	| "oauth_metadata_scope_first_connect"
 	| "oauth_account_changed"
 	| "oauth_exchange";
 

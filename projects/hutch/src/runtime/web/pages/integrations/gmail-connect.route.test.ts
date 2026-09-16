@@ -347,19 +347,37 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
 	});
 
-	it("reports withheld metadata permission without replacing an existing forwarding grant", async () => {
-		const { fixture, gmailCredentialsStore } = fixtureWithGmail({ ok: false, reason: "metadata-scope-not-granted" });
+	it("tells a first-time reader to connect again with header access ticked, writing nothing", async () => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail({ ok: false, reason: "metadata-scope-not-granted" });
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 		assert(userId, "seeded login user must exist");
+
+		const response = await connectAndCallback(agent);
+
+		expect(response.headers.location).toBe("/integrations?error=oauth_metadata_scope_first_connect");
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
+	});
+
+	it("reports withheld metadata permission without replacing an existing forwarding grant", async () => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail({ ok: false, reason: "metadata-scope-not-granted" });
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
 		await gmailCredentialsStore.saveCredentials({ userId, refreshToken: "existing-grant", grantedScope: GMAIL_SETTINGS_SCOPE });
+		const original = await gmailConnectionStore.findConnectionByUserId(userId);
 
 		const response = await connectAndCallback(agent);
 
 		expect(response.headers.location).toBe("/integrations?error=oauth_metadata_scope");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("existing-grant");
 		expect(await gmailCredentialsStore.findGrantedScopeByUserId(userId)).toBe(GMAIL_SETTINGS_SCOPE);
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toEqual(original);
 	});
 
 	it("upgrades an existing settings-only connection without replacing its forwarding address", async () => {

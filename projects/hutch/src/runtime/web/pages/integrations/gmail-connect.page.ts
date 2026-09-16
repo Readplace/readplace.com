@@ -138,10 +138,13 @@ export function registerGmailConnectRoutes(
 			return;
 		}
 
+		const existing = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		const grant = await gmail.exchangeGmailCode({ code: parsedQuery.data.code });
 		if (!grant.ok) {
 			if (grant.reason === "metadata-scope-not-granted") {
-				res.redirect(303, buildIntegrationsUrl({ error: "oauth_metadata_scope" }));
+				res.redirect(303, buildIntegrationsUrl({
+					error: existing === undefined ? "oauth_metadata_scope_first_connect" : "oauth_metadata_scope",
+				}));
 				return;
 			}
 			if (grant.reason === "scope-not-granted") {
@@ -153,7 +156,6 @@ export function registerGmailConnectRoutes(
 			return;
 		}
 
-		const existing = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		const found = await gmail.findGmailAccountEmail({ accessToken: grant.grant.accessToken });
 		if (!found.ok) {
 			context.logError(`[gmail-connect] account email unavailable: ${found.reason}`);
