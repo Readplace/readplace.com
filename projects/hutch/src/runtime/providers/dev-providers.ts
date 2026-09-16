@@ -7,8 +7,16 @@ import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
 import { initGmailAccessToken } from "./gmail-api/gmail-access-token";
 import { initGmailAccountEmail } from "./gmail-api/gmail-account";
+import { initGmailFilters } from "./gmail-api/gmail-filters";
 import { initGmailMailbox } from "./gmail-api/gmail-mailbox";
-import { initDiscoverGmailSenders, initRunGmailDiscovery } from "../domain/gmail/discover-gmail-senders";
+import { initRevokeGmailGrant } from "./gmail-api/gmail-revoke";
+import { initConfirmOnConnectGmailConnection } from "../domain/gmail/confirm-on-connect-gmail-connection";
+import { initDisconnectGmail } from "../domain/gmail/disconnect-gmail";
+import { initDiscoverGmailSenders } from "../domain/gmail/discover-gmail-senders";
+import { initLocalGmailCommands } from "../domain/gmail/local-gmail-commands";
+import { initRewriteGmailFilter } from "../domain/gmail/rewrite-gmail-filter";
+import { initRunGmailDiscoveryLocally } from "../domain/gmail/run-gmail-discovery-locally";
+import type { GmailIntegrationDependencies } from "../web/pages/integrations/gmail-connect.page";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
 import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
@@ -175,62 +183,88 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const gmailConnectionStore = initInMemoryGmailConnection({ now: () => new Date() });
 	const gmailDiscoveryStore = initInMemoryGmailDiscovery({ now: () => new Date() });
 
+	const buildGmailIntegration = (settings: {
+		clientId: string;
+		clientSecret: string;
+		stateSeed: string;
+	}): GmailIntegrationDependencies => {
+		const { clientId, clientSecret, stateSeed } = settings;
+		const gmailSenderStore = initInMemoryGmailSender({ now: () => new Date() });
+		const gmailAccessToken = initGmailAccessToken({ clientId, clientSecret, credentials: gmailCredentialsStore, fetch: globalThis.fetch, now: () => new Date() });
+		const rewriteGmailFilter = initRewriteGmailFilter({
+			filters: initGmailFilters({ accessToken: gmailAccessToken, fetch: globalThis.fetch }),
+			connections: gmailConnectionStore,
+			senders: gmailSenderStore,
+			addresses: inboxAddressStore,
+			now: () => new Date(),
+			logger,
+		});
+		const disconnectGmail = initDisconnectGmail({
+			connections: gmailConnectionStore,
+			credentials: gmailCredentialsStore,
+			senders: gmailSenderStore,
+			discovery: gmailDiscoveryStore,
+			addresses: inboxAddressStore,
+			rewriteGmailFilter,
+			revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
+			logger,
+		});
+		const { publishRewriteGmailFilter, publishDisconnectGmail } = initLocalGmailCommands({ rewriteGmailFilter, disconnectGmail, logger });
+		const runGmailDiscoveryLocally = initRunGmailDiscoveryLocally({
+			discover: initDiscoverGmailSenders({
+				connections: gmailConnectionStore,
+				discovery: gmailDiscoveryStore,
+				newGeneration: randomUUID,
+				mailbox: initGmailMailbox({ accessToken: gmailAccessToken, fetch: globalThis.fetch }),
+			}),
+			discovery: gmailDiscoveryStore,
+			waitForNextPage: () => new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+			logger,
+		});
+		return {
+			exchangeGmailCode: initExchangeGmailCode({
+				clientId,
+				clientSecret,
+				redirectUri: `http://localhost:${getEnv("PORT") || "3000"}/integrations/gmail/callback`,
+				fetch: globalThis.fetch,
+			}),
+			findGmailAccountEmail: initGmailAccountEmail({ fetch: globalThis.fetch }),
+			clientId,
+			stateSecret: deriveGmailStateSigningSecret(stateSeed),
+			gmailCredentialsStore,
+			gmailConnectionStore: initConfirmOnConnectGmailConnection({ connections: gmailConnectionStore, addresses: inboxAddressStore }),
+			gmailDiscoveryStore,
+			publishStartGmailSenderDiscovery: async ({ userId }: { userId: UserId }) => {
+				void runGmailDiscoveryLocally({ userId });
+			},
+			gmailSenderStore,
+			mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
+				const entry = await inboxAddressStore.createAddress({
+					userId,
+					domain: inboxAddressDomain,
+					name: GMAIL_FORWARDING_ALIAS,
+					purpose: "gmail-forwarding",
+				});
+				return entry.address;
+			},
+			findInboxAddress: inboxAddressStore.findByAddress,
+			mintInboxAddress: async ({ userId, name }: { userId: UserId; name: AliasName }) => {
+				const entry = await inboxAddressStore.createAddress({
+					userId,
+					domain: inboxAddressDomain,
+					name,
+					purpose: "gmail-mapped",
+				});
+				return entry.address;
+			},
+			listInboxAddresses: inboxAddressStore.listAddressesByUserId,
+			publishRewriteGmailFilter,
+			publishDisconnectGmail,
+		};
+	};
 	const gmailIntegration =
 		gmailClientId && gmailClientSecret && gmailStateSeed
-			? {
-					exchangeGmailCode: initExchangeGmailCode({
-						clientId: gmailClientId,
-						clientSecret: gmailClientSecret,
-						redirectUri: `http://localhost:${getEnv("PORT") || "3000"}/integrations/gmail/callback`,
-						fetch: globalThis.fetch,
-					}),
-					findGmailAccountEmail: initGmailAccountEmail({
-						fetch: globalThis.fetch,
-					}),
-					clientId: gmailClientId,
-					stateSecret: deriveGmailStateSigningSecret(gmailStateSeed),
-					gmailCredentialsStore,
-					gmailConnectionStore,
-					gmailDiscoveryStore,
-					publishStartGmailSenderDiscovery: async ({ userId }: { userId: UserId }) => {
-						const run = initRunGmailDiscovery({
-							discover: initDiscoverGmailSenders({
-								connections: gmailConnectionStore,
-								discovery: gmailDiscoveryStore,
-								newGeneration: randomUUID,
-								mailbox: initGmailMailbox({
-									accessToken: initGmailAccessToken({ clientId: gmailClientId, clientSecret: gmailClientSecret, credentials: gmailCredentialsStore, fetch: globalThis.fetch, now: () => new Date() }),
-									fetch: globalThis.fetch,
-								}),
-							}),
-							waitForNextPage: () => new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
-						});
-						void run({ userId }).catch((error: unknown) => logger.error("Gmail sender discovery failed", { error }));
-					},
-					gmailSenderStore: initInMemoryGmailSender({ now: () => new Date() }),
-					mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
-						const entry = await inboxAddressStore.createAddress({
-							userId,
-							domain: inboxAddressDomain,
-							name: GMAIL_FORWARDING_ALIAS,
-							purpose: "gmail-forwarding",
-						});
-						return entry.address;
-					},
-					findInboxAddress: inboxAddressStore.findByAddress,
-					mintInboxAddress: async ({ userId, name }: { userId: UserId; name: AliasName }) => {
-						const entry = await inboxAddressStore.createAddress({
-							userId,
-							domain: inboxAddressDomain,
-							name,
-							purpose: "gmail-mapped",
-						});
-						return entry.address;
-					},
-					listInboxAddresses: inboxAddressStore.listAddressesByUserId,
-					publishRewriteGmailFilter: async () => {},
-					publishDisconnectGmail: async () => {},
-				}
+			? buildGmailIntegration({ clientId: gmailClientId, clientSecret: gmailClientSecret, stateSeed: gmailStateSeed })
 			: undefined;
 	const devAppleClientId = getEnv("APPLE_LOGIN_CLIENT_ID");
 	const devAppleTeamId = getEnv("APPLE_LOGIN_TEAM_ID");
