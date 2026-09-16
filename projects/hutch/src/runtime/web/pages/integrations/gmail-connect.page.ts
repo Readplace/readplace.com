@@ -66,6 +66,15 @@ export function registerGmailConnectRoutes(
 	const redirectUri = `${context.appOrigin}${GMAIL_CALLBACK_PATH}`;
 	const write = [context.requireAuth, context.requireNotLocked, context.requireWriteAccess];
 
+	const returnSignedOutReaderToIntegrations: RequestHandler = (req, res, next) => {
+		if (req.userId) {
+			next();
+			return;
+		}
+		const returnPath = buildIntegrationsUrl({ error: "oauth_signed_out" });
+		res.redirect(303, `/login?return=${encodeURIComponent(returnPath)}`);
+	};
+
 	router.post("/gmail/connect", write, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
@@ -103,7 +112,7 @@ export function registerGmailConnectRoutes(
 		res.redirect(303, authorizeUrl);
 	});
 
-	router.get("/gmail/callback", write, async (req: Request, res: Response) => {
+	router.get("/gmail/callback", [returnSignedOutReaderToIntegrations, ...write], async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
 		const stateCookie = req.cookies?.[STATE_COOKIE];
