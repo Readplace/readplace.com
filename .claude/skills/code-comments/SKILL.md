@@ -1,6 +1,6 @@
 ---
 name: code-comments
-description: When a code comment may exist and the human-approval gate that must be cleared before one is written. Use when adding, editing, retaining, or removing any code comment (`//`, `/* */`, `/** */`, `<!-- -->`, `{{!-- --}}`, `#`), when reviewing a diff that touches comments, or when asked to clean up / trim / de-stale / de-time-bind comments. This is the single source of truth for comment policy across the repo.
+description: When a code comment may exist and the human-approval gate that must be cleared before comment text is added or reworded (taking text away is always free). Use when adding, editing, retaining, or removing any code comment (`//`, `/* */`, `/** */`, `<!-- -->`, `{{!-- --}}`, `#`), when reviewing a diff that touches comments, or when asked to clean up / trim / de-stale / de-time-bind comments. This is the single source of truth for comment policy across the repo.
 
 ---
 
@@ -17,7 +17,17 @@ Every other comment — including all *what* and *how* comments — does not bel
 
 ## Ask before writing, never after
 
-Adding any comment — a why-comment, a hack-comment, or anything else — requires explicit human approval in the working session, obtained **before the comment is written**. There is no category of comment you may introduce unprompted. Removing a comment never needs approval.
+The gate is on comment text **entering** the code, not on touching a comment. Any wording a reader would newly meet needs explicit human approval in the working session, obtained **before it is written**. There is no category of comment you may introduce unprompted. Taking comment text away never needs approval — deletion cannot introduce a claim that rots.
+
+| Operation | Approval |
+|---|---|
+| Writing a new comment | **Required**, before it is written |
+| Rewording, expanding or replacing an existing comment | **Required** — replacement wording is new comment text, whatever the diff looks like |
+| Deleting a comment outright | Never |
+| Deleting part of a comment, leaving the rest as it stands | Never — this is a removal, not a rewrite |
+| Repairing the punctuation a deletion forces (a dangling colon, a merged sentence) | Never, provided no claim is added or altered |
+
+So a comment that has gone half-stale — one live reason, one superseded by newer evidence — is trimmed to the live reason without asking. Only a rewrite that states the why in *new* words needs the gate. When both would work, prefer the trim: it is the cheaper change and it needs no approval.
 
 Ask with the `AskUserQuestion` tool, quoting the exact comment text you propose and the line it would sit on, so the human approves the wording rather than the idea of a comment. Batch every proposed comment in a change into one question; do not ask per comment.
 

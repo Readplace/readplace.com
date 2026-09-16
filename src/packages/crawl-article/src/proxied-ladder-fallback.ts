@@ -22,9 +22,8 @@ const DIRECT_PASS_FLOOR_MILLISECONDS = 15_000;
 /* Below this the proxied pass cannot seat even a median unlocker fetch, so
  * spending metered egress on it would only buy a timeout. */
 const PROXY_ATTEMPT_FLOOR_MILLISECONDS = 12_000;
-/* Statuses the unlocker returns when it, rather than the origin, failed:
- * measured on one URL, five sequential fetches answered 200, 502, 502, 200,
- * 200. 500 is excluded — that one is plausibly the origin's own answer, which
+/* Statuses the unlocker returns when it, rather than the origin, failed.
+ * 500 is excluded — that one is plausibly the origin's own answer, which
  * the caller is entitled to receive. */
 const PROXY_GATEWAY_STATUSES = new Set([502, 503, 504]);
 const PROXY_ATTEMPTS = 2;
