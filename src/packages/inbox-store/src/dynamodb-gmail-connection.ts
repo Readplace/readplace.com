@@ -35,7 +35,7 @@ const GmailConnectionRow = z.object({
 	filterUpdatedAt: dynamoField(z.string()),
 	lastFilterError: dynamoField(GmailFilterErrorRow),
 	revokedAt: dynamoField(z.string()),
-	revokedReason: dynamoField(z.enum(["invalid-grant", "scope-not-granted"])),
+	revokedReason: dynamoField(z.enum(["invalid-grant"])),
 	disconnectRequestedAt: dynamoField(z.string()),
 	connected: dynamoField(z.string()),
 });
@@ -106,12 +106,6 @@ export function initDynamoDbGmailConnection(deps: {
 				UpdateExpression:
 					"SET forwardingConfirmedAt = if_not_exists(forwardingConfirmedAt, :now) REMOVE lastConfirmError",
 				ExpressionAttributeValues: { ":now": deps.now().toISOString() },
-			});
-		},
-		clearForwardingConfirmed: async ({ userId }) => {
-			await table.update({
-				Key: { userId },
-				UpdateExpression: "REMOVE forwardingConfirmedAt",
 			});
 		},
 		recordConfirmError: async ({ userId, error }) => {

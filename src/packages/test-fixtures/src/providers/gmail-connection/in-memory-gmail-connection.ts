@@ -39,9 +39,6 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 				lastConfirmError: undefined,
 			});
 		},
-		clearForwardingConfirmed: async ({ userId }) => {
-			update(userId, { forwardingConfirmedAt: undefined });
-		},
 		recordConfirmError: async ({ userId, error }) => {
 			update(userId, { lastConfirmError: error });
 		},

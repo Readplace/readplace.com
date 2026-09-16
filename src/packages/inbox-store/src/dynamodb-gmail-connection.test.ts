@@ -132,14 +132,6 @@ describe("initDynamoDbGmailConnection", () => {
 		});
 	});
 
-	it("drops the connection back to step 2 when Google stops recognising the address", async () => {
-		const { store, commands } = harness();
-
-		await store.clearForwardingConfirmed({ userId: USER });
-
-		assert.match(String(commands[0].input.UpdateExpression), /REMOVE forwardingConfirmedAt/);
-	});
-
 	it("clears the last error when a filter write succeeds", async () => {
 		const { store, commands } = harness();
 

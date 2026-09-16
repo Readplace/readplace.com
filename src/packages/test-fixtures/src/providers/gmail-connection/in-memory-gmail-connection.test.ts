@@ -58,17 +58,6 @@ describe("initInMemoryGmailConnection", () => {
 		assert.equal(await store.findConnectionByUserId(owner), undefined);
 	});
 
-	it("drops back to awaiting confirmation when Google stops recognising the address", async () => {
-		const { store, connect } = connectedStore();
-		await connect();
-		await store.markForwardingConfirmed({ userId: owner });
-
-		await store.clearForwardingConfirmed({ userId: owner });
-
-		const connection = await store.findConnectionByUserId(owner);
-		assert.equal(connection?.forwardingConfirmedAt, undefined);
-	});
-
 	it("clears the last error when a filter write succeeds", async () => {
 		const { store, connect } = connectedStore();
 		await connect();
@@ -205,7 +194,7 @@ describe("initInMemoryGmailConnection", () => {
 			gatewayAddress: gateway,
 		});
 
-		await store.markRevoked({ userId: otherUser, reason: "scope-not-granted" });
+		await store.markRevoked({ userId: otherUser, reason: "invalid-grant" });
 
 		assert.equal(await store.countConnected(), 1);
 	});

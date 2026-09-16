@@ -2,7 +2,7 @@ import type { GmailAccountEmail } from "./gmail-account-email.schema";
 import type { InboxAddress } from "../inbox/inbox-address.schema";
 import type { UserId } from "../user";
 
-export type GmailRevokedReason = "invalid-grant" | "scope-not-granted";
+export type GmailRevokedReason = "invalid-grant";
 
 export interface GmailFilterError {
 	code: GmailFilterErrorCode;
@@ -44,7 +44,6 @@ export interface GmailConnectionStore {
 		userId: UserId,
 	) => Promise<GmailConnection | undefined>;
 	markForwardingConfirmed: (input: { userId: UserId }) => Promise<void>;
-	clearForwardingConfirmed: (input: { userId: UserId }) => Promise<void>;
 	recordConfirmError: (input: {
 		userId: UserId;
 		error: GmailConfirmError;
