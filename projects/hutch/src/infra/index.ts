@@ -1307,8 +1307,10 @@ const gmailDiscoveryWithSqs = new HutchSQSBackedLambda("gmail-discovery", {
 	batchSize: 1,
 });
 eventBus.subscribeAll([StartGmailSenderDiscoveryCommand, GmailSenderDiscoveryProgressedEvent], gmailDiscoveryWithSqs, { name: "hutch-gmail-discovery" });
+const gmailDiscoveryOwnDlq = gmailDiscoveryWithSqs.ownDlq;
+assert(gmailDiscoveryOwnDlq, "gmail-discovery owns its DLQ, so its arrival alarm has a topic to page");
 new HutchDLQEventHandler("gmail-discovery-dlq", {
-	deadLetterQueueArn: gmailDiscoveryQueue.dlqArn,
+	deadLetterQueue: gmailDiscoveryOwnDlq,
 	tableArn: storage.gmailDiscoveryTable.arn,
 	tableName: storage.gmailDiscoveryTable.name,
 	eventBus,

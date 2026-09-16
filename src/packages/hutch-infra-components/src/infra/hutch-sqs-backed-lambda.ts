@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import type { HutchLambda } from "./hutch-lambda";
+import type { AlarmedDeadLetterQueue } from "./hutch-shared-dlq";
 import type { HutchSQS } from "./hutch-sqs";
 
 export class HutchSQSBackedLambda extends pulumi.ComponentResource {
@@ -8,7 +9,7 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 	public readonly queueUrl: HutchSQS["queueUrl"];
 	public readonly dlqArn: HutchSQS["dlqArn"];
 	public readonly dlqUrl: HutchSQS["dlqUrl"];
-	public readonly ownDlq: HutchSQS["ownDlq"];
+	public readonly ownDlq: AlarmedDeadLetterQueue | undefined;
 
 	constructor(
 		name: string,
@@ -36,7 +37,6 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 		this.queueUrl = args.queue.queueUrl;
 		this.dlqArn = args.queue.dlqArn;
 		this.dlqUrl = args.queue.dlqUrl;
-		this.ownDlq = args.queue.ownDlq;
 		new aws.iam.RolePolicy(`${name}-sqs-recv`, {
 			name: `${name}-sqs-recv`,
 			role: args.lambda.role.name,
@@ -86,6 +86,13 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 				},
 				alarmActions: [topic.arn],
 			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+			this.ownDlq = {
+				arn: ownDlq.arn,
+				url: ownDlq.url,
+				name: ownDlq.name,
+				alarmTopicArn: topic.arn,
+			};
 		}
 
 		this.registerOutputs();

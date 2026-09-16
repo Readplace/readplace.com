@@ -339,7 +339,7 @@ const reselectAfterRemovalQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.reselectAft
 });
 
 new HutchDLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
-	deadLetterQueueArn: failuresDlq.arn,
+	deadLetterQueue: failuresDlq,
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,

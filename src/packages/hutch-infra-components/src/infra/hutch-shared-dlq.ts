@@ -9,10 +9,15 @@ export interface DeadLetterQueue {
 	readonly name: aws.sqs.Queue["name"];
 }
 
+export interface AlarmedDeadLetterQueue extends DeadLetterQueue {
+	readonly alarmTopicArn: aws.sns.Topic["arn"];
+}
+
 export class HutchSharedDlq extends pulumi.ComponentResource {
 	public readonly arn: aws.sqs.Queue["arn"];
 	public readonly url: aws.sqs.Queue["url"];
 	public readonly name: aws.sqs.Queue["name"];
+	public readonly alarmTopicArn: aws.sns.Topic["arn"];
 
 	constructor(
 		name: string,
@@ -80,6 +85,7 @@ export class HutchSharedDlq extends pulumi.ComponentResource {
 		this.arn = queue.arn;
 		this.url = queue.url;
 		this.name = queue.name;
+		this.alarmTopicArn = topic.arn;
 		this.registerOutputs();
 	}
 }
