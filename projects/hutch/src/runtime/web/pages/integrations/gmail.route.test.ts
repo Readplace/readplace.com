@@ -26,6 +26,18 @@ function load(text: string): Document {
 	return new JSDOM(text).window.document;
 }
 
+function sections(doc: Document): string[] {
+	const present: string[] = [];
+	if (doc.querySelector("[data-test-gmail-step]")) present.push("step");
+	if (doc.querySelector("[data-test-gmail-senders]")) present.push("senders");
+	if (doc.querySelector("[data-test-gmail-reconnect]")) present.push("reconnect");
+	return present;
+}
+
+function alertKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-gmail-alert]"), (el) => el.getAttribute("data-test-gmail-alert-key"));
+}
+
 function harnessWithGmail(now?: () => Date, appNow?: () => Date) {
 	const gmail = initInMemoryGmailIntegration({
 		grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
@@ -257,6 +269,38 @@ describe("Gmail sender mapping page", () => {
 		const response = await agent.get(`${GMAIL}/status?poll=1&state=awaiting-confirmation`);
 		expect(load(response.text).querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get")).toBe(`${GMAIL}/status?poll=2&state=awaiting-confirmation`);
 		expect((await agent.get(`${GMAIL}/status?poll=100&state=awaiting-confirmation`)).text).toContain("Still waiting");
+	});
+
+	it("shows only the reconnect once Google ends the grant", async () => {
+		const { agent, gmail, userId } = await connectedAgent();
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		const doc = load((await agent.get(GMAIL)).text);
+		expect(sections(doc)).toEqual(["reconnect"]);
+		expect(doc.querySelector("[data-test-gmail-state]")?.getAttribute("data-test-gmail-state")).toBe("revoked");
+		const reconnect = doc.querySelector("[data-test-gmail-reconnect] form");
+		expect(reconnect?.getAttribute("method")).toBe("POST");
+		expect(reconnect?.getAttribute("action")).toBe(
+			"/integrations/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=reconnect",
+		);
+	});
+
+	it("stops handing out a gateway address that has been switched off", async () => {
+		const { agent, gmail, userId, gatewayAddress } = await connectedAgent({ confirmed: false });
+		await gmail.addresses.disableAddress({ userId, address: gatewayAddress });
+		const doc = load((await agent.get(GMAIL)).text);
+		expect(sections(doc)).toEqual(["senders"]);
+		expect(alertKeys(doc)).toEqual(["gateway_disabled"]);
+	});
+
+	it("raises a filter-error alert carrying the recorded message", async () => {
+		const { agent, gmail, userId } = await connectedAgent();
+		await gmail.bundle.gmailConnectionStore.recordFilterError({
+			userId,
+			error: { code: "query-too-long", message: "40 senders produce a 2396-character query", at: "2026-09-16T00:00:00.000Z" },
+		});
+		const doc = load((await agent.get(GMAIL)).text);
+		expect(alertKeys(doc)).toEqual(["filter"]);
+		expect(doc.querySelector('[data-test-gmail-alert-key="filter"]')?.textContent).toBe("40 senders produce a 2396-character query");
 	});
 
 	it("surfaces a failed confirmation, keeps watching, and confirms once Google sends a new link", async () => {
