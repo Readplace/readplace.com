@@ -1,6 +1,6 @@
 ---
 name: crawl-pipeline-rca
-description: Root-cause methodology for distributed pipelines (command → event → handler chains over Lambda + EventBridge + SQS), with the article crawl system as the primary application. Use when a state-machine row is stuck non-terminal (e.g. `crawlStatus='pending'`, `summaryStatus='pending'`), when a canary or SLO times out with the row never transitioning, when one entry point works but another doesn't for the same input (e.g. `/view` vs `/admin/recrawl`), when investigating a multi-Lambda async chain where the first handler logs a clean success, or before bumping Lambda timeouts / SQS visibility / `maxReceiveCount` to "give it more room".
+description: Root-cause methodology for distributed pipelines (command → event → handler chains over Lambda + EventBridge + SQS), with the article crawl system as the primary application. Use when a state-machine row is stuck non-terminal (e.g. `crawlStatus='pending'`, `summaryStatus='pending'`), when a canary or SLO times out with the row never transitioning, when one entry point works but another doesn't for the same input (e.g. `/view` vs `/admin/recrawl`), when investigating a multi-Lambda async chain where the first handler logs a clean success, before bumping Lambda timeouts / SQS visibility / `maxReceiveCount` to "give it more room", or when a CloudWatch Logs Insights query over a structured log stream returns zero rows, a column blank on every row, or `ResourceNotFoundException`.
 ---
 
 # Debugging Distributed Pipelines (Command → Event → Handler)
@@ -31,7 +31,27 @@ For the crawl pipeline, the chains are:
 | `/view` (new article) | `save-anonymous-link-command-handler` → `select-most-complete-content-handler` |
 | Save link command | `save-link-command-handler` → `select-most-complete-content-handler` |
 
-The `<handler>` names are the Lambda names the Pulumi program assigns — confirm against the program before pasting. Inspect each project's Pulumi program (what `pnpm nx run <project>:check-infra` previews) for the full Lambda/queue topology — its event-bus subscriptions map each event (`SaveLinkCommand`, `SaveAnonymousLinkCommand`, `RecrawlLinkInitiated`, then `TierContentExtracted` or `RecrawlContentExtracted` for the second hop) to the Lambda that consumes it.
+The `<handler>` names are the Lambda names the Pulumi program assigns — confirm against the program before pasting. Enumerate them from the workspace package that holds the save-link Lambda names in one place — grep the workspace packages for the map of Lambda names to log-group names — rather than typing them: an entry-point filename is not the Lambda name.
+
+#### Querying a structured log stream
+
+A handler that emits a structured stream (`crawl-legs`, `parse-errors`) is read with Logs Insights rather than `filter-log-events`. Four traps, each of which fails **quietly** — the query succeeds and the result reads as "that field was never captured":
+
+| Trap | What it looks like | Fix |
+|---|---|---|
+| Backticks around the leaf of a nested field | The column is blank on **every** row while the rest of the query works normally | Enclose the *whole* dotted path in one pair of backticks |
+| No profile or region | Zero rows, because default credentials target staging (CLAUDE.md → AWS Accounts) | Name the production profile and region explicitly |
+| Log groups typed by hand | `ResourceNotFoundException` — and the start-query call is rejected **whole**, so one wrong name returns nothing for every group | Enumerate from the package named above |
+| Assuming a fixed number of rows per `@requestId` | Silent under- or over-counting of attempts | Count rows per id before pairing them |
+
+```
+# BAD - backticks around the leaf: vendorErr is blank on every row
+fields legDetail.`x-vendor-err-code` as vendorErr
+# GOOD - the whole dotted path inside one pair
+fields `legDetail.x-vendor-err-code` as vendorErr
+```
+
+A zero count for a field attached from a **response** header means "absent from the responses we received", not "never happens". A leg that threw — refused at connect time, socket error — has no response to read a header from, so it never carries the field at all. Establish what share of the population threw before reading a zero as an answer. Inspect each project's Pulumi program (what `pnpm nx run <project>:check-infra` previews) for the full Lambda/queue topology — its event-bus subscriptions map each event (`SaveLinkCommand`, `SaveAnonymousLinkCommand`, `RecrawlLinkInitiated`, then `TierContentExtracted` or `RecrawlContentExtracted` for the second hop) to the Lambda that consumes it.
 
 ### 2. Audit Every Path Against the Single Writer of Each Terminal State
 
@@ -60,6 +80,7 @@ When two paths share a core but diverge for the same input (one works, the other
 | Don't | Why |
 |---|---|
 | Speculate about Lambda timeouts before tailing logs | Symptoms whose duration matches a single timeout (a Lambda timeout, the canary's poll budget) usually point to retry-chain math, not Lambda hangs |
+| Read a zero count from a structured log query as "this never happens" | The query may be blank by syntax, scoped to staging, or asking a response-only field about legs that threw — all three fail silently; rule 1 applies |
 | Bump Lambda timeout in isolation to "give it more room" | Pushes failure-surfacing past the canary/SLO budget without addressing the cause; rule 4 applies |
 | Dismiss "path A works, path B doesn't" as warm-pool or IP coincidence | This pattern almost always points to a real divergence in path B's prefix; rule 5 applies |
 | Patch the first handler in the chain when it logs success | The bug is in the next hop; patching the first hop fights the wrong fight |
