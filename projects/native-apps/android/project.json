@@ -17,7 +17,7 @@
       "cache": false
     },
     "check": {
-      "command": "make test",
+      "command": "if ./scripts/ax.sh true >/dev/null 2>&1; then make test; else echo 'SKIPPED android:check - no Android SDK on this machine, so nothing was tested here. Run `make test` once the SDK is installed.'; fi",
       "options": {
         "cwd": "{projectRoot}"
       },

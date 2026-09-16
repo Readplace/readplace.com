@@ -43,7 +43,7 @@
       ]
     },
     "check": {
-      "command": "make test",
+      "command": "if [ \"$(uname -s)\" = Darwin ]; then make test; else echo 'SKIPPED ios:check - the iOS suite needs macOS with Xcode, so nothing was tested here. Run `make test` on a Mac.'; fi",
       "options": {
         "cwd": "{projectRoot}"
       },
