@@ -5,7 +5,7 @@ import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { GmailDiscoveryStore } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { DiscoverGmailSenders, GmailDiscoveryPage } from "./discover-gmail-senders";
+import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE, type GmailDiscoveryPage } from "./discover-gmail-senders";
 
 const DiscoveryEnvelope = z.union([
 	z.object({ "detail-type": z.literal(StartGmailSenderDiscoveryCommand.detailType), detail: StartGmailSenderDiscoveryCommand.detailSchema }).transform(({ detail }) => ({ kind: "start" as const, detail })),
@@ -60,7 +60,7 @@ export function initGmailDiscoveryDlqHandler(deps: {
 					? envelope.detail
 					: envelope.kind === "progress" ? envelope.detail.nextPage : undefined;
 				if (expected !== undefined && (current.generation !== expected.generation || current.page !== expected.page)) continue;
-				await deps.discovery.failDiscovery({ userId, generation: current.generation, error: "Gmail sender loading paused. Try again to continue." });
+				await deps.discovery.failDiscovery({ userId, generation: current.generation, error: GMAIL_DISCOVERY_PAUSED_MESSAGE });
 				await deps.publishEvent(GmailSenderDiscoveryProgressedEvent, { userId });
 			} catch (error) {
 				deps.logger.error("[gmail-discovery-dlq] record failed", { messageId: record.messageId, error });
