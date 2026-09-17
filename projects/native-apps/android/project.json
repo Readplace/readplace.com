@@ -17,11 +17,12 @@
       "cache": false
     },
     "check": {
-      "command": "make test",
+      "command": "if ./scripts/ax.sh javac -version 2>&1 | grep -qE '^javac 21(\\.|$)'; then make test; else echo 'SKIPPED android:check - the unit suite needs the Android SDK and JDK 21, so nothing was tested here. Run `make test` with both installed.'; fi",
       "options": {
         "cwd": "{projectRoot}"
       },
-      "dependsOn": []
+      "dependsOn": [],
+      "cache": false
     }
   }
 }
