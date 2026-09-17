@@ -165,7 +165,7 @@ build's beta localizations. The note is therefore set afterwards, by the
 It reads `fastlane/metadata/en-US/release_notes.txt`, the same file the App Store
 listing uses, so a tester and a shopper cannot be told two different stories —
 which also means the note that lands is whatever is on the branch the workflow
-runs from. It uploads no binary and submits nothing: `distribute_only` skips the
+runs from. By default it uploads no binary and submits nothing: `distribute_only` skips the
 upload and `skip_submission` stops before pilot adds the build to a tester group
 or files a beta review.
 
