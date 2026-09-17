@@ -7,6 +7,7 @@ const ViewerIpSchema = z.string().brand<"ViewerIp">();
 export type ViewerIp = z.infer<typeof ViewerIpSchema>;
 
 export const EDGE_SECRET_HEADER = "x-readplace-edge-secret";
+export const VIEWER_PATH_HEADER = "x-readplace-viewer-path";
 export const VIEWER_IP_HEADER = "x-readplace-viewer-ip";
 export const VIEWER_HOST_HEADER = "x-readplace-viewer-host";
 
@@ -35,6 +36,11 @@ function headerValue(req: Request, name: string): string | undefined {
 	return typeof raw === "string" && raw !== "" ? raw : undefined;
 }
 
+export function isTrustedEdge(req: Request, edgeSecret: string): boolean {
+	const presented = headerValue(req, EDGE_SECRET_HEADER);
+	return presented !== undefined && constantTimeEquals(presented, edgeSecret);
+}
+
 function toViewerIp(value: string | undefined): ViewerIp | undefined {
 	return value === undefined ? undefined : ViewerIpSchema.parse(value);
 }
@@ -56,9 +62,7 @@ export function initResolveViewerIdentity(deps: { edgeSecret: string }) {
 			host: headerValue(req, "host"),
 		};
 
-		const presented = headerValue(req, EDGE_SECRET_HEADER);
-		if (presented === undefined) return fromSocket;
-		if (!constantTimeEquals(presented, deps.edgeSecret)) return fromSocket;
+		if (!isTrustedEdge(req, deps.edgeSecret)) return fromSocket;
 
 		const statedIp = toViewerIp(headerValue(req, VIEWER_IP_HEADER));
 		const statedHost = headerValue(req, VIEWER_HOST_HEADER);

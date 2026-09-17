@@ -5,6 +5,7 @@ import {
 	EDGE_SECRET_HEADER,
 	VIEWER_HOST_HEADER,
 	VIEWER_IP_HEADER,
+	VIEWER_PATH_HEADER,
 } from "@packages/viewer-identity";
 
 const AWS_MANAGED_CACHING_DISABLED_POLICY_ID = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad";
@@ -77,6 +78,7 @@ export class HutchSsrCdn extends pulumi.ComponentResource {
 				code: `function handler(event) {
 	var request = event.request;
 	delete request.headers['${EDGE_SECRET_HEADER}'];
+	delete request.headers['${VIEWER_PATH_HEADER}'];
 	request.headers['${VIEWER_IP_HEADER}'] = { value: event.viewer.ip };
 	request.headers['${VIEWER_HOST_HEADER}'] = { value: request.headers.host.value };
 	return request;
@@ -100,6 +102,10 @@ export class HutchSsrCdn extends pulumi.ComponentResource {
 		const distribution = new aws.cloudfront.Distribution(
 			`${name}-cdn`,
 			{
+				// Error caching is separate from the managed CachingDisabled policy.
+				customErrorResponses: [400, 403, 404, 405, 414, 416, 500, 501, 502, 503, 504].map(
+					(errorCode) => ({ errorCode, errorCachingMinTtl: 0 }),
+				),
 				enabled: true,
 				aliases: [args.domain],
 				httpVersion: "http2and3",

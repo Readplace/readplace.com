@@ -2,6 +2,7 @@ export {
 	EDGE_SECRET_HEADER,
 	VIEWER_HOST_HEADER,
 	VIEWER_IP_HEADER,
+	VIEWER_PATH_HEADER,
 	type ViewerIdentity,
 	type ViewerIp,
 	viewerOf,
