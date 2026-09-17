@@ -376,6 +376,21 @@ const BUNDLES = [
       "});",
     ].join("\n"),
   },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/pages/readlist/design/readlist-design.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "readlist-design.client.js"),
+    globalName: "ReadlistDesign",
+    footer: [
+      "ReadlistDesign.initReadlistDesign({",
+      "  document: window.document,",
+      "  fetchFn: function (url, init) { return window.fetch(url, init); },",
+      "  reload: function () { window.location.reload(); }",
+      "});",
+    ].join("\n"),
+  },
 ];
 
 const ALL_BUNDLES = [

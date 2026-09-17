@@ -33,12 +33,14 @@ export function renderReadlistDeleteConfirm(input: {
 	url: string;
 	label: string;
 	destinations: readonly ReadlistDeleteDestination[];
+	illustrationHtml?: string;
 }): string {
 	const offersMigration = input.destinations.length > 0;
 	return renderConfirmPopover({
 		id: input.popoverId,
 		key: "readlist-delete",
 		title: "Delete this readlist?",
+		illustrationHtml: input.illustrationHtml,
 		body: offersMigration
 			? `Deleting takes this readlist's copies with it. Move them to another readlist to keep them together, or leave them behind and keep only what ${DEFAULT_READLIST.label} already holds.`
 			: `Deleting takes this readlist's copies with it. Anything you also saved in ${DEFAULT_READLIST.label} stays there.`,

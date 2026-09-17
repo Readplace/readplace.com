@@ -6,7 +6,13 @@ import {
 	type SaveableUrlErrorCode,
 } from "@packages/domain/article";
 import type { IconName } from "@packages/ui-icons";
-import { type LocalTime, toAbsoluteDate, toRelativeOrDate } from "@packages/web-shell";
+import {
+	type LocalTime,
+	type TrialRemaining,
+	formatTrialRemaining,
+	toAbsoluteDate,
+	toRelativeOrDate,
+} from "@packages/web-shell";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import {
 	type PickedExcerpt,
@@ -34,7 +40,7 @@ import type { EffectiveAccess } from "@packages/subscription-access";
 
 export type SubscriptionBannerState =
 	| { state: "none" }
-	| { state: "trial-countdown"; daysLeft: number; daysLeftWord: "day" | "days" }
+	| { state: "trial-countdown"; daysLeft: number; daysLeftWord: "day" | "days"; remaining: TrialRemaining }
 	| { state: "cancellation-scheduled"; cancellationEffectiveAt: LocalTime }
 	| { state: "inactive" };
 
@@ -129,7 +135,12 @@ function toSubscriptionBannerState(access: EffectiveAccess, now: Date): Subscrip
 			return { state: "none" };
 		case "trial-countdown": {
 			const { daysLeft, daysLeftWord } = formatTrialDaysLeft(access.trialEndsAt, now);
-			return { state: "trial-countdown", daysLeft, daysLeftWord };
+			return {
+				state: "trial-countdown",
+				daysLeft,
+				daysLeftWord,
+				remaining: formatTrialRemaining(access.trialEndsAt, now),
+			};
 		}
 		case "cancellation-scheduled":
 			return {

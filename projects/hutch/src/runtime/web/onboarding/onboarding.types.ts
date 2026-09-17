@@ -65,4 +65,5 @@ export interface OnboardingStep {
 	description: (ctx: InstallableClientOnboarding) => string;
 	isComplete: (ctx: InstallableClientOnboarding) => boolean;
 	actions: (ctx: InstallableClientOnboarding) => OnboardingAction[];
+	chip?: (ctx: InstallableClientOnboarding) => string;
 }

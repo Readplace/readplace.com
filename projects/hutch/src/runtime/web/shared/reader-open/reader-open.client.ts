@@ -28,7 +28,7 @@ interface AbortableRequest extends EventTarget {
 
 const OWNED_ATTR = "data-reader-open-owned";
 const OPENER_ATTR = "data-opens-reader";
-const CARD_SELECTOR = ".readlist-article";
+const CARD_SELECTOR = ".readlist-article, .readlist-design-card";
 const TEMPLATE_SELECTOR = "template[data-reader-skeleton]";
 const SHELL_BANNER_SELECTOR = "#extension-suggestion-banner";
 const FIELD_ATTR = "data-reader-field";

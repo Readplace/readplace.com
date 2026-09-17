@@ -242,6 +242,26 @@ describe("renderConfirmPopover", () => {
 		expect(dismiss.hasAttribute("data-beacon-url")).toBe(false);
 	});
 
+	it("illustrates the panel when the caller supplies artwork, marked decorative", () => {
+		const panel = renderPanel({ illustrationHtml: "<svg data-test-illustration></svg>" }).querySelector(
+			".confirm-popover",
+		);
+
+		assert(panel, "panel must be rendered");
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(true);
+		const illustration = panel.querySelector(".confirm-popover__illustration");
+		assert(illustration, "the illustration wrapper must be rendered");
+		expect(illustration.getAttribute("aria-hidden")).toBe("true");
+		expect(illustration.querySelectorAll("svg[data-test-illustration]")).toHaveLength(1);
+	});
+
+	it("omits the illustration modifier when the caller supplies no artwork", () => {
+		const panel = renderPanel().querySelector(".confirm-popover");
+
+		assert(panel, "panel must be rendered");
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(false);
+	});
+
 	it("renders the caller's actions unescaped so each decision keeps its own controls", () => {
 		const doc = renderPanel();
 

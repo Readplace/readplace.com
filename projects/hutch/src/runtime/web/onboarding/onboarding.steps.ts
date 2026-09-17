@@ -161,6 +161,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		description: (ctx) => nextReadDescription(ctx.savedCount),
 		isComplete: (ctx) => hasEnoughSavesForNextRead(ctx.savedCount),
 		actions: () => [],
+		chip: (ctx) => `Saved ${Math.min(ctx.savedCount, NEXT_READ_MINIMUM_SAVES)} of ${NEXT_READ_MINIMUM_SAVES}`,
 	},
 ];
 

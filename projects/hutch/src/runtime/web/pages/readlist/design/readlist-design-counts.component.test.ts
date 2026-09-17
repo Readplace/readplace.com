@@ -1,0 +1,149 @@
+import assert from "node:assert/strict";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { JSDOM } from "jsdom";
+import type { ReadlistUrlState } from "../readlist.url";
+import {
+	renderReadlistDesignCounts,
+	savedArticlesLabel,
+	showingLabel,
+	toReadlistDesignCountsDisplayModel,
+} from "./readlist-design-counts.component";
+
+const DEFAULT_FILTERS: ReadlistUrlState = { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 };
+
+function parse(html: string): Document {
+	return new JSDOM(html).window.document;
+}
+
+describe("savedArticlesLabel", () => {
+	it("uses the singular form for exactly one saved article", () => {
+		expect(savedArticlesLabel(1)).toBe("1 Saved Article");
+	});
+
+	it("uses the plural form when there are no saved articles", () => {
+		expect(savedArticlesLabel(0)).toBe("0 Saved Articles");
+	});
+
+	it("uses the plural form for many saved articles", () => {
+		expect(savedArticlesLabel(42)).toBe("42 Saved Articles");
+	});
+});
+
+describe("showingLabel", () => {
+	it("reports the page's row count alone when the total is unknown", () => {
+		expect(showingLabel({ rowsOnPage: 20 })).toBe("Showing 20");
+	});
+
+	it("reports the page's row count against the total when known", () => {
+		expect(showingLabel({ rowsOnPage: 20, total: 75 })).toBe("Showing 20 of 75");
+	});
+});
+
+describe("numbered page links", () => {
+	it("renders just the current page when the listing fits on one page", () => {
+		const links = toReadlistDesignCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 1 }, unreadCount: 0, tabTotal: 1, pageSize: 1 }).pages;
+
+		expect(links.map((link) => link.label)).toEqual(["1"]);
+		expect(links.map((link) => link.isCurrent)).toEqual([true]);
+	});
+
+	it("shows the run around page 1 with a gap before the last page across ten pages", () => {
+		const links = toReadlistDesignCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 1 }, unreadCount: 0, tabTotal: 10, pageSize: 1 }).pages;
+
+		expect(links.map((link) => link.label)).toEqual(["1", "2", "…", "10"]);
+		expect(links.find((link) => link.label === "1")?.isCurrent).toBe(true);
+	});
+
+	it("brackets the current page with a gap on each side when it sits in the middle", () => {
+		const links = toReadlistDesignCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 5 }, unreadCount: 0, tabTotal: 10, pageSize: 1 }).pages;
+
+		expect(links.map((link) => link.label)).toEqual(["1", "…", "4", "5", "6", "…", "10"]);
+		expect(links.find((link) => link.label === "5")?.isCurrent).toBe(true);
+	});
+
+	it("clamps a page beyond the last back onto the last page", () => {
+		const links = toReadlistDesignCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 99 }, unreadCount: 0, tabTotal: 10, pageSize: 1 }).pages;
+
+		expect(links.filter((link) => link.isCurrent).map((link) => link.label)).toEqual(["10"]);
+	});
+
+
+	it("points every non-current page link at its own page carrying the design flag, and gives the current page none", () => {
+		const links = toReadlistDesignCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 5 }, unreadCount: 0, tabTotal: 10, pageSize: 1 }).pages;
+
+		const page6 = links.find((link) => link.label === "6");
+		assert(page6, "page 6 must be reachable from page 5");
+		const url = new URL(page6.href ?? "", "https://internal.invalid");
+		expect(url.pathname).toBe("/queue");
+		expect(url.searchParams.get("page")).toBe("6");
+		expect(url.searchParams.get("feature")).toBe("design");
+
+		const current = links.find((link) => link.isCurrent);
+		assert(current, "the current page must be in the list");
+		expect(current.href).toBeUndefined();
+	});
+});
+
+describe("toReadlistDesignCountsDisplayModel", () => {
+	it("counts only the rows that actually landed on the last partial page", () => {
+		const model = toReadlistDesignCountsDisplayModel({
+			filters: { ...DEFAULT_FILTERS, page: 4 },
+			unreadCount: 0,
+			tabTotal: 75,
+			pageSize: 20,
+		});
+
+		expect(model.showingLabel).toBe("Showing 15 of 75");
+	});
+
+	it("reports zero rows for an empty readlist", () => {
+		const model = toReadlistDesignCountsDisplayModel({
+			filters: DEFAULT_FILTERS,
+			unreadCount: 0,
+			tabTotal: 0,
+			pageSize: 20,
+		});
+
+		expect(model.showingLabel).toBe("Showing 0 of 0");
+	});
+});
+
+describe("renderReadlistDesignCounts", () => {
+	it("emits three out-of-band spans the mutation response can swap into the page", () => {
+		const doc = parse(
+			renderReadlistDesignCounts(
+				toReadlistDesignCountsDisplayModel({
+					filters: DEFAULT_FILTERS,
+					unreadCount: 3,
+					tabTotal: 45,
+					pageSize: 20,
+				}),
+			),
+		);
+
+		for (const id of ["readlist-design-count", "readlist-pagination-info", "readlist-design-pages"]) {
+			const el = doc.getElementById(id);
+			assert(el, `the ${id} span must render`);
+			expect(el.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		}
+	});
+
+	it("links every non-current page number, tagged with the design flag", () => {
+		const doc = parse(
+			renderReadlistDesignCounts(
+				toReadlistDesignCountsDisplayModel({
+					filters: { ...DEFAULT_FILTERS, page: 1 },
+					unreadCount: 0,
+					tabTotal: 200,
+					pageSize: 20,
+				}),
+			),
+		);
+
+		const link = doc.querySelector('[data-test-pagination-page="2"]');
+		assert(link, "page 2 must be reachable from page 1");
+		expect(link.tagName).toBe("A");
+		const url = new URL(link.getAttribute("href") ?? "", "https://internal.invalid");
+		expect(url.searchParams.get("feature")).toBe("design");
+	});
+});

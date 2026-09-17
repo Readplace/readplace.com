@@ -26,6 +26,7 @@ const DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions" 
 export function renderDeleteConfirm(input: {
 	confirm: DeleteConfirmViewModel;
 	title: string;
+	illustrationHtml?: string;
 }): string {
 	return renderConfirmPopover({
 		id: input.confirm.popoverId,
@@ -34,6 +35,7 @@ export function renderDeleteConfirm(input: {
 		title: "Delete this article?",
 		body: "By deleting this you won't be able to find it anymore until you save it again.",
 		lead: { text: `Article: ${input.title}`, screenReaderOnly: true },
+		illustrationHtml: input.illustrationHtml,
 		actionsHtml: render(DELETE_CONFIRM_ACTIONS_TEMPLATE, {
 			url: withInternalTracking(input.confirm.url, {
 				source: "queue-card",

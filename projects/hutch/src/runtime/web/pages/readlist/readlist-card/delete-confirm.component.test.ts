@@ -87,4 +87,29 @@ describe("renderDeleteConfirm", () => {
 		expect(form.getAttribute("hx-boost")).toBe("true");
 		expect(form.getAttribute("hx-target")).toBe("main");
 	});
+
+	it("illustrates the panel when the caller supplies artwork", () => {
+		const { document } = parseHTML(
+			`<div>${renderDeleteConfirm({
+				confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url: "/queue/abc123/delete" },
+				title: "A Saved Article",
+				illustrationHtml: "<svg data-test-trash-illustration></svg>",
+			})}</div>`,
+		);
+
+		const panel = document.querySelector(".confirm-popover");
+		assert(panel, "the panel must render");
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(true);
+		expect(document.querySelectorAll(".confirm-popover__illustration svg[data-test-trash-illustration]")).toHaveLength(
+			1,
+		);
+	});
+
+	it("omits the illustration modifier when the caller supplies no artwork", () => {
+		const doc = panelFor("/queue/abc123/delete");
+
+		const panel = doc.querySelector(".confirm-popover");
+		assert(panel, "the panel must render");
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(false);
+	});
 });

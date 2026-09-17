@@ -122,4 +122,31 @@ describe("renderReadlistDeleteConfirm", () => {
 		expect(action).toContain("utm_medium=internal");
 		expect(action).toContain("utm_content=queue-delete");
 	});
+
+	it("illustrates the panel when the caller supplies artwork", () => {
+		const { document } = parseHTML(
+			`<div>${renderReadlistDeleteConfirm({
+				popoverId: readlistDeleteConfirmPopoverId(WORK),
+				url: `/queue/queues/${WORK}/delete`,
+				label: "Work Reading",
+				destinations: [],
+				illustrationHtml: "<svg data-test-trash-illustration></svg>",
+			})}</div>`,
+		);
+
+		const panel = document.querySelector(".confirm-popover");
+		assert(panel, "the panel must render");
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(true);
+		expect(document.querySelectorAll(".confirm-popover__illustration svg[data-test-trash-illustration]")).toHaveLength(
+			1,
+		);
+	});
+
+	it("omits the illustration modifier when the caller supplies no artwork", () => {
+		const doc = panelFor([]);
+
+		const panel = doc.querySelector(".confirm-popover");
+		assert(panel, "the panel must render");
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(false);
+	});
 });

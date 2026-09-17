@@ -145,6 +145,12 @@ describe("buildReadlistCountsUrl", () => {
 	it("should omit params the readlist URL omits so both describe the same view", () => {
 		expect(buildReadlistCountsUrl({ tab: "queue", order: "desc", page: 1 })).toBe("/queue/counts");
 	});
+
+	it("should carry the caller's extra params after the filters", () => {
+		expect(buildReadlistCountsUrl({ tab: "done" }, [["feature", "design"]])).toBe(
+			"/queue/counts?tab=done&feature=design",
+		);
+	});
 });
 
 describe("canonicalReadlistPageRedirect", () => {

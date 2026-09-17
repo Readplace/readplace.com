@@ -1,7 +1,7 @@
 import { render, renderToast, withInternalTracking } from "@packages/web-shell";
 import type { StatusFlash } from "./readlist.error";
-import type { ReadlistUrlState } from "./readlist.url";
-import { buildReadlistCountsUrl, readlistReturnQuery } from "./readlist.url";
+import type { LinkParams, ReadlistUrlState } from "./readlist.url";
+import { buildReadlistCountsUrl, buildReadlistUrl, READLIST_PATH } from "./readlist.url";
 
 /** Long enough to read the message and reach for Undo, short enough not to
  * linger; the global toast.client script removes it after this delay. */
@@ -48,14 +48,17 @@ export function renderReadlistCountsTrigger(input: { countsUrl: string; oob?: bo
 export function renderReadlistMutationFragment(input: {
 	filters: ReadlistUrlState;
 	statusFlash: StatusFlash;
+	extraParams?: LinkParams;
 }): string {
+	const extraParams = input.extraParams ?? [];
 	const counts = renderReadlistCountsTrigger({
-		countsUrl: buildReadlistCountsUrl(input.filters),
+		countsUrl: buildReadlistCountsUrl(input.filters, extraParams),
 		oob: true,
 	});
+	const returnQuery = buildReadlistUrl(input.filters, extraParams).slice(READLIST_PATH.length);
 	const toast = renderStatusToast({
 		message: input.statusFlash.message,
-		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${readlistReturnQuery(input.filters)}`,
+		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${returnQuery}`,
 		undoStatus: input.statusFlash.undoStatus,
 	});
 	return `<div id="status-toast" hx-swap-oob="outerHTML">${toast}</div>${counts}`;
