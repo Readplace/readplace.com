@@ -1,4 +1,6 @@
 /* c8 ignore start -- mandatory deployed CloudFront/API Gateway/Lambda identity gate */
+import { get as httpsGet } from "node:https";
+import type { IncomingMessage } from "node:http";
 import assert from "node:assert/strict";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { test, expect, request as playwrightRequest, type APIRequestContext } from "@playwright/test";
@@ -105,8 +107,20 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 		await Promise.all([download(epub, originalTitle, marker, other), download(`${pathFor(sibling)}?format=epub`, siblingTitle, other, marker)]);
 		for (const size of [5000, 7800]) {
 			const longPath = `/view/readplace-staging.com/reader-path-check/${run}/${"a".repeat(size)}`;
-			const response = await publicReader.get(`${longPath}?format=epub`, { headers: { cookie: `reader_path_check=${"c".repeat(500)}` } });
-			expect(response.status(), "long reader URL must reach the application without transport-size failure").toBe(404);
+			// Canonical redirects exercise transport before the existing 2 KB
+			// database-key limit. That storage limit is outside this URL fix.
+			// Existing attribution cookies plus Location exceed Node's default
+			// 16 KB response-header cap. Raise only this test client's receive cap.
+			const response = await new Promise<IncomingMessage>((resolve, reject) => {
+				const call = httpsGet(`${ORIGIN}${longPath.replace("/view/", "/view/https://")}?format=epub`, {
+					maxHeaderSize: 64 * 1024,
+					headers: { "user-agent": "Mozilla/5.0", cookie: `reader_path_check=${"c".repeat(500)}` },
+				}, (res) => { res.resume(); resolve(res); });
+				call.on("error", reject);
+				call.setTimeout(30000, () => call.destroy(new Error("long URL request timed out")));
+			});
+			expect(response.statusCode, "long reader URL must reach the application without transport-size failure").toBe(301);
+			expect(response.headers.location).toBe(`${longPath}?format=epub`);
 		}
 		await download(epub, originalTitle, marker, other);
 		const query = "?utm_source=reader-path-check&x=&x=2";
