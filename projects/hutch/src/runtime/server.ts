@@ -239,6 +239,7 @@ import type { FoundingAllocation } from "./web/shared/founding-progress/founding
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
+import { initSeedFirstArticleOnConsent } from "./web/oauth/consent-seed-save";
 import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
@@ -526,6 +527,22 @@ export function createApp(dependencies: AppDependencies): Express {
 	const resolveMcpSaveProvenance = initResolveMcpSaveProvenance({
 		findOAuthClient: deps.findOAuthClient,
 	});
+	const saveArticleAtReadlistTop = initSaveArticleAtReadlistTop({
+		allocateSavedAt: deps.allocateSavedAt,
+		saveArticleFromUrl: initSaveArticleFromUrl(deps),
+	});
+	const seedFirstArticleOnConsent = initSeedFirstArticleOnConsent({
+		countArticlesByUser: deps.countArticlesByUser,
+		resolveSaveAccess,
+		getEffectiveAccess,
+		validateSaveableUrl: deps.validateSaveableUrl,
+		refreshArticleIfStale: deps.refreshArticleIfStale,
+		saveArticleAtReadlistTop,
+		recordAnalyticsEvent,
+		logError: deps.logError,
+		now: deps.now,
+		salt: deps.salt,
+	});
 	const upsertReadlist = initUpsertReadlist({ ...deps, generateReadlistSlug });
 	const fileArticleIntoReadlist = initFileArticleIntoReadlist(deps);
 	const addArticleToReadlist = initAddArticleToReadlist(deps);
@@ -568,10 +585,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			try {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
 				const provenance = await resolveMcpSaveProvenance(oauthClientId);
-				const { saved } = await initSaveArticleAtReadlistTop({
-					allocateSavedAt: deps.allocateSavedAt,
-					saveArticleFromUrl: initSaveArticleFromUrl(deps),
-				})({
+				const { saved } = await saveArticleAtReadlistTop({
 					userId,
 					url: validation.url,
 					freshness,
@@ -1489,6 +1503,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
 		tokenRateLimitRule: deps.rateLimitRules.oauthToken,
 		recordUngatedAnalyticsEvent,
+		seedFirstArticleOnConsent,
 		now: deps.now,
 		salt: deps.salt,
 	});

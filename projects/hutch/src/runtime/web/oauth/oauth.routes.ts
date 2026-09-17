@@ -29,6 +29,7 @@ import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics
 import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
 import { refreshContext } from "../../oauth-refresh/evidence";
 import { initObserveTokenOutcome } from "./token-refusal";
+import type { SeedFirstArticleOnConsent } from "./consent-seed-save";
 
 const authorizeQuerySchema = z.object({
 	client_id: z.string(),
@@ -155,6 +156,7 @@ interface OAuthRouteDeps {
 	registerRateLimitRule: RateLimitRule;
 	tokenRateLimitRule: RateLimitRule;
 	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
+	seedFirstArticleOnConsent: SeedFirstArticleOnConsent;
 	now: () => Date;
 	salt: string;
 }
@@ -355,6 +357,11 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				const authorizeUrl = `/oauth/authorize?${authorizeParams.toString()}`;
 				res.redirect(303, `/login?return=${encodeURIComponent(authorizeUrl)}&prompt=select_account`);
 				return;
+			}
+
+			if (req.body.action === "approve") {
+				const clientId = typeof req.body.client_id === "string" ? req.body.client_id : undefined;
+				await deps.seedFirstArticleOnConsent(req, { userId: req.userId, clientId });
 			}
 
 			next();

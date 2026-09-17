@@ -582,7 +582,9 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			if (outcome.articles.length === 0) {
 				return data(
 					outcome.total === 0
-						? `Your Readplace readlist${where} is empty.`
+						? selectedReadlist === undefined
+							? `Your Readplace readlist is empty. Ask the user for a link they want to read later and save it with ${SAVE_LINK_TOOL.name}.`
+							: `Your Readplace readlist${where} is empty.`
 						: "No more saved articles.",
 					structuredContent,
 				);

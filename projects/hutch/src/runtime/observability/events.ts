@@ -10,12 +10,14 @@ export {
 	SAVE_CLIENTS,
 	SAVE_OUTCOMES,
 	SIGNUP_OUTCOMES,
+	FIRST_ARTICLE_SEEDED_OUTCOMES,
 	MCP_TOOL_OUTCOMES,
 	PAGE_EXIT_KINDS,
 	type SaveSurface,
 	type SaveClient,
 	type SaveOutcome,
 	type SignupOutcome,
+	type FirstArticleSeededOutcome,
 	type McpToolOutcome,
 } from "@packages/web-analytics";
 

@@ -3,8 +3,8 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
-import { OAUTH_TOKEN_GRANT_TYPES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildFirstArticleSeededEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type FirstArticleSeededEvent, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { OAUTH_TOKEN_GRANT_TYPES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES, FIRST_ARTICLE_SEEDED_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1184,6 +1184,47 @@ describe("buildSignupAttemptedEvent", () => {
 	});
 });
 
+function buildSeeded(overrides: { req?: MockReqOverrides; outcome?: FirstArticleSeededEvent["outcome"] } = {}): FirstArticleSeededEvent {
+	return buildFirstArticleSeededEvent(
+		{ now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" },
+		{
+			req: createReq(overrides.req ?? { visitorId: VALID_VISITOR_ID }) as Request,
+			outcome: overrides.outcome ?? FIRST_ARTICLE_SEEDED_OUTCOMES.saved,
+			oauthClientId: "ZQDfp02ea4PGzTvwCR",
+			userId: UserIdSchema.parse("00000000000000000000000000000009"),
+			url: "https://fagnerbrack.com/whats-the-point-to-save-articles-youll-never-read-22d07f6609ad",
+		},
+	);
+}
+
+describe("buildFirstArticleSeededEvent", () => {
+	it("builds a first_article_seeded carrying the outcome, the OAuth client that drove the seed, the user and the visitor identity, plus the seed article host", () => {
+		const event = buildSeeded();
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "first_article_seeded",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			outcome: "saved",
+			oauth_client_id: "ZQDfp02ea4PGzTvwCR",
+			user_id: "00000000000000000000000000000009",
+			article_host: "fagnerbrack.com",
+			visitor_hash: expect.any(String),
+			visitor_id: VALID_VISITOR_ID,
+		});
+	});
+
+	it("carries the error outcome when the seed save failed, without leaking the client's OAuth state", () => {
+		const event = buildSeeded({ outcome: FIRST_ARTICLE_SEEDED_OUTCOMES.error });
+		expect(event.outcome).toBe("error");
+	});
+
+	it("throws when the visitor-id middleware has not run (req.visitorId unset)", () => {
+		expect(() => buildSeeded({ req: {} })).toThrow(
+			"visitor-id middleware must run before the consent seed emits first_article_seeded",
+		);
+	});
+});
+
 describe("isCountableBrowserRequest", () => {
 	const run = (overrides: MockReqOverrides = {}) =>
 		isCountableBrowserRequest({ req: createReq(overrides) as Request, ownHost: OWN_HOST });
@@ -1401,7 +1442,7 @@ describe("deriveSaveSurface", () => {
 		expect(surfaceFor("")).toBe(SAVE_SURFACES.unknown);
 	});
 
-	it.each([SAVE_SURFACES.readlistSaveBar, SAVE_SURFACES.extension, SAVE_SURFACES.mcp])(
+	it.each([SAVE_SURFACES.readlistSaveBar, SAVE_SURFACES.extension, SAVE_SURFACES.mcp, SAVE_SURFACES.oauthConsentSeed])(
 		"refuses %s, a surface the server assigns to its own emissions, so a link claiming it records as unknown",
 		(forged) => {
 			expect(surfaceFor(forged)).toBe(SAVE_SURFACES.unknown);

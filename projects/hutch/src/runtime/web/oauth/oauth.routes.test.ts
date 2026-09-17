@@ -9,6 +9,7 @@ import {
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 
 import type { UserId } from "@packages/domain/user";
+import { MinutesSchema } from "@packages/domain/article";
 import { initIngestRefreshRefusal } from "../../oauth-refresh/ingest-refusal";
 
 const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
@@ -1244,5 +1245,193 @@ describe("OAuth routes", () => {
 
 			expect(response.status).toBe(200);
 		});
+	});
+});
+
+describe("consent seed save on approve", () => {
+	const DAY_MS = 24 * 60 * 60 * 1000;
+	const SEED_MATCH = "whats-the-point-to-save-articles";
+
+	async function registerMcpClient(harness: ReturnType<typeof useApp>): Promise<string> {
+		const registration = await request(harness.server)
+			.post("/oauth/register")
+			.send({ redirect_uris: [CLAUDE_CALLBACK], client_name: "An Assistant" });
+		return registration.body.client_id;
+	}
+
+	async function loginFreshUser(
+		harness: ReturnType<typeof useApp>,
+		email: string,
+	): Promise<{ agent: ReturnType<typeof request.agent>; userId: UserId }> {
+		const created = await harness.auth.createUser({ email, password: "password123" });
+		assert(created.ok, "user should be created");
+		const agent = request.agent(harness.server);
+		await agent.post("/login").type("form").send({ email, password: "password123" });
+		return { agent, userId: created.userId };
+	}
+
+	async function approve(
+		agent: ReturnType<typeof request.agent>,
+		clientId: string,
+		redirectUri: string,
+	) {
+		const pkce = generatePKCE();
+		return agent.post("/oauth/authorize").type("form").send({
+			client_id: clientId,
+			redirect_uri: redirectUri,
+			response_type: "code",
+			code_challenge: pkce.challenge,
+			code_challenge_method: "S256",
+			state: "seed-state",
+			action: "approve",
+		});
+	}
+
+	function seedEvents(harness: ReturnType<typeof useApp>) {
+		return harness.analytics.events.filter((e) => e.event === "first_article_seeded");
+	}
+
+	it("seeds a starter article for a zero-save user authorising an MCP client, and still issues the code with its state intact", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const clientId = await registerMcpClient(harness);
+		const { agent, userId } = await loginFreshUser(harness, "seed-me@example.com");
+
+		const response = await approve(agent, clientId, CLAUDE_CALLBACK);
+
+		expect(response.status).toBe(302);
+		const location = new URL(response.headers.location);
+		expect(location.origin + location.pathname).toBe(CLAUDE_CALLBACK);
+		expect(location.searchParams.get("code")).toBeTruthy();
+		expect(location.searchParams.get("state")).toBe("seed-state");
+
+		const { articles } = await harness.articleStore.findArticlesByUser({ userId });
+		expect(articles).toHaveLength(1);
+		expect(articles[0]?.url).toContain(SEED_MATCH);
+
+		const seeded = seedEvents(harness);
+		expect(seeded).toHaveLength(1);
+		expect(seeded[0]).toMatchObject({ outcome: "saved", oauth_client_id: clientId, user_id: userId });
+		const intent = harness.analytics.events.find(
+			(e) => e.event === "view_save_intent" && "surface" in e && e.surface === "oauth_consent_seed",
+		);
+		assert(intent && "outcome" in intent, "a consent-seed view_save_intent must be emitted");
+		expect(intent).toMatchObject({ outcome: "saved", client: "web", path: "/oauth/authorize", is_authenticated: 1 });
+		const serialized = JSON.stringify(seeded[0]);
+		expect(serialized).not.toContain("seed-state");
+		expect(serialized).not.toContain("code_challenge");
+	});
+
+	it("does not seed for a built-in client — an extension or native app authorising keeps the empty-list behaviour", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginFreshUser(harness, "builtin@example.com");
+
+		const response = await approve(agent, TEST_CLIENT_ID, TEST_REDIRECT_URI);
+
+		expect(response.status).toBe(302);
+		expect(new URL(response.headers.location).searchParams.get("code")).toBeTruthy();
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
+		expect(seedEvents(harness)).toHaveLength(0);
+	});
+
+	it("does not seed when the account already has a saved article", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const clientId = await registerMcpClient(harness);
+		const { agent, userId } = await loginFreshUser(harness, "hassaves@example.com");
+		await harness.articleStore.saveArticle({
+			userId,
+			url: "https://prior.example.com/read-me",
+			metadata: { title: "Prior", siteName: "prior.example.com", excerpt: "", wordCount: 0 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date(),
+		});
+
+		await approve(agent, clientId, CLAUDE_CALLBACK);
+
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(1);
+		expect(seedEvents(harness)).toHaveLength(0);
+	});
+
+	it("does not seed a locked account (email unverified past the window)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.now = () => new Date(Date.now() + 8 * DAY_MS);
+		const harness = useApp(fixture);
+		const clientId = await registerMcpClient(harness);
+		const { agent, userId } = await loginFreshUser(harness, "locked@example.com");
+
+		await approve(agent, clientId, CLAUDE_CALLBACK);
+
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
+		expect(seedEvents(harness)).toHaveLength(0);
+	});
+
+	it("does not seed a read-only account (cancelled subscription)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const clientId = await registerMcpClient(harness);
+		const { agent, userId } = await loginFreshUser(harness, "readonly@example.com");
+		await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_x", customerId: "cus_x" });
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		await approve(agent, clientId, CLAUDE_CALLBACK);
+
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
+		expect(seedEvents(harness)).toHaveLength(0);
+	});
+
+	it("does not seed on deny", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const clientId = await registerMcpClient(harness);
+		const { agent, userId } = await loginFreshUser(harness, "deny@example.com");
+
+		await agent.post("/oauth/authorize").type("form").send({
+			client_id: clientId,
+			redirect_uri: CLAUDE_CALLBACK,
+			state: "deny-state",
+			action: "deny",
+		});
+
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
+		expect(seedEvents(harness)).toHaveLength(0);
+	});
+
+	it("does not seed and does not throw when the approve carries no client_id", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginFreshUser(harness, "noclient@example.com");
+		const pkce = generatePKCE();
+
+		await agent.post("/oauth/authorize").type("form").send({
+			redirect_uri: CLAUDE_CALLBACK,
+			response_type: "code",
+			code_challenge: pkce.challenge,
+			code_challenge_method: "S256",
+			action: "approve",
+		});
+
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
+		expect(seedEvents(harness)).toHaveLength(0);
+	});
+
+	it("records the error outcome but still issues the code when the seed save pipeline throws", async () => {
+		const fixture = {
+			...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+			freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
+		};
+		const harness = useApp(fixture);
+		const clientId = await registerMcpClient(harness);
+		const { agent, userId } = await loginFreshUser(harness, "boom@example.com");
+
+		const response = await approve(agent, clientId, CLAUDE_CALLBACK);
+
+		expect(response.status).toBe(302);
+		expect(new URL(response.headers.location).searchParams.get("code")).toBeTruthy();
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
+		const seeded = seedEvents(harness);
+		expect(seeded).toHaveLength(1);
+		expect(seeded[0]).toMatchObject({ outcome: "error", oauth_client_id: clientId });
+		const intent = harness.analytics.events.find(
+			(e) => e.event === "view_save_intent" && "surface" in e && e.surface === "oauth_consent_seed",
+		);
+		assert(intent && "outcome" in intent, "an error consent-seed view_save_intent must be emitted");
+		expect(intent).toMatchObject({ outcome: "error" });
 	});
 });

@@ -974,6 +974,24 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	widgets.push(
+		logWidget({
+			region,
+			title: "Consent seed save \u2014 users saved / errored by OAuth client",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, oauth_client_id, outcome",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.firstArticleSeeded}"`,
+				...exclude,
+				"| stats count_distinct(user_id) as users by oauth_client_id, outcome",
+				"| sort oauth_client_id asc, users desc",
+				"| limit 50",
+			].join(" "),
+			x: 0, y: 214, width: 24, height: 8,
+			view: "table",
+		}),
+	);
+
 	// --- How far down the homepage readers get ---
 	// A section that draws no clicks and a section nobody scrolled to look
 	// identical in the click stream. The depth beacon separates them: it reports
@@ -1020,7 +1038,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 214, width: 8, height: 4,
+			x: index * 8, y: 222, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,

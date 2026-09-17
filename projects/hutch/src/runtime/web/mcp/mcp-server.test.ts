@@ -295,12 +295,29 @@ describe("initMcpServer", () => {
 	});
 
 	describe("tools/call list_readlist_articles", () => {
-		it("reports an empty readlist with the exact legacy text", async () => {
+		it("nudges the assistant to save the first article when the combined readlist is empty", async () => {
 			const server = initMcpServer(fakeDeps());
 			const response = await call(server, 8, "list_readlist_articles");
 			expect(response).toMatchObject({
 				id: 8,
-				result: { content: [{ type: "text", text: "Your Readplace readlist is empty." }] },
+				result: { content: [{ type: "text", text: "Your Readplace readlist is empty. Ask the user for a link they want to read later and save it with save_link." }] },
+			});
+		});
+
+		it("keeps the plain empty text for a named readlist that is empty", async () => {
+			const workSlug = ReadlistSlugSchema.parse("work");
+			const server = initMcpServer(
+				fakeDeps({
+					listReadlists: async () => [
+						{ id: workSlug, name: "Work" },
+						{ id: DEFAULT_READLIST_SLUG, name: "All" },
+					],
+				}),
+			);
+			const response = await call(server, 81, "list_readlist_articles", { readlist: workSlug });
+			expect(response).toMatchObject({
+				id: 81,
+				result: { content: [{ type: "text", text: "Your Readplace readlist in Work is empty." }] },
 			});
 		});
 
@@ -1223,7 +1240,7 @@ describe("initMcpServer", () => {
 			const response = await call(server, 72, "list_readlist_articles");
 			expect(response).toMatchObject({
 				result: {
-					content: [{ type: "text", text: "Your Readplace readlist is empty." }],
+					content: [{ type: "text", text: "Your Readplace readlist is empty. Ask the user for a link they want to read later and save it with save_link." }],
 					structuredContent: { total: 0, count: 0, articles: [] },
 				},
 			});
