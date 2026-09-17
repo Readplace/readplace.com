@@ -1,5 +1,9 @@
-Your reading list now has a Read tab — everything you've finished, in one place. Marking an article read moves it from To Read across to Read, and leaves you on the tab you were on.
+Switch between your readlists from the new menu. Readplace remembers the last one you opened, with To Read and Read tabs for each list.
 
-The list is redesigned to match the Readplace website: rows sit together in one bordered panel, each led by an orange dot while it's unread or a green check once it's read. Readplace's own colors throughout, most visibly in dark mode.
+Choose where shared articles go. The share sheet lets you select additional readlists on your first save, and you can change those choices from each readlist. Your choices stay in sync between the app and share sheet.
 
-Saving from the share sheet no longer drops the page content. The save is queued on your phone and finished the next time you open Readplace, with retries — and the card closes once the save is done instead of parking on "Saved".
+Choose light, dark, or system appearance in your account settings.
+
+Next Read now asks before moving you to another article. You can also download articles as EPUB files and send them to Books or another app using the share sheet.
+
+This update improves page capture and sign-in reliability, refreshes the sign-in animation, and fixes launching Readplace interrupting audio playing in other apps.

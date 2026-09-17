@@ -6,6 +6,12 @@ Open a web page in Safari (or any app), tap Share, and choose Readplace. The art
 A CALM READING LIST
 Everything you saved in one place. Tap an article to read it in a distraction-free reader, and get an AI summary so you can decide what is worth your time before you dive in. Swipe to mark things read as you go.
 
+ORGANIZE YOUR READING
+Switch between readlists and choose where articles saved from the share sheet go. Readplace remembers your last open list and keeps unread and finished articles in separate tabs.
+
+READ YOUR WAY
+Choose light, dark, or system appearance. Download an article as an EPUB and use the iOS share sheet to save it or open it in another reading app.
+
 BUILT ON A DECADE OF READING
 Readplace grew out of a personal reading system refined over ten years. It does one thing well: help you actually read the things you meant to read.
 

@@ -7,6 +7,14 @@ on:
         description: "TestFlight build number whose What to Test note is set from fastlane/metadata/en-US/release_notes.txt (e.g. 104)"
         type: string
         required: true
+      status:
+        description: "Read release and TestFlight status without changing anything"
+        type: boolean
+        default: false
+      external:
+        description: "Submit this build for public TestFlight review using the existing public groups"
+        type: boolean
+        default: false
 
 concurrency:
   group: ios-testflight-notes
@@ -52,9 +60,17 @@ jobs:
 
       - name: Set the build's What to Test note
         if: steps.preflight.outputs.configured == 'true'
-        run: bundle exec fastlane whats_new "build:$BUILD"
+        run: bundle exec fastlane whats_new "build:$BUILD" "status:$STATUS" "external:$EXTERNAL"
         env:
           BUILD: ${{ inputs.build }}
+          STATUS: ${{ inputs.status }}
+          EXTERNAL: ${{ inputs.external }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_PATH: ./fastlane/secrets/AuthKey.p8
+          ASC_REVIEW_FIRST_NAME: ${{ secrets.ASC_REVIEW_FIRST_NAME }}
+          ASC_REVIEW_LAST_NAME: ${{ secrets.ASC_REVIEW_LAST_NAME }}
+          ASC_REVIEW_EMAIL: ${{ secrets.ASC_REVIEW_EMAIL }}
+          ASC_REVIEW_PHONE: ${{ secrets.ASC_REVIEW_PHONE }}
+          ASC_REVIEW_DEMO_USER: ${{ secrets.ASC_REVIEW_DEMO_USER }}
+          ASC_REVIEW_DEMO_PASSWORD: ${{ secrets.ASC_REVIEW_DEMO_PASSWORD }}

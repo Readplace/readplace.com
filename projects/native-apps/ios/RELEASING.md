@@ -186,6 +186,17 @@ is unbounded: a build number that was never uploaded logs "Waiting for the build
 to show up in the build list" every 30s until the job limit. Cancel the run and
 re-dispatch with the right number.
 
+The same workflow accepts **status** to read the recent App Store versions,
+TestFlight builds, public groups, and the selected build's notes without changing
+anything. Use it to confirm the uploaded build before preparing a release.
+
+Select **external** to set the notes and submit that build for public TestFlight
+review. It reuses the existing external groups with public links enabled, and
+uses the listing description and the App Review contact/demo-account secrets for
+the beta review information. It does not email testers. Without either option,
+the workflow still only sets What to Test. The corresponding lane options are
+`status:true` and `external:true`; status takes precedence when both are set.
+
 ## Publishing from CI (GitHub Actions)
 
 `.github/workflows/publish-ios-testflight.yml` runs the same `beta` lane on a

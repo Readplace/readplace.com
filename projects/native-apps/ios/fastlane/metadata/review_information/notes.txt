@@ -6,6 +6,13 @@ GETTING STARTED
 
 SAVING ARTICLES
 - In Safari (or any app), open a web page, tap Share, and choose Readplace. The page is captured and appears in the reading list. Pull to refresh.
+- On the first share, choose any additional readlists and tap "Done". Shared articles always appear in the main readlist. The app remembers the additional destinations; the "Shared articles drop here" checkbox in each readlist changes that choice.
+
+CHANGES IN 1.0.117
+- The menu next to the reading-list title switches between readlists. The last viewed readlist is restored on launch; To Read and Read tabs apply to the selected list.
+- Account settings offer system, light, and dark appearance.
+- In the reader, Next Read asks for confirmation before changing articles. EPUB downloads open the iOS share sheet so the file can be saved or opened in another app.
+- Page capture and session refresh are more reliable. The sign-in animation is updated, and launching the app preserves audio playing in other apps.
 
 NOTES FOR REVIEW
 - The app communicates only with https://readplace.com. The NSAllowsArbitraryLoadsInWebContent ATS exception exists solely so the reader and capture web views can load arbitrary user-saved article pages (some are http-only).

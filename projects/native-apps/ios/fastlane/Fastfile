@@ -298,8 +298,9 @@ platform :ios do
 
   desc "Set the TestFlight What to Test note on a build that is ALREADY uploaded. The text comes"
   desc "from fastlane/metadata/en-US/release_notes.txt, the same file the App Store listing reads,"
-  desc "so TestFlight and the store listing cannot drift apart. Uploads no binary and submits"
-  desc "nothing. Re-runnable. Usage: `bundle exec fastlane whats_new build:104`."
+  desc "so TestFlight and the store listing cannot drift apart. Uploads no binary. Pass"
+  desc "status:true to inspect without changes, or external:true to submit for public beta"
+  desc "review. Re-runnable. Usage: `bundle exec fastlane whats_new build:117`."
   lane :whats_new do |options|
     build = options[:build].to_s
     version_string = version_string_for(build)
@@ -316,7 +317,28 @@ platform :ios do
       in_house: false,
     )
 
-    upload_to_testflight(
+    app = Spaceship::ConnectAPI::App.find(APP_ID)
+    UI.user_error!("No App Store Connect app record for #{APP_ID}") unless app
+
+    if options[:status] == true
+      app.get_app_store_versions(filter: { platform: "IOS" }).first(5).each do |version|
+        UI.message("App Store #{version.version_string}: #{version.app_version_state || version.app_store_state}, release=#{version.release_type}")
+      end
+      app.get_builds(includes: "preReleaseVersion,buildBetaDetail,betaAppReviewSubmission", sort: "-uploadedDate").first(5).each do |item|
+        UI.message("TestFlight #{item.app_version} (#{item.version}): processing=#{item.processing_state}, expired=#{item.expired}, external=#{item.build_beta_detail&.external_build_state}, review=#{item.beta_app_review_submission&.beta_review_state}")
+      end
+      app.get_beta_groups.each do |group|
+        UI.message("TestFlight group #{group.name.inspect}: internal=#{group.is_internal_group}, public=#{group.public_link_enabled}, link=#{group.public_link}")
+      end
+      candidate = Spaceship::ConnectAPI::Build.all(app_id: app.id, version: version_string, build_number: build).first
+      UI.user_error!("No uploaded build #{version_string} (#{build})") unless candidate
+      candidate.get_beta_build_localizations.each do |localization|
+        UI.message("What to Test (#{localization.locale}): #{localization.whats_new}")
+      end
+      next
+    end
+
+    params = {
       api_key: api_key,
       app_identifier: APP_ID,
       distribute_only: true,
@@ -325,7 +347,35 @@ platform :ios do
       build_number: build,
       changelog: notes,
       skip_submission: true,
-    )
+    }
+
+    if options[:external] == true
+      groups = app.get_beta_groups.select { |group| !group.is_internal_group && group.public_link_enabled }
+      UI.user_error!("No existing public TestFlight group") if groups.empty?
+      contact = review_information_from_env
+      UI.user_error!("App Review contact and demo credentials are required for external review") unless contact && contact[:demo_user].to_s != "" && contact[:demo_password].to_s != ""
+      params.merge!(
+        skip_submission: false,
+        distribute_external: true,
+        submit_beta_review: true,
+        notify_external_testers: false,
+        groups: groups.map(&:name),
+        beta_app_description: File.read(File.join(PROJECT_ROOT, "fastlane", "metadata", "en-US", "description.txt")),
+        beta_app_feedback_email: contact.fetch(:email_address),
+        beta_app_review_info: {
+          contact_first_name: contact.fetch(:first_name),
+          contact_last_name: contact.fetch(:last_name),
+          contact_email: contact.fetch(:email_address),
+          contact_phone: contact.fetch(:phone_number),
+          demo_account_required: true,
+          demo_account_name: contact.fetch(:demo_user),
+          demo_account_password: contact.fetch(:demo_password),
+          notes: contact.fetch(:notes),
+        },
+      )
+    end
+
+    upload_to_testflight(**params)
 
     UI.success("Set What to Test on #{version_string} (build #{build}) from #{notes_path}")
   end
