@@ -7,6 +7,12 @@ description: Swift, UIKit and SwiftUI conventions for the iOS app and its share 
 
 Language- and framework-specific rules only. Every design rule that is not iOS-specific — testing, comments, coverage, naming, dependency injection — lives in the language-agnostic skills and in [CLAUDE.md](../../../CLAUDE.md), which carries the Swift analog of each one.
 
+## Background music must coexist with other audio
+
+Whenever the app provides background music, it MUST let other apps' audio continue playing instead of taking exclusive control of the audio session. Configure a mixing category or `.mixWithOthers` before any operation that activates the session, including `AVAudioPlayer.prepareToPlay()`. Constructing a launch model or a player must not activate audio when playback is not needed. Muting the player does not prevent session activation or interruptions.
+
+Verify cold launches and foreground returns with external audio already playing, including signed-in and muted states. Simulator callback tests alone do not establish that another app's audio remains uninterrupted; report physical-device verification separately.
+
 ## UIKit for the skeleton, SwiftUI for the leaves
 
 Build a screen's structure in UIKit — the container, its scroll view, its constraints, its primary action — and its repeated leaf content in SwiftUI, hosted one leaf at a time through a hosting controller.

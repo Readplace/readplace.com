@@ -39,16 +39,22 @@ final class LaunchIntroMediaTests: XCTestCase {
 		return window
 	}
 
-	func testTheSystemMusicStartsStopsRestartsSeeksAndMutesWithoutCrashing() {
+	func testTheSystemMusicMixesWithOtherAudioWhenStartingRestartingAndSeeking() {
 		let music = IntroMusic.system
+		let session = AVAudioSession.sharedInstance()
+		addTeardownBlock { music.stop() }
 
 		music.stop()
 		music.setMuted(true)
 		music.start()
+		XCTAssertEqual(session.category, .playback)
+		XCTAssertEqual(session.categoryOptions, [.mixWithOthers])
 		music.start()
 		music.setMuted(false)
 		music.restart()
+		XCTAssertEqual(session.categoryOptions, [.mixWithOthers])
 		music.seek(LaunchIntro.videoDuration)
+		XCTAssertEqual(session.categoryOptions, [.mixWithOthers])
 		music.stop()
 		music.stop()
 	}

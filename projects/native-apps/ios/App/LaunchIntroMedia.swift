@@ -49,7 +49,6 @@ private func makeLoopingPlayer() -> AVAudioPlayer {
 		let player = try? AVAudioPlayer(contentsOf: url)
 	else { preconditionFailure("LaunchIntroTheme.caf must ship in the app bundle") }
 	player.numberOfLoops = -1
-	player.prepareToPlay()
 	return player
 }
 
