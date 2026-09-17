@@ -9,7 +9,7 @@ const DAY_MS = 86_400_000;
 function findUser(
 	user: { emailVerified: boolean; registeredAt?: string } | null,
 ): FindUserById {
-	return async () => (user ? { userId, ...user } : null);
+	return async () => (user ? { userId, email: "user@example.com", ...user } : null);
 }
 
 describe("initResolveSaveAccess", () => {

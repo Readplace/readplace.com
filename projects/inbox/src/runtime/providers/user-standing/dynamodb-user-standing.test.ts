@@ -48,6 +48,7 @@ describe("initDynamoDbUserStanding", () => {
 					Items: [
 						{
 							userId: USER_ID,
+							email: "user@example.com",
 							emailVerified: true,
 							registeredAt: "2026-01-01T00:00:00.000Z",
 						},
@@ -60,18 +61,19 @@ describe("initDynamoDbUserStanding", () => {
 			assert(user, "user must be returned");
 			expect(user).toEqual({
 				userId: USER_ID,
+				email: "user@example.com",
 				emailVerified: true,
 				registeredAt: "2026-01-01T00:00:00.000Z",
 			});
 			expect(captured.TableName).toBe(TABLES.users);
 			expect(captured.IndexName).toBe("userId-index");
-			expect(captured.ProjectionExpression).toBe("userId, emailVerified, registeredAt");
+			expect(captured.ProjectionExpression).toBe("userId, email, emailVerified, registeredAt");
 			expect(captured.ExpressionAttributeValues).toEqual({ ":userId": USER_ID });
 		});
 
 		it("reads an absent emailVerified attribute as false (legacy row)", async () => {
 			const { findUserById } = initWithFake(() => ({
-				Items: [{ userId: USER_ID, registeredAt: "2026-01-01T00:00:00.000Z" }],
+				Items: [{ userId: USER_ID, email: "user@example.com", registeredAt: "2026-01-01T00:00:00.000Z" }],
 			}));
 
 			const user = await findUserById(USER_ID);

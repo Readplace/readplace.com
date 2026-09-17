@@ -421,6 +421,7 @@ describe("initInMemoryAuth", () => {
 
 			expect(result).toEqual({
 				userId: created.userId,
+				email: "test@example.com",
 				emailVerified: false,
 				registeredAt: expect.any(String),
 			});

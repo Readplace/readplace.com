@@ -260,6 +260,21 @@ describe("Base component", () => {
 		expect(themeColorMetas(doc)).toEqual([{ content: "#121212", media: null }]);
 	});
 
+	it("pins the light theme class even when a signed-in reader's own preference is dark", () => {
+		const page = createTestPageBody({ pinnedAppearance: "light" });
+		const result = Base(page, {
+			cspNonce: CSP_NONCE,
+			isAuthenticated: true,
+			emailVerified: true,
+			appearance: "dark",
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.classList.contains("theme-light")).toBe(true);
+		expect(doc.body.classList.contains("theme-dark")).toBe(false);
+		expect(themeColorMetas(doc)).toEqual([{ content: "#2B3A55", media: null }]);
+	});
+
 	it("should include navigation links", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");
@@ -364,6 +379,22 @@ describe("Base component", () => {
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
 		expect(navItems).toEqual(["queue", "import", "inbox", "account", "logout"]);
+	});
+
+	it("hands the signed-in email to the header so the account section renders as the user menu", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			cspNonce: CSP_NONCE,
+			isAuthenticated: true,
+			emailVerified: true,
+			userEmail: "ana_lu@example.com",
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const menu = doc.querySelector("[data-test-nav-user]");
+		assert(menu, "the user menu must render when the banner state carries the email");
+		expect(menu.querySelector(".nav__avatar")?.textContent).toBe("AL");
+		expect(menu.querySelector("[data-test-nav-user-email]")?.textContent).toBe("ana_lu@example.com");
 	});
 
 	it("hides import, inbox, and account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue and logout remain", () => {

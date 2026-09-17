@@ -399,7 +399,7 @@ describe("createOAuthModel", () => {
 		it("re-resolves a newly-verified user's standing on refresh", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps, {
-				findUserById: async (id) => ({ userId: id, emailVerified: true }),
+				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: true }),
 			});
 
 			const client = await model.getClient(TEST_CLIENT_ID, "");
@@ -418,7 +418,7 @@ describe("createOAuthModel", () => {
 		it("keeps a still-unverified user's refresh standing unverified", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps, {
-				findUserById: async (id) => ({ userId: id, emailVerified: false }),
+				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: false }),
 			});
 
 			const client = await model.getClient(TEST_CLIENT_ID, "");
@@ -455,7 +455,7 @@ describe("createOAuthModel", () => {
 			const model = createOAuthModel(deps, {
 				findUserById: async (id) => {
 					lookups += 1;
-					return { userId: id, emailVerified: true };
+					return { userId: id, email: "user@example.com", emailVerified: true };
 				},
 			});
 
@@ -476,7 +476,7 @@ describe("createOAuthModel", () => {
 		it("re-issues a verified access token after refresh so later requests carry the standing", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps, {
-				findUserById: async (id) => ({ userId: id, emailVerified: true }),
+				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: true }),
 			});
 
 			const client = await model.getClient(TEST_CLIENT_ID, "");

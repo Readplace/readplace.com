@@ -14,6 +14,10 @@ export interface VisualCheckpoint {
 	maxDiffPixelRatio?: number;
 }
 
+const SHELL_USER_EMAIL_SELECTOR = "[data-test-nav-user-email]";
+
+const SHELL_USER_EMAIL_PLACEHOLDER = "reader@example.com";
+
 export async function measuredBox(
 	page: Page,
 	selector: string,
@@ -53,13 +57,22 @@ export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "sof
 			matched > 0,
 			`visual checkpoint "${checkpoint.name}": target "${checkpoint.target}" matched 0 elements`,
 		);
-		await page.evaluate((entries) => {
-			for (const entry of entries) {
-				const pinned = document.querySelector(entry.selector);
-				if (!pinned) throw new Error(`pinned text selector "${entry.selector}" matched nothing`);
-				pinned.textContent = entry.text;
-			}
-		}, checkpoint.pinnedText);
+		await page.evaluate(
+			(pins) => {
+				for (const entry of pins.required) {
+					const pinned = document.querySelector(entry.selector);
+					if (!pinned) throw new Error(`pinned text selector "${entry.selector}" matched nothing`);
+					pinned.textContent = entry.text;
+				}
+				for (const shellEmail of document.querySelectorAll(pins.shellEmail.selector)) {
+					shellEmail.textContent = pins.shellEmail.text;
+				}
+			},
+			{
+				required: checkpoint.pinnedText,
+				shellEmail: { selector: SHELL_USER_EMAIL_SELECTOR, text: SHELL_USER_EMAIL_PLACEHOLDER },
+			},
+		);
 		let previousBox = "";
 		await deps.expect
 			.poll(async () => {

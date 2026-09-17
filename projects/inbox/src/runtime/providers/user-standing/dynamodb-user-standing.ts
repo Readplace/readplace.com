@@ -16,6 +16,7 @@ import type {
  * attributes, so the row schema deliberately omits everything else. */
 const UserStandingRow = z.object({
 	userId: UserIdSchema,
+	email: z.string(),
 	emailVerified: dynamoField(z.boolean()),
 	registeredAt: dynamoField(z.string()),
 });
@@ -44,13 +45,14 @@ export function initDynamoDbUserStanding(deps: {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
 			ExpressionAttributeValues: { ":userId": userId },
-			ProjectionExpression: "userId, emailVerified, registeredAt",
+			ProjectionExpression: "userId, email, emailVerified, registeredAt",
 			Limit: 1,
 		});
 		const row = items[0];
 		if (!row) return null;
 		return {
 			userId: row.userId,
+			email: row.email,
 			emailVerified: row.emailVerified === true,
 			registeredAt: row.registeredAt,
 		};

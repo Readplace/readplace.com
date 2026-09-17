@@ -104,6 +104,7 @@ export function createInboxApp(
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		getChangelogBanner: deps.getChangelogBanner,
+		findUserById: deps.findUserById,
 		now: deps.now,
 	});
 	const inboxRouter = initInboxRoutes({

@@ -62,6 +62,8 @@ export function createAuthActions(
 				return isOnPage(page, 'page-readlist')
 			},
 			execute: async (page) => {
+				const userMenu = page.locator('.nav__user-summary')
+				if (await userMenu.isVisible()) await userMenu.click()
 				await clickAndWaitForPageReload(
 					page,
 					page.locator('[data-test-nav-item="logout"]'),

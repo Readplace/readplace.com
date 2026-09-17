@@ -10,6 +10,7 @@ import {
 	formatTrialRemaining,
 	type TrialDisplay,
 } from "./trial-countdown.format";
+import { initialsFromEmail } from "./user-initials";
 
 export interface NavProps {
 	variant: "default" | "transparent";
@@ -23,6 +24,19 @@ export interface NavProps {
 	 * to undefined. */
 	trialCounter?: TrialDisplay;
 	clickSurface?: ClickSurface;
+	userEmail?: string;
+}
+
+interface NavUserMenu {
+	initials: string;
+	email: string;
+}
+
+type NavGroupDisplayModel = NavGroup & { userMenu?: NavUserMenu };
+
+function userMenuFor(group: NavGroup, userEmail: string | undefined): NavGroupDisplayModel {
+	if (group.key !== "account" || userEmail === undefined) return group;
+	return { ...group, userMenu: { initials: initialsFromEmail(userEmail), email: userEmail } };
 }
 
 function endsAtIsoFor(trial: TrialDisplay | undefined): string {
@@ -63,8 +77,14 @@ function itemOnSurface(item: NavItem, surface: ClickSurface | undefined): NavIte
 	return { ...item, href: withClickSurface(item.href, surface), trackTerm: surface };
 }
 
-function groupsOnSurface(groups: NavGroup[], surface: ClickSurface | undefined): NavGroup[] {
-	return groups.map((group) => ({ ...group, items: group.items.map((item) => itemOnSurface(item, surface)) }));
+function groupsOnSurface(
+	groups: NavGroup[],
+	surface: ClickSurface | undefined,
+	userEmail: string | undefined,
+): NavGroupDisplayModel[] {
+	return groups.map((group) =>
+		userMenuFor({ ...group, items: group.items.map((item) => itemOnSurface(item, surface)) }, userEmail),
+	);
 }
 
 export function GlobalNav(props: NavProps): string {
@@ -93,6 +113,7 @@ export function GlobalNav(props: NavProps): string {
 						gmailFeatureEnabled: props.gmailFeatureEnabled,
 					}),
 					surface,
+					props.userEmail,
 				)
 			: undefined,
 		navItems: props.isAuthenticated

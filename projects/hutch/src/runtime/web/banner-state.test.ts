@@ -283,7 +283,7 @@ describe("initBuildBannerState", () => {
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
 			getChangelogBanner: noChangelogBanner,
-			findUserById: async () => ({ userId: USER_ID, emailVerified: true, appearance: "dark" }),
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "dark" }),
 			now: () => FIXED_NOW,
 		});
 
@@ -292,12 +292,39 @@ describe("initBuildBannerState", () => {
 		expect(result.appearance).toBe("dark");
 	});
 
+	it("carries the signed-in user's email onto the banner state so the header can name the account", async () => {
+		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
+		const build = initBuildBannerState({
+			getEffectiveAccess: async () => access,
+			getChangelogBanner: noChangelogBanner,
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true }),
+			now: () => FIXED_NOW,
+		});
+
+		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
+
+		expect(result.userEmail).toBe("james.davis@example.com");
+	});
+
+	it("leaves the email off the banner state for a guest, who has no account to name", async () => {
+		const build = initBuildBannerState({
+			getEffectiveAccess: async () => ({ tier: "founding", access: "full", banner: "none" }),
+			getChangelogBanner: noChangelogBanner,
+			findUserById: noUser,
+			now: () => FIXED_NOW,
+		});
+
+		const result = await build({ cspNonce: CSP_NONCE });
+
+		expect(result.userEmail).toBeUndefined();
+	});
+
 	it("leaves appearance undefined when the signed-in user has no stored preference", async () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
 			getChangelogBanner: noChangelogBanner,
-			findUserById: async () => ({ userId: USER_ID, emailVerified: true }),
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true }),
 			now: () => FIXED_NOW,
 		});
 
@@ -318,7 +345,7 @@ describe("initBuildBannerState", () => {
 
 		const result = await build(
 			{ userId: USER_ID, cspNonce: CSP_NONCE },
-			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, emailVerified: true, appearance: "light" } },
+			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "light" } },
 		);
 
 		expect(result.appearance).toBe("light");

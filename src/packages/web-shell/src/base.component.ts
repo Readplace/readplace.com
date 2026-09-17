@@ -52,6 +52,7 @@ const navScript = (cspNonce: CspNonce) => `
 (function() {
 	var disclosure = document.querySelector('.nav__disclosure');
 	var toggle = document.querySelector('.nav__toggle');
+	var userMenu = document.querySelector('.nav__user');
 	if (!disclosure || !toggle) return;
 
 	document.addEventListener('click', function(e) {
@@ -59,6 +60,12 @@ const navScript = (cspNonce: CspNonce) => `
 		if (isToggleVisible && !e.target.closest('.nav')) {
 			disclosure.open = false;
 		}
+		if (userMenu && !e.target.closest('.nav__user')) {
+			userMenu.open = false;
+		}
+	});
+	document.addEventListener('keydown', function(e) {
+		if (e.key === 'Escape' && userMenu) userMenu.open = false;
 	});
 })();
 </script>`;
@@ -188,6 +195,7 @@ const THEME_COLOR_METAS: Record<AppearanceSetting, ThemeColorMeta[]> = {
 };
 
 function resolveAppearance(body: PageBody, state: BannerState): AppearanceSetting {
+	if (body.pinnedAppearance) return body.pinnedAppearance;
 	if (state.isAuthenticated) return state.appearance ?? "system";
 	return body.followsSystemTheme ? "system" : "light";
 }
@@ -301,6 +309,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				gmailFeatureEnabled: state.gmailFeatureEnabled ?? false,
 				trialCounter: state.trial,
 				clickSurface: body.clickSurface,
+				userEmail: state.userEmail,
 			}),
 			content: injectPageStylesIntoMain({
 				content: body.content.html,

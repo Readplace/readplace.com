@@ -232,6 +232,62 @@ describe("GlobalNav component", () => {
 		expect(accountItems).toEqual(["account", "logout"]);
 	});
 
+	it("folds the Account section into a user menu carrying the signed-in email and its initials", () => {
+		const doc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
+				userEmail: "james.davis@example.com",
+			}),
+		);
+
+		const account = doc.querySelector('[data-test-nav-group="account"]');
+		assert(account, "account group must render");
+		const menu = account.querySelector("[data-test-nav-user]");
+		assert(menu, "the account group must render as a user menu when the email is known");
+		expect(menu.tagName.toLowerCase()).toBe("details");
+		expect(menu.hasAttribute("open")).toBe(false);
+		expect(menu.querySelector(".nav__avatar")?.textContent).toBe("JD");
+		expect(menu.querySelector("[data-test-nav-user-email]")?.textContent).toBe("james.davis@example.com");
+		expect(menu.querySelector("summary")?.getAttribute("aria-label")).toBe(
+			"Account menu for james.davis@example.com",
+		);
+		const accountItems = Array.from(menu.querySelectorAll("[data-test-nav-item]")).map((el) =>
+			el.getAttribute("data-test-nav-item"),
+		);
+		expect(accountItems).toEqual(["account", "logout"]);
+		const library = doc.querySelector('[data-test-nav-group="library"]');
+		assert(library, "library group must render");
+		expect(library.querySelector(".nav__group-label")?.textContent).toBe("Library");
+		expect(library.firstElementChild?.className).toBe("nav__group-label");
+	});
+
+	it("keeps the library icons distinct: a book for the readlist, a file for imports, a tray for the inbox", () => {
+		const html = GlobalNav({
+			variant: "default",
+			isAuthenticated: true,
+			accessIsReadOnly: false,
+			gmailFeatureEnabled: false,
+		});
+
+		const doc = parse(html);
+		const strokes = (svg: Element) =>
+			Array.from(svg.querySelectorAll("path, circle, rect")).map((shape) => shape.outerHTML);
+		for (const [key, icon] of [
+			["queue", "book"],
+			["import", "file-down"],
+			["inbox", "inbox"],
+		] as const) {
+			const drawn = doc.querySelector(`[data-test-nav-item="${key}"] .nav__icon svg`);
+			assert(drawn, `${key} nav item must carry an icon`);
+			const expected = parse(iconSvg(icon)).querySelector("svg");
+			assert(expected, "the shared icon set must draw the icon");
+			expect(strokes(drawn)).toEqual(strokes(expected));
+		}
+	});
+
 	it("renders the Inbox entry for every full-access user", () => {
 		const doc = parse(GlobalNav({
 			variant: "default",

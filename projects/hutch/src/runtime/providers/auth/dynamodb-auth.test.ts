@@ -263,6 +263,7 @@ describe("initDynamoDbAuth", () => {
 
 			expect(user).toEqual({
 				userId: "abc123",
+				email: "user@example.com",
 				emailVerified: true,
 				registeredAt: "2026-04-20T00:00:00.000Z",
 			});

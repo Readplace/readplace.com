@@ -313,6 +313,7 @@ export function initInMemoryAuth(opts: {
 			if (user.id === userId) {
 				return {
 					userId: user.id,
+					email: user.email,
 					emailVerified: user.emailVerified,
 					registeredAt: user.registeredAt,
 					appearance: user.appearance,

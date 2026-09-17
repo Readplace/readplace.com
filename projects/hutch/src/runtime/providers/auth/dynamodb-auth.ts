@@ -467,6 +467,7 @@ export function initDynamoDbAuth(deps: {
 		if (!row) return null;
 		return {
 			userId: row.userId,
+			email: row.email,
 			emailVerified: row.emailVerified === true,
 			registeredAt: row.registeredAt,
 			appearance: row.appearance,

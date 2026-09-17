@@ -22,6 +22,7 @@ type PagePlan = {
 	viewport: { width: number; height: number } | null;
 	scroll: { x: number; y: number };
 	pinned: Map<string, { textContent: string | null }>;
+	pinnedAll?: Map<string, { textContent: string | null }[]>;
 	elements?: Map<string, FakeElement>;
 };
 
@@ -58,6 +59,7 @@ function createCheckpointPage(plan: PagePlan): {
 		},
 		querySelector: (selector: string) =>
 			plan.pinned.get(selector) ?? plan.elements?.get(selector) ?? null,
+		querySelectorAll: (selector: string) => plan.pinnedAll?.get(selector) ?? [],
 	};
 	const inPage = <T>(run: () => T): T => {
 		Reflect.set(globalThis, "window", windowStub);
@@ -431,6 +433,37 @@ describe("captureCheckpoint", () => {
 		await expect(captureCheckpoint(page, checkpoint)).rejects.toThrow(
 			'visual checkpoint "stale-target": target "[data-test-gone]" matched 0 elements',
 		);
+	});
+
+	it("pins the shell's signed-in email to a placeholder everywhere the header shows it", async () => {
+		const email = { textContent: "worker-3-1789000000000@example.com" };
+		const drawerEmail = { textContent: "worker-3-1789000000000@example.com" };
+		const card = fakeElement({ rect: { x: 0, y: 48, width: 320, height: 96 } });
+		const { page, calls } = createCheckpointPage({
+			locators: {
+				"[data-test-card]": { count: 1, boxes: [{ x: 0, y: 48, width: 320, height: 96 }] },
+			},
+			viewport: { width: 1280, height: 720 },
+			scroll: { x: 0, y: 0 },
+			pinned: new Map(),
+			pinnedAll: new Map([["[data-test-nav-user-email]", [email, drawerEmail]]]),
+			elements: new Map([["[data-test-card]", card]]),
+		});
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+		const checkpoint: VisualCheckpoint = {
+			name: "queue-card",
+			settled: async () => {},
+			geometry: async () => {},
+			target: "[data-test-card]",
+			capture: "element",
+			pinnedText: [],
+		};
+
+		await initCaptureCheckpoint({ expect: expectFake })(page, checkpoint);
+
+		expect(email.textContent).toBe("reader@example.com");
+		expect(drawerEmail.textContent).toBe("reader@example.com");
+		expect(screenshots).toHaveLength(1);
 	});
 
 	it("rejects a pinned-text selector that matches nothing", async () => {

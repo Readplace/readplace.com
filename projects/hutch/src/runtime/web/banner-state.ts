@@ -53,6 +53,7 @@ export function initBuildBannerState(deps: {
 			...withBanner,
 			accessIsReadOnly,
 			appearance: user?.appearance,
+			userEmail: user?.email,
 			...(trial ? { trial } : {}),
 		};
 	};

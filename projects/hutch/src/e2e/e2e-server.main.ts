@@ -525,6 +525,43 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 	res.status(201).json({ ok: true })
 })
 
+const SUBSCRIPTION_TRIAL_DEFAULT_OFFSET_MS = ((9 * 24 + 23) * 60 + 18) * 60 * 1000
+const SUBSCRIPTION_CANCELLATION_DEFAULT_OFFSET_MS = 30 * 24 * 60 * 60 * 1000
+
+const SeedSubscriptionStateBody = z.object({
+	userId: UserIdSchema,
+	state: z.enum(['trialing', 'cancellation-scheduled', 'inactive']),
+	at: z.string().optional(),
+})
+server.post('/e2e/seed-subscription-state', async (req, res) => {
+	const parsed = SeedSubscriptionStateBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const { userId, state, at } = parsed.data
+	if (state === 'trialing') {
+		const trialEndsAt = at ?? new Date(fixture.shared.now().getTime() + SUBSCRIPTION_TRIAL_DEFAULT_OFFSET_MS).toISOString()
+		await fixture.subscriptionProviders.upsertTrialing({ userId, trialEndsAt })
+	}
+	if (state === 'cancellation-scheduled' || state === 'inactive') {
+		await fixture.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: `e2e-sub-${userId}`,
+			customerId: `e2e-cus-${userId}`,
+			plan: 'yearly',
+		})
+	}
+	if (state === 'cancellation-scheduled') {
+		const cancellationEffectiveAt = at ?? new Date(fixture.shared.now().getTime() + SUBSCRIPTION_CANCELLATION_DEFAULT_OFFSET_MS).toISOString()
+		await fixture.subscriptionProviders.markPendingCancellation({ userId, cancellationEffectiveAt })
+	}
+	if (state === 'inactive') {
+		await fixture.subscriptionProviders.markCancelledByUserId({ userId })
+	}
+	res.status(201).json({ ok: true })
+})
+
 // Simulated Stripe Checkout: marks the session as paid and redirects to the
 // success URL (replacing {CHECKOUT_SESSION_ID} the same way real Stripe does).
 server.get('/e2e/stripe-checkout/:id', (req, res) => {

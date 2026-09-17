@@ -76,7 +76,7 @@ export type FindUserByEmailResult =
 export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
 export type FindUserByIdResult =
-	| { userId: UserId; emailVerified: boolean; registeredAt?: string; appearance?: AppearancePreference }
+	| { userId: UserId; email: string; emailVerified: boolean; registeredAt?: string; appearance?: AppearancePreference }
 	| null;
 
 export type FindUserById = (userId: UserId) => Promise<FindUserByIdResult>;

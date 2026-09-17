@@ -169,6 +169,7 @@ export interface BannerState {
 	 * (without an access lookup); `buildNavGroups` treats undefined as full
 	 * access. */
 	accessIsReadOnly?: boolean;
+	userEmail?: string;
 	/** The latest feature announcement to surface site-wide, already filtered
 	 * for the reader's dismissal. Undefined when there is nothing to announce or
 	 * the reader has dismissed the current one; the shell then renders the
@@ -187,9 +188,9 @@ export interface BannerState {
 	cspNonce: CspNonce;
 }
 
-const NAV_READLIST = navItem({ key: "queue", label: "Readlist", path: "/queue", method: "GET", iconName: "inbox" });
-const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-input" });
-const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", iconName: "mail" });
+const NAV_READLIST = navItem({ key: "queue", label: "Readlist", path: "/queue", method: "GET", iconName: "book" });
+const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-down" });
+const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", iconName: "inbox" });
 const NAV_INTEGRATIONS = navItem({
 	key: "integrations",
 	label: "Integrations",

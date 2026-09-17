@@ -5,6 +5,7 @@ import type {
 	EffectiveAccess,
 	GetEffectiveAccess,
 } from "@packages/subscription-access";
+import type { FindUserById } from "@packages/provider-contracts/auth";
 import type { GetChangelogBanner } from "./changelog-banner-source";
 import { toTrialDisplay } from "./trial-display";
 
@@ -16,6 +17,7 @@ export type BuildBannerState = (
 export function initBuildBannerState(deps: {
 	getEffectiveAccess: GetEffectiveAccess;
 	getChangelogBanner: GetChangelogBanner;
+	findUserById: FindUserById;
 	now: () => Date;
 }): BuildBannerState {
 	return async (source, options) => {
@@ -29,10 +31,17 @@ export function initBuildBannerState(deps: {
 		const withBanner: BannerState = changelogBanner ? { ...base, changelogBanner } : base;
 		if (!source.userId) return withBanner;
 		const userId = UserIdSchema.parse(source.userId);
-		const access =
-			options?.preFetchedAccess ?? (await deps.getEffectiveAccess(userId));
+		const [access, user] = await Promise.all([
+			options?.preFetchedAccess ?? deps.getEffectiveAccess(userId),
+			deps.findUserById(userId),
+		]);
 		const trial = toTrialDisplay(access, deps.now());
 		const accessIsReadOnly = access.access === "read-only";
-		return { ...withBanner, accessIsReadOnly, ...(trial ? { trial } : {}) };
+		return {
+			...withBanner,
+			accessIsReadOnly,
+			...(user ? { userEmail: user.email } : {}),
+			...(trial ? { trial } : {}),
+		};
 	};
 }

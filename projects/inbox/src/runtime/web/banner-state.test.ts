@@ -5,6 +5,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { initBuildBannerState } from "./banner-state";
 import type { GetChangelogBanner } from "./changelog-banner-source";
 import type { EffectiveAccess } from "@packages/subscription-access";
+import type { FindUserById } from "@packages/provider-contracts/auth";
 
 const USER_ID = UserIdSchema.parse("user-1");
 
@@ -13,6 +14,8 @@ const ONE_DAY_MS = 86_400_000;
 const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 
 const noChangelogBanner: GetChangelogBanner = async () => undefined;
+
+const noUser: FindUserById = async () => null;
 
 const CHANGELOG_VERSION = "a1b2c3d4";
 assert(isChangelogVersion(CHANGELOG_VERSION));
@@ -28,6 +31,7 @@ describe("initBuildBannerState", () => {
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess,
 			getChangelogBanner: noChangelogBanner,
+			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
 
@@ -53,6 +57,7 @@ describe("initBuildBannerState", () => {
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
 			getChangelogBanner: noChangelogBanner,
+			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
 
@@ -84,11 +89,13 @@ describe("initBuildBannerState", () => {
 		const buildExpired = initBuildBannerState({
 			getEffectiveAccess: async () => trialExpired,
 			getChangelogBanner: noChangelogBanner,
+			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
 		const buildCancelled = initBuildBannerState({
 			getEffectiveAccess: async () => cancelled,
 			getChangelogBanner: noChangelogBanner,
+			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
 
@@ -116,6 +123,7 @@ describe("initBuildBannerState", () => {
 			const build = initBuildBannerState({
 				getEffectiveAccess: async () => access,
 				getChangelogBanner: noChangelogBanner,
+				findUserById: noUser,
 				now: () => FIXED_NOW,
 			});
 			expect((await build({ userId: USER_ID, cspNonce: CSP_NONCE })).trial).toBeUndefined();
@@ -134,6 +142,7 @@ describe("initBuildBannerState", () => {
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess,
 			getChangelogBanner: noChangelogBanner,
+			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
 
@@ -159,6 +168,7 @@ describe("initBuildBannerState", () => {
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
 			getChangelogBanner: noChangelogBanner,
+			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
 
@@ -178,6 +188,7 @@ describe("initBuildBannerState", () => {
 			const build = initBuildBannerState({
 				getEffectiveAccess,
 				getChangelogBanner: async () => CHANGELOG,
+				findUserById: noUser,
 				now: () => FIXED_NOW,
 			});
 
@@ -197,6 +208,7 @@ describe("initBuildBannerState", () => {
 			const build = initBuildBannerState({
 				getEffectiveAccess: jest.fn(),
 				getChangelogBanner: async () => CHANGELOG,
+				findUserById: noUser,
 				now: () => FIXED_NOW,
 			});
 
@@ -209,6 +221,7 @@ describe("initBuildBannerState", () => {
 			const build = initBuildBannerState({
 				getEffectiveAccess: jest.fn(),
 				getChangelogBanner: async () => CHANGELOG,
+				findUserById: noUser,
 				now: () => FIXED_NOW,
 			});
 
@@ -228,6 +241,7 @@ describe("initBuildBannerState", () => {
 			const build = initBuildBannerState({
 				getEffectiveAccess: async () => access,
 				getChangelogBanner: async () => CHANGELOG,
+				findUserById: noUser,
 				now: () => FIXED_NOW,
 			});
 
@@ -241,6 +255,7 @@ describe("initBuildBannerState", () => {
 			const build = initBuildBannerState({
 				getEffectiveAccess: jest.fn(),
 				getChangelogBanner: noChangelogBanner,
+				findUserById: noUser,
 				now: () => FIXED_NOW,
 			});
 
@@ -254,11 +269,28 @@ describe("initBuildBannerState", () => {
 		const build = initBuildBannerState({
 			getEffectiveAccess: jest.fn(),
 			getChangelogBanner: noChangelogBanner,
+			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
 
 		const result = await build({ originalUrl: "/queue?filter=unread", cspNonce: CSP_NONCE });
 
 		expect(result.currentPath).toBe("/queue?filter=unread");
+	});
+});
+
+describe("initBuildBannerState (signed-in email)", () => {
+	it("carries the signed-in user's email onto the banner state so the header can name the account", async () => {
+		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
+		const buildBannerState = initBuildBannerState({
+			getEffectiveAccess: async () => access,
+			getChangelogBanner: noChangelogBanner,
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true }),
+			now: () => FIXED_NOW,
+		});
+
+		const result = await buildBannerState({ userId: USER_ID, cspNonce: CSP_NONCE });
+
+		expect(result.userEmail).toBe("james.davis@example.com");
 	});
 });

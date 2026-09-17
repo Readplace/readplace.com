@@ -73,6 +73,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--button-padding-xs": "4px 8px",
 	"--button-padding-x": "24px",
 	"--color-on-brand": "#FFFFFF",
+	"--color-avatar": "#7C5CE6",
 	"--header-brand-stem": "var(--color-secondary)",
 	"--header-brand-tail": "var(--color-brand)",
 	"--footer-bg": "#1A1A1A",
@@ -110,6 +111,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--error-text": "hsl(0 43% 68%)",
 	"--error-bg": "hsl(0 43% 56% / 0.15)",
 	"--warning-bg": "hsl(37 62% 56% / 0.18)",
+	"--color-avatar": "#8F7AF0",
 	"--header-brand-stem": "var(--color-text-primary)",
 	"--header-brand-tail": "var(--color-highlight)",
 	"--footer-bg": "#0D0D0D",
@@ -332,12 +334,34 @@ export const HEADER_STYLES = `
 		right: 0;
 	}
 	.header__content {
-		max-width: 1000px;
+		max-width: 1200px;
 		margin: 0 auto;
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
+		gap: 12px 16px;
+	}
+	.header__start {
+		display: flex;
+		align-items: center;
 		gap: 12px;
+		min-width: 0;
+		flex: 1 1 auto;
+	}
+	@media (min-width: 768px) {
+		.header__start {
+			flex: 0 1 auto;
+		}
+	}
+	@media (min-width: 1200px) {
+		.header__content {
+			display: grid;
+			grid-template-columns: 1fr auto 1fr;
+		}
+		.header__start {
+			grid-column: 1;
+		}
 	}
 	.header__brand {
 		font-family: var(--font-serif);
@@ -566,7 +590,7 @@ export const NAV_STYLES = `
 	.nav__icon {
 		flex-shrink: 0;
 		display: inline-flex;
-		color: var(--muted-foreground);
+		color: var(--foreground);
 	}
 
 	.nav__icon svg {
@@ -587,6 +611,72 @@ export const NAV_STYLES = `
 		text-align: left;
 	}
 
+	.nav__user {
+		position: relative;
+	}
+
+	.nav__user-summary {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 16px;
+		list-style: none;
+		cursor: pointer;
+		color: var(--foreground);
+	}
+
+	.nav__user-summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.nav__avatar {
+		flex: 0 0 auto;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		background: var(--color-avatar);
+		color: var(--color-on-brand);
+		font-size: 0.6875rem;
+		font-weight: 700;
+		letter-spacing: 0.02em;
+	}
+
+	.nav__user-name {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+
+	.nav__user-chevron {
+		flex: 0 0 auto;
+		display: inline-flex;
+		color: var(--muted-foreground);
+		transition: transform 0.15s ease;
+	}
+
+	.nav__user-chevron svg {
+		width: 1em;
+		height: 1em;
+	}
+
+	.nav__user[open] .nav__user-chevron {
+		transform: rotate(180deg);
+	}
+
+	.nav__user-identity {
+		display: none;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 16px;
+		color: var(--foreground);
+	}
+
 	@media (max-width: 767px) {
 		.header {
 			overflow-x: clip;
@@ -598,7 +688,21 @@ export const NAV_STYLES = `
 			color: var(--foreground);
 		}
 		.header--transparent .nav__icon {
-			color: var(--muted-foreground);
+			color: var(--foreground);
+		}
+		@supports selector(::details-content) {
+			.nav__user {
+				display: contents;
+			}
+			.nav__user::details-content {
+				content-visibility: visible;
+			}
+			.nav__user-summary {
+				display: none;
+			}
+			.nav__user-identity {
+				display: flex;
+			}
 		}
 	}
 
@@ -614,34 +718,36 @@ export const NAV_STYLES = `
 		*    ::details-content. The bar is never rendered at this width, so the
 		*    menu has to show whatever the open state happens to be.
 		*/
-		.nav__disclosure {
+		.nav,
+		.nav__disclosure,
+		.nav__menu {
 			display: contents; /* 1 */
 		}
 
-		.nav__disclosure::details-content {
-			content-visibility: visible; /* 1 */
+		.nav__menu {
+			visibility: visible;
+			transform: none;
+			transition: none;
 		}
 
-		.nav__menu {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			position: static;
-			width: auto;
-			background: transparent;
-			border: none;
-			box-shadow: none;
-			padding: 0;
-			overflow: visible;
-			transform: none;
-			visibility: visible;
-			transition: none;
+		.nav__disclosure::details-content {
+			display: contents; /* 1 */
+			content-visibility: visible; /* 1 */
 		}
 
 		.nav__group {
 			display: flex;
 			align-items: center;
 			padding: 0;
+		}
+
+		.nav__link {
+			white-space: nowrap;
+		}
+
+		.nav__group--account,
+		.nav__list--guest {
+			margin-left: auto;
 		}
 
 		/**
@@ -663,9 +769,6 @@ export const NAV_STYLES = `
 
 		.nav__group + .nav__group {
 			border-top: none;
-			border-left: 1px solid var(--border);
-			margin-left: 8px;
-			padding-left: 8px;
 		}
 
 		.nav__list {
@@ -676,19 +779,78 @@ export const NAV_STYLES = `
 		.nav__link {
 			padding: 8px 12px;
 			border-radius: var(--radius);
+			font-weight: 500;
 		}
 
-		.header--transparent .nav__group + .nav__group {
-			border-left-color: rgba(255, 255, 255, 0.25);
+		.nav__user-summary {
+			padding: 6px 8px;
+			border-radius: var(--radius);
+		}
+
+		.nav__user-summary:hover {
+			background: var(--muted);
+		}
+
+		.nav__user-name {
+			max-width: 220px;
+		}
+
+		.nav__user-menu {
+			position: absolute;
+			right: 0;
+			top: calc(100% + 6px);
+			min-width: 200px;
+			flex-direction: column;
+			gap: 0;
+			padding: 6px 0;
+			background: var(--card);
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			box-shadow: var(--shadow-md);
+			z-index: 102;
+		}
+
+		.nav__user-menu .nav__link {
+			border-radius: 0;
+			padding: 10px 16px;
 		}
 
 		.header--transparent .nav__link,
-		.header--transparent .nav__icon {
+		.header--transparent .nav__icon,
+		.header--transparent .nav__user-summary {
 			color: var(--color-on-brand);
 		}
 
-		.header--transparent .nav__link:hover {
+		.header--transparent .nav__link:hover,
+		.header--transparent .nav__user-summary:hover {
 			background: rgba(255, 255, 255, 0.1);
+		}
+
+		.header--transparent .nav__user-menu .nav__link,
+		.header--transparent .nav__user-menu .nav__icon {
+			color: var(--foreground);
+		}
+
+		.header--transparent .nav__user-menu .nav__link:hover {
+			background: var(--muted);
+		}
+	}
+
+	@media (min-width: 1200px) {
+		.nav__group--library {
+			grid-column: 2;
+			justify-self: center;
+		}
+
+		.nav__group--account {
+			grid-column: 3;
+			justify-self: end;
+		}
+
+		.nav__list--guest {
+			grid-column: 2 / 4;
+			justify-self: end;
+			margin-left: 0;
 		}
 	}
 `;
@@ -799,8 +961,8 @@ export const TRIAL_COUNTDOWN_STYLES = `
 	* state keeps today's single-row layout; browsers without :has() fall back
 	* to the ellipsized inline chip, whose title still carries the full text. */
 	@media (max-width: 959px) {
-		.header__content:has(.trial-countdown--cancellation-scheduled),
-		.header__content:has(.trial-countdown--cancellation-imminent) {
+		.header__start:has(.trial-countdown--cancellation-scheduled),
+		.header__start:has(.trial-countdown--cancellation-imminent) {
 			flex-wrap: wrap;
 		}
 
@@ -813,7 +975,7 @@ export const TRIAL_COUNTDOWN_STYLES = `
 	}
 
 	@media (max-width: 480px) {
-		.header__content {
+		.header__start {
 			flex-wrap: wrap;
 		}
 
@@ -838,12 +1000,12 @@ export const TRIAL_COUNTDOWN_STYLES = `
 
 export const VERIFY_BANNER_STYLES = `
 	.verify-banner {
-		background: var(--color-warning);
-		color: var(--foreground);
+		background: var(--color-secondary);
+		color: var(--color-on-brand);
 		text-align: center;
 		font-size: 14px;
 		font-weight: 500;
-		padding: 8px 16px;
+		padding: 10px 16px;
 	}
 
 	.verify-banner--visible { display: block; }
@@ -898,32 +1060,29 @@ export const CHROMELESS_BANNER_AREA_STYLES = `
 
 export const CHANGELOG_BANNER_STYLES = `
 	.changelog-banner {
-		background: var(--color-surface-elevated);
-		border-bottom: 1px solid var(--color-border);
-		color: var(--foreground);
+		background: var(--color-secondary);
+		color: var(--color-on-brand);
 		font-size: 14px;
 		line-height: 1.5;
-		box-shadow: var(--shadow-sm);
 	}
 
 	.changelog-banner--visible { display: block; }
 	.changelog-banner--hidden { display: none; }
 
 	.changelog-banner__inner {
-		max-width: 1000px;
+		position: relative;
+		max-width: 1200px;
 		margin: 0 auto;
-		padding: 10px 16px;
+		padding: 10px 56px 10px 16px;
 		display: flex;
 		align-items: center;
+		justify-content: center;
 		gap: 12px;
 	}
 
 	/**
 	* 1. A label, not a pill — 6px radius (var(--radius-sm)) keeps it inside the
-	*    brand's "never fully rounded" rule while the navy fill carries novelty.
-	* 2. Navy (the secondary brand colour) so the chip reads as "unseen" against
-	*    the amber chrome that links and CTAs already own, without colliding with
-	*    --color-success (which means "saved"). The inline seen-script adds
+	*    brand's "never fully rounded" rule. The inline seen-script adds
 	*    --seen on a version this browser has already seen, dropping the chip so
 	*    NEW signals novelty rather than merely "not yet dismissed".
 	*/
@@ -935,28 +1094,36 @@ export const CHANGELOG_BANNER_STYLES = `
 		font-weight: 700;
 		line-height: 1;
 		padding: 4px 7px;
-		background: var(--color-secondary); /* 2 */
-		color: var(--color-on-brand);
+		background: var(--color-on-brand);
+		color: var(--color-secondary);
 		border-radius: var(--radius-sm); /* 1 */
 	}
 
 	.changelog-banner--seen .changelog-banner__chip { display: none; }
 
 	.changelog-banner__hook {
-		flex: 1 1 auto;
+		flex: 0 1 auto;
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		color: var(--color-text-secondary);
+		font-weight: 500;
 	}
 
 	.changelog-banner__link {
 		flex: 0 0 auto;
-		color: var(--primary-text);
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--color-on-brand);
 		font-weight: 600;
 		text-decoration: none;
 		white-space: nowrap;
+	}
+
+	.changelog-banner__link svg {
+		width: 1em;
+		height: 1em;
 	}
 
 	.changelog-banner__link:hover,
@@ -967,15 +1134,19 @@ export const CHANGELOG_BANNER_STYLES = `
 	}
 
 	.changelog-banner__dismiss {
-		flex: 0 0 auto;
+		position: absolute;
+		right: 16px;
+		top: 50%;
+		transform: translateY(-50%);
 		margin: 0;
 		line-height: 1;
 	}
 
 	.changelog-banner__close {
+		display: inline-flex;
 		background: transparent;
 		border: none;
-		color: var(--color-text-muted);
+		color: var(--color-on-brand);
 		font-size: 18px;
 		line-height: 1;
 		cursor: pointer;
@@ -986,8 +1157,7 @@ export const CHANGELOG_BANNER_STYLES = `
 
 	.changelog-banner__close:hover,
 	.changelog-banner__close:focus-visible {
-		color: var(--foreground);
-		background: var(--color-surface);
+		background: rgba(255, 255, 255, 0.15);
 	}
 
 	@media (max-width: 480px) {
