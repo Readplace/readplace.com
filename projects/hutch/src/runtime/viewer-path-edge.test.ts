@@ -1,60 +1,29 @@
-import assert from "node:assert";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { runInNewContext } from "node:vm";
-import {
-	EDGE_SECRET_HEADER,
-	VIEWER_HOST_HEADER,
-	VIEWER_IP_HEADER,
-	VIEWER_PATH_HEADER,
-} from "@packages/viewer-identity";
+import { VIEWER_PATH_HEADER, EDGE_SECRET_HEADER, VIEWER_IP_HEADER, VIEWER_HOST_HEADER } from "@packages/viewer-identity";
+import { edgeRequest, gatewayEvent } from "./viewer-path.test-helper";
 
-it.each([
-	"/",
-	"/view",
-	"/view/https://example.com/a//b",
-	"/api/articles",
-])("strips caller preservation without activating the rewrite in Release 1: %s", (uri) => {
-	// Execute the exact function template deployed by the CDN component.
-	const source = readFileSync(
-		join(__dirname, "../../src/infra/hutch-ssr-cdn.ts"),
-		"utf8",
-	);
-	const template = source.match(
-		/code: (`function handler\(event\) \{[\s\S]*?}`)/,
-	)?.[1];
-	assert(template, "CDN viewer function template must exist");
-	const code = runInNewContext(template, {
-		EDGE_SECRET_HEADER,
-		VIEWER_HOST_HEADER,
-		VIEWER_IP_HEADER,
-		VIEWER_PATH_HEADER,
-	});
-	const request = {
-		uri,
-		method: "POST",
-		body: { data: "unchanged" },
-		querystring: {
-			x: { value: "one", multiValue: [{ value: "one" }, { value: "" }] },
-		},
-		headers: {
-			host: { value: "readplace.com" },
-			[EDGE_SECRET_HEADER]: { value: "spoof" },
-			[VIEWER_PATH_HEADER]: { value: "/view/spoof" },
-		},
-	};
-	const result = runInNewContext(`${code}; handler(event)`, {
-		event: { request, viewer: { ip: "203.0.113.1" } },
-	});
-	expect(result).toBe(request);
-	expect(result.uri).toBe(uri);
-	expect(result.method).toBe("POST");
-	expect(result.body).toEqual({ data: "unchanged" });
-	expect(result.querystring).toEqual({
-		x: { value: "one", multiValue: [{ value: "one" }, { value: "" }] },
-	});
-	expect(result.headers[VIEWER_PATH_HEADER]).toBeUndefined();
+it.each(["/view/", "/view/https://example.com/a//b", "/VIEW/example.com/a;b,c+%E2%98%83/%2F/%zz"])("moves the exact encoded reader path into a trusted header: %s", (uri) => {
+	const result = edgeRequest(uri, { [VIEWER_PATH_HEADER]: { value: "spoof" }, [EDGE_SECRET_HEADER]: { value: "spoof" } });
+	expect(result.uri).toBe("/view");
+	expect(result.headers[VIEWER_PATH_HEADER].value).toBe(uri);
 	expect(result.headers[EDGE_SECRET_HEADER]).toBeUndefined();
-	expect(result.headers[VIEWER_HOST_HEADER].value).toBe("readplace.com");
-	expect(result.headers[VIEWER_IP_HEADER].value).toBe("203.0.113.1");
+	expect(result.headers[VIEWER_HOST_HEADER].value).toBe("localhost:3000");
+	expect(result.headers[VIEWER_IP_HEADER].value).toBe("203.0.113.9");
+	expect(result.method).toBe("POST");
+	expect(result.body).toEqual({ data: "payload" });
+	expect(result.querystring).toEqual({ x: { value: "one", multiValue: [{ value: "one" }, { value: "" }] } });
+});
+
+it.each(["/", "/view", "/VIEW", "/api/a//b", "/view/é", "/view/a b", "/view/a\r\nb", "/view/a\x7f", "/view/a?b", "/view/a#b"])("strips caller preservation and retains unsupported transport: %j", (uri) => {
+	const result = edgeRequest(uri, { [VIEWER_PATH_HEADER]: { value: "spoof" } });
+	expect(result.uri).toBe(uri);
+	expect(result.headers[VIEWER_PATH_HEADER]).toBeUndefined();
+});
+
+it.each([5000, 8000])("adds constant request-size overhead for a %i-byte path with cookies", (size) => {
+	const path = `/view/example.com/${"a".repeat(size - 17)}`;
+	const cookie = `hutch_sid=${"s".repeat(300)}; preferences=${"p".repeat(600)}`;
+	const event = gatewayEvent(path, { headers: { cookie } });
+	const transportedBytes = event.rawPath.length + event.headers[VIEWER_PATH_HEADER].length + cookie.length;
+	expect(transportedBytes - (path.length + cookie.length)).toBe(5);
+	expect(event.headers.cookie).toBe(cookie);
 });

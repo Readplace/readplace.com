@@ -79,6 +79,10 @@ export class HutchSsrCdn extends pulumi.ComponentResource {
 	var request = event.request;
 	delete request.headers['${EDGE_SECRET_HEADER}'];
 	delete request.headers['${VIEWER_PATH_HEADER}'];
+	if (request.uri.slice(0, 6).toLowerCase() === '/view/' && !/[^\\x21-\\x7e]|[?#]/.test(request.uri)) {
+		request.headers['${VIEWER_PATH_HEADER}'] = { value: request.uri };
+		request.uri = '/view';
+	}
 	request.headers['${VIEWER_IP_HEADER}'] = { value: event.viewer.ip };
 	request.headers['${VIEWER_HOST_HEADER}'] = { value: request.headers.host.value };
 	return request;

@@ -1,3 +1,5 @@
+import { throughEdge, gatewayEvent } from "./viewer-path.test-helper";
+import { TEST_EDGE_SECRET } from "./test-app";
 import express from "express";
 import serverless from "serverless-http";
 import {
@@ -88,4 +90,50 @@ it("restores the URL before a host redirect constructs its Location", async () =
 	expect(response.headers.location).toBe(
 		"https://readplace.com/view/example.com/a//b?a=1&a=",
 	);
+});
+
+it.each(["GET", "HEAD", "POST"])("executes the deployed edge through the real adapter before observers (%s)", async (method) => {
+	const app = express().use(createViewerIdentityMiddleware({ edgeSecret: TEST_EDGE_SECRET }));
+	const observations: string[] = [];
+	app.use((req, res) => {
+		observations.push(req.originalUrl);
+		res.status(req.method === "POST" ? 405 : 200).set("x-public-url", req.url).send("article");
+	});
+	const url = "/VIEW/example.com/https://embedded.example/a;b,c+%E2%98%83?x=&x=two+words&flag&format=epub";
+	const result = await throughEdge(app, url, { method });
+	expect(observations).toEqual([url]);
+	expect(result.headers["x-public-url"]).toBe(url);
+	expect(result.statusCode).toBe(method === "POST" ? 405 : 200);
+	expect(result.body).toBe(method === "HEAD" ? "" : "article");
+});
+
+it("retains existing non-reader normalization and supports conditional requests", async () => {
+	const app = express().use(createViewerIdentityMiddleware({ edgeSecret: TEST_EDGE_SECRET }));
+	app.use((req, res) => { res.set("x-public-url", req.url).send("unchanged body"); });
+	const first = await throughEdge(app, "/other/a//b?x=&x=2");
+	expect(first.headers["x-public-url"]).toBe("/other/a/b?x=&x=2");
+	const cached = await throughEdge(app, "/view/example.com/a//b", { headers: { "if-none-match": first.headers.etag } });
+	expect(cached.statusCode).toBe(304);
+	expect(cached.headers["x-public-url"]).toBe("/view/example.com/a//b");
+});
+
+it.each([5000, 8000])("restores a %i-byte link with browser cookies through the adapter", async (size) => {
+	const app = express().use(createViewerIdentityMiddleware({ edgeSecret: TEST_EDGE_SECRET }));
+	app.use((req, res) => { res.json({ url: req.originalUrl, cookie: req.headers.cookie }); });
+	const path = `/view/example.com/${"a".repeat(size)}`;
+	const cookie = `hutch_sid=${"s".repeat(300)}; preferences=${"p".repeat(600)}`;
+	const response = await throughEdge(app, path, { headers: { cookie } });
+	expect(response.statusCode).toBe(200);
+	expect(JSON.parse(response.body)).toEqual({ url: path, cookie });
+});
+
+it.each([undefined, "wrong-secret"])("does not trust preservation without the gateway proof: %s", async (proof) => {
+	const app = express().use(createViewerIdentityMiddleware({ edgeSecret: TEST_EDGE_SECRET }));
+	app.use((req, res) => { res.send(req.url); });
+	const input = gatewayEvent("/view/example.com/a//b?x=1");
+	if (proof === undefined) delete input.headers[EDGE_SECRET_HEADER];
+	else input.headers[EDGE_SECRET_HEADER] = proof;
+	const response = await serverless(app)(input, {}) as { body: string; statusCode: number };
+	expect(response.statusCode).toBe(200);
+	expect(response.body).toBe("/view?x=1");
 });
