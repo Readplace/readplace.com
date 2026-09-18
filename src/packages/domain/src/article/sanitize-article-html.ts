@@ -64,24 +64,32 @@ const PARAGRAPH_CLASSES = [
 
 const RULE_CLASSES = ["ocr-page-break"];
 
+const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+	allowedTags: ALLOWED_TAGS,
+	allowedAttributes: {
+		a: ["href", "target", "rel", "title"],
+		img: ["src", "srcset", "sizes", "alt", "width", "height", "loading"],
+		td: ["colspan", "rowspan"],
+		th: ["colspan", "rowspan"],
+		p: ["class"],
+		hr: ["class"],
+	},
+	allowedClasses: {
+		p: PARAGRAPH_CLASSES,
+		hr: RULE_CLASSES,
+	},
+	allowedSchemes: ["http", "https", "mailto"],
+	allowedSchemesByTag: { img: ["http", "https", "data"] },
+	disallowedTagsMode: "discard",
+	nonTextTags: ["style", "script", "iframe", "noscript", "xmp", "svg", "math"],
+	transformTags: {
+		a: (tagName, attribs) =>
+			"href" in attribs
+				? { tagName, attribs }
+				: { tagName: "span", attribs: {} },
+	},
+};
+
 export function sanitizeArticleHtml(html: string): string {
-	return sanitizeHtml(html, {
-		allowedTags: ALLOWED_TAGS,
-		allowedAttributes: {
-			a: ["href", "target", "rel", "title"],
-			img: ["src", "srcset", "sizes", "alt", "width", "height", "loading"],
-			td: ["colspan", "rowspan"],
-			th: ["colspan", "rowspan"],
-			p: ["class"],
-			hr: ["class"],
-		},
-		allowedClasses: {
-			p: PARAGRAPH_CLASSES,
-			hr: RULE_CLASSES,
-		},
-		allowedSchemes: ["http", "https", "mailto"],
-		allowedSchemesByTag: { img: ["http", "https", "data"] },
-		disallowedTagsMode: "discard",
-		nonTextTags: ["style", "script", "iframe", "noscript", "xmp", "svg", "math"],
-	});
+	return sanitizeHtml(sanitizeHtml(html, SANITIZE_OPTIONS), SANITIZE_OPTIONS);
 }

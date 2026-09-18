@@ -58,7 +58,24 @@ describe("sanitizeArticleHtml", () => {
 	it("drops a javascript: href but keeps the link text", () => {
 		const scriptLink = '<a href="javascript:steal()">Click</a>';
 
-		expect(sanitizeArticleHtml(scriptLink)).toBe("<a>Click</a>");
+		expect(sanitizeArticleHtml(scriptLink)).toBe("<span>Click</span>");
+	});
+
+	it("demotes a link whose scheme it dropped, so the reader never serves an anchor with no href", () => {
+		const ftpLink =
+			'<p>See <a href="ftp://ftp.example.com/0.html" title="t">Lisp <b>Machines</b></a>.</p>';
+
+		expect(sanitizeArticleHtml(ftpLink)).toBe(
+			"<p>See <span>Lisp <b>Machines</b></span>.</p>",
+		);
+	});
+
+	it("demotes a named anchor the capture carried, which is an anchor with no link in it", () => {
+		const namedAnchor = '<p><a name="lispm">Lisp Machines</a></p>';
+
+		expect(sanitizeArticleHtml(namedAnchor)).toBe(
+			"<p><span>Lisp Machines</span></p>",
+		);
 	});
 
 	it("drops a javascript: image source", () => {

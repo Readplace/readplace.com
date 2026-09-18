@@ -1,6 +1,33 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import {
+	originalUrlFromViewPath,
+	viewPathFor,
+} from "../../../pages/view/view-path";
 import { renderReaderReady } from "./reader-ready.component";
+
+const APP_ORIGIN = "https://readplace.com";
+const VIEW_PREFIX = "/view/";
+
+function articleUrlsAnAnchorWalkWouldMint(
+	doc: Document,
+	articleUrl: string,
+): string[] {
+	const readerUrl = new URL(viewPathFor(articleUrl), APP_ORIGIN);
+	return Array.from(readerContent(doc).querySelectorAll("a"))
+		.map((anchor) => String(anchor.getAttribute("href")))
+		.map((href) => new URL(href, readerUrl.href))
+		.filter(
+			(url) => url.origin === APP_ORIGIN && url.pathname.startsWith(VIEW_PREFIX),
+		)
+		.map((url) => {
+			const minted = originalUrlFromViewPath(
+				url.pathname.slice(VIEW_PREFIX.length),
+			);
+			assert(minted, "a /view path must decode back to an article URL");
+			return minted;
+		});
+}
 
 function parse(html: string) {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window
@@ -81,6 +108,21 @@ describe("renderReaderReady", () => {
 		const link = readerContent(doc).querySelector("a");
 		assert(link, "the captured link must still render");
 		expect(link.getAttribute("target")).toBe("_blank");
+	});
+
+	it("preserves the article URL an anchor walk reaches without minting its /null sibling", () => {
+		const articleUrl = "https://www.jwz.org/hacks/";
+		const captured =
+			'<p><a href="#lispm">#</a>\n<A HREF="ftp://ftp.cs.cmu.edu/user/ai/lang/lisp/code/impdep/explorer/0.html" NAME="lispm">\nLisp Machines</A></p>';
+
+		const doc = parse(
+			renderReaderReady({ content: captured, appOrigin: APP_ORIGIN }),
+		);
+
+		expect(articleUrlsAnAnchorWalkWouldMint(doc, articleUrl)).toEqual([
+			"https://www.jwz.org/hacks/",
+		]);
+		expect(doc.body.textContent).toContain("Lisp Machines");
 	});
 
 	it("flags the slot with hx-swap-oob when oob is true so HTMX swaps replace the live slot", () => {
