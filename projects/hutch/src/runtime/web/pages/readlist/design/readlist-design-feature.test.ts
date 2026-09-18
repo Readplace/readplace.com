@@ -8,17 +8,20 @@ import {
 } from "./readlist-design-feature";
 
 describe("readlist design feature toggle", () => {
-	it("is on only for ?feature=design", () => {
-		expect(readlistDesignEnabled({ feature: "design" })).toBe(true);
-		expect(readlistDesignEnabled({ feature: "pref" })).toBe(false);
-		expect(readlistDesignEnabled({})).toBe(false);
+	it("is on for ?feature=design, and unconditionally on when the environment defaults to it", () => {
+		expect(readlistDesignEnabled({ feature: "design" }, false)).toBe(true);
+		expect(readlistDesignEnabled({ feature: "pref" }, false)).toBe(false);
+		expect(readlistDesignEnabled({}, false)).toBe(false);
+		expect(readlistDesignEnabled({}, true)).toBe(true);
+		expect(readlistDesignEnabled({ feature: "pref" }, true)).toBe(true);
 	});
 
 	it("yields the link param only while enabled", () => {
 		expect(designFeatureParams(true)).toEqual([["feature", "design"]]);
 		expect(designFeatureParams(false)).toEqual([]);
-		expect(designFeatureParamsFrom({ feature: "design" })).toEqual([["feature", "design"]]);
-		expect(designFeatureParamsFrom({ feature: "other" })).toEqual([]);
+		expect(designFeatureParamsFrom({ feature: "design" }, false)).toEqual([["feature", "design"]]);
+		expect(designFeatureParamsFrom({ feature: "other" }, false)).toEqual([]);
+		expect(designFeatureParamsFrom({ feature: "other" }, true)).toEqual([["feature", "design"]]);
 	});
 
 	it("stamps the flag onto a bare path, an existing query, and keeps a fragment", () => {

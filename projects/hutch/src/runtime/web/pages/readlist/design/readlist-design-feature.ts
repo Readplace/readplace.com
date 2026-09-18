@@ -8,7 +8,8 @@ const FEATURE_QUERY_KEY = "feature";
 
 const featureToggle = new QuerystringFeatureToggle();
 
-export function readlistDesignEnabled(query: Record<string, unknown>): boolean {
+export function readlistDesignEnabled(query: Record<string, unknown>, byDefault: boolean): boolean {
+	if (byDefault) return true;
 	return featureToggle.isEnabled({ query }, READLIST_DESIGN_FEATURE);
 }
 
@@ -16,8 +17,8 @@ export function designFeatureParams(enabled: boolean): LinkParams {
 	return enabled ? [[FEATURE_QUERY_KEY, READLIST_DESIGN_FEATURE]] : [];
 }
 
-export function designFeatureParamsFrom(query: Record<string, unknown>): LinkParams {
-	return designFeatureParams(readlistDesignEnabled(query));
+export function designFeatureParamsFrom(query: Record<string, unknown>, byDefault: boolean): LinkParams {
+	return designFeatureParams(readlistDesignEnabled(query, byDefault));
 }
 
 const RESOLVE_ORIGIN = "http://internal.invalid";

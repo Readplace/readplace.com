@@ -36,7 +36,8 @@ type AssemblyProvidedKeys =
 	| "subscriptionLogger"
 	| "analytics"
 	| "salt"
-	| "foundingAllocation";
+	| "foundingAllocation"
+	| "readlistDesignByDefault";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
 
 function parseAdminEmails(raw: string): readonly string[] {
@@ -103,6 +104,7 @@ export function assembleReadplaceApp(input: {
 		analytics: analyticsLogger,
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
+		readlistDesignByDefault: true,
 	});
 
 	return { app, analyticsLogger };

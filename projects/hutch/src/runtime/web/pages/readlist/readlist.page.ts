@@ -449,6 +449,11 @@ interface ReadlistDependencies {
 	 * mark-as-read, and delete remain reachable for read-only users. */
 	requireWriteAccess: RequestHandler;
 	secureCookies: boolean;
+	/** Whether the new readlist design renders for a request that carries no
+	 * `?feature=design` flag. Set by the composition root: the production app
+	 * defaults to the new design; the test harness defaults to the old one so the
+	 * existing route suite keeps exercising it until it is retired. */
+	readlistDesignByDefault: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
 	findUserById: FindUserById;
 	buildBannerState: BuildBannerState;
@@ -687,6 +692,8 @@ const NATIVE_APP_SIGNAL_PLATFORM = {
 
 export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	const router = express.Router();
+	const designEnabledFor = (req: Request): boolean => readlistDesignEnabled(req.query, deps.readlistDesignByDefault);
+	const designParamsFor = (req: Request) => designFeatureParamsFrom(req.query, deps.readlistDesignByDefault);
 	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
 	const saveArticleAtReadlistTop = initSaveArticleAtReadlistTop({
 		allocateSavedAt: deps.allocateSavedAt,
@@ -1440,7 +1447,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const cspNonce = requireCspNonce(req);
 		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
-		const page = readlistDesignEnabled(req.query)
+		const page = designEnabledFor(req)
 			? ReadlistDesignPage(vm, { ...pageOptions, query: req.query })
 			: ReadlistPage(vm, { ...pageOptions, preferencesEnabled: readlistPreferencesEnabled(req.query) });
 		res.vary("Cookie");
@@ -1512,7 +1519,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			res
 				.status(200)
 				.type("html")
-				.send(renderReadlistMutationFragment({ filters: urlState, statusFlash, extraParams: designFeatureParamsFrom(req.query) }));
+				.send(renderReadlistMutationFragment({ filters: urlState, statusFlash, extraParams: designParamsFor(req) }));
 			return;
 		}
 
@@ -1622,7 +1629,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				extraParams: [
 					...collectUtmParams(req.query),
 					...collectStatusFlashParams(req.query),
-					...designFeatureParamsFrom(req.query),
+					...designParamsFor(req),
 				],
 			});
 			if (pageRedirect) {
@@ -1674,7 +1681,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		]);
 		const counts = { filters: urlState, unreadCount, tabTotal, pageSize: READLIST_PAGE_SIZE };
 		res.type("html").send(
-			readlistDesignEnabled(req.query)
+			designEnabledFor(req)
 				? renderReadlistDesignCounts(toReadlistDesignCountsDisplayModel(counts))
 				: renderReadlistCounts(toReadlistCountsDisplayModel(counts)),
 		);
@@ -1684,13 +1691,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const version = dismissTokenFor(hasInstallableClient(req));
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		const context = requestReadlistContext(req);
-		res.redirect(303, buildReadlistUrl(context.state, designFeatureParamsFrom(req.query)));
+		res.redirect(303, buildReadlistUrl(context.state, designParamsFor(req)));
 	});
 
 	router.post("/onboarding/email/done", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.recordEmailStepMarkedDone({ userId: req.userId });
-		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state, designFeatureParamsFrom(req.query)));
+		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state, designParamsFor(req)));
 	});
 
 	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
@@ -2191,7 +2198,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateSaveableUrl(submittedUrl);
 		const saveState = parseReadlistUrl({});
-		const designParams = designFeatureParamsFrom(req.query);
+		const designParams = designParamsFor(req);
 
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
@@ -2236,13 +2243,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				303,
 				buildReadlistUrl(context.state, [
 					["queue_error", READLIST_ERROR_LIMIT],
-					...designFeatureParamsFrom(req.query),
+					...designParamsFor(req),
 				]),
 			);
 			return;
 		}
 
-		res.redirect(303, buildReadlistUrl({ readlist: slug }, designFeatureParamsFrom(req.query)));
+		res.redirect(303, buildReadlistUrl({ readlist: slug }, designParamsFor(req)));
 	});
 
 	router.post(
@@ -2264,7 +2271,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					303,
 					buildReadlistUrl(requested.success ? { readlist: requested.data } : {}, [
 						["queue_error", `rename_${reason}`],
-						...designFeatureParamsFrom(req.query),
+						...designParamsFor(req),
 					]),
 				);
 			};
@@ -2295,7 +2302,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				res.json({ slug: decision.slug, label: decision.label });
 				return;
 			}
-			res.redirect(303, buildReadlistUrl({ readlist: decision.slug }, designFeatureParamsFrom(req.query)));
+			res.redirect(303, buildReadlistUrl({ readlist: decision.slug }, designParamsFor(req)));
 		},
 	);
 
@@ -2312,7 +2319,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					303,
 					buildReadlistUrl({}, [
 						["queue_error", READLIST_ERROR_UNKNOWN_READLIST],
-						...designFeatureParamsFrom(req.query),
+						...designParamsFor(req),
 					]),
 				);
 			};
@@ -2354,7 +2361,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					{
 						readlist: readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug }),
 					},
-					designFeatureParamsFrom(req.query),
+					designParamsFor(req),
 				),
 			);
 		},
@@ -2668,7 +2675,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const cardOptions = { isFirst: false, deviceClass: classifyDeviceClass(req.get("user-agent")) };
-		const html = readlistDesignEnabled(req.query)
+		const html = designEnabledFor(req)
 			? renderReadlistDesignCard(toReadlistDesignCardDisplayModel(articleVm, cardOptions))
 			: renderReadlistCard(toReadlistCardDisplayModel(articleVm, cardOptions));
 		res.status(200).type("html").send(html);
@@ -2724,7 +2731,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		res.redirect(303, buildReadlistUrl(context.state, [...collectUtmParams(req.query), ...flashParams, ...designFeatureParamsFrom(req.query)]));
+		res.redirect(303, buildReadlistUrl(context.state, [...collectUtmParams(req.query), ...flashParams, ...designParamsFor(req)]));
 	});
 
 	router.post("/:id/delete", async (req: Request, res: Response) => {
@@ -2741,7 +2748,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			await deleteArticleFromReadlistFor(context.state.readlist)({ articleId: parsedId.data, userId });
 		}
 
-		res.redirect(303, buildReadlistUrl(context.state, designFeatureParamsFrom(req.query)));
+		res.redirect(303, buildReadlistUrl(context.state, designParamsFor(req)));
 	});
 
 	router.post(
