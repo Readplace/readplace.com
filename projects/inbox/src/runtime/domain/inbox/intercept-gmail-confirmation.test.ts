@@ -48,7 +48,6 @@ function recipient(
 		createdAt: "2026-08-27T00:00:00.000Z",
 		disabledAt: undefined,
 		purpose: "gmail-forwarding",
-		gmailConfirmedAt: undefined,
 		...overrides,
 	};
 	return { recipientAddress: resolved.address, resolved, userId: resolved.userId };
@@ -105,7 +104,7 @@ describe("initInterceptGmailConfirmation", () => {
 		assert.deepEqual(published, []);
 	});
 
-	it("dispatches the confirmation for a live named-inbox (gmail-mapped) address", async () => {
+	it("leaves a confirmation addressed to a named inbox to the normal flow", async () => {
 		const { intercept, published } = harness();
 		const inbox = recipient({ purpose: "gmail-mapped" });
 
@@ -114,14 +113,8 @@ describe("initInterceptGmailConfirmation", () => {
 			resolvedRecipients: [inbox],
 		});
 
-		assert.equal(handled, true);
-		assert.deepEqual(published, [
-			{
-				userId: OWNER,
-				forwardingAddress: inbox.recipientAddress,
-				verifyUrl: `https://mail.google.com${VERIFY_PATH}`,
-			},
-		]);
+		assert.equal(handled, false);
+		assert.deepEqual(published, []);
 	});
 
 	it("leaves a confirmation addressed to a user alias to the normal flow", async () => {

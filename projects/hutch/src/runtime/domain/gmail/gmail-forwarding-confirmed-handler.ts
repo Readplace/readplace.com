@@ -5,17 +5,16 @@ import {
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { GmailConnectionStore } from "@packages/domain/gmail";
-import { type InboxAddressStore, InboxAddressSchema } from "@packages/domain/inbox";
+import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 
 export function initGmailForwardingConfirmedHandler(deps: {
 	connections: GmailConnectionStore;
-	addresses: InboxAddressStore;
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { connections, addresses, publishEvent, logger } = deps;
+	const { connections, publishEvent, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -35,7 +34,6 @@ export function initGmailForwardingConfirmedHandler(deps: {
 				const forwardingAddress = InboxAddressSchema.parse(parsed.data.forwardingAddress);
 
 				const connection = await connections.findConnectionByUserId(userId);
-				await addresses.markGmailForwardingConfirmed({ userId, address: forwardingAddress });
 				if (connection !== undefined && forwardingAddress === connection.gatewayAddress) {
 					await connections.markForwardingConfirmed({ userId });
 				}

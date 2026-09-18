@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GMAIL_FILTER_QUERY_MAX_LENGTH } from "@packages/domain/gmail";
-import { InboxAddressSchema, type InboxAddressStore } from "@packages/domain/inbox";
+import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger } from "@packages/hutch-logger";
 import type { GmailFilter, GmailFilters } from "@packages/provider-contracts/gmail-filters";
@@ -24,7 +24,6 @@ async function makeHarness(options: {
 	confirmed?: boolean;
 	revoked?: boolean;
 	onFilter?: readonly (typeof TLDR)[];
-	listAddressesByUserId?: InboxAddressStore["listAddressesByUserId"];
 } = {}) {
 	const gmail = initInMemoryGmailFilters(options.seedFilters);
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
@@ -53,10 +52,7 @@ async function makeHarness(options: {
 		filters: options.gmail ?? gmail.api,
 		connections,
 		senders,
-		addresses: {
-			...addresses,
-			listAddressesByUserId: options.listAddressesByUserId ?? addresses.listAddressesByUserId,
-		},
+		addresses,
 		now: () => NOW,
 		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
@@ -176,6 +172,14 @@ describe("initRewriteGmailFilter", () => {
 		assert.deepEqual(gmail.deleted, ["f-live"]);
 		const connection = await connections.findConnectionByUserId(USER);
 		assert.equal(connection?.filterCount, undefined);
+	});
+
+	it("does not write a filter for a sender only discovered in Gmail", async () => {
+		const { rewrite, gmail, senders } = await makeHarness({ onFilter: [] });
+		await senders.recordSenderSeen({ userId: USER, senderEmail: TLDR, subject: "Issue 1" });
+
+		assert.deepEqual(await rewrite({ userId: USER }), { ok: true, filterCount: 0, senderCount: 0 });
+		assert.deepEqual(gmail.created, []);
 	});
 
 	it("refuses to write a query longer than Gmail accepts and says why", async () => {
@@ -369,7 +373,7 @@ describe("initRewriteGmailFilter", () => {
 		});
 	});
 
-	it("gives each named inbox its own filter", async () => {
+	it("forwards every mapped sender through the gateway", async () => {
 		const { rewrite, gmail, addresses, senders } = await makeHarness({ onFilter: [TLDR] });
 		const tech = await addresses.createAddress({
 			userId: USER,
@@ -377,30 +381,15 @@ describe("initRewriteGmailFilter", () => {
 			name: AliasNameSchema.parse("tech"),
 			purpose: "gmail-mapped",
 		});
-		await addresses.markGmailForwardingConfirmed({ userId: USER, address: tech.address });
-		await senders.addSenderToFilter({ userId: USER, senderEmail: BREW });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: BREW, mappedAddress: tech.address });
-
-		const result = await rewrite({ userId: USER });
-
-		assert(result.ok);
-		assert.equal(result.filterCount, 2);
-		assert.equal(result.senderCount, 2);
-		const byForwardTo = new Map(gmail.created.map((filter) => [filter.forwardTo, filter.query]));
-		assert.equal(byForwardTo.get(GATEWAY), "from:(dan@tldr.tech)");
-		assert.equal(byForwardTo.get(tech.address), "from:(crew@morningbrew.com)");
-	});
-
-	it("forwards through the gateway while a named inbox awaits Gmail verification", async () => {
-		const { rewrite, gmail, addresses, senders } = await makeHarness({ onFilter: [TLDR] });
-		const tech = await addresses.createAddress({
+		const news = await addresses.createAddress({
 			userId: USER,
 			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
+			name: AliasNameSchema.parse("news"),
 			purpose: "gmail-mapped",
 		});
 		await senders.addSenderToFilter({ userId: USER, senderEmail: BREW });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: BREW, mappedAddress: tech.address });
+		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: tech.address });
+		await senders.mapSenderToAddress({ userId: USER, senderEmail: BREW, mappedAddress: news.address });
 
 		const result = await rewrite({ userId: USER });
 
@@ -412,10 +401,8 @@ describe("initRewriteGmailFilter", () => {
 		]);
 	});
 
-	it("preserves the gateway filter for mappings created before per-inbox confirmation", async () => {
-		const { rewrite, gmail, addresses, senders } = await makeHarness({
-			seedFilters: [{ id: "f-existing", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }],
-		});
+	it("replaces a stale filter that forwards to an owned inbox", async () => {
+		const { rewrite, gmail, addresses, senders } = await makeHarness({ onFilter: [TLDR] });
 		const tech = await addresses.createAddress({
 			userId: USER,
 			domain: "read.place",
@@ -423,196 +410,16 @@ describe("initRewriteGmailFilter", () => {
 			purpose: "gmail-mapped",
 		});
 		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: tech.address });
-
-		const result = await rewrite({ userId: USER });
-
-		assert.deepEqual(result, { ok: true, filterCount: 1, senderCount: 1 });
-		assert.deepEqual(gmail.created, []);
-		assert.deepEqual(gmail.deleted, []);
-		assert(gmail.store.has("f-existing"));
-	});
-
-	it("uses a confirmed inbox even while the address index omits its row", async () => {
-		const { rewrite, gmail, addresses, senders } = await makeHarness({
-			listAddressesByUserId: async () => [],
-		});
-		const tech = await addresses.createAddress({
-			userId: USER,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-		await addresses.markGmailForwardingConfirmed({ userId: USER, address: tech.address });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: tech.address });
-		gmail.store.set("f-existing", {
-			id: "f-existing",
-			query: "from:(dan@tldr.tech)",
-			forwardTo: GATEWAY,
-		});
-
-		const result = await rewrite({ userId: USER });
-
-		assert.deepEqual(result, { ok: true, filterCount: 1, senderCount: 1 });
-		assert.deepEqual(gmail.created, [{ query: "from:(dan@tldr.tech)", forwardTo: tech.address }]);
-		assert.deepEqual(gmail.deleted, ["f-existing"]);
-
-		assert.deepEqual(await rewrite({ userId: USER }), result);
-		assert.equal(gmail.created.length, 1);
-		assert.equal(gmail.deleted.length, 1);
-	});
-
-	it("creates the newly confirmed destination filter before changing the old gateway filter", async () => {
-		const { rewrite, gmail, addresses, senders } = await makeHarness({
-			onFilter: [TLDR, BREW],
-			seedFilters: [{
-				id: "f-existing",
-				query: "from:(crew@morningbrew.com OR dan@tldr.tech)",
-				forwardTo: GATEWAY,
-			}],
-		});
-		const tech = await addresses.createAddress({
-			userId: USER,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-		await addresses.markGmailForwardingConfirmed({ userId: USER, address: tech.address });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: BREW, mappedAddress: tech.address });
-
-		await rewrite({ userId: USER });
-
-		assert.deepEqual(gmail.created, [
-			{ query: "from:(crew@morningbrew.com)", forwardTo: tech.address },
-			{ query: "from:(dan@tldr.tech)", forwardTo: GATEWAY },
-		]);
-		assert.deepEqual(gmail.deleted, ["f-existing"]);
-	});
-
-	it("keeps existing gateway forwarding if Gmail rejects the new named-inbox filter", async () => {
-		const gmail = initInMemoryGmailFilters([{
-			id: "f-existing",
-			query: "from:(crew@morningbrew.com OR dan@tldr.tech)",
-			forwardTo: GATEWAY,
-		}]);
-		const { rewrite, addresses, senders } = await makeHarness({
-			onFilter: [TLDR, BREW],
-			gmail: {
-				...gmail.api,
-				createForwardingFilter: async (input) => {
-					if (input.forwardTo === GATEWAY) return gmail.api.createForwardingFilter(input);
-					return { ok: false, reason: "rejected", status: 400, message: "Unrecognized forwarding address" };
-				},
-			},
-		});
-		const tech = await addresses.createAddress({
-			userId: USER,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-		await addresses.markGmailForwardingConfirmed({ userId: USER, address: tech.address });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: BREW, mappedAddress: tech.address });
-
-		const result = await rewrite({ userId: USER });
-
-		assert.equal(result.ok === false && result.reason, "rejected");
-		assert.deepEqual(gmail.created, []);
-		assert.deepEqual(gmail.deleted, []);
-		assert(gmail.store.has("f-existing"));
-	});
-
-	it("keeps a sender on the gateway when its mapped address is missing", async () => {
-		const { rewrite, gmail, senders } = await makeHarness();
-		await senders.mapSenderToAddress({
-			userId: USER,
-			senderEmail: TLDR,
-			mappedAddress: InboxAddressSchema.parse("tech-a7b2c9@read.place"),
-		});
-
-		await rewrite({ userId: USER });
-
-		assert.deepEqual(gmail.created, [{ query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }]);
-	});
-
-	it("does not use another user's confirmation to forward directly to their inbox", async () => {
-		const { rewrite, gmail, addresses, senders } = await makeHarness();
-		const anotherUser = UserIdSchema.parse("00000000000000000000000000000002");
-		const tech = await addresses.createAddress({
-			userId: anotherUser,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-		await addresses.markGmailForwardingConfirmed({ userId: anotherUser, address: tech.address });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: tech.address });
-
-		await rewrite({ userId: USER });
-
-		assert.deepEqual(gmail.created, [{ query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }]);
-	});
-
-	it("deletes the filter of an inbox whose last sender was removed", async () => {
-		const { rewrite, gmail, addresses } = await makeHarness({ onFilter: [TLDR] });
-		const tech = await addresses.createAddress({
-			userId: USER,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-		await addresses.markGmailForwardingConfirmed({ userId: USER, address: tech.address });
 		gmail.store.set("f-tech", {
 			id: "f-tech",
-			query: "from:(crew@morningbrew.com)",
+			query: "from:(dan@tldr.tech)",
 			forwardTo: tech.address,
 		});
 
 		const result = await rewrite({ userId: USER });
 
-		assert(result.ok);
-		assert.equal(result.filterCount, 1);
+		assert.deepEqual(result, { ok: true, filterCount: 1, senderCount: 1 });
+		assert.deepEqual(gmail.created, [{ query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }]);
 		assert.deepEqual(gmail.deleted, ["f-tech"]);
-	});
-
-	it("records the first inbox failure but still writes the others", async () => {
-		const { rewrite, gmail, addresses, senders, connections } = await makeHarness({ onFilter: [] });
-		const tech = await addresses.createAddress({
-			userId: USER,
-			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
-		});
-		await addresses.markGmailForwardingConfirmed({ userId: USER, address: tech.address });
-		const news = await addresses.createAddress({
-			userId: USER,
-			domain: "read.place",
-			name: AliasNameSchema.parse("news"),
-			purpose: "gmail-mapped",
-		});
-		await addresses.markGmailForwardingConfirmed({ userId: USER, address: news.address });
-		await senders.addSenderToFilter({ userId: USER, senderEmail: TLDR });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: tech.address });
-		for (const sender of sendersExceedingQueryCap()) {
-			await senders.addSenderToFilter({ userId: USER, senderEmail: sender });
-			await senders.mapSenderToAddress({ userId: USER, senderEmail: sender, mappedAddress: news.address });
-		}
-
-		const result = await rewrite({ userId: USER });
-
-		assert.equal(result.ok === false && result.reason, "query-too-long");
-		assert.deepEqual(
-			gmail.created.map((filter) => filter.forwardTo),
-			[tech.address],
-		);
-		assert.equal(
-			(await connections.findConnectionByUserId(USER))?.lastFilterError?.code,
-			"query-too-long",
-		);
-		assert.deepEqual(result, {
-			ok: false,
-			reason: "query-too-long",
-			forwardTo: news.address,
-			senderCount: sendersExceedingQueryCap().length,
-			senderCapacity: 48,
-		});
 	});
 });

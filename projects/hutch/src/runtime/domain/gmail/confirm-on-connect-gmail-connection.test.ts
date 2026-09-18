@@ -14,14 +14,14 @@ const DOMAIN = "read.place";
 function harness() {
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
 	const addresses = initInMemoryInboxAddress({ now: () => NOW });
-	const store = initConfirmOnConnectGmailConnection({ connections, addresses });
+	const store = initConfirmOnConnectGmailConnection({ connections });
 	const mintGateway = async () =>
 		(await addresses.createAddress({ userId: USER, domain: DOMAIN, name: GMAIL_FORWARDING_ALIAS, purpose: "gmail-forwarding" })).address;
 	return { connections, addresses, store, mintGateway };
 }
 
 describe("initConfirmOnConnectGmailConnection", () => {
-	it("returns a confirmed connection and confirms the gateway address on create", async () => {
+	it("returns a confirmed connection on create", async () => {
 		const h = harness();
 		const gatewayAddress = await h.mintGateway();
 
@@ -29,8 +29,6 @@ describe("initConfirmOnConnectGmailConnection", () => {
 
 		assert.equal(connection.forwardingConfirmedAt, CONFIRMED_AT);
 		assert.equal(connection.gatewayAddress, gatewayAddress);
-		const address = await h.addresses.findByAddress(gatewayAddress);
-		assert.equal(address?.gmailConfirmedAt, CONFIRMED_AT);
 	});
 
 	it("confirms the new connection after a disconnect", async () => {

@@ -217,41 +217,6 @@ describe("initInMemoryInboxAddress", () => {
 		expect(refreshed.disabledAt).not.toBeUndefined();
 	});
 
-	describe("markGmailForwardingConfirmed", () => {
-		it("stamps gmailConfirmedAt on an owned address and keeps the first timestamp when called again", async () => {
-			let clock = new Date("2026-06-23T00:00:00.000Z");
-			const store = initInMemoryInboxAddress({ now: () => clock });
-			const entry = await store.createAddress({
-				userId: owner,
-				domain: DOMAIN,
-				name: NAME,
-				purpose: "gmail-forwarding",
-			});
-
-			await store.markGmailForwardingConfirmed({ userId: owner, address: entry.address });
-			clock = new Date("2026-06-24T00:00:00.000Z");
-			await store.markGmailForwardingConfirmed({ userId: owner, address: entry.address });
-
-			const found = await store.findByAddress(entry.address);
-			assert(found, "expected the confirmed address to resolve");
-			expect(found.gmailConfirmedAt).toBe("2026-06-23T00:00:00.000Z");
-		});
-
-		it("rejects a confirmation for an address the caller does not own", async () => {
-			const store = initInMemoryInboxAddress({ now: () => new Date() });
-			const entry = await store.createAddress({
-				userId: owner,
-				domain: DOMAIN,
-				name: NAME,
-				purpose: "gmail-forwarding",
-			});
-
-			await expect(
-				store.markGmailForwardingConfirmed({ userId: otherUser, address: entry.address }),
-			).rejects.toThrow(ConditionalCheckFailedException);
-		});
-	});
-
 	describe("tombstoneUserAddresses", () => {
 		it("unlinks the owner's addresses to the reserved owner, keeps every row, and stamps disabledAt only when unset", async () => {
 			let clock = new Date("2026-06-01T00:00:00.000Z");

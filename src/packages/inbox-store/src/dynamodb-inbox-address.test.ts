@@ -408,46 +408,6 @@ describe("initDynamoDbInboxAddress", () => {
 		});
 	});
 
-	describe("markGmailForwardingConfirmed", () => {
-		it("stamps gmailConfirmedAt with an ownership-guarded, idempotent update", async () => {
-			let captured: CapturedCommand | undefined;
-			const store = initDynamoDbInboxAddress({
-				client: createFakeClient((cmd) => {
-					captured = cmd as CapturedCommand;
-					return {};
-				}) as DynamoDBDocumentClient,
-				tableName: TABLE,
-				now: () => NOW,
-			});
-			const address = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
-
-			await store.markGmailForwardingConfirmed({ userId: USER, address });
-
-			expect(captured?.input.Key).toEqual({ address });
-			expect(captured?.input.ConditionExpression).toBe("userId = :uid");
-			expect(captured?.input.UpdateExpression).toBe(
-				"SET gmailConfirmedAt = if_not_exists(gmailConfirmedAt, :now)",
-			);
-			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
-			expect(captured?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
-		});
-
-		it("propagates the conditional-check failure when the caller does not own the row", async () => {
-			const store = initDynamoDbInboxAddress({
-				client: createFakeClient(() => {
-					throw conditionalCheckFailed();
-				}) as DynamoDBDocumentClient,
-				tableName: TABLE,
-				now: () => NOW,
-			});
-			const address = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
-
-			await expect(
-				store.markGmailForwardingConfirmed({ userId: USER, address }),
-			).rejects.toThrow(ConditionalCheckFailedException);
-		});
-	});
-
 	describe("tombstoneUserAddresses", () => {
 		it("reassigns each owned address to the sentinel owner, stripping the alias and stamping disabledAt, keeping every row", async () => {
 			const commands: CapturedCommand[] = [];

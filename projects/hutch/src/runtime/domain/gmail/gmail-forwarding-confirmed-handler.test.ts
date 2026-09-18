@@ -36,7 +36,6 @@ function makeHarness(options: { failWrite?: boolean } = {}) {
 					},
 				}
 			: connections,
-		addresses,
 		publishEvent: (async (event, detail) => {
 			published.push({ event, detail });
 		}) as PublishEvent,
@@ -51,7 +50,7 @@ function makeHarness(options: { failWrite?: boolean } = {}) {
 }
 
 describe("initGmailForwardingConfirmedHandler", () => {
-	it("confirms the gateway address, marks the connection confirmed, and asks for the filter", async () => {
+	it("marks the gateway connection confirmed and asks for the filter", async () => {
 		const { run, connections, addresses, published } = makeHarness();
 		const gateway = await addresses.createAddress({
 			userId: USER,
@@ -66,7 +65,6 @@ describe("initGmailForwardingConfirmedHandler", () => {
 		);
 
 		assert.deepEqual(response, { batchItemFailures: [] });
-		assert.equal((await addresses.findByAddress(gateway.address))?.gmailConfirmedAt, NOW.toISOString());
 		assert.equal(
 			(await connections.findConnectionByUserId(USER))?.forwardingConfirmedAt,
 			NOW.toISOString(),
@@ -95,7 +93,7 @@ describe("initGmailForwardingConfirmedHandler", () => {
 		assert.equal(JSON.stringify(confirmed.data).includes(gateway.address), false);
 	});
 
-	it("confirms a named inbox without flipping the gateway confirmation", async () => {
+	it("leaves the gateway confirmation unchanged for another forwarding address", async () => {
 		const { run, connections, addresses, published } = makeHarness();
 		const gateway = await addresses.createAddress({
 			userId: USER,
@@ -113,12 +111,11 @@ describe("initGmailForwardingConfirmedHandler", () => {
 
 		await run(buildSqsEvent([{ messageId: "evt-1", body: eventBody(inbox.address) }]));
 
-		assert.equal((await addresses.findByAddress(inbox.address))?.gmailConfirmedAt, NOW.toISOString());
 		assert.equal((await connections.findConnectionByUserId(USER))?.forwardingConfirmedAt, undefined);
 		assert.deepEqual(published[0].detail, { userId: USER, reason: "forwarding-confirmed" });
 	});
 
-	it("stamps the address and still asks for the filter when no connection remains", async () => {
+	it("still asks for the filter when no connection remains", async () => {
 		const { run, connections, addresses, published } = makeHarness();
 		const inbox = await addresses.createAddress({
 			userId: USER,
@@ -129,7 +126,6 @@ describe("initGmailForwardingConfirmedHandler", () => {
 
 		await run(buildSqsEvent([{ messageId: "evt-1", body: eventBody(inbox.address) }]));
 
-		assert.equal((await addresses.findByAddress(inbox.address))?.gmailConfirmedAt, NOW.toISOString());
 		assert.equal(await connections.findConnectionByUserId(USER), undefined);
 		assert.deepEqual(published[0].detail, { userId: USER, reason: "forwarding-confirmed" });
 	});

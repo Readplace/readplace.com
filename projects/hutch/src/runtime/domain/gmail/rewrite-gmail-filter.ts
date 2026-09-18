@@ -4,7 +4,7 @@ import type {
 	GmailFilterError,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
-import { buildForwardingFilterQuery, groupSendersByDestination } from "@packages/domain/gmail";
+import { buildForwardingFilterQuery } from "@packages/domain/gmail";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { GmailApiFailure, GmailFilter, GmailFilters } from "@packages/provider-contracts/gmail-filters";
@@ -112,7 +112,7 @@ export function initRewriteGmailFilter(deps: {
 		}
 
 		const { query, senders: accepted } = built.query;
-		const live = ours.find((filter) => filter.query === query);
+		const live = ours.find((filter) => filter.forwardTo === forwardTo && filter.query === query);
 		if (live !== undefined && ours.length === 1) {
 			return { ok: true, filterCount: 1, senderCount: accepted.length };
 		}
@@ -157,68 +157,32 @@ export function initRewriteGmailFilter(deps: {
 
 		const addressRows = await addresses.listAddressesByUserId(userId);
 		const ownedAddresses = new Set<string>([gateway, ...addressRows.map((row) => row.address)]);
-		const groups = groupSendersByDestination({
-			senders: await senders.listSendersByUserId(userId),
-			gateway: connection.gatewayAddress,
-		});
-		const gatewaySenders: ForwardableSender[] = [];
-		const sendersByDestination = new Map<string, ForwardableSender[]>();
-		for (const group of groups) {
-			if (group.forwardTo === gateway) {
-				gatewaySenders.push(...group.senders);
-				continue;
-			}
-			const address = await addresses.findByAddress(group.forwardTo);
-			if (address?.userId === userId) {
-				ownedAddresses.add(address.address);
-				if (address.gmailConfirmedAt !== undefined) {
-					sendersByDestination.set(group.forwardTo, group.senders);
-					continue;
-				}
-			}
-			gatewaySenders.push(...group.senders);
-		}
-		sendersByDestination.set(gateway, gatewaySenders);
 		const owned = listed.value.filter(
 			(filter): filter is GmailFilter & { forwardTo: string } =>
 				filter.forwardTo !== undefined && ownedAddresses.has(filter.forwardTo),
 		);
-		const destinations = new Set<string>([
-			...sendersByDestination.keys(),
-			...owned.map((filter) => filter.forwardTo),
-		]);
-		destinations.delete(gateway);
-		destinations.add(gateway);
-
-		let firstFailure: RecordableFailure | undefined;
-		let filterCount = 0;
-		let senderCount = 0;
-		for (const destination of destinations) {
-			if (destination === gateway && firstFailure !== undefined) return firstFailure;
-			const result = await reconcileGroup({
-				userId,
-				forwardTo: destination,
-				senders: sendersByDestination.get(destination) ?? [],
-				ours: owned.filter((filter) => filter.forwardTo === destination),
-			});
-			if (!result.ok) {
-				if (result.reason === "unavailable" || result.reason === "reauth-required") return result;
-				if (firstFailure === undefined) {
-					await recordError({ userId, failure: result });
-					firstFailure = result;
-				}
-				continue;
-			}
-			filterCount += result.filterCount;
-			senderCount += result.senderCount;
+		const result = await reconcileGroup({
+			userId,
+			forwardTo: gateway,
+			senders: (await senders.listSendersByUserId(userId)).flatMap((sender) =>
+				sender.addedToFilterAt === undefined ? [] : [sender.senderEmail],
+			),
+			ours: owned,
+		});
+		if (!result.ok) {
+			if (result.reason === "unavailable" || result.reason === "reauth-required") return result;
+			await recordError({ userId, failure: result });
+			return result;
 		}
-
-		if (firstFailure !== undefined) return firstFailure;
-		if (filterCount === 0) {
+		if (result.filterCount === 0) {
 			await connections.clearFilter({ userId });
 			return { ok: true, filterCount: 0, senderCount: 0 };
 		}
-		await connections.recordFilter({ userId, filterCount, filterSenderCount: senderCount });
-		return { ok: true, filterCount, senderCount };
+		await connections.recordFilter({
+			userId,
+			filterCount: result.filterCount,
+			filterSenderCount: result.senderCount,
+		});
+		return result;
 	};
 }

@@ -14,8 +14,6 @@ export type {
 } from "./build-forwarding-filter-query";
 export { gmailConnectionState } from "./gmail-connection-state";
 export type { GmailConnectionState } from "./gmail-connection-state";
-export { groupSendersByDestination } from "./group-senders-by-destination";
-export type { GmailDestinationGroup } from "./group-senders-by-destination";
 export type {
 	GmailConfirmError,
 	GmailConfirmFailureReason,

@@ -232,7 +232,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 			clientId,
 			stateSecret: deriveGmailStateSigningSecret(stateSeed),
 			gmailCredentialsStore,
-			gmailConnectionStore: initConfirmOnConnectGmailConnection({ connections: gmailConnectionStore, addresses: inboxAddressStore }),
+			gmailConnectionStore: initConfirmOnConnectGmailConnection({ connections: gmailConnectionStore }),
 			gmailDiscoveryStore,
 			publishStartGmailSenderDiscovery: async ({ userId }: { userId: UserId }) => {
 				void runGmailDiscoveryLocally({ userId });

@@ -81,7 +81,7 @@ export const handler = initHandleByDetailType({
 	routes: {
 		[RewriteGmailFilterCommand.detailType]: [rewriteHandler],
 		[GmailForwardingConfirmedEvent.detailType]: [
-			initGmailForwardingConfirmedHandler({ connections, addresses, publishEvent, logger }),
+			initGmailForwardingConfirmedHandler({ connections, publishEvent, logger }),
 		],
 		[GmailForwardingConfirmFailedEvent.detailType]: [
 			initGmailForwardingConfirmFailedHandler({ connections, now, logger }),

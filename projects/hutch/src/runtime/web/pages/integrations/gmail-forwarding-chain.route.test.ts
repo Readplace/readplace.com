@@ -80,7 +80,6 @@ describe("gmail forwarding chain (hutch half)", () => {
 				[GmailForwardingConfirmedEvent.detailType]: [
 					initGmailForwardingConfirmedHandler({
 						connections: gmail.bundle.gmailConnectionStore,
-						addresses: gmail.addresses,
 						publishEvent,
 						logger,
 					}),
@@ -111,11 +110,10 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const gateway = connection.gatewayAddress;
 		const gatewayEntry = await gmail.addresses.findByAddress(gateway);
 		assert.equal(gatewayEntry?.purpose, "gmail-forwarding");
-		assert.equal(gatewayEntry?.gmailConfirmedAt, undefined);
 		assert.equal(connection.forwardingConfirmedAt, undefined);
 
 		// (2) the confirmed event (the shape the inbox half publishes) stamps the
-		// address and the connection and asks for a rewrite.
+		// connection and asks for a rewrite.
 		const confirmedDetail = GmailForwardingConfirmedEvent.detailSchema.parse({
 			userId,
 			forwardingAddress: gateway,
@@ -123,7 +121,6 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const confirmedRun = await runLambda(GmailForwardingConfirmedEvent.detailType, confirmedDetail, "evt-1");
 		assert(confirmedRun);
 		assert.deepEqual(confirmedRun.batchItemFailures, []);
-		assert.equal((await gmail.addresses.findByAddress(gateway))?.gmailConfirmedAt, NOW.toISOString());
 		assert.equal(
 			(await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId))?.forwardingConfirmedAt,
 			NOW.toISOString(),
