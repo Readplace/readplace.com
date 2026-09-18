@@ -234,7 +234,6 @@ function flattenFixtureToAppDependencies(
 		verifyPasswordResetToken: fixture.passwordReset.verifyPasswordResetToken,
 		consumeRateLimit: fixture.rateLimit.consumeRateLimit,
 		rateLimitRules: fixture.rateLimit.rules,
-		readlistDesignByDefault: false,
 		getOnboardingSignals: fixture.onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: fixture.onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: fixture.onboardingSignals.recordNativeAppSavedArticle,

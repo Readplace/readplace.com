@@ -475,11 +475,6 @@ interface AppDependencies {
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRules: RateLimitRules;
-	/** Whether `/queue` renders the new readlist design when the request carries no
-	 * `?feature=design` flag. Production wires the new design as the default; the
-	 * test harness wires the old design so the existing route suite keeps covering
-	 * it until it is retired. */
-	readlistDesignByDefault: boolean;
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -1242,7 +1237,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
 		secureCookies,
-		readlistDesignByDefault: deps.readlistDesignByDefault,
 		findUserById: deps.findUserById,
 		findArticlesByUser: deps.findArticlesByUser,
 		countArticlesByUser: deps.countArticlesByUser,
