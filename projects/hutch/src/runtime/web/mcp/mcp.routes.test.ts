@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import request from "supertest";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { initMcpRoutes } from "./mcp.routes";
@@ -15,7 +16,14 @@ const validateAccessToken: ValidateAccessToken = async (token) =>
 
 function buildApp(): Express {
 	const mcpServer = initMcpServer({
-		saveLink: async ({ url }) => ({ ok: true, title: "Saved", url, filedInto: [] }),
+		appOrigin: "https://readplace.com",
+		saveLink: async ({ url }) => ({
+			ok: true,
+			id: "0".repeat(32),
+			title: "Saved",
+			url,
+			filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+		}),
 		listReadlists: async () => [],
 		createReadlist: async () => ({ status: "invalid_name" }),
 		addToReadlist: async () => ({ status: "article_not_found" }),
@@ -80,6 +88,26 @@ describe("MCP transport routes", () => {
 		const response = await post(buildApp(), { jsonrpc: "2.0", id: 1, method: "ping" });
 		expect(response.status).toBe(200);
 		expect(response.body).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
+	});
+
+	it("returns the private reader URL without a readerUrl field", async () => {
+		const sourceUrl = "https://publisher.example/article";
+		const response = await post(buildApp(), {
+			jsonrpc: "2.0",
+			id: 2,
+			method: "tools/call",
+			params: { name: "save_link", arguments: { url: sourceUrl } },
+		});
+		expect(response.status).toBe(200);
+		expect(response.body).toMatchObject({
+			result: {
+				structuredContent: {
+					url: `https://readplace.com/queue/${"0".repeat(32)}/view?from=mcp`,
+				},
+			},
+		});
+		expect(response.body).not.toHaveProperty("result.structuredContent.readerUrl");
+		expect(JSON.stringify(response.body.result)).not.toContain(sourceUrl);
 	});
 
 	it("dispatches a request carrying the protocol version it negotiated", async () => {

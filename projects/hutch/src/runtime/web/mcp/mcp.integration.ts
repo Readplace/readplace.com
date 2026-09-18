@@ -144,6 +144,19 @@ describe("MCP server over the real app", () => {
 		expect(saveResponse.status).toBe(200);
 		expect(saveResponse.body.result.content[0].text).toContain("Saved");
 		expect(saveResponse.body.result.isError).toBeUndefined();
+		const saved = saveResponse.body.result.structuredContent;
+		const privateUrl = `${TEST_APP_ORIGIN}/queue/${saved.id}/view?from=mcp`;
+		expect(saved).toMatchObject({
+			id: expect.any(String),
+			url: privateUrl,
+		});
+		expect(saved).not.toHaveProperty("readerUrl");
+		expect(saveResponse.body.result.content[0].text).toContain(
+			`Read in Readplace: ${privateUrl}`,
+		);
+		expect(JSON.stringify(saveResponse.body.result)).not.toContain(
+			"https://example.com/article",
+		);
 
 		const listResponse = await callTool(harness, accessToken, {
 			jsonrpc: "2.0",
@@ -152,9 +165,37 @@ describe("MCP server over the real app", () => {
 			params: { name: "list_readlist_articles" },
 		});
 		expect(listResponse.status).toBe(200);
+		const listed = listResponse.body.result.structuredContent.articles[0];
+		expect(listed).toMatchObject({
+			id: saved.id,
+			url: privateUrl,
+		});
+		expect(listed).not.toHaveProperty("readerUrl");
 		expect(listResponse.body.result.content[0].text).toContain(
+			`[unread] ${privateUrl}`,
+		);
+		expect(JSON.stringify(listResponse.body.result)).not.toContain(
 			"https://example.com/article",
 		);
+	});
+
+	it("keeps save_link's URL private after an adopted publisher URL", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
+		const url = "https://wrapper.example/link/188518";
+		const displayUrl = "https://destination.example/article";
+
+		await callTool(harness, accessToken, tool("save_link", { url }));
+		await harness.articleStore.setDisplayUrl({ url, displayUrl });
+		const response = await callTool(harness, accessToken, tool("save_link", { url }));
+
+		const saved = response.body.result.structuredContent;
+		expect(saved.url).toBe(
+			`${TEST_APP_ORIGIN}/queue/${saved.id}/view?from=mcp`,
+		);
+		expect(saved).not.toHaveProperty("readerUrl");
+		expect(JSON.stringify(response.body.result)).not.toContain(url);
+		expect(JSON.stringify(response.body.result)).not.toContain(displayUrl);
 	});
 
 	it("returns a tool error result when asked to save an unsaveable URL", async () => {

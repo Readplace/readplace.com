@@ -14,6 +14,9 @@ interface McpOperationShape {
 	readonly effect: McpOperationEffect;
 }
 
+const ARTICLE_LINK_GUIDANCE =
+	"Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.";
+
 /**
  * The Readplace MCP operation vocabulary: the one list every agent-facing
  * surface reads from — the MCP server's `tools/list`, the connection guide, and
@@ -27,7 +30,8 @@ export const MCP_OPERATIONS = [
 		name: "save_link",
 		title: "Save a link to Readplace",
 		description:
-			"Save a web page (article, blog post, or PDF) to the user's Readplace reading list so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving. Pass `readlists` — ids from list_readlists — to file the save into those readlists as well as All.",
+			"Save a web page (article, blog post, or PDF) to the user's Readplace reading list so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving. A successful save returns its private reader URL. Pass `readlists` — ids from list_readlists — to file the save into those readlists as well as All. " +
+			ARTICLE_LINK_GUIDANCE,
 		summary:
 			"saves a URL to the user's readlist; the title, excerpt, and clean reader view fill in moments later.",
 		effect: "save",
@@ -44,7 +48,8 @@ export const MCP_OPERATIONS = [
 		name: "list_readlist_articles",
 		title: "List saved articles",
 		description:
-			"List the pages the user has saved to their Readplace reading list. With no `readlist`, returns every saved page once, combined across every readlist the user owns — a page filed into several readlists appears a single time. Pass a `readlist` id from list_readlists — including All, the built-in readlist that receives every save — to list only that one. Optionally filter to unread or already-read items. Each item includes an `id` you can pass to get_article, get_article_content, or get_article_summary, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list.",
+			"List the pages the user has saved to their Readplace reading list. With no `readlist`, returns every saved page once, combined across every readlist the user owns — a page filed into several readlists appears a single time. Pass a `readlist` id from list_readlists — including All, the built-in readlist that receives every save — to list only that one. Optionally filter to unread or already-read items. Each item includes an `id` you can pass to get_article, get_article_content, or get_article_summary, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list. " +
+			ARTICLE_LINK_GUIDANCE,
 		summary:
 			"lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including All), filtered to unread or already-read.",
 		effect: "read",
@@ -53,7 +58,8 @@ export const MCP_OPERATIONS = [
 		name: "get_article",
 		title: "Get a saved article",
 		description:
-			"Return the full metadata (title, site, excerpt, word count, estimated read time, status, saved/read dates, and the readlists it sits in) for one saved article, looked up by the id from a list_readlist_articles result.",
+			"Return the full metadata (title, site, excerpt, word count, estimated read time, status, saved/read dates, and the readlists it sits in) for one saved article, looked up by the id from a list_readlist_articles result. " +
+			ARTICLE_LINK_GUIDANCE,
 		summary: "returns one saved article's details, including the readlists it sits in.",
 		effect: "read",
 	},
@@ -61,7 +67,7 @@ export const MCP_OPERATIONS = [
 		name: "get_article_content",
 		title: "Get a saved article's reader view",
 		description:
-			"Return the cleaned, readable HTML of one saved article, looked up by id. If the reader view is still being fetched, reports that it is not ready yet rather than failing.",
+			"Return the cleaned, readable HTML of one saved article, looked up by id. If the reader view is still being fetched, reports that it is not ready yet rather than failing. Use get_article when the user wants a link to open: its `url` opens the private Readplace reader.",
 		summary: "returns one saved article's clean reader text.",
 		effect: "read",
 	},
@@ -69,7 +75,7 @@ export const MCP_OPERATIONS = [
 		name: "get_article_summary",
 		title: "Get a saved article's summary",
 		description:
-			"Return the AI-generated TL;DR for one saved article, looked up by id, or its current status (pending, failed, or skipped) when a summary is not yet available.",
+			"Return the AI-generated TL;DR for one saved article, looked up by id, or its current status (pending, failed, or skipped) when a summary is not yet available. Use get_article when the user wants a link to open: its `url` opens the private Readplace reader.",
 		summary: "returns one saved article's AI TL;DR.",
 		effect: "read",
 	},
@@ -77,7 +83,7 @@ export const MCP_OPERATIONS = [
 		name: "get_related_articles",
 		title: "Get related articles from the user's own readlist",
 		description:
-			"Return other articles in the user's own Readplace readlist that relate to one saved article, looked up by id, each tagged unread or read and carrying a short reason and an id you can pass to get_article. An unread pick is the natural next read; a read pick is one they finished earlier and may want again. Articles the user has deleted are left out. Reports its status (pending or skipped) when no relations have been worked out.",
+			"Return other articles in the user's own Readplace readlist that relate to one saved article, looked up by id, each tagged unread or read and carrying a short reason, a private-reader `url`, and an id you can pass to get_article. Link a recommendation to its `url` when the user wants to read it. An unread pick is the natural next read; a read pick is one they finished earlier and may want again. Articles the user has deleted are left out. Reports its status (pending or skipped) when no relations have been worked out.",
 		summary:
 			"returns saves in the same readlist that relate to one article, each tagged unread or read.",
 		effect: "read",
@@ -94,7 +100,8 @@ export const MCP_OPERATIONS = [
 		name: "add_to_readlist",
 		title: "Add a saved article to a readlist",
 		description:
-			"File one already-saved article into one of the user's readlists, looked up by the id from a list_readlist_articles result. Pass either `readlist` — an id from list_readlists — or `create_name`, a name to file it under, which is created when no readlist carries it yet and reused when one does. Pass exactly one of the two. The article stays everywhere it already is; this adds it, it does not move it.",
+			"File one already-saved article into one of the user's readlists, looked up by the id from a list_readlist_articles result. Pass either `readlist` — an id from list_readlists — or `create_name`, a name to file it under, which is created when no readlist carries it yet and reused when one does. Pass exactly one of the two. The article stays everywhere it already is; this adds it, it does not move it. " +
+			ARTICLE_LINK_GUIDANCE,
 		summary:
 			"files one saved article into a readlist, named by id or by a name it reuses or creates.",
 		effect: "update",
@@ -103,7 +110,8 @@ export const MCP_OPERATIONS = [
 		name: "mark_as_read",
 		title: "Mark a saved article read",
 		description:
-			"Mark one saved article read in the user's Readplace readlist, looked up by the id from a list_readlist_articles result. The article stays in the readlist and leaves the unread list. An article the user filed into more than one readlist is marked read in every one of them, not just the first. Marking an already-read article read again changes nothing. Do this when the user has read the piece or asks you to — a summary you produced is not the same as the user reading it.",
+			"Mark one saved article read in the user's Readplace readlist, looked up by the id from a list_readlist_articles result. The article stays in the readlist and leaves the unread list. An article the user filed into more than one readlist is marked read in every one of them, not just the first. Marking an already-read article read again changes nothing. Do this when the user has read the piece or asks you to — a summary you produced is not the same as the user reading it. " +
+			ARTICLE_LINK_GUIDANCE,
 		summary:
 			"marks one saved article read in every readlist it is on; it stays in the readlist and leaves the unread list.",
 		effect: "update",
@@ -112,7 +120,8 @@ export const MCP_OPERATIONS = [
 		name: "mark_as_unread",
 		title: "Mark a saved article unread",
 		description:
-			"Mark one saved article unread in the user's Readplace readlist, looked up by the id from a list_readlist_articles result. It returns to the unread list and its read date is cleared, in every readlist the user filed it into. This is the undo for mark_as_read.",
+			"Mark one saved article unread in the user's Readplace readlist, looked up by the id from a list_readlist_articles result. It returns to the unread list and its read date is cleared, in every readlist the user filed it into. This is the undo for mark_as_read. " +
+			ARTICLE_LINK_GUIDANCE,
 		summary:
 			"marks one saved article unread again in every readlist it is on; the undo for mark_as_read.",
 		effect: "update",

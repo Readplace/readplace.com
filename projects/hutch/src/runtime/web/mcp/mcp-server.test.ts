@@ -16,7 +16,14 @@ const context = { userId, oauthClientId: "dyn-registered-mcp-client" };
 
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {
-		saveLink: async () => ({ ok: true, title: "Example", url: "https://example.com/", filedInto: [] }),
+		appOrigin: "https://readplace.test",
+		saveLink: async () => ({
+			ok: true,
+			id: "0".repeat(32),
+			title: "Example",
+			url: "https://example.com/",
+			filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+		}),
 		listReadlists: async () => [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
 		createReadlist: async () => ({ status: "invalid_name" }),
 		addToReadlist: async () => ({ status: "article_not_found" }),
@@ -46,7 +53,7 @@ function mcpArticle(overrides: Partial<McpArticle> = {}): McpArticle {
 		readTime: { value: "1", label: "~1 min read" },
 		status: "unread",
 		savedAt: "2026-01-01T00:00:00.000Z",
-		readlists: [],
+		readlists: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
 		...overrides,
 	};
 }
@@ -95,6 +102,7 @@ describe("initMcpServer", () => {
 		for (const claim of [
 			"mark_as_read and mark_as_unread really change the readlist",
 			"a summary you produced is not the same as the user reading it",
+			"Each article's url opens its private Readplace reader view",
 			"delete_article changes nothing",
 			"Readplace app",
 		]) {
@@ -212,7 +220,8 @@ describe("initMcpServer", () => {
 		it("saves the url for the authenticated user and reports the title", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
-				filedInto: [],
+				id: "a".repeat(32),
+				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
 				title: "My Article",
 				url: "https://example.com/a",
 			}));
@@ -228,8 +237,23 @@ describe("initMcpServer", () => {
 			});
 			expect(response).toMatchObject({
 				id: 4,
-				result: { content: [{ type: "text", text: expect.stringContaining("My Article") }] },
+				result: {
+					content: [
+						{
+							type: "text",
+							text: expect.stringContaining(
+								`Read in Readplace: https://readplace.test/queue/${"a".repeat(32)}/view?from=mcp`,
+							),
+						},
+					],
+					structuredContent: {
+						id: "a".repeat(32),
+						url: `https://readplace.test/queue/${"a".repeat(32)}/view?from=mcp`,
+					},
+				},
 			});
+			expect(response).not.toHaveProperty("result.structuredContent.readerUrl");
+			expect(JSON.stringify(response)).not.toContain("https://example.com/a");
 		});
 
 		it("surfaces a save rejection as an error result", async () => {
@@ -351,10 +375,43 @@ describe("initMcpServer", () => {
 					},
 				},
 			});
-			// Falls back to the url when the title is still empty (content loading).
 			expect(response).toMatchObject({
-				result: { content: [{ text: expect.stringContaining("https://b.test/") }] },
+				result: {
+					content: [
+						{
+							text: expect.stringContaining(
+								`https://readplace.test/queue/${"b".repeat(32)}/view?from=mcp`,
+							),
+						},
+					],
+				},
 			});
+		});
+
+		it("uses the named readlist reader URL as the primary article link", async () => {
+			const work = { id: ReadlistSlugSchema.parse("work"), name: "Work" };
+			const article = mcpArticle({
+				id: "c".repeat(32),
+				url: "https://publisher.test/article",
+				readlists: [work],
+			});
+			const server = initMcpServer(
+				fakeDeps({ listReadlist: async () => ({ total: 1, page: 1, pageSize: 20, articles: [article] }) }),
+			);
+			const response = await call(server, 91, "list_readlist_articles");
+			const privateUrl = `https://readplace.test/queue/${article.id}/view?from=mcp&queue=work`;
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: expect.stringContaining(`- A [unread] ${privateUrl}`) }],
+					structuredContent: {
+						articles: [{ id: article.id, url: privateUrl }],
+					},
+				},
+			});
+			expect(response).not.toHaveProperty(
+				"result.structuredContent.articles.0.readerUrl",
+			);
+			expect(JSON.stringify(response)).not.toContain(article.url);
 		});
 
 		it("flags that only the first page is shown when the total exceeds the listed articles", async () => {
@@ -506,9 +563,19 @@ describe("initMcpServer", () => {
 			expect(response).toMatchObject({
 				result: {
 					content: [{ text: expect.stringContaining("Deep Work") }],
-					structuredContent: { found: true, article: { id: article.id } },
+					structuredContent: {
+						found: true,
+						article: {
+							id: article.id,
+							url: `https://readplace.test/queue/${article.id}/view?from=mcp`,
+						},
+					},
 				},
 			});
+			expect(response).not.toHaveProperty(
+				"result.structuredContent.article.readerUrl",
+			);
+			expect(JSON.stringify(response)).not.toContain(article.url);
 		});
 
 		it("renders the server's read-time label verbatim in the meta line", async () => {
@@ -543,11 +610,16 @@ describe("initMcpServer", () => {
 			});
 			const server = initMcpServer(fakeDeps({ getArticle: async () => article }));
 			const response = await call(server, 34, "get_article", { id: article.id });
-			for (const fragment of ["https://a.test/x", "A short take", "read 2026-03-03"]) {
+			for (const fragment of [
+				`https://readplace.test/queue/${article.id}/view?from=mcp`,
+				"A short take",
+				"read 2026-03-03",
+			]) {
 				expect(response).toMatchObject({
 					result: { content: [{ text: expect.stringContaining(fragment) }] },
 				});
 			}
+			expect(JSON.stringify(response)).not.toContain(article.url);
 		});
 
 		it("shows date-only in the text block but keeps the ISO timestamps in structuredContent", async () => {
@@ -844,12 +916,27 @@ describe("initMcpServer", () => {
 				result: {
 					content: [
 						{
-							text: "Earlier read (Example) [read]: Same argument\nStill to read (Example) [unread]: Follow-up",
+							text: `Earlier read (Example) [read]: https://readplace.test/queue/${"y".repeat(32)}/view?from=mcp\nReason: Same argument\nStill to read (Example) [unread]: https://readplace.test/queue/${"z".repeat(32)}/view?from=mcp\nReason: Follow-up`,
 						},
 					],
-					structuredContent: { status: "ready" },
+					structuredContent: {
+						status: "ready",
+						articles: [
+							{
+								id: "y".repeat(32),
+								url: `https://readplace.test/queue/${"y".repeat(32)}/view?from=mcp`,
+							},
+							{
+								id: "z".repeat(32),
+								url: `https://readplace.test/queue/${"z".repeat(32)}/view?from=mcp`,
+							},
+						],
+					},
 				},
 			});
+			expect(response).not.toHaveProperty(
+				"result.structuredContent.articles.0.readerUrl",
+			);
 		});
 
 		it("says so plainly when nothing in the readlist relates", async () => {
@@ -957,6 +1044,26 @@ describe("initMcpServer", () => {
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("[read]") }] },
 			});
+			expect(response).toMatchObject({
+				result: {
+					content: [
+						{
+							text: expect.stringContaining(
+								`https://readplace.test/queue/${article.id}/view?from=mcp`,
+							),
+						},
+					],
+					structuredContent: {
+						article: {
+							url: `https://readplace.test/queue/${article.id}/view?from=mcp`,
+						},
+					},
+				},
+			});
+			expect(response).not.toHaveProperty(
+				"result.structuredContent.article.readerUrl",
+			);
+			expect(JSON.stringify(response)).not.toContain(article.url);
 		});
 
 		it("marks the article unread with the read date gone", async () => {
@@ -1075,7 +1182,8 @@ describe("initMcpServer", () => {
 		it("refuses save_link with the renewal upsell when inactive, before the save runs", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
-				filedInto: [],
+				id: "x".repeat(32),
+				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
 				title: "x",
 				url: "https://e.test/",
 			}));
@@ -1132,7 +1240,8 @@ describe("initMcpServer", () => {
 		it("refuses save_link without running the save when the subscription check throws", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
-				filedInto: [],
+				id: "x".repeat(32),
+				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
 				title: "Saved",
 				url: "https://e.test/a",
 			}));
@@ -1220,7 +1329,8 @@ describe("initMcpServer", () => {
 				fakeDeps({
 					saveLink: async () => ({
 						ok: true,
-						filedInto: [],
+						id: "a".repeat(32),
+						filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
 						title: "My Article",
 						url: "https://e.test/a",
 					}),
@@ -1479,8 +1589,8 @@ describe("MCP readlist tools", () => {
 		const saveLink = jest.fn(fakeDeps().saveLink);
 		saveLink.mockResolvedValue({
 			ok: true,
+			id: "0".repeat(32),
 			title: "Example",
-			url: "https://example.com/",
 			filedInto: [all, work, personal],
 		});
 		const server = initMcpServer(
@@ -1574,7 +1684,12 @@ describe("MCP readlist tools", () => {
 			result: {
 				content: [{ text: expect.stringContaining("in Work") }],
 				structuredContent: {
-					articles: [article],
+					articles: [
+						{
+							...article,
+							url: `https://readplace.test/queue/${article.id}/view?from=mcp`,
+						},
+					],
 					readlist: work,
 					nextCursor: encodeReadlistCursor({
 						page: 2,
@@ -1838,17 +1953,29 @@ describe("MCP readlist tools", () => {
 		const server = initMcpServer(
 			fakeDeps({ listReadlists: async () => [all, work], addToReadlist }),
 		);
-		expect(
-			await call(server, 1, "add_to_readlist", {
-				id: article.id,
-				readlist: work.id,
-			}),
-		).toMatchObject({
+		const response = await call(server, 1, "add_to_readlist", {
+			id: article.id,
+			readlist: work.id,
+		});
+		expect(response).toMatchObject({
 			result: {
-				structuredContent: { status, readlist: work, article },
-				content: [{ text: expect.stringContaining("In readlists: All, Work") }],
+				structuredContent: {
+					status,
+					readlist: work,
+					article: {
+						...article,
+						url: `https://readplace.test/queue/${article.id}/view?from=mcp`,
+					},
+				},
+				content: [
+					{ text: expect.stringContaining("In readlists: All, Work") },
+				],
 			},
 		});
+		expect(response).not.toHaveProperty(
+			"result.structuredContent.article.readerUrl",
+		);
+		expect(JSON.stringify(response)).not.toContain(article.url);
 		expect(addToReadlist).toHaveBeenCalledWith({
 			userId,
 			id: article.id,
@@ -1994,7 +2121,16 @@ describe("MCP readlist name validation", () => {
 		});
 		expect(createReadlist).toHaveBeenCalledWith({ userId, name });
 		expect(await call(server, 2, "add_to_readlist", { id: article.id, create_name: name })).toMatchObject({
-			result: { structuredContent: { status: "filed", readlist, article } },
+			result: {
+				structuredContent: {
+					status: "filed",
+					readlist,
+					article: {
+						...article,
+						url: `https://readplace.test/queue/${article.id}/view?from=mcp&queue=work`,
+					},
+				},
+			},
 		});
 		expect(addToReadlist).toHaveBeenCalledWith({ userId, id: article.id, target: { kind: "create", name } });
 	});

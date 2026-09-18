@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import type { Minutes, SavedArticle } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import { initReaderPermalink, type ReaderPermalinkDeps } from "./reader-permalink";
+import { buildMcpReaderPath } from "./owner-reader-link";
+import {
+	initReaderPermalink,
+	type ReaderPermalinkDeps,
+} from "./reader-permalink";
 
 const OWNER_ID = UserIdSchema.parse("owner-user");
 const STRANGER_ID = UserIdSchema.parse("stranger-user");
@@ -34,6 +39,24 @@ function createDeps(overrides: Partial<ReaderPermalinkDeps> = {}): ReaderPermali
 }
 
 describe("resolveReaderPermalink", () => {
+	it("builds an MCP reader link that carries a named readlist", () => {
+		expect(buildMcpReaderPath({ articleId: ARTICLE_ID.value })).toBe(
+			`/queue/${ARTICLE_ID.value}/view?from=mcp`,
+		);
+		expect(
+			buildMcpReaderPath({
+				articleId: ARTICLE_ID.value,
+				readlist: ReadlistSlugSchema.parse("reading"),
+			}),
+		).toBe(`/queue/${ARTICLE_ID.value}/view?from=mcp&queue=reading`);
+		expect(
+			buildMcpReaderPath({
+				articleId: ARTICLE_ID.value,
+				readlist: ReadlistSlugSchema.parse("default"),
+			}),
+		).toBe(`/queue/${ARTICLE_ID.value}/view?from=mcp`);
+	});
+
 	it("redirects to /queue when the id is malformed (not a 32-char hex hash)", async () => {
 		const resolve = initReaderPermalink(createDeps());
 
@@ -209,6 +232,26 @@ describe("resolveReaderPermalink", () => {
 		});
 	});
 
+	it("redirects a logged-out MCP reader link to /login while retaining its readlist", async () => {
+		const resolve = initReaderPermalink(createDeps({
+			findArticleUrlById: async () => ARTICLE_URL,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: undefined,
+			query: { from: "mcp", queue: "reading" },
+		});
+
+		expect(result).toEqual({
+			kind: "redirect",
+			redirect: {
+				statusCode: 303,
+				location: `/login?return=${encodeURIComponent(`/queue/${ARTICLE_ID.value}/view?from=mcp&queue=reading`)}`,
+			},
+		});
+	});
+
 	it("renders the reader directly for a logged-in owner when no email marker is present", async () => {
 		const owned = savedArticleFor(OWNER_ID);
 		const resolve = initReaderPermalink(createDeps({
@@ -241,6 +284,28 @@ describe("resolveReaderPermalink", () => {
 		expect(result).toEqual({
 			kind: "redirect",
 			redirect: { statusCode: 303, location: `/queue/${ARTICLE_ID.value}/view` },
+		});
+	});
+
+	it("strips the MCP marker for a logged-in owner while retaining its readlist", async () => {
+		const owned = savedArticleFor(OWNER_ID);
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async (id, userId) =>
+				id.value === ARTICLE_ID.value && userId === OWNER_ID ? owned : null,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: OWNER_ID,
+			query: { from: "mcp", queue: "reading" },
+		});
+
+		expect(result).toEqual({
+			kind: "redirect",
+			redirect: {
+				statusCode: 303,
+				location: `/queue/${ARTICLE_ID.value}/view?queue=reading`,
+			},
 		});
 	});
 

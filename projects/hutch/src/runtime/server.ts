@@ -556,6 +556,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		resolveReadlistMembership,
 	});
 	const mcpServer = initMcpServer({
+		appOrigin,
 		resolveToolAccess,
 		listReadlists: readlistOperations.listReadlists,
 		createReadlist: async (params) => {
@@ -598,7 +599,12 @@ export function createApp(dependencies: AppDependencies): Express {
 				const membership = await resolveReadlistMembership({ userId, urls: [saved.url] });
 				const filedInto = membership.get(saved.url);
 				assert(filedInto, "a saved article must have readlist membership");
-				return { ok: true, title: saved.metadata.title, url: saved.url, filedInto };
+				return {
+					ok: true,
+					id: saved.id.value,
+					title: saved.metadata.title,
+					filedInto,
+				};
 			} catch (error) {
 				deps.logError(
 					"MCP save_link failed",

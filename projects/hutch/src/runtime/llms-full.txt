@@ -118,6 +118,10 @@ into several. Every save also lands in All. All is a readlist of its own, so an
 article removed from All can still belong to another readlist. Article results
 include their current readlist memberships.
 
+Saved-article results expose `url` for the user's private Readplace reader.
+Always link `url` when showing or recommending an article. Related-article
+recommendations also carry `url` for the private reader.
+
 Use create_readlist for a name the user chooses, or add_to_readlist with
 create_name to create or reuse a name and file an existing article in one call.
 With add_to_readlist, pass exactly one of readlist or create_name. Names are

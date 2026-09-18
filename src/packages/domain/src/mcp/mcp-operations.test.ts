@@ -15,6 +15,15 @@ describe("MCP operations", () => {
 		});
 	});
 
+	it("tells MCP clients to link saved articles to the private reader by default", () => {
+		const metadata = mcpOperationMetadata("list_readlist_articles");
+		assert.equal(metadata.description.includes("`url`"), true);
+		assert.equal(metadata.description.includes("private Readplace reader"), true);
+		assert.equal(metadata.description.includes("link `url`"), true);
+		assert.equal(metadata.description.includes("`readerUrl`"), false);
+		assert.equal(metadata.description.includes("original publisher"), false);
+	});
+
 	it("splits the operations an assistant performs from the one the app owns", () => {
 		const performed = [
 			...mcpOperationsWithEffect("save"),

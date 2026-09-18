@@ -414,6 +414,41 @@ describe("a readlist the reader opened", () => {
 
 		expect(response.status).toBe(200);
 	});
+
+	it("returns an MCP reader link to its named readlist after login", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const ownerAgent = await loginAgent(harness.server, harness.auth);
+		const readlist = await createReadlistAndOpen(ownerAgent);
+		await seedInto(harness, readlist, "https://example.com/mcp-only-here");
+		const articleId = articleIds(parse((await ownerAgent.get(`/queue?queue=${readlist}`)).text))[0];
+		assert(articleId, "the named readlist must contain the MCP article");
+
+		const loggedOutAgent = request.agent(harness.server);
+		const markedPath = `/queue/${articleId}/view?from=mcp&queue=${readlist}`;
+		const loginRedirect = await loggedOutAgent.get(markedPath);
+
+		expect(loginRedirect.status).toBe(303);
+		expect(loginRedirect.headers.location).toBe(
+			`/login?return=${encodeURIComponent(markedPath)}`,
+		);
+
+		const login = await loggedOutAgent
+			.post(loginRedirect.headers.location)
+			.type("form")
+			.send({ email: "test@example.com", password: "password123" });
+
+		expect(login.status).toBe(303);
+		expect(login.headers.location).toBe(markedPath);
+
+		const markerRedirect = await loggedOutAgent.get(login.headers.location);
+
+		expect(markerRedirect.status).toBe(303);
+		expect(markerRedirect.headers.location).toBe(`/queue/${articleId}/view?queue=${readlist}`);
+
+		const reader = await loggedOutAgent.get(markerRedirect.headers.location);
+
+		expect(reader.status).toBe(200);
+	});
 });
 
 describe("the readlist every reader is given", () => {

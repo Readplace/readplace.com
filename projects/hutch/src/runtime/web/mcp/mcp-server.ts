@@ -21,6 +21,7 @@ import type {
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
 import { type ToolAccess, UNVERIFIED_ACCESS } from "./tool-access";
+import { buildMcpReaderPath } from "../pages/readlist/owner-reader-link";
 import {
 	AddToReadlistArgs,
 	ArticleIdArgs,
@@ -71,8 +72,8 @@ export interface McpReadlist {
 type SaveLinkResult =
 	| {
 			readonly ok: true;
+			readonly id: string;
 			readonly title: string;
-			readonly url: string;
 			readonly filedInto: readonly McpReadlist[];
 		}
 	| { readonly ok: false; readonly message: string };
@@ -94,6 +95,10 @@ export interface McpArticle {
 	readonly savedAt: string;
 	readonly readAt?: string;
 	readonly readlists: readonly McpReadlist[];
+}
+
+export interface McpArticleOutput extends Omit<McpArticle, "url"> {
+	readonly url: string;
 }
 
 export type CreateReadlistResult =
@@ -138,6 +143,10 @@ export interface RelatedArticleResult {
 	readonly readAt?: string;
 }
 
+export interface RelatedArticleOutput extends RelatedArticleResult {
+	readonly url: string;
+}
+
 export type ArticleRelatedResult =
 	| { readonly status: "not_found" }
 	| { readonly status: "pending" }
@@ -176,6 +185,7 @@ export interface ListReadlistResult {
  * mark-read over MCP is the identical write to the one the readlist page makes,
  * and the read tools see exactly what the user's own readlist shows. */
 export interface McpServerDeps {
+	appOrigin: string;
 	saveLink: (params: {
 		userId: AuthenticatedUserId;
 		url: string;
@@ -327,10 +337,6 @@ function failure(id: JsonRpcId, code: number, message: string): JsonRpcFailure {
 	return { jsonrpc: "2.0", id, error: { code, message } };
 }
 
-function text(value: string): ToolResult {
-	return { content: [{ type: "text", text: value }] };
-}
-
 /** A successful tool result that carries both a human-readable text block (for
  * clients that only render text) and the machine-readable `structuredContent`
  * (for clients that consume structured output). */
@@ -362,7 +368,7 @@ function formatReadlistNames(readlists: readonly McpReadlist[]): string {
 	return readlists.map((readlist) => readlist.name).join(", ");
 }
 
-function formatArticle(article: McpArticle): string {
+function formatArticle(article: McpArticleOutput): string {
 	const dates = article.readAt
 		? `Saved ${formatDate(article.savedAt)}; read ${formatDate(article.readAt)}`
 		: `Saved ${formatDate(article.savedAt)}`;
@@ -382,6 +388,40 @@ function formatArticle(article: McpArticle): string {
 }
 
 export function initMcpServer(deps: McpServerDeps): McpServer {
+	function readerReadlist(article: Pick<McpArticle, "readlists">): ReadlistSlug | undefined {
+		const readlist =
+			article.readlists.find((candidate) => candidate.id === DEFAULT_READLIST_SLUG) ??
+			article.readlists[0];
+		assert(readlist, "an MCP article must belong to a readlist");
+		return readlist.id === DEFAULT_READLIST_SLUG ? undefined : readlist.id;
+	}
+
+	function privateArticleUrl(input: {
+		articleId: string;
+		readlist?: ReadlistSlug;
+	}): string {
+		return new URL(buildMcpReaderPath(input), deps.appOrigin).toString();
+	}
+
+	function articleOutput(article: McpArticle): McpArticleOutput {
+		return {
+			...article,
+			url: privateArticleUrl({
+				articleId: article.id,
+				readlist: readerReadlist(article),
+			}),
+		};
+	}
+
+	function relatedArticleOutput(
+		article: RelatedArticleResult,
+	): RelatedArticleOutput {
+		return {
+			...article,
+			url: privateArticleUrl({ articleId: article.id }),
+		};
+	}
+
 	function unexpectedFailure(
 		tool: string,
 		error: unknown,
@@ -402,7 +442,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves that relate to it, each tagged unread or read). A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
+				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves that relate to it, each tagged unread or read). Each article's url opens its private Readplace reader view. A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
 		};
 	}
 
@@ -472,8 +512,18 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				filed.length > 0
 					? ` and filed it into ${formatReadlistNames(filed)}`
 					: "";
-			return text(
-				`Saved "${outcome.title}" to your Readplace readlist${where} (${outcome.url}). The reader view is loading in the background.`,
+			const savedArticleUrl = privateArticleUrl({
+				articleId: outcome.id,
+				readlist: readerReadlist({ readlists: outcome.filedInto }),
+			});
+			return data(
+				`Saved "${outcome.title}" to your Readplace readlist${where}. Read in Readplace: ${savedArticleUrl}\nThe reader view is loading in the background.`,
+				{
+					id: outcome.id,
+					title: outcome.title,
+					url: savedArticleUrl,
+					readlists: outcome.filedInto,
+				},
 			);
 		} catch (error) {
 			return unexpectedFailure(SAVE_LINK_TOOL.name, error, "save the link");
@@ -567,10 +617,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 						order,
 					})
 				: undefined;
+			const articles = outcome.articles.map(articleOutput);
 			const structuredContent = {
-				articles: outcome.articles,
+				articles,
 				total: outcome.total,
-				count: outcome.articles.length,
+				count: articles.length,
 				...(selectedReadlist !== undefined
 					? { readlist: selectedReadlist }
 					: {}),
@@ -579,7 +630,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			const where =
 				selectedReadlist !== undefined ? ` in ${selectedReadlist.name}` : "";
 
-			if (outcome.articles.length === 0) {
+			if (articles.length === 0) {
 				return data(
 					outcome.total === 0
 						? selectedReadlist === undefined
@@ -590,11 +641,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				);
 			}
 
-			const lines = outcome.articles.map(
+			const lines = articles.map(
 				(article) =>
 					`- ${article.title || article.url} [${article.status}] ${article.url}`,
 			);
-			const shown = outcome.articles.length;
+			const shown = articles.length;
 			let header: string;
 			if (outcome.page > 1) {
 				header = `Showing ${shown} more of your ${outcome.total} saved article(s)${where}:`;
@@ -714,16 +765,20 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				target,
 			});
 			switch (result.status) {
-				case "filed":
+				case "filed": {
+					const article = articleOutput(result.article);
 					return data(
-						`Filed into "${result.readlist.name}".\n${formatArticle(result.article)}`,
-						result,
+						`Filed into "${result.readlist.name}".\n${formatArticle(article)}`,
+						{ ...result, article },
 					);
-				case "already_filed":
+				}
+				case "already_filed": {
+					const article = articleOutput(result.article);
 					return data(
-						`Already in "${result.readlist.name}"; nothing changed.\n${formatArticle(result.article)}`,
-						result,
+						`Already in "${result.readlist.name}"; nothing changed.\n${formatArticle(article)}`,
+						{ ...result, article },
 					);
+				}
 				case "article_not_found":
 					return notFoundResult(args.data.id);
 				case "readlist_not_found":
@@ -766,7 +821,8 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				id: args.data.id,
 			});
 			if (!article) return notFoundResult(args.data.id);
-			return data(formatArticle(article), { found: true, article });
+			const output = articleOutput(article);
+			return data(formatArticle(output), { found: true, article: output });
 		} catch (error) {
 			return unexpectedFailure(
 				GET_ARTICLE_TOOL.name,
@@ -882,18 +938,20 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 						"No related saves are available for that article.",
 						result,
 					);
-				case "ready":
+				case "ready": {
+					const articles = result.articles.map(relatedArticleOutput);
 					return data(
-						result.articles.length === 0
+						articles.length === 0
 							? "No saves in the readlist relate to that article."
-							: result.articles
+							: articles
 									.map(
 										(related) =>
-											`${related.title} (${related.siteName}) [${related.status}]: ${related.reason}`,
+											`${related.title} (${related.siteName}) [${related.status}]: ${related.url}\nReason: ${related.reason}`,
 									)
 									.join("\n"),
-						result,
+						{ ...result, articles },
 					);
+				}
 			}
 		} catch (error) {
 			return unexpectedFailure(
@@ -926,10 +984,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				id: args.data.id,
 			});
 			if (result.status === "not_found") return notFoundResult(args.data.id);
-			return data(`${change.confirmation}\n${formatArticle(result.article)}`, {
+			const article = articleOutput(result.article);
+			return data(`${change.confirmation}\n${formatArticle(article)}`, {
 				found: true,
 				marked: true,
-				article: result.article,
+				article,
 			});
 		} catch (error) {
 			return unexpectedFailure(
