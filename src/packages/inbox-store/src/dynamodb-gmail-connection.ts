@@ -12,11 +12,16 @@ import { UserIdSchema } from "@packages/domain/user";
 const CONNECTED_INDEX = "connected-index";
 const CONNECTED_MARKER = "yes";
 
-const GmailFilterErrorRow = z.object({
-	code: z.enum(["query-too-long", "rejected"]),
-	message: z.string(),
-	at: z.string(),
-});
+const GmailFilterErrorRow = z.discriminatedUnion("code", [
+	z.object({
+		code: z.literal("query-too-long"),
+		forwardTo: z.string(),
+		senderCount: z.number(),
+		senderCapacity: z.number(),
+		at: z.string(),
+	}),
+	z.object({ code: z.literal("rejected"), message: z.string(), at: z.string() }),
+]);
 
 const GmailConfirmErrorRow = z.object({
 	reason: z.enum(["token-rejected", "not-confirmed", "invalid-url"]),

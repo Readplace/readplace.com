@@ -1,7 +1,7 @@
 import type {
 	ForwardableSender,
 	GmailConnectionStore,
-	GmailFilterErrorCode,
+	GmailFilterError,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import { buildForwardingFilterQuery, groupSendersByDestination } from "@packages/domain/gmail";
@@ -15,13 +15,25 @@ export type RewriteGmailFilterOutcome =
 	| { ok: false; reason: "not-connected" }
 	| { ok: false; reason: "not-confirmed" }
 	| { ok: false; reason: "reauth-required" }
-	| { ok: false; reason: "query-too-long"; message: string }
+	| {
+			ok: false;
+			reason: "query-too-long";
+			forwardTo: string;
+			senderCount: number;
+			senderCapacity: number;
+		}
 	| { ok: false; reason: "rejected"; message: string }
 	| { ok: false; reason: "unavailable"; status: number };
 
 type GroupApiFailure =
 	| { ok: false; reason: "reauth-required" }
-	| { ok: false; reason: "query-too-long"; message: string }
+	| {
+			ok: false;
+			reason: "query-too-long";
+			forwardTo: string;
+			senderCount: number;
+			senderCapacity: number;
+		}
 	| { ok: false; reason: "rejected"; message: string }
 	| { ok: false; reason: "unavailable"; status: number };
 
@@ -55,13 +67,22 @@ export function initRewriteGmailFilter(deps: {
 		return Promise.resolve({ ok: false, reason: "rejected", message: failure.message });
 	}
 
-	async function recordError(
-		userId: UserId,
-		error: { code: GmailFilterErrorCode; message: string },
-	) {
+	async function recordError(input: { userId: UserId; failure: RecordableFailure }) {
+		const { userId, failure } = input;
+		const { ok: _ok, ...error } = failure;
+		const at = now().toISOString();
+		const recorded: GmailFilterError = error.reason === "query-too-long"
+			? {
+				code: error.reason,
+				forwardTo: error.forwardTo,
+				senderCount: error.senderCount,
+				senderCapacity: error.senderCapacity,
+				at,
+			}
+			: { code: error.reason, message: error.message, at };
 		await connections.recordFilterError({
 			userId,
-			error: { code: error.code, message: error.message, at: now().toISOString() },
+			error: recorded,
 		});
 	}
 
@@ -75,8 +96,13 @@ export function initRewriteGmailFilter(deps: {
 		const built = buildForwardingFilterQuery({ senders: groupSenders });
 		if (!built.query.ok) {
 			if (built.query.reason === "too-long") {
-				const message = `Inbox ${forwardTo}: ${built.query.senderCount} senders produce a ${built.query.length}-character query`;
-				return { ok: false, reason: "query-too-long", message };
+				return {
+					ok: false,
+					reason: "query-too-long",
+					forwardTo,
+					senderCount: built.query.senderCount,
+					senderCapacity: built.query.senderCapacity,
+				};
 			}
 			for (const filter of ours) {
 				const removed = await filters.deleteFilter({ userId, filterId: filter.id });
@@ -125,7 +151,7 @@ export function initRewriteGmailFilter(deps: {
 		const listed = await filters.listFilters({ userId });
 		if (!listed.ok) {
 			const failure = await surfaceApiFailure(userId, listed);
-			if (failure.reason === "rejected") await recordError(userId, { code: "rejected", message: failure.message });
+			if (failure.reason === "rejected") await recordError({ userId, failure });
 			return failure;
 		}
 
@@ -178,7 +204,7 @@ export function initRewriteGmailFilter(deps: {
 			if (!result.ok) {
 				if (result.reason === "unavailable" || result.reason === "reauth-required") return result;
 				if (firstFailure === undefined) {
-					await recordError(userId, { code: result.reason, message: result.message });
+					await recordError({ userId, failure: result });
 					firstFailure = result;
 				}
 				continue;

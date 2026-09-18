@@ -382,6 +382,20 @@
   background: var(--card);
 }
 
+.gmail__filter {
+  margin-bottom: 16px;
+}
+
+.gmail__filter .gmail__alert {
+  margin-bottom: 0;
+}
+
+.gmail__filter-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .gmail__mapped-sender {
   display: flex;
   flex-wrap: wrap;
@@ -420,7 +434,8 @@
   color: var(--foreground);
 }
 
-.gmail__mapping-disabled {
+.gmail__mapping-disabled,
+.gmail__mapped-sender-state {
   display: inline-block;
   margin-top: 4px;
   font-size: 0.8125rem;

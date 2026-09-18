@@ -357,7 +357,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		publishRewriteGmailFilter: async (detail: {
 			userId: UserId;
-			reason: "forwarding-confirmed" | "sender-added" | "sender-removed";
+			reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested";
 		}) => {
 			await publishEvent(RewriteGmailFilterCommand, detail);
 		},

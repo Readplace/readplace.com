@@ -5,6 +5,7 @@ export const GMAIL_PATH = "/integrations/gmail";
 export const GMAIL_STATUS_PATH = "/integrations/gmail/status";
 export const GMAIL_SENDER_ADD_PATH = "/integrations/gmail/senders/add";
 export const GMAIL_SENDER_REMOVE_PATH = "/integrations/gmail/senders/remove";
+export const GMAIL_FILTER_RETRY_PATH = "/integrations/gmail/filter/retry";
 export const GMAIL_DISCOVERY_START_PATH = "/integrations/gmail/discovery/start";
 export const GMAIL_SENDERS_PATH = "/integrations/gmail/senders";
 export const GMAIL_DISCONNECT_PATH = "/integrations/gmail/disconnect";
@@ -35,7 +36,8 @@ export type GmailPageNotice =
 	| "confirmed"
 	| "sender_removed"
 	| "sender_mapped"
-	| "inbox_created";
+	| "inbox_created"
+	| "filter_retry_requested";
 
 export function buildGmailUrl(params: {
 	error?: GmailPageError;

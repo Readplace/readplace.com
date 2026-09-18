@@ -269,6 +269,121 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.equal(missingInbox.mappings[0].name, ALIAS);
 	});
 
+	it("marks senders as pending until Gmail accepts their add or remap", () => {
+		const vm = toGmailPageViewModel(input({
+			connection: connection({
+				filterSenderCount: 1,
+				filterUpdatedAt: "2026-08-27T00:07:00.000Z",
+			}),
+			senders: [
+				sender({ mappedAt: "2026-08-27T00:06:00.000Z" }),
+				sender({
+					senderEmail: BREW,
+					addedToFilterAt: "2026-08-27T00:08:00.000Z",
+					mappedAt: "2026-08-27T00:06:00.000Z",
+				}),
+				sender({
+					senderEmail: ForwardableSenderSchema.parse("updates@example.com"),
+					mappedAt: "2026-08-27T00:08:00.000Z",
+				}),
+			],
+		}));
+
+		assert.deepEqual(vm.mappings[0].senders.map((row) => [row.email, row.state, row.stateLabel]), [
+			[TLDR, "live", ""],
+			[BREW, "pending", "Waiting for Gmail"],
+			["updates@example.com", "pending", "Waiting for Gmail"],
+		]);
+		assert.equal(vm.filter.state, "updating");
+	});
+
+	it("describes the forwarding rule from the state Gmail has accepted", () => {
+		const waiting = toGmailPageViewModel(input({
+			connection: connection({ forwardingConfirmedAt: undefined }),
+		}));
+		assert.deepEqual(waiting.filter, {
+			state: "waiting-confirmation",
+			message: "Forwarding starts once Gmail confirms the forwarding address.",
+			messageClass: "gmail__step-copy",
+			actions: [],
+		});
+
+		const reconnect = toGmailPageViewModel(input({
+			connection: connection({ revokedAt: "2026-08-27T00:08:00.000Z", revokedReason: "invalid-grant" }),
+		}));
+		assert.deepEqual(reconnect.filter, {
+			state: "reconnect",
+			message: "Reconnect Gmail to update the forwarding rule.",
+			messageClass: "gmail__step-copy",
+			actions: [],
+		});
+
+		const tooLong = toGmailPageViewModel(input({
+			inboxes: [inbox({ name: "tech", address: ALIAS })],
+			connection: connection({ lastFilterError: {
+				code: "query-too-long",
+				forwardTo: ALIAS,
+				senderCount: 40,
+				senderCapacity: 36,
+				at: "2026-08-27T00:08:00.000Z",
+			} }),
+		}));
+		assert.equal(
+			tooLong.filter.message,
+			"Gmail's forwarding rule for tech ran out of room at 36 of its 40 senders. Exclude some, or move some to another inbox, then try again.",
+		);
+		assert.deepEqual(tooLong.filter.actions.map((action) => action.key), ["retry"]);
+
+		const gatewayTooLong = toGmailPageViewModel(input({
+			connection: connection({ lastFilterError: {
+				code: "query-too-long",
+				forwardTo: GATEWAY,
+				senderCount: 40,
+				senderCapacity: 36,
+				at: "2026-08-27T00:08:00.000Z",
+			} }),
+		}));
+		assert.match(gatewayTooLong.filter.message, /for senders without an inbox/);
+
+		const rejected = toGmailPageViewModel(input({
+			connection: connection({ lastFilterError: {
+				code: "rejected",
+				message: "Unrecognized forwarding address",
+				at: "2026-08-27T00:08:00.000Z",
+			} }),
+		}));
+		assert.equal(
+			rejected.filter.message,
+			"Gmail didn't accept the forwarding rule (Unrecognized forwarding address). Try again.",
+		);
+
+		const updating = toGmailPageViewModel(input({ senders: [sender()] }));
+		assert.equal(updating.filter.state, "updating");
+		assert.equal(
+			updating.filter.message,
+			"Gmail hasn't accepted the latest change yet. Refresh in a moment, or try again.",
+		);
+		assert.deepEqual(updating.filter.actions.map((action) => action.key), ["retry"]);
+
+		const oneLive = toGmailPageViewModel(input({
+			connection: connection({ filterSenderCount: 1, filterUpdatedAt: "2026-08-27T00:07:00.000Z" }),
+		}));
+		assert.equal(oneLive.filter.message, "Gmail is forwarding 1 sender.");
+
+		const severalLive = toGmailPageViewModel(input({
+			connection: connection({ filterSenderCount: 3, filterUpdatedAt: "2026-08-27T00:07:00.000Z" }),
+		}));
+		assert.equal(severalLive.filter.message, "Gmail is forwarding 3 senders.");
+
+		const none = toGmailPageViewModel(input());
+		assert.deepEqual(none.filter, {
+			state: "none",
+			message: "No forwarding rule in Gmail yet.",
+			messageClass: "gmail__step-copy",
+			actions: [],
+		});
+	});
+
 	it("preserves mappings when metadata consent is missing or Google revokes access", () => {
 		const metadata = toGmailPageViewModel(input({ metadataScopeGranted: false, senders: [sender()] }));
 		assert.equal(metadata.showMetadataReconnect, true);
@@ -296,12 +411,15 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.equal(vm.showStep, false);
 	});
 
-	it("shows known operation banners and filter errors but ignores unknown keys", () => {
+	it("shows known operation banners while leaving filter failures in the filter block", () => {
 		const vm = toGmailPageViewModel(input({ error: "destination_invalid", notice: "sender_removed",
-			connection: connection({ lastFilterError: { code: "query-too-long", message: "Too many senders", at: "2026-08-28" } }) }));
+			connection: connection({ lastFilterError: {
+				code: "query-too-long", forwardTo: GATEWAY, senderCount: 40, senderCapacity: 36, at: "2026-08-28",
+			} }) }));
 		assert.equal(vm.state, "filter-failed");
-		assert.deepEqual(vm.alerts.map((entry) => entry.key), ["destination_invalid", "filter"]);
-		assert.equal(vm.alerts[1].message, "Too many senders");
+		assert.deepEqual(vm.alerts.map((entry) => entry.key), ["destination_invalid"]);
+		assert.equal(vm.filter.state, "failed");
+		assert.equal(vm.filter.messageClass, "gmail__alert");
 		assert.equal(vm.notices[0].key, "sender_removed");
 		const unknown = toGmailPageViewModel(input({ error: "unexpected", notice: "unexpected" }));
 		assert.deepEqual(unknown.alerts, []);
@@ -315,6 +433,8 @@ describe("Gmail inbox mappings and connection status", () => {
 		const confirmedCreated = toGmailPageViewModel(input({ notice: "inbox_created" }));
 		assert.equal(confirmedCreated.notices[0].key, "inbox_created");
 		assert.equal(confirmedCreated.notices[0].message, "Inbox created and mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.");
+		const retryRequested = toGmailPageViewModel(input({ notice: "filter_retry_requested" }));
+		assert.equal(retryRequested.notices[0].message, "Updating Gmail. Refresh in a moment.");
 
 		const awaiting = { connection: connection({ forwardingConfirmedAt: undefined }) };
 		const awaitingMapped = toGmailPageViewModel(input({ ...awaiting, notice: "sender_mapped" }));

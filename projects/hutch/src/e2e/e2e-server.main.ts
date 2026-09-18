@@ -494,11 +494,6 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 	})
 	if (completeDiscoveryOnStart) completeGmailDiscoveryOnStart.add(userId)
 	await gmailConnectionStore.markForwardingConfirmed({ userId })
-	await gmailConnectionStore.recordFilter({
-		userId,
-		filterCount: 1,
-		filterSenderCount: senders.filter((s) => s.place !== 'unsorted').length,
-	})
 	for (const entry of senders) {
 		const senderEmail = ForwardableSenderSchema.parse(entry.email)
 		if (entry.place === 'unsorted') {
@@ -522,6 +517,11 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		}
 		await gmailSenderStore.addSenderToFilter({ userId, senderEmail })
 	}
+	await gmailConnectionStore.recordFilter({
+		userId,
+		filterCount: 1,
+		filterSenderCount: senders.filter((s) => s.place !== 'unsorted').length,
+	})
 	res.status(201).json({ ok: true })
 })
 

@@ -22,7 +22,6 @@ export type {
 	GmailConnection,
 	GmailConnectionStore,
 	GmailFilterError,
-	GmailFilterErrorCode,
 	GmailRevokedReason,
 } from "./gmail-connection.types";
 export type { GmailCredentialsStore } from "./gmail-credentials.types";

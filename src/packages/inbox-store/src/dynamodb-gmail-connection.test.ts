@@ -164,7 +164,9 @@ describe("initDynamoDbGmailConnection", () => {
 		const { store, commands } = harness();
 		const error = {
 			code: "query-too-long",
-			message: "1200 characters over the limit",
+			forwardTo: "gmail-a7b2c9@read.place",
+			senderCount: 40,
+			senderCapacity: 36,
 			at: NOW.toISOString(),
 		} as const;
 

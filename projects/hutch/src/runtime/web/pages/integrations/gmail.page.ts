@@ -20,7 +20,14 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { GmailPage, renderGmailPoll, renderGmailSenderResults } from "./gmail.component";
-import { buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS, GMAIL_DISCOVERY_MAX_POLLS, type GmailPageError, type GmailPageNotice, GmailPollStateSchema } from "./gmail.url";
+import {
+	buildGmailUrl,
+	GMAIL_CONFIRM_MAX_POLLS,
+	GMAIL_DISCOVERY_MAX_POLLS,
+	type GmailPageError,
+	type GmailPageNotice,
+	GmailPollStateSchema,
+} from "./gmail.url";
 import { gmailPollState, toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 import { buildIntegrationsUrl, INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-connect.page";
@@ -242,6 +249,18 @@ export function registerGmailPageRoutes(
 		await gmail.gmailSenderStore.removeSender({ userId, senderEmail: body.data.sender });
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-removed" });
 		res.redirect(303, buildGmailUrl({ notice: "sender_removed", discovery: "started" }));
+	});
+
+	router.post("/gmail/filter/retry", write, connected, async (req: Request, res: Response) => {
+		const userId = ownerOf(req);
+		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
+		assert(connection, "the connected middleware requires a Gmail connection");
+		if (connection.forwardingConfirmedAt === undefined || connection.revokedAt !== undefined) {
+			res.redirect(303, buildGmailUrl());
+			return;
+		}
+		await gmail.publishRewriteGmailFilter({ userId, reason: "retry-requested" });
+		res.redirect(303, buildGmailUrl({ notice: "filter_retry_requested" }));
 	});
 
 	router.post("/gmail/disconnect", teardown, async (req: Request, res: Response) => {

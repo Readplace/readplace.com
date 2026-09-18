@@ -1,5 +1,13 @@
 import { withInternalTracking } from "@packages/web-shell";
-import type { GmailConfirmFailureReason, GmailConnection, GmailConnectionState, GmailDiscovery, GmailSenderEntry } from "@packages/domain/gmail";
+import assert from "node:assert";
+import type {
+	GmailConfirmFailureReason,
+	GmailConnection,
+	GmailConnectionState,
+	GmailDiscovery,
+	GmailFilterError,
+	GmailSenderEntry,
+} from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { addressCapReached, INBOX_ADDRESS_MAX_PER_USER, isCappedAddress, isLiveAddress } from "@packages/domain/inbox";
@@ -7,7 +15,7 @@ import {
 	buildGmailStatusUrl, buildGmailUrl, GMAIL_CONFIRM_MAX_POLLS,
 	GMAIL_DISCOVERY_FAST_POLLS, GMAIL_DISCOVERY_MAX_POLLS,
 	GMAIL_DISCONNECT_PATH, GMAIL_SENDER_ADD_PATH, GMAIL_SENDER_REMOVE_PATH,
-	GMAIL_DISCOVERY_START_PATH, GMAIL_SENDERS_PATH, GMAIL_PATH,
+	GMAIL_DISCOVERY_START_PATH, GMAIL_FILTER_RETRY_PATH, GMAIL_SENDERS_PATH, GMAIL_PATH,
 	buildGmailMailboxUrl, type GmailPageError, type GmailPageNotice, type GmailPollState,
 } from "./gmail.url";
 import { GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW } from "../../../domain/gmail/gmail-discovery-window";
@@ -25,7 +33,31 @@ interface GmailMappingGroup {
 	destination: string;
 	name: string | undefined;
 	disabled: boolean;
-	senders: { email: string }[];
+	senders: GmailMappedSender[];
+}
+interface GmailMappedSender {
+	email: string;
+	state: "live" | "pending";
+	stateLabel: string;
+}
+type GmailFilterState =
+	| "reconnect"
+	| "waiting-confirmation"
+	| "failed"
+	| "updating"
+	| "live"
+	| "none";
+interface GmailFilterAction {
+	key: "retry";
+	method: "POST";
+	action: string;
+	label: string;
+}
+interface GmailFilterViewModel {
+	state: GmailFilterState;
+	message: string;
+	messageClass: "gmail__alert" | "gmail__step-copy";
+	actions: GmailFilterAction[];
 }
 export interface GmailBannerViewModel { key: string; message: string }
 
@@ -103,6 +135,7 @@ export interface GmailPageViewModel {
 	};
 	mappings: GmailMappingGroup[];
 	hasMappings: boolean;
+	filter: GmailFilterViewModel;
 	alerts: GmailBannerViewModel[];
 	notices: GmailBannerViewModel[];
 }
@@ -164,6 +197,7 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	sender_removed: "Sender removed from the mapping.",
 	sender_mapped: "Mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.",
 	inbox_created: "Inbox created and mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.",
+	filter_retry_requested: "Updating Gmail. Refresh in a moment.",
 };
 
 type GmailSaveNotice = Extract<GmailPageNotice, "sender_mapped" | "inbox_created">;
@@ -219,6 +253,7 @@ function loadButtonLabel(input: GmailPageInput, polling: boolean): string {
 
 function mappingGroups(input: GmailPageInput): GmailMappingGroup[] {
 	const groups = new Map<string, GmailMappingGroup>();
+	const filterUpdatedAt = input.connection.filterUpdatedAt;
 	for (const sender of input.senders) {
 		if (sender.addedToFilterAt === undefined) continue;
 		const destination = sender.mappedAddress ?? "legacy";
@@ -233,9 +268,114 @@ function mappingGroups(input: GmailPageInput): GmailMappingGroup[] {
 			};
 			groups.set(destination, group);
 		}
-		group.senders.push({ email: sender.senderEmail });
+		const pending =
+			filterUpdatedAt === undefined ||
+			sender.addedToFilterAt > filterUpdatedAt ||
+			(sender.mappedAt !== undefined && sender.mappedAt > filterUpdatedAt);
+		group.senders.push({
+			email: sender.senderEmail,
+			state: pending ? "pending" : "live",
+			stateLabel: pending ? "Waiting for Gmail" : "",
+		});
 	}
 	return [...groups.values()];
+}
+
+const FILTER_MESSAGE_CLASS_BY_STATE: Record<GmailFilterState, GmailFilterViewModel["messageClass"]> = {
+	reconnect: "gmail__step-copy",
+	"waiting-confirmation": "gmail__step-copy",
+	failed: "gmail__alert",
+	updating: "gmail__step-copy",
+	live: "gmail__step-copy",
+	none: "gmail__step-copy",
+};
+
+const RETRY_FILTER_ACTION: GmailFilterAction = {
+	key: "retry",
+	method: "POST",
+	action: track(GMAIL_FILTER_RETRY_PATH, "retry-filter"),
+	label: "Try again",
+};
+
+const FILTER_ACTIONS_BY_STATE: Record<GmailFilterState, GmailFilterAction[]> = {
+	reconnect: [],
+	"waiting-confirmation": [],
+	failed: [RETRY_FILTER_ACTION],
+	updating: [RETRY_FILTER_ACTION],
+	live: [],
+	none: [],
+};
+
+const FILTER_MESSAGES: Record<Exclude<GmailFilterState, "failed" | "live">, string> = {
+	reconnect: "Reconnect Gmail to update the forwarding rule.",
+	"waiting-confirmation": "Forwarding starts once Gmail confirms the forwarding address.",
+	updating: "Gmail hasn't accepted the latest change yet. Refresh in a moment, or try again.",
+	none: "No forwarding rule in Gmail yet.",
+};
+
+const FILTER_FAILURE_MESSAGES = {
+	"query-too-long": (input: {
+		error: Extract<GmailFilterError, { code: "query-too-long" }>;
+		inboxes: readonly InboxAddressEntry[];
+		gatewayAddress: string;
+	}): string => {
+		if (input.error.forwardTo === input.gatewayAddress) {
+			return `Gmail's forwarding rule for senders without an inbox ran out of room at ${input.error.senderCapacity} of its ${input.error.senderCount} senders. Exclude some, or move some to another inbox, then try again.`;
+		}
+		const inbox = input.inboxes.find((entry) => entry.address === input.error.forwardTo);
+		assert(inbox, "a named filter error must target an existing inbox");
+		const label = inbox.name;
+		return `Gmail's forwarding rule for ${label} ran out of room at ${input.error.senderCapacity} of its ${input.error.senderCount} senders. Exclude some, or move some to another inbox, then try again.`;
+	},
+	rejected: (input: { error: Extract<GmailFilterError, { code: "rejected" }> }): string =>
+		`Gmail didn't accept the forwarding rule (${input.error.message}). Try again.`,
+};
+
+function filterState(input: GmailPageInput, mappings: GmailMappingGroup[]): GmailFilterState {
+	if (input.connection.revokedAt !== undefined) return "reconnect";
+	if (input.connection.forwardingConfirmedAt === undefined) return "waiting-confirmation";
+	if (input.connection.lastFilterError !== undefined) return "failed";
+	if (mappings.some((mapping) => mapping.senders.some((sender) => sender.state === "pending"))) {
+		return "updating";
+	}
+	if (
+		input.connection.filterSenderCount !== undefined &&
+		input.connection.filterSenderCount > 0
+	) {
+		return "live";
+	}
+	return "none";
+}
+
+function filterMessage(input: GmailPageInput, state: GmailFilterState): string {
+	if (state === "failed") {
+		const error = input.connection.lastFilterError;
+		assert(error, "the failed filter state requires a stored filter error");
+		if (error.code === "query-too-long") {
+			return FILTER_FAILURE_MESSAGES[error.code]({
+				error,
+				inboxes: input.inboxes,
+				gatewayAddress: input.connection.gatewayAddress,
+			});
+		}
+		return FILTER_FAILURE_MESSAGES[error.code]({ error });
+	}
+	if (state === "live") {
+		const senderCount = input.connection.filterSenderCount;
+		assert(senderCount !== undefined && senderCount > 0, "the live filter state requires senders");
+		return `Gmail is forwarding ${senderCount} ${senderCount === 1 ? "sender" : "senders"}.`;
+	}
+	return FILTER_MESSAGES[state];
+}
+
+function filterFor(input: GmailPageInput, mappings: GmailMappingGroup[]): GmailFilterViewModel {
+	const state = filterState(input, mappings);
+	return {
+		state,
+		message: filterMessage(input, state),
+		messageClass: FILTER_MESSAGE_CLASS_BY_STATE[state],
+		actions: FILTER_ACTIONS_BY_STATE[state],
+	};
 }
 
 const GMAIL_POLL_COPY: Record<GmailPollState, { watching: string; exhausted: string }> = {
@@ -323,11 +463,10 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			pollUrl: polling ? `${poll.pathname}${poll.search}` : undefined,
 			pollTrigger: polling ? discoveryPollTrigger(pollCount + 1) : undefined, pagePath: GMAIL_PATH,
 		},
-		mappings, hasMappings: mappings.length > 0,
+		mappings, hasMappings: mappings.length > 0, filter: filterFor(input, mappings),
 		alerts: [
 			...(input.gatewayLive ? [] : [{ key: "gateway_disabled", message: GMAIL_GATEWAY_DISABLED_MESSAGE }]),
 			...bannersFor(input.error, GMAIL_PAGE_ERRORS),
-			...(input.connection.lastFilterError === undefined ? [] : [{ key: "filter", message: input.connection.lastFilterError.message }]),
 			...(input.connection.lastConfirmError === undefined ? [] : [{ key: "confirm_failed", message: GMAIL_CONFIRM_FAILED_MESSAGES[input.connection.lastConfirmError.reason] }]),
 		],
 		notices: bannersFor(

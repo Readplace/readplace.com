@@ -84,13 +84,21 @@ describe("initInMemoryGmailConnection", () => {
 
 		await store.recordFilterError({
 			userId: owner,
-			error: { code: "query-too-long", message: "1200 chars", at: "2026-08-27T00:01:00.000Z" },
+			error: {
+				code: "query-too-long",
+				forwardTo: "gmail-a7b2c9@read.place",
+				senderCount: 40,
+				senderCapacity: 36,
+				at: "2026-08-27T00:01:00.000Z",
+			},
 		});
 
 		const connection = await store.findConnectionByUserId(owner);
 		assert.deepEqual(connection?.lastFilterError, {
 			code: "query-too-long",
-			message: "1200 chars",
+			forwardTo: "gmail-a7b2c9@read.place",
+			senderCount: 40,
+			senderCapacity: 36,
 			at: "2026-08-27T00:01:00.000Z",
 		});
 	});

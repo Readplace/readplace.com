@@ -43,7 +43,7 @@ export interface GmailIntegrationDependencies {
 	listInboxAddresses: (userId: UserId) => Promise<InboxAddressEntry[]>;
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
-		reason: "forwarding-confirmed" | "sender-added" | "sender-removed";
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested";
 	}) => Promise<void>;
 	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
 }

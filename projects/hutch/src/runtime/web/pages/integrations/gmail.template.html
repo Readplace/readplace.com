@@ -127,13 +127,24 @@
 
         <section class="gmail__mappings" data-test-gmail-mappings>
           <h2 class="gmail__section-title">Your mappings</h2>
+          <div class="gmail__filter" data-test-gmail-filter-state="{{filter.state}}">
+            <p class="{{filter.messageClass}}" role="status" data-test-gmail-filter-message>{{filter.message}}</p>
+            <div class="gmail__filter-actions">
+              {{#each filter.actions}}
+              <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+                <button class="btn btn--secondary btn--compact" type="submit" data-test-gmail-filter-action="{{key}}">{{label}}</button>
+              </form>
+              {{/each}}
+            </div>
+          </div>
           {{#each mappings}}
           <section class="gmail__mapping" data-test-gmail-mapping="{{destination}}">
             <p class="gmail__mapping-source-label" data-test-gmail-mapping-source-label>Articles from</p>
             <ul class="gmail__mapped-senders">
               {{#each senders}}
-              <li class="gmail__mapped-sender" data-test-gmail-mapped-sender="{{email}}">
+              <li class="gmail__mapped-sender" data-test-gmail-mapped-sender="{{email}}" data-test-gmail-mapped-sender-state="{{state}}">
                 <span class="gmail__mapped-sender-email">{{email}}</span>
+                <span class="gmail__mapped-sender-state">{{stateLabel}}</span>
                 <form method="POST" action="{{../../removeSenderAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
                   <input type="hidden" name="sender" value="{{email}}">
                   <button class="btn btn--secondary btn--compact" type="submit" aria-label="Exclude {{email}} from this mapping" data-test-gmail-exclude-sender="{{email}}">Exclude</button>

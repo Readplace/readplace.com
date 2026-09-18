@@ -16,6 +16,7 @@ const useApp = useTestServer();
 const GMAIL = "/integrations/gmail";
 const ADD = `${GMAIL}/senders/add`;
 const REMOVE = `${GMAIL}/senders/remove`;
+const RETRY = `${GMAIL}/filter/retry`;
 const DISCOVER = `${GMAIL}/discovery/start`;
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const MORNING = ForwardableSenderSchema.parse("crew@morningbrew.com");
@@ -79,7 +80,7 @@ describe("Gmail sender mapping page", () => {
 		for (const path of [GMAIL, `${GMAIL}/senders`, `${GMAIL}/status`]) {
 			expect((await request(harness.server).get(path)).headers.location).toBe("/login");
 		}
-		for (const path of [ADD, REMOVE, DISCOVER, `${GMAIL}/disconnect`]) {
+		for (const path of [ADD, REMOVE, RETRY, DISCOVER, `${GMAIL}/disconnect`]) {
 			expect((await request(harness.server).post(path)).headers.location).toBe("/login");
 		}
 	});
@@ -292,15 +293,112 @@ describe("Gmail sender mapping page", () => {
 		expect(alertKeys(doc)).toEqual(["gateway_disabled"]);
 	});
 
-	it("raises a filter-error alert carrying the recorded message", async () => {
+	it("renders a structured filter failure with a retry action", async () => {
+		const { agent, gmail, userId, destination } = await connectedAgent();
+		await gmail.bundle.gmailConnectionStore.recordFilterError({
+			userId,
+			error: {
+				code: "query-too-long",
+				forwardTo: destination,
+				senderCount: 40,
+				senderCapacity: 36,
+				at: "2026-09-16T00:00:00.000Z",
+			},
+		});
+		const doc = load((await agent.get(GMAIL)).text);
+		const filter = doc.querySelector('[data-test-gmail-filter-state="failed"]');
+		assert(filter, "the failed filter state must render");
+		expect(alertKeys(doc)).toEqual([]);
+		const message = filter.querySelector("[data-test-gmail-filter-message]");
+		assert(message, "the failed filter state must explain the failure");
+		expect(message.textContent).toBe(
+			"Gmail's forwarding rule for tech ran out of room at 36 of its 40 senders. Exclude some, or move some to another inbox, then try again.",
+		);
+		const retry = filter.querySelector('[data-test-gmail-filter-action="retry"]');
+		assert(retry, "the failed filter state must offer a retry action");
+		const retryForm = retry.closest("form");
+		assert(retryForm, "the retry action must submit a form");
+		expect(retryForm.getAttribute("method")).toBe("POST");
+		const retryAction = retryForm.getAttribute("action");
+		assert(retryAction, "the retry form must carry an action");
+		expect(new URL(retryAction, "https://readplace.com").pathname).toBe(RETRY);
+	});
+
+	it("retries a filter rewrite after a failure", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
 		await gmail.bundle.gmailConnectionStore.recordFilterError({
 			userId,
-			error: { code: "query-too-long", message: "40 senders produce a 2396-character query", at: "2026-09-16T00:00:00.000Z" },
+			error: {
+				code: "rejected",
+				message: "Unrecognized forwarding address",
+				at: "2026-09-16T00:00:00.000Z",
+			},
 		});
+
+		const response = await agent.post(RETRY).send();
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`${GMAIL}?notice=filter_retry_requested`);
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "retry-requested" }]);
+	});
+
+	it("does not retry before forwarding is confirmed or after Gmail is revoked", async () => {
+		const unconfirmed = await connectedAgent({ confirmed: false });
+		const unconfirmedResponse = await unconfirmed.agent.post(RETRY).send();
+		expect(unconfirmedResponse.status).toBe(303);
+		expect(unconfirmedResponse.headers.location).toBe(GMAIL);
+		expect(unconfirmed.gmail.rewriteRequests).toEqual([]);
+
+		const revoked = await connectedAgent();
+		await revoked.gmail.bundle.gmailConnectionStore.markRevoked({
+			userId: revoked.userId,
+			reason: "invalid-grant",
+		});
+		const revokedResponse = await revoked.agent.post(RETRY).send();
+		expect(revokedResponse.status).toBe(303);
+		expect(revokedResponse.headers.location).toBe(GMAIL);
+		expect(revoked.gmail.rewriteRequests).toEqual([]);
+	});
+
+	it("shows a mapping as pending until the filter rewrite records it", async () => {
+		let now = new Date("2026-09-16T00:00:00.000Z");
+		const { agent, gmail, userId, destination } = await connectedAgent({ now: () => now });
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({
+			userId,
+			senderEmail: TLDR,
+			mappedAddress: destination,
+		});
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		now = new Date("2026-09-16T00:01:00.000Z");
+		await gmail.bundle.gmailConnectionStore.recordFilter({
+			userId,
+			filterCount: 1,
+			filterSenderCount: 1,
+		});
+		now = new Date("2026-09-16T00:02:00.000Z");
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({
+			userId,
+			senderEmail: MORNING,
+			mappedAddress: destination,
+		});
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: MORNING });
+
 		const doc = load((await agent.get(GMAIL)).text);
-		expect(alertKeys(doc)).toEqual(["filter"]);
-		expect(doc.querySelector('[data-test-gmail-alert-key="filter"]')?.textContent).toBe("40 senders produce a 2396-character query");
+		const senderStates = Array.from(doc.querySelectorAll("[data-test-gmail-mapped-sender]"), (sender) => [
+			sender.getAttribute("data-test-gmail-mapped-sender"),
+			sender.getAttribute("data-test-gmail-mapped-sender-state"),
+		]);
+		expect(Object.fromEntries(senderStates)).toEqual({
+			[TLDR]: "live",
+			[MORNING]: "pending",
+		});
+		const filter = doc.querySelector('[data-test-gmail-filter-state="updating"]');
+		assert(filter, "the pending sender must make the filter state updating");
+		const message = filter.querySelector("[data-test-gmail-filter-message]");
+		assert(message, "the updating filter state must explain the delay");
+		expect(message.textContent).toBe(
+			"Gmail hasn't accepted the latest change yet. Refresh in a moment, or try again.",
+		);
 	});
 
 	it("surfaces a failed confirmation, keeps watching, and confirms once Google sends a new link", async () => {

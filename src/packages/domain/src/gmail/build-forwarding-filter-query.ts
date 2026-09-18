@@ -17,7 +17,13 @@ export type ForwardableSender = z.infer<typeof ForwardableSenderSchema>;
 export type ForwardingFilterQuery =
 	| { ok: true; query: string; senders: ForwardableSender[] }
 	| { ok: false; reason: "no-senders" }
-	| { ok: false; reason: "too-long"; length: number; senderCount: number };
+	| {
+			ok: false;
+			reason: "too-long";
+			length: number;
+			senderCount: number;
+			senderCapacity: number;
+		};
 
 export interface ForwardingFilterQueryResult {
 	query: ForwardingFilterQuery;
@@ -43,11 +49,20 @@ export function buildForwardingFilterQuery(input: {
 	if (senders.length === 0) return { query: { ok: false, reason: "no-senders" }, refused };
 	const query = `from:(${senders.join(" OR ")})`;
 	if (query.length > GMAIL_FILTER_QUERY_MAX_LENGTH) {
+		let senderCapacity = 0;
+		let capacityLength = "from:()".length;
+		for (const sender of senders) {
+			const separatorLength = senderCapacity === 0 ? 0 : " OR ".length;
+			if (capacityLength + separatorLength + sender.length > GMAIL_FILTER_QUERY_MAX_LENGTH) break;
+			capacityLength += separatorLength + sender.length;
+			senderCapacity += 1;
+		}
 		const tooLong = {
 			ok: false,
 			reason: "too-long",
 			length: query.length,
 			senderCount: senders.length,
+			senderCapacity,
 		} as const;
 		return { query: tooLong, refused };
 	}

@@ -76,7 +76,9 @@ describe("initRewriteGmailFilterHandler", () => {
 		const { run, published } = makeHarness({
 			ok: false,
 			reason: "query-too-long",
-			message: "40 senders produce a 2396-character query",
+			forwardTo: "gmail-a7b2c9@read.place",
+			senderCount: 40,
+			senderCapacity: 36,
 		});
 
 		const response = await run(buildSqsEvent([{ messageId: "cmd-1", body: commandBody() }]));

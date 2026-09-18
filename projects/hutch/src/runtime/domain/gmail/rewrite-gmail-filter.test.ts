@@ -185,11 +185,22 @@ describe("initRewriteGmailFilter", () => {
 
 		const result = await rewrite({ userId: USER });
 
-		assert.equal(result.ok, false);
-		assert.equal(result.ok === false && result.reason, "query-too-long");
+		assert.deepEqual(result, {
+			ok: false,
+			reason: "query-too-long",
+			forwardTo: GATEWAY,
+			senderCount: sendersExceedingQueryCap().length,
+			senderCapacity: 48,
+		});
 		assert.deepEqual(gmail.created, []);
 		const connection = await connections.findConnectionByUserId(USER);
-		assert.equal(connection?.lastFilterError?.code, "query-too-long");
+		assert.deepEqual(connection?.lastFilterError, {
+			code: "query-too-long",
+			forwardTo: GATEWAY,
+			senderCount: sendersExceedingQueryCap().length,
+			senderCapacity: 48,
+			at: NOW.toISOString(),
+		});
 	});
 
 	it("deletes the filter Gmail silently rewrote and records the mismatch", async () => {
@@ -209,8 +220,9 @@ describe("initRewriteGmailFilter", () => {
 		assert.equal(result.ok === false && result.reason, "rejected");
 		assert.deepEqual(gmail.deleted, ["f-101"]);
 		const connection = await connections.findConnectionByUserId(USER);
-		assert.equal(connection?.lastFilterError?.code, "rejected");
-		assert.match(String(connection?.lastFilterError?.message), /from:\(truncated/);
+		const error = connection?.lastFilterError;
+		assert(error?.code === "rejected");
+		assert.match(error.message, /from:\(truncated/);
 	});
 
 	it("names the missing query when Gmail reads the filter back with none", async () => {
@@ -228,7 +240,9 @@ describe("initRewriteGmailFilter", () => {
 		await rewrite({ userId: USER });
 
 		const connection = await connections.findConnectionByUserId(USER);
-		assert.match(String(connection?.lastFilterError?.message), /\(none\)/);
+		const error = connection?.lastFilterError;
+		assert(error?.code === "rejected");
+		assert.match(error.message, /\(none\)/);
 	});
 
 	it("reports a user who never connected Gmail", async () => {
@@ -297,10 +311,9 @@ describe("initRewriteGmailFilter", () => {
 			reason: "rejected",
 			message: "Unrecognized forwarding address",
 		});
-		assert.equal(
-			(await connections.findConnectionByUserId(USER))?.lastFilterError?.message,
-			"Unrecognized forwarding address",
-		);
+		const error = (await connections.findConnectionByUserId(USER))?.lastFilterError;
+		assert(error?.code === "rejected");
+		assert.equal(error.message, "Unrecognized forwarding address");
 	});
 
 	it("stops when the filter it just wrote cannot be read back", async () => {
@@ -594,5 +607,12 @@ describe("initRewriteGmailFilter", () => {
 			(await connections.findConnectionByUserId(USER))?.lastFilterError?.code,
 			"query-too-long",
 		);
+		assert.deepEqual(result, {
+			ok: false,
+			reason: "query-too-long",
+			forwardTo: news.address,
+			senderCount: sendersExceedingQueryCap().length,
+			senderCapacity: 48,
+		});
 	});
 });

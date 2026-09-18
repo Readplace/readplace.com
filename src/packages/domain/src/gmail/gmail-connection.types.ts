@@ -4,13 +4,15 @@ import type { UserId } from "../user";
 
 export type GmailRevokedReason = "invalid-grant";
 
-export interface GmailFilterError {
-	code: GmailFilterErrorCode;
-	message: string;
-	at: string;
-}
-
-export type GmailFilterErrorCode = "query-too-long" | "rejected";
+export type GmailFilterError =
+	| {
+			code: "query-too-long";
+			forwardTo: string;
+			senderCount: number;
+			senderCapacity: number;
+			at: string;
+		}
+	| { code: "rejected"; message: string; at: string };
 
 export type GmailConfirmFailureReason = "token-rejected" | "not-confirmed" | "invalid-url";
 

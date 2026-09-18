@@ -79,6 +79,23 @@ describe("buildForwardingFilterQuery", () => {
 			GMAIL_FILTER_QUERY_MAX_LENGTH + 1,
 		);
 	});
+
+	it("reports how many of the sorted senders fit when the query is too long", () => {
+		const result = buildForwardingFilterQuery({
+			senders: [
+				`${"c".repeat(330)}@example.com`,
+				`${"a".repeat(330)}@example.com`,
+				`${"b".repeat(330)}@example.com`,
+			],
+		});
+		assert.deepEqual(result.query, {
+			ok: false,
+			reason: "too-long",
+			length: 1041,
+			senderCount: 3,
+			senderCapacity: 2,
+		});
+	});
 });
 
 describe("parseForwardableSender", () => {

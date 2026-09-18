@@ -57,7 +57,9 @@ describe("gmailConnectionState", () => {
 				forwardingConfirmedAt: "2026-08-24T00:30:00.000Z",
 				lastFilterError: {
 					code: "query-too-long",
-					message: "too many senders",
+					forwardTo: "gmail-a7b2c9@read.place",
+					senderCount: 40,
+					senderCapacity: 36,
 					at: "2026-08-24T02:00:00.000Z",
 				},
 			}),
