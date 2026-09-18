@@ -66,6 +66,22 @@ describe("initInMemoryGmailDiscovery", () => {
 		await store.failDiscovery({ userId: USER, generation: "run-1", error: "Try again", requiresReconnect: true });
 		assert.equal((await store.findDiscoveryByUserId(USER))?.error, "Try again");
 		assert.equal((await store.findDiscoveryByUserId(USER))?.requiresReconnect, true);
+		await store.clearRequiresReconnect({ userId: USER, generation: "reconnected" });
+		assert.deepEqual(await store.findDiscoveryByUserId(USER), {
+			...START,
+			generation: "reconnected",
+			state: "failed",
+			page: 0,
+			pageToken: undefined,
+			scannedCount: 0,
+			estimatedTotalMessages: undefined,
+			oldestScannedAt: undefined,
+			updatedAt: new Date(instant).toISOString(),
+			error: "Try again",
+			requiresReconnect: false,
+		});
+		await store.clearRequiresReconnect({ userId: UserIdSchema.parse("other-user"), generation: "reconnected-other" });
+		assert.equal(await store.findDiscoveryByUserId(UserIdSchema.parse("other-user")), undefined);
 		assert.equal(await store.claimPage(claim), false);
 		await store.startDiscovery({ ...START, generation: "resumed", resume: { page: 4, pageToken: "resume", scannedCount: 100, estimatedTotalMessages: 500, oldestScannedAt: 1_700_000_000_000 } });
 		const resumed = await store.findDiscoveryByUserId(USER);
@@ -75,6 +91,28 @@ describe("initInMemoryGmailDiscovery", () => {
 		assert.equal(resumed?.estimatedTotalMessages, 500);
 		assert.equal(resumed?.oldestScannedAt, 1_700_000_000_000);
 		assert.equal(resumed?.requiresReconnect, false);
+	});
+
+	it("fences old discovery failures and page writes while preserving a reconnect checkpoint and releasing its claim", async () => {
+		const store = initInMemoryGmailDiscovery({ now: () => NOW });
+		await store.startDiscovery(START);
+		const initial = await store.findDiscoveryByUserId(USER);
+		assert(initial);
+		const cachedSenders = [{ email: EMAIL, name: "Sender" }];
+		await store.savePage({ previous: initial, senders: cachedSenders, mode: "full", pageToken: "resume", historyId: "100", state: "running", scannedMessages: 25, estimatedTotalMessages: 250, oldestScannedAt: 1_700_000_000_000 });
+		const checkpoint = await store.findDiscoveryByUserId(USER);
+		assert(checkpoint);
+		const oldPage = { userId: USER, generation: checkpoint.generation, page: checkpoint.page };
+		assert.equal(await store.claimPage(oldPage), true);
+
+		await store.clearRequiresReconnect({ userId: USER, generation: "reconnected" });
+		await store.failDiscovery({ userId: USER, generation: checkpoint.generation, error: "old grant", requiresReconnect: true });
+		assert.equal(await store.savePage({ previous: checkpoint, senders: [{ email: ForwardableSenderSchema.parse("stale@example.com"), name: undefined }], mode: "history", pageToken: undefined, historyId: "200", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined, oldestScannedAt: undefined }), false);
+
+		assert.deepEqual(await store.findDiscoveryByUserId(USER), { ...checkpoint, generation: "reconnected", requiresReconnect: false });
+		assert.deepEqual(await store.listSendersByUserId(USER), cachedSenders);
+		assert.equal(await store.claimPage(oldPage), false);
+		assert.equal(await store.claimPage({ ...oldPage, generation: "reconnected" }), true);
 	});
 
 	it("resets accumulated scan progress when a new full pass is required", async () => {

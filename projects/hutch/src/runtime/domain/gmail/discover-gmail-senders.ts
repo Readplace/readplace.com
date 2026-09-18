@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { GmailConnectionStore, GmailDiscovery, GmailDiscoveryStore } from "@packages/domain/gmail";
+import type { GmailConnection, GmailConnectionStore, GmailDiscovery, GmailDiscoveryStore } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { GmailMailbox, GmailMailboxResult } from "@packages/provider-contracts/gmail-mailbox";
 import { GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW } from "./gmail-discovery-window";
@@ -36,12 +36,15 @@ export function initDiscoverGmailSenders(deps: {
 }): DiscoverGmailSenders {
 	const { mailbox, connections, discovery } = deps;
 
-	async function fail(userId: UserId, generation: string, result: Exclude<GmailMailboxResult<unknown>, { ok: true }>) {
+	async function fail(connection: GmailConnection, generation: string, result: Exclude<GmailMailboxResult<unknown>, { ok: true }>) {
 		if (result.reason === "unavailable") throw new Error(`Gmail sender discovery unavailable (${result.status})`);
 		const error = result.reason === "rejected"
 			? "Gmail could not load your senders. Try again."
 			: "Reconnect Gmail to allow Readplace to load senders.";
-		await discovery.failDiscovery({ userId, generation, error, requiresReconnect: result.reason !== "rejected" });
+		if (result.reason === "reauth-required" && !(await connections.markRevokedIfCurrent({ userId: connection.userId, gatewayAddress: connection.gatewayAddress, connectedAt: connection.connectedAt, reason: "invalid-grant" }))) {
+			throw new Error("Gmail connection changed during sender discovery");
+		}
+		await discovery.failDiscovery({ userId: connection.userId, generation, error, requiresReconnect: result.reason !== "rejected" });
 	}
 
 	const page: DiscoverGmailSenders["page"] = async (input) => {
@@ -60,7 +63,7 @@ export function initDiscoverGmailSenders(deps: {
 		if (active.mode === "profile") {
 			const profile = await mailbox.findProfile({ userId: input.userId });
 			if (!profile.ok) {
-				await fail(input.userId, input.generation, profile);
+				await fail(connection, input.generation, profile);
 				return undefined;
 			}
 			if (profile.value.accountEmail.toLowerCase() !== active.accountEmail.toLowerCase()) {
@@ -74,7 +77,7 @@ export function initDiscoverGmailSenders(deps: {
 			const result = await mailbox.listChangedMessageSenders({ userId: input.userId, startHistoryId: active.historyId, pageToken: active.pageToken });
 			if (!result.ok) {
 				if (result.reason !== "history-expired") {
-					await fail(input.userId, input.generation, result);
+					await fail(connection, input.generation, result);
 					return undefined;
 				}
 				await discovery.savePage({ previous, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 0, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
@@ -85,7 +88,7 @@ export function initDiscoverGmailSenders(deps: {
 		} else {
 			const result = await mailbox.listMessageSenders({ userId: input.userId, pageToken: active.pageToken });
 			if (!result.ok) {
-				await fail(input.userId, input.generation, result);
+				await fail(connection, input.generation, result);
 				return undefined;
 			}
 			const pastRecentMail = result.value.newestMessageAt !== undefined

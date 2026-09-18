@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
@@ -21,6 +21,7 @@ interface CapturedCommand {
 		IndexName?: string;
 		Select?: string;
 		UpdateExpression?: string;
+		ConditionExpression?: string;
 		KeyConditionExpression?: string;
 		ExpressionAttributeValues?: Record<string, unknown>;
 	};
@@ -211,15 +212,42 @@ describe("initDynamoDbGmailConnection", () => {
 		);
 	});
 
+	it("only revokes the connection used by the failed Gmail request", async () => {
+		const { store, commands } = harness();
+
+		assert.equal(await store.markRevokedIfCurrent({ userId: USER, gatewayAddress: GATEWAY, connectedAt: NOW.toISOString(), reason: "invalid-grant" }), true);
+
+		assert.match(String(commands[0].input.ConditionExpression), /gatewayAddress = :gateway/);
+		assert.match(String(commands[0].input.ConditionExpression), /connectedAt = :connectedAt/);
+		assert.match(String(commands[0].input.ConditionExpression), /attribute_not_exists\(disconnectRequestedAt\)/);
+		assert.match(String(commands[0].input.UpdateExpression), /REMOVE connected/);
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
+			":gateway": GATEWAY,
+			":connectedAt": NOW.toISOString(),
+			":now": NOW.toISOString(),
+			":reason": "invalid-grant",
+		});
+	});
+
+	it("ignores a replaced or deleted connection but propagates revocation storage failures", async () => {
+		const revoked = { userId: USER, gatewayAddress: GATEWAY, connectedAt: NOW.toISOString(), reason: "invalid-grant" } as const;
+		const raced = harness(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "connection changed" }); });
+		assert.equal(await raced.store.markRevokedIfCurrent(revoked), false);
+
+		const failed = harness(() => { throw new Error("storage unavailable"); });
+		await assert.rejects(failed.store.markRevokedIfCurrent(revoked), /storage unavailable/);
+	});
+
 	it("restores the index marker when the reader reconnects", async () => {
 		const { store, commands } = harness();
 
-		await store.clearRevoked({ userId: USER });
+		assert.equal(await store.clearRevoked({ userId: USER }), NOW.toISOString());
 
 		const expression = String(commands[0].input.UpdateExpression);
 		assert.match(expression, /SET connected = :c/);
+		assert.match(expression, /connectedAt = :now/);
 		assert.match(expression, /REMOVE revokedAt, revokedReason/);
-		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":c": "yes" });
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":c": "yes", ":now": NOW.toISOString() });
 	});
 
 	it("stamps the row when the reader asks to disconnect so the page stops calling it connected", async () => {

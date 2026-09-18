@@ -1283,6 +1283,10 @@ const gmailDiscoveryAccountRead = new HutchDynamoDBAccess("hutch-gmail-discovery
 	],
 	actions: ["dynamodb:GetItem"],
 });
+const gmailDiscoveryConnectionUpdate = new HutchDynamoDBAccess("hutch-gmail-discovery-connection-update", {
+	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
 const gmailDiscoveryQueue = new HutchSQS("gmail-discovery", { visibilityTimeoutSeconds: 90, dlqMaxReceiveCount: 5 });
 const gmailDiscoveryLambda = new HutchLambda("gmail-discovery", {
 	entryPoint: "./src/runtime/gmail-discovery.main.ts",
@@ -1299,7 +1303,7 @@ const gmailDiscoveryLambda = new HutchLambda("gmail-discovery", {
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 	},
-	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryAccountRead.policies, ...gmailDiscoveryQueue.policies],
+	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryAccountRead.policies, ...gmailDiscoveryConnectionUpdate.policies, ...gmailDiscoveryQueue.policies],
 	recursiveLoop: "Allow",
 });
 eventBus.grantPublish(gmailDiscoveryLambda);

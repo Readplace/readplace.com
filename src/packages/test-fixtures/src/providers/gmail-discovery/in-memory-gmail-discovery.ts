@@ -64,6 +64,12 @@ export function initInMemoryGmailDiscovery(deps: { now: () => Date }): GmailDisc
 			discoveries.set(userId, { ...current, state: "failed", error, requiresReconnect, updatedAt: deps.now().toISOString() });
 			claims.delete(userId);
 		},
+		clearRequiresReconnect: async ({ userId, generation }) => {
+			const current = discoveries.get(userId);
+			if (current === undefined) return;
+			discoveries.set(userId, { ...current, generation, requiresReconnect: false });
+			claims.delete(userId);
+		},
 		deleteDiscoveryByUserId: async (userId) => {
 			discoveries.delete(userId);
 			senders.delete(userId);

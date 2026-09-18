@@ -39,6 +39,7 @@ function fixtureWithGmail(
 	};
 	return {
 		fixture,
+		gmail,
 		gmailCredentialsStore: gmail.bundle.gmailCredentialsStore,
 		gmailConnectionStore: gmail.bundle.gmailConnectionStore,
 		codes: gmail.exchangedCodes,
@@ -253,6 +254,194 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(second?.gatewayAddress).toBe(first?.gatewayAddress);
 	});
 
+	it("clears a discovery reconnect requirement so the sender picker comes back after reconnecting", async () => {
+		const { fixture, gmail, gmailConnectionStore, gmailCredentialsStore } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({
+			userId,
+			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+		});
+		await gmailCredentialsStore.saveCredentials({
+			userId,
+			refreshToken: "prior-grant",
+			grantedScope: GMAIL_SCOPES,
+		});
+		await gmail.bundle.gmailDiscoveryStore.startDiscovery({
+			userId,
+			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+			gatewayAddress,
+			generation: "run-1",
+			mode: "full",
+			historyId: "100",
+		});
+		const started = await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId);
+		assert(started, "the seeded discovery must exist");
+		await gmail.bundle.gmailDiscoveryStore.savePage({
+			previous: started,
+			senders: [],
+			mode: "full",
+			pageToken: "resume",
+			historyId: "100",
+			state: "running",
+			scannedMessages: 25,
+			estimatedTotalMessages: 100,
+			oldestScannedAt: undefined,
+		});
+		await gmail.bundle.gmailDiscoveryStore.failDiscovery({
+			userId,
+			generation: "run-1",
+			error: "Reconnect Gmail to allow Readplace to load senders.",
+			requiresReconnect: true,
+		});
+
+		const blocked = await agent.get("/integrations/gmail");
+		assert(
+			new JSDOM(blocked.text).window.document.querySelector("[data-test-gmail-metadata-reconnect]"),
+			"a discovery permission failure must show the metadata reconnect prompt",
+		);
+
+		const response = await connectAndCallback(agent);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/integrations/gmail?notice=connected");
+		expect(await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId)).toMatchObject({
+			state: "failed",
+			page: 1,
+			pageToken: "resume",
+			requiresReconnect: false,
+		});
+		const page = await agent.get("/integrations/gmail");
+		const document = new JSDOM(page.text).window.document;
+		assert(document.querySelector("[data-test-gmail-senders]"), "the sender picker must be rendered after reconnecting");
+		const loadSenders = document.querySelector("[data-test-gmail-load-senders]");
+		assert(loadSenders, "the sender picker must include its load form");
+		expect(loadSenders.getAttribute("hx-trigger")).toMatch(/^load/);
+		expect(gmail.rewriteRequests).toEqual([]);
+	});
+
+	it("re-runs the filter reconcile after reconnecting a revoked grant", async () => {
+		const { fixture, gmail, gmailConnectionStore, gmailCredentialsStore } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({
+			userId,
+			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+		});
+		await gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		await gmailCredentialsStore.saveCredentials({
+			userId,
+			refreshToken: "prior-grant",
+			grantedScope: GMAIL_SETTINGS_SCOPE,
+		});
+		const senderEmail = ForwardableSenderSchema.parse("sender@example.com");
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
+
+		const response = await connectAndCallback(agent);
+
+		expect(response.headers.location).toBe("/integrations/gmail?notice=connected");
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
+	});
+
+	it.each(["discovery reset", "command publication"])("keeps a failed reconnect %s retryable through a fresh OAuth attempt", async (failedStep) => {
+		const { fixture, gmail, gmailConnectionStore } = fixtureWithGmail();
+		const publish = gmail.bundle.publishRewriteGmailFilter;
+		const clear = gmail.bundle.gmailDiscoveryStore.clearRequiresReconnect;
+		let recoveryFails = true;
+		fixture.gmailIntegration.gmailDiscoveryStore.clearRequiresReconnect = async (input) => {
+			if (recoveryFails && failedStep === "discovery reset") throw new Error("DynamoDB unavailable");
+			await clear(input);
+		};
+		fixture.gmailIntegration.publishRewriteGmailFilter = async (detail) => {
+			if (recoveryFails && failedStep === "command publication") throw new Error("EventBridge unavailable");
+			await publish(detail);
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") });
+		await gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		const senderEmail = ForwardableSenderSchema.parse("sender@example.com");
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
+
+		const failed = await connectAndCallback(agent);
+
+		expect(failed.status).toBe(500);
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedReason).toBe("invalid-grant");
+		expect(gmail.rewriteRequests).toEqual([]);
+
+		recoveryFails = false;
+		const recovered = await connectAndCallback(agent);
+
+		expect(recovered.status).toBe(303);
+		expect(recovered.headers.location).toBe("/integrations/gmail?notice=connected");
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
+	});
+
+	it("does not mark a scope upgrade revoked when resetting discovery fails", async () => {
+		const { fixture, gmail, gmailConnectionStore } = fixtureWithGmail();
+		fixture.gmailIntegration.gmailDiscoveryStore.clearRequiresReconnect = async () => {
+			throw new Error("DynamoDB unavailable");
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") });
+
+		const failed = await connectAndCallback(agent);
+
+		expect(failed.status).toBe(500);
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
+		expect(gmail.rewriteRequests).toEqual([]);
+	});
+
+	it("does not revoke a replacement connection when reconnect publication fails", async () => {
+		const { fixture, gmailConnectionStore } = fixtureWithGmail();
+		fixture.gmailIntegration.publishRewriteGmailFilter = async ({ userId }) => {
+			await gmailConnectionStore.deleteConnection(userId);
+			const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+			await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+			await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse("replacement@gmail.com") });
+			throw new Error("EventBridge unavailable");
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") });
+		await gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+
+		const failed = await connectAndCallback(agent);
+
+		expect(failed.status).toBe(500);
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toMatchObject({
+			accountEmail: "replacement@gmail.com",
+			revokedAt: undefined,
+		});
+	});
+
 	it.each(["different@gmail.com", undefined])("requires disconnect before replacing a connection whose identity is %s", async (priorEmail) => {
 		const { fixture, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail();
 		const harness = useApp(fixture);
@@ -382,7 +571,7 @@ describe("GET /integrations/gmail/callback", () => {
 	});
 
 	it("upgrades an existing settings-only connection without replacing its forwarding address", async () => {
-		const { fixture, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail();
+		const { fixture, gmail, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
@@ -400,6 +589,7 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(upgraded?.gatewayAddress).toBe(original.gatewayAddress);
 		expect(upgraded?.forwardingConfirmedAt).toBeDefined();
 		expect(await gmailCredentialsStore.findGrantedScopeByUserId(userId)).toBe(GMAIL_SCOPES);
+		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
 	it("reports a failed token exchange", async () => {

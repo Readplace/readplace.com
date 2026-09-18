@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_filter_command_lifecycle" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_filter_command_lifecycle" name="filter-command-lifecycle" isExecutable="false">
+    <bpmn:startEvent id="n_A" name="GmailForwardingConfirmedEvent">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="n_B" name="EventBridge rules">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:incoming>f_23</bpmn:incoming>
+      <bpmn:incoming>f_26</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="n_Q" name="rewrite-gmail-filter SQS">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:incoming>f_20</bpmn:incoming>
+      <bpmn:incoming>f_21</bpmn:incoming>
+      <bpmn:incoming>f_22</bpmn:incoming>
+      <bpmn:incoming>f_29</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:outgoing>f_24</bpmn:outgoing>
+      <bpmn:outgoing>f_27</bpmn:outgoing>
+      <bpmn:outgoing>f_31</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_G" name="Mark matching gateway confirmed">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_C" name="RewriteGmailFilterCommand">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_P" name="Add or remove sender mapping; retry confirmed live filter">
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_R" name="Reconnect callback after prior revocation">
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sendTask id="n_N" name="RewriteGmailFilterCommand, reason reconnected">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_RF" name="Restore revocation only for that gateway and connectedAt; next OAuth retries">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_W" name="Validate command and derive all selected senders">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+      <bpmn:outgoing>f_18</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_D" name="Connection, sender and inbox-address stores"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_Gm" name="Gmail Filters API: reconcile one gateway filter and remove legacy owned filters">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+      <bpmn:outgoing>f_19</bpmn:outgoing>
+      <bpmn:outgoing>f_20</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_S" name="Record or clear filter count and sender count">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_E" name="GmailFilterRewrittenEvent">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:outgoing>f_21</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="n_V" name="Mark connection revoked">
+      <bpmn:incoming>f_15</bpmn:incoming>
+      <bpmn:outgoing>f_17</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_F" name="GmailFilterRewriteFailedEvent">
+      <bpmn:incoming>f_17</bpmn:incoming>
+      <bpmn:incoming>f_18</bpmn:incoming>
+      <bpmn:incoming>f_19</bpmn:incoming>
+      <bpmn:outgoing>f_22</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:startEvent id="n_CF" name="GmailForwardingConfirmFailedEvent">
+      <bpmn:outgoing>f_23</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="n_CH" name="Record error for matching unconfirmed gateway; otherwise log and skip">
+      <bpmn:incoming>f_24</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_DC" name="DisconnectGmailCommand">
+      <bpmn:outgoing>f_26</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_DH" name="Delete mappings; reconcile empty filter; revoke grant; delete credentials, connection and discovery; disable gateway">
+      <bpmn:incoming>f_27</bpmn:incoming>
+      <bpmn:outgoing>f_28</bpmn:outgoing>
+      <bpmn:outgoing>f_29</bpmn:outgoing>
+      <bpmn:outgoing>f_30</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_DE" name="GmailDisconnectedEvent">
+      <bpmn:incoming>f_28</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_DS" name="Clear discovery and log no connection">
+      <bpmn:incoming>f_30</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_L" name="Rewrite-filter DLQ and alarm">
+      <bpmn:incoming>f_31</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_A" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_1" name="forwarding confirmed" sourceRef="n_Q" targetRef="n_G" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_G" targetRef="n_C" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_P" targetRef="n_C" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_R" targetRef="n_N" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_N" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_6" name="publication rejects" sourceRef="n_R" targetRef="n_RF" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_C" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_B" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_9" name="rewrite command" sourceRef="n_Q" targetRef="n_W" />
+    <bpmn:sequenceFlow id="f_11" name="" sourceRef="n_W" targetRef="n_Gm" />
+    <bpmn:sequenceFlow id="f_12" name="complete reconciliation" sourceRef="n_Gm" targetRef="n_S" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_S" targetRef="n_E" />
+    <bpmn:sequenceFlow id="f_15" name="reauth-required" sourceRef="n_Gm" targetRef="n_V" />
+    <bpmn:sequenceFlow id="f_17" name="" sourceRef="n_V" targetRef="n_F" />
+    <bpmn:sequenceFlow id="f_18" name="not connected, not confirmed or already revoked" sourceRef="n_W" targetRef="n_F" />
+    <bpmn:sequenceFlow id="f_19" name="rejected or query too long" sourceRef="n_Gm" targetRef="n_F" />
+    <bpmn:sequenceFlow id="f_20" name="unavailable or exception" sourceRef="n_Gm" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_21" name="publish failure" sourceRef="n_E" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_22" name="publish failure" sourceRef="n_F" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_23" name="" sourceRef="n_CF" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_24" name="confirmation failed" sourceRef="n_Q" targetRef="n_CH" />
+    <bpmn:sequenceFlow id="f_26" name="" sourceRef="n_DC" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_27" name="disconnect" sourceRef="n_Q" targetRef="n_DH" />
+    <bpmn:sequenceFlow id="f_28" name="" sourceRef="n_DH" targetRef="n_DE" />
+    <bpmn:sequenceFlow id="f_29" name="Google unavailable or exception" sourceRef="n_DH" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_30" name="connection absent" sourceRef="n_DH" targetRef="n_DS" />
+    <bpmn:sequenceFlow id="f_31" name="three receives exhausted" sourceRef="n_Q" targetRef="n_L" />
+    <bpmn:association id="f_10" sourceRef="n_D" targetRef="n_W" associationDirection="One" />
+    <bpmn:association id="f_13" sourceRef="n_S" targetRef="n_D" associationDirection="One" />
+    <bpmn:association id="f_16" sourceRef="n_V" targetRef="n_D" associationDirection="One" />
+    <bpmn:association id="f_25" sourceRef="n_CH" targetRef="n_D" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_filter_command_lifecycle">
+    <bpmndi:BPMNPlane id="Plane_filter_command_lifecycle" bpmnElement="Process_filter_command_lifecycle">
+      <bpmndi:BPMNShape id="n_A_di" bpmnElement="n_A">
+        <dc:Bounds x="103.13" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_B_di" bpmnElement="n_B">
+        <dc:Bounds x="481.58" y="300" width="139.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="531.46" y="406" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_G_di" bpmnElement="n_G">
+        <dc:Bounds x="28" y="546.5" width="178.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="167.47" y="696.5" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="233.05" y="30" width="189.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R_di" bpmnElement="n_R">
+        <dc:Bounds x="869.21" y="38" width="184.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_N_di" bpmnElement="n_N">
+        <dc:Bounds x="333.46" y="174" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RF_di" bpmnElement="n_RF">
+        <dc:Bounds x="566.71" y="158" width="202.75" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_W_di" bpmnElement="n_W">
+        <dc:Bounds x="242.25" y="546.5" width="195.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="659.4" y="932.5" width="149.16" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Gm_di" bpmnElement="n_Gm">
+        <dc:Bounds x="400.72" y="680.5" width="182" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_S_di" bpmnElement="n_S">
+        <dc:Bounds x="355.96" y="822.5" width="171.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_E_di" bpmnElement="n_E">
+        <dc:Bounds x="348.83" y="936" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_V_di" bpmnElement="n_V">
+        <dc:Bounds x="563.71" y="824.5" width="183.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_F_di" bpmnElement="n_F">
+        <dc:Bounds x="531.35" y="936" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CF_di" bpmnElement="n_CF">
+        <dc:Bounds x="512.88" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CH_di" bpmnElement="n_CH">
+        <dc:Bounds x="474" y="538.5" width="196" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DC_di" bpmnElement="n_DC">
+        <dc:Bounds x="643.46" y="40" width="189.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DH_di" bpmnElement="n_DH">
+        <dc:Bounds x="706" y="522.5" width="200.25" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DE_di" bpmnElement="n_DE">
+        <dc:Bounds x="666.81" y="693.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DS_di" bpmnElement="n_DS">
+        <dc:Bounds x="843.17" y="686.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_L_di" bpmnElement="n_L">
+        <dc:Bounds x="988.58" y="536.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="123.13" y="68" />
+        <di:waypoint x="123.13" y="184" />
+        <di:waypoint x="551.46" y="184" />
+        <di:waypoint x="551.46" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="551.46" y="446" />
+        <di:waypoint x="551.46" y="496.25" />
+        <di:waypoint x="117.13" y="496.25" />
+        <di:waypoint x="117.13" y="546.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="117.13" y="598.5" />
+        <di:waypoint x="117.13" y="647.5" />
+        <di:waypoint x="266.1" y="647.5" />
+        <di:waypoint x="266.1" y="696.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="327.67" y="98" />
+        <di:waypoint x="327.67" y="397.25" />
+        <di:waypoint x="266.1" y="397.25" />
+        <di:waypoint x="266.1" y="696.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="961.46" y="90" />
+        <di:waypoint x="961.46" y="132" />
+        <di:waypoint x="432.08" y="132" />
+        <di:waypoint x="432.08" y="174" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="432.08" y="226" />
+        <di:waypoint x="432.08" y="263" />
+        <di:waypoint x="551.46" y="263" />
+        <di:waypoint x="551.46" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="961.46" y="90" />
+        <di:waypoint x="961.46" y="124" />
+        <di:waypoint x="668.08" y="124" />
+        <di:waypoint x="668.08" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="284.71" y="696.5" />
+        <di:waypoint x="534.27" y="348" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="551.46" y="348" />
+        <di:waypoint x="551.46" y="406" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="551.46" y="446" />
+        <di:waypoint x="551.46" y="496.25" />
+        <di:waypoint x="340.13" y="496.25" />
+        <di:waypoint x="340.13" y="546.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="340.13" y="598.5" />
+        <di:waypoint x="340.13" y="639.5" />
+        <di:waypoint x="491.72" y="639.5" />
+        <di:waypoint x="491.72" y="680.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="491.72" y="764.5" />
+        <di:waypoint x="491.72" y="793.5" />
+        <di:waypoint x="441.83" y="793.5" />
+        <di:waypoint x="441.83" y="822.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="441.83" y="874.5" />
+        <di:waypoint x="441.83" y="905.25" />
+        <di:waypoint x="368.83" y="905.25" />
+        <di:waypoint x="368.83" y="936" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="491.72" y="764.5" />
+        <di:waypoint x="491.72" y="794.5" />
+        <di:waypoint x="655.33" y="794.5" />
+        <di:waypoint x="655.33" y="824.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="655.33" y="872.5" />
+        <di:waypoint x="655.33" y="904.25" />
+        <di:waypoint x="551.35" y="904.25" />
+        <di:waypoint x="551.35" y="936" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="340.13" y="598.5" />
+        <di:waypoint x="340.13" y="767.25" />
+        <di:waypoint x="551.35" y="767.25" />
+        <di:waypoint x="551.35" y="936" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_19_di" bpmnElement="f_19">
+        <di:waypoint x="491.72" y="764.5" />
+        <di:waypoint x="491.72" y="850.25" />
+        <di:waypoint x="551.35" y="850.25" />
+        <di:waypoint x="551.35" y="936" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_20_di" bpmnElement="f_20">
+        <di:waypoint x="500.18" y="680.5" />
+        <di:waypoint x="547.51" y="445.61" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_21_di" bpmnElement="f_21">
+        <di:waypoint x="375.34" y="937.09" />
+        <di:waypoint x="544.94" y="444.91" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_22_di" bpmnElement="f_22">
+        <di:waypoint x="551.35" y="936" />
+        <di:waypoint x="551.45" y="446" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_23_di" bpmnElement="f_23">
+        <di:waypoint x="532.88" y="68" />
+        <di:waypoint x="532.88" y="184" />
+        <di:waypoint x="551.46" y="184" />
+        <di:waypoint x="551.46" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_24_di" bpmnElement="f_24">
+        <di:waypoint x="551.46" y="446" />
+        <di:waypoint x="551.46" y="492.25" />
+        <di:waypoint x="572" y="492.25" />
+        <di:waypoint x="572" y="538.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_26_di" bpmnElement="f_26">
+        <di:waypoint x="738.33" y="88" />
+        <di:waypoint x="738.33" y="194" />
+        <di:waypoint x="551.46" y="194" />
+        <di:waypoint x="551.46" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_27_di" bpmnElement="f_27">
+        <di:waypoint x="551.46" y="446" />
+        <di:waypoint x="551.46" y="484.25" />
+        <di:waypoint x="806.13" y="484.25" />
+        <di:waypoint x="806.13" y="522.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_28_di" bpmnElement="f_28">
+        <di:waypoint x="806.13" y="622.5" />
+        <di:waypoint x="806.13" y="657.88" />
+        <di:waypoint x="686.81" y="657.88" />
+        <di:waypoint x="686.81" y="693.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_29_di" bpmnElement="f_29">
+        <di:waypoint x="719.21" y="522.5" />
+        <di:waypoint x="568.79" y="435.97" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_30_di" bpmnElement="f_30">
+        <di:waypoint x="806.13" y="622.5" />
+        <di:waypoint x="806.13" y="654.5" />
+        <di:waypoint x="863.17" y="654.5" />
+        <di:waypoint x="863.17" y="686.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_31_di" bpmnElement="f_31">
+        <di:waypoint x="551.46" y="446" />
+        <di:waypoint x="551.46" y="491.25" />
+        <di:waypoint x="1008.58" y="491.25" />
+        <di:waypoint x="1008.58" y="536.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="709.36" y="932.5" />
+        <di:waypoint x="366.79" y="598.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="441.83" y="874.5" />
+        <di:waypoint x="441.83" y="903.5" />
+        <di:waypoint x="733.97" y="903.5" />
+        <di:waypoint x="733.97" y="932.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="655.33" y="872.5" />
+        <di:waypoint x="655.33" y="902.5" />
+        <di:waypoint x="733.97" y="902.5" />
+        <di:waypoint x="733.97" y="932.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_25_di" bpmnElement="f_25">
+        <di:waypoint x="572" y="606.5" />
+        <di:waypoint x="572" y="769.5" />
+        <di:waypoint x="733.97" y="769.5" />
+        <di:waypoint x="733.97" y="932.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

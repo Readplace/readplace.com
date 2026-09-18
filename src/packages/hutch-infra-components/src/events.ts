@@ -999,7 +999,7 @@ export const RewriteGmailFilterCommand = defineEvent({
 	detailType: "RewriteGmailFilter",
 	detailSchema: z.object({
 		userId: z.string(),
-		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed", "retry-requested"]),
+		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed", "retry-requested", "reconnected"]),
 	}),
 });
 export type RewriteGmailFilterDetail = z.infer<typeof RewriteGmailFilterCommand.detailSchema>;

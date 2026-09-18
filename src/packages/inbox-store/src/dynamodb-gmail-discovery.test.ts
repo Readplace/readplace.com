@@ -19,6 +19,7 @@ interface Command {
 		Item?: Record<string, unknown>;
 		Key?: Record<string, unknown>;
 		ConsistentRead?: boolean;
+		UpdateExpression?: string;
 		ConditionExpression?: string;
 		KeyConditionExpression?: string;
 		ExpressionAttributeValues?: Record<string, unknown>;
@@ -83,12 +84,18 @@ describe("initDynamoDbGmailDiscovery", () => {
 		await store.failDiscovery({ userId: USER, generation: "run-1", error: "Try again", requiresReconnect: true });
 		assert.equal(commands[3].input.ExpressionAttributeValues?.[":error"], "Try again");
 		assert.equal(commands[3].input.ExpressionAttributeValues?.[":requiresReconnect"], true);
+		await store.clearRequiresReconnect({ userId: USER, generation: "reconnected" });
+		assert.match(String(commands[4].input.ConditionExpression), /attribute_exists/);
+		assert.match(String(commands[4].input.UpdateExpression), /generation = :generation/);
+		assert.match(String(commands[4].input.UpdateExpression), /REMOVE claimUntil/);
+		assert.equal(commands[4].input.ExpressionAttributeValues?.[":off"], false);
+		assert.equal(commands[4].input.ExpressionAttributeValues?.[":generation"], "reconnected");
 		await store.startDiscovery({ ...STATE, resume: { page: 4, pageToken: "resume", scannedCount: 100, estimatedTotalMessages: 500, oldestScannedAt: 1_700_000_000_000 } });
-		assert.equal(commands[4].input.Item?.page, 4);
-		assert.equal(commands[4].input.Item?.pageToken, "resume");
-		assert.equal(commands[4].input.Item?.scannedCount, 100);
-		assert.equal(commands[4].input.Item?.estimatedTotalMessages, 500);
-		assert.equal(commands[4].input.Item?.oldestScannedAt, 1_700_000_000_000);
+		assert.equal(commands[5].input.Item?.page, 4);
+		assert.equal(commands[5].input.Item?.pageToken, "resume");
+		assert.equal(commands[5].input.Item?.scannedCount, 100);
+		assert.equal(commands[5].input.Item?.estimatedTotalMessages, 500);
+		assert.equal(commands[5].input.Item?.oldestScannedAt, 1_700_000_000_000);
 	});
 
 	it("leaves a stored display name alone when a page carries the sender without one", async () => {
@@ -115,6 +122,7 @@ describe("initDynamoDbGmailDiscovery", () => {
 		assert.equal(await denied.startDiscovery(STATE), false);
 		assert.equal(await denied.claimPage({ userId: USER, generation: "run-1", page: 0 }), false);
 		await denied.failDiscovery({ userId: USER, generation: "run-1", error: "late" });
+		await denied.clearRequiresReconnect({ userId: USER, generation: "reconnected" });
 		const page = { previous: STATE, senders: [SENDER], mode: "history", pageToken: undefined, historyId: "102", state: "complete", scannedMessages: 25, estimatedTotalMessages: undefined, oldestScannedAt: undefined } as const;
 		const cancelled = new TransactionCanceledException({ $metadata: {}, message: "race", CancellationReasons: [{ Code: "ConditionalCheckFailed" }] });
 		assert.equal(await harness(() => { throw cancelled; }).store.savePage(page), false);

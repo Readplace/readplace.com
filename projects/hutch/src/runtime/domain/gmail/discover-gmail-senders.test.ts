@@ -36,7 +36,7 @@ async function harness() {
 		assert(value);
 		return value;
 	}
-	return { connections, discovery, calls, mailbox, discover, state, expireClaim: () => { instant += 60_001; } };
+	return { connections, discovery, calls, mailbox, discover, state, advanceClock: (milliseconds: number) => { instant += milliseconds; }, expireClaim: () => { instant += 60_001; } };
 }
 
 describe("initDiscoverGmailSenders", () => {
@@ -354,6 +354,105 @@ describe("initDiscoverGmailSenders", () => {
 		h.mailbox.listChangedMessageSenders = async () => ({ ok: false, reason: "reauth-required" });
 		assert.equal(await h.discover.page(next), undefined);
 		assert.equal((await h.state()).state, "failed");
+		assert.equal((await h.connections.findConnectionByUserId(USER))?.revokedReason, "invalid-grant");
+	});
+
+	it("marks the connection revoked when Google no longer honours the grant during discovery", async () => {
+		const h = await harness();
+		h.mailbox.findProfile = async () => ({ ok: false, reason: "reauth-required" });
+
+		assert.equal(await h.discover.start(USER), undefined);
+		assert.equal((await h.state()).state, "failed");
+		assert.equal((await h.state()).requiresReconnect, true);
+		assert.equal((await h.connections.findConnectionByUserId(USER))?.revokedReason, "invalid-grant");
+	});
+
+	it("retries a delayed invalid grant without revoking the mailbox that replaced the connection", async () => {
+		const h = await harness();
+		const replacementGateway = InboxAddressSchema.parse("gmail-b8c3d0@read.place");
+		h.mailbox.findProfile = async () => {
+			await h.connections.deleteConnection(USER);
+			await h.discovery.deleteDiscoveryByUserId(USER);
+			await h.connections.createConnection({ userId: USER, gatewayAddress: replacementGateway });
+			await h.connections.recordAccountEmail({ userId: USER, accountEmail: OTHER_ACCOUNT });
+			await h.discovery.startDiscovery({ userId: USER, accountEmail: OTHER_ACCOUNT, gatewayAddress: replacementGateway, generation: "replacement", mode: "profile", historyId: undefined });
+			return { ok: false, reason: "reauth-required" };
+		};
+
+		await assert.rejects(h.discover.start(USER), /connection changed during sender discovery/);
+		const connection = await h.connections.findConnectionByUserId(USER);
+		assert.equal(connection?.accountEmail, OTHER_ACCOUNT);
+		assert.equal(connection?.revokedAt, undefined);
+		assert.equal(await h.connections.countConnected(), 1);
+		assert.equal((await h.state()).generation, "replacement");
+		assert.equal((await h.state()).state, "running");
+		assert.equal((await h.state()).requiresReconnect, false);
+		assert.equal(await h.discover.page({ userId: USER, generation: "run-1", page: 0 }), undefined);
+	});
+
+	it("resumes immediately when the same mailbox reconnects while the old page is claimed", async () => {
+		const h = await harness();
+		const findProfile = h.mailbox.findProfile;
+		h.mailbox.findProfile = async () => {
+			h.advanceClock(1);
+			await h.connections.clearRevoked({ userId: USER });
+			await h.discovery.clearRequiresReconnect({ userId: USER, generation: "reconnected" });
+			h.mailbox.findProfile = findProfile;
+			assert.deepEqual(await h.discover.start(USER), { userId: USER, generation: "reconnected", page: 1 });
+			return { ok: false, reason: "reauth-required" };
+		};
+
+		await assert.rejects(h.discover.start(USER), /connection changed during sender discovery/);
+		assert.equal((await h.connections.findConnectionByUserId(USER))?.revokedAt, undefined);
+		assert.equal((await h.state()).requiresReconnect, false);
+		assert.equal((await h.state()).state, "running");
+
+		assert.equal(await h.discover.page({ userId: USER, generation: "run-1", page: 0 }), undefined);
+		assert.equal(await h.discover.page({ userId: USER, generation: "reconnected", page: 1 }), undefined);
+		assert.equal((await h.state()).state, "complete");
+		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER]);
+	});
+
+	it("does not restore the reconnect prompt when consent completes between revocation and discovery failure", async () => {
+		const h = await harness();
+		const findProfile = h.mailbox.findProfile;
+		h.mailbox.findProfile = async () => ({ ok: false, reason: "reauth-required" });
+		const failDiscovery = h.discovery.failDiscovery;
+		h.discovery.failDiscovery = async (input) => {
+			assert.equal((await h.connections.findConnectionByUserId(USER))?.revokedReason, "invalid-grant");
+			h.advanceClock(1);
+			await h.connections.clearRevoked({ userId: USER });
+			await h.discovery.clearRequiresReconnect({ userId: USER, generation: "reconnected" });
+			await failDiscovery(input);
+		};
+
+		assert.equal(await h.discover.start(USER), undefined);
+		assert.equal((await h.connections.findConnectionByUserId(USER))?.revokedAt, undefined);
+		assert.equal((await h.state()).requiresReconnect, false);
+		assert.equal((await h.state()).generation, "reconnected");
+		assert.equal((await h.state()).state, "running");
+
+		h.mailbox.findProfile = findProfile;
+		const next = await h.discover.start(USER);
+		assert(next);
+		assert.deepEqual(next, { userId: USER, generation: "reconnected", page: 1 });
+		assert.equal(await h.discover.page(next), undefined);
+		assert.equal((await h.state()).state, "complete");
+		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER]);
+	});
+
+	it("does not recreate a connection removed while Gmail is responding", async () => {
+		const h = await harness();
+		h.mailbox.findProfile = async () => {
+			await h.connections.deleteConnection(USER);
+			await h.discovery.deleteDiscoveryByUserId(USER);
+			return { ok: false, reason: "reauth-required" };
+		};
+
+		await assert.rejects(h.discover.start(USER), /connection changed during sender discovery/);
+		assert.equal(await h.connections.findConnectionByUserId(USER), undefined);
+		assert.equal(await h.discovery.findDiscoveryByUserId(USER), undefined);
+		assert.equal(await h.discover.page({ userId: USER, generation: "run-1", page: 0 }), undefined);
 	});
 
 	it("does not continue if another lifecycle operation removed the committed state", async () => {

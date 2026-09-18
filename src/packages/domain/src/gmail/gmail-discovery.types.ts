@@ -51,5 +51,6 @@ export interface GmailDiscoveryStore {
 		oldestScannedAt: number | undefined;
 	}) => Promise<boolean>;
 	failDiscovery: (input: { userId: UserId; generation: string; error: string; requiresReconnect?: boolean }) => Promise<void>;
+	clearRequiresReconnect: (input: { userId: UserId; generation: string }) => Promise<void>;
 	deleteDiscoveryByUserId: (userId: UserId) => Promise<void>;
 }

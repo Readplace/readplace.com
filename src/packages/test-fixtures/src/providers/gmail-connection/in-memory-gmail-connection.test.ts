@@ -145,6 +145,48 @@ describe("initInMemoryGmailConnection", () => {
 		assert.equal(connection?.revokedReason, "invalid-grant");
 	});
 
+	it("revokes only the same live connection that made the failed request", async () => {
+		const { store, connect } = connectedStore();
+		const connection = await connect();
+
+		assert.equal(await store.markRevokedIfCurrent({ ...connection, reason: "invalid-grant" }), true);
+
+		assert.equal((await store.findConnectionByUserId(owner))?.revokedReason, "invalid-grant");
+		assert.equal(await store.countConnected(), 0);
+	});
+
+	it("ignores revocation of a connection that was replaced, removed or is disconnecting", async () => {
+		const { store, connect } = connectedStore();
+		const connection = await connect();
+		const failedRequest = { ...connection, reason: "invalid-grant" } as const;
+		await store.createConnection({ userId: owner, gatewayAddress: InboxAddressSchema.parse("gmail-b8c3d0@read.place") });
+		assert.equal(await store.markRevokedIfCurrent(failedRequest), false);
+		assert.equal((await store.findConnectionByUserId(owner))?.revokedAt, undefined);
+
+		await store.deleteConnection(owner);
+		assert.equal(await store.markRevokedIfCurrent(failedRequest), false);
+		assert.equal(await store.findConnectionByUserId(owner), undefined);
+
+		await connect();
+		await store.markDisconnectRequested({ userId: owner });
+		assert.equal(await store.markRevokedIfCurrent(failedRequest), false);
+		assert.equal((await store.findConnectionByUserId(owner))?.revokedAt, undefined);
+	});
+
+	it("ignores a failed request from before the same mailbox reconnected", async () => {
+		let clock = new Date("2026-08-27T00:00:00.000Z");
+		const { store, connect } = connectedStore(() => clock);
+		const connection = await connect();
+		await store.markRevoked({ userId: owner, reason: "invalid-grant" });
+		clock = new Date("2026-08-27T00:05:00.000Z");
+
+		assert.equal(await store.clearRevoked({ userId: owner }), clock.toISOString());
+		assert.equal(await store.markRevokedIfCurrent({ ...connection, reason: "invalid-grant" }), false);
+
+		assert.equal((await store.findConnectionByUserId(owner))?.connectedAt, clock.toISOString());
+		assert.equal((await store.findConnectionByUserId(owner))?.revokedAt, undefined);
+	});
+
 	it("forgets the filter entirely when the last sender goes", async () => {
 		const { store, connect } = connectedStore();
 		await connect();

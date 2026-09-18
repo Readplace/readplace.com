@@ -172,6 +172,14 @@ export function initDynamoDbGmailDiscovery(deps: {
 				ExpressionAttributeValues: { ":generation": generation, ":running": "running", ":failed": "failed", ":error": error, ":requiresReconnect": requiresReconnect, ":now": deps.now().toISOString() },
 			}));
 		},
+		clearRequiresReconnect: async ({ userId, generation }) => {
+			await conditionalWrite(() => states.update({
+				Key: { userId, recordKey: "STATE" },
+				UpdateExpression: "SET requiresReconnect = :off, generation = :generation REMOVE claimUntil",
+				ConditionExpression: "attribute_exists(userId)",
+				ExpressionAttributeValues: { ":off": false, ":generation": generation },
+			}));
+		},
 		deleteDiscoveryByUserId: async (userId) => {
 			await states.delete({ Key: { userId, recordKey: "STATE" } });
 			await forEachQueryPage(senders, senderQuery(userId), async (rows) => {

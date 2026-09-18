@@ -68,7 +68,13 @@ export interface GmailConnectionStore {
 		userId: UserId;
 		reason: GmailRevokedReason;
 	}) => Promise<void>;
-	clearRevoked: (input: { userId: UserId }) => Promise<void>;
+	markRevokedIfCurrent: (input: {
+		userId: UserId;
+		gatewayAddress: InboxAddress;
+		connectedAt: string;
+		reason: GmailRevokedReason;
+	}) => Promise<boolean>;
+	clearRevoked: (input: { userId: UserId }) => Promise<string>;
 	markDisconnectRequested: (input: { userId: UserId }) => Promise<void>;
 	deleteConnection: (userId: UserId) => Promise<void>;
 	countConnected: () => Promise<number>;

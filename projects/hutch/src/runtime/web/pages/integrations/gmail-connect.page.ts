@@ -43,7 +43,7 @@ export interface GmailIntegrationDependencies {
 	listInboxAddresses: (userId: UserId) => Promise<InboxAddressEntry[]>;
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
-		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested";
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested" | "reconnected";
 	}) => Promise<void>;
 	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
 }
@@ -186,11 +186,28 @@ export function registerGmailConnectRoutes(
 				userId,
 				gatewayAddress: await gmail.mintGatewayAddress({ userId }),
 			});
-		} else {
-			await gmail.gmailConnectionStore.clearRevoked({ userId });
 		}
 
 		await gmail.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: found.value });
+		if (existing !== undefined) {
+			const connectedAt = await gmail.gmailConnectionStore.clearRevoked({ userId });
+			try {
+				await gmail.gmailDiscoveryStore.clearRequiresReconnect({ userId, generation: randomBytes(16).toString("hex") });
+				if (existing.revokedAt !== undefined) {
+					await gmail.publishRewriteGmailFilter({ userId, reason: "reconnected" });
+				}
+			} catch (error) {
+				if (existing.revokedAt !== undefined) {
+					await gmail.gmailConnectionStore.markRevokedIfCurrent({
+						userId,
+						gatewayAddress: existing.gatewayAddress,
+						connectedAt,
+						reason: "invalid-grant",
+					});
+				}
+				throw error;
+			}
+		}
 		res.redirect(303, buildGmailUrl({ notice: "connected" }));
 	});
 }

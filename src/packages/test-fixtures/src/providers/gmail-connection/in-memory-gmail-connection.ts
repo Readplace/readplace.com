@@ -67,8 +67,16 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 		markRevoked: async ({ userId, reason }) => {
 			update(userId, { revokedAt: deps.now().toISOString(), revokedReason: reason });
 		},
+		markRevokedIfCurrent: async ({ userId, gatewayAddress, connectedAt, reason }) => {
+			const existing = rows.get(userId);
+			if (existing === undefined || existing.gatewayAddress !== gatewayAddress || existing.connectedAt !== connectedAt || existing.disconnectRequestedAt !== undefined) return false;
+			update(userId, { revokedAt: deps.now().toISOString(), revokedReason: reason });
+			return true;
+		},
 		clearRevoked: async ({ userId }) => {
-			update(userId, { revokedAt: undefined, revokedReason: undefined });
+			const connectedAt = deps.now().toISOString();
+			update(userId, { revokedAt: undefined, revokedReason: undefined, connectedAt });
+			return connectedAt;
 		},
 		markDisconnectRequested: async ({ userId }) => {
 			update(userId, { disconnectRequestedAt: deps.now().toISOString() });
