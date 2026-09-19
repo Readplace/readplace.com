@@ -42,8 +42,7 @@ android {
 			buildConfigField("String", "SERVER_ENVIRONMENT", "\"staging\"")
 		}
 		// A hutch dev server on the Mac, reached through `adb reverse tcp:3000 tcp:3000`
-		// so the device's localhost IS the Mac's. Cleartext is opened for localhost only,
-		// in this flavor's own manifest overlay, so production and staging stay strict.
+		// so the device's localhost IS the Mac's.
 		create("local") {
 			dimension = "server"
 			buildConfigField("String", "SERVER_BASE_URL", "\"http://localhost:3000\"")

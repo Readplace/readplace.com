@@ -83,8 +83,21 @@ frames and audible loop unchanged.
 `LOCAL_SERVER` condition, `make run-local`) points at a hutch dev server on the
 Mac through `adb reverse`, because the server
 changes that register the Android client have to exist somewhere the emulator can
-sign in against before they are deployed. It opens cleartext for localhost only, in
-its own manifest overlay, so production and staging stay strict.
+sign in against before they are deployed.
+
+**Cleartext is app-wide for WebViews, https-only for native requests.** The main
+`network_security_config.xml` permits cleartext app-wide, because the capture and
+reader WebViews must load http-only article pages — the same reason iOS carries the
+`NSAllowsArbitraryLoadsInWebContent` ATS exception, and Android has no per-WebView
+cleartext exception to scope it more tightly. The app's own OkHttp clients (API,
+OAuth, external content fetch) are held to https by `NativeCleartextPolicy`, a
+network interceptor installed at each client-building composition root and inherited
+by every client cloned from them, so a redirect hop is gated too. The `local` flavor
+passes that interceptor the loopback dev hosts (`localhost`, `127.0.0.1`, `10.0.2.2`)
+so sign-in against the Mac's dev server still works; production and staging permit no
+native cleartext at all. This replaced the old localhost-only network-security config
+that lived in the `local` flavor's manifest overlay, which could not have opened
+cleartext for arbitrary article WebViews without also opening it for native requests.
 
 **Compile-time environment via a product flavor.** iOS selects its server with
 `#if STAGING`; here the `production`/`staging` flavors set `BuildConfig.SERVER_BASE_URL`.

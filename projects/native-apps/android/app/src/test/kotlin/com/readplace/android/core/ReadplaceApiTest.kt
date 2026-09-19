@@ -9,6 +9,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -21,6 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.IOException
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.URLDecoder
 import java.util.concurrent.atomic.AtomicInteger
@@ -1090,6 +1093,119 @@ class ReadplaceApiTest {
 			jar.loadForRequest("https://example.com/reader/a1".toHttpUrl()).map { it.value },
 		)
 		assertEquals(emptyList<Cookie>(), jar.loadForRequest("https://other.example/".toHttpUrl()))
+	}
+
+	// endregion
+
+	// region Native cleartext policy
+
+	/** Builds the API the way the composition root now does — one client carrying the
+	 * flavor's [NativeCleartextPolicy] as a network interceptor — so its `http` and
+	 * `externalHttp` clones inherit it. */
+	private fun TestScope.apiWith(
+		policy: NativeCleartextPolicy,
+		store: TokenStore = loggedInStore(),
+		baseUrl: String = server.baseUrl,
+	): ReadplaceApi {
+		val client = OkHttpClient.Builder()
+			.cookieJar(EphemeralCookieJar())
+			.followRedirects(false)
+			.addNetworkInterceptor(policy)
+			.build()
+		val oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient())
+		return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, StandardTestDispatcher(testScheduler))
+	}
+
+	@Test
+	fun `the local flavor's policy lets the API reach the loopback dev server`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), total = 1))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val page = apiWith(NativeCleartextPolicy.forEnvironment("local")).loadReadlist()
+
+		assertEquals(listOf("a1"), page.articles.map { it.id })
+	}
+
+	@Test
+	fun `the production policy refuses the cleartext API call and the server sees nothing`() = runTest {
+		server.handle { Stub.json(200, Fixtures.collection(emptyList(), total = 0)) }
+
+		val error = failsWith<IOException> {
+			apiWith(NativeCleartextPolicy.forEnvironment("production")).loadReadlist()
+		}
+
+		assertTrue(
+			"the refusal must be the policy's, not a transport failure",
+			error.message.orEmpty().contains("not permitted for native requests"),
+		)
+		assertTrue("the server must never receive the refused request", server.records.isEmpty())
+	}
+
+	@Test
+	fun `the policy gates the hand-walked redirect, not only the first hop`() = runTest {
+		// The origin is reached by a permitted host name and redirects to the same
+		// server by a non-permitted host — the cleartext analogue of an https page
+		// bouncing the client to http. The network interceptor must refuse the second
+		// hop even though the first was allowed.
+		val target = MockWebServer()
+		target.start(InetAddress.getByName("127.0.0.1"), 0)
+		try {
+			target.enqueue(
+				MockResponse.Builder()
+					.code(303)
+					.addHeader("Location", "http://127.0.0.1:${target.port}/queue")
+					.build(),
+			)
+			val baseUrl = "http://localhost:${target.port}"
+			val store = loggedInStore()
+			val client = OkHttpClient.Builder()
+				.cookieJar(EphemeralCookieJar())
+				.followRedirects(false)
+				.addNetworkInterceptor(NativeCleartextPolicy(setOf("localhost")))
+				.build()
+			val api = ReadplaceApi(
+				baseUrl,
+				client,
+				store,
+				OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient()),
+				USER_AGENT,
+				StandardTestDispatcher(testScheduler),
+			)
+
+			val error = failsWith<IOException> { api.loadReadlist() }
+
+			assertTrue(error.message.orEmpty().contains("not permitted for native requests"))
+			assertEquals("the forbidden hop must never be sent", 1, target.requestCount)
+		} finally {
+			target.close()
+		}
+	}
+
+	@Test
+	fun `the external content fetch inherits the policy and carries no bearer on a permitted host`() = runTest {
+		val payload = byteArrayOf(1, 2, 3)
+		server.handle { Stub(200, headers = mapOf("Content-Type" to "application/pdf"), body = payload) }
+
+		val bytes = apiWith(NativeCleartextPolicy.forEnvironment("local")).fetchExternalContent("${server.baseUrl}/file")
+
+		assertArrayEquals(payload, bytes)
+		val fetch = server.records("/file").single()
+		assertNull("the article origin must never receive the Readplace bearer", fetch.header("Authorization"))
+	}
+
+	@Test
+	fun `the production policy refuses the external content fetch, degrading to a URL-only save`() = runTest {
+		server.handle { Stub(200, headers = mapOf("Content-Type" to "application/pdf"), body = byteArrayOf(1, 2, 3)) }
+
+		val bytes = apiWith(NativeCleartextPolicy.forEnvironment("production")).fetchExternalContent("${server.baseUrl}/file")
+
+		assertNull("a refused external fetch degrades to a URL-only save, not a crash", bytes)
+		assertTrue("the server must never receive the refused fetch", server.records("/file").isEmpty())
 	}
 
 	// endregion

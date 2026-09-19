@@ -9,9 +9,12 @@ import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
+import java.io.IOException
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.URLDecoder
 
@@ -388,6 +391,87 @@ class OAuthTest {
 		assertEquals(0, server.requestCount)
 		assertEquals(emptyMap<TokenKey, String>(), storage.stored)
 		assertNull(store.tokens)
+	}
+
+	// endregion
+
+	// region native cleartext policy
+
+	/** A client whose only non-default is the policy under test, permitting cleartext
+	 * to [cleartextHost] alone. OAuth follows redirects itself (unlike the API's
+	 * hand-walk), so a network interceptor is what sees each automatic hop. */
+	private fun interceptingClient(cleartextHost: String): OkHttpClient =
+		OkHttpClient.Builder()
+			.addNetworkInterceptor(NativeCleartextPolicy(setOf(cleartextHost)))
+			.build()
+
+	@Test
+	fun `an automatic redirect that leaves the permitted host for cleartext is refused`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val target = MockWebServer()
+		target.start(InetAddress.getByName("127.0.0.1"), 0)
+		try {
+			target.enqueue(
+				MockResponse.Builder()
+					.code(303)
+					.addHeader("Location", "http://127.0.0.1:${target.port}/oauth/token")
+					.build(),
+			)
+			val oauth = OAuth(
+				baseUrl = "http://localhost:${target.port}",
+				store = store,
+				http = interceptingClient("localhost"),
+			)
+
+			try {
+				oauth.refresh()
+				fail("a refresh whose redirect leaves the permitted host must not resolve")
+			} catch (error: IOException) {
+				assertTrue(error.message.orEmpty().contains("not permitted for native requests"))
+			}
+
+			assertEquals("the forbidden hop must never be sent", 1, target.requestCount)
+			assertEquals(
+				"a refused refresh leaves the stored pair intact",
+				OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")),
+				store.tokens,
+			)
+		} finally {
+			target.close()
+		}
+	}
+
+	@Test
+	fun `a 307 that replays the token POST onto cleartext is refused before the form is resent`() = runTest {
+		val target = MockWebServer()
+		target.start(InetAddress.getByName("127.0.0.1"), 0)
+		try {
+			target.enqueue(
+				MockResponse.Builder()
+					.code(307)
+					.addHeader("Location", "http://127.0.0.1:${target.port}/oauth/token")
+					.build(),
+			)
+			val oauth = OAuth(
+				baseUrl = "http://localhost:${target.port}",
+				store = store,
+				http = interceptingClient("localhost"),
+			)
+
+			try {
+				oauth.exchangeCode("the-code", "the-verifier", "readplace://oauth-callback/android")
+				fail("a 307 replay onto a forbidden host must not resolve")
+			} catch (error: IOException) {
+				assertTrue(error.message.orEmpty().contains("not permitted for native requests"))
+			}
+
+			assertEquals("the replayed form must never reach the forbidden host", 1, target.requestCount)
+			val origin = target.takeRequest()
+			assertEquals("POST", origin.method)
+			assertEquals("/oauth/token", origin.url.encodedPath)
+		} finally {
+			target.close()
+		}
 	}
 
 	// endregion

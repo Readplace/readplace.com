@@ -49,6 +49,7 @@ import com.readplace.android.app.ReadplaceTheme
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.EphemeralCookieJar
+import com.readplace.android.core.NativeCleartextPolicy
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
@@ -95,6 +96,7 @@ class ShareActivity : ComponentActivity() {
 			KeystoreTokenStorage(getSharedPreferences(KeystoreTokenStorage.PREFERENCES_NAME, Context.MODE_PRIVATE)),
 		)
 		val http = OkHttpClient.Builder()
+			.addNetworkInterceptor(NativeCleartextPolicy.forEnvironment(AppConfig.serverEnvironment))
 			.cookieJar(EphemeralCookieJar())
 			.cache(DiscoveryHttpCache(cacheDir).cache)
 			.build()

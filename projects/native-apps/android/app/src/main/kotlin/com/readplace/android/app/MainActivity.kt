@@ -28,6 +28,7 @@ import androidx.lifecycle.lifecycleScope
 import com.readplace.android.BuildConfig
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
+import com.readplace.android.core.NativeCleartextPolicy
 import com.readplace.android.core.ShareArtifacts
 import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
@@ -72,7 +73,10 @@ class MainActivity : ComponentActivity() {
 		session = AppSession(
 			baseUrl = AppConfig.serverBaseUrl,
 			store = store,
-			newClientBuilder = { OkHttpClient.Builder() },
+			newClientBuilder = {
+				OkHttpClient.Builder()
+					.addNetworkInterceptor(NativeCleartextPolicy.forEnvironment(AppConfig.serverEnvironment))
+			},
 			nativeUserAgent = AppConfig.nativeUserAgent(BuildConfig.VERSION_CODE, Build.VERSION.RELEASE),
 			ioDispatcher = Dispatchers.IO,
 			scope = lifecycleScope,

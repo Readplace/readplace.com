@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cleartext is opened app-wide so the capture and reader WebViews can load
+     http-only article pages, the Android counterpart of iOS's
+     NSAllowsArbitraryLoadsInWebContent. The app's own API/OAuth clients are held
+     to https (and, in the local flavor, the loopback dev hosts) by
+     NativeCleartextPolicy, not by this file — Android has no per-WebView cleartext
+     exception. System trust anchors and TLS validation are left at their
+     defaults. -->
+<network-security-config>
+  <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
