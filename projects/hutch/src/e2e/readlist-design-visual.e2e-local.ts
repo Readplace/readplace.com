@@ -537,201 +537,253 @@ const SETUP_GUIDE_NEXT_READ: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const THEMES = ["light", "dark"] as const;
+
+function withTheme(checkpoint: VisualCheckpoint, theme: (typeof THEMES)[number]): VisualCheckpoint {
+	return { ...checkpoint, name: `${checkpoint.name}-${theme}` };
+}
+
 test.describe("Readlist design page (empty)", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
-	test("shows the empty state with nothing saved", async ({ page }, testInfo) => {
-		const email = `readlist-design-empty-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await createVerifiedUser(page, email);
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design");
+	for (const theme of THEMES) {
+		test(`shows the empty state with nothing saved (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-empty-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design");
 
-		await captureCheckpoint(page, PAGE_EMPTY);
-	});
+			await captureCheckpoint(page, withTheme(PAGE_EMPTY, theme));
+		});
+	}
 });
 
 test.describe("Readlist design page (seeded articles)", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
-	test("shows two seeded articles with pinned saved times", async ({ page }, testInfo) => {
-		const email = `readlist-design-articles-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		const userId = await createVerifiedUser(page, email);
-		await seedTwoArticles(page, userId, email);
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design");
-		await page.waitForSelector(`${PAGINATION_PAGES} ${PAGINATION_PAGE}`);
+	for (const theme of THEMES) {
+		test(`shows two seeded articles with pinned saved times (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-articles-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedTwoArticles(page, userId, email);
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design");
+			await page.waitForSelector(`${PAGINATION_PAGES} ${PAGINATION_PAGE}`);
 
-		await captureCheckpoint(page, PAGE_ARTICLES);
-	});
+			await captureCheckpoint(page, withTheme(PAGE_ARTICLES, theme));
+		});
+	}
 });
 
 test.describe("Readlist design page (custom readlist)", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
-	test("lands on a freshly made readlist with its own empty state", async ({ page }, testInfo) => {
-		const email = `readlist-design-custom-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openCustomReadlist(page, email);
+	for (const theme of THEMES) {
+		test(`lands on a freshly made readlist with its own empty state (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-custom-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await openCustomReadlist(page, email);
 
-		await captureCheckpoint(page, PAGE_CUSTOM_READLIST);
-	});
+			await captureCheckpoint(page, withTheme(PAGE_CUSTOM_READLIST, theme));
+		});
+	}
 });
 
 test.describe("Readlist design page (subscription inactive)", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
-	test("shows the inactive banner with the disabled save form", async ({ page }, testInfo) => {
-		const email = `readlist-design-subscription-inactive-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		const userId = await createVerifiedUser(page, email);
-		await seedSubscriptionState(page, { userId, state: "inactive" });
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design");
+	for (const theme of THEMES) {
+		test(`shows the inactive banner with the disabled save form (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-subscription-inactive-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedSubscriptionState(page, { userId, state: "inactive" });
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design");
 
-		await captureCheckpoint(page, SUBSCRIPTION_INACTIVE);
-	});
+			await captureCheckpoint(page, withTheme(SUBSCRIPTION_INACTIVE, theme));
+		});
+	}
 });
 
 test.describe("Readlist design read tab", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("shows the article marked read on the Read tab", async ({ page }, testInfo) => {
-		const email = `readlist-design-read-tab-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		const userId = await createVerifiedUser(page, email);
-		await seedTwoArticles(page, userId, email);
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design");
-		await markFirstArticleRead(page);
-		await gotoDesignQueue(page, "?tab=done&feature=design");
+	for (const theme of THEMES) {
+		test(`shows the article marked read on the Read tab (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-read-tab-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedTwoArticles(page, userId, email);
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design");
+			await markFirstArticleRead(page);
+			await gotoDesignQueue(page, "?tab=done&feature=design");
 
-		await captureCheckpoint(page, PAGE_READ_TAB);
-	});
+			await captureCheckpoint(page, withTheme(PAGE_READ_TAB, theme));
+		});
+	}
 });
 
 test.describe("Readlist design rail menu", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("opens the rail menu for a custom readlist", async ({ page }, testInfo) => {
-		const email = `readlist-design-rail-menu-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openCustomReadlist(page, email);
+	for (const theme of THEMES) {
+		test(`opens the rail menu for a custom readlist (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-rail-menu-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await openCustomReadlist(page, email);
 
-		await captureCheckpoint(page, RAIL_MENU_OPEN);
-	});
+			await captureCheckpoint(page, withTheme(RAIL_MENU_OPEN, theme));
+		});
+	}
 
-	test("opens the rename dialog from the rail menu", async ({ page }, testInfo) => {
-		const email = `readlist-design-rename-dialog-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openCustomReadlist(page, email);
+	for (const theme of THEMES) {
+		test(`opens the rename dialog from the rail menu (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-rename-dialog-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await openCustomReadlist(page, email);
 
-		await captureCheckpoint(page, RENAME_DIALOG);
-	});
+			await captureCheckpoint(page, withTheme(RENAME_DIALOG, theme));
+		});
+	}
 
-	test("opens the delete-readlist dialog from the rail menu", async ({ page }, testInfo) => {
-		const email = `readlist-design-delete-readlist-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openCustomReadlist(page, email);
+	for (const theme of THEMES) {
+		test(`opens the delete-readlist dialog from the rail menu (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-delete-readlist-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await openCustomReadlist(page, email);
 
-		await captureCheckpoint(page, DELETE_READLIST_DIALOG);
-	});
+			await captureCheckpoint(page, withTheme(DELETE_READLIST_DIALOG, theme));
+		});
+	}
 });
 
 test.describe("Readlist design card menu", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("opens the card menu on the first article", async ({ page }, testInfo) => {
-		const email = `readlist-design-card-menu-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		const userId = await createVerifiedUser(page, email);
-		await seedTwoArticles(page, userId, email);
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design");
+	for (const theme of THEMES) {
+		test(`opens the card menu on the first article (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-card-menu-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedTwoArticles(page, userId, email);
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design");
 
-		await captureCheckpoint(page, CARD_MENU_OPEN);
-	});
+			await captureCheckpoint(page, withTheme(CARD_MENU_OPEN, theme));
+		});
+	}
 
-	test("opens the delete-article dialog from the card menu", async ({ page }, testInfo) => {
-		const email = `readlist-design-delete-article-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		const userId = await createVerifiedUser(page, email);
-		await seedTwoArticles(page, userId, email);
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design");
+	for (const theme of THEMES) {
+		test(`opens the delete-article dialog from the card menu (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-delete-article-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedTwoArticles(page, userId, email);
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design");
 
-		await captureCheckpoint(page, DELETE_ARTICLE_DIALOG);
-	});
+			await captureCheckpoint(page, withTheme(DELETE_ARTICLE_DIALOG, theme));
+		});
+	}
 });
 
 test.describe("Readlist design alerts", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("shows the readlist-limit alert", async ({ page }, testInfo) => {
-		const email = `readlist-design-alert-limit-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await createVerifiedUser(page, email);
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design&queue_error=limit");
+	for (const theme of THEMES) {
+		test(`shows the readlist-limit alert (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-alert-limit-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design&queue_error=limit");
 
-		await captureCheckpoint(page, ALERT_LIMIT);
-	});
+			await captureCheckpoint(page, withTheme(ALERT_LIMIT, theme));
+		});
+	}
 
-	test("shows the save-form error for a malformed URL", async ({ page }, testInfo) => {
-		const email = `readlist-design-save-error-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await createVerifiedUser(page, email);
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design&error_code=malformed_url");
+	for (const theme of THEMES) {
+		test(`shows the save-form error for a malformed URL (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-save-error-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design&error_code=malformed_url");
 
-		await captureCheckpoint(page, SAVE_ERROR_CHECKPOINT);
-	});
+			await captureCheckpoint(page, withTheme(SAVE_ERROR_CHECKPOINT, theme));
+		});
+	}
 });
 
 test.describe("Readlist design subscription banner", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("shows the trial-countdown banner with pinned tile values", async ({ page }, testInfo) => {
-		const email = `readlist-design-subscription-trial-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		const userId = await createVerifiedUser(page, email);
-		await seedSubscriptionState(page, { userId, state: "trialing" });
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design");
+	for (const theme of THEMES) {
+		test(`shows the trial-countdown banner with pinned tile values (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-subscription-trial-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedSubscriptionState(page, { userId, state: "trialing" });
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design");
 
-		await captureCheckpoint(page, SUBSCRIPTION_TRIAL);
-	});
-
-	test("shows the cancellation-scheduled banner", async ({ page }, testInfo) => {
-		const email = `readlist-design-subscription-cancellation-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		const userId = await createVerifiedUser(page, email);
-		await seedSubscriptionState(page, {
-			userId,
-			state: "cancellation-scheduled",
-			at: "2027-03-01T00:00:00.000Z",
+			await captureCheckpoint(page, withTheme(SUBSCRIPTION_TRIAL, theme));
 		});
-		await loginAs(page, email);
-		await gotoDesignQueue(page, "?feature=design");
+	}
 
-		await captureCheckpoint(page, SUBSCRIPTION_CANCELLATION);
-	});
+	for (const theme of THEMES) {
+		test(`shows the cancellation-scheduled banner (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-subscription-cancellation-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedSubscriptionState(page, {
+				userId,
+				state: "cancellation-scheduled",
+				at: "2027-03-01T00:00:00.000Z",
+			});
+			await loginAs(page, email);
+			await gotoDesignQueue(page, "?feature=design");
+
+			await captureCheckpoint(page, withTheme(SUBSCRIPTION_CANCELLATION, theme));
+		});
+	}
 });
 
 test.describe("Readlist design setup guide", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("shows the email step as current at 50% complete", async ({ page }, testInfo) => {
-		const email = `readlist-design-setup-email-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await createVerifiedUser(page, email);
-		await loginAs(page, email);
-		await gotoDesignQueueWithCookies(page, [
-			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
-			{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },
-		]);
+	for (const theme of THEMES) {
+		test(`shows the email step as current at 50% complete (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-setup-email-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoDesignQueueWithCookies(page, [
+				{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
+				{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },
+			]);
 
-		await captureCheckpoint(page, SETUP_GUIDE_EMAIL_STEP);
-	});
+			await captureCheckpoint(page, withTheme(SETUP_GUIDE_EMAIL_STEP, theme));
+		});
+	}
 
-	test("shows the next-read step as current at 75% complete with its saves chip", async ({
-		page,
-	}, testInfo) => {
-		const email = `readlist-design-setup-next-read-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		const userId = await createVerifiedUser(page, email);
-		await seedInboxArticleQueued(page, userId);
-		await loginAs(page, email);
-		await gotoDesignQueueWithCookies(page, [
-			{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
-			{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },
-		]);
+	for (const theme of THEMES) {
+		test(`shows the next-read step as current at 75% complete with its saves chip (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-design-setup-next-read-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedInboxArticleQueued(page, userId);
+			await loginAs(page, email);
+			await gotoDesignQueueWithCookies(page, [
+				{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
+				{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },
+			]);
 
-		await captureCheckpoint(page, SETUP_GUIDE_NEXT_READ);
-	});
+			await captureCheckpoint(page, withTheme(SETUP_GUIDE_NEXT_READ, theme));
+		});
+	}
 });

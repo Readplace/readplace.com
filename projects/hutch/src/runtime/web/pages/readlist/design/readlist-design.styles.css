@@ -75,7 +75,7 @@
 }
 
 .readlist-design-nav__item--active {
-  background: var(--color-brand-light);
+  background: var(--secondary);
 }
 
 .readlist-design-nav__link {
@@ -656,7 +656,7 @@
 }
 
 .readlist-design-card__site svg {
-  color: var(--color-secondary);
+  color: var(--color-secondary-text);
 }
 
 .readlist-design-card__saved svg {
@@ -715,7 +715,7 @@
   padding: 8px 16px;
   border: 1px solid var(--color-brand);
   border-radius: var(--radius-sm);
-  background: var(--color-brand-light);
+  background: var(--secondary);
   font: inherit;
   font-size: 0.875rem;
   font-weight: 600;
@@ -851,7 +851,7 @@
 }
 
 .readlist-design-pagination__link--disabled {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   pointer-events: none;
 }
 

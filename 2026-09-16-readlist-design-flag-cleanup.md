@@ -27,7 +27,7 @@ redirect" plus "answer the card poll and the counts fragment in the design marku
 | Subscription banner | inline `aside.readlist-banner` in `readlist.template.html` | `design/readlist-design-subscription.component.ts` / `.template.html` (right-rail card, countdown tiles) |
 | Rename | `readlist-rename.client.ts` (inline contenteditable) | `design/readlist-design-rename.component.ts` (modal) + `design/readlist-design.client.ts` (fetch + reload; also closes kebab menus) |
 | Alerts | `p.readlist__error-flash` with `readlist.error.ts` messages | `design/readlist-design-alerts.ts` (title + body per `queue_error` code) |
-| Theme | follows the account's appearance | pinned light via `PageBody.pinnedAppearance` |
+| Theme | follows the account's appearance | follows the account's appearance |
 
 Behaviour is deliberately identical under both paths (same routes, same redirects,
 same confirm dialogs, same additive readlist membership, same save-tip trigger). Only
@@ -64,7 +64,7 @@ nothing else uses them by then):
 - `src/packages/ui-icons/src/ui-icons.ts` — `book`, `chevron-up`, `circle`, `clock`, `ellipsis`, `ellipsis-vertical`, `eye`, `file-down`, `folder`, `globe`, `loader`, `trash`, `x-circle` (`book`, `file-down` are also used by the site header)
 - `projects/hutch/src/runtime/web/shared/illustrations/illustrations.ts` (+ `.test.ts`) — `book-lightbulb`, `trash-can`
 - `src/packages/web-shell/src/shared/confirm-popover/` — `ConfirmPopover.illustrationHtml` + `.confirm-popover--illustrated`
-- `src/packages/web-shell/src/page-body.types.ts` + `base.component.ts` — `PageBody.pinnedAppearance`
+- `src/packages/web-shell/src/base.styles.ts` + `BRAND_GUIDELINES.md` — `--color-secondary-text` (navy ink that follows the page; only the design card's site glyph consumes it)
 - `projects/hutch/src/runtime/web/pages/readlist/readlist.viewmodel.ts` — `SubscriptionBannerState` (`trial-countdown`) carries `remaining: TrialRemaining`
 - `projects/hutch/src/runtime/web/pages/readlist/readlist.url.ts` — `buildReadlistCountsUrl(state, extraParams)`
 - `projects/hutch/src/runtime/web/pages/readlist/readlist-mutation-fragments.ts` — `renderReadlistMutationFragment({ extraParams })`
@@ -110,9 +110,9 @@ Work through this in order; each step keeps `pnpm check` green.
    and `readlistDeleteConfirmPanels` callers first), `onboarding/onboarding.component.ts`
    + `.template.html` + `.styles.css` + `.styles.ts` + `.test.ts`. Update
    `reader-open.client.ts` `CARD_SELECTOR` to the single surviving class.
-4. **Remove the light pin** (`pinnedAppearance: "light"`) once a dark-mode design exists
-   and its tokens are applied; until then leave it, or the page renders undesigned in
-   dark mode. Delete `PageBody.pinnedAppearance` only if nothing else uses it by then.
+4. **Light pin already removed.** Dark mode for the design page shipped, so
+   `pinnedAppearance: "light"` and the whole `PageBody.pinnedAppearance` seam
+   (`page-body.types.ts`, `base.component.ts`, its shell test) are already gone — nothing to do here.
 5. **Route tests.** Fold `readlist.design.route.test.ts` into the existing
    `readlist.*.route.test.ts` files: drop the "carries feature=design" assertions, keep
    the state assertions (alerts, empty states, subscription card, counts fragment, card
@@ -150,8 +150,9 @@ Work through this in order; each step keeps `pnpm check` green.
    reads exactly as before the flag.
 3. Revert `reader-open.client.ts` `CARD_SELECTOR` to `.readlist-article`.
 4. Decide per shared addition whether anything else uses it: the icons used by the
-   header (`book`, `file-down`) and the `illustrationHtml` / `pinnedAppearance` seams are
-   harmless to keep; `renderIllustration`, the unused icons, `remaining` on the trial
+   header (`book`, `file-down`) and the `illustrationHtml` seam are
+   harmless to keep; `renderIllustration`, the unused icons, the `--color-secondary-text`
+   token, `remaining` on the trial
    banner state, and the `extraParams` parameters become knip/coverage failures and
    should go.
 5. `pnpm check`; no baselines change because the flag-off page never changed.

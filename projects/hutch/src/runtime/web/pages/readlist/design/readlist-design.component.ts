@@ -390,7 +390,6 @@ export function ReadlistDesignPage(vm: ReadlistViewModel, options: ReadlistDesig
 		},
 		styles: `${READLIST_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${SUBSCRIBE_PLANS_STYLES}\n${ONBOARDING_DESIGN_STYLES}\n${READLIST_DESIGN_STYLES}`,
 		bodyClass: READLIST_DESIGN_BODY_CLASS,
-		pinnedAppearance: "light",
 		content: { html: content },
 		scripts: scripts.join("\n"),
 	};

@@ -1,4 +1,3 @@
-import type { AppearanceSetting } from "./base.styles";
 import type { ClickSurface } from "./internal-link-tracking";
 
 export interface SeoMetadata {
@@ -44,7 +43,6 @@ export interface PageBody {
 	 * setting, while every other logged-out page is designed art that a
 	 * system-driven flip would repaint into a scheme nobody chose. */
 	followsSystemTheme?: boolean;
-	pinnedAppearance?: AppearanceSetting;
 	content: { html: string; markdown?: string };
 	markdownFormattedDate?: string;
 	scripts?: string;

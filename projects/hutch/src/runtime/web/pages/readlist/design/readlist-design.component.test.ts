@@ -115,11 +115,10 @@ function urlParams(href: string | null): URLSearchParams {
 }
 
 describe("ReadlistDesignPage", () => {
-	it("marks the page as the design variant of the readlist and pins it to light", () => {
+	it("marks the page as the design variant of the readlist", () => {
 		const body = buildPage();
 
 		expect(body.bodyClass).toBe("page-readlist page-readlist-design");
-		expect(body.pinnedAppearance).toBe("light");
 	});
 
 	it("shows the alert for a query the alert catalogue recognises", () => {

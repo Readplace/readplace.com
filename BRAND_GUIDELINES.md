@@ -112,6 +112,7 @@ In dark mode, the brand colours shift slightly warmer and lighter to maintain co
 | Brand dark | `#a85a1e` | `#e89a55` | `--color-brand-dark` |
 | Brand light | `#f5e6d3` | `#3d2a18` | `--color-brand-light` |
 | Primary | `hsl(27 65% 47%)` | `hsl(27 65% 52%)` | `--primary` |
+| Secondary text (navy ink) | `#2b3a55` | `#8fa3c8` | `--color-secondary-text` |
 
 ### Colour Rules
 

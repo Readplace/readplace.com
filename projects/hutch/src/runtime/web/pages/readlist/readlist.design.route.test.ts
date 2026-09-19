@@ -66,7 +66,7 @@ describe("GET /queue without the design flag", () => {
 });
 
 describe("GET /queue?feature=design", () => {
-	it("renders the design page, pinned to light even for a dark-appearance user", async () => {
+	it("renders the design page in the account's appearance", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await loggedInUserId(harness);
@@ -80,7 +80,7 @@ describe("GET /queue?feature=design", () => {
 		expect(main.hasAttribute("data-test-readlist-design")).toBe(true);
 		expect(doc.body.classList.contains("page-readlist")).toBe(true);
 		expect(doc.body.classList.contains("page-readlist-design")).toBe(true);
-		expect(doc.body.classList.contains("theme-light")).toBe(true);
+		expect(doc.body.classList.contains("theme-dark")).toBe(true);
 	});
 });
 

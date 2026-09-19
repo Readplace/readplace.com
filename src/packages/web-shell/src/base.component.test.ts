@@ -260,21 +260,6 @@ describe("Base component", () => {
 		expect(themeColorMetas(doc)).toEqual([{ content: "#121212", media: null }]);
 	});
 
-	it("pins the light theme class even when a signed-in reader's own preference is dark", () => {
-		const page = createTestPageBody({ pinnedAppearance: "light" });
-		const result = Base(page, {
-			cspNonce: CSP_NONCE,
-			isAuthenticated: true,
-			emailVerified: true,
-			appearance: "dark",
-		}).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		expect(doc.body.classList.contains("theme-light")).toBe(true);
-		expect(doc.body.classList.contains("theme-dark")).toBe(false);
-		expect(themeColorMetas(doc)).toEqual([{ content: "#2B3A55", media: null }]);
-	});
-
 	it("should include navigation links", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");

@@ -26,6 +26,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	* and --primary-text is the one that follows the page. */
 	"--primary": "hsl(27 65% 41%)",
 	"--primary-text": "var(--color-brand-dark)",
+	"--color-secondary-text": "var(--color-secondary)",
 	/** The hover/active step below --primary, at 6.49:1, pinned the same way. */
 	"--primary-fill": "hsl(27 65% 33%)",
 	"--primary-foreground": "hsl(0 0% 100%)",
@@ -102,6 +103,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--shadow-sm": "0 1px 2px rgba(0,0,0,0.3)",
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.4)",
 	"--primary-text": "hsl(27 65% 58%)",
+	"--color-secondary-text": "#8FA3C8",
 	"--secondary": "hsl(27 15% 18%)",
 	"--secondary-foreground": "hsl(27, 65%, 35%)",
 	"--accent": "hsl(27 65% 52%)",

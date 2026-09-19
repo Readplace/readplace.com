@@ -14,6 +14,7 @@ const VIEWPORT = { width: 1280, height: 900 };
 const READLIST_ROOT = "main.readlist";
 const READER_ROOT = "main.reader";
 const AUTH_ROOT = "main.auth-page";
+const DESIGN_ROOT = "main.readlist-design";
 const SETTLE_MS = 45000;
 
 function minimumRatio(measured: RenderedInk): number {
@@ -181,6 +182,45 @@ async function auditDeleteConfirmation(
 	});
 }
 
+/** The design card's delete lives inside a closed <details> menu, so the sweep
+ * has to open the menu before the delete trigger is clickable; the confirm
+ * popover then renders inside main.readlist-design, so the same walk reaches it. */
+async function auditDesignDeleteConfirmation(
+	page: Page,
+	where: { theme: string; view: string },
+): Promise<void> {
+	await page.locator('[data-test-action="article-menu"]').first().click({ timeout: SETTLE_MS });
+	await page.locator('[data-test-action="delete"]').first().click({ timeout: SETTLE_MS });
+	await expect(page.locator('[data-test-confirm-popover="delete"]:popover-open')).toBeVisible({
+		timeout: SETTLE_MS,
+	});
+	await page.mouse.move(0, 0);
+
+	const measurements = await stableMeasurements(page, DESIGN_ROOT);
+	assertContrast(measurements, { ...where, view: `${where.view}/delete-confirm` });
+
+	await page.keyboard.press("Escape");
+	await expect(page.locator('[data-test-confirm-popover="delete"]:popover-open')).toBeHidden({
+		timeout: SETTLE_MS,
+	});
+}
+
+async function auditDesignQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
+	await page.waitForSelector("body.page-readlist-design");
+	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
+	await waitForCardsSettled(page);
+	await page.mouse.move(0, 0);
+
+	const measurements = await stableMeasurements(page, DESIGN_ROOT);
+	assert.ok(
+		measurements.length > 0,
+		`${where.theme}/${where.view}: the audit measured nothing inside ${DESIGN_ROOT}`,
+	);
+	assertContrast(measurements, where);
+
+	await auditDesignDeleteConfirmation(page, where);
+}
+
 test.describe("Readlist colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 
@@ -249,6 +289,38 @@ test.describe("Auth colour roles hold their WCAG contrast in both themes", () =>
 			await page.locator('[data-test-action="signup"]').click();
 			await expect(page.locator('[data-test-error="email"]')).toBeVisible({ timeout: SETTLE_MS });
 			await auditAuth(page, { theme, view: "signup/field-error" });
+		}
+	});
+});
+
+test.describe("Design readlist colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("every rendered design-queue surface clears its contrast minimum", async ({
+		page,
+	}, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		await signUpFreshUser(page, `colour-contrast-design-${run}@example.com`);
+		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-design-unread=${run}`, 1);
+		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-design-read=${run}`, 2);
+		await markNewestArticleRead(page);
+
+		const designViewUrls = {
+			"to-read": `${BASE_URL}/queue?feature=design`,
+			done: `${BASE_URL}/queue?tab=done&feature=design`,
+			"save-error": `${BASE_URL}/queue?feature=design&error_code=save_failed`,
+		} as const;
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			for (const view of ["to-read", "done", "save-error"] as const) {
+				await page.goto(designViewUrls[view], { waitUntil: "domcontentloaded" });
+				if (view === "save-error") {
+					await expect(page.locator("[data-test-save-error]")).toBeVisible({
+						timeout: SETTLE_MS,
+					});
+				}
+				await auditDesignQueue(page, { theme, view });
+			}
 		}
 	});
 });

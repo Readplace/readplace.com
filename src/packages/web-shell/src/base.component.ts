@@ -195,7 +195,6 @@ const THEME_COLOR_METAS: Record<AppearanceSetting, ThemeColorMeta[]> = {
 };
 
 function resolveAppearance(body: PageBody, state: BannerState): AppearanceSetting {
-	if (body.pinnedAppearance) return body.pinnedAppearance;
 	if (state.isAuthenticated) return state.appearance ?? "system";
 	return body.followsSystemTheme ? "system" : "light";
 }
