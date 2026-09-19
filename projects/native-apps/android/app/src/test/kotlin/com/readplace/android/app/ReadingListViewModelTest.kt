@@ -233,6 +233,73 @@ class ReadingListViewModelTest {
 
 	// endregion
 
+	// region Account appearance
+
+	@Test
+	fun `a fresh reading list carries no account appearance`() = runTest {
+		val viewModel = viewModel()
+
+		assertNull(
+			"a new signed-in presentation starts with no account appearance, so the theme follows the system until this list's own load supplies one",
+			viewModel.state.value.appearance,
+		)
+	}
+
+	@Test
+	fun `a loaded collection publishes the server's dark appearance`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), appearance = "dark"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("dark", viewModel.state.value.appearance)
+	}
+
+	@Test
+	fun `a loaded collection publishes the server's light appearance`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), appearance = "light"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("light", viewModel.state.value.appearance)
+	}
+
+	@Test
+	fun `a reading list built after another loaded a dark appearance starts without it`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), appearance = "dark"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val previous = viewModel()
+		previous.loadIfNeeded()
+		assertEquals("precondition: the previous presentation adopted the account's dark appearance", "dark", previous.state.value.appearance)
+
+		val next = viewModel()
+
+		assertNull(
+			"the next signed-in presentation owns a fresh list, so the previous account's appearance does not carry over",
+			next.state.value.appearance,
+		)
+	}
+
+	// endregion
+
 	// region Locked account
 
 	@Test
@@ -1801,11 +1868,13 @@ class ReadingListViewModelTest {
 			page: Int = 1,
 			total: Int = 1,
 			actionsJson: String = COLLECTION_ACTIONS,
-		): String =
-			"""
+			appearance: String? = null,
+		): String {
+			val appearanceProperty = if (appearance != null) ", \"appearance\": \"$appearance\"" else ""
+			return """
 				{
 					"class": ["collection", "articles"],
-					"properties": { "total": $total, "page": $page, "pageSize": 20 },
+					"properties": { "total": $total, "page": $page, "pageSize": 20$appearanceProperty },
 					"entities": [${entitiesJson.joinToString(",\n")}],
 					"links": [
 						{ "rel": ["self"], "href": "/queue?page=$page" },
@@ -1814,6 +1883,7 @@ class ReadingListViewModelTest {
 					"actions": [$actionsJson]
 				}
 			"""
+		}
 
 		fun sirenError(code: String, message: String): String =
 			"""{ "class": ["error"], "properties": { "code": "$code", "message": "$message" } }"""

@@ -56,7 +56,6 @@ class MainActivity : ComponentActivity() {
 	private val foreground = MutableStateFlow(false)
 
 	private lateinit var session: AppSession
-	private lateinit var listViewModel: ReadingListViewModel
 	private lateinit var intro: LaunchIntroModel
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,13 +88,15 @@ class MainActivity : ComponentActivity() {
 		val captor = HtmlCaptor(this)
 		val heal = HealBlockedArticle(api, captor)
 		val drain = DrainUploadJobs(api, captor, jobs, now = { Instant.now() })
-		listViewModel = ReadingListViewModel(
-			api = api,
-			unseenSave = unseenSave,
-			healBlockedArticle = { url -> heal.run(url) },
-			drainUploadJobs = { drain.run() },
-			onSessionExpired = { session.forceLogout() },
-		)
+		val createReadingList: () -> ReadingListViewModel = {
+			ReadingListViewModel(
+				api = api,
+				unseenSave = unseenSave,
+				healBlockedArticle = { url -> heal.run(url) },
+				drainUploadJobs = { drain.run() },
+				onSessionExpired = { session.forceLogout() },
+			)
+		}
 
 		val reduceMotion = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 		intro = LaunchIntroModel(
@@ -109,12 +110,11 @@ class MainActivity : ComponentActivity() {
 		handleCallback(intent)
 
 		setContent {
-			val appearance = listViewModel.state.collectAsState().value.appearance
-			ReadplaceTheme(darkTheme = AppearancePresentation.isDark(appearance, isSystemInDarkTheme())) {
+			ReadplaceTheme {
 				Surface(modifier = Modifier.fillMaxSize()) {
 					Root(
 						session = session,
-						listViewModel = listViewModel,
+						createReadingList = createReadingList,
 						intro = intro,
 						reduceMotion = reduceMotion,
 						isForeground = foreground.collectAsStateWithLifecycle().value,
@@ -181,7 +181,7 @@ private object WebViewDataWiper : WebDataWiper {
 @Composable
 private fun Root(
 	session: AppSession,
-	listViewModel: ReadingListViewModel,
+	createReadingList: () -> ReadingListViewModel,
 	intro: LaunchIntroModel,
 	reduceMotion: Boolean,
 	isForeground: Boolean,
@@ -221,13 +221,19 @@ private fun Root(
 
 	Box(modifier = Modifier.fillMaxSize()) {
 		if (isLoggedIn) {
-			ReadingListScreen(
-				viewModel = listViewModel,
-				now = Instant.now(),
-				isForeground = isForeground,
-				onSignOut = { scope.launch { session.logout(); intro.replay() } },
-				onOpenExternally = onOpenExternally,
-			)
+			val listViewModel = remember { createReadingList() }
+			val appearance = listViewModel.state.collectAsState().value.appearance
+			ReadplaceTheme(darkTheme = AppearancePresentation.isDark(appearance, isSystemInDarkTheme())) {
+				Surface(modifier = Modifier.fillMaxSize()) {
+					ReadingListScreen(
+						viewModel = listViewModel,
+						now = Instant.now(),
+						isForeground = isForeground,
+						onSignOut = { scope.launch { session.logout(); intro.replay() } },
+						onOpenExternally = onOpenExternally,
+					)
+				}
+			}
 		} else {
 			LoginScreen(
 				slogans = sloganList,
