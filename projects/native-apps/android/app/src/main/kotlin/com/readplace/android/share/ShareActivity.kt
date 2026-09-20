@@ -110,7 +110,7 @@ class ShareActivity : ComponentActivity() {
 				nativeUserAgent = AppConfig.nativeUserAgent(BuildConfig.VERSION_CODE, Build.VERSION.RELEASE),
 				ioDispatcher = Dispatchers.IO,
 			),
-			captor = HtmlCaptor(this),
+			captor = HtmlCaptor(this) { findViewById(android.R.id.content) },
 			jobs = UploadJobStore(filesDir, Dispatchers.IO),
 			unseenSave = UnseenSave(filesDir),
 			clock = Clock.systemUTC(),

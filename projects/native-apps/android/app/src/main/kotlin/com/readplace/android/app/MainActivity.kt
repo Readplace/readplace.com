@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
 		)
 
 		val api = session.makeApi()
-		val captor = HtmlCaptor(this)
+		val captor = HtmlCaptor(this) { findViewById(android.R.id.content) }
 		val heal = HealBlockedArticle(api, captor)
 		val drain = DrainUploadJobs(api, captor, jobs, now = { Instant.now() })
 		val createReadingList: () -> ReadingListViewModel = {
