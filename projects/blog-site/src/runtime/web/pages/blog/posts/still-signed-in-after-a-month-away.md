@@ -6,7 +6,7 @@ date: "2026-09-20"
 author: "Fayner Brack"
 keywords: "app keeps signing me out, stay signed in, read it later app signs me out, refresh token lifetime, oauth2-server default, session expired after two weeks, signed out for no reason, readplace"
 tags: ["changelog"]
-banner: "I stopped 2 weeks away from signing you out"
+banner: "I fixed the sign-out that followed 2 weeks away"
 ---
 
 <details class="blog-tldr">
@@ -40,7 +40,7 @@ How does a 2-week expiry go unnoticed for months in a product whose author belie
 
 > **A number a comment explains with confidence is a number that stops getting checked.**
 
-2 separate readers did exactly that, months apart. Both concluded 180 days. Neither looked at a stored token, because the comments made looking feel unnecessary.
+That is how both readers of this code reached the same wrong number. Neither looked at a stored token, because the comments made looking feel unnecessary.
 
 ## 1 line, and why 180
 
@@ -50,7 +50,7 @@ The fix I shipped is 1 configuration line: a refresh-token lifetime of 180 days,
 
 Tokens issued before the change keep their fortnight until their next refresh, which grants the 180-day window. An app or extension that checks in within the old 14 days upgrades without showing you anything. If you're mid-absence right now, 1 more sign-in form is coming, and it is the last one a fortnight away can cause.
 
-## What stayed strict
+## Idle is the only thing forgiven
 
 Longer is not looser. A refresh token is still single-use and a replayed one is still refused, and logout, logout-everywhere and account deletion still revoke on the spot. The 180 days bound one thing only, how long an untouched sign-in stays alive, and any visit resets the count. In practice the reader who types a password again is the one who stayed away a full 6 months.
 
@@ -62,4 +62,4 @@ One boundary worth naming: the website in a browser signs in through its own coo
 
 A read-it-later product makes a strange promise: leave, and your reading will still be here. The sign-in was the one part of Readplace not keeping it. That promise now includes the sign-in.
 
-Connect [the browser extension](https://readplace.com/install) or [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store) once, and it still holds 5 months later when the article you saved finally gets its evening, with [your readlist](/?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=home) exactly where you left it.
+A sign-in made today in [the browser extension](https://readplace.com/install) or [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store) now outlasts any break in your reading shorter than 6 months. The article you save tonight opens without a password when its evening finally comes, and [your readlist](/?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=home) is exactly where you left it.
