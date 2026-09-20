@@ -10,6 +10,7 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import com.readplace.android.core.AppConfig
 
@@ -31,11 +32,13 @@ fun WebPageSheet(
 	onFail: () -> Unit,
 ) {
 	val isDark = LocalIsDarkTheme.current
+	val surface = LocalBrandColors.current.surface
 
 	AndroidView(
 		modifier = Modifier.fillMaxSize(),
 		factory = { context ->
 			WebView(webContentContext(context, isDark)).apply {
+				setBackgroundColor(surface.toArgb())
 				settings.javaScriptEnabled = true
 				settings.domStorageEnabled = true
 				// The help page teaches Share with a video; letting it play inline keeps
@@ -86,6 +89,9 @@ fun WebPageSheet(
 				}
 				loadUrl(url)
 			}
+		},
+		update = { webView ->
+			webView.setBackgroundColor(surface.toArgb())
 		},
 	)
 }
