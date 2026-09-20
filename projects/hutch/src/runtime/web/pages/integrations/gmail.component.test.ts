@@ -166,6 +166,18 @@ describe("Gmail sender mapping presentation", () => {
 		assert.equal(manageUrl.searchParams.get("utm_source"), "integrations-gmail");
 		assert.equal(manageUrl.searchParams.get("utm_content"), "manage-inboxes");
 	});
+
+	it("drops the picker guidance from a legacy card while the sender picker is hidden", () => {
+		const doc = pageDocument(input({
+			metadataScopeGranted: false,
+			senders: [sender({ email: "legacy@example.com" })],
+		}));
+		const reconnect = doc.querySelector("[data-test-gmail-metadata-reconnect]");
+		assert(reconnect, "the metadata reconnect prompt stands in for the hidden sender picker");
+		const cards = Array.from(doc.querySelectorAll("[data-test-gmail-mapping]"));
+		assert.equal(cards.length, 1);
+		assert.equal(cards[0].querySelector("[data-test-gmail-mapping-destination-label]")?.textContent, "still need an inbox.");
+	});
 });
 
 describe("Gmail forwarding confirmation step", () => {
