@@ -11,6 +11,9 @@ import {
 	DeleteAccountCommand,
 	ExportUserDataCommand,
 	DisconnectGmailCommand,
+	GMAIL_FILTER_REWRITE_FAILED_EVENT,
+	GMAIL_FILTER_REWRITE_FAILED_METRIC,
+	GMAIL_METRIC_NAMESPACE,
 	GmailForwardingConfirmFailedEvent,
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
@@ -63,6 +66,7 @@ const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
 const gmailConnectionCapWarnThreshold = config.requireNumber("gmailConnectionCapWarnThreshold");
 const oauthRefreshRefusedDailyThreshold = config.requireNumber("oauthRefreshRefusedDailyThreshold");
+const gmailFilterRewriteFailedThreshold = config.requireNumber("gmailFilterRewriteFailedThreshold");
 const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 
@@ -1267,6 +1271,43 @@ eventBus.subscribeAll(
 	rewriteGmailFilterWithSQS,
 	{ name: "hutch-rewrite-gmail-filter" },
 );
+
+new aws.cloudwatch.LogMetricFilter("gmail-filter-rewrite-failed-filter", {
+	name: "gmail-filter-rewrite-failed",
+	logGroupName: rewriteGmailFilterLambda.logGroupName,
+	pattern: `{ $.event = "${GMAIL_FILTER_REWRITE_FAILED_EVENT}" }`,
+	metricTransformation: {
+		name: GMAIL_FILTER_REWRITE_FAILED_METRIC,
+		namespace: GMAIL_METRIC_NAMESPACE,
+		value: "1",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
+const gmailFilterRewriteFailedTopic = new aws.sns.Topic("gmail-filter-rewrite-failed-topic", {
+	name: "gmail-filter-rewrite-failed-topic",
+});
+
+new aws.sns.TopicSubscription("gmail-filter-rewrite-failed-alert-email", {
+	topic: gmailFilterRewriteFailedTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("gmail-filter-rewrite-failed-alarm", {
+	name: "gmail-filter-rewrite-failed-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: GMAIL_FILTER_REWRITE_FAILED_METRIC,
+	namespace: GMAIL_METRIC_NAMESPACE,
+	period: 3600,
+	statistic: "Sum",
+	threshold: gmailFilterRewriteFailedThreshold,
+	treatMissingData: "notBreaching",
+	alarmDescription: "Readplace could not write a reader's Gmail forwarding filter",
+	alarmActions: [gmailFilterRewriteFailedTopic.arn],
+});
 
 const gmailDiscoveryAccess = new HutchDynamoDBAccess("hutch-gmail-discovery-tables", {
 	tables: [{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false }],

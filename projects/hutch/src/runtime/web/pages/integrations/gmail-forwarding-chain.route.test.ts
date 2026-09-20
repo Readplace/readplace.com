@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { z } from "zod";
 import {
+	type GmailFilterRewriteFailedLine,
 	GmailFilterRewrittenEvent,
 	GmailForwardingConfirmedEvent,
 	type HutchEvent,
@@ -75,7 +76,12 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const lambda = initHandleByDetailType({
 			routes: {
 				[RewriteGmailFilterCommand.detailType]: [
-					initRewriteGmailFilterHandler({ rewriteGmailFilter, publishEvent, logger }),
+					initRewriteGmailFilterHandler({
+						rewriteGmailFilter,
+						publishEvent,
+						metricLog: HutchLogger.fromJSON<GmailFilterRewriteFailedLine>(),
+						logger,
+					}),
 				],
 				[GmailForwardingConfirmedEvent.detailType]: [
 					initGmailForwardingConfirmedHandler({

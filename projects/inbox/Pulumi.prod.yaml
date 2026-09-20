@@ -7,6 +7,7 @@ config:
   inbox:hutchStack: organization/hutch/prod
   inbox:platformStack: organization/platform/prod
   inbox:alertEmail: readplace+devops@readplace.com
+  inbox:gmailForwardingConfirmFailedThreshold: 1
   inbox:inboxAddressDomain: read.place
   inbox:inboxMailParentZone: read.place
   inbox:deletionProtection: true
