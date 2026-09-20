@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -163,15 +165,22 @@ fun LoginScreen(
 							animationSpec = tween(durationMillis = if (reduceMotion) 0 else SLOGAN_FADE_MILLIS),
 							label = "slogan",
 						) { slogan ->
-							Text(
+							val subtitleStyle = MaterialTheme.typography.bodyMedium
+							BasicText(
 								text = sloganAsReview(slogan),
-								style = MaterialTheme.typography.bodyMedium,
-								color = MaterialTheme.colorScheme.onSurfaceVariant,
-								textAlign = TextAlign.Center,
+								modifier = Modifier.fillMaxWidth(),
+								style = subtitleStyle.copy(
+									color = MaterialTheme.colorScheme.onSurfaceVariant,
+									textAlign = TextAlign.Center,
+								),
 								// One line, so a longer slogan swapping in cannot move the brand mark
 								// the launch intro lands on.
 								maxLines = 1,
 								overflow = TextOverflow.Ellipsis,
+								autoSize = TextAutoSize.StepBased(
+									minFontSize = subtitleStyle.fontSize * MIN_SLOGAN_SCALE,
+									maxFontSize = subtitleStyle.fontSize,
+								),
 							)
 						}
 					}
@@ -232,6 +241,7 @@ fun LoginScreen(
 
 private const val SLOGAN_INTERVAL_MILLIS = 12_000L
 private const val SLOGAN_FADE_MILLIS = 300
+private const val MIN_SLOGAN_SCALE = 0.85f
 private val CONTENT_PADDING = 24.dp
 private val STACK_SPACING = 28.dp
 private val ACTION_PADDING = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
