@@ -356,11 +356,6 @@
   background: var(--muted);
 }
 
-.gmail__picker-option:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .gmail__option-detail,
 .gmail__discovery-status {
   font-size: 0.8125rem;

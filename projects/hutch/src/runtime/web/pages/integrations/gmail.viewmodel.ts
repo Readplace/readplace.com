@@ -213,13 +213,18 @@ function bannersFor(key: string | undefined, messages: Record<string, string>): 
 	return message === undefined ? [] : [{ key, message }];
 }
 
+function availableSendersMessage(count: number): string {
+	if (count === 0) return "I didn't find any senders in your Gmail account.";
+	return `${count} Gmail sender${count === 1 ? "" : "s"} available.`;
+}
+
 function discoveryMessage(input: GmailPageInput, availableSenders: number): string {
 	if (input.discovery.requiresReconnect) return "Reconnect Gmail to continue loading senders. Your existing mappings stay in place.";
 	switch (input.discovery.state) {
 		case "idle": return "Load senders from your Gmail account to choose one.";
 		case "running": return availableSenders > 0 ? "You can select a sender now." : "Gmail is checking for senders.";
 		case "failed": return "I couldn't finish loading your Gmail senders. Your saved choices are still available. Try Load senders again.";
-		case "complete": return `${availableSenders} Gmail senders available.`;
+		case "complete": return availableSendersMessage(availableSenders);
 	}
 }
 

@@ -249,6 +249,15 @@ describe("Gmail sender chooser", () => {
 		assert.equal(failed.chooser.hasOptions, true);
 		assert.equal(failed.chooser.pollUrl, undefined);
 	});
+
+	it("names the finished scan at no senders, one sender and many", () => {
+		const none = toGmailPageViewModel(input({ discoveredSenders: [], senders: [] }));
+		assert.equal(none.chooser.message, "I didn't find any senders in your Gmail account.");
+		const one = toGmailPageViewModel(input({ discoveredSenders: [{ email: TLDR, name: "TLDR" }], senders: [] }));
+		assert.equal(one.chooser.message, "1 Gmail sender available.");
+		const many = toGmailPageViewModel(input({ discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: BREW }], senders: [] }));
+		assert.equal(many.chooser.message, "2 Gmail senders available.");
+	});
 });
 
 describe("Gmail inbox mappings and connection status", () => {

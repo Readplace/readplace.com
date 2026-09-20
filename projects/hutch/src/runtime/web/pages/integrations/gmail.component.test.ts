@@ -157,7 +157,7 @@ describe("Gmail sender mapping presentation", () => {
 		assert(mappedSender, "the mapped sender must render");
 		assert.equal(mappedSender.querySelector(".gmail__mapped-sender-email")?.tagName, "SPAN");
 		assert.deepEqual(Array.from(mappedSender.querySelectorAll("button"), (button) => button.textContent?.trim()), ["Exclude"]);
-		assert.equal(cards[1].querySelector("[data-test-gmail-mapping-destination-label]")?.textContent, "still need an inbox.");
+		assert.equal(cards[1].querySelector("[data-test-gmail-mapping-destination-label]")?.textContent, "still need an inbox. Choose the sender in the picker above, then pick an inbox.");
 		const manage = Array.from(doc.querySelectorAll("[data-test-gmail-manage-inboxes]"));
 		assert.equal(manage.length, 1);
 		assert.equal(manage[0].textContent, "Manage Your Inboxes");
