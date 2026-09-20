@@ -1,38 +1,46 @@
 <article class="readlist-design-card{{statusClass}}" data-test-article="{{id}}"{{#if isFirst}} id="latest-saved"{{/if}}{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s [!this.querySelector('details[open]')]" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
-  <div class="readlist-design-card__head">
-    <a class="readlist-design-card__title" href="{{titleLinkUrl}}" data-test-article-title hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader data-reader-field="title">{{title}}</a>
-    <details class="readlist-design-card__menu" data-test-article-menu>
-      <summary class="readlist-design-card__menu-toggle" aria-label="More options for {{title}}" data-test-action="article-menu">{{icon "ellipsis"}}</summary>
-      <div class="readlist-design-card__menu-panel">
-        {{#each menuActions}}
-        <form method="{{method}}" action="{{url}}" class="readlist-design-card__menu-form{{fallbackClass}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+  <div class="readlist-design-card__body">
+    <div class="readlist-design-card__main">
+      <div class="readlist-design-card__head">
+        <a class="readlist-design-card__title" href="{{titleLinkUrl}}" data-test-article-title hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader data-reader-field="title">{{title}}</a>
+        <details class="readlist-design-card__menu" data-test-article-menu>
+          <summary class="readlist-design-card__menu-toggle" aria-label="More options for {{title}}" data-test-action="article-menu">{{icon "ellipsis"}}</summary>
+          <div class="readlist-design-card__menu-panel">
+            {{#each menuActions}}
+            <form method="{{method}}" action="{{url}}" class="readlist-design-card__menu-form{{fallbackClass}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+              {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
+              <button class="readlist-design-card__menu-item readlist-design-card__menu-item--danger" type="submit" title="{{title}}" data-test-action="{{testAction}}">{{icon "trash"}}<span>{{text}}</span></button>
+            </form>
+            {{/each}}
+            {{#each menuTriggers}}
+            <button class="readlist-design-card__menu-item readlist-design-card__menu-item--danger readlist-design-card__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{icon "trash"}}<span>{{text}}</span></button>
+            {{/each}}
+          </div>
+        </details>
+      </div>
+      {{#if excerpt}}<a class="readlist-design-card__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader>{{excerpt}}</a>{{/if}}
+      {{#if isStalePending}}<p class="readlist-design-card__stale" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
+      <div class="readlist-design-card__foot">
+        <p class="readlist-design-card__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>Processing</span></p>
+        <div class="readlist-design-card__facts">
+          {{#if isUnread}}<span class="readlist-design-card__status readlist-design-card__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="readlist-design-card__status readlist-design-card__status--read" data-test-read-status="read">{{icon "check"}}<span class="sr-only">Read</span></span>{{/if}}
+          <div class="readlist-design-card__meta{{metaHiddenClass}}">
+            <a class="readlist-design-card__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url data-reader-field="site">{{icon "globe"}}<span>{{siteName}}</span></a>
+            <span class="readlist-design-card__saved">{{icon "clock"}}<time class="readlist-design-card__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time></span>
+            <span class="readlist-design-card__read-time{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{icon "eye"}}<span>{{readTimeLabel}}</span></span>
+          </div>
+        </div>
+        {{#each statusActions}}
+        <form method="{{method}}" action="{{url}}" class="readlist-design-card__status-form{{fallbackClass}}" hx-boost="true" hx-target="closest .readlist-design-card" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button">
           {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-          <button class="readlist-design-card__menu-item readlist-design-card__menu-item--danger" type="submit" title="{{title}}" data-test-action="{{testAction}}">{{icon "trash"}}<span>{{text}}</span></button>
+          <button class="readlist-design-card__status-btn" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}><span class="readlist-article__action-btn-label">{{text}}</span>{{{loaderHtml}}}</button>
         </form>
         {{/each}}
-        {{#each menuTriggers}}
-        <button class="readlist-design-card__menu-item readlist-design-card__menu-item--danger readlist-design-card__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{icon "trash"}}<span>{{text}}</span></button>
+        {{#each statusTriggers}}
+        <button class="readlist-design-card__status-btn readlist-design-card__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}"><span class="readlist-article__action-btn-label">{{text}}</span></button>
         {{/each}}
       </div>
-    </details>
-  </div>
-  {{#if excerpt}}<a class="readlist-design-card__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader>{{excerpt}}</a>{{/if}}
-  {{#if isStalePending}}<p class="readlist-design-card__stale" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
-  <div class="readlist-design-card__foot">
-    <p class="readlist-design-card__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>Processing</span></p>
-    <div class="readlist-design-card__meta{{metaHiddenClass}}">
-      <a class="readlist-design-card__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url data-reader-field="site">{{icon "globe"}}<span>{{siteName}}</span></a>
-      <span class="readlist-design-card__saved">{{icon "clock"}}<time class="readlist-design-card__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time></span>
-      <span class="readlist-design-card__read-time{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{icon "eye"}}<span>{{readTimeLabel}}</span></span>
     </div>
-    {{#each statusActions}}
-    <form method="{{method}}" action="{{url}}" class="readlist-design-card__status-form{{fallbackClass}}" hx-boost="true" hx-target="closest .readlist-design-card" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button">
-      {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-      <button class="readlist-design-card__status-btn" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}><span class="readlist-article__action-btn-label">{{text}}</span>{{{loaderHtml}}}</button>
-    </form>
-    {{/each}}
-    {{#each statusTriggers}}
-    <button class="readlist-design-card__status-btn readlist-design-card__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}"><span class="readlist-article__action-btn-label">{{text}}</span></button>
-    {{/each}}
+    {{#if imageUrl}}<a href="{{thumbnailLinkUrl}}" class="readlist-design-card__thumbnail-link" tabindex="-1" aria-hidden="true" hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader><img class="readlist-design-card__thumbnail" src="{{imageUrl}}" alt="" onerror="this.parentElement.remove()"></a>{{/if}}
   </div>
 </article>

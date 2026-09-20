@@ -9,6 +9,7 @@ import {
 	test,
 	type VisualCheckpoint,
 	waitForBrandFonts,
+	waitForImagePixels,
 } from "@packages/e2e-harness";
 import {
 	ALIVE_COOKIE_NAME,
@@ -28,6 +29,7 @@ const DESKTOP = { width: 1280, height: 900 };
 const DESKTOP_TALL = { width: 1280, height: 1700 };
 
 const SEEDED_FETCHED_AT = "2026-07-10T09:14:00.000Z";
+const THUMBNAIL_URL = "https://cdn.example.com/readlist-design-thumbnail.svg";
 
 const MAIN = "main.readlist-design";
 const RAIL = ".readlist-design__rail";
@@ -51,6 +53,7 @@ const CARD_MENU_SUMMARY = '[data-test-action="article-menu"]';
 const CARD_MENU_PANEL = "[data-test-article-menu]";
 const CARD_DELETE = '[data-test-action="delete"]';
 const CARD_TIME = ".readlist-design-card__time";
+const CARD_THUMBNAIL = ".readlist-design-card__thumbnail";
 const DELETE_ARTICLE_POPOVER = '[data-test-confirm-popover="delete"]';
 const OPEN_DELETE_ARTICLE_POPOVER = `${DELETE_ARTICLE_POPOVER}:popover-open`;
 const MARK_STATUS_CONFIRM_BUTTON = '[data-test-action="mark-status-confirm"]';
@@ -91,12 +94,20 @@ async function createVerifiedUser(page: Page, email: string): Promise<string> {
 
 async function seedCrawledArticle(
 	page: Page,
-	input: { url: string; title: string; savedAt: string; excerpt: string; userId: string },
+	input: {
+		url: string;
+		title: string;
+		savedAt: string;
+		excerpt: string;
+		userId: string;
+		imageUrl?: string;
+	},
 ): Promise<void> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
 			url: input.url,
 			title: input.title,
+			...(input.imageUrl ? { imageUrl: input.imageUrl } : {}),
 			content: "<p>Seeded body for the readlist-design visual baseline.</p>",
 			contentFetchedAt: SEEDED_FETCHED_AT,
 			savedAt: input.savedAt,
@@ -113,7 +124,7 @@ async function seedCrawledArticle(
 
 function seededArticles(
 	stamp: string,
-): { url: string; title: string; savedAt: string; excerpt: string }[] {
+): { url: string; title: string; savedAt: string; excerpt: string; imageUrl?: string }[] {
 	return [
 		{
 			url: `https://example.com/readlist-design-second-${stamp}`,
@@ -126,13 +137,24 @@ function seededArticles(
 			url: `https://example.com/readlist-design-first-${stamp}`,
 			title: "The article at the top of the readlist",
 			savedAt: "2026-07-12T09:14:00.000Z",
+			imageUrl: THUMBNAIL_URL,
 			excerpt:
 				"A fixed excerpt for the readlist-design visual baseline, long enough to occupy the card's excerpt lines.",
 		},
 	];
 }
 
+async function pinThumbnail(page: Page): Promise<void> {
+	await page.route(THUMBNAIL_URL, (route) =>
+		route.fulfill({
+			contentType: "image/svg+xml",
+			body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"><rect width="320" height="240" fill="#B9712A"/><rect x="24" y="150" width="272" height="16" fill="#F6EFE7"/></svg>',
+		}),
+	);
+}
+
 async function seedTwoArticles(page: Page, userId: string, stamp: string): Promise<void> {
+	await pinThumbnail(page);
 	for (const article of seededArticles(stamp)) {
 		await seedCrawledArticle(page, { ...article, userId });
 	}
@@ -255,6 +277,7 @@ async function articlesPageSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(ARTICLE)).toHaveCount(2);
 	await expect(page.locator(LISTING_COUNT)).toHaveText("2 Saved Articles");
+	await waitForImagePixels(page, CARD_THUMBNAIL);
 }
 
 async function readTabSettled(page: Page): Promise<void> {
@@ -263,6 +286,7 @@ async function readTabSettled(page: Page): Promise<void> {
 	await expect(page.locator(READ_FILTER_TAB)).toHaveAttribute("aria-current", "page");
 	await expect(page.locator(ARTICLE)).toHaveCount(1);
 	await expect(page.locator(LISTING_COUNT)).toHaveText("1 Saved Article");
+	await waitForImagePixels(page, CARD_THUMBNAIL);
 }
 
 async function customReadlistPageSettled(page: Page): Promise<void> {
@@ -309,6 +333,7 @@ async function cardMenuOpenSettled(page: Page): Promise<void> {
 	await page.click(`${FIRST_CARD} ${CARD_MENU_SUMMARY}`);
 	await expect(page.locator(`${FIRST_CARD} ${CARD_MENU_PANEL}`)).toHaveAttribute("open", "");
 	await expect(page.locator(`${FIRST_CARD} ${CARD_DELETE}`)).toBeVisible();
+	await waitForImagePixels(page, CARD_THUMBNAIL);
 }
 
 async function deleteArticleDialogSettled(page: Page): Promise<void> {

@@ -21,7 +21,7 @@ redirect" plus "answer the card poll and the counts fragment in the design marku
 |---|---|---|
 | Page | `readlist.component.ts` + `readlist.template.html` + `readlist.styles.css` | `design/readlist-design.component.ts` + `.template.html` + `.styles.css` |
 | Rail | `readlist-nav.component.ts` / `.template.html` (inline rename, hover delete) | `design/readlist-design-nav.component.ts` / `.template.html` (kebab menu → Edit modal / Delete) |
-| Card | `readlist-card/readlist-card.component.ts` / `.template.html` | `design/readlist-design-card.component.ts` / `.template.html` |
+| Card | `readlist-card/readlist-card.component.ts` / `.template.html` | `design/readlist-design-card.component.ts` / `.template.html` — same thumbnail (`open-article-thumbnail`) and `data-test-read-status` marker as classic, laid out as `__body` > `__main` + thumbnail |
 | Counts fragment (`GET /queue/counts`) | `readlist-counts.component.ts` / `.template.html` | `design/readlist-design-counts.component.ts` / `.template.html` (also fills "N Saved Articles", "Showing N of M", numbered pages) |
 | Setup guide | `onboarding/onboarding.component.ts` (founder intro, first outstanding step only) | `onboarding/onboarding-design.component.ts` / `.template.html` / `.styles.css` (right-rail card, progress %, all steps as a stepper) |
 | Subscription banner | inline `aside.readlist-banner` in `readlist.template.html` | `design/readlist-design-subscription.component.ts` / `.template.html` (right-rail card, countdown tiles) |
@@ -55,6 +55,14 @@ Setup guide — `projects/hutch/src/runtime/web/onboarding/`:
 Tests and fixtures:
 
 - `projects/hutch/src/runtime/web/pages/readlist/readlist.design.route.test.ts` — the flag's route tests (link propagation, redirects, fragments, states)
+- `projects/hutch/src/runtime/web/pages/readlist/readlist.rendering-parity.route.test.ts` — one
+  `describe.each` row per rendering over the shared `data-test-*` hooks (read status, pagination,
+  both confirm panels, the counts out-of-band contract, the `swap=card` fallback, card polling,
+  save skeleton). Neither direction deletes the file: drop the row that no longer exists
+  (retire → the `design` row, promote → the `classic` row) and the `mainSelector` of the survivor
+- `projects/hutch/src/runtime/cta-tracking.route.test.ts` — `MEMBER_PATHS` carries
+  `/queue?feature=design` and `/queue?tab=done&feature=design`; drop both on retire, and on promote
+  fold them into the plain `/queue` entries
 - `projects/hutch/src/e2e/readlist-design-visual.e2e-local.ts` + `readlist-design.browser.ts` + `readlist-design-visual.e2e-local.ts-snapshots/` — the `readlist-design-*` baselines
 - `projects/hutch/src/e2e/e2e-server.main.ts` → `POST /e2e/seed-subscription-state` and `projects/hutch/src/e2e/seed-subscription-state.e2e-local.ts` — added for the subscription-card baselines; independent of the flag, keep them
 
@@ -100,8 +108,11 @@ Work through this in order; each step keeps `pnpm check` green.
    `-design` infix in file names, exports and BEM blocks
    (`readlist-design-card` → `readlist-article`, `readlist-design-nav` → `readlist-nav`,
    `setup-guide` can stay). Delete the old page files they replace:
-   `readlist.template.html`, `readlist.styles.css`, `readlist.styles.ts` (keep the
-   in-flight-dots import the design stylesheet relies on), `readlist-nav.component.ts` +
+   `readlist.template.html`, `readlist.styles.css`, `readlist.styles.ts` (the design page imports
+   `READLIST_STYLES` wholesale, so first move what it still renders: the in-flight dots, the whole
+   `.readlist-save-skeleton*` block, which dresses the shared save-skeleton partial, and the
+   `.readlist__save-btn*` rules — the design save form still carries those classes and its
+   `hx-disabled-elt` still names `.readlist__save-btn`), `readlist-nav.component.ts` +
    `.template.html` + `.test.ts`, `readlist-card/readlist-card.component.ts` +
    `.template.html` + `.test.ts`, `readlist-counts.component.ts` + `.template.html` +
    `.test.ts`, `readlist-filters.component.ts` + `.template.html` + `.test.ts` (the design
@@ -148,7 +159,9 @@ Work through this in order; each step keeps `pnpm check` green.
    `readlist-design-visual.e2e-local.ts` and its snapshots directory.
 2. In `readlist.page.ts` remove the imports and every hook listed above; the router then
    reads exactly as before the flag.
-3. Revert `reader-open.client.ts` `CARD_SELECTOR` to `.readlist-article`.
+3. Revert `reader-open.client.ts` `CARD_SELECTOR` to `.readlist-article`. The design-side
+   save-skeleton siblings go with the design stylesheet — `readlist.styles.css` keeps only its own
+   `.readlist__empty` / `.readlist__list` halves, so nothing to unpick there.
 4. Decide per shared addition whether anything else uses it: the icons used by the
    header (`book`, `file-down`) and the `illustrationHtml` seam are
    harmless to keep; `renderIllustration`, the unused icons, the `--color-secondary-text`

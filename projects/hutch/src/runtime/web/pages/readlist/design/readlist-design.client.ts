@@ -7,6 +7,7 @@ export interface ReadlistDesignDeps {
 	document: Document;
 	fetchFn: (url: string, init: RequestInit) => Promise<ReadlistDesignResponse>;
 	reload: () => void;
+	setTimeoutFn: (callback: () => void, ms: number) => void;
 }
 
 const MENU_SELECTOR = ".readlist-design-nav__menu, .readlist-design-card__menu";
@@ -14,6 +15,8 @@ const RENAME_FORM_ATTR = "data-readlist-design-rename";
 const RENAME_ERROR_ATTR = "data-readlist-design-rename-error";
 const ERROR_HIDDEN_CLASS = "readlist-design-rename__error--hidden";
 const ERROR_VISIBLE_CLASS = "readlist-design-rename__error--visible";
+const LIVE_REGION_SELECTOR = "#toast-live-region";
+const LIVE_REGION_SETTLE_MS = 150;
 const GENERIC_FAILURE = "Couldn't rename the readlist.";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -44,6 +47,11 @@ function showError(form: HTMLFormElement, message: string): void {
 	error.classList.add(ERROR_VISIBLE_CLASS);
 }
 
+function announce(document: Document, message: string): void {
+	const regions = document.querySelectorAll(LIVE_REGION_SELECTOR);
+	for (let i = 0; i < regions.length; i++) regions[i].textContent = message;
+}
+
 function renameRequest(form: HTMLFormElement): RequestInit {
 	const body = new URLSearchParams();
 	const fields = form.querySelectorAll<HTMLInputElement>("input[name]");
@@ -70,27 +78,39 @@ export function initReadlistDesign(deps: ReadlistDesignDeps): void {
 		if (event.key === "Escape") closeOpenMenus(deps.document, null);
 	});
 
+	let renaming = false;
 	deps.document.addEventListener("submit", (event) => {
 		const target = event.target;
 		if (!isElement(target)) return;
 		const form = target.closest("form");
 		if (form === null || !form.hasAttribute(RENAME_FORM_ATTR)) return;
 		event.preventDefault();
+		if (renaming) return;
 		const action = form.getAttribute("action");
 		assert(action, "the rename form always posts somewhere");
+		renaming = true;
 		deps.fetchFn(action, renameRequest(form)).then(
 			(response) =>
 				response.json().then(
 					(body) => {
-						if (response.status === 200 && stringField(body, "label")) {
-							deps.reload();
+						const label = stringField(body, "label");
+						if (response.status === 200 && label) {
+							announce(deps.document, `Readlist renamed to ${label}.`);
+							deps.setTimeoutFn(deps.reload, LIVE_REGION_SETTLE_MS);
 							return;
 						}
+						renaming = false;
 						showError(form, stringField(body, "message") ?? GENERIC_FAILURE);
 					},
-					() => showError(form, GENERIC_FAILURE),
+					() => {
+						renaming = false;
+						showError(form, GENERIC_FAILURE);
+					},
 				),
-			() => showError(form, GENERIC_FAILURE),
+			() => {
+				renaming = false;
+				showError(form, GENERIC_FAILURE);
+			},
 		);
 	});
 }

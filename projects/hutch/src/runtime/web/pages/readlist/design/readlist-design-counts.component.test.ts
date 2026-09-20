@@ -128,6 +128,24 @@ describe("renderReadlistDesignCounts", () => {
 		}
 	});
 
+	it("refreshes the unread tab label out of band, queue-scoped and capped at 99+", () => {
+		const doc = parse(
+			renderReadlistDesignCounts(
+				toReadlistDesignCountsDisplayModel({
+					filters: DEFAULT_FILTERS,
+					unreadCount: 100,
+					tabTotal: 100,
+					pageSize: 20,
+				}),
+			),
+		);
+
+		const unread = doc.getElementById(`readlist-unread-label--${DEFAULT_READLIST_SLUG}`);
+		assert(unread, "the unread tab label span must render");
+		expect(unread.getAttribute("hx-swap-oob")).toBe("innerHTML");
+		expect(unread.textContent).toBe("To Read (99+)");
+	});
+
 	it("links every non-current page number, tagged with the design flag", () => {
 		const doc = parse(
 			renderReadlistDesignCounts(

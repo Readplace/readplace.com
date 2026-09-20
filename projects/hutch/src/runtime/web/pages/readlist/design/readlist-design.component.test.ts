@@ -115,6 +115,16 @@ function urlParams(href: string | null): URLSearchParams {
 }
 
 describe("ReadlistDesignPage", () => {
+	it("points the tab strip's request indicator at the strip, the pressed tab and the listing", () => {
+		const doc = pageDoc();
+
+		const tabs = doc.querySelector("[data-test-filters]");
+		assert(tabs, "the design page must render its tab strip");
+		expect(tabs.getAttribute("hx-indicator")).toBe(
+			"closest .readlist-design-tabs, closest .readlist-design-tabs__link, .readlist-design-listing",
+		);
+	});
+
 	it("marks the page as the design variant of the readlist", () => {
 		const body = buildPage();
 
@@ -262,6 +272,12 @@ describe("ReadlistDesignPage", () => {
 		);
 
 		expect(doc.querySelector(".readlist-design-empty__title")?.textContent).toBe("Nothing saved yet");
+		expect(doc.querySelector(".readlist-design-empty__text")?.textContent).toBe(
+			"Save your first article by pasting a link above, or set up one-tap saving from your browser, phone, or AI assistant.",
+		);
+		expect(doc.querySelector("[data-test-empty-action='install']")?.textContent).toBe(
+			"Set up one-tap saving",
+		);
 		expect(doc.querySelectorAll('[data-test-empty-action="install"]')).toHaveLength(1);
 	});
 

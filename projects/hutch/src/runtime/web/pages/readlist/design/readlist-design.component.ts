@@ -6,6 +6,7 @@ import type { CspNonce, PageBody } from "@packages/web-shell";
 import type { DeviceClass } from "@packages/web-analytics";
 
 import { NAV_HIDE_SCRIPT } from "../../../shared/reader-nav-script";
+import { SAVE_SURFACES_SHORT_PHRASE } from "../../../shared/client-surface-phrases";
 import { renderIllustration } from "../../../shared/illustrations/illustrations";
 import {
 	ONBOARDING_DESIGN_STYLES,
@@ -103,7 +104,7 @@ interface EmptyState {
 
 const NOTHING_SAVED: Omit<EmptyState, "actions"> = {
 	title: "Nothing saved yet",
-	text: "Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+	text: `Save your first article by pasting a link above, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
 };
 
 const CAUGHT_UP: Omit<EmptyState, "actions"> = {
@@ -136,7 +137,7 @@ function emptyState(input: {
 						{
 							key: "install",
 							href: withInternalTracking("/install", { source: "queue-empty", content: "install" }),
-							label: "Install browser extension",
+							label: "Set up one-tap saving",
 						},
 					],
 				}

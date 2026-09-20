@@ -91,6 +91,65 @@ describe("renderReadlistDesignCard", () => {
 		expect(card.classList.contains("readlist-design-card--unread")).toBe(false);
 	});
 
+	it("marks an unread article with a read-status indicator carrying its screen-reader label", () => {
+		const doc = parse(renderReadlistDesignCard(display(makeViewModel({ isUnread: true }), { isFirst: false })));
+
+		const status = doc.querySelector("[data-test-read-status]");
+		assert(status, "the card must render a read-status indicator");
+		expect(status.getAttribute("data-test-read-status")).toBe("unread");
+		expect(status.querySelector(".sr-only")?.textContent).toBe("Unread");
+		expect(status.parentElement?.classList.contains("readlist-design-card__facts")).toBe(true);
+	});
+
+	it("keeps the read-status indicator out of the meta row that a processing card hides", () => {
+		const doc = parse(
+			renderReadlistDesignCard(
+				display(makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1" }), { isFirst: false }),
+			),
+		);
+
+		const meta = doc.querySelector(".readlist-design-card__meta");
+		assert(meta, "the meta row must be present");
+		expect(meta.classList.contains("readlist-design-card__meta--hidden")).toBe(true);
+		const status = doc.querySelector("[data-test-read-status]");
+		assert(status, "a processing card must still show whether it is unread");
+		expect(status.closest(".readlist-design-card__meta")).toBeNull();
+	});
+
+	it("marks a read article with a read-status indicator carrying its screen-reader label", () => {
+		const doc = parse(
+			renderReadlistDesignCard(
+				display(makeViewModel({ status: "read", isUnread: false }), { isFirst: false }),
+			),
+		);
+
+		const status = doc.querySelector("[data-test-read-status]");
+		assert(status, "the card must render a read-status indicator");
+		expect(status.getAttribute("data-test-read-status")).toBe("read");
+		expect(status.querySelector(".sr-only")?.textContent).toBe("Read");
+	});
+
+	it("opens the reader from the thumbnail with its own tracking when the article has an image", () => {
+		const doc = parse(
+			renderReadlistDesignCard(
+				display(makeViewModel({ imageUrl: "https://cdn.example.com/hero.jpg" }), {
+					isFirst: false,
+					deviceClass: "mobile_ios",
+				}),
+			),
+		);
+
+		const thumbnail = doc.querySelector(".readlist-design-card__thumbnail-link");
+		assert(thumbnail, "the card must render a thumbnail link when it has an image");
+		const image = thumbnail.querySelector("img");
+		assert(image, "the thumbnail link must wrap the article image");
+		expect(image.getAttribute("src")).toBe("https://cdn.example.com/hero.jpg");
+		expect(thumbnail.hasAttribute("data-opens-reader")).toBe(true);
+		const href = urlParams(thumbnail.getAttribute("href"));
+		expect(href.get("utm_content")).toBe("open-article-thumbnail");
+		expect(href.get("utm_term")).toBe("mobile_ios");
+	});
+
 	it("posts a status change to a card-scoped, design-flagged URL and swaps only the card", () => {
 		const doc = parse(
 			renderReadlistDesignCard(display(makeViewModel({ actions: [MARK_READ_ACTION] }), { isFirst: false })),

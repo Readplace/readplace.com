@@ -29,6 +29,7 @@ function init(
 	const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}</body></html>`);
 	const document = dom.window.document;
 	const calls: DesignCall[] = [];
+	const timers: { callback: () => void; ms: number }[] = [];
 	let reloaded = 0;
 	initReadlistDesign({
 		document,
@@ -39,6 +40,9 @@ function init(
 		},
 		reload: () => {
 			reloaded += 1;
+		},
+		setTimeoutFn: (callback, ms) => {
+			timers.push({ callback, ms });
 		},
 	});
 
@@ -69,6 +73,11 @@ function init(
 		window: dom.window,
 		calls,
 		reloadCount: () => reloaded,
+		pendingTimers: () => timers.map((timer) => timer.ms),
+		runTimers: () => {
+			const queued = timers.splice(0, timers.length);
+			for (const timer of queued) timer.callback();
+		},
 		navMenu,
 		cardMenu,
 		click,
@@ -157,6 +166,8 @@ describe("initReadlistDesign", () => {
 		expect(call.init.body).toBe("label=Work+Reading");
 		expect(Reflect.get(Object(call.init.headers), "Content-Type")).toBe("application/x-www-form-urlencoded");
 		expect(Reflect.get(Object(call.init.headers), "Accept")).toBe("application/json");
+		expect(app.reloadCount()).toBe(0);
+		app.runTimers();
 		expect(app.reloadCount()).toBe(1);
 	});
 
@@ -234,6 +245,68 @@ describe("initReadlistDesign", () => {
 		expect(app.calls).toEqual([]);
 	});
 
+	it("announces the stored name to the live region before reloading", async () => {
+		const app = init(
+			`<div id="toast-live-region" role="status" aria-live="polite"></div>${renameFormMarkup()}`,
+			() => Promise.resolve({ status: 200, json: () => Promise.resolve({ label: "Deep Work" }) }),
+		);
+
+		app.submitForm(app.renameForm());
+		await settled();
+
+		const region = app.document.querySelector("#toast-live-region");
+		assert(region, "the shell mounts a live region on every page");
+		expect(region.textContent).toBe("Readlist renamed to Deep Work.");
+		expect(app.reloadCount()).toBe(0);
+		expect(app.pendingTimers()).toEqual([150]);
+
+		app.runTimers();
+
+		expect(app.reloadCount()).toBe(1);
+	});
+
+	it("posts a single rename while one is already in flight", async () => {
+		let resolveFetch: ((response: ReadlistDesignResponse) => void) | undefined;
+		const app = init(
+			renameFormMarkup(),
+			() =>
+				new Promise<ReadlistDesignResponse>((resolve) => {
+					resolveFetch = resolve;
+				}),
+		);
+
+		app.submitForm(app.renameForm());
+		app.submitForm(app.renameForm());
+		await settled();
+
+		expect(app.calls).toHaveLength(1);
+		assert(resolveFetch, "the first rename must have reached the fetch fake");
+		resolveFetch({ status: 200, json: () => Promise.resolve({ label: "Work Reading" }) });
+		await settled();
+		app.runTimers();
+		expect(app.reloadCount()).toBe(1);
+	});
+
+	it("lets the reader retry after a refused rename", async () => {
+		let attempt = 0;
+		const app = init(renameFormMarkup(), () => {
+			attempt += 1;
+			return attempt === 1
+				? Promise.resolve({ status: 422, json: () => Promise.resolve({ message: "Too long." }) })
+				: Promise.resolve({ status: 200, json: () => Promise.resolve({ label: "Work Reading" }) });
+		});
+
+		app.submitForm(app.renameForm());
+		await settled();
+		expect(app.errorText()).toBe("Too long.");
+
+		app.submitForm(app.renameForm());
+		await settled();
+		app.runTimers();
+		expect(app.calls).toHaveLength(2);
+		expect(app.reloadCount()).toBe(1);
+	});
+
 	it("refuses to post a rename form that carries no action to send to", () => {
 		const virtualConsole = new VirtualConsole();
 		const jsdomErrors: Error[] = [];
@@ -244,6 +317,9 @@ describe("initReadlistDesign", () => {
 			document: dom.window.document,
 			fetchFn: () => Promise.reject(new Error("must not be called")),
 			reload: () => {},
+			setTimeoutFn: (callback) => {
+				callback();
+			},
 		});
 		const form = dom.window.document.querySelector("form[data-readlist-design-rename]");
 		assert(form, "the actionless rename form must be in the document");
