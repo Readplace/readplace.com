@@ -46,11 +46,9 @@ data class ReadingListState(
 
 /**
  * What the in-app web sheet needs to present a server URL: the resolved URL and,
- * for a reader opened from a row, that row's id (so the row can be dropped if the
- * reader marks it read). A navigable collection link (e.g. `save`) carries no
- * row, so `articleId` is null and nothing is dropped on close. [id] keys the
- * sheet; it falls back to the URL so a row-less sheet is still uniquely
- * presentable.
+ * for a reader opened from a row, that row's id. A navigable collection link
+ * (e.g. `save`) carries no row, so `articleId` is null. [id] keys the sheet; it
+ * falls back to the URL so a row-less sheet is still uniquely presentable.
  */
 data class ReaderPresentation(
 	val readerUrl: String,
@@ -61,8 +59,8 @@ data class ReaderPresentation(
 
 /**
  * Main-thread confined by contract, the way its iOS twin is by `@MainActor`:
- * every method is called from the UI, so the in-flight guards below are
- * check-then-act safe without a lock.
+ * every method is called from the UI, so the in-flight guards and the read
+ * sequence below are check-then-act safe without a lock.
  */
 class ReadingListViewModel(
 	private val api: ReadplaceApi,
@@ -100,11 +98,20 @@ class ReadingListViewModel(
 	private var isLoadingMore = false
 	private var isDrainingUploads = false
 
-	/** Whether rows beyond the first page are loaded. A post-action adoption
-	 * replaces the list outright only while everything on screen came from one
-	 * page; once the user has scrolled deeper, adoption merges instead, so the
-	 * rows anchoring the scroll position survive (see [adopt]). */
-	private var hasPaginated = false
+	/** How many stitched pages the list currently holds: 1 for a fresh first page,
+	 * one more for each accepted deeper page. A post-action adoption re-follows the
+	 * fresh `next` links to this depth, so the whole visible list is replaced with
+	 * server truth rather than held stale (see [adoptFirstPage]). */
+	private var pagesHeld = 0
+
+	/** The read sequence that orders overlapping replacing reads. Every first-page
+	 * read, reload-and-adopt, or action invocation allocates a [beginRead] ticket;
+	 * a collected collection is applied only when its ticket beats the last one
+	 * applied ([replace]), so a slower older read landing late can't overwrite a
+	 * newer one. In-flight replacing reads drive [ReadingListState.isLoading]. */
+	private var readsStarted = 0
+	private var readApplied = 0
+	private var readsInFlight = 0
 
 	/** Whether a collection has ever been applied. Gates the foreground refresh so
 	 * it never races the launch-time load with a second fetch. */
@@ -117,69 +124,60 @@ class ReadingListViewModel(
 	}
 
 	private suspend fun fetchFirstPage() {
+		val read = beginRead()
 		// A locked account's reads still succeed, so a fresh load reconciles a
 		// stale refusal banner (e.g. after verifying elsewhere): clear it here,
 		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
-		mutate { it.copy(isLoading = true, errorText = null, messages = emptyList()) }
+		mutate { it.copy(errorText = null, messages = emptyList()) }
 		try {
-			apply(api.loadReadlist(), replacing = true)
+			replace(firstPage = api.loadReadlist(), deeperPages = emptyList(), read = read)
 		} catch (error: Exception) {
 			handle(error)
+		} finally {
+			endRead()
 		}
-		mutate { it.copy(isLoading = false) }
 	}
 
 	suspend fun loadMore() {
 		val next = nextHref ?: return
 		if (isLoadingMore) return
+		// The list this append extends: if a replacement lands first, the fetched
+		// page belongs to a superseded cursor and is dropped rather than stitched
+		// onto the fresh list. A replacement merely pending (not yet applied) does
+		// not invalidate it — only one that has actually replaced the collection.
+		val listVersion = readApplied
 		isLoadingMore = true
 		try {
-			apply(api.loadReadlist(path = next), replacing = false)
+			val page = api.loadReadlist(path = next)
+			if (listVersion == readApplied) apply(page, replacing = false)
 		} catch (error: Exception) {
 			handle(error)
-		}
-		isLoadingMore = false
-	}
-
-	/**
-	 * Invokes one of an item's advertised actions via the action's own
-	 * href/method/fields. The client supplies no field knowledge: every declared
-	 * field's server-suggested `value` is posted by the generic invoker, so a bare
-	 * (action, item) invocation is sufficient — `update-status` carries its target
-	 * status as the field `value`, not a client constant. On success the list
-	 * converges to whatever collection the server drove the invoke back to — the
-	 * post-action truth, carrying changes made elsewhere (an item marked unread on
-	 * the website appears right here). A failure surfaces the error and leaves the
-	 * current list in place; there is no optimistic removal to roll back.
-	 */
-	suspend fun invoke(action: SirenAction, article: Article) {
-		val removesItem = Affordance.of(action)?.removesItemFromUnreadList ?: false
-		try {
-			val page = api.invoke(action)
-			adopt(page, droppingId = if (removesItem) article.id else null)
-		} catch (error: Exception) {
-			handle(error)
+		} finally {
+			isLoadingMore = false
 		}
 	}
 
 	/**
-	 * Invokes a collection-level action via its own href/method/type/fields through
-	 * the generic invoker — the bare-invokable toolbar control path. The action
-	 * carries no row and reshapes the whole list (e.g. a purge), so the server's
-	 * post-invoke collection replaces it outright; when the invoke lands on no
-	 * collection, a fresh first-page load converges instead. A failure surfaces
-	 * the error and leaves the current list in place.
+	 * Invokes an advertised action via the action's own href/method/fields through
+	 * the generic invoker — both a row control and a collection-level toolbar
+	 * control take this one path. The client supplies no field knowledge: every
+	 * declared field's server-suggested `value` is posted, so a bare (action)
+	 * invocation is sufficient — `update-status` carries its target status as the
+	 * field `value`, not a client constant. On success the list converges to
+	 * whatever collection the server drove the invoke back to — the post-action
+	 * truth, carrying changes made elsewhere (an item marked unread on the website
+	 * appears right here) — re-followed to the depth held; a response that is no
+	 * collection re-reads the entry point instead. A failure surfaces the error and
+	 * leaves the current list in place; there is no optimistic removal to roll back.
 	 */
-	suspend fun invokeCollection(action: SirenAction) {
+	suspend fun invoke(action: SirenAction) {
+		val read = beginRead()
 		try {
-			val page = api.invoke(action)
-			if (page != null) {
-				apply(page, replacing = true)
-			} else {
-				fetchFirstPage()
-			}
+			adopt(api.invoke(action), read)
 		} catch (error: Exception) {
 			handle(error)
+		} finally {
+			endRead()
 		}
 	}
 
@@ -188,29 +186,33 @@ class ReadingListViewModel(
 	 * webview. The reader's own POST answers where no Siren body is available and
 	 * the client cannot see which direction the toggle went, so it does not infer
 	 * "read" and drop a row — it re-reads the collection and adopts the server's
-	 * truth (a shallow list), which also brings in whatever changed elsewhere (e.g.
-	 * an item marked unread on the website). A deep-scrolled list holds its position
-	 * and reconciles on the next pull-to-refresh ([reloadAndAdopt]).
+	 * truth, which also brings in whatever changed elsewhere (e.g. an item marked
+	 * unread on the website). A deep-scrolled list re-follows the fresh pages to the
+	 * depth held rather than collapsing to the first page.
 	 */
-	suspend fun readerStatusChanged() = reloadAndAdopt(droppingId = null)
+	suspend fun readerStatusChanged() = reloadAndAdopt()
 
 	/**
 	 * Re-reads the list when the app returns to the foreground, so changes made
 	 * while away — a share-sheet save, an item marked unread on the website —
 	 * appear without pull-to-refresh. Gated on a completed first load: at launch
-	 * the launch-time load owns the fetch and this is a no-op. A deep-scrolled list
-	 * is re-read only when the share target has recorded a save the list has
-	 * not shown — the one change worth the same first-page reset (and viewport
-	 * yank) a pull-to-refresh performs; every other deep-scrolled return stays
-	 * zero-network and holds the reader's position.
+	 * the launch-time load owns the fetch and this is a no-op. It also steps aside
+	 * while a replacing read is in flight. A deep-scrolled list is re-read only when
+	 * the share target has recorded a save the list has not shown — the one change
+	 * worth the same first-page reset (and viewport yank) a pull-to-refresh performs;
+	 * every other deep-scrolled return stays zero-network and holds the reader's
+	 * position.
 	 */
 	suspend fun handleForeground() {
-		if (!hasLoadedOnce) return
-		if (hasPaginated) {
-			if (!unseenSave.exists || states.value.isLoading || isLoadingMore) return
-			refresh()
-		} else {
-			reloadAndAdopt(droppingId = null)
+		// Gated on a completed first load and no replacing read in flight; expressed
+		// as positive conditions (not early returns) so the no-op paths fall through
+		// this body synchronously rather than only via a tail-call resume.
+		if (hasLoadedOnce && !states.value.isLoading) {
+			if (pagesHeld > 1) {
+				if (unseenSave.exists && !isLoadingMore) refresh()
+			} else {
+				reloadAndAdopt()
+			}
 		}
 	}
 
@@ -223,57 +225,84 @@ class ReadingListViewModel(
 	 * and the foreground converge is zero-network for a paginated list with no
 	 * pending share-sheet save — so without this probe the app would keep showing
 	 * the deleted account's cached list until some later call happened to 401. The
-	 * probe therefore always hits the network (no `!hasPaginated` gate, unlike
-	 * the foreground re-read): against a dead session it 401s, the refresh fails
-	 * on the revoked token, and the failure funnels into the existing
-	 * `onSessionExpired` sign-out — clearing the TokenStore and the cached UI. A
-	 * live session pays one shallow re-read, which doubles as the same
-	 * reconciliation the foreground performs; a deep-scrolled list still holds
-	 * its position ([adopt] discards the page).
+	 * probe therefore always hits the network (no depth gate, unlike the foreground
+	 * re-read): against a dead session it 401s, the refresh fails on the revoked
+	 * token, and the failure funnels into the existing `onSessionExpired` sign-out —
+	 * clearing the TokenStore and the cached UI. A live session pays one re-read,
+	 * which doubles as the same reconciliation the foreground performs; a
+	 * deep-scrolled list re-follows to the depth held.
 	 */
-	suspend fun handleWebSheetDismissal() = reloadAndAdopt(droppingId = null)
+	suspend fun handleWebSheetDismissal() = reloadAndAdopt()
 
 	/**
-	 * Reconciles the visible list with the server's post-action collection.
-	 *
-	 * While the user is near the top (only the first page loaded) the collection
-	 * replaces the list outright — pure server truth, dropping the acted-on row and
-	 * surfacing whatever changed elsewhere. Once the user has scrolled deeper,
-	 * replacing would collapse the list to one page and yank the scroll, and
-	 * splicing a fresh head above the viewport would shift it, so a deep-scrolled
-	 * list stays exactly where it is: the only change applied is the confirmed
-	 * removal of the acted-on row. The rest reconciles on the next pull-to-refresh
-	 * — the user's explicit "re-read now" gesture, which is the one place a jump to
-	 * the top is expected. With no collection to adopt (a non-collection response)
-	 * the server directed no re-list, so again only the confirmed removal is
-	 * applied.
+	 * Adopts the server's post-action collection: a first page supplies the fresh
+	 * head, and the fresh `next` links are re-followed to the depth held so a
+	 * deep-scrolled list is replaced with server truth rather than kept stale. A
+	 * response that is no collection (a 204 or an HTML page) carries a fresh
+	 * first-page read of its own instead ([reloadAndAdopt]).
 	 */
-	private fun adopt(page: ReadlistPage?, droppingId: String?) {
-		if (hasPaginated || page == null) {
-			if (droppingId != null) mutate { it.copy(articles = it.articles.filter { row -> row.id != droppingId }) }
-			return
-		}
-		apply(page, replacing = true, droppingId = droppingId)
+	private suspend fun adopt(page: ReadlistPage?, read: Int) {
+		if (page == null) reloadAndAdopt() else adoptFirstPage(firstPage = page, read = read)
 	}
 
 	/**
-	 * Re-reads the first page and reconciles it through [adopt], under an
-	 * in-flight guard so overlapping triggers (rapid app switches, a sheet
-	 * dismissal racing a foreground re-read) can't interleave. [adopt] still
-	 * holds a deep-scrolled viewport, so for the dismissal probe of a paginated
-	 * list the request serves as a bare authenticated probe whose body is
-	 * discarded.
+	 * Collects a fresh collection to the depth held and applies it as one
+	 * replacement. Starting from [firstPage], each freshly fetched page's own
+	 * `next` href is followed — opaque hrefs only, never a reconstructed page
+	 * number — while the collected depth is below [pagesHeld], stopping when the
+	 * depth is reached, `next` is absent, or a hop fails. The displayed list is held
+	 * until the whole collection is in hand, then the pages are applied together
+	 * through [replace]'s ordering gate. A failed deeper hop keeps the pages fetched
+	 * so far (their last `next` link is retryable through ordinary pagination) and
+	 * surfaces the failure — but only if this replacement was the one accepted, so a
+	 * superseded older adoption publishes neither its rows nor its hop error.
 	 */
-	private suspend fun reloadAndAdopt(droppingId: String?) {
-		if (states.value.isLoading) return
-		mutate { it.copy(isLoading = true) }
+	private suspend fun adoptFirstPage(firstPage: ReadlistPage, read: Int) {
+		val deeperPages = mutableListOf<ReadlistPage>()
+		var hopFailure: Exception? = null
+		while (deeperPages.size + 1 < pagesHeld) {
+			val next = (deeperPages.lastOrNull() ?: firstPage).nextHref ?: break
+			try {
+				deeperPages.add(api.loadReadlist(path = next))
+			} catch (error: Exception) {
+				hopFailure = error
+				break
+			}
+		}
+		if (!replace(firstPage, deeperPages, read)) return
+		if (hopFailure != null) handle(hopFailure)
+	}
+
+	/**
+	 * Re-reads the first page and adopts it to the depth held. Always starts its
+	 * own read — no in-flight early return — so a required reconciliation (a reader
+	 * report, a sheet dismissal) is never dropped behind a busy guard; the read
+	 * sequence, not suppression, is what keeps overlapping reads in order.
+	 */
+	private suspend fun reloadAndAdopt() {
+		val read = beginRead()
 		try {
-			adopt(api.loadReadlist(), droppingId)
+			adoptFirstPage(firstPage = api.loadReadlist(), read = read)
 		} catch (error: Exception) {
 			handle(error)
 		} finally {
-			mutate { it.copy(isLoading = false) }
+			endRead()
 		}
+	}
+
+	/**
+	 * Applies a collected collection under the read-ordering gate: an older read
+	 * landing after a newer one has already applied is refused, so it cannot repaint
+	 * a superseded list. Starting a newer read alone does not invalidate an older
+	 * in-flight one — only a newer one that has actually applied. Returns whether
+	 * this collection was applied.
+	 */
+	private fun replace(firstPage: ReadlistPage, deeperPages: List<ReadlistPage>, read: Int): Boolean {
+		if (read <= readApplied) return false
+		readApplied = read
+		apply(firstPage, replacing = true)
+		for (page in deeperPages) apply(page, replacing = false)
+		return true
 	}
 
 	/**
@@ -297,8 +326,7 @@ class ReadingListViewModel(
 	 * Follows a navigable collection-level link (e.g. the `account` link) by opening
 	 * its resolved href in the same in-app web view the reader uses. A link the
 	 * client can't resolve (missing or foreign-scheme href) is a no-op, so an
-	 * unactionable link advertised by the server never opens a blank sheet. No
-	 * row is associated, so the web sheet drops nothing when it closes.
+	 * unactionable link advertised by the server never opens a blank sheet.
 	 *
 	 * The href is the server's own; the app appends its app-shell marker so the
 	 * server knows the page is hosted in the deep-link-intercepting sheet and may
@@ -336,7 +364,7 @@ class ReadingListViewModel(
 				mutate { it.copy(errorText = failureText) }
 				return
 			}
-			reloadAndAdopt(droppingId = null)
+			reloadAndAdopt()
 		} catch (error: Exception) {
 			handle(error)
 		}
@@ -367,19 +395,15 @@ class ReadingListViewModel(
 
 	/**
 	 * Applies a loaded page to the list. A replacing load (first page, refresh, or
-	 * a post-action collection) becomes the whole list, minus the acted-on row when
-	 * one is given — so a just-removed row never reappears even if an
-	 * eventually-consistent server GET still lists it. A paginated load appends the
-	 * rows the list doesn't already hold. `droppingId` matters only for a replacing
-	 * load; an append never re-introduces a removed row because its ids are already
-	 * present.
+	 * a post-action collection) becomes the whole list. A paginated load appends the
+	 * rows the list doesn't already hold.
 	 */
-	private fun apply(page: ReadlistPage, replacing: Boolean, droppingId: String? = null) {
+	private fun apply(page: ReadlistPage, replacing: Boolean) {
 		val current = states.value
 		val reconciled: ReadingListState
 		if (replacing) {
 			reconciled = current.copy(
-				articles = page.articles.filter { it.id != droppingId },
+				articles = page.articles,
 				// A fresh successful collection reconciles transient banners: a stale
 				// write-refusal (e.g. a since-verified locked account) or error is cleared
 				// here, re-surfacing only if a later write is refused.
@@ -392,7 +416,7 @@ class ReadingListViewModel(
 				collectionAffordances = toolbarOf(page),
 				appearance = page.appearance,
 			)
-			hasPaginated = false
+			pagesHeld = 1
 			sessionAction = page.action(named = "create-session")
 			// The list now holds first-page server truth, so any share-sheet save
 			// recorded up to this point has been shown — including one saved before
@@ -401,7 +425,7 @@ class ReadingListViewModel(
 		} else {
 			val existing = current.articles.map { it.id }.toSet()
 			reconciled = current.copy(articles = current.articles + page.articles.filter { it.id !in existing })
-			hasPaginated = true
+			pagesHeld += 1
 		}
 		hasLoadedOnce = true
 		nextHref = page.nextHref
@@ -425,6 +449,22 @@ class ReadingListViewModel(
 			it.isToolbarControl && !Affordance.isAddLinksHelp(it.token)
 		}
 		return serverControls + ADD_LINKS_HELP
+	}
+
+	/** Allocates the next read ticket and marks a replacing read in flight, which
+	 * drives [ReadingListState.isLoading]. Balanced by [endRead] in a `finally`. */
+	private fun beginRead(): Int {
+		readsStarted += 1
+		readsInFlight += 1
+		mutate { it.copy(isLoading = readsInFlight > 0) }
+		return readsStarted
+	}
+
+	/** Releases a read started by [beginRead]; loading clears only once no replacing
+	 * read remains, so one completion never hides another still in flight. */
+	private fun endRead() {
+		readsInFlight -= 1
+		mutate { it.copy(isLoading = readsInFlight > 0) }
 	}
 
 	private fun handle(error: Exception) {

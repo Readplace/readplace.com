@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import com.readplace.android.RecordingServer
+import com.readplace.android.RecordingServer.Gate
 import com.readplace.android.RecordingServer.Record
 import com.readplace.android.RecordingServer.Stub
 import com.readplace.android.core.AccessToken
@@ -20,13 +21,16 @@ import com.readplace.android.core.TokenStorage
 import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -67,28 +71,40 @@ class ReadingListViewModelTest {
 		return store
 	}
 
-	private fun TestScope.api(store: TokenStore): ReadplaceApi {
+	private fun TestScope.api(store: TokenStore, ioDispatcher: CoroutineDispatcher): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
 		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient())
-		return ReadplaceApi(server.baseUrl, client, store, oauth, "Readplace/1 Android/16", StandardTestDispatcher(testScheduler))
+		return ReadplaceApi(server.baseUrl, client, store, oauth, "Readplace/1 Android/16", ioDispatcher)
 	}
 
 	/** A heal or a drain no test asked for is a wrong turn, not a silent no-op:
-	 * `Error` is outside the view model's `Exception` catch, so it fails the test. */
+	 * `Error` is outside the view model's `Exception` catch, so it fails the test.
+	 *
+	 * Most tests run the API's blocking HTTP on the test scheduler
+	 * ([StandardTestDispatcher]), so the whole flow is deterministic under virtual
+	 * time. A held-response race test passes `ioDispatcher = Dispatchers.IO` instead,
+	 * so a request parked at a [Gate] blocks a real IO thread while the test scheduler
+	 * stays free to drive the overlapping operation; the view model's own coroutines
+	 * still run confined on the test scheduler. */
 	private fun TestScope.viewModel(
 		store: TokenStore = loggedInStore(),
 		unseenSave: UnseenSave = UnseenSave(folder.newFolder()),
 		healBlockedArticle: suspend (String) -> HealBlockedOutcome = { throw AssertionError("no heal expected for $it") },
 		drainUploadJobs: suspend () -> Unit = { throw AssertionError("no drain expected") },
 		onSessionExpired: () -> Unit = {},
+		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 	): ReadingListViewModel =
 		ReadingListViewModel(
-			api = api(store),
+			api = api(store, ioDispatcher),
 			unseenSave = unseenSave,
 			healBlockedArticle = healBlockedArticle,
 			drainUploadJobs = drainUploadJobs,
 			onSessionExpired = onSessionExpired,
 		)
+
+	/** Waits — off the test scheduler, so the launched operation can run — until the
+	 * request parked at [gate] has reached the server. */
+	private suspend fun awaitArrival(gate: Gate) = withContext(Dispatchers.IO) { gate.awaitArrival() }
 
 	private val ReadingListViewModel.articleIds: List<String> get() = state.value.articles.map { it.id }
 
@@ -308,7 +324,7 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel()
 
 		viewModel.refresh()
-		viewModel.invokeCollection(purgeAction)
+		viewModel.invoke(purgeAction)
 
 		assertEquals(
 			"the refusal message names the address to email",
@@ -323,7 +339,7 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel()
 
 		viewModel.refresh()
-		viewModel.invokeCollection(purgeAction)
+		viewModel.invoke(purgeAction)
 		assertEquals("precondition: a refused invoke shows the banner", 1, viewModel.state.value.messages.size)
 
 		viewModel.refresh()
@@ -639,7 +655,7 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `invokeCollection submits the action and reloads from the server`() = runTest {
+	fun `invoking a collection action submits it and adopts the server's post-action collection`() = runTest {
 		val readlistGets = AtomicInteger()
 		server.handle { record ->
 			when {
@@ -658,7 +674,7 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		assertEquals(listOf("a1"), viewModel.articleIds)
 
-		viewModel.invokeCollection(purgeAction)
+		viewModel.invoke(purgeAction)
 
 		assertEquals("POST", server.records("/queue/purge").first().method)
 		assertEquals("the reload reflects the server's post-invoke state", emptyList<String>(), viewModel.articleIds)
@@ -667,7 +683,7 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `invokeCollection surfaces a server error and leaves the list in place`() = runTest {
+	fun `invoking a collection action surfaces a server error and leaves the list in place`() = runTest {
 		server.handle { record ->
 			when (record.path) {
 				"/" -> Stub.redirect(to = "/queue")
@@ -679,17 +695,18 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel()
 		viewModel.refresh()
 
-		viewModel.invokeCollection(purgeAction)
+		viewModel.invoke(purgeAction)
 
 		assertEquals("a failed collection invoke leaves the current list", listOf("a1"), viewModel.articleIds)
 		assertEquals("nope", viewModel.state.value.errorText)
 	}
 
 	@Test
-	fun `invokeCollection falls back to a fresh load when the response is no collection`() = runTest {
+	fun `invoking a collection action re-reads the list when the response is no collection`() = runTest {
 		// A collection action whose 2xx response is not a Siren collection (a 204, or
 		// a redirect to an HTML confirmation) carries no collection to adopt, so the
-		// view model re-lists from the entry point to reflect the new server state.
+		// view model re-reads the entry point and adopts it to reflect the new server
+		// state — the same absent-collection path a row action takes.
 		val readlistGets = AtomicInteger()
 		server.handle { record ->
 			when (record.path) {
@@ -708,10 +725,10 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		assertEquals(listOf("a1"), viewModel.articleIds)
 
-		viewModel.invokeCollection(purgeAction)
+		viewModel.invoke(purgeAction)
 
-		assertEquals("with no collection to adopt, the invoke falls back to a fresh first-page load", 2, readlistGets.get())
-		assertEquals("the fallback reload reflects the server's post-invoke state", emptyList<String>(), viewModel.articleIds)
+		assertEquals("with no collection to adopt, the invoke re-reads the entry point", 2, readlistGets.get())
+		assertEquals("the re-read reflects the server's post-invoke state", emptyList<String>(), viewModel.articleIds)
 		assertNull(viewModel.state.value.errorText)
 	}
 
@@ -773,7 +790,7 @@ class ReadingListViewModelTest {
 		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
 
 		val target = viewModel.state.value.articles[0]
-		viewModel.invoke(advertisedAction(target, "update-status"), target)
+		viewModel.invoke(advertisedAction(target, "update-status"))
 
 		assertEquals(
 			"the followed collection is adopted: the marked row is gone and a website-side unread item appears",
@@ -784,26 +801,30 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `invoking on a deep-scrolled list drops the row locally and holds position`() = runTest {
-		// Acting on a row after paginating must neither collapse the list to page 1
-		// (yanking the reader to the top) nor splice a fresh server head above the
-		// viewport (shifting it). A deep-scrolled list stays exactly where it is: only
-		// the acted row is dropped, and the server's post-action collection — served
-		// here as a sentinel [zzz] the client must NOT adopt — is ignored until the
-		// next pull-to-refresh.
-		val page1Gets = AtomicInteger()
+	fun `invoking on a deep-scrolled list adopts the server's collection to the depth held`() = runTest {
+		// Acting on a row after paginating re-reads and adopts the server's truth at
+		// the depth held — not a hold that keeps the stale stitched list. The
+		// post-action collection has moved its page boundary (a1 is gone, a2 now leads),
+		// carries an external addition (a5), and advertises a *different* opaque next
+		// href: the second page is followed from that fresh cursor, so reusing the old
+		// `page=2` cursor (still served here) would produce a detectably different list.
+		val marked = AtomicBoolean(false)
+		val cursorNext = """, { "rel": ["next"], "href": "/queue?cursor=x" }"""
 		server.handle { record ->
 			when {
-				record.path.endsWith("/status") -> Stub.redirect(to = "/queue")
+				record.path.endsWith("/status") -> {
+					marked.set(true)
+					Stub.redirect(to = "/queue")
+				}
 				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.request.url.queryParameter("cursor") == "x" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a4"), Fixtures.article("a5")), page = 2))
 				record.path == "/queue" && record.page == "2" ->
 					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2))
+				record.path == "/queue" && marked.get() ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2"), Fixtures.article("a3")), extraLinks = cursorNext))
 				record.path == "/queue" ->
-					if (page1Gets.incrementAndGet() == 1) {
-						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
-					} else {
-						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("zzz"))))
-					}
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
 				else -> Stub.json(404, "{}")
 			}
 		}
@@ -812,14 +833,15 @@ class ReadingListViewModelTest {
 		viewModel.loadMore()
 		assertEquals("precondition: two pages are loaded", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
 
-		val target = viewModel.state.value.articles[2]
-		viewModel.invoke(advertisedAction(target, "update-status"), target)
+		val target = viewModel.state.value.articles[0]
+		viewModel.invoke(advertisedAction(target, "update-status"))
 
 		assertEquals(
-			"only the acted row is dropped; the list holds position and does not adopt the server's [zzz] collection while deep-scrolled",
-			listOf("a1", "a2", "a4"),
+			"the fresh collection is re-followed to the depth held from its own next cursor: moved boundary and the external a5 both land",
+			listOf("a2", "a3", "a4", "a5"),
 			viewModel.articleIds,
 		)
+		assertFalse("the fresh second page ends the list", viewModel.state.value.hasMore)
 		assertNull(viewModel.state.value.errorText)
 	}
 
@@ -871,7 +893,7 @@ class ReadingListViewModelTest {
 		assertEquals(listOf("a1"), viewModel.articleIds)
 
 		val target = viewModel.state.value.articles[0]
-		viewModel.invoke(advertisedAction(target, "update-status"), target)
+		viewModel.invoke(advertisedAction(target, "update-status"))
 
 		assertEquals("a toggle back to unread leaves the row in the unread-only list", listOf("a1"), viewModel.articleIds)
 		assertNull(viewModel.state.value.errorText)
@@ -884,7 +906,7 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 
 		val target = viewModel.state.value.articles[0]
-		viewModel.invoke(advertisedAction(target, "update-status"), target)
+		viewModel.invoke(advertisedAction(target, "update-status"))
 
 		val record = server.records("/queue/a1/status").first()
 		assertEquals(
@@ -901,7 +923,7 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 
 		val target = viewModel.state.value.articles[0]
-		viewModel.invoke(advertisedAction(target, "update-status"), target)
+		viewModel.invoke(advertisedAction(target, "update-status"))
 
 		assertEquals(
 			"a failed invocation leaves the current list in place — nothing was dropped ahead of the server",
@@ -919,10 +941,9 @@ class ReadingListViewModelTest {
 		server.handle(markReadHandler { Stub.redirect(to = "/queue") })
 		val viewModel = viewModel()
 		viewModel.refresh()
-		val target = viewModel.state.value.articles[0]
 		val hrefless = SirenAction(name = "delete", href = null, method = "POST", title = null, type = null, fields = null)
 
-		viewModel.invoke(hrefless, target)
+		viewModel.invoke(hrefless)
 
 		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
 		assertEquals("Could not read the server response.", viewModel.state.value.errorText)
@@ -948,24 +969,30 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 
 		val target = viewModel.state.value.articles[0]
-		viewModel.invoke(advertisedAction(target, "delete"), target)
+		viewModel.invoke(advertisedAction(target, "delete"))
 
 		assertEquals("the deleted item is gone from the adopted post-action collection", listOf("a2"), viewModel.articleIds)
 	}
 
 	@Test
-	fun `invoking drops the acted row when the response is no collection`() = runTest {
-		// A removing action (delete) whose 2xx response is not a Siren collection —
-		// a 204, or a redirect to an HTML page — carries no re-list direction, so
-		// api.invoke returns null. The acted row must still drop locally, honouring
-		// the removal the server already confirmed with its 2xx.
+	fun `invoking a removing action with no collection response re-reads and adopts the server's truth`() = runTest {
+		// A delete whose 2xx response is not a Siren collection (a 204, or a redirect
+		// to an HTML page) carries no re-list direction, so the view model re-reads
+		// the entry point rather than inferring the removal from the action. The
+		// re-read no longer lists the deleted row, so it drops — because the server's
+		// own collection says so, not a client id guess.
+		val readlistGets = AtomicInteger()
 		server.handle { record ->
 			when {
 				record.path.endsWith("/delete") ->
 					Stub(200, headers = mapOf("Content-Type" to "text/html"), body = "<!doctype html>".toByteArray())
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), total = 2))
+					if (readlistGets.incrementAndGet() == 1) {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), total = 2))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2"))))
+					}
 				else -> Stub.json(404, "{}")
 			}
 		}
@@ -973,28 +1000,35 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 
 		val target = viewModel.state.value.articles[0]
-		viewModel.invoke(advertisedAction(target, "delete"), target)
+		viewModel.invoke(advertisedAction(target, "delete"))
 
 		assertEquals(
-			"the confirmed removal is applied locally even when the response carries no collection to adopt",
+			"the deleted row drops because the re-read's collection no longer lists it — not a local id removal",
 			listOf("a2"),
 			viewModel.articleIds,
 		)
+		assertEquals("the no-collection response triggered exactly one re-read", 2, readlistGets.get())
 		assertNull(viewModel.state.value.errorText)
 	}
 
 	@Test
-	fun `invoking a non-removing action leaves the list untouched`() = runTest {
-		// A response that is no collection carries no re-list direction, so the
-		// list stays as it is for the next load to reconcile.
+	fun `invoking a non-removing action with no collection response re-reads and keeps the still-listed row`() = runTest {
+		// A response that is no collection carries no re-list direction, so the view
+		// model re-reads the entry point for a non-removing action too. The re-read
+		// still lists the row, so it stays — membership is the server's answer, never
+		// the action's direction.
 		val articleWithView = """
 			{ "class": ["article"], "properties": { "id": "a1", "url": "https://example.com/x" },
 				"actions": [{ "name": "view-original", "title": "Open original", "href": "/queue/a1/original", "method": "GET" }] }
 		"""
+		val readlistGets = AtomicInteger()
 		server.handle { record ->
 			when (record.path) {
 				"/" -> Stub.redirect(to = "/queue")
-				"/queue" -> Stub.json(200, Fixtures.collection(listOf(articleWithView)))
+				"/queue" -> {
+					readlistGets.incrementAndGet()
+					Stub.json(200, Fixtures.collection(listOf(articleWithView)))
+				}
 				"/queue/a1/original" -> Stub(200, headers = mapOf("Content-Type" to "text/html"), body = "<!doctype html>".toByteArray())
 				else -> Stub.json(404, "{}")
 			}
@@ -1004,9 +1038,10 @@ class ReadingListViewModelTest {
 		assertEquals(listOf("a1"), viewModel.articleIds)
 
 		val target = viewModel.state.value.articles[0]
-		viewModel.invoke(advertisedAction(target, "view-original"), target)
+		viewModel.invoke(advertisedAction(target, "view-original"))
 
-		assertEquals("a non-removing action whose response is no collection leaves the row in place", listOf("a1"), viewModel.articleIds)
+		assertEquals("the re-read still lists the row, so a non-removing action leaves it in place", listOf("a1"), viewModel.articleIds)
+		assertEquals("the no-collection response re-reads for a non-removing action too", 2, readlistGets.get())
 		assertNull(viewModel.state.value.errorText)
 	}
 
@@ -1037,7 +1072,11 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `readerStatusChanged steps aside for an in-flight foreground re-read`() = runTest {
+	fun `a reader report during a foreground re-read still issues its own read`() = runTest {
+		// A required reconciliation must not vanish behind a busy guard: the reader's
+		// report always starts its read even while the foreground re-read is in flight.
+		// The read sequence, not suppression, keeps the two ordered, so the list ends
+		// on server truth and loading clears once both complete.
 		server.handle(markReadHandler { Stub.redirect(to = "/queue") })
 		val viewModel = viewModel()
 		viewModel.refresh()
@@ -1047,7 +1086,7 @@ class ReadingListViewModelTest {
 		foreground.join()
 		readerReport.join()
 
-		assertEquals("setup's read plus the foreground re-read — the reader's report did not add a third", 2, firstPageReads())
+		assertEquals("setup's read, the foreground re-read, and the reader's own report — three reads", 3, firstPageReads())
 		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
 		assertFalse(viewModel.state.value.isLoading)
 	}
@@ -1341,22 +1380,28 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `a web sheet dismissal on a deep-scrolled list probes the server and holds position`() = runTest {
+	fun `a web sheet dismissal on a deep-scrolled list probes and adopts to the depth held`() = runTest {
 		// Unlike the foreground converge — zero-network once the list has paginated —
 		// the dismissal re-read must actually reach the server: it exists to discover
 		// a session the sheet's own page just killed. A live session's deep-scrolled
-		// list still holds its position: the fetched page (a sentinel [zzz] the
-		// client must not adopt) is discarded, so the probe never yanks the viewport.
+		// list re-follows the fresh pages to the depth held rather than collapsing to
+		// page 1: the probe's collection (here with a2 replaced by x2) is adopted at
+		// depth, so a change made inside the sheet shows without a pull-to-refresh.
 		val page1Gets = AtomicInteger()
-		server.handle(
-			twoPageHandler {
-				if (page1Gets.incrementAndGet() == 1) {
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
-				} else {
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("zzz"))))
-				}
-			},
-		)
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2))
+				record.path == "/queue" ->
+					if (page1Gets.incrementAndGet() == 1) {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("x2")), extraLinks = NEXT_LINK))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
 		val viewModel = viewModel()
 		viewModel.refresh()
 		viewModel.loadMore()
@@ -1366,8 +1411,8 @@ class ReadingListViewModelTest {
 
 		assertEquals("the dismissal probe hits the network even when deep-scrolled", 2, page1Gets.get())
 		assertEquals(
-			"a live session's paginated list holds its position — the probe's body is discarded, not adopted",
-			listOf("a1", "a2", "a3", "a4"),
+			"the probe's fresh collection is adopted to the depth held — x2 replaces a2, the deeper page is re-followed",
+			listOf("a1", "x2", "a3", "a4"),
 			viewModel.articleIds,
 		)
 	}
@@ -1396,7 +1441,10 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `a web sheet dismissal racing a foreground re-read probes once`() = runTest {
+	fun `a web sheet dismissal during a foreground re-read still issues its probe`() = runTest {
+		// The dismissal probe exists to discover a session the sheet just killed, so it
+		// must always reach the server — it does not step aside for an in-flight
+		// foreground re-read. Both reads go out; the read sequence keeps them ordered.
 		server.handle(markReadHandler { Stub.redirect(to = "/queue") })
 		val viewModel = viewModel()
 		viewModel.refresh()
@@ -1406,7 +1454,7 @@ class ReadingListViewModelTest {
 		foreground.join()
 		dismissal.join()
 
-		assertEquals("setup's read plus the foreground re-read — the dismissal did not add a third", 2, firstPageReads())
+		assertEquals("setup's read, the foreground re-read, and the dismissal's own probe — three reads", 3, firstPageReads())
 		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
 		assertFalse(viewModel.state.value.isLoading)
 	}
@@ -1814,12 +1862,369 @@ class ReadingListViewModelTest {
 		server.handle(lockedAccountHandler())
 		val viewModel = viewModel()
 		viewModel.refresh()
-		viewModel.invokeCollection(purgeAction)
+		viewModel.invoke(purgeAction)
 		assertEquals("precondition: a refused invoke shows the banner", 1, viewModel.state.value.messages.size)
 
 		viewModel.dismissMessages()
 
 		assertEquals(emptyList<ServerMessage>(), viewModel.state.value.messages)
+	}
+
+	// endregion
+
+	// region Adopting to the depth held
+
+	@Test
+	fun `a deeper hop failure during adoption keeps the fetched pages and the retry cursor`() = runTest {
+		// Re-reading a three-deep list adopts page 1 and page 2, then the third hop
+		// fails: only the pages actually fetched are applied, the failure is surfaced,
+		// and the last successful page's next link stays so ordinary pagination retries
+		// the owed page.
+		val page3Down = AtomicBoolean(false)
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "3" ->
+					if (page3Down.get()) {
+						Stub.json(500, Fixtures.sirenError(code = "boom", message = "hop three failed"))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a5"), Fixtures.article("a6")), page = 3))
+					}
+				record.path == "/queue" && record.page == "2" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), extraLinks = PAGE_3_LINK, page = 2))
+				record.path == "/queue" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.loadMore()
+		viewModel.loadMore()
+		assertEquals("precondition: three pages are loaded", listOf("a1", "a2", "a3", "a4", "a5", "a6"), viewModel.articleIds)
+
+		page3Down.set(true)
+		viewModel.readerStatusChanged()
+
+		assertEquals(
+			"only the pages fetched before the failing hop are applied — the stitched list shrinks to them",
+			listOf("a1", "a2", "a3", "a4"),
+			viewModel.articleIds,
+		)
+		assertEquals("the failed hop is surfaced", "hop three failed", viewModel.state.value.errorText)
+		assertTrue("the last successful page's next link stands, so pagination can retry the owed page", viewModel.state.value.hasMore)
+
+		page3Down.set(false)
+		viewModel.loadMore()
+
+		assertEquals(
+			"the retained retry cursor lets ordinary pagination pull the owed page",
+			listOf("a1", "a2", "a3", "a4", "a5", "a6"),
+			viewModel.articleIds,
+		)
+	}
+
+	@Test
+	fun `a shorter fresh collection on adoption replaces the longer stitched list`() = runTest {
+		// The server shed a page between reads: the re-read is a single page with no
+		// next, so adoption stops at it and the list shrinks to server truth rather
+		// than keeping the now-gone deeper rows.
+		val shrunk = AtomicBoolean(false)
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2))
+				record.path == "/queue" ->
+					if (shrunk.get()) {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages are loaded", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+
+		shrunk.set(true)
+		viewModel.readerStatusChanged()
+
+		assertEquals("the shorter fresh collection replaces the longer stitched list", listOf("a1"), viewModel.articleIds)
+		assertFalse("the fresh single page advertises no next page", viewModel.state.value.hasMore)
+	}
+
+	@Test
+	fun `adoption dedups a row that repeats across the fresh pages`() = runTest {
+		// A boundary shift between reads repeats the row closing page 1 at the head of
+		// page 2; the stable-id append drops the repeat, so the re-followed collection
+		// keeps each row once.
+		val boundaryShifted = AtomicBoolean(false)
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					if (boundaryShifted.get()) {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2"), Fixtures.article("a3")), page = 2))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2))
+					}
+				record.path == "/queue" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages are loaded", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+
+		boundaryShifted.set(true)
+		viewModel.readerStatusChanged()
+
+		assertEquals("the repeated boundary row is applied once across the re-followed pages", listOf("a1", "a2", "a3"), viewModel.articleIds)
+	}
+
+	// endregion
+
+	// region Ordering overlapping reads
+
+	@Test
+	fun `a page load in flight when a mutation is adopted is dropped, not appended`() = runTest {
+		// A loadMore from a pre-mutation cursor is still on the wire when a mutation
+		// re-reads and adopts the fresh collection to the depth held. The stale page,
+		// released afterward, belongs to a superseded list version and is dropped
+		// rather than stitched onto the fresh one.
+		val gate = Gate()
+		val marked = AtomicBoolean(false)
+		server.handle { record ->
+			when {
+				record.path.endsWith("/status") -> {
+					marked.set(true)
+					Stub.redirect(to = "/queue")
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "3" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a5"), Fixtures.article("a6")), page = 3)))
+				record.path == "/queue" && record.page == "2" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							if (marked.get()) listOf(Fixtures.article("a4"), Fixtures.article("a5")) else listOf(Fixtures.article("a3"), Fixtures.article("a4")),
+							extraLinks = PAGE_3_LINK,
+							page = 2,
+						),
+					)
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							if (marked.get()) listOf(Fixtures.article("a2"), Fixtures.article("a3")) else listOf(Fixtures.article("a1"), Fixtures.article("a2")),
+							extraLinks = NEXT_LINK,
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages are loaded", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+		val toggle = advertisedAction(viewModel.state.value.articles[0], "update-status")
+
+		val more = launch { viewModel.loadMore() }
+		awaitArrival(gate)
+		viewModel.invoke(toggle)
+		assertEquals(
+			"precondition: the mutation's collection is adopted and re-followed to the depth held",
+			listOf("a2", "a3", "a4", "a5"),
+			viewModel.articleIds,
+		)
+
+		gate.release()
+		more.join()
+
+		assertEquals(
+			"the page requested from the pre-mutation cursor is dropped, not appended onto the fresh list",
+			listOf("a2", "a3", "a4", "a5"),
+			viewModel.articleIds,
+		)
+		assertTrue("the fresh second page's next link stands, not the stale page's end of list", viewModel.state.value.hasMore)
+	}
+
+	@Test
+	fun `a mutation with no collection re-reads past a refresh in flight and the stale refresh is dropped`() = runTest {
+		// A pull-to-refresh is on the wire when a delete answered with no collection
+		// re-reads the entry point and adopts the post-delete truth. The refresh,
+		// carrying the pre-delete list, lands late — its older read is refused, so it
+		// cannot repaint the deleted row.
+		val gate = Gate()
+		val queueGets = AtomicInteger()
+		val deleted = AtomicBoolean(false)
+		server.handle { record ->
+			when {
+				record.path.endsWith("/delete") -> {
+					deleted.set(true)
+					Stub(200, headers = mapOf("Content-Type" to "text/html"), body = "<!doctype html>".toByteArray())
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" -> {
+					val collection = Stub.json(
+						200,
+						Fixtures.collection(
+							if (deleted.get()) listOf(Fixtures.article("a2")) else listOf(Fixtures.article("a1"), Fixtures.article("a2")),
+							total = 2,
+						),
+					)
+					if (queueGets.incrementAndGet() == 2) gate.holding(collection) else collection
+				}
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		val deleteAction = advertisedAction(viewModel.state.value.articles[0], "delete")
+
+		val pull = launch { viewModel.refresh() }
+		awaitArrival(gate)
+		viewModel.invoke(deleteAction)
+		assertEquals("precondition: the post-mutation re-read is adopted despite the refresh in flight", listOf("a2"), viewModel.articleIds)
+
+		gate.release()
+		pull.join()
+
+		assertEquals("the pre-mutation refresh landing late is dropped, not painting the deleted row back", listOf("a2"), viewModel.articleIds)
+		assertFalse(viewModel.state.value.isLoading)
+	}
+
+	@Test
+	fun `an older read landing first still yields to the newer read that replaces it`() = runTest {
+		// Both a refresh and a reader report are parked mid-read. The older refresh is
+		// released first and lands — but loading stays true because the newer report is
+		// still in flight, and when it lands its higher read sequence replaces the
+		// older one. Starting a newer read never invalidates an older one; only a newer
+		// one that has actually applied does.
+		val refreshGate = Gate()
+		val reportGate = Gate()
+		val queueGets = AtomicInteger()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" ->
+					when (queueGets.incrementAndGet()) {
+						2 -> refreshGate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("x1")))))
+						3 -> reportGate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("y1")))))
+						else -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+
+		val older = launch { viewModel.refresh() }
+		awaitArrival(refreshGate)
+		val newer = launch { viewModel.readerStatusChanged() }
+		awaitArrival(reportGate)
+
+		refreshGate.release()
+		older.join()
+		assertEquals("the older read landed first", listOf("x1"), viewModel.articleIds)
+		assertTrue("loading stays true because the newer read is still in flight", viewModel.state.value.isLoading)
+
+		reportGate.release()
+		newer.join()
+		assertEquals("the newer read's higher sequence replaces the older collection", listOf("y1"), viewModel.articleIds)
+		assertFalse(viewModel.state.value.isLoading)
+	}
+
+	@Test
+	fun `a failed newer read does not advance the applied sequence`() = runTest {
+		// A newer read fails before it can apply. Its failure must not advance the
+		// applied sequence, so an older read still in flight — released afterward —
+		// applies rather than being wrongly refused as stale.
+		val gate = Gate()
+		val queueGets = AtomicInteger()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" ->
+					when (queueGets.incrementAndGet()) {
+						2 -> gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("x1")))))
+						3 -> Stub.json(500, Fixtures.sirenError(code = "boom", message = "nope"))
+						else -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+
+		val older = launch { viewModel.refresh() }
+		awaitArrival(gate)
+		val newer = launch { viewModel.readerStatusChanged() }
+		newer.join()
+		assertEquals("the newer read failed and applied nothing", listOf("a1"), viewModel.articleIds)
+		assertEquals("nope", viewModel.state.value.errorText)
+
+		gate.release()
+		older.join()
+
+		assertEquals(
+			"the older read applies because the failed newer read never advanced the applied sequence",
+			listOf("x1"),
+			viewModel.articleIds,
+		)
+	}
+
+	@Test
+	fun `an older adoption's deeper hop landing late is rejected wholesale with its hop error`() = runTest {
+		// An older reconciliation has read its first page and is fetching a deeper hop
+		// when a newer one completes and replaces the collection. When the older hop
+		// finishes — as a failure — the whole older replacement is refused: neither its
+		// rows nor its deferred hop error reach the list.
+		val hopGate = Gate()
+		val page1Gets = AtomicInteger()
+		val hopGets = AtomicInteger()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					when (hopGets.incrementAndGet()) {
+						1 -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2))
+						2 -> hopGate.holding(Stub.json(500, Fixtures.sirenError(code = "boom", message = "stale hop failed")))
+						else -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("b3"), Fixtures.article("b4")), page = 2))
+					}
+				record.path == "/queue" ->
+					when (page1Gets.incrementAndGet()) {
+						3 -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("b1"), Fixtures.article("b2")), extraLinks = NEXT_LINK))
+						else -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages are loaded", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+
+		val older = launch { viewModel.readerStatusChanged() }
+		awaitArrival(hopGate)
+		val newer = launch { viewModel.readerStatusChanged() }
+		newer.join()
+		assertEquals("precondition: the newer reconciliation replaced the list", listOf("b1", "b2", "b3", "b4"), viewModel.articleIds)
+
+		hopGate.release()
+		older.join()
+
+		assertEquals(
+			"the older adoption's late hop is rejected wholesale — the newer collection stands",
+			listOf("b1", "b2", "b3", "b4"),
+			viewModel.articleIds,
+		)
+		assertNull("the superseded older adoption's deferred hop error is not surfaced", viewModel.state.value.errorText)
 	}
 
 	// endregion
@@ -1898,5 +2303,6 @@ class ReadingListViewModelTest {
 
 	private companion object {
 		const val NEXT_LINK = """, { "rel": ["next"], "href": "/queue?page=2" }"""
+		const val PAGE_3_LINK = """, { "rel": ["next"], "href": "/queue?page=3" }"""
 	}
 }

@@ -45,14 +45,6 @@ data class AffordancePresentation(
 	/** Whether the control mutates server state with no undo — the View uses this
 	 * to mark a swipe action destructive and to confirm before invoking. */
 	val isDestructive: Boolean,
-	/** Whether invoking the control unconditionally removes the item it acts on from
-	 * the current (unread-only) list, knowable from the wire token alone. Only
-	 * `delete` qualifies: it always removes the item regardless of any field value.
-	 * `update-status` is a server toggle (it may set the status to `read` OR
-	 * `unread`), so whether it removes the row depends on the action's `status`
-	 * field `value`, not the token — that transition-aware decision lives in
-	 * `Affordance.removesItemFromUnreadList`, not here. */
-	val removesItem: Boolean,
 	/** Whether the wire token alone allows presenting this affordance as a
 	 * collection toolbar control. `false` for two kinds excluded structurally (not
 	 * name-gated as a known capability): a structural navigation link
@@ -89,7 +81,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.PLUS,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
-				removesItem = false,
 				isToolbarControl = false,
 				isRecognizedToken = true,
 				showsTitle = false,
@@ -101,7 +92,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.KEY,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
-				removesItem = false,
 				isToolbarControl = false,
 				isRecognizedToken = true,
 				showsTitle = false,
@@ -110,7 +100,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.CHECKMARK_CIRCLE,
 				tint = AffordanceTint.SUCCESS,
 				isDestructive = false,
-				removesItem = false,
 				isToolbarControl = true,
 				isRecognizedToken = true,
 				showsTitle = false,
@@ -119,7 +108,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.TRASH,
 				tint = AffordanceTint.DESTRUCTIVE,
 				isDestructive = true,
-				removesItem = true,
 				isToolbarControl = true,
 				isRecognizedToken = true,
 				showsTitle = false,
@@ -128,7 +116,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.MAGNIFYING_GLASS,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
-				removesItem = false,
 				isToolbarControl = true,
 				isRecognizedToken = true,
 				showsTitle = false,
@@ -137,7 +124,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.PERSON_CIRCLE,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
-				removesItem = false,
 				isToolbarControl = true,
 				isRecognizedToken = true,
 				showsTitle = true,
@@ -146,7 +132,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.PLUS,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
-				removesItem = false,
 				isToolbarControl = true,
 				isRecognizedToken = true,
 				showsTitle = false,
@@ -155,7 +140,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.ELLIPSIS_CIRCLE,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
-				removesItem = false,
 				isToolbarControl = false,
 				isRecognizedToken = true,
 				showsTitle = false,
@@ -164,7 +148,6 @@ data class AffordancePresentation(
 				icon = AffordanceIcon.ELLIPSIS_CIRCLE,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
-				removesItem = false,
 				isToolbarControl = true,
 				isRecognizedToken = false,
 				showsTitle = false,
@@ -257,23 +240,6 @@ private val Affordance.hasServerTitle: Boolean
 	get() = when (val source = invocation) {
 		is Affordance.Invocation.OfAction -> !source.action.title.isNullOrEmpty()
 		is Affordance.Invocation.OfLink -> !source.link.title.isNullOrEmpty()
-	}
-
-/**
- * Whether invoking this affordance removes the item it acts on from the
- * unread-only reading list — the row the post-action adoption drops when the
- * server's returned collection can't confirm it (a deep-scrolled merge keeps rows
- * the fresh head doesn't cover, and a non-collection response carries no re-list
- * direction at all). `delete` always removes (known from the token).
- * `update-status` is a server toggle, so it removes the row only when its `status`
- * field's server-supplied `value` moves the item out of the unread-only list
- * (`read`); a toggle back to `unread` leaves the row in place.
- */
-val Affordance.removesItemFromUnreadList: Boolean
-	get() {
-		if (presentation.removesItem) return true
-		val status = action?.fields?.firstOrNull { it.name == "status" }?.value
-		return status == "read"
 	}
 
 /**

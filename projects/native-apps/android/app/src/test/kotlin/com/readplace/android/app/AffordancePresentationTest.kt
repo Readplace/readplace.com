@@ -25,7 +25,6 @@ class AffordancePresentationTest {
 		assertEquals(AffordanceIcon.PLUS, presentation.icon)
 		assertEquals(AffordanceTint.NEUTRAL, presentation.tint)
 		assertFalse(presentation.isDestructive)
-		assertFalse(presentation.removesItem)
 		assertTrue(presentation.isToolbarControl)
 	}
 
@@ -41,32 +40,27 @@ class AffordancePresentationTest {
 		for (presentation in listOf(saveContent, createSession)) {
 			assertFalse(presentation.isToolbarControl)
 			assertTrue(presentation.isRecognizedToken)
-			assertFalse(presentation.removesItem)
 			assertFalse(presentation.isDestructive)
 			assertEquals(AffordanceTint.NEUTRAL, presentation.tint)
 		}
 	}
 
 	@Test
-	fun `update-status maps to a read control whose removal is transition dependent`() {
+	fun `update-status maps to a non-destructive read control`() {
 		val presentation = AffordancePresentation.of("update-status")
 		assertEquals(AffordanceIcon.CHECKMARK_CIRCLE, presentation.icon)
 		assertEquals(AffordanceTint.SUCCESS, presentation.tint)
 		assertFalse(presentation.isDestructive)
-		// update-status is a server toggle, so whether it removes the row depends on
-		// the field value, not the token.
-		assertFalse(presentation.removesItem)
 		assertTrue(presentation.isToolbarControl)
 	}
 
 	@Test
-	fun `delete maps to a destructive trash control that removes the item`() {
+	fun `delete maps to a destructive trash control`() {
 		val presentation = AffordancePresentation.of("delete")
 		assertEquals(AffordanceIcon.TRASH, presentation.icon)
 		assertEquals(AffordanceTint.DESTRUCTIVE, presentation.tint)
 		// delete is irreversible, so the View confirms before invoking.
 		assertTrue(presentation.isDestructive)
-		assertTrue(presentation.removesItem)
 		assertTrue(presentation.isToolbarControl)
 	}
 
@@ -76,7 +70,6 @@ class AffordancePresentationTest {
 		assertEquals(AffordanceIcon.MAGNIFYING_GLASS, presentation.icon)
 		assertEquals(AffordanceTint.NEUTRAL, presentation.tint)
 		assertFalse(presentation.isDestructive)
-		assertFalse(presentation.removesItem)
 		assertTrue(presentation.isToolbarControl)
 	}
 
@@ -89,7 +82,6 @@ class AffordancePresentationTest {
 		assertEquals(AffordanceIcon.PERSON_CIRCLE, presentation.icon)
 		assertEquals(AffordanceTint.NEUTRAL, presentation.tint)
 		assertFalse(presentation.isDestructive)
-		assertFalse(presentation.removesItem)
 		assertTrue(presentation.isToolbarControl)
 	}
 
@@ -107,7 +99,6 @@ class AffordancePresentationTest {
 			assertEquals(AffordanceIcon.ELLIPSIS_CIRCLE, presentation.icon)
 			assertEquals(AffordanceTint.NEUTRAL, presentation.tint)
 			assertFalse(presentation.isDestructive)
-			assertFalse(presentation.removesItem)
 		}
 	}
 
@@ -117,7 +108,6 @@ class AffordancePresentationTest {
 		assertEquals(AffordanceIcon.ELLIPSIS_CIRCLE, presentation.icon)
 		assertEquals(AffordanceTint.NEUTRAL, presentation.tint)
 		assertFalse(presentation.isDestructive)
-		assertFalse(presentation.removesItem)
 		assertFalse(presentation.isRecognizedToken)
 		// A newly-advertised affordance still renders in the toolbar rather than
 		// vanishing.
@@ -129,51 +119,6 @@ class AffordancePresentationTest {
 		val delete = affordance(action(name = "delete", href = "/queue/a1/delete"))
 		assertEquals(AffordancePresentation.of("delete"), delete.presentation)
 	}
-
-	// region Transition-aware removal
-
-	@Test
-	fun `update-status removes the row when its status value moves the item to read`() {
-		// The server toggle on an unread item targets "read", which leaves the
-		// unread-only list, so the row is dropped optimistically.
-		val toRead = affordance(action(name = "update-status", fields = listOf(statusField("read"))))
-		assertTrue(toRead.removesItemFromUnreadList)
-	}
-
-	@Test
-	fun `update-status keeps the row when its status value toggles back to unread`() {
-		// The same action on an already-read item targets "unread"; the row stays in
-		// the unread-only list, so nothing is removed — the next load reconciles it.
-		val toUnread = affordance(action(name = "update-status", fields = listOf(statusField("unread"))))
-		assertFalse(toUnread.removesItemFromUnreadList)
-	}
-
-	@Test
-	fun `delete always removes the row regardless of fields`() {
-		val delete = affordance(action(name = "delete", href = "/queue/a1/delete"))
-		assertTrue(delete.removesItemFromUnreadList)
-	}
-
-	@Test
-	fun `an unrelated action does not remove the row`() {
-		val other = affordance(action(name = "view-original", href = "/queue/a1/original"))
-		assertFalse(other.removesItemFromUnreadList)
-	}
-
-	@Test
-	fun `an action whose fields carry no status does not remove the row`() {
-		val url = field(name = "url", value = "https://a.example")
-		val save = affordance(action(name = "save-article", href = "/queue", fields = listOf(url)))
-		assertFalse(save.removesItemFromUnreadList)
-	}
-
-	@Test
-	fun `a navigable link never removes a row`() {
-		val link = affordance(SirenLink(rel = listOf("save"), href = "/save", title = null))
-		assertFalse(link.removesItemFromUnreadList)
-	}
-
-	// endregion
 
 	// region Bare-control invokability
 

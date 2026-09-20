@@ -78,13 +78,11 @@ import java.time.ZoneId
 /**
  * A destructive affordance awaiting confirmation. A destructive control (e.g.
  * `delete`) is irreversible, so it routes here for an explicit confirm before the
- * invoke fires, rather than acting on the tap. [article] is null for a
- * collection-level control, which acts on no row.
+ * invoke fires, rather than acting on the tap.
  */
 private data class PendingDestructive(
 	val label: String,
 	val action: SirenAction,
-	val article: Article?,
 )
 
 @Composable
@@ -136,9 +134,9 @@ fun ReadingListScreen(
 				// confirm gate lives here rather than in `ToolbarRoute.route` so routing
 				// stays name-agnostic.
 				if (affordance.presentation.isDestructive) {
-					pendingDestructive = PendingDestructive(affordance.label, route.action, article = null)
+					pendingDestructive = PendingDestructive(affordance.label, route.action)
 				} else {
-					scope.launch { viewModel.invokeCollection(route.action) }
+					scope.launch { viewModel.invoke(route.action) }
 				}
 		}
 	}
@@ -152,29 +150,23 @@ fun ReadingListScreen(
 	 * rendered item control resolves to an effect — a link-only affordance is opened,
 	 * not silently dropped.
 	 */
-	fun activate(affordance: Affordance, article: Article) {
+	fun activate(affordance: Affordance) {
 		when (val route = ItemRoute.route(affordance)) {
 			is ItemRoute.Open -> viewModel.open(route.link)
 			is ItemRoute.ConfirmDestructive ->
-				pendingDestructive = PendingDestructive(affordance.label, route.action, article)
-			is ItemRoute.Invoke -> scope.launch { viewModel.invoke(route.action, article) }
+				pendingDestructive = PendingDestructive(affordance.label, route.action)
+			is ItemRoute.Invoke -> scope.launch { viewModel.invoke(route.action) }
 		}
 	}
 
 	/**
-	 * Performs a confirmed destructive affordance. A row control invokes on its
-	 * article; a collection control invokes on the collection.
+	 * Performs a confirmed destructive affordance through the same generic invoker a
+	 * row or collection control uses; the server's post-action collection is what
+	 * reconciles the list.
 	 */
 	fun confirmDestructive(pending: PendingDestructive) {
 		pendingDestructive = null
-		val article = pending.article
-		scope.launch {
-			if (article != null) {
-				viewModel.invoke(pending.action, article)
-			} else {
-				viewModel.invokeCollection(pending.action)
-			}
-		}
+		scope.launch { viewModel.invoke(pending.action) }
 	}
 
 	Scaffold(
@@ -378,7 +370,7 @@ private fun ArticleList(
 	state: ReadingListState,
 	clock: Clock,
 	onOpen: (Article) -> Unit,
-	onActivate: (Affordance, Article) -> Unit,
+	onActivate: (Affordance) -> Unit,
 	onLoadMore: suspend () -> Unit,
 ) {
 	LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -387,7 +379,7 @@ private fun ArticleList(
 				article = article,
 				clock = clock,
 				onOpen = { onOpen(article) },
-				onActivate = { onActivate(it, article) },
+				onActivate = onActivate,
 			)
 			HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 		}
