@@ -14,6 +14,8 @@ interface IntroMusic {
 	fun seek(seconds: Double)
 
 	fun setMuted(muted: Boolean)
+
+	fun release()
 }
 
 class LaunchIntroModel(

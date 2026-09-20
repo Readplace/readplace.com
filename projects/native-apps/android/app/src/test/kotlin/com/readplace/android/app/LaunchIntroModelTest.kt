@@ -12,6 +12,7 @@ class LaunchIntroModelTest {
 		var restarts = 0
 		val seeks = mutableListOf<Double>()
 		var muted: Boolean? = null
+		var releases = 0
 
 		override fun start() {
 			starts += 1
@@ -31,6 +32,10 @@ class LaunchIntroModelTest {
 
 		override fun setMuted(muted: Boolean) {
 			this.muted = muted
+		}
+
+		override fun release() {
+			releases += 1
 		}
 	}
 

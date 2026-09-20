@@ -61,6 +61,10 @@ class SystemIntroMusic(context: Context) : IntroMusic {
 	override fun setMuted(muted: Boolean) {
 		player.volume = if (muted) 0f else 1f
 	}
+
+	override fun release() {
+		player.release()
+	}
 }
 
 private fun rawUri(context: Context, resource: Int): Uri =

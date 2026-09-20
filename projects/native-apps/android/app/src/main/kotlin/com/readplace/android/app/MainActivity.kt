@@ -23,8 +23,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.readplace.android.BuildConfig
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
@@ -99,13 +102,24 @@ class MainActivity : ComponentActivity() {
 		}
 
 		val reduceMotion = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-		intro = LaunchIntroModel(
-			seen = LaunchIntroSeen(flags),
-			music = SystemIntroMusic(this),
-			mutePreference = IntroMutePreference(flags),
-			reduceMotion = reduceMotion,
-			isLoggedIn = store.isLoggedIn,
-		)
+		intro = ViewModelProvider(
+			this,
+			viewModelFactory {
+				initializer {
+					val music = SystemIntroMusic(applicationContext)
+					LaunchIntroOwner(
+						model = LaunchIntroModel(
+							seen = LaunchIntroSeen(flags),
+							music = music,
+							mutePreference = IntroMutePreference(flags),
+							reduceMotion = reduceMotion,
+							isLoggedIn = store.isLoggedIn,
+						),
+						music = music,
+					)
+				}
+			},
+		).get(LaunchIntroOwner::class).model
 
 		handleCallback(intent)
 
