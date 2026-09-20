@@ -160,7 +160,8 @@ export function registerGmailConnectRoutes(
 				res.redirect(303, buildIntegrationsUrl({ error: "oauth_scope" }));
 				return;
 			}
-			context.logError(`[gmail-connect] grant unusable: ${grant.reason}`);
+			const { ok: _ok, ...failure } = grant;
+			context.logError(`[gmail-connect] grant unusable: ${JSON.stringify(failure)}`);
 			res.redirect(303, buildIntegrationsUrl({ error: "oauth_exchange" }));
 			return;
 		}

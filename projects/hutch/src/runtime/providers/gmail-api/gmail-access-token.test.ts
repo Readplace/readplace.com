@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
 import { initGmailAccessToken } from "./gmail-access-token";
 
@@ -15,6 +16,15 @@ function makeHarness(responses: FakeResponse[]) {
 	let clock = new Date("2026-08-27T00:00:00.000Z");
 	const requests: URLSearchParams[] = [];
 	const credentials = initInMemoryGmailCredentials({ now: () => clock });
+
+	const infoLines: unknown[][] = [];
+	const errorLines: unknown[][] = [];
+	const logger: HutchLogger = {
+		info: (...args) => { infoLines.push(args); },
+		error: (...args) => { errorLines.push(args); },
+		warn: noopLogger.warn,
+		debug: noopLogger.debug,
+	};
 
 	const fetchFake = (async (_url: string, init?: { body?: string }) => {
 		requests.push(new URLSearchParams(init?.body));
@@ -33,12 +43,15 @@ function makeHarness(responses: FakeResponse[]) {
 		credentials,
 		fetch: fetchFake,
 		now: () => clock,
+		logger,
 	});
 
 	return {
 		accessToken,
 		requests,
 		credentials,
+		infoLines,
+		errorLines,
 		advanceTo: (iso: string) => {
 			clock = new Date(iso);
 		},
@@ -127,8 +140,10 @@ describe("initGmailAccessToken", () => {
 		assert.deepEqual(await harness.accessToken({ userId: USER, forceRefresh: false }), { ok: false, reason: "reauth-required" });
 	});
 
-	it("asks the user to reconnect when Google rejects the refresh token", async () => {
-		const harness = makeHarness([{ status: 400, body: { error: "invalid_grant" } }]);
+	it("asks the user to reconnect and logs the reason when Google reports invalid_grant", async () => {
+		const harness = makeHarness([
+			{ status: 400, body: { error: "invalid_grant", error_description: "Token has been expired or revoked." } },
+		]);
 		await harness.credentials.saveCredentials({
 			userId: USER,
 			refreshToken: "refresh-1",
@@ -138,10 +153,19 @@ describe("initGmailAccessToken", () => {
 		const result = await harness.accessToken({ userId: USER, forceRefresh: false });
 
 		assert.deepEqual(result, { ok: false, reason: "reauth-required" });
+		assert.deepEqual(harness.infoLines, [
+			[
+				"[gmail-access-token] refresh token rejected",
+				{ userId: USER, status: 400, errorDescription: "Token has been expired or revoked." },
+			],
+		]);
+		assert.deepEqual(harness.errorLines, []);
 	});
 
-	it("asks the user to reconnect when Google reports the grant is unauthorised", async () => {
-		const harness = makeHarness([{ status: 401, body: {} }]);
+	it("returns retryable and logs our client's error when Google refuses on invalid_client", async () => {
+		const harness = makeHarness([
+			{ status: 401, body: { error: "invalid_client", error_description: "The OAuth client was not found." } },
+		]);
 		await harness.credentials.saveCredentials({
 			userId: USER,
 			refreshToken: "refresh-1",
@@ -150,7 +174,37 @@ describe("initGmailAccessToken", () => {
 
 		const result = await harness.accessToken({ userId: USER, forceRefresh: false });
 
-		assert.deepEqual(result, { ok: false, reason: "reauth-required" });
+		assert.deepEqual(result, { ok: false, reason: "unavailable", status: 401 });
+		assert.equal(harness.errorLines.length, 1);
+		assert.equal(harness.errorLines[0].length, 1);
+		assert.deepEqual(JSON.parse(String(harness.errorLines[0][0])), {
+			level: "ERROR",
+			message: "[gmail-access-token] token endpoint refused our client",
+			userId: USER,
+			status: 401,
+			error: "invalid_client",
+			errorDescription: "The OAuth client was not found.",
+		});
+		assert.deepEqual(harness.infoLines, []);
+	});
+
+	it("returns retryable and logs our client's error when a 400 carries no error body", async () => {
+		const harness = makeHarness([{ status: 400, body: {} }]);
+		await harness.credentials.saveCredentials({
+			userId: USER,
+			refreshToken: "refresh-1",
+			grantedScope: SCOPE,
+		});
+
+		const result = await harness.accessToken({ userId: USER, forceRefresh: false });
+
+		assert.deepEqual(result, { ok: false, reason: "unavailable", status: 400 });
+		assert.deepEqual(JSON.parse(String(harness.errorLines[0][0])), {
+			level: "ERROR",
+			message: "[gmail-access-token] token endpoint refused our client",
+			userId: USER,
+			status: 400,
+		});
 	});
 
 	it("reports a Google outage as retryable", async () => {

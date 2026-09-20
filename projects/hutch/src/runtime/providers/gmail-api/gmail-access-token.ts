@@ -1,7 +1,9 @@
 import { z } from "zod";
 import type { GmailCredentialsStore } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
+import type { HutchLogger } from "@packages/hutch-logger";
 import type { GetGmailAccessToken } from "@packages/provider-contracts/gmail-filters";
+import { readGoogleTokenError } from "../gmail-oauth/google-token-error";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
@@ -18,6 +20,7 @@ export function initGmailAccessToken(deps: {
 	credentials: GmailCredentialsStore;
 	fetch: typeof globalThis.fetch;
 	now: () => Date;
+	logger: HutchLogger;
 }): GetGmailAccessToken {
 	const cached = new Map<UserId, { accessToken: string; expiresAt: number; refreshToken: string }>();
 
@@ -43,7 +46,26 @@ export function initGmailAccessToken(deps: {
 		});
 
 		if (response.status === 400 || response.status === 401) {
-			return { ok: false, reason: "reauth-required" };
+			const { error, errorDescription } = readGoogleTokenError(await response.json());
+			if (error === "invalid_grant") {
+				deps.logger.info("[gmail-access-token] refresh token rejected", {
+					userId,
+					status: response.status,
+					errorDescription,
+				});
+				return { ok: false, reason: "reauth-required" };
+			}
+			deps.logger.error(
+				JSON.stringify({
+					level: "ERROR",
+					message: "[gmail-access-token] token endpoint refused our client",
+					userId,
+					status: response.status,
+					error,
+					errorDescription,
+				}),
+			);
+			return { ok: false, reason: "unavailable", status: response.status };
 		}
 		if (!response.ok) return { ok: false, reason: "unavailable", status: response.status };
 

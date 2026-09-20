@@ -62,6 +62,7 @@ const rewriteGmailFilter = initRewriteGmailFilter({
 			credentials,
 			fetch: globalThis.fetch,
 			now,
+			logger,
 		}),
 		fetch: globalThis.fetch,
 	}),
