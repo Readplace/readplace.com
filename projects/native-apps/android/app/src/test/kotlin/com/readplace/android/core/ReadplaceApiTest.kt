@@ -1,6 +1,7 @@
 package com.readplace.android.core
 
 import com.readplace.android.RecordingServer
+import com.readplace.android.RecordingServer.Record
 import com.readplace.android.RecordingServer.Stub
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -17,6 +18,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -34,6 +36,9 @@ class ReadplaceApiTest {
 
 	@get:Rule
 	val folder = TemporaryFolder()
+
+	@get:Rule
+	val redirectTarget = RecordingServer()
 
 	private class RecordingTokenStorage : TokenStorage {
 		val stored = mutableMapOf<TokenKey, String>()
@@ -130,6 +135,22 @@ class ReadplaceApiTest {
 			return error as? E ?: throw error
 		}
 		throw AssertionError("expected ${E::class.simpleName}, but nothing was thrown")
+	}
+
+	private fun assertNoReadplaceIdentity(record: Record) {
+		assertFalse(
+			"the third-party origin must not learn this request comes from the Readplace app",
+			record.header("User-Agent").orEmpty().contains("Readplace"),
+		)
+		assertNull("the external fetch must never carry the Readplace bearer token", record.header("Authorization"))
+		assertNull(
+			"the external fetch must not advertise the Readplace client to a third-party origin",
+			record.header(AppConfig.CLIENT_HEADER),
+		)
+		assertNull(
+			"the external fetch must not leak the save-continuity signal to a third-party origin",
+			record.header(AppConfig.SAVE_CONTINUITY_HEADER),
+		)
 	}
 
 	// region Listing
@@ -397,7 +418,7 @@ class ReadplaceApiTest {
 	// region Fetching content to upload
 
 	@Test
-	fun `fetchExternalContent sends no Authorization and no client header`() = runTest {
+	fun `fetchExternalContent carries no Readplace identity on a direct fetch`() = runTest {
 		val pdfBytes = "%PDF-1.7 body".toByteArray()
 		server.handle { Stub(200, headers = mapOf("Content-Type" to "application/pdf"), body = pdfBytes) }
 
@@ -406,12 +427,20 @@ class ReadplaceApiTest {
 		assertArrayEquals(pdfBytes, fetched)
 		val record = server.records.single()
 		assertEquals("GET", record.method)
-		assertNull("the external fetch must never carry the Readplace bearer token", record.header("Authorization"))
-		assertNull(
-			"the external fetch must not advertise the Readplace client to a third-party origin",
-			record.header("X-Readplace-Client"),
-		)
-		assertEquals("the app still identifies itself, as the iOS system agent does", USER_AGENT, record.header("User-Agent"))
+		assertNoReadplaceIdentity(record)
+	}
+
+	@Test
+	fun `fetchExternalContent carries no Readplace identity across a redirect to another origin`() = runTest {
+		val pdfBytes = "%PDF-1.7 across a redirect".toByteArray()
+		redirectTarget.handle { Stub(200, headers = mapOf("Content-Type" to "application/pdf"), body = pdfBytes) }
+		server.handle { Stub.redirect(to = "${redirectTarget.baseUrl}/paper.pdf") }
+
+		val fetched = api(loggedInStore(access = "secret-access")).fetchExternalContent("${server.baseUrl}/pdf/1706.03762")
+
+		assertArrayEquals("the followed redirect still returns the third-party bytes", pdfBytes, fetched)
+		assertNoReadplaceIdentity(server.records.single())
+		assertNoReadplaceIdentity(redirectTarget.records.single())
 	}
 
 	@Test

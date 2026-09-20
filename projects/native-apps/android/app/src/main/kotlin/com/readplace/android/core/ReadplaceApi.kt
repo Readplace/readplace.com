@@ -315,7 +315,7 @@ class ReadplaceApi(
 	 */
 	suspend fun fetchExternalContent(url: String): ByteArray? {
 		val target = url.toHttpUrlOrNull() ?: return null
-		val request = Request.Builder().url(target).get().header("User-Agent", nativeUserAgent).build()
+		val request = Request.Builder().url(target).get().build()
 		return withContext(ioDispatcher) {
 			try {
 				externalHttp.newCall(request).execute().use { boundedBody(it) }
