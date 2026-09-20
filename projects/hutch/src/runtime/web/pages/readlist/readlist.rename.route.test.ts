@@ -24,6 +24,16 @@ async function renameReadlist(agent: TestAgent, slug: string, label: string) {
 	return agent.post(`/queue/queues/${slug}/rename`).type("form").send({ label });
 }
 
+const BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+
+async function renameFromBrowser(agent: TestAgent, slug: string, label: string) {
+	return agent
+		.post(`/queue/queues/${slug}/rename`)
+		.set("Accept", BROWSER_ACCEPT)
+		.type("form")
+		.send({ label });
+}
+
 function readlistTab(doc: Document, slug: string): Element {
 	const tab = doc.querySelector(`[data-test-readlist="${slug}"]`);
 	assert(tab, `the ${slug} readlist must render a tab`);
@@ -248,5 +258,79 @@ describe("POST /queue/queues/:slug/rename", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
+	});
+
+	describe("without JavaScript, when the browser asks for HTML", () => {
+		it("redirects back to the renamed readlist so the form submit lands on a page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const readlist = await createReadlist(agent);
+
+			const response = await renameFromBrowser(agent, readlist, "Work Reading");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(`/queue?queue=${readlist}`);
+			expect(readlistTab(parse((await agent.get("/queue")).text), readlist).textContent).toBe(
+				"Work Reading",
+			);
+		});
+
+		it("redirects a refused name back to the readlist instead of answering JSON", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const readlist = await createReadlist(agent);
+
+			const response = await renameFromBrowser(
+				agent,
+				readlist,
+				"a".repeat(READLIST_LABEL_MAX_LENGTH + 1),
+			);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(
+				`/queue?queue=${readlist}&queue_error=rename_invalid-name`,
+			);
+		});
+
+		it("redirects an unknown readlist to a page rather than a 404 body", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await renameFromBrowser(agent, "ffffffffffffffff", "Mine");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?queue_error=rename_unknown-readlist");
+		});
+	});
+
+	describe("for a non-browser client", () => {
+		it("keeps the JSON rejection when the client sends an Accept that names neither HTML nor JSON", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent
+				.post("/queue/queues/ffffffffffffffff/rename")
+				.set("Accept", "text/plain")
+				.type("form")
+				.send({ label: "Mine" });
+
+			expect(response.status).toBe(404);
+			expect(response.body.error).toBe("unknown-readlist");
+		});
+
+		it("keeps the JSON success body for a client that asks for JSON", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const readlist = await createReadlist(agent);
+
+			const response = await agent
+				.post(`/queue/queues/${readlist}/rename`)
+				.set("Accept", "application/json")
+				.type("form")
+				.send({ label: "Work Reading" });
+
+			expect(response.status).toBe(200);
+			expect(response.body).toEqual({ slug: readlist, label: "Work Reading" });
+		});
 	});
 });

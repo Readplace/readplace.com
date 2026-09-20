@@ -2252,17 +2252,19 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
-			const wantsJson = req.accepts(["json", "html"]) === "json";
+			const wantsHtml = req.accepts(["json", "html"]) === "html";
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
 			const reject = (reason: ReadlistRenameRejection): void => {
-				if (wantsJson) {
+				if (!wantsHtml) {
 					const { status, error, message } = READLIST_RENAME_REJECTIONS[reason];
 					res.status(status).json({ error, message });
 					return;
 				}
+				const landing =
+					requested.success && reason !== "unknown-readlist" ? { readlist: requested.data } : {};
 				res.redirect(
 					303,
-					buildReadlistUrl(requested.success ? { readlist: requested.data } : {}, [
+					buildReadlistUrl(landing, [
 						["queue_error", `rename_${reason}`],
 						...designFeatureParamsFrom(req.query),
 					]),
@@ -2291,7 +2293,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				reject("unknown-readlist");
 				return;
 			}
-			if (wantsJson) {
+			if (!wantsHtml) {
 				res.json({ slug: decision.slug, label: decision.label });
 				return;
 			}
