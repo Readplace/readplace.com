@@ -225,7 +225,7 @@ export function createImportActions(
 
 				await commitAndAssertOnReadlist(page)
 				const readlistInfo = page.locator('[data-test-pagination-info]')
-				await expect(readlistInfo).toContainText('Page 1 of 4')
+				await expect(readlistInfo).toContainText('Showing 20 of 75')
 				const visibleCards = await page.locator('[data-test-article]').count()
 				assert.equal(visibleCards, 20, 'paginated-import: /queue page 1 must show 20 cards (75 total ÷ 20/page)')
 

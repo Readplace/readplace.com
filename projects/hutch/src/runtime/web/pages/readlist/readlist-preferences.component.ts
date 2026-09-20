@@ -5,8 +5,22 @@ import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/
 import type { PageBody } from "@packages/web-shell";
 
 import { WIZARD_STYLES, renderWizard } from "../../shared/wizard/wizard.component";
-import { buildReadlistFilters, renderReadlistFilters } from "./readlist-filters.component";
-import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
+import { renderReadlistAlert } from "./readlist-alert.component";
+import { readlistAlertFor } from "./readlist-alerts";
+import {
+	buildReadlistNav,
+	renderReadlistNav,
+} from "./readlist-nav.component";
+import {
+	buildReadlistTabs,
+	renderReadlistTabs,
+} from "./readlist-tabs.component";
+import {
+	READLIST_BODY_CLASS,
+	READLIST_PAGE_SCRIPTS,
+	readlistPanels,
+} from "./readlist.component";
+import { READLIST_STYLES } from "./readlist.styles";
 import {
 	READLIST_PREFERENCES_STEPS,
 	READLIST_PREFERENCES_WIZARD_ID,
@@ -15,12 +29,7 @@ import {
 } from "./readlist-preferences-wizard.component";
 import { preferencesFeatureParams, preferencesUrl } from "./readlist-preferences-feature";
 import { READLIST_PREFERENCES_STYLES } from "./readlist-preferences.styles";
-import {
-	READLIST_PAGE_SCRIPTS,
-	type ReadlistRailViewModel,
-	readlistDeleteConfirmPanels,
-} from "./readlist.component";
-import { READLIST_STYLES } from "./readlist.styles";
+import type { ReadlistRailViewModel } from "./readlist-rail";
 import { buildReadlistUrl } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-preferences.template.html"), "utf-8");
@@ -41,6 +50,7 @@ export interface ReadlistPreferencesViewModel {
 	wizardOpen: boolean;
 	purposeError?: string;
 	preferencesEnabled: boolean;
+	query: Record<string, unknown>;
 }
 
 export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageBody {
@@ -65,6 +75,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		error: vm.purposeError,
 	});
 
+	const panels = readlistPanels(vm.rail);
 	const content = render(TEMPLATE, {
 		readlistNavHtml: renderReadlistNav(
 			buildReadlistNav({
@@ -74,15 +85,16 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				canCreate: vm.rail.canCreate,
 			}),
 		),
-		readlistErrorFlash: vm.rail.errorFlash,
-		filtersHtml: renderReadlistFilters(
-			buildReadlistFilters({
+		alertHtml: renderReadlistAlert(readlistAlertFor(vm.query)),
+		tabsHtml: renderReadlistTabs(
+			buildReadlistTabs({
 				activeTab: "preferences",
 				readlist: vm.readlist.slug,
 				preferencesEnabled: vm.preferencesEnabled,
 			}),
 		),
-		readlistDeleteConfirmHtml: readlistDeleteConfirmPanels(vm.rail),
+		readlistRenamesHtml: panels.renames,
+		readlistDeleteConfirmHtml: panels.deleteConfirms,
 		panelClass: `${PANEL_CLASS[state]}${vm.wizardOpen ? ` ${WIZARD_OPEN_CLASS}` : ""}`,
 		state,
 		readlistLabel: vm.readlist.label,
@@ -100,8 +112,8 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${READLIST_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${WIZARD_STYLES}\n${READLIST_PREFERENCES_STYLES}`,
-		bodyClass: "page-readlist",
+		styles: `${CONFIRM_POPOVER_STYLES}\n${READLIST_STYLES}\n${WIZARD_STYLES}\n${READLIST_PREFERENCES_STYLES}`,
+		bodyClass: READLIST_BODY_CLASS,
 		content: { html: content },
 		scripts: READLIST_PAGE_SCRIPTS,
 	};

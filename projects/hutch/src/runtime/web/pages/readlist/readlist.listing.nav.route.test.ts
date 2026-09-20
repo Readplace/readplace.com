@@ -17,20 +17,20 @@ function parse(html: string): Document {
 const PER_REQUEST_NONCE = /nonce="[^"]*"/g;
 
 function mainMarkup(doc: Document): string {
-	const main = doc.querySelector("main.readlist");
+	const main = doc.querySelector("main[data-test-readlist-page]");
 	assert(main, "the readlist page must render a main landmark");
 	return main.innerHTML.replace(PER_REQUEST_NONCE, 'nonce="[normalised]"');
 }
 
 function readlistNavLinks(doc: Document): Element[] {
-	const nav = doc.querySelector("main.readlist nav.readlist-nav");
+	const nav = doc.querySelector("main[data-test-readlist-page] nav[data-test-readlist-nav]");
 	assert(nav, "the readlist nav must render inside the swappable main");
 	return Array.from(nav.querySelectorAll("[data-test-readlist]"));
 }
 
 /** Only the readlist page's own <main> — the global header nav also links to /queue. */
 function readlistUrlsIn(doc: Document): string[] {
-	const main = doc.querySelector("main.readlist");
+	const main = doc.querySelector("main[data-test-readlist-page]");
 	assert(main, "the readlist page must render a main landmark");
 	const attributeBySelector = [
 		["a[href]", "href"],
@@ -107,13 +107,14 @@ describe("Readlist nav", () => {
 
 			const doc = parse((await agent.get("/queue")).text);
 
-			const body = doc.querySelector("main.readlist .readlist__body");
+			const body = doc.querySelector("main[data-test-readlist-page] .readlist__layout");
 			assert(body, "the readlist nav and the listing must share a container");
 			expect(Array.from(body.children).map((el) => el.className.split(" ")[0])).toEqual([
-				"readlist-nav",
-				"readlist__content",
+				"readlist__rail",
+				"readlist__main",
+				"readlist__side",
 			]);
-			const saveForm = body.querySelector('.readlist__content [data-test-form="save-article"]');
+			const saveForm = body.querySelector('.readlist__main [data-test-form="save-article"]');
 			assert(saveForm, "the save bar must live inside the readlist panel");
 			expect(saveForm.getAttribute("method")).toBe("POST");
 		});
@@ -128,7 +129,7 @@ describe("Readlist nav", () => {
 			const labels = Array.from(doc.querySelectorAll("nav")).map((el) =>
 				el.getAttribute("aria-label"),
 			);
-			expect(labels).toEqual(["Main", "Readlists", "Article filters"]);
+			expect(labels).toEqual(["Main", "Readlists", "Article filters", "Pagination"]);
 		});
 
 		it("should render the readlist being viewed the same way whether or not the URL names it", async () => {
@@ -161,7 +162,7 @@ describe("Readlist nav", () => {
 
 			const doc = parse((await agent.get("/queue?queue=default&tab=done")).text);
 
-			const active = Array.from(doc.querySelectorAll(".readlist__filter-link--active")).map((el) =>
+			const active = Array.from(doc.querySelectorAll(".readlist-tabs__link--active")).map((el) =>
 				el.getAttribute("data-test-filter"),
 			);
 			expect(active).toEqual(["read"]);

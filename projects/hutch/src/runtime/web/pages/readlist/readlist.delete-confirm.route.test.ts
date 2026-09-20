@@ -32,7 +32,7 @@ describe("Readlist delete confirmation", () => {
 			// Page level, not inside the card: a pending card replaces its own
 			// subtree every 3s and would rip an open confirmation out mid-decision.
 			expect(panel.parentElement?.tagName).toBe("MAIN");
-			expect(panel.parentElement?.classList.contains("readlist")).toBe(true);
+			expect(panel.parentElement?.hasAttribute("data-test-readlist-page")).toBe(true);
 			expect(panel.closest(".readlist-article")).toBeNull();
 			expect(panel.getAttribute("popover")).toBe("auto");
 			expect(panel.getAttribute("role")).toBe("dialog");

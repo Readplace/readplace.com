@@ -42,7 +42,7 @@ async function loginUser(harness: ReturnType<ReturnType<typeof useTestServer>>, 
 }
 
 describe("Readlist page banner state", () => {
-	it("renders the aside with state class `readlist-banner--none` and an enabled save form for a founding member (no row)", async () => {
+	it("renders the aside with state class `readlist-subscription--none` and an enabled save form for a founding member (no row)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
@@ -51,10 +51,10 @@ describe("Readlist page banner state", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner aside must always be rendered");
-		expect(banner.classList.contains("readlist-banner--none")).toBe(true);
+		expect(banner.classList.contains("readlist-subscription--none")).toBe(true);
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access for a founding member");
-		expect(saveForm.classList.contains("readlist__save-form--disabled")).toBe(false);
+		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(false);
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "trial countdown element must always be in the DOM");
 		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
@@ -81,7 +81,7 @@ describe("Readlist page banner state", () => {
 		);
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner aside must be rendered");
-		expect(banner.classList.contains("readlist-banner--trial-countdown")).toBe(true);
+		expect(banner.classList.contains("readlist-subscription--trial-countdown")).toBe(true);
 
 		const { trigger, fallback } = subscribeCtaPair(banner, "subscribe");
 		expect(trigger.textContent).toBe(SUBSCRIBE_CTA_LABEL);
@@ -110,13 +110,13 @@ describe("Readlist page banner state", () => {
 		expect(countdown.textContent).toBe("Subscription not active");
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must still be rendered");
-		expect(saveForm.classList.contains("readlist__save-form--disabled")).toBe(true);
+		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(true);
 		const submitButton = saveForm.querySelector("button[type='submit']");
 		assert(submitButton, "save button must still be rendered");
 		expect(submitButton.hasAttribute("disabled")).toBe(true);
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner aside must be rendered");
-		expect(banner.classList.contains("readlist-banner--inactive")).toBe(true);
+		expect(banner.classList.contains("readlist-subscription--inactive")).toBe(true);
 		// Trial expiry is how the entire churned cohort reaches the inactive
 		// state, so the re-subscribe CTA must be present on this path too.
 		const { trigger, fallback } = subscribeCtaPair(banner, "resubscribe");
@@ -151,21 +151,21 @@ describe("Readlist page banner state", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner must always be rendered");
-		expect(banner.classList.contains("readlist-banner--cancellation-scheduled")).toBe(true);
+		expect(banner.classList.contains("readlist-subscription--cancellation-scheduled")).toBe(true);
 		const message = banner.querySelector("[data-test-banner-message]");
 		assert(message, "cancellation-scheduled banner must render its message");
 		const time = message.querySelector("time[data-local-time='date']");
 		assert(time, "cancellation-scheduled banner must render the end date as a <time> element");
 		expect(time.getAttribute("datetime")).toBe(effectiveAt);
 		expect(message.textContent?.replace(/\s+/g, " ").trim()).toMatch(
-			/^Subscription ending [A-Z][a-z]{2} \d{1,2}, \d{4}\. You still have full access until then\.$/,
+			/^Your subscription will end on [A-Z][a-z]{2} \d{1,2}, \d{4}\. You'll keep full access until then\.$/,
 		);
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access");
-		expect(saveForm.classList.contains("readlist__save-form--disabled")).toBe(false);
+		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(false);
 		const reactivate = banner.querySelector('[data-test-action="reactivate"]');
 		assert(reactivate, "cancellation-scheduled banner must offer Reactivate");
-		expect(reactivate.textContent).toBe("Reactivate");
+		expect(reactivate.textContent).toBe("Reactivate Subscription");
 		expect(confirmPopoverKeys(doc)).toEqual(["save-tip"]);
 	});
 
@@ -188,11 +188,11 @@ describe("Readlist page banner state", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner must always be rendered");
-		expect(banner.classList.contains("readlist-banner--inactive")).toBe(true);
+		expect(banner.classList.contains("readlist-subscription--inactive")).toBe(true);
 		const message = banner.querySelector("[data-test-banner-message]");
 		assert(message, "inactive banner must render its message");
 		expect(message.textContent?.replace(/\s+/g, " ").trim()).toBe(
-			"Subscription not active. Your saved articles are still here.",
+			"Your saved articles are still here. Subscribe again to regain full access to Readplace.",
 		);
 		// An expired/cancelled user must be able to re-subscribe from the readlist
 		// itself, not be dead-ended into hunting for /account.

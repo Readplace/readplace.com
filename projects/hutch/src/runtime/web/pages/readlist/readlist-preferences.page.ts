@@ -89,6 +89,7 @@ export function initReadlistPreferencesRoutes(deps: {
 					values: { purpose: draft ?? definition.purpose },
 					wizardOpen: draft !== undefined || parsed.preferences_error !== undefined,
 					preferencesEnabled: readlistPreferencesEnabled(req.query),
+					query: req.query,
 					purposeError:
 						parsed.preferences_error === undefined
 							? undefined

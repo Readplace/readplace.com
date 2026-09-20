@@ -18,6 +18,17 @@ function parseFragment(html: string): Document {
 	return new JSDOM(`<main>${html}</main>`).window.document;
 }
 
+function swappedCountIdsFor(readlist: string): string[] {
+	return [
+		`readlist-unread-label--${readlist}`,
+		"readlist-count",
+		"readlist-pagination-info",
+		"readlist-pages",
+	];
+}
+
+const SWAPPED_COUNT_IDS = swappedCountIdsFor("default");
+
 function swappedTargets(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id);
 }
@@ -98,7 +109,7 @@ describe("GET /queue/counts", () => {
 			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (2)");
 		});
 
-		it("should swap only the unread label when the tab has no pagination to swap", async () => {
+		it("should re-arm every count the listing shows, even on a single page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await save(agent, "https://example.com/only");
@@ -106,7 +117,7 @@ describe("GET /queue/counts", () => {
 			const response = await agent.get("/queue/counts");
 
 			const doc = parseFragment(response.text);
-			expect(swappedTargets(doc)).toEqual(["readlist-unread-label--default"]);
+			expect(swappedTargets(doc)).toEqual(SWAPPED_COUNT_IDS);
 			expect(unreadLabel(doc).textContent).toBe("To Read (1)");
 		});
 
@@ -119,7 +130,7 @@ describe("GET /queue/counts", () => {
 
 			const info = parseFragment(response.text).querySelector("[data-test-pagination-info]");
 			assert(info, "the counts fragment must carry the pagination info across pages");
-			expect(info.textContent).toBe("Page 1 of 2");
+			expect(info.textContent).toBe(`Showing ${READLIST_PAGE_SIZE} of ${READLIST_PAGE_SIZE + 1}`);
 			expect(info.getAttribute("hx-swap-oob")).toBe("outerHTML");
 			expect(info.getAttribute("id")).toBe("readlist-pagination-info");
 		});
@@ -132,7 +143,7 @@ describe("GET /queue/counts", () => {
 			const response = await agent.get("/queue/counts?page=2");
 
 			const info = parseFragment(response.text).querySelector("[data-test-pagination-info]");
-			expect(info?.textContent).toBe("Page 2 of 2");
+			expect(info?.textContent).toBe(`Showing 1 of ${READLIST_PAGE_SIZE + 1}`);
 		});
 
 		it("should count the Read tab, not the readlist, when asked for the Read tab", async () => {
@@ -143,7 +154,7 @@ describe("GET /queue/counts", () => {
 			const response = await agent.get("/queue/counts?tab=done");
 
 			const doc = parseFragment(response.text);
-			expect(swappedTargets(doc)).toEqual(["readlist-unread-label--default"]);
+			expect(swappedTargets(doc)).toEqual(SWAPPED_COUNT_IDS);
 			expect(unreadLabel(doc).textContent).toBe(`To Read (${READLIST_PAGE_SIZE + 1})`);
 		});
 	});
@@ -260,11 +271,11 @@ describe("GET /queue/counts", () => {
 			assert(slug, "creating a queue must land the reader on it");
 
 			const defaultFragment = parseFragment((await agent.get("/queue/counts")).text);
-			expect(swappedTargets(defaultFragment)).toEqual(["readlist-unread-label--default"]);
+			expect(swappedTargets(defaultFragment)).toEqual(SWAPPED_COUNT_IDS);
 
 			const createdPage = new JSDOM((await agent.get(`/queue?queue=${slug}`)).text).window.document;
 			const createdFragment = parseFragment((await agent.get(`/queue/counts?queue=${slug}`)).text);
-			expect(swappedTargets(createdFragment)).toEqual([`readlist-unread-label--${slug}`]);
+			expect(swappedTargets(createdFragment)).toEqual(swappedCountIdsFor(slug));
 			for (const id of swappedTargets(createdFragment)) {
 				assert(
 					createdPage.getElementById(id),

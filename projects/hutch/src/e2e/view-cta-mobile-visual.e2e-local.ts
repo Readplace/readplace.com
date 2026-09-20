@@ -9,7 +9,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { neutraliseVolatileChrome } from "./readlist-nav.browser";
+import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";

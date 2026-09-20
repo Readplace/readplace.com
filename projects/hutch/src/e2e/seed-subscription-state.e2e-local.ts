@@ -55,7 +55,7 @@ test.describe("Subscription state seed fixture", () => {
 		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-readlist");
 
-		await expect(page.locator(BANNER)).toHaveClass(/readlist-banner--inactive/);
+		await expect(page.locator(BANNER)).toHaveClass(/readlist-subscription--inactive/);
 	});
 
 	test("a seeded cancellation-scheduled subscription shows the cancellation-scheduled banner on /queue", async ({
@@ -69,6 +69,6 @@ test.describe("Subscription state seed fixture", () => {
 		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-readlist");
 
-		await expect(page.locator(BANNER)).toHaveClass(/readlist-banner--cancellation-scheduled/);
+		await expect(page.locator(BANNER)).toHaveClass(/readlist-subscription--cancellation-scheduled/);
 	});
 });

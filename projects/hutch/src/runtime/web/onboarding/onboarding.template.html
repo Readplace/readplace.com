@@ -1,17 +1,9 @@
-<section class="onboarding {{stateClass}}" data-test-onboarding>
-  {{#*inline "intro"}}
-  <header class="onboarding__intro">
-    <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">
-    <div class="onboarding__intro-text">
-      <h2 class="onboarding__title">Hi, I'm Fayner Brack!</h2>
-      <p class="onboarding__lede">{{lede}}</p>
-    </div>
-  </header>
-  {{/inline}}
+<section class="setup-guide {{stateClass}}" data-test-onboarding data-test-setup-guide>
   {{#if noClient}}
-  <div data-test-onboarding-no-client>
-    {{> intro lede=noClientLede}}
-    <div class="onboarding__actions">
+  <div class="setup-guide__no-client" data-test-onboarding-no-client>
+    <h2 class="setup-guide__title">Readplace doesn't have an app for this device yet</h2>
+    <p class="setup-guide__lede">{{noClientLede}}</p>
+    <div class="setup-guide__actions">
       <form method="{{installOptions.method}}" action="{{installOptions.action}}">
         {{#each installOptions.inputs}}
         <input type="hidden" name="{{name}}" value="{{value}}">
@@ -25,38 +17,65 @@
   </div>
   {{else}}
   {{#if allComplete}}
-  <div class="onboarding__success" data-test-onboarding-success>
-    <form method="{{dismiss.method}}" action="{{dismiss.action}}" class="onboarding__dismiss-form">
-      <button type="submit" class="onboarding__dismiss" aria-label="Dismiss" data-test-onboarding-dismiss>{{icon "x"}}</button>
+  <div class="setup-guide__success" data-test-onboarding-success>
+    <form method="{{dismiss.method}}" action="{{dismiss.action}}" class="setup-guide__dismiss-form">
+      <button type="submit" class="setup-guide__dismiss" aria-label="Dismiss" data-test-onboarding-dismiss>{{icon "x"}}</button>
     </form>
-    <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">
-    <h2 class="onboarding__success-title">You did it! {{icon "check-circle"}}</h2>
+    <h2 class="setup-guide__success-title">You did it! {{icon "check-circle"}}</h2>
     <p class="{{successMessageClass}}">You're officially one of us. Welcome to Readplace.</p>
   </div>
   {{else}}
-  {{> intro lede="I built Readplace from my reading system so you could also save articles and actually read them later. Here are a few small things to set you up."}}
-  <ol class="onboarding__steps" data-test-onboarding-steps>
+  <header class="setup-guide__intro">
+    <img class="setup-guide__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="48" height="48" loading="lazy">
+    <div class="setup-guide__intro-text">
+      <h2 class="setup-guide__title">Hi, I'm Fayner Brack!</h2>
+      <p class="setup-guide__lede">{{founderLede}}</p>
+    </div>
+  </header>
+  <header class="setup-guide__header">
+    <h2 class="setup-guide__title">Your quick setup guide</h2>
+    <p class="setup-guide__lede">A few quick steps to get the most out of Readplace.</p>
+  </header>
+  <div class="setup-guide__progress">
+    <p class="setup-guide__progress-label" data-test-onboarding-progress="{{percent}}">{{percent}}% complete</p>
+    <div class="setup-guide__progress-track">
+      <div class="{{progressBarClass}}"></div>
+    </div>
+  </div>
+  <hr class="setup-guide__divider">
+  <ol class="setup-guide__steps" data-test-onboarding-steps>
     {{#each steps}}
-    <li class="{{rowClass}}" data-test-onboarding-step="{{id}}" data-test-onboarding-complete="{{completeAttr}}">
-      <span class="onboarding__check" aria-hidden="true"></span>
-      <div class="onboarding__step-body">
-        <h3 class="onboarding__step-title">{{title}}</h3>
-        {{#if description}}
-        <p class="onboarding__step-description">{{description}}</p>
-        {{/if}}
-        {{#if actions.length}}
-        <div class="onboarding__actions">
-          {{#each actions}}
-          <form method="{{method}}" action="{{action}}">
-            {{#each inputs}}
-            <input type="hidden" name="{{name}}" value="{{value}}">
+    <li class="{{rowClass}}" data-test-onboarding-step="{{id}}" data-test-onboarding-complete="{{completeAttr}}" data-test-onboarding-current="{{currentAttr}}">
+      <details class="setup-guide__disclosure"{{#if open}} open{{/if}}>
+        <summary class="setup-guide__summary">
+          <span class="{{markerClass}}" aria-hidden="true">
+            {{#if showCheckIcon}}{{icon "check"}}{{/if}}
+            {{#if showDot}}<span class="setup-guide__marker-dot"></span>{{/if}}
+          </span>
+          <span class="setup-guide__step-title">{{title}}</span>
+          <span class="setup-guide__chevron">{{icon "chevron-down"}}</span>
+        </summary>
+        <div class="setup-guide__body">
+          {{#if chip}}
+          <span class="setup-guide__chip" data-test-onboarding-chip>{{chip}}</span>
+          {{/if}}
+          {{#if description}}
+          <p class="setup-guide__description">{{description}}</p>
+          {{/if}}
+          {{#if actions.length}}
+          <div class="setup-guide__actions">
+            {{#each actions}}
+            <form method="{{method}}" action="{{action}}">
+              {{#each inputs}}
+              <input type="hidden" name="{{name}}" value="{{value}}">
+              {{/each}}
+              <button type="submit" class="{{buttonClass}}" data-test-onboarding-action="{{key}}">{{label}}</button>
+            </form>
             {{/each}}
-            <button type="submit" class="{{buttonClass}}" data-test-onboarding-action="{{key}}">{{label}}</button>
-          </form>
-          {{/each}}
+          </div>
+          {{/if}}
         </div>
-        {{/if}}
-      </div>
+      </details>
     </li>
     {{/each}}
   </ol>

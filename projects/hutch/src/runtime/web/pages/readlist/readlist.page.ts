@@ -174,17 +174,16 @@ import {
 	type ReaderReadlistFiling,
 	buildReaderReadlistFiling,
 } from "./reader-readlist-filing";
-import { readlistPreferencesEnabled } from "./readlist-preferences-feature";
-import { designFeatureParamsFrom, readlistDesignEnabled } from "./design/readlist-design-feature";
-import { ReadlistDesignPage } from "./design/readlist-design.component";
+import { ReadlistPage } from "./readlist.component";
 import {
-	renderReadlistDesignCard,
-	toReadlistDesignCardDisplayModel,
-} from "./design/readlist-design-card.component";
+	renderReadlistCard,
+	toReadlistCardDisplayModel,
+} from "./readlist-card/readlist-card.component";
 import {
-	renderReadlistDesignCounts,
-	toReadlistDesignCountsDisplayModel,
-} from "./design/readlist-design-counts.component";
+	UNREAD_BADGE_COUNT_LIMIT,
+	renderReadlistCounts,
+	toReadlistCountsDisplayModel,
+} from "./readlist-counts.component";
 import { initReadlistPreferencesRoutes } from "./readlist-preferences.page";
 import { buildReadlistRail } from "./readlist-rail";
 import { collectUtmParams } from "../../shared/utm";
@@ -199,16 +198,6 @@ import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
 import { parsePollParam } from "@packages/web-shell";
 import { toReadlistArticleViewModel, toReadlistViewModel } from "./readlist.viewmodel";
-import { ReadlistPage } from "./readlist.component";
-import {
-	UNREAD_BADGE_COUNT_LIMIT,
-	renderReadlistCounts,
-	toReadlistCountsDisplayModel,
-} from "./readlist-counts.component";
-import {
-	renderReadlistCard,
-	toReadlistCardDisplayModel,
-} from "./readlist-card/readlist-card.component";
 import { computeReadlistCardEtag } from "./readlist-card/readlist-card.etag";
 import { computeArticleContentVersion } from "../../shared/article-content-version";
 import { readerCachePolicy } from "./reader-cache-policy";
@@ -1440,9 +1429,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const cspNonce = requireCspNonce(req);
 		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
-		const page = readlistDesignEnabled(req.query)
-			? ReadlistDesignPage(vm, { ...pageOptions, query: req.query })
-			: ReadlistPage(vm, { ...pageOptions, preferencesEnabled: readlistPreferencesEnabled(req.query) });
+		const page = ReadlistPage(vm, { ...pageOptions, query: req.query });
 		res.vary("Cookie");
 		sendComponent(
 			req, res,
@@ -1512,7 +1499,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			res
 				.status(200)
 				.type("html")
-				.send(renderReadlistMutationFragment({ filters: urlState, statusFlash, extraParams: designFeatureParamsFrom(req.query) }));
+				.send(renderReadlistMutationFragment({ filters: urlState, statusFlash }));
 			return;
 		}
 
@@ -1622,7 +1609,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				extraParams: [
 					...collectUtmParams(req.query),
 					...collectStatusFlashParams(req.query),
-					...designFeatureParamsFrom(req.query),
 				],
 			});
 			if (pageRedirect) {
@@ -1673,24 +1659,20 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			unreadCountPromise,
 		]);
 		const counts = { filters: urlState, unreadCount, tabTotal, pageSize: READLIST_PAGE_SIZE };
-		res.type("html").send(
-			readlistDesignEnabled(req.query)
-				? renderReadlistDesignCounts(toReadlistDesignCountsDisplayModel(counts))
-				: renderReadlistCounts(toReadlistCountsDisplayModel(counts)),
-		);
+		res.type("html").send(renderReadlistCounts(toReadlistCountsDisplayModel(counts)));
 	});
 
 	router.post("/dismiss-onboarding", (req: Request, res: Response) => {
 		const version = dismissTokenFor(hasInstallableClient(req));
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		const context = requestReadlistContext(req);
-		res.redirect(303, buildReadlistUrl(context.state, designFeatureParamsFrom(req.query)));
+		res.redirect(303, buildReadlistUrl(context.state));
 	});
 
 	router.post("/onboarding/email/done", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.recordEmailStepMarkedDone({ userId: req.userId });
-		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state, designFeatureParamsFrom(req.query)));
+		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
 	});
 
 	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
@@ -2191,11 +2173,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateSaveableUrl(submittedUrl);
 		const saveState = parseReadlistUrl({});
-		const designParams = designFeatureParamsFrom(req.query);
 
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, buildReadlistUrl(saveState, [["error_code", validation.error.code], ...designParams]));
+			res.redirect(303, buildReadlistUrl(saveState, [["error_code", validation.error.code]]));
 			return;
 		}
 
@@ -2208,11 +2189,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				provenance: resolveSaveProvenance(req.oauthClientId),
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
-			res.redirect(303, `${buildReadlistUrl(saveState, designParams)}#latest-saved`);
+			res.redirect(303, `${buildReadlistUrl(saveState)}#latest-saved`);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, buildReadlistUrl(saveState, [["error_code", "save_failed"], ...designParams]));
+			res.redirect(303, buildReadlistUrl(saveState, [["error_code", "save_failed"]]));
 		}
 	});
 
@@ -2234,15 +2215,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			if (!(error instanceof ReadlistLimitReachedError)) throw error;
 			res.redirect(
 				303,
-				buildReadlistUrl(context.state, [
-					["queue_error", READLIST_ERROR_LIMIT],
-					...designFeatureParamsFrom(req.query),
-				]),
+				buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]),
 			);
 			return;
 		}
 
-		res.redirect(303, buildReadlistUrl({ readlist: slug }, designFeatureParamsFrom(req.query)));
+		res.redirect(303, buildReadlistUrl({ readlist: slug }));
 	});
 
 	router.post(
@@ -2264,10 +2242,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					requested.success && reason !== "unknown-readlist" ? { readlist: requested.data } : {};
 				res.redirect(
 					303,
-					buildReadlistUrl(landing, [
-						["queue_error", `rename_${reason}`],
-						...designFeatureParamsFrom(req.query),
-					]),
+					buildReadlistUrl(landing, [["queue_error", `rename_${reason}`]]),
 				);
 			};
 			if (!requested.success) {
@@ -2297,7 +2272,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				res.json({ slug: decision.slug, label: decision.label });
 				return;
 			}
-			res.redirect(303, buildReadlistUrl({ readlist: decision.slug }, designFeatureParamsFrom(req.query)));
+			res.redirect(303, buildReadlistUrl({ readlist: decision.slug }));
 		},
 	);
 
@@ -2312,10 +2287,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const unknownReadlist = () => {
 				res.redirect(
 					303,
-					buildReadlistUrl({}, [
-						["queue_error", READLIST_ERROR_UNKNOWN_READLIST],
-						...designFeatureParamsFrom(req.query),
-					]),
+					buildReadlistUrl({}, [["queue_error", READLIST_ERROR_UNKNOWN_READLIST]]),
 				);
 			};
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
@@ -2352,12 +2324,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			}
 			res.redirect(
 				303,
-				buildReadlistUrl(
-					{
-						readlist: readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug }),
-					},
-					designFeatureParamsFrom(req.query),
-				),
+				buildReadlistUrl({
+					readlist: readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug }),
+				}),
 			);
 		},
 	);
@@ -2670,9 +2639,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const cardOptions = { isFirst: false, deviceClass: classifyDeviceClass(req.get("user-agent")) };
-		const html = readlistDesignEnabled(req.query)
-			? renderReadlistDesignCard(toReadlistDesignCardDisplayModel(articleVm, cardOptions))
-			: renderReadlistCard(toReadlistCardDisplayModel(articleVm, cardOptions));
+		const html = renderReadlistCard(toReadlistCardDisplayModel(articleVm, cardOptions));
 		res.status(200).type("html").send(html);
 	});
 
@@ -2726,7 +2693,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		res.redirect(303, buildReadlistUrl(context.state, [...collectUtmParams(req.query), ...flashParams, ...designFeatureParamsFrom(req.query)]));
+		res.redirect(303, buildReadlistUrl(context.state, [...collectUtmParams(req.query), ...flashParams]));
 	});
 
 	router.post("/:id/delete", async (req: Request, res: Response) => {
@@ -2743,7 +2710,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			await deleteArticleFromReadlistFor(context.state.readlist)({ articleId: parsedId.data, userId });
 		}
 
-		res.redirect(303, buildReadlistUrl(context.state, designFeatureParamsFrom(req.query)));
+		res.redirect(303, buildReadlistUrl(context.state));
 	});
 
 	router.post(

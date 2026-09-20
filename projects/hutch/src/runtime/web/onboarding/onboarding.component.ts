@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
@@ -25,6 +26,9 @@ const ONBOARDING_TEMPLATE = readFileSync(
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 const FOUNDER_AVATAR_URL = `${STATIC_BASE_URL}/fayner-brack.jpg`;
 
+const FOUNDER_LEDE =
+	"I built Readplace from my reading system so you could also save articles and actually read them later. Here are a few small things to set you up.";
+
 interface OnboardingChecklistOptions {
 	dismissed: boolean;
 	completedBefore: boolean;
@@ -34,7 +38,7 @@ interface OnboardingChecklistOptions {
 
 const BUTTON_CLASS_BY_VARIANT: Record<OnboardingActionVariant, string> = {
 	primary: "btn btn--primary btn--compact",
-	text: "onboarding__dismiss-text",
+	text: "setup-guide__action-text",
 };
 
 interface OnboardingActionDisplayModel {
@@ -68,37 +72,56 @@ function toActionDisplayModel(
 	return { ...shared, action: path, inputs };
 }
 
+type OnboardingStepStatus = "complete" | "current" | "upcoming";
+
+const STEP_ROW_CLASS: Record<OnboardingStepStatus, string> = {
+	complete: "setup-guide__step setup-guide__step--complete",
+	current: "setup-guide__step setup-guide__step--current",
+	upcoming: "setup-guide__step setup-guide__step--upcoming",
+};
+
+const STEP_MARKER_CLASS: Record<OnboardingStepStatus, string> = {
+	complete: "setup-guide__marker setup-guide__marker--complete",
+	current: "setup-guide__marker setup-guide__marker--current",
+	upcoming: "setup-guide__marker setup-guide__marker--upcoming",
+};
+
 interface OnboardingStepDisplayModel {
 	id: string;
 	title: string;
 	description: string;
+	chip: string;
 	completeAttr: "true" | "false";
+	currentAttr: "true" | "false";
 	rowClass: string;
+	markerClass: string;
+	showCheckIcon: boolean;
+	showDot: boolean;
+	open: boolean;
 	actions: OnboardingActionDisplayModel[];
 }
-
-type OnboardingStepVisibility = "visible" | "hidden";
-
-const STEP_ROW_CLASS: Record<OnboardingStepVisibility, string> = {
-	visible: "onboarding__step onboarding__step--visible",
-	hidden: "onboarding__step onboarding__step--hidden",
-};
 
 interface OnboardingStepRow {
 	step: OnboardingStep;
 	ctx: InstallableClientOnboarding;
 	returnQuery: string;
-	visibility: OnboardingStepVisibility;
+	status: OnboardingStepStatus;
 }
 
 function toStepDisplayModel(row: OnboardingStepRow): OnboardingStepDisplayModel {
-	const { step, ctx, returnQuery, visibility } = row;
+	const { step, ctx, returnQuery, status } = row;
 	return {
 		id: step.id,
 		title: step.title(ctx),
 		description: step.description(ctx),
-		completeAttr: step.isComplete(ctx) ? "true" : "false",
-		rowClass: STEP_ROW_CLASS[visibility],
+		chip: step.chip ? step.chip(ctx) : "",
+		completeAttr: status === "complete" ? "true" : "false",
+		currentAttr: status === "current" ? "true" : "false",
+		rowClass: STEP_ROW_CLASS[status],
+		markerClass: STEP_MARKER_CLASS[status],
+		showCheckIcon: status === "complete",
+		showDot: status === "current",
+		open: status === "current",
 		actions: step.actions(ctx).map((action) => toActionDisplayModel(action, returnQuery)),
 	};
 }
@@ -127,17 +150,29 @@ const SEE_INSTALL_OPTIONS_ACTION: OnboardingAction = {
 	variant: "primary",
 };
 
-/** Escape card for devices with no installable first-party client. The
- * completion-gated checklist would nag forever there — its install step can
- * never tick — so this drops the steps for an honest message, a link to the
- * install options, and a Dismiss button that sticks on this device. */
+const TOTAL_STEPS = ONBOARDING_STEPS.length;
+
+const PROGRESS_BAR_CLASSES: readonly string[] = Array.from(
+	{ length: TOTAL_STEPS + 1 },
+	(_, completedCount) => `setup-guide__progress-bar setup-guide__progress-bar--${completedCount}`,
+);
+
+function progressBarClass(completedCount: number): string {
+	const progressClass = PROGRESS_BAR_CLASSES[completedCount];
+	assert(progressClass, `no progress-bar class for completedCount=${completedCount}`);
+	return progressClass;
+}
+
+function percentComplete(completedCount: number): number {
+	return Math.round((completedCount / TOTAL_STEPS) * 100);
+}
+
 function renderNoClientCard(options: OnboardingChecklistOptions): string {
-	const stateClass = options.dismissed ? "onboarding--hidden" : "onboarding--visible";
+	const stateClass = options.dismissed ? "setup-guide--hidden" : "setup-guide--visible";
 	return render(ONBOARDING_TEMPLATE, {
 		noClient: true,
 		stateClass,
 		dismiss: dismissDisplayModel("dismiss-no-client", options),
-		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		installOptions: toActionDisplayModel(SEE_INSTALL_OPTIONS_ACTION, ""),
 		noClientLede: `Readplace doesn't have an app for this device yet. If you use ${BROWSER_EXTENSIONS_OR} on a computer, or ${NATIVE_APP_DEVICES_OR}, you can install Readplace there.`,
 	});
@@ -149,32 +184,31 @@ export function OnboardingChecklist(
 ): string {
 	if (!ctx.hasInstallableClient) return renderNoClientCard(options);
 	const outstanding = firstOutstandingStep(ctx);
+	const completedCount = ONBOARDING_STEPS.filter((step) => step.isComplete(ctx)).length;
 	const steps = ONBOARDING_STEPS.map((step) =>
 		toStepDisplayModel({
 			step,
 			ctx,
 			returnQuery: options.returnQuery,
-			visibility: step === outstanding ? "visible" : "hidden",
+			status: step.isComplete(ctx) ? "complete" : step === outstanding ? "current" : "upcoming",
 		}),
 	);
 	const allComplete = outstanding === undefined;
-	/* A checklist that arrives with every step already satisfied congratulates a
-	 * reader who did nothing — the state a deep queue lands in the moment a new
-	 * step ships. Nothing was accomplished, so nothing is shown. */
 	const unearnedCompletion = allComplete && options.completionUnearned;
-	const activeStateClass = allComplete
-		? "onboarding--complete"
-		: "onboarding--visible";
+	const activeStateClass = allComplete ? "setup-guide--complete" : "setup-guide--visible";
 	const stateClass =
-		options.dismissed || unearnedCompletion ? "onboarding--hidden" : activeStateClass;
+		options.dismissed || unearnedCompletion ? "setup-guide--hidden" : activeStateClass;
 	return render(ONBOARDING_TEMPLATE, {
 		steps,
 		stateClass,
-		allComplete,
-		successMessageClass: options.completedBefore
-			? "onboarding__success-message onboarding__success-message--hidden"
-			: "onboarding__success-message",
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
+		founderLede: FOUNDER_LEDE,
+		allComplete,
+		percent: percentComplete(completedCount),
+		progressBarClass: progressBarClass(completedCount),
+		successMessageClass: options.completedBefore
+			? "setup-guide__success-message setup-guide__success-message--hidden"
+			: "setup-guide__success-message",
 		dismiss: dismissDisplayModel("dismiss-success", options),
 	});
 }

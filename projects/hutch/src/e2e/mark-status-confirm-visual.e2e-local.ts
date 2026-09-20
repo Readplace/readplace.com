@@ -62,7 +62,7 @@ async function openMarkReadConfirm(page: Page, stamp: string): Promise<void> {
 
 	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	await page.click('[data-test-action="new-readlist"]');
-	await page.waitForSelector("[data-readlist-rename]");
+	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 	await page.click("[data-test-readlists-trigger]");

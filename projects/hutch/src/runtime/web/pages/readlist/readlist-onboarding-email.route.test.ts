@@ -191,8 +191,8 @@ describe("Readlist onboarding — Get articles from email", () => {
 
 		const container = parse(response.text).querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must still be rendered");
-		assert(container.classList.contains("onboarding--hidden"));
-		assert(!container.classList.contains("onboarding--complete"));
+		assert(container.classList.contains("setup-guide--hidden"));
+		assert(!container.classList.contains("setup-guide--complete"));
 	});
 
 	it("keeps the checklist for a reader who marked the email step done with steps still to do", async () => {
@@ -206,7 +206,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 
 		const container = parse(response.text).querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
-		assert(container.classList.contains("onboarding--visible"));
+		assert(container.classList.contains("setup-guide--visible"));
 		assert.deepEqual(stepIds(response.text), [
 			"install-extension",
 			"save-first-article-via-extension",
@@ -278,7 +278,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		assert.deepEqual(stamping.versionWrites, []);
 		const container = parse(response.text).querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
-		assert(container.classList.contains("onboarding--hidden"));
+		assert(container.classList.contains("setup-guide--hidden"));
 	});
 
 	it("keeps the card hidden when the stored version is stale but nothing is outstanding", async () => {
@@ -301,7 +301,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		assert.deepEqual(stamping.versionWrites, []);
 		const container = parse(response.text).querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
-		assert(container.classList.contains("onboarding--hidden"));
+		assert(container.classList.contains("setup-guide--hidden"));
 	});
 
 	it("congratulates a reader who was shown the email step and then received an inbox article", async () => {
@@ -326,7 +326,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		const doc = parse(second.text);
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
-		assert(container.classList.contains("onboarding--complete"));
+		assert(container.classList.contains("setup-guide--complete"));
 		assert(doc.querySelector("[data-test-onboarding-success]"), "success card must be rendered");
 		assert.equal(doc.querySelectorAll("[data-test-onboarding-dismiss]").length, 1);
 	});
@@ -341,7 +341,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		const stillOpen = await agent.get("/queue").set("User-Agent", CHROME_UA);
 		const openContainer = parse(stillOpen.text).querySelector("[data-test-onboarding]");
 		assert(openContainer, "onboarding container must be rendered");
-		assert(openContainer.classList.contains("onboarding--visible"));
+		assert(openContainer.classList.contains("setup-guide--visible"));
 		assert.deepEqual(stamping.versionWrites, [{ userId, version: ONBOARDING_VERSION }]);
 
 		const finished = await agent
@@ -352,7 +352,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		const doc = parse(finished.text);
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
-		assert(container.classList.contains("onboarding--complete"));
+		assert(container.classList.contains("setup-guide--complete"));
 		assert(doc.querySelector("[data-test-onboarding-success]"), "success card must be rendered");
 	});
 

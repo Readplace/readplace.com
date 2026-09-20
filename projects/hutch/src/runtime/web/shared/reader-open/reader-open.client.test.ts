@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { generateCspNonce } from "@packages/web-shell";
-import { renderReadlistCard, toReadlistCardDisplayModel } from "../../pages/readlist/readlist-card/readlist-card.component";
 import {
-	renderReadlistDesignCard,
-	toReadlistDesignCardDisplayModel,
-} from "../../pages/readlist/design/readlist-design-card.component";
+	renderReadlistCard,
+	toReadlistCardDisplayModel,
+} from "../../pages/readlist/readlist-card/readlist-card.component";
 import type { ReadlistArticleViewModel } from "../../pages/readlist/readlist.viewmodel";
 import { renderReaderSkeleton } from "../../pages/readlist/reader-skeleton/reader-skeleton.component";
 import { type HtmxHistoryEventName, initReaderOpen, type ReaderOpenDeps } from "./reader-open.client";
@@ -34,26 +33,6 @@ function realCard(overrides?: Partial<ReadlistArticleViewModel>): string {
 		...overrides,
 	};
 	return renderReadlistCard(toReadlistCardDisplayModel(vm, { isFirst: false, deviceClass: "desktop" }));
-}
-
-function realDesignCard(overrides?: Partial<ReadlistArticleViewModel>): string {
-	const vm: ReadlistArticleViewModel = {
-		id: "abc123",
-		title: "Article Title",
-		siteName: "example.com",
-		excerpt: "An excerpt.",
-		excerptSource: "generated",
-		url: "https://example.com/post",
-		status: "unread",
-		isUnread: true,
-		readTime: { value: "3", label: "~3 min read" },
-		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
-		actions: [],
-		readerHref: READER_HREF,
-		isStalePending: false,
-		...overrides,
-	};
-	return renderReadlistDesignCard(toReadlistDesignCardDisplayModel(vm, { isFirst: false, deviceClass: "desktop" }));
 }
 
 const TITLE_ONLY_CARD = `<div class="readlist-article"><a data-test-article-title data-opens-reader data-reader-field="title" href="${READER_HREF}">Only Title</a></div>`;
@@ -242,16 +221,6 @@ describe("initReaderOpen", () => {
 		app.beforeRequest({ pathInfo: {} });
 		expect(app.historyCalls).toHaveLength(0);
 		expect(app.timers).toHaveLength(0);
-	});
-
-	it("stamps the queue entry and pushes the reader URL on a boosted design-card click", () => {
-		const app = setup(queuePage(realDesignCard()));
-		app.beforeRequest();
-		expect(app.historyCalls).toEqual([
-			{ method: "replaceState", url: QUEUE_HREF },
-			{ method: "pushState", url: READER_HREF },
-		]);
-		expect(app.timers).toHaveLength(1);
 	});
 
 	it("ignores a reader opener that sits outside any card", () => {

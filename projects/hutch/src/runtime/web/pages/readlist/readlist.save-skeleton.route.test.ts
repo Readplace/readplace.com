@@ -45,7 +45,9 @@ describe("GET /queue save skeleton", () => {
 		assert(empty, "a fresh queue must render the empty state");
 		const skeleton = skeletonIn(doc);
 		expect(skeleton.classList.contains("readlist-save-skeleton--armed")).toBe(true);
-		expect(skeleton.previousElementSibling?.classList.contains("readlist__sort")).toBe(true);
+		expect(
+			skeleton.previousElementSibling?.classList.contains("readlist-listing__header"),
+		).toBe(true);
 		expect(skeleton.nextElementSibling).toBe(empty);
 	});
 
@@ -108,9 +110,9 @@ describe("GET /queue save skeleton", () => {
 		const skeleton = doc.querySelector("[data-test-save-skeleton]");
 		assert(skeleton, "the skeleton renders on every readlist");
 		expect(skeleton.classList.contains("readlist-save-skeleton--inert")).toBe(true);
-		const form = doc.querySelector('[data-test-form="save-article"]');
-		assert(form, "the save form is present but hidden on a reader-made readlist");
-		expect(form.className).toContain("readlist__save-form--hidden");
+		const card = doc.querySelector("[data-test-save-card]");
+		assert(card, "the save card is present but hidden on a reader-made readlist");
+		expect(card.className).toContain("readlist-save--hidden");
 	});
 
 	it("stays inert when access is read-only", async () => {
@@ -132,7 +134,7 @@ describe("GET /queue save skeleton", () => {
 		expect(skeletonOf(response.text).classList.contains("readlist-save-skeleton--inert")).toBe(true);
 		const form = doc.querySelector('[data-test-form="save-article"]');
 		assert(form, "the save form renders disabled for a read-only reader");
-		expect(form.className).toContain("readlist__save-form--disabled");
+		expect(form.className).toContain("readlist-save__form--disabled");
 	});
 });
 

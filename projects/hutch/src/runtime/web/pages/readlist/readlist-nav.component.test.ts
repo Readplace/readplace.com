@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { READLIST_LABEL_MAX_LENGTH, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { iconSvg } from "@packages/ui-icons";
 import { JSDOM } from "jsdom";
-import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
+import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
+import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
+import { readlistRenamePopoverId } from "./readlist-rename.component";
 
 const WORK: Readlist = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
-const PERSONAL: Readlist = { slug: ReadlistSlugSchema.parse("personal"), label: "Personal Reading" };
 const READLISTS: readonly Readlist[] = [DEFAULT_READLIST, WORK];
 
 function renderNav(overrides: Partial<Parameters<typeof buildReadlistNav>[0]> = {}): Document {
@@ -25,288 +27,144 @@ function readlistLink(doc: Document, testReadlist: string): Element {
 	return link;
 }
 
-function queueLabel(doc: Document, testReadlist: string): string | null {
-	const label = readlistLink(doc, testReadlist).querySelector(".readlist-nav__label");
-	assert(label, `the ${testReadlist} readlist must carry its name in an element of its own`);
-	return label.textContent;
-}
-
-function renameable(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-readlist-rename]"), (el) =>
-		el.getAttribute("data-test-readlist"),
-	);
-}
-
-function deletable(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll('[data-test-action="readlist-delete"]'), (el) =>
-		el.getAttribute("popovertarget"),
-	);
-}
-
-function deleteFallbackActions(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll(".readlist-nav__delete-fallback"), (el) =>
-		el.getAttribute("action"),
-	);
-}
-
 function hrefParts(link: Element): { path: string; params: URLSearchParams } {
 	const url = new URL(link.getAttribute("href") ?? "", "https://internal.invalid");
 	return { path: url.pathname, params: url.searchParams };
 }
 
+function firstPathD(svgMarkup: string): string {
+	const path = new JSDOM(svgMarkup).window.document.querySelector("path");
+	assert(path, "icon markup must render at least one path");
+	const d = path.getAttribute("d");
+	assert(d, "icon path must carry geometry");
+	return d;
+}
+
+function iconPathD(link: Element): string {
+	const path = link.querySelector("path");
+	assert(path, "a readlist link must draw an icon");
+	const d = path.getAttribute("d");
+	assert(d, "the icon path must carry geometry");
+	return d;
+}
+
+const BOOK_PATH_D = firstPathD(iconSvg("book"));
+const FOLDER_PATH_D = firstPathD(iconSvg("folder"));
+
+function readlistsWithMenu(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-readlist-menu]"), (el) =>
+		el.getAttribute("data-test-readlist-menu"),
+	);
+}
+
 describe("buildReadlistNav", () => {
-	it("should render one link per readlist, in the order the readlists are given", () => {
+	it("draws the built-in readlist with the book icon", () => {
 		const doc = renderNav();
 
-		const rendered = Array.from(doc.querySelectorAll("[data-test-readlist]")).map((el) =>
-			el.getAttribute("data-test-readlist"),
-		);
-		expect(rendered).toEqual(["default", "work"]);
+		expect(iconPathD(readlistLink(doc, "default"))).toBe(BOOK_PATH_D);
 	});
 
-	it("should title each readlist from the label the reader gave it", () => {
-		const doc = renderNav();
+	it("carries no menu for the built-in readlist", () => {
+		const doc = renderNav({ readlists: [DEFAULT_READLIST] });
 
-		expect(readlistLink(doc, "default").textContent).toBe("All");
-		expect(readlistLink(doc, "work").textContent).toBe("Work Reading");
+		expect(readlistsWithMenu(doc)).toEqual([]);
 	});
 
-	it("should tell assistive tech which readlist the reader is on, and only that one", () => {
+	it("draws a custom readlist with the folder icon and its own menu", () => {
 		const doc = renderNav({ activeSlug: WORK.slug });
 
-		expect(readlistLink(doc, "work").getAttribute("aria-current")).toBe("page");
-		expect(readlistLink(doc, "default").getAttribute("aria-current")).toBeNull();
+		expect(iconPathD(readlistLink(doc, "work"))).toBe(FOLDER_PATH_D);
+		expect(readlistsWithMenu(doc)).toEqual(["work"]);
 	});
 
-	it("should mark the viewed readlist's tab so it reads as the selected one", () => {
+	it("opens a custom readlist's menu on an Edit control that targets its rename popover", () => {
 		const doc = renderNav({ activeSlug: WORK.slug });
 
-		expect(readlistLink(doc, "work").getAttribute("class")).toBe(
-			"readlist-nav__link readlist-nav__link--active",
-		);
-		expect(readlistLink(doc, "default").getAttribute("class")).toBe("readlist-nav__link");
+		const menu = doc.querySelector('[data-test-readlist-menu="work"]');
+		assert(menu, "a custom readlist must carry its own menu");
+		const edit = menu.querySelector('[data-test-action="readlist-rename"]');
+		assert(edit, "the menu must offer an Edit control");
+		expect(edit.getAttribute("popovertarget")).toBe(readlistRenamePopoverId(WORK.slug));
+		expect(edit.getAttribute("aria-haspopup")).toBe("dialog");
 	});
 
-	it("should point each readlist at its own listing with its own tracking token", () => {
-		const doc = renderNav();
+	it("opens a custom readlist's menu on a Delete control that targets its delete confirmation", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		const menu = doc.querySelector('[data-test-readlist-menu="work"]');
+		assert(menu, "a custom readlist must carry its own menu");
+		const del = menu.querySelector('[data-test-action="readlist-delete"]');
+		assert(del, "the menu must offer a Delete control");
+		expect(del.getAttribute("popovertarget")).toBe(readlistDeleteConfirmPopoverId(WORK.slug));
+		expect(del.getAttribute("aria-haspopup")).toBe("dialog");
+	});
+
+	it("backs the delete trigger with a plain-post fallback carrying the return state", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		const fallback = doc.querySelector('[data-test-action="readlist-delete-fallback"]');
+		assert(fallback, "the menu must keep a no-popover fallback for deleting");
+		const form = fallback.closest("form");
+		assert(form, "the fallback must submit through a form");
+		expect(form.getAttribute("method")).toBe("POST");
+		const action = new URL(form.getAttribute("action") ?? "", "https://internal.invalid");
+		expect(action.pathname).toBe(`/queue/queues/${WORK.slug}/delete`);
+		expect(action.searchParams.get("queue")).toBe(WORK.slug);
+		expect(action.searchParams.get("utm_source")).toBe("queue-nav");
+		expect(action.searchParams.get("utm_content")).toBe("delete-readlist");
+	});
+
+	it("points each readlist's link at its own listing with its own tracking token", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
 
 		const forDefault = hrefParts(readlistLink(doc, "default"));
 		expect(forDefault.path).toBe("/queue");
-		expect(forDefault.params.get("queue")).toBeNull();
 		expect(forDefault.params.get("utm_content")).toBe("queue-default");
 
 		const forWork = hrefParts(readlistLink(doc, "work"));
 		expect(forWork.path).toBe("/queue");
 		expect(forWork.params.get("queue")).toBe("work");
-		expect(forWork.params.get("utm_source")).toBe("queue-nav");
 		expect(forWork.params.get("utm_content")).toBe("queue-work");
 	});
 
-	it("should open a readlist at its own default view rather than carrying the read-state tab and sort", () => {
-		const doc = renderNav();
+	it("marks the viewed readlist's link and item as the selected one, and leaves the others plain", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
 
-		const { params } = hrefParts(readlistLink(doc, "work"));
-		expect(params.get("tab")).toBeNull();
-		expect(params.get("order")).toBeNull();
-		expect(params.get("page")).toBeNull();
-	});
-
-	it("should list each readlist as its own item so assistive tech announces the set size", () => {
-		const doc = renderNav();
-
-		const items = Array.from(doc.querySelectorAll(".readlist-nav__list > .readlist-nav__item")).map(
-			(item) => item.querySelector("[data-test-readlist]")?.getAttribute("data-test-readlist"),
+		expect(readlistLink(doc, "work").getAttribute("class")).toBe(
+			"readlist-nav__link readlist-nav__link--active",
 		);
-		expect(items).toEqual(["default", "work"]);
-	});
-
-	it("should start a new readlist by posting, so the readlist exists before it is named", () => {
-		const doc = renderNav();
-
-		const form = doc.querySelector("nav.readlist-nav > form.readlist-nav__new-form");
-		assert(form, "the new-readlist control must sit beside the readlist list, not inside it");
-		const control = form.querySelector('[data-test-action="new-readlist"]');
-		assert(control, "the new-readlist control must submit the create form");
-		expect({
-			method: form.getAttribute("method"),
-			action: form.getAttribute("action"),
-			type: control.getAttribute("type"),
-			label: control.textContent,
-		}).toEqual({
-			method: "POST",
-			action: "/queue/queues?utm_source=queue-nav&utm_medium=internal&utm_content=new-readlist",
-			type: "submit",
-			label: "New readlist",
-		});
-	});
-
-	it("should withhold the new-readlist control from a reader who cannot write", () => {
-		const doc = renderNav({ canCreate: false });
-
-		expect(doc.querySelector('[data-test-action="new-readlist"]')).toBeNull();
-		expect(doc.querySelectorAll("[data-test-readlist]")).toHaveLength(2);
-	});
-
-	it("should offer the readlist the reader is on for renaming, in place", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
-
-		const tab = readlistLink(doc, "work");
-		expect({
-			tagName: tab.tagName,
-			action: tab.getAttribute("data-readlist-rename"),
-			field: tab.getAttribute("data-readlist-rename-field"),
-			max: tab.getAttribute("data-readlist-label-max"),
-			current: tab.getAttribute("aria-current"),
-			readlist: hrefParts(tab).params.get("queue"),
-		}).toEqual({
-			tagName: "A",
-			action: "/queue/queues/work/rename?utm_source=queue-nav&utm_medium=internal&utm_content=rename-readlist",
-			field: "label",
-			max: String(READLIST_LABEL_MAX_LENGTH),
-			current: "page",
-			readlist: "work",
-		});
-	});
-
-	it("should opt the renameable tab out of boosting so the reader's own tap opens the editor", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
-
-		expect(readlistLink(doc, "work").getAttribute("hx-boost")).toBe("false");
-		expect(readlistLink(doc, "default").getAttribute("hx-boost")).toBeNull();
-	});
-
-	it("should keep a readlist's name in an element of its own, so editing cannot swallow the pencil", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
-
-		const tab = readlistLink(doc, "work");
-		expect(queueLabel(doc, "work")).toBe("Work Reading");
-		expect(tab.querySelectorAll("svg")).toHaveLength(1);
-	});
-
-	it("should say what the pencil does for a reader who cannot see it", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
-
-		const tab = readlistLink(doc, "work");
-		expect(tab.getAttribute("aria-label")).toBe("Rename Work Reading");
-		expect(tab.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-	});
-
-	it("should leave every readlist the reader is not on a plain link with nothing to rename", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
-
-		expect(renameable(doc)).toEqual(["work"]);
-		expect(hrefParts(readlistLink(doc, "default")).path).toBe("/queue");
-	});
-
-	it("should never offer the built-in readlist for renaming, even when the reader is on it", () => {
-		const doc = renderNav({ activeSlug: DEFAULT_READLIST.slug });
-
-		const tab = readlistLink(doc, "default");
-		expect(renameable(doc)).toEqual([]);
-		expect(tab.getAttribute("aria-current")).toBe("page");
-		expect(hrefParts(tab).path).toBe("/queue");
-	});
-
-	it("should withhold renaming from a reader who cannot write", () => {
-		const doc = renderNav({ canCreate: false, activeSlug: WORK.slug });
-
-		expect(renameable(doc)).toEqual([]);
-		expect(hrefParts(readlistLink(doc, "work")).params.get("queue")).toBe("work");
-	});
-
-	it("should offer every readlist the reader made for deleting, each from its own trigger", () => {
-		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
-
-		expect(deletable(doc)).toEqual([
-			"readlist-remove-confirm-work",
-			"readlist-remove-confirm-personal",
-		]);
-	});
-
-	it("should back every delete with a plain post that names the readlist being viewed", () => {
-		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
-
-		expect(deleteFallbackActions(doc)).toEqual([
-			"/queue/queues/work/delete?queue=work&utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
-			"/queue/queues/personal/delete?queue=work&utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
-		]);
-	});
-
-	it("should back every delete with a bare post while the reader is on the built-in readlist", () => {
-		const doc = renderNav({
-			readlists: [DEFAULT_READLIST, WORK, PERSONAL],
-			activeSlug: DEFAULT_READLIST.slug,
-		});
-
-		expect(deleteFallbackActions(doc)).toEqual([
-			"/queue/queues/work/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
-			"/queue/queues/personal/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist",
-		]);
-	});
-
-	it("should keep the delete trigger outside the tab so a tap cannot open the name editor", () => {
-		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
-
-		const owned = ["work", "personal"];
-		const triggers = Array.from(doc.querySelectorAll('[data-test-action="readlist-delete"]'));
-		expect(triggers).toHaveLength(owned.length);
-		owned.forEach((testReadlist, index) => {
-			const trigger = triggers[index];
-			assert(trigger, `the ${testReadlist} readlist must offer a delete trigger`);
-			expect(trigger.parentElement).toBe(readlistLink(doc, testReadlist).parentElement);
-		});
-	});
-
-	it("should say which readlist the delete control removes, for a reader who cannot see it", () => {
-		const doc = renderNav({ activeSlug: WORK.slug });
-
-		const label = doc.querySelector('[data-test-action="readlist-delete"] .sr-only');
-		assert(label, "the delete trigger must name its readlist for assistive tech");
-		expect(label.textContent).toBe("Delete Work Reading");
-	});
-
-	it("should offer a readlist the reader is not on for deleting, without offering it for renaming", () => {
-		const doc = renderNav({ activeSlug: DEFAULT_READLIST.slug });
-
-		expect(deletable(doc)).toEqual(["readlist-remove-confirm-work"]);
-		expect(renameable(doc)).toEqual([]);
-		expect(hrefParts(readlistLink(doc, "work")).params.get("queue")).toBe("work");
-		expect(readlistLink(doc, "default").parentElement?.className).toBe(
+		expect(readlistLink(doc, "work").parentElement?.className).toBe(
 			"readlist-nav__item readlist-nav__item--active",
 		);
+		expect(readlistLink(doc, "default").getAttribute("class")).toBe("readlist-nav__link");
+		expect(readlistLink(doc, "default").parentElement?.className).toBe("readlist-nav__item");
 	});
 
-	it("should mark the viewed readlist's item as the selected one apart from marking it deletable", () => {
-		const doc = renderNav({ readlists: [DEFAULT_READLIST, WORK, PERSONAL], activeSlug: WORK.slug });
+	it("tells assistive tech which readlist the reader is on, and only that one", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
 
-		expect({
-			work: readlistLink(doc, "work").parentElement?.className,
-			personal: readlistLink(doc, "personal").parentElement?.className,
-			default: readlistLink(doc, "default").parentElement?.className,
-		}).toEqual({
-			work: "readlist-nav__item readlist-nav__item--deletable readlist-nav__item--active",
-			personal: "readlist-nav__item readlist-nav__item--deletable",
-			default: "readlist-nav__item",
-		});
+		expect(readlistLink(doc, "work").getAttribute("aria-current")).toBe("page");
+		expect(readlistLink(doc, "default").hasAttribute("aria-current")).toBe(false);
 	});
 
-	it("should never offer the built-in readlist for deleting, even when the reader is on it", () => {
-		const doc = renderNav({ readlists: [DEFAULT_READLIST], activeSlug: DEFAULT_READLIST.slug });
-
-		expect(deletable(doc)).toEqual([]);
-	});
-
-	it("should withhold deleting from a reader who cannot write", () => {
-		const doc = renderNav({ canCreate: false, activeSlug: WORK.slug });
-
-		expect(deletable(doc)).toEqual([]);
-	});
-
-	it("should name the landmark so it is distinguishable from the page's other navs", () => {
+	it("starts a new readlist by posting, tagged for funnel attribution", () => {
 		const doc = renderNav();
 
-		const nav = doc.querySelector("nav.readlist-nav");
-		assert(nav, "the readlist nav must be a navigation landmark");
-		expect(nav.getAttribute("aria-label")).toBe("Readlists");
+		const form = doc.querySelector("form.readlist-nav__new-form");
+		assert(form, "the create control must sit beside the readlist list");
+		const control = form.querySelector('[data-test-action="new-readlist"]');
+		assert(control, "the create control must submit the create form");
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe(
+			"/queue/queues?utm_source=queue-nav&utm_medium=internal&utm_content=new-readlist",
+		);
+	});
+
+	it("withholds the create form and every readlist menu from a reader who cannot write", () => {
+		const doc = renderNav({ activeSlug: WORK.slug, canCreate: false });
+
+		expect(doc.querySelectorAll('[data-test-action="new-readlist"]')).toHaveLength(0);
+		expect(readlistsWithMenu(doc)).toEqual([]);
+		expect(doc.querySelectorAll("[data-test-readlist]")).toHaveLength(2);
 	});
 });

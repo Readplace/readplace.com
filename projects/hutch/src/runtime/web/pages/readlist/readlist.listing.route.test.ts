@@ -58,8 +58,8 @@ describe("Readlist routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-empty-readlist]")?.textContent).toContain(
-				"Nothing read yet",
+			expect(doc.querySelector("[data-test-empty-title]")?.textContent).toBe(
+				"No finished articles yet",
 			);
 		});
 	});
@@ -287,7 +287,7 @@ describe("Readlist routes", () => {
 			expect(titleLink.getAttribute("href")).toContain("/view");
 			const urlLink = card.querySelector("[data-test-article-url]");
 			assert(urlLink, "the url link element must always be rendered");
-			expect(urlLink.classList.contains("readlist-article__url--empty")).toBe(true);
+			expect(urlLink.classList.contains("readlist-article__site--empty")).toBe(true);
 		});
 	});
 
@@ -304,7 +304,9 @@ describe("Readlist routes", () => {
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
-			const actionForms = doc.querySelectorAll(".readlist-article__action-form");
+			const actionForms = doc.querySelectorAll(
+				".readlist-article__status-form, .readlist-article__menu-form",
+			);
 
 			expect(actionForms.length).toBe(2);
 			expect(doc.querySelector("[data-test-action='mark-read']")?.textContent).toBe("Mark as read");
@@ -350,7 +352,9 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const pagination = doc.querySelector("[data-test-pagination]");
-			expect(pagination?.querySelector(".readlist__pagination-link")?.textContent).toContain("Next");
+			expect(
+				pagination?.querySelector("[data-test-pagination-next]")?.textContent,
+			).toContain("Next");
 		});
 
 		it("should render previous link on page 2", async () => {
@@ -368,7 +372,9 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue?page=2");
 			const doc = new JSDOM(response.text).window.document;
 			const pagination = doc.querySelector("[data-test-pagination]");
-			expect(pagination?.querySelector(".readlist__pagination-link")?.textContent).toContain("Previous");
+			expect(
+				pagination?.querySelector("[data-test-pagination-prev]")?.textContent,
+			).toContain("Previous");
 		});
 
 		it("redirects an out-of-bounds page (stale bookmark / manual URL) to the last valid page", async () => {

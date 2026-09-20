@@ -19,9 +19,9 @@ export type OnboardingProgress = {
 
 const EMAIL_STEP = '[data-test-onboarding-step="receive-articles-by-email"]'
 
-async function visibleStepIds(page: Page): Promise<string[]> {
+async function currentStepIds(page: Page): Promise<string[]> {
 	return page
-		.locator('[data-test-onboarding-step]:visible')
+		.locator('[data-test-onboarding-step][data-test-onboarding-current="true"]')
 		.evaluateAll((els) => els.map((el) => el.getAttribute('data-test-onboarding-step') ?? ''))
 }
 
@@ -56,11 +56,11 @@ export function createOnboardingActions(
 				expect(stillIncomplete).toBe(0)
 
 				const completedStep = page.locator('[data-test-onboarding-step="install-extension"]')
-				await expect(completedStep).toBeAttached()
-				await expect(completedStep).toBeHidden()
+				await expect(completedStep).toBeVisible()
+				await expect(completedStep).toHaveAttribute('data-test-onboarding-complete', 'true')
 				await expect(
 					page.locator('[data-test-onboarding-step="save-first-article-via-extension"]'),
-				).toBeVisible()
+				).toHaveAttribute('data-test-onboarding-current', 'true')
 
 				progress.installedExtension = true
 			},
@@ -90,9 +90,9 @@ export function createOnboardingActions(
 					'[data-test-onboarding-step="save-first-article-via-extension"]',
 				)
 				await expect(savedStep).toHaveAttribute('data-test-onboarding-complete', 'true')
-				await expect(savedStep).toBeHidden()
+				await expect(savedStep).toBeVisible()
 
-				expect(await visibleStepIds(page)).toEqual(['receive-articles-by-email'])
+				expect(await currentStepIds(page)).toEqual(['receive-articles-by-email'])
 				await expect(page.locator(EMAIL_STEP)).toHaveAttribute(
 					'data-test-onboarding-complete',
 					'false',
@@ -128,8 +128,8 @@ export function createOnboardingActions(
 					'data-test-onboarding-complete',
 					'true',
 				)
-				await expect(page.locator(EMAIL_STEP)).toBeHidden()
-				expect(await visibleStepIds(page)).toEqual(['save-enough-for-next-read'])
+				await expect(page.locator(EMAIL_STEP)).toBeVisible()
+				expect(await currentStepIds(page)).toEqual(['save-enough-for-next-read'])
 				await expect(page.locator('[data-test-onboarding-steps]')).toHaveCount(1)
 
 				progress.markedEmailDone = true

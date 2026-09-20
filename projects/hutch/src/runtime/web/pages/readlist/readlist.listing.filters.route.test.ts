@@ -217,12 +217,12 @@ describe("Readlist routes", () => {
 
 				const targets = inFlightTargets(doc, tab);
 				expect(targets.map((el) => el.classList[0])).toEqual([
-					"readlist__filters",
-					"readlist__filter-link",
-					"readlist__listing",
+					"readlist-tabs",
+					"readlist-tabs__link",
+					"readlist-listing",
 				]);
 				expect(targets[1]).toBe(tab);
-				expect(doc.querySelectorAll(".readlist__listing")).toHaveLength(1);
+				expect(doc.querySelectorAll(".readlist-listing")).toHaveLength(1);
 
 				const listing = targets[2];
 				assert(listing, "the listing must be one of the in-flight targets");
@@ -248,7 +248,7 @@ describe("Readlist routes", () => {
 					{
 						surface: "Article filters",
 						targets:
-							"closest .readlist__filters, closest .readlist__filter-link, .readlist__listing",
+							"closest .readlist-tabs, closest .readlist-tabs__link, .readlist-listing",
 					},
 				]);
 			}

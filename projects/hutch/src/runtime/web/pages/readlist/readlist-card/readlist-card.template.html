@@ -1,31 +1,46 @@
-<div class="readlist-article{{unreadClass}}" data-test-article="{{id}}"{{#if isFirst}} id="latest-saved"{{/if}}{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
-  <div class="readlist-article__header">
-    <div class="readlist-article__meta">
-      {{#if isUnread}}<span class="readlist-article__status readlist-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="readlist-article__status readlist-article__status--read" data-test-read-status="read">{{icon "check"}}<span class="sr-only">Read</span></span>{{/if}}
-      <a class="readlist-article__url{{siteSepClass}}{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url data-reader-field="site">{{siteName}}</a>
-      <span class="readlist-article__read-time{{readTimeSepClass}}{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{readTimeLabel}}</span>
-      <time class="readlist-article__time{{savedSepClass}}" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time>
-    </div>
-    <div class="readlist-article__actions">
-      {{#each actions}}
-      <form method="{{method}}" action="{{url}}" class="{{formClass}}" hx-boost="true"{{#if (eq affordance "with-loader")}} hx-target="closest .readlist-article" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button"{{else}} hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{/if}}>
-        {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-        <button class="{{buttonClass}}" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{#if iconName}}{{icon iconName}}<span class="sr-only">{{text}}</span>{{else}}<span class="readlist-article__action-btn-label">{{text}}</span>{{/if}}{{{loaderHtml}}}</button>
-      </form>
-      {{/each}}
-      {{#each confirmTriggers}}
-      <button class="{{buttonClass}} readlist-article__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{#if iconName}}{{icon iconName}}<span class="sr-only">{{text}}</span>{{else}}<span class="readlist-article__action-btn-label">{{text}}</span>{{/if}}</button>
-      {{/each}}
-    </div>
-  </div>
+<article class="readlist-article{{statusClass}}" data-test-article="{{id}}"{{#if isFirst}} id="latest-saved"{{/if}}{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s [!this.querySelector('details[open]')]" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
   <div class="readlist-article__body">
-    <div class="readlist-article__content">
-      <a class="readlist-article__title" href="{{titleLinkUrl}}" data-test-article-title hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader data-reader-field="title">{{title}}</a>
+    <div class="readlist-article__main">
+      <div class="readlist-article__head">
+        <a class="readlist-article__title" href="{{titleLinkUrl}}" data-test-article-title hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader data-reader-field="title">{{title}}</a>
+        <details class="readlist-article__menu" data-test-article-menu>
+          <summary class="readlist-article__menu-toggle" aria-label="More options for {{title}}" data-test-action="article-menu">{{icon "ellipsis"}}</summary>
+          <div class="readlist-article__menu-panel">
+            {{#each menuActions}}
+            <form method="{{method}}" action="{{url}}" class="readlist-article__menu-form{{fallbackClass}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+              {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
+              <button class="readlist-article__menu-item readlist-article__menu-item--danger" type="submit" title="{{title}}" data-test-action="{{testAction}}">{{icon "trash"}}<span>{{text}}</span></button>
+            </form>
+            {{/each}}
+            {{#each menuTriggers}}
+            <button class="readlist-article__menu-item readlist-article__menu-item--danger readlist-article__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{icon "trash"}}<span>{{text}}</span></button>
+            {{/each}}
+          </div>
+        </details>
+      </div>
       {{#if excerpt}}<a class="readlist-article__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader>{{excerpt}}</a>{{/if}}
-      <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>Processing…</p>
-      {{#if isStalePending}}<p class="readlist-article__stale-pending" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
+      {{#if isStalePending}}<p class="readlist-article__stale" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
+      <div class="readlist-article__foot">
+        <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>Processing</span></p>
+        <div class="readlist-article__facts">
+          {{#if isUnread}}<span class="readlist-article__status readlist-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="readlist-article__status readlist-article__status--read" data-test-read-status="read">{{icon "check"}}<span class="sr-only">Read</span></span>{{/if}}
+          <div class="readlist-article__meta{{metaHiddenClass}}">
+            <a class="readlist-article__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url data-reader-field="site">{{icon "globe"}}<span>{{siteName}}</span></a>
+            <span class="readlist-article__saved">{{icon "clock"}}<time class="readlist-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time></span>
+            <span class="readlist-article__read-time{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{icon "eye"}}<span>{{readTimeLabel}}</span></span>
+          </div>
+        </div>
+        {{#each statusActions}}
+        <form method="{{method}}" action="{{url}}" class="readlist-article__status-form{{fallbackClass}}" hx-boost="true" hx-target="closest .readlist-article" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button">
+          {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
+          <button class="readlist-article__status-btn" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}><span class="readlist-article__action-btn-label">{{text}}</span>{{{loaderHtml}}}</button>
+        </form>
+        {{/each}}
+        {{#each statusTriggers}}
+        <button class="readlist-article__status-btn readlist-article__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}"><span class="readlist-article__action-btn-label">{{text}}</span></button>
+        {{/each}}
+      </div>
     </div>
-    {{!-- The img reserves its box via width + aspect-ratio, so the card height is decided once and never jumps when the bitmap arrives or when a pending card self-swaps. When there is no thumbnail the content flexes to full width. onerror is the safety net for rows whose imageUrl points at an external host that can rot: a broken image removes its container instead of showing a placeholder. --}}
     {{#if imageUrl}}<a href="{{thumbnailLinkUrl}}" class="readlist-article__thumbnail-link" tabindex="-1" aria-hidden="true" hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader><img class="readlist-article__thumbnail" src="{{imageUrl}}" alt="" onerror="this.parentElement.remove()"></a>{{/if}}
   </div>
-</div>
+</article>

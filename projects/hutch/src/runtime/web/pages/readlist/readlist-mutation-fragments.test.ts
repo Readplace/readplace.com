@@ -121,26 +121,4 @@ describe("renderReadlistMutationFragment", () => {
 		);
 	});
 
-	it("carries extra params onto both the counts URL and the Undo action", () => {
-		const doc = parse(
-			renderReadlistMutationFragment({
-				filters: DEFAULT_FILTERS,
-				statusFlash: {
-					message: "Marked as read",
-					undoArticleId: "abc123",
-					undoStatus: "unread",
-				},
-				extraParams: [["feature", "design"]],
-			}),
-		);
-
-		assert.equal(
-			doc.querySelector("[data-test-toast-action]")?.closest("form")?.getAttribute("action"),
-			"/queue/abc123/status?feature=design&utm_source=queue-toast&utm_medium=internal&utm_content=undo",
-		);
-		assert.equal(
-			doc.getElementById("readlist-counts")?.getAttribute("hx-get"),
-			"/queue/counts?feature=design",
-		);
-	});
 });

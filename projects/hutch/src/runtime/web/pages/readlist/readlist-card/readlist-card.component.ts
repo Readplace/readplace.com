@@ -1,118 +1,81 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, renderInFlightDots, withInternalTracking } from "@packages/web-shell";
-
 import type { DeviceClass } from "@packages/web-analytics";
-import type { IconName } from "@packages/ui-icons";
-import type {
-	ArticleAction,
-	ReadlistArticleViewModel,
-} from "../readlist.viewmodel";
+
+import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-card.template.html"), "utf-8");
 
-export interface ActionDisplayModel extends ArticleAction {
-	buttonClass: string;
-	formClass: string;
+interface DesignCardAction extends ArticleAction {
+	fallbackClass: string;
 	disabled: boolean;
-	affordance: "with-loader" | "bare";
 	loaderHtml: string;
-	/** Stable id on the status button so the shared toast focus script
-	 * (toast.client.ts) can restore keyboard focus after a card-scoped status
-	 * swap removes it: finding the recorded id gone, it lands focus on the
-	 * confirmation toast. Absent on the delete fallback, which keeps a full-swap. */
 	buttonId?: string;
 }
 
-export interface ConfirmTriggerDisplayModel {
+interface DesignCardTrigger {
 	popoverId: string;
 	title: string;
 	text: string;
 	testAction: string;
-	buttonClass: string;
-	iconName?: IconName;
 }
 
 export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	titleLinkUrl: string;
 	excerptLinkUrl: string;
 	thumbnailLinkUrl: string;
-	unreadClass: string;
+	statusClass: string;
 	excerptClampClass: string;
 	isFirst: boolean;
 	cardStatus: "pending" | "terminal";
-	isProcessing: boolean;
 	processingHiddenClass: string;
+	metaHiddenClass: string;
 	urlEmptyClass: string;
 	readTimeLabel: string;
 	readTimeEmptyClass: string;
-	siteSepClass: string;
-	readTimeSepClass: string;
-	savedSepClass: string;
-	actions: ActionDisplayModel[];
-	confirmTriggers: ConfirmTriggerDisplayModel[];
+	statusActions: DesignCardAction[];
+	statusTriggers: DesignCardTrigger[];
+	menuActions: DesignCardAction[];
+	menuTriggers: DesignCardTrigger[];
 }
 
-const SEP_CLASS = " readlist-article__meta-part--sep";
+const STATUS_LOADER_HTML = renderInFlightDots("readlist-article__action-btn-loader in-flight-dots");
 
-function toMetaSeparators(present: { site: boolean; readTime: boolean }) {
-	const order = [present.site, present.readTime, true];
-	const firstPresent = order.indexOf(true);
-	const sepFor = (index: number) => (order[index] && index > firstPresent ? SEP_CLASS : "");
-	return {
-		siteSepClass: sepFor(0),
-		readTimeSepClass: sepFor(1),
-		savedSepClass: sepFor(2),
-	};
+function isDeleteAction(action: ArticleAction): boolean {
+	return action.testAction === "delete";
 }
 
-const ACTION_VARIANTS = {
-	status: {
-		buttonClass: "readlist-article__action-btn readlist-article__action-btn--status",
-		fallbackClass: "readlist-article__status-fallback",
-		affordance: "with-loader",
-		loaderHtml: renderInFlightDots("readlist-article__action-btn-loader in-flight-dots"),
-	},
-	delete: {
-		buttonClass: "readlist-article__action-btn readlist-article__action-btn--delete",
-		fallbackClass: "readlist-article__delete-fallback",
-		affordance: "bare",
-		loaderHtml: "",
-	},
-} as const satisfies Record<
-	string,
-	{
-		buttonClass: string;
-		fallbackClass: string;
-		affordance: ActionDisplayModel["affordance"];
-		loaderHtml: string;
-	}
->;
-
-function variantOf(action: ArticleAction) {
-	return action.testAction === "delete" ? ACTION_VARIANTS.delete : ACTION_VARIANTS.status;
-}
-
-export function toActionDisplayModel(
+function toDesignAction(
 	action: ArticleAction,
 	options: { isProcessing: boolean; articleId: string },
-): ActionDisplayModel {
+): DesignCardAction {
 	const isConfirmed = action.confirmPopoverId !== undefined;
-	const variant = variantOf(action);
-	const showsLoader = variant.affordance === "with-loader";
+	const isStatus = !isDeleteAction(action);
 	return {
 		...action,
-		url: withInternalTracking(action.url, { source: "queue-card", content: action.testAction }),
+		url: withInternalTracking(action.url, {
+			source: "queue-card",
+			content: action.testAction,
+		}),
 		testAction: isConfirmed ? `${action.testAction}-fallback` : action.testAction,
-		buttonClass: variant.buttonClass,
-		formClass: isConfirmed
-			? `readlist-article__action-form ${variant.fallbackClass}`
-			: "readlist-article__action-form",
-		disabled: options.isProcessing && showsLoader,
-		affordance: variant.affordance,
-		loaderHtml: variant.loaderHtml,
-		buttonId: showsLoader ? `readlist-status-${options.articleId}` : undefined,
+		fallbackClass: isConfirmed ? " readlist-article__fallback" : "",
+		disabled: options.isProcessing && isStatus,
+		loaderHtml: isStatus ? STATUS_LOADER_HTML : "",
+		buttonId: isStatus ? `readlist-status-${options.articleId}` : undefined,
 	};
+}
+
+function toTrigger(action: ArticleAction): DesignCardTrigger[] {
+	if (action.confirmPopoverId === undefined) return [];
+	return [
+		{
+			popoverId: action.confirmPopoverId,
+			title: action.title,
+			text: action.text,
+			testAction: action.testAction,
+		},
+	];
 }
 
 export function toReadlistCardDisplayModel(
@@ -126,49 +89,31 @@ export function toReadlistCardDisplayModel(
 			content,
 			term: options.deviceClass,
 		});
+	const statusActions = article.actions.filter((action) => !isDeleteAction(action));
+	const deleteActions = article.actions.filter(isDeleteAction);
+	const toAction = (action: ArticleAction) => toDesignAction(action, { isProcessing, articleId: article.id });
 	return {
 		...article,
 		titleLinkUrl: openReaderLink("open-article-title"),
 		excerptLinkUrl: openReaderLink("open-article-excerpt"),
 		thumbnailLinkUrl: openReaderLink("open-article-thumbnail"),
-		unreadClass: article.isUnread ? " readlist-article--unread" : " readlist-article--read",
+		statusClass: article.isUnread ? " readlist-article--unread" : " readlist-article--read",
 		excerptClampClass:
 			article.excerptSource === "parsed" ? " readlist-article__excerpt--clamped" : "",
 		isFirst: options.isFirst,
 		cardStatus: isProcessing ? "pending" : "terminal",
-		isProcessing,
 		processingHiddenClass: isProcessing ? "" : " readlist-article__processing--hidden",
-		urlEmptyClass: article.siteName ? "" : " readlist-article__url--empty",
+		metaHiddenClass: isProcessing ? " readlist-article__meta--hidden" : "",
+		urlEmptyClass: article.siteName ? "" : " readlist-article__site--empty",
 		readTimeLabel: article.readTime?.label ?? "",
 		readTimeEmptyClass: article.readTime ? "" : " readlist-article__read-time--empty",
-		...toMetaSeparators({
-			site: Boolean(article.siteName),
-			readTime: article.readTime !== undefined,
-		}),
-		actions: article.actions.map((action) =>
-			toActionDisplayModel(action, { isProcessing, articleId: article.id }),
-		),
-		confirmTriggers: article.actions.flatMap((action) =>
-			action.confirmPopoverId === undefined
-				? []
-				: [
-						{
-							popoverId: action.confirmPopoverId,
-							title: action.title,
-							text: action.text,
-							testAction: action.testAction,
-							buttonClass: variantOf(action).buttonClass,
-							...(action.iconName === undefined ? {} : { iconName: action.iconName }),
-						},
-					],
-		),
+		statusActions: statusActions.map(toAction),
+		statusTriggers: statusActions.flatMap(toTrigger),
+		menuActions: deleteActions.map(toAction),
+		menuTriggers: deleteActions.flatMap(toTrigger),
 	};
 }
 
-/** Lets the template branch on the `affordance` string enum
- * (`{{#if (eq affordance "with-loader")}}`); Handlebars has no built-in equality. */
-const eq = (a: unknown, b: unknown): boolean => a === b;
-
 export function renderReadlistCard(displayModel: ReadlistCardDisplayModel): string {
-	return render(TEMPLATE, displayModel, { helpers: { eq } });
+	return render(TEMPLATE, displayModel);
 }

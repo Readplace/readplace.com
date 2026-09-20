@@ -308,35 +308,6 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
-      "src/runtime/web/pages/readlist/readlist-rename.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "readlist-rename.client.js"),
-    globalName: "ReadlistRename",
-    footer: [
-      "ReadlistRename.initReadlistRename({",
-      "  document: window.document,",
-      "  fetchFn: function (url, init) { return window.fetch(url, init); },",
-      "  placeCaretAtEnd: function (element) {",
-      "    var range = window.document.createRange();",
-      "    range.selectNodeContents(element);",
-      "    range.collapse(false);",
-      "    var selection = window.getSelection();",
-      "    selection.removeAllRanges();",
-      "    selection.addRange(range);",
-      "  },",
-      "  announceToast: function (toast) {",
-      "    toast.dispatchEvent(new Event('readplace:toast', { bubbles: true }));",
-      "  },",
-      "  addSwapListener: function (cb) {",
-      "    window.document.body.addEventListener('htmx:afterSwap', cb);",
-      "    window.document.body.addEventListener('htmx:historyRestore', cb);",
-      "  }",
-      "});",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
       "src/runtime/web/shared/article-body/summary-slot/summary-toggle.client.ts",
     ),
     outfile: path.join(OUT_DIR, "summary-toggle.client.js"),
@@ -379,12 +350,12 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
-      "src/runtime/web/pages/readlist/design/readlist-design.client.ts",
+      "src/runtime/web/pages/readlist/readlist.client.ts",
     ),
-    outfile: path.join(OUT_DIR, "readlist-design.client.js"),
-    globalName: "ReadlistDesign",
+    outfile: path.join(OUT_DIR, "readlist.client.js"),
+    globalName: "Readlist",
     footer: [
-      "ReadlistDesign.initReadlistDesign({",
+      "Readlist.initReadlist({",
       "  document: window.document,",
       "  fetchFn: function (url, init) { return window.fetch(url, init); },",
       "  reload: function () { window.location.reload(); },",

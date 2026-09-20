@@ -30,7 +30,7 @@ describe("GET /queue reader skeleton", () => {
 		const response = await agent.get("/queue");
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		const main = doc.querySelector("main.readlist");
+		const main = doc.querySelector("main[data-test-readlist-page]");
 		assert(main, "the queue must render its main");
 		const last = main.lastElementChild;
 		assert(last, "the queue main must have a last element child");
@@ -62,7 +62,7 @@ describe("GET /queue reader skeleton", () => {
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
-		const template = doc.querySelector("main.readlist template[data-reader-skeleton]");
+		const template = doc.querySelector("main[data-test-readlist-page] template[data-reader-skeleton]");
 		assert(template, "the populated queue must keep the skeleton template");
 		expect(template.getAttribute("data-main-class")).toBe("reader");
 		const title = doc.querySelector(".readlist-article [data-test-article-title]");

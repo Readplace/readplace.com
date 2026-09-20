@@ -142,7 +142,7 @@ export function createReadlistActions(
 						p.locator('[data-test-form="save-article"] button[type="submit"]'),
 					)
 					const latestHref = await p
-						.locator('#latest-saved .readlist-article__url')
+						.locator('#latest-saved [data-test-article-url]')
 						.first()
 						.getAttribute('href')
 						// c8 ignore: catch only fires on CI when the latest-saved card is detached mid page-reload
@@ -199,8 +199,7 @@ export function createReadlistActions(
 				await expect(pagination).toBeVisible()
 
 				const info = page.locator('[data-test-pagination-info]')
-				const infoText = await info.textContent()
-				assert.ok(infoText?.includes('Page 1'), `Expected page info to include "Page 1", got "${infoText}"`)
+				await expect(info).toHaveText('Showing 20 of 21')
 
 				const nextLink = page.locator('[data-test-pagination-next]')
 				await expect(nextLink).toBeVisible()
@@ -232,15 +231,18 @@ export function createReadlistActions(
 			},
 			execute: async (page) => {
 				const info = page.locator('[data-test-pagination-info]')
-				const infoText = await info.textContent()
-				assert.ok(infoText?.includes('Page 2'), `Expected page info to include "Page 2", got "${infoText}"`)
+				await expect(info).toHaveText('Showing 1 of 21')
 
 				const prevLink = page.locator('[data-test-pagination-prev]')
 				await expect(prevLink).toBeVisible()
 
-				const row = await measuredBox(page, '[data-test-pagination]')
+				const controls = await measuredBox(page, '.readlist-pagination__controls')
 				const prev = await measuredBox(page, '[data-test-pagination-prev]')
-				assert.equal(prev.x, row.x, 'the Previous link must sit on the row left edge, whatever the page count reads')
+				assert.equal(
+					prev.x,
+					controls.x,
+					'the Previous link must lead the controls, whatever the page numbers read',
+				)
 
 				const articleCount = await getArticleCount(page)
 				assert.equal(articleCount, 1, 'Page 2 should show exactly 1 article (21 total, 20 per page)')
@@ -269,8 +271,7 @@ export function createReadlistActions(
 			},
 			execute: async (page) => {
 				const info = page.locator('[data-test-pagination-info]')
-				const infoText = await info.textContent()
-				assert.ok(infoText?.includes('Page 1'), `Expected page info to include "Page 1", got "${infoText}"`)
+				await expect(info).toHaveText('Showing 20 of 21')
 
 				const articleCount = await getArticleCount(page)
 				assert.equal(articleCount, 20, 'Page 1 should show 20 articles after navigating back')
@@ -288,7 +289,7 @@ export function createReadlistActions(
 				return saveForm.isVisible().catch(() => false)
 			},
 			execute: async (page) => {
-				const cardsBefore = await page.locator('.readlist-article').count()
+				const cardsBefore = await page.locator('[data-test-article]').count()
 
 				// Re-save an already-saved URL so refreshArticleIfStale takes the
 				// handleFullFetch branch and publishes publishRefreshArticleContent.
@@ -300,7 +301,7 @@ export function createReadlistActions(
 					page.locator('[data-test-form="save-article"] button[type="submit"]'),
 				)
 
-				const cardsAfter = await page.locator('.readlist-article').count()
+				const cardsAfter = await page.locator('[data-test-article]').count()
 				assert.equal(cardsAfter, cardsBefore, 'Re-saving an existing URL must not duplicate the article')
 
 				progress.refreshedExistingArticle = true
@@ -316,11 +317,11 @@ export function createReadlistActions(
 			},
 			execute: async (page) => {
 				const targetCount = TEST_URLS.length
-				let cards = await page.locator('.readlist-article').count()
+				let cards = await page.locator('[data-test-article]').count()
 
 				while (cards > targetCount) {
 					await deleteArticleWithConfirmation(page, page.locator('[data-test-action="delete"]').first())
-					cards = await page.locator('.readlist-article').count()
+					cards = await page.locator('[data-test-article]').count()
 				}
 
 				progress.paginationArticlesDeleted = true

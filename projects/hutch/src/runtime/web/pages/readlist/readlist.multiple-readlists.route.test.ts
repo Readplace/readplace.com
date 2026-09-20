@@ -38,8 +38,9 @@ function openedSlug(location: string): string {
 }
 
 function renameable(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-readlist-rename]"), (el) =>
-		el.getAttribute("data-test-readlist"),
+	return Array.from(
+		doc.querySelectorAll('[data-test-readlist-menu] [data-test-action="readlist-rename"]'),
+		(trigger) => trigger.closest("[data-test-readlist-menu]")?.getAttribute("data-test-readlist-menu") ?? null,
 	);
 }
 
@@ -74,10 +75,10 @@ async function seedInto(harness: TestHarness, readlist: string, url: string) {
 	});
 }
 
-function saveFormClasses(doc: Document): string[] {
-	const form = doc.querySelector('[data-test-form="save-article"]');
-	assert(form, "the readlist page must render the save bar");
-	return form.className.split(" ");
+function saveCardClasses(doc: Document): string[] {
+	const card = doc.querySelector("[data-test-save-card]");
+	assert(card, "the readlist page must render the save card");
+	return card.className.split(" ");
 }
 
 function deleteTriggerTargets(doc: Document): (string | null)[] {
@@ -128,8 +129,8 @@ describe("POST /queue/queues", () => {
 		expect(response.headers.location).toBe(`/queue?queue=${slug}`);
 		const doc = parse((await agent.get(response.headers.location)).text);
 		expect(queueLabels(doc)).toEqual(["All", "New Readlist"]);
-		expect(doc.querySelector("[data-test-empty-readlist]")?.textContent).toContain(
-			"Nothing saved yet",
+		expect(doc.querySelector("[data-test-empty-title]")?.textContent).toBe(
+			"No articles in this readlist yet",
 		);
 	});
 
@@ -165,14 +166,22 @@ describe("POST /queue/queues", () => {
 
 		const slug = openedSlug(response.headers.location);
 		const doc = parse((await agent.get(response.headers.location)).text);
-		const tab = doc.querySelector(`[data-test-readlist="${slug}"]`);
-		assert(tab, "the created readlist must render a tab");
-		expect(tab.tagName).toBe("A");
-		expect(tab.getAttribute("href")).toContain(`queue=${slug}`);
-		expect(tab.getAttribute("hx-boost")).toBe("false");
-		expect(tab.getAttribute("data-readlist-rename")).toBe(`/queue/queues/${slug}/rename?utm_source=queue-nav&utm_medium=internal&utm_content=rename-readlist`);
-		expect(tab.getAttribute("data-readlist-label-max")).toBe(String(READLIST_LABEL_MAX_LENGTH));
-		expect(doc.querySelector('script[src="/client-dist/readlist-rename.client.js"]')).not.toBeNull();
+		const link = doc.querySelector(`[data-test-readlist="${slug}"]`);
+		assert(link, "the created readlist must render a rail link");
+		expect(link.tagName).toBe("A");
+		expect(link.getAttribute("href")).toContain(`queue=${slug}`);
+		expect(renameable(doc)).toEqual([slug]);
+		const dialog = doc.querySelector('[data-test-confirm-popover="readlist-rename"]');
+		assert(dialog, "the rail's Edit must open a rename dialog");
+		const form = dialog.querySelector('[data-test-form="readlist-rename"]');
+		assert(form, "the rename dialog must post to the rename route");
+		expect(form.getAttribute("action")).toBe(
+			`/queue/queues/${slug}/rename?utm_source=queue-nav&utm_medium=internal&utm_content=rename-readlist`,
+		);
+		const input = dialog.querySelector("[data-test-readlist-rename-input]");
+		assert(input, "the rename dialog must offer the name field");
+		expect(input.getAttribute("maxlength")).toBe(String(READLIST_LABEL_MAX_LENGTH));
+		expect(doc.querySelector('script[src="/client-dist/readlist.client.js"]')).not.toBeNull();
 	});
 
 	it("withholds the rename from a reader who has lost write access", async () => {
@@ -203,7 +212,7 @@ describe("POST /queue/queues", () => {
 		const onDefault = parse((await agent.get("/queue")).text);
 		const onCreated = parse((await agent.get(`/queue?queue=${slug}`)).text);
 
-		expect(renameable(onDefault)).toEqual([]);
+		expect(renameable(onDefault)).toEqual([slug]);
 		expect(renameable(onCreated)).toEqual([slug]);
 	});
 
@@ -220,7 +229,12 @@ describe("POST /queue/queues", () => {
 		const doc = parse((await agent.get(response.headers.location)).text);
 		const flash = doc.querySelector("[data-test-readlist-error]");
 		assert(flash, "the cap must be explained where the reader pressed the control");
-		expect(flash.textContent).toBe(`You can keep up to ${READLIST_MAX_PER_USER} readlists.`);
+		expect(flash.querySelector("[data-test-readlist-error-title]")?.textContent).toBe(
+			"Readlist limit reached",
+		);
+		expect(flash.textContent).toContain(
+			`You can create up to ${READLIST_MAX_PER_USER} readlists.`,
+		);
 	});
 
 	it("sends a signed-out visitor to log in rather than creating anything", async () => {
@@ -393,8 +407,8 @@ describe("a readlist the reader opened", () => {
 		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 		const onDefault = parse((await agent.get("/queue")).text);
 
-		expect(saveFormClasses(onWork)).toContain("readlist__save-form--hidden");
-		expect(saveFormClasses(onDefault)).toContain("readlist__save-form--visible");
+		expect(saveCardClasses(onWork)).toContain("readlist-save--hidden");
+		expect(saveCardClasses(onDefault)).toContain("readlist-save--visible");
 		const empty = onWork.querySelector("[data-test-empty-readlist]");
 		assert(empty, "an untouched readlist must render its empty state");
 		expect(empty.textContent).toContain("Every link you save lands in All");
@@ -480,7 +494,7 @@ describe("the readlist every reader is given", () => {
 
 		const doc = parse((await agent.get("/queue?queue=never-minted")).text);
 
-		expect(saveFormClasses(doc)).toContain("readlist__save-form--visible");
+		expect(saveCardClasses(doc)).toContain("readlist-save--visible");
 	});
 
 	it("counts and lists only its own saves", async () => {
@@ -528,14 +542,14 @@ describe("the readlists the reader made, seen from the rail", () => {
 		expect(deleteConfirmActions(doc).map(viewedReadlistOf)).toEqual([viewed, viewed]);
 	});
 
-	it("never offers a readlist the reader is not on for renaming, even though it offers it for deleting", async () => {
+	it("offers every readlist the reader made for renaming, from whichever one they are on", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent);
 
 		const doc = parse((await agent.get("/queue")).text);
 
-		expect(renameable(doc)).toEqual([]);
+		expect(renameable(doc)).toEqual([readlist]);
 		expect(deleteTriggerTargets(doc)).toEqual([`readlist-remove-confirm-${readlist}`]);
 	});
 });

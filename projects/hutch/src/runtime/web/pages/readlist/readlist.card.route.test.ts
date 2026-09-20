@@ -341,7 +341,9 @@ describe("Readlist routes", () => {
 			const card = doc.querySelector("[data-test-article-list] .readlist-article");
 			assert(card, "card must be rendered");
 			expect(card.getAttribute("hx-get")).toMatch(/^\/queue\/.+\/card\?poll=1$/);
-			expect(card.getAttribute("hx-trigger")).toBe("every 3s");
+			expect(card.getAttribute("hx-trigger")).toBe(
+				"every 3s [!this.querySelector('details[open]')]",
+			);
 			expect(card.getAttribute("hx-target")).toBe("this");
 			expect(card.getAttribute("hx-swap")).toBe("outerHTML");
 			expect(card.getAttribute("data-card-status")).toBe("pending");
@@ -385,7 +387,9 @@ describe("Readlist routes", () => {
 			assert(card, "card fragment must be rendered");
 			expect(card.getAttribute("data-test-article")).toBe(articleId);
 			expect(card.getAttribute("hx-get")).toMatch(/poll=4(?:&|$)/);
-			expect(card.getAttribute("hx-trigger")).toBe("every 3s");
+			expect(card.getAttribute("hx-trigger")).toBe(
+				"every 3s [!this.querySelector('details[open]')]",
+			);
 		});
 
 		it("GET /queue/:id/card stops polling once both pipelines terminate", async () => {

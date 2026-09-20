@@ -85,7 +85,7 @@ describe("Readlist onboarding — Next Read milestone", () => {
 
 		const step = nextReadStep(response.text);
 		expect(step.getAttribute("data-test-onboarding-complete")).toBe("false");
-		expect(step.querySelector(".onboarding__step-description")?.textContent).toContain(
+		expect(step.querySelector(".setup-guide__description")?.textContent).toContain(
 			`You've saved 0 of ${NEXT_READ_MINIMUM_SAVES}.`,
 		);
 	});
@@ -100,7 +100,7 @@ describe("Readlist onboarding — Next Read milestone", () => {
 			.set("Cookie", EXTENSION_COOKIES);
 
 		expect(
-			nextReadStep(response.text).querySelector(".onboarding__step-description")?.textContent,
+			nextReadStep(response.text).querySelector(".setup-guide__description")?.textContent,
 		).toContain(`You've saved 12 of ${NEXT_READ_MINIMUM_SAVES}.`);
 	});
 
@@ -169,7 +169,7 @@ describe("Readlist onboarding — Next Read milestone", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
-		expect(container.classList.contains("onboarding--complete")).toBe(true);
+		expect(container.classList.contains("setup-guide--complete")).toBe(true);
 		assert(doc.querySelector("[data-test-onboarding-success]"), "success card must be rendered");
 		expect(doc.querySelectorAll("[data-test-onboarding-dismiss]")).toHaveLength(1);
 	});
@@ -190,7 +190,7 @@ describe("Readlist onboarding — Next Read milestone", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must still be rendered");
-		expect(container.classList.contains("onboarding--hidden")).toBe(true);
+		expect(container.classList.contains("setup-guide--hidden")).toBe(true);
 	});
 
 	it("stops issuing the count query on renders after the milestone is stamped", async () => {
@@ -272,7 +272,7 @@ describe("Readlist onboarding — Next Read milestone", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
-		expect(container.classList.contains("onboarding--visible")).toBe(true);
+		expect(container.classList.contains("setup-guide--visible")).toBe(true);
 		expect(doc.querySelectorAll("[data-test-onboarding-dismiss]")).toHaveLength(0);
 	});
 
@@ -289,7 +289,7 @@ describe("Readlist onboarding — Next Read milestone", () => {
 			"[data-test-onboarding]",
 		);
 		assert(container, "onboarding container must be rendered");
-		expect(container.classList.contains("onboarding--visible")).toBe(true);
+		expect(container.classList.contains("setup-guide--visible")).toBe(true);
 		expect(nextReadStep(response.text).getAttribute("data-test-onboarding-complete")).toBe("false");
 	});
 

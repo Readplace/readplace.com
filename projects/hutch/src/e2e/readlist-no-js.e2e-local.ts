@@ -115,6 +115,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 	});
 
 	test("the nav opens and signs the reader out with no script", async ({ page }, testInfo) => {
+		await page.emulateMedia({ reducedMotion: "reduce" });
 		const email = await seedArticleWithThumbnail(page, `${testInfo.workerIndex}-${Date.now()}-nav`);
 		await loginAs(page, email);
 

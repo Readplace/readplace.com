@@ -1,78 +1,87 @@
-    <main class="readlist">
-      {{{onboardingHtml}}}
-      <div class="readlist__body">
-        {{{readlistNavHtml}}}
-        <div class="readlist__content">
-          {{#if readlistErrorFlash}}<p class="readlist__error-flash" role="alert" data-test-readlist-error>{{readlistErrorFlash}}</p>{{/if}}
-          <aside class="readlist-banner {{subscriptionBannerStateClass}}" aria-live="polite" data-test-subscription-banner>
-            {{#if subscriptionBannerIsTrialCountdown}}
-            <p class="readlist-banner__message" data-test-banner-message><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
-            <button class="btn btn--primary btn--compact readlist-banner__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
-            <a class="btn btn--primary btn--compact readlist-banner__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
-            {{/if}}
-            {{#if subscriptionBannerIsCancellationScheduled}}
-            <p class="readlist-banner__message" data-test-banner-message><strong>Subscription ending <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time>.</strong> You still have full access until then.</p>
-            <a class="btn btn--primary btn--compact readlist-banner__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate</a>
-            {{/if}}
-            {{#if subscriptionBannerIsInactive}}
-            <p class="readlist-banner__message" data-test-banner-message><strong>Subscription not active.</strong> Your saved articles are still here.</p>
-            <button class="btn btn--primary btn--compact readlist-banner__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
-            <a class="btn btn--primary btn--compact readlist-banner__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
-            {{/if}}
-          </aside>
+    <main class="readlist" data-test-readlist-page>
+      <div class="readlist__layout">
+        <div class="readlist__rail">
+          {{{readlistNavHtml}}}
+        </div>
+        <div class="readlist__main">
+          {{{alertHtml}}}
           <div id="status-toast">{{{statusToastHtml}}}</div>
-          <form class="{{saveFormClass}}" method="POST" action="{{saveAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".readlist__save-btn" hx-indicator="closest form, .readlist-save-skeleton" data-save-tip="{{saveTipState}}" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
-            <input class="readlist__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}"{{#if accessIsReadOnly}} disabled{{/if}}>
-            <button class="btn btn--primary btn--field readlist__save-btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="readlist__save-btn-label">Save</span><span class="readlist__save-btn-saving">Saving…</span></button>
-          </form>
-          {{#if saveError}}<p class="readlist__save-error" data-test-save-error{{#if saveErrorCode}} data-test-saveable-url-code="{{saveErrorCode}}"{{/if}}>{{saveError}}</p>{{/if}}
-          {{#if importFlash}}<p class="readlist__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
-          {{#if hasImportSkipped}}
-          <div class="readlist__import-skipped" data-test-import-skipped role="status">
-            <p class="readlist__import-skipped-title">Couldn't import these links:</p>
-            <ul class="readlist__import-skipped-list">
-              {{#each importSkippedEntries}}
-              <li class="readlist__import-skipped-row" data-test-import-skipped-row>
-                <span class="readlist__import-skipped-reason" data-test-import-skipped-reason>{{reasonLabel}}</span>
-                <span class="readlist__import-skipped-url" data-test-import-skipped-url>{{url}}</span>
-              </li>
-              {{/each}}
-            </ul>
-            {{#if importSkippedAndMore}}<p class="readlist__import-skipped-more" data-test-import-skipped-more>And {{importSkippedAndMore}} more.</p>{{/if}}
-          </div>
-          {{/if}}
-          {{{filtersHtml}}}
-          {{{countsSpanHtml}}}
-          <div class="readlist__listing">
-            <div class="readlist__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-              <a class="readlist__sort-link" href="{{sortUrl}}" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
+          <section class="readlist-save {{saveCardClass}}" data-test-save-card>
+            <h2 class="readlist-save__title">Save something for later</h2>
+            <p class="readlist-save__lede">Paste any article link and add it directly to your reading list.</p>
+            <form class="readlist-save__form {{saveFormStateClass}}" method="POST" action="{{saveAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".readlist__save-btn" hx-indicator="closest form, .readlist-save-skeleton" data-save-tip="{{saveTipState}}" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
+              <input class="readlist-save__input {{saveInputStateClass}}" type="url" name="url" placeholder="Paste a link to save an article" required value="{{saveUrl}}"{{#if accessIsReadOnly}} disabled{{/if}}>
+              <button class="btn btn--primary btn--field readlist__save-btn readlist-save__btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="readlist__save-btn-label">Save</span><span class="readlist__save-btn-saving">Saving…</span></button>
+            </form>
+            {{#if saveError}}<p class="readlist-save__error" data-test-save-error{{#if saveErrorCode}} data-test-saveable-url-code="{{saveErrorCode}}"{{/if}}>{{saveError}}</p>{{/if}}
+            {{#if importFlash}}<p class="readlist-save__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
+            {{#if hasImportSkipped}}
+            <div class="readlist-save__skipped" data-test-import-skipped role="status">
+              <span class="readlist-save__skipped-icon" aria-hidden="true">{{icon "x-circle"}}</span>
+              <div class="readlist-save__skipped-text">
+                <p class="readlist-save__skipped-title">Some links couldn't be imported</p>
+                <ul class="readlist-save__skipped-list">
+                  {{#each importSkippedEntries}}
+                  <li class="readlist-save__skipped-row" data-test-import-skipped-row>
+                    <span class="readlist-save__skipped-reason" data-test-import-skipped-reason>{{reasonLabel}}</span>
+                    <span class="readlist-save__skipped-url" data-test-import-skipped-url>{{url}}</span>
+                  </li>
+                  {{/each}}
+                </ul>
+                {{#if importSkippedAndMore}}<p class="readlist-save__skipped-more" data-test-import-skipped-more>And {{importSkippedAndMore}} more.</p>{{/if}}
+              </div>
             </div>
+            {{/if}}
+          </section>
+          {{{tabsHtml}}}
+          {{{countsSpanHtml}}}
+          <section class="readlist-listing" data-test-listing>
+            <header class="readlist-listing__header">
+              <span class="readlist__count" id="readlist-count" data-test-listing-count>{{countLabel}}</span>
+              <a class="readlist-listing__sort" href="{{sortUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
+            </header>
             {{{saveSkeletonHtml}}}
             {{#if isEmpty}}
-            <div class="readlist__empty" data-test-empty-readlist>
-              <h2 class="readlist__empty-title">{{emptyTitle}}</h2>
-              {{#if saveBarHidden}}
-              <p class="readlist__empty-text">Every link you save lands in <a href="{{defaultReadlistUrl}}">{{defaultReadlistLabel}}</a>. Open an article there to add it to this readlist.</p>
-              {{else}}
-              <p class="readlist__empty-text">Paste a URL above to save a link. Or <a href="{{track '/install' source='queue-empty' content='install'}}">set up one-tap saving</a> from {{saveSurfacesShort}}.</p>
-              {{/if}}
+            <div class="readlist-empty" data-test-empty-readlist>
+              <div class="readlist-empty__illustration">{{{emptyIllustrationHtml}}}</div>
+              <h2 class="readlist-empty__title" data-test-empty-title>{{emptyTitle}}</h2>
+              <p class="readlist-empty__text">{{emptyText}}</p>
+              {{#each emptyActions}}
+              <a class="btn btn--secondary readlist-empty__cta" href="{{href}}" data-test-empty-action="{{key}}">{{label}}</a>
+              {{/each}}
             </div>
             {{/if}}
             {{#if hasArticles}}
-            <div class="readlist__list" data-test-article-list>
+            <div class="readlist-list" data-test-article-list>
               {{#each articleHtmls}}{{{this}}}{{/each}}
             </div>
             {{/if}}
-          </div>
-          {{#if showPagination}}
-          <nav class="readlist__pagination" aria-label="Pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
-            {{#if hasPrev}}<a class="readlist__pagination-link" href="{{prevUrl}}" data-test-pagination-prev>{{icon "arrow-left"}} Previous</a>{{/if}}
-            <span class="readlist__pagination-info" id="readlist-pagination-info" data-test-pagination-info>Page {{currentPage}}</span>
-            {{#if hasNext}}<a class="readlist__pagination-link" href="{{nextUrl}}" data-test-pagination-next>Next {{icon "arrow-right"}}</a>{{/if}}
+          </section>
+          <nav class="readlist-pagination {{paginationStateClass}}" aria-label="Pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
+            <span class="readlist__showing" id="readlist-pagination-info" data-test-pagination-info>{{showingLabel}}</span>
+            <div class="readlist-pagination__controls">
+              {{#if prevUrl}}
+              <a class="readlist-pagination__link readlist-pagination__link--enabled" href="{{prevUrl}}" data-test-pagination-prev>{{icon "arrow-left"}} Previous</a>
+              {{else}}
+              <span class="readlist-pagination__link readlist-pagination__link--disabled" aria-disabled="true" data-test-pagination-prev>{{icon "arrow-left"}} Previous</span>
+              {{/if}}
+              <ol class="readlist__pages" id="readlist-pages" data-test-pagination-pages>
+                <li class="readlist__page-item"><span class="readlist__page readlist__page--current" aria-current="page" data-test-pagination-page="{{currentPage}}">{{currentPage}}</span></li>
+              </ol>
+              {{#if nextUrl}}
+              <a class="readlist-pagination__link readlist-pagination__link--enabled" href="{{nextUrl}}" data-test-pagination-next>Next {{icon "arrow-right"}}</a>
+              {{else}}
+              <span class="readlist-pagination__link readlist-pagination__link--disabled" aria-disabled="true" data-test-pagination-next>Next {{icon "arrow-right"}}</span>
+              {{/if}}
+            </div>
           </nav>
-          {{/if}}
+        </div>
+        <div class="readlist__side">
+          {{{subscriptionHtml}}}
+          {{{onboardingHtml}}}
         </div>
       </div>
+      {{{readlistRenamesHtml}}}
       {{{readlistDeleteConfirmHtml}}}
       {{{deleteConfirmsHtml}}}
       {{{markStatusConfirmsHtml}}}

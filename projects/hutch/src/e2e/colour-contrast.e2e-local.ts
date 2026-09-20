@@ -11,10 +11,9 @@ assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
 const BASE_URL = `http://localhost:${E2E_PORT}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
 const VIEWPORT = { width: 1280, height: 900 };
-const READLIST_ROOT = "main.readlist";
 const READER_ROOT = "main.reader";
 const AUTH_ROOT = "main.auth-page";
-const DESIGN_ROOT = "main.readlist-design";
+const READLIST_ROOT = "main.readlist";
 const SETTLE_MS = 45000;
 
 function minimumRatio(measured: RenderedInk): number {
@@ -111,22 +110,6 @@ function assertContrast(
 	}
 }
 
-async function auditReadlist(page: Page, where: { theme: string; view: string }): Promise<void> {
-	await page.waitForSelector("body.page-readlist");
-	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
-	await waitForCardsSettled(page);
-	await page.mouse.move(0, 0);
-
-	const measurements = await stableMeasurements(page, READLIST_ROOT);
-	assert.ok(
-		measurements.length > 0,
-		`${where.theme}/${where.view}: the audit measured nothing inside ${READLIST_ROOT}`,
-	);
-	assertContrast(measurements, where);
-
-	await auditDeleteConfirmation(page, where);
-}
-
 async function auditReader(page: Page, where: { theme: string; view: string }): Promise<void> {
 	await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', {
 		timeout: SETTLE_MS,
@@ -160,32 +143,10 @@ async function auditAuth(page: Page, where: { theme: string; view: string }): Pr
  * the pass above and its surfaces would ship unmeasured. Opening it puts the
  * panel in the top layer, which changes painting only — it stays a DOM
  * descendant of the readlist root, so the same walk reaches it. */
-async function auditDeleteConfirmation(
-	page: Page,
-	where: { theme: string; view: string },
-): Promise<void> {
-	const trigger = page.locator('[data-test-action="delete"]').first();
-	await trigger.click({ timeout: SETTLE_MS });
-	await expect(page.locator('[data-test-action="delete-confirm"]').first()).toBeVisible({
-		timeout: SETTLE_MS,
-	});
-	// The click leaves the pointer over the trigger, whose :hover state fills it
-	// solid red; measuring that would audit a state the guidelines exempt.
-	await page.mouse.move(0, 0);
-
-	const measurements = await stableMeasurements(page, READLIST_ROOT);
-	assertContrast(measurements, { ...where, view: `${where.view}/delete-confirm` });
-
-	await page.keyboard.press("Escape");
-	await expect(page.locator('[data-test-action="delete-confirm"]').first()).toBeHidden({
-		timeout: SETTLE_MS,
-	});
-}
-
 /** The design card's delete lives inside a closed <details> menu, so the sweep
  * has to open the menu before the delete trigger is clickable; the confirm
- * popover then renders inside main.readlist-design, so the same walk reaches it. */
-async function auditDesignDeleteConfirmation(
+ * popover then renders inside main.readlist, so the same walk reaches it. */
+async function auditDeleteConfirmation(
 	page: Page,
 	where: { theme: string; view: string },
 ): Promise<void> {
@@ -196,7 +157,7 @@ async function auditDesignDeleteConfirmation(
 	});
 	await page.mouse.move(0, 0);
 
-	const measurements = await stableMeasurements(page, DESIGN_ROOT);
+	const measurements = await stableMeasurements(page, READLIST_ROOT);
 	assertContrast(measurements, { ...where, view: `${where.view}/delete-confirm` });
 
 	await page.keyboard.press("Escape");
@@ -205,60 +166,21 @@ async function auditDesignDeleteConfirmation(
 	});
 }
 
-async function auditDesignQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
-	await page.waitForSelector("body.page-readlist-design");
+async function auditReadlistQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
+	await page.waitForSelector("body.page-readlist");
 	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
 	await waitForCardsSettled(page);
 	await page.mouse.move(0, 0);
 
-	const measurements = await stableMeasurements(page, DESIGN_ROOT);
+	const measurements = await stableMeasurements(page, READLIST_ROOT);
 	assert.ok(
 		measurements.length > 0,
-		`${where.theme}/${where.view}: the audit measured nothing inside ${DESIGN_ROOT}`,
+		`${where.theme}/${where.view}: the audit measured nothing inside ${READLIST_ROOT}`,
 	);
 	assertContrast(measurements, where);
 
-	await auditDesignDeleteConfirmation(page, where);
+	await auditDeleteConfirmation(page, where);
 }
-
-test.describe("Readlist colour roles hold their WCAG contrast in both themes", () => {
-	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
-
-	test("every rendered readlist surface clears its contrast minimum", async ({ page }, testInfo) => {
-		const run = `${testInfo.workerIndex}-${Date.now()}`;
-		await signUpFreshUser(page, `colour-contrast-${run}@example.com`);
-		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-unread=${run}`, 1);
-		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-read=${run}`, 2);
-		await markNewestArticleRead(page);
-
-		const readerHref = await page
-			.locator("[data-test-article-title]")
-			.first()
-			.getAttribute("href");
-		assert(readerHref, "a saved card must link to its own reader");
-		const readerUrl = new URL(readerHref, BASE_URL).toString();
-
-		const viewUrls = {
-			"to-read": `${BASE_URL}/queue`,
-			done: `${BASE_URL}/queue?tab=done`,
-			"save-error": `${BASE_URL}/queue?error_code=save_failed`,
-		} as const;
-		for (const theme of ["light", "dark"] as const) {
-			await page.emulateMedia({ colorScheme: theme });
-			for (const view of ["to-read", "done", "save-error"] as const) {
-				await page.goto(viewUrls[view], { waitUntil: "domcontentloaded" });
-				if (view === "save-error") {
-					await expect(page.locator("[data-test-save-error]")).toBeVisible({
-						timeout: SETTLE_MS,
-					});
-				}
-				await auditReadlist(page, { theme, view });
-			}
-			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
-			await auditReader(page, { theme, view: "reader" });
-		}
-	});
-});
 
 test.describe("Auth colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
@@ -293,34 +215,43 @@ test.describe("Auth colour roles hold their WCAG contrast in both themes", () =>
 	});
 });
 
-test.describe("Design readlist colour roles hold their WCAG contrast in both themes", () => {
+test.describe("Readlist colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 
-	test("every rendered design-queue surface clears its contrast minimum", async ({
+	test("every rendered readlist surface clears its contrast minimum", async ({
 		page,
 	}, testInfo) => {
 		const run = `${testInfo.workerIndex}-${Date.now()}`;
-		await signUpFreshUser(page, `colour-contrast-design-${run}@example.com`);
-		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-design-unread=${run}`, 1);
-		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-design-read=${run}`, 2);
+		await signUpFreshUser(page, `colour-contrast-${run}@example.com`);
+		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-unread=${run}`, 1);
+		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-read=${run}`, 2);
 		await markNewestArticleRead(page);
 
-		const designViewUrls = {
-			"to-read": `${BASE_URL}/queue?feature=design`,
-			done: `${BASE_URL}/queue?tab=done&feature=design`,
-			"save-error": `${BASE_URL}/queue?feature=design&error_code=save_failed`,
+		const readerHref = await page
+			.locator("[data-test-article-title]")
+			.first()
+			.getAttribute("href");
+		assert(readerHref, "a saved card must link to its own reader");
+		const readerUrl = new URL(readerHref, BASE_URL).toString();
+
+		const viewUrls = {
+			"to-read": `${BASE_URL}/queue`,
+			done: `${BASE_URL}/queue?tab=done`,
+			"save-error": `${BASE_URL}/queue?error_code=save_failed`,
 		} as const;
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			for (const view of ["to-read", "done", "save-error"] as const) {
-				await page.goto(designViewUrls[view], { waitUntil: "domcontentloaded" });
+				await page.goto(viewUrls[view], { waitUntil: "domcontentloaded" });
 				if (view === "save-error") {
 					await expect(page.locator("[data-test-save-error]")).toBeVisible({
 						timeout: SETTLE_MS,
 					});
 				}
-				await auditDesignQueue(page, { theme, view });
+				await auditReadlistQueue(page, { theme, view });
 			}
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await auditReader(page, { theme, view: "reader" });
 		}
 	});
 });

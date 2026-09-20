@@ -1,181 +1,167 @@
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import assert from "node:assert/strict";
-import { generateCspNonce } from "@packages/web-shell";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
-import { renderReadlistCounts, toReadlistCountsDisplayModel } from "./readlist-counts.component";
-import { ReadlistPage } from "./readlist.component";
-import { DEFAULT_READLIST } from "./readlist.nav";
-import { toReadlistViewModel } from "./readlist.viewmodel";
-import { READLIST_CREATE_PATH, type ReadlistUrlState } from "./readlist.url";
+import type { ReadlistUrlState } from "./readlist.url";
+import {
+	renderReadlistCounts,
+	savedArticlesLabel,
+	showingLabel,
+	toReadlistCountsDisplayModel,
+} from "./readlist-counts.component";
 
-const PAGE_SIZE = 20;
+const DEFAULT_FILTERS: ReadlistUrlState = { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 };
 
-function displayModelFor(input: {
-	filters?: Partial<ReadlistUrlState>;
-	unreadCount?: number;
-	tabTotal?: number;
-}) {
-	return toReadlistCountsDisplayModel({
-		filters: { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1, ...input.filters },
-		unreadCount: input.unreadCount ?? 0,
-		tabTotal: input.tabTotal ?? 0,
-		pageSize: PAGE_SIZE,
+function parse(html: string): Document {
+	return new JSDOM(html).window.document;
+}
+
+describe("savedArticlesLabel", () => {
+	it("uses the singular form for exactly one saved article", () => {
+		expect(savedArticlesLabel(1)).toBe("1 Saved Article");
 	});
-}
 
-function parseFragment(html: string): Document {
-	return new JSDOM(`<main>${html}</main>`).window.document;
-}
+	it("uses the plural form when there are no saved articles", () => {
+		expect(savedArticlesLabel(0)).toBe("0 Saved Articles");
+	});
 
-function swappedTargets(doc: Document): string[] {
-	return Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id);
-}
+	it("uses the plural form for many saved articles", () => {
+		expect(savedArticlesLabel(42)).toBe("42 Saved Articles");
+	});
+});
 
-function unreadLabel(doc: Document): Element {
-	const label = doc.querySelector("#readlist-unread-label--default");
-	assert(label, "the counts fragment must carry the unread tab's label");
-	return label;
-}
+describe("showingLabel", () => {
+	it("reports the page's row count alone when the total is unknown", () => {
+		expect(showingLabel({ rowsOnPage: 20 })).toBe("Showing 20");
+	});
+
+	it("reports the page's row count against the total when known", () => {
+		expect(showingLabel({ rowsOnPage: 20, total: 75 })).toBe("Showing 20 of 75");
+	});
+});
+
+describe("numbered page links", () => {
+	it("renders just the current page when the listing fits on one page", () => {
+		const links = toReadlistCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 1 }, unreadCount: 0, tabTotal: 1, pageSize: 1 }).pages;
+
+		expect(links.map((link) => link.label)).toEqual(["1"]);
+		expect(links.map((link) => link.isCurrent)).toEqual([true]);
+	});
+
+	it("shows the run around page 1 with a gap before the last page across ten pages", () => {
+		const links = toReadlistCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 1 }, unreadCount: 0, tabTotal: 10, pageSize: 1 }).pages;
+
+		expect(links.map((link) => link.label)).toEqual(["1", "2", "…", "10"]);
+		expect(links.find((link) => link.label === "1")?.isCurrent).toBe(true);
+	});
+
+	it("brackets the current page with a gap on each side when it sits in the middle", () => {
+		const links = toReadlistCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 5 }, unreadCount: 0, tabTotal: 10, pageSize: 1 }).pages;
+
+		expect(links.map((link) => link.label)).toEqual(["1", "…", "4", "5", "6", "…", "10"]);
+		expect(links.find((link) => link.label === "5")?.isCurrent).toBe(true);
+	});
+
+	it("clamps a page beyond the last back onto the last page", () => {
+		const links = toReadlistCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 99 }, unreadCount: 0, tabTotal: 10, pageSize: 1 }).pages;
+
+		expect(links.filter((link) => link.isCurrent).map((link) => link.label)).toEqual(["10"]);
+	});
+
+
+	it("points every non-current page link at its own page, and gives the current page none", () => {
+		const links = toReadlistCountsDisplayModel({ filters: { ...DEFAULT_FILTERS, page: 5 }, unreadCount: 0, tabTotal: 10, pageSize: 1 }).pages;
+
+		const page6 = links.find((link) => link.label === "6");
+		assert(page6, "page 6 must be reachable from page 5");
+		const url = new URL(page6.href ?? "", "https://internal.invalid");
+		expect(url.pathname).toBe("/queue");
+		expect(url.searchParams.get("page")).toBe("6");
+
+		const current = links.find((link) => link.isCurrent);
+		assert(current, "the current page must be in the list");
+		expect(current.href).toBeUndefined();
+	});
+});
 
 describe("toReadlistCountsDisplayModel", () => {
-	it("should name the label the readlist page reserved for the count", () => {
-		expect(displayModelFor({}).unreadLabelId).toBe("readlist-unread-label--default");
+	it("counts only the rows that actually landed on the last partial page", () => {
+		const model = toReadlistCountsDisplayModel({
+			filters: { ...DEFAULT_FILTERS, page: 4 },
+			unreadCount: 0,
+			tabTotal: 75,
+			pageSize: 20,
+		});
+
+		expect(model.showingLabel).toBe("Showing 15 of 75");
 	});
 
-	it("should label the badge with the exact unread count below the cap", () => {
-		expect(displayModelFor({ unreadCount: 42 }).filterUnreadLabel).toBe("To Read (42)");
-	});
+	it("reports zero rows for an empty readlist", () => {
+		const model = toReadlistCountsDisplayModel({
+			filters: DEFAULT_FILTERS,
+			unreadCount: 0,
+			tabTotal: 0,
+			pageSize: 20,
+		});
 
-	it("should label the badge with the last exact count at the display boundary", () => {
-		expect(displayModelFor({ unreadCount: 99 }).filterUnreadLabel).toBe("To Read (99)");
-	});
-
-	it("should label the badge 99+ once the capped count reaches the limit", () => {
-		expect(displayModelFor({ unreadCount: 100 }).filterUnreadLabel).toBe("To Read (99+)");
-	});
-
-	it("should hide the page count when the tab fits on a single page", () => {
-		const exactlyOnePage = displayModelFor({ tabTotal: PAGE_SIZE });
-
-		expect(exactlyOnePage.totalPages).toBe(1);
-		expect(exactlyOnePage.showPageCount).toBe(false);
-	});
-
-	it("should hide the page count for an empty tab", () => {
-		const empty = displayModelFor({ tabTotal: 0 });
-
-		expect(empty.totalPages).toBe(1);
-		expect(empty.showPageCount).toBe(false);
-	});
-
-	it("should show the page count as soon as the tab spills past one page", () => {
-		const spilled = displayModelFor({ tabTotal: PAGE_SIZE + 1 });
-
-		expect(spilled.totalPages).toBe(2);
-		expect(spilled.showPageCount).toBe(true);
-	});
-
-	it("should round a partial last page up", () => {
-		expect(displayModelFor({ tabTotal: 75 }).totalPages).toBe(4);
-	});
-
-	it("should not invent a page for an exact multiple of the page size", () => {
-		expect(displayModelFor({ tabTotal: 80 }).totalPages).toBe(4);
-	});
-
-	it("should report the page the reader is currently on", () => {
-		expect(displayModelFor({ filters: { page: 3 }, tabTotal: 75 }).currentPage).toBe(3);
+		expect(model.showingLabel).toBe("Showing 0 of 0");
 	});
 });
 
 describe("renderReadlistCounts", () => {
-	it("should refresh the unread tab's label out of band", () => {
-		const doc = parseFragment(renderReadlistCounts(displayModelFor({ unreadCount: 7 })));
-		const label = unreadLabel(doc);
-
-		expect(label.getAttribute("hx-swap-oob")).toBe("innerHTML");
-		expect(label.hasAttribute("hx-preserve")).toBe(false);
-		expect(label.textContent).toBe("To Read (7)");
-	});
-
-	it("should swap the pagination info out of band when the tab spans pages", () => {
-		const doc = parseFragment(
-			renderReadlistCounts(displayModelFor({ filters: { page: 2 }, tabTotal: 75 })),
-		);
-		const info = doc.querySelector("#readlist-pagination-info");
-
-		assert(info, "counts fragment must carry the pagination info when there is more than one page");
-		expect(info.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(info.getAttribute("class")).toBe("readlist__pagination-info");
-		expect(info.hasAttribute("data-test-pagination-info")).toBe(true);
-		expect(info.textContent).toBe("Page 2 of 4");
-	});
-
-	it("should swap only the unread label when the page it targets is not rendered", () => {
-		const doc = parseFragment(renderReadlistCounts(displayModelFor({ unreadCount: 5, tabTotal: 5 })));
-
-		expect(swappedTargets(doc)).toEqual(["readlist-unread-label--default"]);
-		expect(unreadLabel(doc).textContent).toBe("To Read (5)");
-	});
-});
-
-describe("readlist counts fragment against the initial render", () => {
-	function initialUnreadLabel(filters: ReadlistUrlState): Element {
-		const vm = toReadlistViewModel(
-			{ articles: [], hasMore: false, page: filters.page, pageSize: PAGE_SIZE },
-			filters,
-			{ now: new Date("2026-01-01T00:00:00.000Z") },
-		);
-		const rail = {
-			readlists: [DEFAULT_READLIST],
-			activeReadlist: DEFAULT_READLIST,
-			newReadlistAction: READLIST_CREATE_PATH,
-			canCreate: true,
-		};
-		const doc = parseFragment(ReadlistPage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", readlistHoldsArticles: false, rail, saveTip: { state: "due", html: "" }, onboarding: { context: { hasInstallableClient: false }, dismissed: false, completedBefore: false, completionUnearned: false }, preferencesEnabled: false }).content.html);
-		const label = doc.querySelector('[data-test-filter="unread"] span[id]');
-		assert(label, "the readlist page must render the label the counts fragment refreshes");
-		return label;
-	}
-
-	function swappedUnreadLabel(filters: ReadlistUrlState, unreadCount: number): Element {
-		const doc = parseFragment(
+	it("emits three out-of-band spans the mutation response can swap into the page", () => {
+		const doc = parse(
 			renderReadlistCounts(
-				toReadlistCountsDisplayModel({ filters, unreadCount, tabTotal: 0, pageSize: PAGE_SIZE }),
+				toReadlistCountsDisplayModel({
+					filters: DEFAULT_FILTERS,
+					unreadCount: 3,
+					tabTotal: 45,
+					pageSize: 20,
+				}),
 			),
 		);
-		const label = doc.querySelector('span[hx-swap-oob="innerHTML"]');
-		assert(label, "the counts fragment must render the unread tab's label");
-		return label;
-	}
 
-	it.each<ReadlistUrlState>([
-		{ readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 },
-		{ readlist: DEFAULT_READLIST_SLUG, tab: "done", page: 1 },
-		{ readlist: DEFAULT_READLIST_SLUG, tab: "queue", order: "asc", page: 2 },
-		{ readlist: DEFAULT_READLIST_SLUG, tab: "done", order: "asc", page: 3 },
-		{ readlist: ReadlistSlugSchema.parse("work"), tab: "done", page: 1 },
-	])("should refresh the exact label the render preserves, for %o", (filters) => {
-		const initial = initialUnreadLabel(filters);
-		expect(initial.hasAttribute("hx-preserve")).toBe(true);
-
-		const swapped = swappedUnreadLabel(filters, 3);
-		expect(swapped.getAttribute("hx-swap-oob")).toBe("innerHTML");
-		expect(swapped.hasAttribute("hx-preserve")).toBe(false);
-		expect(swapped.id).toBe(initial.id);
+		for (const id of ["readlist-count", "readlist-pagination-info", "readlist-pages"]) {
+			const el = doc.getElementById(id);
+			assert(el, `the ${id} span must render`);
+			expect(el.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		}
 	});
 
-	it("should scope the label id to the queue on both the render and the fragment", () => {
-		const work: ReadlistUrlState = { readlist: ReadlistSlugSchema.parse("work"), tab: "queue", page: 1 };
+	it("refreshes the unread tab label out of band, queue-scoped and capped at 99+", () => {
+		const doc = parse(
+			renderReadlistCounts(
+				toReadlistCountsDisplayModel({
+					filters: DEFAULT_FILTERS,
+					unreadCount: 100,
+					tabTotal: 100,
+					pageSize: 20,
+				}),
+			),
+		);
 
-		expect(initialUnreadLabel(work).id).toBe("readlist-unread-label--work");
-		expect(swappedUnreadLabel(work, 3).id).toBe("readlist-unread-label--work");
+		const unread = doc.getElementById(`readlist-unread-label--${DEFAULT_READLIST_SLUG}`);
+		assert(unread, "the unread tab label span must render");
+		expect(unread.getAttribute("hx-swap-oob")).toBe("innerHTML");
+		expect(unread.textContent).toBe("To Read (99+)");
 	});
 
-	it("should replace the countless initial label with the counted one", () => {
-		const filters: ReadlistUrlState = { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 };
+	it("links every non-current page number", () => {
+		const doc = parse(
+			renderReadlistCounts(
+				toReadlistCountsDisplayModel({
+					filters: { ...DEFAULT_FILTERS, page: 1 },
+					unreadCount: 0,
+					tabTotal: 200,
+					pageSize: 20,
+				}),
+			),
+		);
 
-		expect(initialUnreadLabel(filters).textContent).toBe("To Read");
-		expect(swappedUnreadLabel(filters, 3).textContent).toBe("To Read (3)");
+		const link = doc.querySelector('[data-test-pagination-page="2"]');
+		assert(link, "page 2 must be reachable from page 1");
+		expect(link.tagName).toBe("A");
+		const url = new URL(link.getAttribute("href") ?? "", "https://internal.invalid");
+		expect(url.pathname).toBe("/queue");
+		expect(url.searchParams.get("page")).toBe("2");
 	});
 });

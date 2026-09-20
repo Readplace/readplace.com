@@ -10,7 +10,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
-import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./readlist-nav.browser";
+import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 import { measureDocumentBoxes, pinSaveBarValue } from "./readlist-save-skeleton.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -30,7 +30,7 @@ const SAVE_FORM_IN_FLIGHT = `${SAVE_FORM}.htmx-request`;
 const SAVING_LABEL = `${SAVE_FORM} .readlist__save-btn-saving`;
 const SKELETON = "main.readlist [data-test-save-skeleton]";
 const SKELETON_HEADER = `${SKELETON} .readlist-save-skeleton__header`;
-const SORT_ROW = "main.readlist .readlist__sort";
+const SORT_ROW = "main.readlist .readlist-listing__header";
 const LIST = "[data-test-article-list]";
 const CARD = "[data-test-article]";
 const FIRST_CARD = `${LIST} > ${CARD}:first-child`;
@@ -38,7 +38,7 @@ const PENDING_CARD = '[data-card-status="pending"]';
 const EMPTY = "main.readlist [data-test-empty-readlist]";
 const SAVE_ERROR = "[data-test-save-error]";
 const UNREAD_FILTER_TAB = 'main.readlist [data-test-filter="unread"]';
-const AVATAR = "main.readlist .onboarding__avatar";
+const AVATAR = "main.readlist .setup-guide__avatar";
 
 const PINNED_SAVE_URL = "https://example.com/an-article-being-saved";
 

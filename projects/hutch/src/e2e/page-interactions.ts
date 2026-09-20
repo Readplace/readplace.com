@@ -69,7 +69,17 @@ export async function markReadWithConfirmation(page: Page, control: Locator): Pr
 	await clickAndWaitForPageReload(page, confirm)
 }
 
+/** A card's delete lives inside the card's own menu, so the reader opens the menu
+ * before the trigger is there to press. */
+async function openEnclosingMenu(trigger: Locator): Promise<void> {
+	const menu = trigger.locator('xpath=ancestor::details[1]')
+	if ((await menu.count()) === 0) return
+	if (await menu.evaluate((element: HTMLDetailsElement) => element.open)) return
+	await menu.locator('summary').click({ timeout: 15000 })
+}
+
 export async function deleteArticleWithConfirmation(page: Page, trigger: Locator): Promise<void> {
+	await openEnclosingMenu(trigger)
 	const popoverId = await trigger.getAttribute('popovertarget')
 	assert.ok(popoverId, 'the delete trigger must reference its confirmation popover')
 	const confirm = page.locator(`[id="${popoverId}"] [data-test-action="delete-confirm"]`)

@@ -106,7 +106,7 @@ describe("Readlist onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must be rendered");
-		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--visible")).toBe(true);
 
 		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
 		assert(installStep, "install-extension step must be rendered");
@@ -131,7 +131,7 @@ describe("Readlist onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must be rendered");
-		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--visible")).toBe(true);
 
 		const saveStep = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
 		assert(saveStep);
@@ -188,11 +188,11 @@ describe("Readlist onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must be rendered");
-		expect(onboarding.classList.contains("onboarding--complete")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--complete")).toBe(true);
 
 		const success = doc.querySelector("[data-test-onboarding-success]");
 		assert(success, "success section must be rendered");
-		expect(success.querySelector(".onboarding__success-title")?.textContent).toMatch(/You did it!/);
+		expect(success.querySelector(".setup-guide__success-title")?.textContent).toMatch(/You did it!/);
 	});
 
 	it("shows 'Install the Chrome browser extension' for Chrome user-agent", async () => {
@@ -205,7 +205,7 @@ describe("Readlist onboarding", () => {
 			.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36");
 
 		const doc = new JSDOM(response.text).window.document;
-		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
+		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .setup-guide__step-title');
 		assert(title);
 		expect(title.textContent).toBe("Install the Chrome browser extension");
 	});
@@ -220,7 +220,7 @@ describe("Readlist onboarding", () => {
 			.set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0");
 
 		const doc = new JSDOM(response.text).window.document;
-		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
+		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .setup-guide__step-title');
 		assert(title);
 		expect(title.textContent).toBe("Install the Firefox browser extension");
 	});
@@ -243,7 +243,7 @@ describe("Readlist onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must still be rendered");
-		expect(onboarding.classList.contains("onboarding--complete")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--complete")).toBe(true);
 
 		const success = doc.querySelector("[data-test-onboarding-success]");
 		assert(success, "success section must be rendered");
@@ -262,7 +262,7 @@ describe("Readlist onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must still be rendered so visibility is encoded as a state class");
-		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--hidden")).toBe(true);
 	});
 
 	it("re-renders onboarding when dismiss cookie is present but alive cookie is missing", async () => {
@@ -278,7 +278,7 @@ describe("Readlist onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding must re-render so the user can install the extension in this browser");
-		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--visible")).toBe(true);
 		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
 		assert(installStep);
 		expect(installStep.getAttribute("data-test-onboarding-complete")).toBe("false");
@@ -297,7 +297,7 @@ describe("Readlist onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must re-render when cookie version is stale");
-		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--visible")).toBe(true);
 	});
 
 	it("POST /queue/dismiss-onboarding from a client device sets the step-hash version and redirects to /queue", async () => {
@@ -318,7 +318,7 @@ describe("Readlist onboarding", () => {
 	describe("success-card welcome copy", () => {
 		function successMessage(html: string): Element {
 			const message = new JSDOM(html).window.document.querySelector(
-				".onboarding__success-message",
+				".setup-guide__success-message",
 			);
 			assert(message, "success message element must be rendered");
 			return message;
@@ -339,7 +339,7 @@ describe("Readlist onboarding", () => {
 				.set("Cookie", ALL_COMPLETE_COOKIES);
 
 			const message = successMessage(response.text);
-			expect(message.classList.contains("onboarding__success-message--hidden")).toBe(false);
+			expect(message.classList.contains("setup-guide__success-message--hidden")).toBe(false);
 			expect(message.textContent).toContain("one of us");
 		});
 
@@ -359,7 +359,7 @@ describe("Readlist onboarding", () => {
 				);
 
 			const message = successMessage(response.text);
-			expect(message.classList.contains("onboarding__success-message--hidden")).toBe(true);
+			expect(message.classList.contains("setup-guide__success-message--hidden")).toBe(true);
 		});
 
 		it("still welcomes in full when the only past dismissal was the no-client escape card", async () => {
@@ -378,7 +378,7 @@ describe("Readlist onboarding", () => {
 				);
 
 			const message = successMessage(response.text);
-			expect(message.classList.contains("onboarding__success-message--hidden")).toBe(false);
+			expect(message.classList.contains("setup-guide__success-message--hidden")).toBe(false);
 		});
 	});
 });
@@ -389,7 +389,7 @@ const IPHONE_UA =
 
 function installTitle(html: string): string | null | undefined {
 	return new JSDOM(html).window.document
-		.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title')
+		.querySelector('[data-test-onboarding-step="install-extension"] .setup-guide__step-title')
 		?.textContent;
 }
 
@@ -439,7 +439,7 @@ describe("Readlist onboarding — iPhone", () => {
 		expect(installForm.querySelector('input[name="client"]')?.getAttribute("value")).toBe("iphone");
 		expect(
 			doc
-				.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title')
+				.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .setup-guide__step-title')
 				?.textContent,
 		).toBe("Save your first article using the iPhone app");
 		expect(stepComplete(response.text, "install-extension")).toBe("false");
@@ -484,10 +484,10 @@ describe("Readlist onboarding — iPhone", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must be rendered");
-		expect(onboarding.classList.contains("onboarding--complete")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--complete")).toBe(true);
 		const success = doc.querySelector("[data-test-onboarding-success]");
 		assert(success, "success section must be rendered once both iPhone steps are complete");
-		expect(success.querySelector(".onboarding__success-title")?.textContent).toMatch(/You did it!/);
+		expect(success.querySelector(".setup-guide__success-title")?.textContent).toMatch(/You did it!/);
 	});
 
 	it("does not record an iOS signal for a Safari readlist load that lacks the client header", async () => {
@@ -609,7 +609,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must be rendered");
-		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--visible")).toBe(true);
 
 		const dismiss = doc.querySelector("[data-test-onboarding-no-client] [data-test-onboarding-dismiss]");
 		assert(dismiss, "Dismiss button must be rendered on the no-client card");
@@ -630,7 +630,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must still be rendered so visibility is a state class");
-		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--hidden")).toBe(true);
 	});
 
 	/** The no-client dismissal is decoupled from the step hash: a cookie carrying
@@ -651,7 +651,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must still be rendered");
-		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--visible")).toBe(true);
 		assert(
 			doc.querySelector("[data-test-onboarding-no-client]"),
 			"the no-client card must still show — a step-hash cookie is not a no-client dismissal",
@@ -686,6 +686,6 @@ describe("Readlist onboarding — no installable client", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must still be rendered");
-		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--hidden")).toBe(true);
 	});
 });

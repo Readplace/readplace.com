@@ -37,8 +37,6 @@ const MEMBER_PATHS = [
 	"/queue",
 	"/queue?tab=done",
 	"/queue?q=article",
-	"/queue?feature=design",
-	"/queue?tab=done&feature=design",
 	"/account",
 	"/account?section=subscription",
 	"/export",

@@ -1,7 +1,15 @@
 import type { ReadlistContext } from "./readlist-context";
-import type { ReadlistRailViewModel } from "./readlist.component";
+import type { Readlist } from "./readlist.nav";
 import { readlistErrorFlashMapping } from "./readlist.error";
 import { READLIST_CREATE_PATH, readlistReturnQuery } from "./readlist.url";
+
+export interface ReadlistRailViewModel {
+	readlists: readonly Readlist[];
+	activeReadlist: Readlist;
+	newReadlistAction: string;
+	canCreate: boolean;
+	errorFlash?: string;
+}
 
 export function buildReadlistRail(input: {
 	query: Record<string, unknown>;

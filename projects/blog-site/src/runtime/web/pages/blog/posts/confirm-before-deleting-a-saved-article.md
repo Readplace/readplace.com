@@ -3,6 +3,7 @@ title: "The One Button You Couldn't Take Back"
 description: "Deleting a saved article in Readplace used to be one click with no undo. It asks for confirmation now, built on the browser's native HTML popover with no JavaScript, no extra route, and no change to the delete API the apps and extensions already use."
 slug: "confirm-before-deleting-a-saved-article"
 date: "2026-07-27"
+lastModified: "2026-09-20"
 author: "Fayner Brack"
 keywords: "read it later delete confirmation, confirm before deleting saved article, undo delete read it later, accidental delete read later app, html popover confirmation dialog, native popover no javascript, delete confirmation without javascript, read it later app data safety, save readlist protect deletes, are you sure delete web app"
 ---
@@ -11,7 +12,7 @@ keywords: "read it later delete confirmation, confirm before deleting saved arti
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Every other action in the readlist could be walked back. Mark an article read and an undo toast waited a few seconds to reverse it. Delete could not: one click on a small icon and the saved copy was gone, on every row of both tabs, with nothing offering it back. Readplace now puts a confirmation in front of that click. The delete button opens a panel that asks before anything is removed, and the panel is the browser's native popover, so pressing Esc, clicking outside it, and the backdrop element behind it are the platform's own behaviour rather than code I wrote. Only the dim on that backdrop is mine, a couple of lines of CSS. There is no client bundle, no extra route, and no query parameter carrying the state. A submit button cannot open a popover, so the confirmed delete ships as its own trigger, and the plain one-click form stays as the fallback for a browser too old to support popover. The route that actually removes an article did not change, so the extensions, the iPhone app, and every other client that deletes are untouched. Only the website added a question in front of the one action you could not take back.
+Every other action in the readlist could be walked back. Mark an article read and an undo toast waited a few seconds to reverse it. Delete could not: one tap and the saved copy was gone, on every row of both tabs, with nothing offering it back. Readplace now puts a confirmation in front of that click. The delete button opens a panel that asks before anything is removed, and the panel is the browser's native popover, so pressing Esc, clicking outside it, and the backdrop element behind it are the platform's own behaviour rather than code I wrote. Only the dim on that backdrop is mine, a couple of lines of CSS. There is no client bundle, no extra route, and no query parameter carrying the state. A submit button cannot open a popover, so the confirmed delete ships as its own trigger, and the plain one-click form stays as the fallback for a browser too old to support popover. The route that actually removes an article did not change, so the extensions, the iPhone app, and every other client that deletes are untouched. Only the website added a question in front of the one action you could not take back.
 
 </div>
 </details>
@@ -28,7 +29,7 @@ The action you can't reverse is the one that should ask first. Written down it s
 
 So delete asks now. Click it and a panel opens over the card. It names what is about to happen and gives you two answers, cancel or delete, and nothing leaves the readlist until you pick delete. The click that used to be the whole action is now the click that opens the question.
 
-Nothing else changed about the button. It's the same icon in the same spot, still one tap to reach. The tap lands you at a decision instead of at a deletion.
+Delete now sits in the card's own menu, one tap to open and one to choose it. The tap lands you at a decision instead of at a deletion.
 
 ## A confirmation the browser draws itself
 
@@ -50,6 +51,6 @@ The panels don't live inside the cards either. A card that's still being crawled
 
 The route that removes an article never changed. A POST to the delete endpoint deletes exactly as it did before, so the iPhone app, the browser extensions, and every client that deletes through the API behave the same. The website added a question in front of the click, and nothing underneath it moved.
 
-Deleting a saved article is permanent, and Readplace already treats the things you saved as worth keeping around, down to leaving a cancelled account [read-only instead of dark](/blog/why-i-built-readplace?utm_source=blog-confirm-before-deleting-a-saved-article&utm_medium=internal&utm_content=post-why-i-built-readplace). A confirmation before delete is that same instinct one click smaller. Open your readlist at [readplace.com/queue](/queue?utm_source=blog-confirm-before-deleting-a-saved-article&utm_medium=internal&utm_content=queue), hover the delete on something you don't need, and watch it ask before it acts. If you don't have a readlist yet, it starts at [readplace.com](/?utm_source=blog-confirm-before-deleting-a-saved-article&utm_medium=internal&utm_content=home).
+Deleting a saved article is permanent, and Readplace already treats the things you saved as worth keeping around, down to leaving a cancelled account [read-only instead of dark](/blog/why-i-built-readplace?utm_source=blog-confirm-before-deleting-a-saved-article&utm_medium=internal&utm_content=post-why-i-built-readplace). A confirmation before delete is that same instinct one click smaller. Open your readlist at [readplace.com/queue](/queue?utm_source=blog-confirm-before-deleting-a-saved-article&utm_medium=internal&utm_content=queue), open the menu on something you don't need, choose Delete, and watch it ask before it acts. If you don't have a readlist yet, it starts at [readplace.com](/?utm_source=blog-confirm-before-deleting-a-saved-article&utm_medium=internal&utm_content=home).
 
 A one-click delete is quicker. A delete that asks first is the one you never have to wish you could take back.

@@ -270,7 +270,7 @@ describe("Readlist routes", () => {
 			const first = articles[0];
 			assert.ok(first, "readlist must render the re-saved article first");
 			expect(first.getAttribute("id")).toBe("latest-saved");
-			expect(first.querySelector(".readlist-article__url")?.getAttribute("href")).toBe(TARGET);
+			expect(first.querySelector("[data-test-article-url]")?.getAttribute("href")).toBe(TARGET);
 		});
 	});
 
@@ -948,7 +948,7 @@ describe("Readlist routes", () => {
 			assert(empty, "the unread tab is now empty");
 			assert.match(
 				empty.textContent ?? "",
-				/There are no more articles to read/,
+				/You're all caught up/,
 				"the readlist still holds the article that was just marked read",
 			);
 			assert(doc.querySelector("[data-test-toast]"), "the Undo toast survives the fallback");
@@ -1013,11 +1013,14 @@ describe("Readlist routes", () => {
 				!Array.from(cards).some((c) => c.getAttribute("data-test-article") === id),
 				"the just-read card is gone from the re-rendered list",
 			);
+			const next = doc.querySelector("[data-test-pagination-next]");
+			assert(next, "the pagination controls stay on the page");
 			assert.equal(
-				doc.querySelector("[data-test-pagination-next]"),
-				null,
-				"the now-single page shows no dangling Next link",
+				next.tagName,
+				"SPAN",
+				"the now-single page offers Next as a disabled control, not a dangling link",
 			);
+			assert.equal(next.getAttribute("aria-disabled"), "true");
 			assert(doc.querySelector("[data-test-toast]"), "the Undo toast survives the fallback");
 		});
 

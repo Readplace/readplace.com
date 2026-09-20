@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
+import {
+	READLIST_BODY_CLASS,
+	READLIST_PAGE_SCRIPTS,
+} from "./readlist.component";
+import { readlistRenamePopoverId } from "./readlist-rename.component";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
-import { READLIST_PAGE_SCRIPTS } from "./readlist.component";
 import { DEFAULT_READLIST } from "./readlist.nav";
 
 const WORK: ReadlistSlug = ReadlistSlugSchema.parse("a1b2c3d4");
@@ -14,6 +18,7 @@ function page(overrides: {
 	purposeError?: string;
 	canCreate?: boolean;
 	preferencesEnabled?: boolean;
+	query?: Record<string, unknown>;
 }) {
 	return ReadlistPreferencesPage({
 		readlist: { slug: WORK, label: "Work Reading", purpose: overrides.purpose },
@@ -27,6 +32,7 @@ function page(overrides: {
 		wizardOpen: overrides.wizardOpen ?? false,
 		purposeError: overrides.purposeError,
 		preferencesEnabled: overrides.preferencesEnabled ?? true,
+		query: overrides.query ?? {},
 	});
 }
 
@@ -51,7 +57,8 @@ describe("ReadlistPreferencesPage", () => {
 		const styles = page({}).styles;
 
 		for (const selector of [
-			".readlist__listing",
+			".readlist-listing",
+			".readlist-nav",
 			".confirm-popover",
 			".wizard__textarea",
 			".readlist-preferences__purpose",
@@ -61,15 +68,55 @@ describe("ReadlistPreferencesPage", () => {
 	});
 
 	it("renders under the readlist body class, so the listing's chrome applies unchanged", () => {
-		expect(page({}).bodyClass).toBe("page-readlist");
+		expect(page({}).bodyClass).toBe(READLIST_BODY_CLASS);
 	});
 
-	it("mounts the toast target the inline rename writes into", () => {
+	it("carries a rename dialog for each readlist the rail can rename", () => {
 		const doc = documentOf(page({}).content.html);
-		const mount = doc.getElementById("status-toast");
-		assert(mount, "the rail's rename needs its toast mount on every page it appears on");
+		const panels = Array.from(
+			doc.querySelectorAll('[data-test-confirm-popover="readlist-rename"]'),
+			(panel) => panel.getAttribute("id"),
+		);
 
-		expect(mount.textContent).toBe("");
+		expect(panels).toEqual([
+			readlistRenamePopoverId(WORK),
+			readlistRenamePopoverId(LATER),
+		]);
+	});
+
+	it("marks the readlist being read as the current one in the rail", () => {
+		const doc = documentOf(page({}).content.html);
+		const current = Array.from(
+			doc.querySelectorAll("[data-test-readlist][aria-current='page']"),
+			(link) => link.getAttribute("data-test-readlist"),
+		);
+
+		expect(current).toEqual([WORK]);
+	});
+
+	it("names Preferences as the tab being read", () => {
+		const doc = documentOf(page({}).content.html);
+		const tabs = Array.from(doc.querySelectorAll("[data-test-filter]"), (tab) => ({
+			filter: tab.getAttribute("data-test-filter"),
+			current: tab.getAttribute("aria-current"),
+		}));
+
+		expect(tabs).toEqual([
+			{ filter: "unread", current: null },
+			{ filter: "read", current: null },
+			{ filter: "preferences", current: "page" },
+		]);
+	});
+
+	it("titles the alert a rejected rename lands on", () => {
+		const doc = documentOf(page({ query: { queue_error: "rename_invalid-name" } }).content.html);
+		const alert = doc.querySelector("[data-test-readlist-error]");
+		assert(alert, "the alert must render in every state");
+		const title = alert.querySelector("[data-test-readlist-error-title]");
+		assert(title, "a recognised alert must carry its title");
+
+		expect(alert.classList.contains("readlist__alert--visible")).toBe(true);
+		expect(title.textContent).toBe("Couldn't rename the readlist");
 	});
 
 	it("carries a delete confirmation for each readlist the rail can delete", () => {

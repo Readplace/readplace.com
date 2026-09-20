@@ -1,3 +1,4 @@
+import { formatTabCountLabel } from "@packages/web-shell";
 import type { ArticleStatus } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { SortField, SortOrder } from "@packages/provider-contracts/article-store";
@@ -58,4 +59,8 @@ export function tabQuery(tab: TabId): TabQuery {
 
 export function tabLabel(tab: TabId): string {
 	return TAB_DEFINITIONS[tab].label;
+}
+
+export function formatUnreadLabel(count: number): string {
+	return formatTabCountLabel({ label: tabLabel("queue"), count });
 }

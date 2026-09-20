@@ -3,6 +3,7 @@ title: "Introducing readlists"
 description: "Work reading and weekend reading used to share one pile of saved links. The saved-links page now opens on a rail of tabs: All still catches every save, and beside it sit readlists you name yourself. A list can start from inside the article that made you want one, and an article filed in several lists is marked read in all of them at once."
 slug: "sort-your-saves-into-readlists"
 date: "2026-09-06"
+lastModified: "2026-09-20"
 author: "Fayner Brack"
 keywords: "organize read it later saves, multiple reading lists, reading list folders, sort saved articles into lists, create a reading list while reading, readlist, pocket alternative with folders, file articles into lists, read it later organization, readplace"
 tags: ["changelog"]
@@ -54,7 +55,7 @@ Filing is your decision today. The article and the names you picked are enough f
 
 ## The rail keeps the housekeeping
 
-The tabs on the saved-links page are where lists get renamed and removed. The plus sign at the end makes one from there, and the pencil on a tab renames it in place.
+The rail on the saved-links page is where lists get renamed and removed. A Create a readlist button under the rail makes one from there, and each list's own menu opens a dialog that renames it.
 
 A list's address doesn't follow its name, so renaming one keeps every bookmark to it working.
 

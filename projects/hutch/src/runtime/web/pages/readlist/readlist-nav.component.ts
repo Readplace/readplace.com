@@ -1,40 +1,30 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
+import type { IconName } from "@packages/ui-icons";
 import { render, withInternalTracking } from "@packages/web-shell";
 
-import type { Readlist } from "./readlist.nav";
-import { DEFAULT_READLIST_SLUG, READLIST_LABEL_MAX_LENGTH, type ReadlistSlug } from "@packages/domain/readlist";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
-import {
-	buildReadlistUrl,
-	readlistDeletePath,
-	readlistRenamePath,
-	readlistReturnQuery,
-} from "./readlist.url";
+import type { Readlist } from "./readlist.nav";
+import { buildReadlistUrl, readlistDeletePath, readlistReturnQuery } from "./readlist.url";
+import { readlistRenamePopoverId } from "./readlist-rename.component";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-nav.template.html"), "utf-8");
 
-const READLIST_RENAME_FIELD = "label";
-
 const NAV_SOURCE = "queue-nav";
 
-interface ReadlistNavRename {
-	isRenameable: boolean;
-	renameAction?: string;
-	renameField?: string;
-	maxLength?: number;
-}
-
-interface ReadlistNavDelete {
+interface ReadlistNavMenu {
 	isDeletable: boolean;
 	deleteAction?: string;
 	deletePopoverId?: string;
+	renamePopoverId?: string;
 }
 
-export interface ReadlistNavItem extends ReadlistNavRename, ReadlistNavDelete {
+export interface ReadlistNavItem extends ReadlistNavMenu {
 	href: string;
 	title: string;
 	name: string;
+	iconName: IconName;
 	itemClass: string;
 	linkClass: string;
 	isActive: boolean;
@@ -46,43 +36,17 @@ export interface ReadlistNavDisplayModel {
 	canCreate: boolean;
 }
 
-export function readlistNavLinkClass(isActive: boolean): string {
-	return `readlist-nav__link${isActive ? " readlist-nav__link--active" : ""}`;
-}
+const ICON_BY_KIND: Record<"default" | "custom", IconName> = {
+	default: "book",
+	custom: "folder",
+};
 
-function readlistNavItemClass(input: { isActive: boolean; isDeletable: boolean }): string {
-	const modifiers = [
-		input.isDeletable ? " readlist-nav__item--deletable" : "",
-		input.isActive ? " readlist-nav__item--active" : "",
-	];
-	return `readlist-nav__item${modifiers.join("")}`;
-}
-
-function navRename(input: {
-	slug: ReadlistSlug;
-	isActive: boolean;
-	canRename: boolean;
-}): ReadlistNavRename {
-	const isRenameable =
-		input.canRename && input.isActive && input.slug !== DEFAULT_READLIST_SLUG;
-	if (!isRenameable) return { isRenameable: false };
-	return {
-		isRenameable: true,
-		renameAction: withInternalTracking(
-			`${readlistRenamePath(input.slug)}${readlistReturnQuery({})}`,
-			{ source: NAV_SOURCE, content: "rename-readlist" },
-		),
-		renameField: READLIST_RENAME_FIELD,
-		maxLength: READLIST_LABEL_MAX_LENGTH,
-	};
-}
-
-function navDelete(input: {
+function navMenu(input: {
 	slug: ReadlistSlug;
 	viewedSlug: ReadlistSlug;
-	canDelete: boolean;
-}): ReadlistNavDelete {
-	const isDeletable = input.canDelete && input.slug !== DEFAULT_READLIST_SLUG;
+	canEdit: boolean;
+}): ReadlistNavMenu {
+	const isDeletable = input.canEdit && input.slug !== DEFAULT_READLIST_SLUG;
 	if (!isDeletable) return { isDeletable: false };
 	return {
 		isDeletable: true,
@@ -91,6 +55,7 @@ function navDelete(input: {
 			{ source: NAV_SOURCE, content: "delete-readlist" },
 		),
 		deletePopoverId: readlistDeleteConfirmPopoverId(input.slug),
+		renamePopoverId: readlistRenamePopoverId(input.slug),
 	};
 }
 
@@ -103,27 +68,19 @@ export function buildReadlistNav(input: {
 	return {
 		items: input.readlists.map((readlist) => {
 			const isActive = readlist.slug === input.activeSlug;
-			const remove = navDelete({
-				slug: readlist.slug,
-				viewedSlug: input.activeSlug,
-				canDelete: input.canCreate,
-			});
+			const kind = readlist.slug === DEFAULT_READLIST_SLUG ? "default" : "custom";
 			return {
-				href: withInternalTracking(buildReadlistUrl({ readlist: readlist.slug }), {
-					source: NAV_SOURCE,
-					content: `queue-${readlist.slug}`,
-				}),
+				href: withInternalTracking(
+					buildReadlistUrl({ readlist: readlist.slug }),
+					{ source: NAV_SOURCE, content: `queue-${readlist.slug}` },
+				),
 				title: readlist.label,
 				name: readlist.slug,
-				itemClass: readlistNavItemClass({ isActive, isDeletable: remove.isDeletable }),
-				linkClass: readlistNavLinkClass(isActive),
+				iconName: ICON_BY_KIND[kind],
+				itemClass: `readlist-nav__item${isActive ? " readlist-nav__item--active" : ""}`,
+				linkClass: `readlist-nav__link${isActive ? " readlist-nav__link--active" : ""}`,
 				isActive,
-				...navRename({
-					slug: readlist.slug,
-					isActive,
-					canRename: input.canCreate,
-				}),
-				...remove,
+				...navMenu({ slug: readlist.slug, viewedSlug: input.activeSlug, canEdit: input.canCreate }),
 			};
 		}),
 		newReadlistAction: withInternalTracking(input.newReadlistAction, {

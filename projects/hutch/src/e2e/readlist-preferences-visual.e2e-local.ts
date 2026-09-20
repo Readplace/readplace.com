@@ -23,11 +23,11 @@ const PANEL_BODY = `${PANEL} .confirm-popover__body`;
 const PANEL_FIELD = `${PANEL} [data-test-field="purpose"]`;
 const PANEL_SAVE = `${PANEL} [data-test-action="readlist-preferences-save"]`;
 const PANEL_CANCEL = `${PANEL} [data-test-action="readlist-preferences-cancel"]`;
-const PREFERENCES = "main.readlist [data-test-readlist-preferences]";
-const PREFERENCES_TAB = 'main.readlist [data-test-filter="preferences"]';
-const SETUP_TRIGGER = 'main.readlist [data-test-action="readlist-preferences-setup"]';
-const EDIT_TRIGGER = 'main.readlist [data-test-action="readlist-preferences-edit"]';
-const PURPOSE_TEXT = "main.readlist [data-test-preferences-purpose]";
+const PREFERENCES = "[data-test-readlist-preferences]";
+const PREFERENCES_TAB = '[data-test-filter="preferences"]';
+const SETUP_TRIGGER = '[data-test-action="readlist-preferences-setup"]';
+const EDIT_TRIGGER = '[data-test-action="readlist-preferences-edit"]';
+const PURPOSE_TEXT = "[data-test-preferences-purpose]";
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
@@ -53,8 +53,8 @@ async function openPreferences(page: Page, stamp: string): Promise<void> {
 	await loginAs(page, email);
 
 	await page.goto(`${BASE_URL}/queue?feature=pref`, { waitUntil: "domcontentloaded" });
-	await page.click('[data-test-action="new-readlist"]');
-	await page.waitForSelector("[data-readlist-rename]");
+	await clickAndWaitForPageReload(page, page.locator('[data-test-action="new-readlist"]'));
+	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
 	await page.goto(`${page.url()}&feature=pref`, { waitUntil: "domcontentloaded" });
 	await clickAndWaitForPageReload(page, page.locator(PREFERENCES_TAB));
 	await page.waitForSelector(PREFERENCES);

@@ -106,7 +106,7 @@ describe("Mark-as-read confirmation", () => {
 		expect(trigger.getAttribute("type")).toBe("button");
 		expect(trigger.closest("form")).toBeNull();
 		expect(fallback.getAttribute("type")).toBe("submit");
-		expect(fallback.closest("form")?.classList.contains("readlist-article__status-fallback")).toBe(
+		expect(fallback.closest("form")?.classList.contains("readlist-article__fallback")).toBe(
 			true,
 		);
 	});
