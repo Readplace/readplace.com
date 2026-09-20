@@ -17,4 +17,16 @@ class AppearancePresentationTest {
 		assertFalse(AppearancePresentation.isDark("chartreuse", systemInDarkTheme = false))
 		assertFalse(AppearancePresentation.isDark(null, systemInDarkTheme = false))
 	}
+
+	@Test
+	fun `dark surfaces behind the system bars ask for light icons`() {
+		assertTrue(AppearancePresentation.systemBarsNeedLightIcons(SystemBarSurface.LAUNCH_INTRO))
+		assertTrue(AppearancePresentation.systemBarsNeedLightIcons(SystemBarSurface.READING_LIST_DARK))
+	}
+
+	@Test
+	fun `light surfaces behind the system bars ask for dark icons`() {
+		assertFalse(AppearancePresentation.systemBarsNeedLightIcons(SystemBarSurface.LOGIN))
+		assertFalse(AppearancePresentation.systemBarsNeedLightIcons(SystemBarSurface.READING_LIST_LIGHT))
+	}
 }

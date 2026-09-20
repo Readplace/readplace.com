@@ -14,18 +14,21 @@ import android.webkit.CookieManager
 import android.webkit.WebStorage
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,6 +70,8 @@ class MainActivity : ComponentActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		// API 35+ enforces this; the call brings 29-34 in line so the intro fills behind the system bars.
+		enableEdgeToEdge()
 		val store = TokenStore(
 			KeystoreTokenStorage(getSharedPreferences(KeystoreTokenStorage.PREFERENCES_NAME, Context.MODE_PRIVATE)),
 		)
@@ -141,6 +146,7 @@ class MainActivity : ComponentActivity() {
 						isForeground = foreground.collectAsStateWithLifecycle().value,
 						slogans = { session.makeSloganSource().load() },
 						onOpenExternally = ::openExternally,
+						applySystemBarIcons = ::applySystemBarIcons,
 					)
 				}
 			}
@@ -174,6 +180,12 @@ class MainActivity : ComponentActivity() {
 	 * to another site must stay eligible for that site's own app. */
 	private fun openExternally(url: String) {
 		startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+	}
+
+	private fun applySystemBarIcons(needLightIcons: Boolean) {
+		val controller = WindowCompat.getInsetsController(window, window.decorView)
+		controller.isAppearanceLightStatusBars = !needLightIcons
+		controller.isAppearanceLightNavigationBars = !needLightIcons
 	}
 }
 
@@ -225,8 +237,11 @@ private fun Root(
 	isForeground: Boolean,
 	slogans: suspend () -> List<String>,
 	onOpenExternally: (String) -> Unit,
+	applySystemBarIcons: (needLightIcons: Boolean) -> Unit,
 ) {
 	val isLoggedIn by session.isLoggedIn.collectAsState()
+	val introPhase by intro.phase.collectAsState()
+	val introBackdropIsDark = LaunchIntro.overlay(introPhase).usesDarkBackdrop
 	val brand = LocalBrandColors.current
 	val scope = androidx.compose.runtime.rememberCoroutineScope()
 	var authErrorText by remember { mutableStateOf<String?>(null) }
@@ -261,7 +276,14 @@ private fun Root(
 		if (isLoggedIn) {
 			val listViewModel = remember { createReadingList() }
 			val appearance = listViewModel.state.collectAsState().value.appearance
-			ReadplaceTheme(darkTheme = AppearancePresentation.isDark(appearance, isSystemInDarkTheme())) {
+			val listIsDark = AppearancePresentation.isDark(appearance, isSystemInDarkTheme())
+			val surface = when {
+				introBackdropIsDark -> SystemBarSurface.LAUNCH_INTRO
+				listIsDark -> SystemBarSurface.READING_LIST_DARK
+				else -> SystemBarSurface.READING_LIST_LIGHT
+			}
+			SideEffect { applySystemBarIcons(AppearancePresentation.systemBarsNeedLightIcons(surface)) }
+			ReadplaceTheme(darkTheme = listIsDark) {
 				Surface(modifier = Modifier.fillMaxSize()) {
 					ReadingListScreen(
 						viewModel = listViewModel,
@@ -273,6 +295,8 @@ private fun Root(
 				}
 			}
 		} else {
+			val surface = if (introBackdropIsDark) SystemBarSurface.LAUNCH_INTRO else SystemBarSurface.LOGIN
+			SideEffect { applySystemBarIcons(AppearancePresentation.systemBarsNeedLightIcons(surface)) }
 			LoginScreen(
 				slogans = sloganList,
 				errorText = authErrorText,
