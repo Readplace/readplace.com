@@ -33,6 +33,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -156,21 +157,23 @@ fun LoginScreen(
 						style = MaterialTheme.typography.headlineLarge,
 						fontWeight = FontWeight.Bold,
 					)
-					Crossfade(
-						targetState = currentSlogan,
-						animationSpec = tween(durationMillis = SLOGAN_FADE_MILLIS),
-						label = "slogan",
-					) { slogan ->
-						Text(
-							text = slogan,
-							style = MaterialTheme.typography.bodyMedium,
-							color = MaterialTheme.colorScheme.onSurfaceVariant,
-							textAlign = TextAlign.Center,
-							// One line, so a longer slogan swapping in cannot move the brand mark
-							// the launch intro lands on.
-							maxLines = 1,
-							overflow = TextOverflow.Ellipsis,
-						)
+					key(reduceMotion) {
+						Crossfade(
+							targetState = currentSlogan,
+							animationSpec = tween(durationMillis = if (reduceMotion) 0 else SLOGAN_FADE_MILLIS),
+							label = "slogan",
+						) { slogan ->
+							Text(
+								text = slogan,
+								style = MaterialTheme.typography.bodyMedium,
+								color = MaterialTheme.colorScheme.onSurfaceVariant,
+								textAlign = TextAlign.Center,
+								// One line, so a longer slogan swapping in cannot move the brand mark
+								// the launch intro lands on.
+								maxLines = 1,
+								overflow = TextOverflow.Ellipsis,
+							)
+						}
 					}
 				}
 

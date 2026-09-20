@@ -1,10 +1,14 @@
 package com.readplace.android.app
 
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
+import android.database.ContentObserver
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.webkit.CookieManager
 import android.webkit.WebStorage
@@ -101,7 +105,9 @@ class MainActivity : ComponentActivity() {
 			)
 		}
 
-		val reduceMotion = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+		val reduceMotionSetting = SystemReduceMotion(contentResolver)
+		val reduceMotionUpdates = reduceMotionSetting.updates()
+		val reduceMotion = reduceMotionSetting.current()
 		intro = ViewModelProvider(
 			this,
 			viewModelFactory {
@@ -130,7 +136,8 @@ class MainActivity : ComponentActivity() {
 						session = session,
 						createReadingList = createReadingList,
 						intro = intro,
-						reduceMotion = reduceMotion,
+						reduceMotion = reduceMotionUpdates
+							.collectAsStateWithLifecycle(initialValue = reduceMotion).value,
 						isForeground = foreground.collectAsStateWithLifecycle().value,
 						slogans = { session.makeSloganSource().load() },
 						onOpenExternally = ::openExternally,
@@ -189,6 +196,23 @@ private object WebViewDataWiper : WebDataWiper {
 			WebStorage.getInstance().deleteAllData()
 		} catch (_: RuntimeException) {
 		}
+	}
+}
+
+private class SystemReduceMotion(private val resolver: ContentResolver) : ReduceMotionSetting {
+	override fun current(): Boolean =
+		Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+
+	override fun observe(onChange: () -> Unit): AutoCloseable {
+		val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+			override fun onChange(selfChange: Boolean) = onChange()
+		}
+		resolver.registerContentObserver(
+			Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
+			false,
+			observer,
+		)
+		return AutoCloseable { resolver.unregisterContentObserver(observer) }
 	}
 }
 
