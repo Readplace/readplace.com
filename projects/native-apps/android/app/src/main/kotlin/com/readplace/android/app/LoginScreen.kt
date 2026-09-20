@@ -164,7 +164,7 @@ fun LoginScreen(
 							label = "slogan",
 						) { slogan ->
 							Text(
-								text = slogan,
+								text = sloganAsReview(slogan),
 								style = MaterialTheme.typography.bodyMedium,
 								color = MaterialTheme.colorScheme.onSurfaceVariant,
 								textAlign = TextAlign.Center,
@@ -235,6 +235,8 @@ private const val SLOGAN_FADE_MILLIS = 300
 private val CONTENT_PADDING = 24.dp
 private val STACK_SPACING = 28.dp
 private val ACTION_PADDING = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
+
+private fun sloganAsReview(slogan: String): String = "\u201C$slogan\u201D"
 
 @Composable
 private fun AlwaysLight(content: @Composable () -> Unit) {
