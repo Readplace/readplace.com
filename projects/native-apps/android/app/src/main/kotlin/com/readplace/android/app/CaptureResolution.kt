@@ -6,7 +6,7 @@ import com.readplace.android.core.CapturedPage
  * How an off-screen capture concludes once the WebView race settles, decided from
  * three facts the [HtmlCaptor] holds when its timeout budget returns: whether a
  * navigation callback already resolved the page (a main-frame PDF, or an
- * error/HTTP failure that fails the load), whether navigation ever started, and
+ * error that fails the load), whether navigation ever started, and
  * whether the first load finished. Kept apart from the WebView so the branching
  * is a pure value the tests exercise directly, the way [CaptureDecision] already
  * is — the WebView glue that feeds it is not unit-coverable.

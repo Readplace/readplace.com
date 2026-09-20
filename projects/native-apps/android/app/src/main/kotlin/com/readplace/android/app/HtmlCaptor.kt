@@ -7,7 +7,6 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.readplace.android.core.AppConfig
@@ -70,16 +69,6 @@ class HtmlCaptor(
 				webViewClient = object : WebViewClient() {
 					override fun onPageFinished(view: WebView, url: String?) {
 						loaded.complete(null)
-					}
-
-					override fun onReceivedHttpError(
-						view: WebView,
-						request: WebResourceRequest,
-						errorResponse: WebResourceResponse,
-					) {
-						if (request.isForMainFrame && WebResponsePolicy.decide(errorResponse.statusCode) == WebResponsePolicy.FAIL) {
-							loaded.complete(CapturedPage.Empty)
-						}
 					}
 
 					override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
