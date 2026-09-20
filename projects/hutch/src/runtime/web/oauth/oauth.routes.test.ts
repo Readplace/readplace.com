@@ -692,6 +692,41 @@ describe("OAuth routes", () => {
 			expect(rotatedGrant.status).toBe(200);
 		});
 
+		it("keeps a refresh token valid for 180 days, since oauth2-server's unconfigured default is two weeks and silently signs out a reader who is away that long", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const before = Date.now();
+			const { refreshToken } = await obtainTokenPair(harness, "lifetime@example.com");
+			const after = Date.now();
+
+			const stored = await harness.oauthModel.getRefreshToken(refreshToken);
+			assert(stored, "the issued refresh token must be stored");
+			assert(stored.refreshTokenExpiresAt, "the stored refresh token must carry an expiry");
+			const lifetimeMs = 180 * 24 * 60 * 60 * 1000;
+			expect(stored.refreshTokenExpiresAt.getTime()).toBeGreaterThanOrEqual(before + lifetimeMs);
+			expect(stored.refreshTokenExpiresAt.getTime()).toBeLessThanOrEqual(after + lifetimeMs);
+		});
+
+		it("gives the rotated refresh token the same 180 days, so a reader who keeps refreshing never reaches an expiry", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { refreshToken } = await obtainTokenPair(harness, "rotated-lifetime@example.com");
+
+			const before = Date.now();
+			const rotation = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: refreshToken,
+				client_id: TEST_CLIENT_ID,
+			});
+			const after = Date.now();
+			expect(rotation.status).toBe(200);
+
+			const stored = await harness.oauthModel.getRefreshToken(rotation.body.refresh_token);
+			assert(stored, "the rotated refresh token must be stored");
+			assert(stored.refreshTokenExpiresAt, "the rotated refresh token must carry an expiry");
+			const lifetimeMs = 180 * 24 * 60 * 60 * 1000;
+			expect(stored.refreshTokenExpiresAt.getTime()).toBeGreaterThanOrEqual(before + lifetimeMs);
+			expect(stored.refreshTokenExpiresAt.getTime()).toBeLessThanOrEqual(after + lifetimeMs);
+		});
+
 		it("logs oauth_token_issued for a successful exchange without leaking the token", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { refreshToken } = await obtainTokenPair(harness, "issued@example.com");

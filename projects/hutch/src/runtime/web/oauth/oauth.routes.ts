@@ -161,12 +161,15 @@ interface OAuthRouteDeps {
 	salt: string;
 }
 
+const REFRESH_TOKEN_LIFETIME_SECONDS = 180 * 24 * 60 * 60;
+
 export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 	const router = Router();
 
 	const oauthServer = new ExpressOAuthServer({
 		model: deps.model,
 		allowExtendedTokenAttributes: true,
+		refreshTokenLifetime: REFRESH_TOKEN_LIFETIME_SECONDS,
 		requireClientAuthentication: {
 			authorization_code: false,
 			refresh_token: false,
