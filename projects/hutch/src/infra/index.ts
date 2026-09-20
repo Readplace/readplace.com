@@ -27,7 +27,7 @@ import {
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
-import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern } from "../runtime/observability/metric-filters";
+import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, firstPartyRefreshRefusedPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { assertExcludedUserIds, assertExcludedVisitorIds } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
@@ -1352,13 +1352,13 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	},
 });
 
-new aws.cloudwatch.LogMetricFilter("oauth-refresh-refused-filter", {
-	name: "oauth-refresh-refused",
+new aws.cloudwatch.LogMetricFilter("oauth-refresh-refused-first-party-filter", {
+	name: "oauth-refresh-refused-first-party",
 	logGroupName: lambda.logGroupName,
-	pattern: `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "refresh_token" }`,
+	pattern: firstPartyRefreshRefusedPattern(),
 	metricTransformation: {
-		name: METRICS.oauthRefreshRefused.name,
-		namespace: METRICS.oauthRefreshRefused.namespace,
+		name: METRICS.oauthRefreshRefusedFirstParty.name,
+		namespace: METRICS.oauthRefreshRefusedFirstParty.namespace,
 		value: "1",
 		defaultValue: "0",
 		unit: "Count",
@@ -1379,14 +1379,14 @@ new aws.cloudwatch.MetricAlarm("oauth-refresh-refused-alarm", {
 	name: "oauth-refresh-refused-alarm",
 	comparisonOperator: "GreaterThanOrEqualToThreshold",
 	evaluationPeriods: 1,
-	metricName: METRICS.oauthRefreshRefused.name,
-	namespace: METRICS.oauthRefreshRefused.namespace,
+	metricName: METRICS.oauthRefreshRefusedFirstParty.name,
+	namespace: METRICS.oauthRefreshRefusedFirstParty.namespace,
 	period: 86400,
 	statistic: "Sum",
 	threshold: oauthRefreshRefusedDailyThreshold,
 	treatMissingData: "notBreaching",
 	alarmDescription:
-		"Refresh-token grants from any client are being refused above the expected per-day baseline",
+		"Refresh-token grants from Readplace's own extensions and apps are being refused above the expected per-day baseline; dynamically registered clients are not counted",
 	alarmActions: [oauthRefreshRefusedTopic.arn],
 });
 

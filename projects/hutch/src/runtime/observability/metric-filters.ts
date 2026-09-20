@@ -1,3 +1,5 @@
+import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import { OAUTH_TOKEN_GRANT_TYPES } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, CONVERSION_EVENTS, STREAMS } from "./events";
 
 export const ANALYTICS_METRIC_NAMESPACE = "Readplace/Analytics";
@@ -32,4 +34,11 @@ export const ANALYTICS_METRIC_FILTERS = {
 
 export function analyticsMetricFilterPattern(filter: AnalyticsMetricFilter): string {
 	return `{ $.stream = "${filter.stream}" && $.event = "${filter.event}" }`;
+}
+
+export function firstPartyRefreshRefusedPattern(): string {
+	const anyFirstPartyClient = SUPPORTED_CLIENTS.flatMap((client) =>
+		client.auth.kind === "builtIn" ? [`$.client_id = "${client.auth.oauthClientId}"`] : [],
+	).join(" || ");
+	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "${OAUTH_TOKEN_GRANT_TYPES.refreshToken}" && (${anyFirstPartyClient}) }`;
 }
