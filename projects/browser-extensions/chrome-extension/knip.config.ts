@@ -14,8 +14,6 @@ export default {
 		"purgecss.config.js",
 	],
 	ignoreDependencies: [
-		// Used by Pulumi infra (compiled separately)
-		"@pulumi/pulumi",
 		// Workspace dependency — knip can't trace through esbuild-bundled entry points
 		"@packages/onboarding-extension-signal",
 		"@packages/supported-clients",
@@ -24,8 +22,6 @@ export default {
 		...(base.ignoreBinaries ?? []),
 		// Used via check script to delegate to Nx
 		"nx",
-		// Used via check-infra script
-		"pulumi",
 	],
 	entry: [
 		// Extension entry points compiled by esbuild

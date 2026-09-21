@@ -1,5 +1,0 @@
-name: chrome-extension
-runtime:
-  name: nodejs
-  options:
-    typescript: true
