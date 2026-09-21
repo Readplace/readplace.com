@@ -12,6 +12,7 @@ import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.SirenAction
 import com.readplace.android.core.SirenLink
 import com.readplace.android.core.UnseenSave
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -319,6 +320,8 @@ class ReadingListViewModel(
 		try {
 			val firstPage = api.loadReadlist(path = currentTabHref)
 			if (tabUnchanged(generation)) adoptFirstPage(firstPage = firstPage, read = read)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
 			if (tabUnchanged(generation)) handle(error)
 		} finally {
@@ -401,6 +404,8 @@ class ReadingListViewModel(
 				return
 			}
 			reloadAndAdopt()
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
 			handle(error)
 		}

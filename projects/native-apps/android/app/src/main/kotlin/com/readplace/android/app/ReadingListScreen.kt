@@ -75,6 +75,7 @@ import com.readplace.android.core.Article
 import com.readplace.android.core.ReadlistTab
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.SirenAction
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
@@ -277,7 +278,9 @@ fun ReadingListScreen(
 				onStatusChanged = {
 					scope.launch { viewModel.readerStatusChanged() }
 				},
-				onCaptureBlocked = viewModel::captureBlockedArticle,
+				onCaptureBlocked = {
+					scope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+				},
 				// The close path carries the probe: the sheet routes every dismissal —
 				// including an interactive swipe-down or back press that never touches a
 				// control — through it, so a session killed inside the sheet (the account

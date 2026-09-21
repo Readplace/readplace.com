@@ -37,6 +37,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
 import com.readplace.android.core.AppConfig
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -61,14 +62,7 @@ fun ReaderWebView(
 	cookies: List<Cookie>,
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
-	/** Runs the capture of the blocked article and returns once it has settled. The
-	 * capture is hosted by the composition root, not the reader, because a WebView
-	 * removed from the hierarchy stops laying out and running JS: the root outlives
-	 * any manual dismissal of the reader sheet, so a reader closed mid-capture cannot
-	 * kill the render it is waiting on (the root launches the work in its own scope
-	 * and joins it; a cancelled join leaves the work running). The reader itself
-	 * stays open and its own htmx poll swaps in the healed article. */
-	onCaptureBlocked: suspend () -> Unit,
+	onCaptureBlocked: () -> Job,
 	onClose: () -> Unit,
 	/** The account page deleted the account, so the server destroyed every session
 	 * and redirected here rather than to the logged-out home — the sheet dismisses
@@ -426,7 +420,7 @@ private class ReaderBridge(
 	private val scope: CoroutineScope,
 	private val onMarkedRead: () -> Unit,
 	private val onStatusChanged: () -> Unit,
-	private val onCaptureBlocked: suspend () -> Unit,
+	private val onCaptureBlocked: () -> Job,
 	private val onMainThread: (() -> Unit) -> Unit,
 ) {
 	/** The one name the interface is registered under; the same name is what the
@@ -454,9 +448,10 @@ private class ReaderBridge(
 		when (route) {
 			ReaderMessageRoute.START_CAPTURE -> {
 				capturing = true
+				val job = onCaptureBlocked()
 				scope.launch {
 					try {
-						onCaptureBlocked()
+						job.join()
 					} finally {
 						capturing = false
 					}

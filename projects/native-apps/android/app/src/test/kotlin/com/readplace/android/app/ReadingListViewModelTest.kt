@@ -21,14 +21,18 @@ import com.readplace.android.core.TokenStorage
 import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -1704,6 +1708,183 @@ class ReadingListViewModelTest {
 		viewModel.captureBlockedArticle()
 
 		assertEquals("java.io.IOException", viewModel.state.value.errorText)
+	}
+
+	@Test
+	fun `a capture keeps running on the owner scope after the reader sheet closes`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
+		val release = CompletableDeferred<Unit>()
+		val healed = mutableListOf<String>()
+		val viewModel = viewModel(
+			healBlockedArticle = { url ->
+				healed += url
+				release.await()
+				HealBlockedOutcome.HEALED
+			},
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val readerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+		val readerJoin = readerScope.launch { job.join() }
+		runCurrent()
+		assertEquals(
+			"precondition: the owner scope's capture of the open row is under way and the reader is joining it",
+			listOf("https://example.com/post"),
+			healed,
+		)
+
+		readerScope.cancel()
+		readerJoin.join()
+
+		release.complete(Unit)
+		job.join()
+
+		assertEquals(
+			"cancelling the reader's join when the sheet closes does not cancel the owner-owned capture: it captures A exactly once",
+			listOf("https://example.com/post"),
+			healed,
+		)
+		assertEquals("the owner-scope capture reconciles the list once it lands", listOf("a1", "h1"), viewModel.articleIds)
+		assertNull(viewModel.state.value.errorText)
+		ownerScope.cancel()
+	}
+
+	@Test
+	fun `a capture stays targeted on its own reader after another reader opens`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
+		val release = CompletableDeferred<Unit>()
+		val healed = mutableListOf<String>()
+		val viewModel = viewModel(
+			healBlockedArticle = { url ->
+				healed += url
+				release.await()
+				HealBlockedOutcome.HEALED
+			},
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+		assertEquals(
+			"precondition: the undispatched capture read the open row before it could be retargeted",
+			listOf("https://example.com/post"),
+			healed,
+		)
+
+		viewModel.closeReader()
+		viewModel.openReader(article(readHref = "/queue/b1/view", id = "b1"))
+
+		release.complete(Unit)
+		job.join()
+
+		assertEquals(
+			"closing A and opening B never retargets the in-flight capture — it stays on A's own url",
+			listOf("https://example.com/post"),
+			healed,
+		)
+		assertEquals(
+			"B stays open — the completing capture of A never becomes the capture target and never touches the reader",
+			"b1",
+			viewModel.state.value.readerPresentation?.articleId,
+		)
+		assertEquals("A's landed capture still reconciles the list with server truth", listOf("a1", "h1"), viewModel.articleIds)
+		ownerScope.cancel()
+	}
+
+	@Test
+	fun `a capture failing after its reader closed and another opened surfaces the failure without touching the open reader`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val release = CompletableDeferred<Unit>()
+		val healed = mutableListOf<String>()
+		val viewModel = viewModel(
+			healBlockedArticle = { url ->
+				healed += url
+				release.await()
+				throw IOException()
+			},
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+		viewModel.closeReader()
+		viewModel.openReader(article(readHref = "/queue/b1/view", id = "b1"))
+
+		release.complete(Unit)
+		job.join()
+
+		assertEquals("the capture that failed was still A's, not the reader open at completion", listOf("https://example.com/post"), healed)
+		assertEquals("A's failure surfaces on the list banner", "java.io.IOException", viewModel.state.value.errorText)
+		assertEquals("B stays open through A's failure — the outcome never touches the open reader", "b1", viewModel.state.value.readerPresentation?.articleId)
+		ownerScope.cancel()
+	}
+
+	@Test
+	fun `disposing the signed-in screen during capture cancels it without an error banner`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val release = CompletableDeferred<Unit>()
+		val viewModel = viewModel(
+			healBlockedArticle = {
+				release.await()
+				HealBlockedOutcome.HEALED
+			},
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+
+		ownerScope.cancel()
+		job.join()
+
+		assertTrue("the disposed screen's capture job is cancelled", job.isCancelled)
+		assertNull("a screen-disposal cancellation is unwound, never shown as a failure banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertEquals("a capture cancelled before it landed reconciles nothing", listOf("a1"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `disposing the signed-in screen during the post-capture reload cancels without a banner and clears loading`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		val gate = Gate()
+		val queueGets = AtomicInteger()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && queueGets.incrementAndGet() > 1 -> gate.holding(Stub.json(200, postHeal))
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(
+			healBlockedArticle = { HealBlockedOutcome.HEALED },
+			ioDispatcher = Dispatchers.IO,
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+		awaitArrival(gate)
+		assertTrue("precondition: the post-capture reconciliation reload is on the wire", viewModel.state.value.isLoading)
+
+		ownerScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's capture job is cancelled", job.isCancelled)
+		assertNull("a cancellation reaching the nested reload is unwound, not turned into a banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the reload's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		ownerScope.cancel()
 	}
 
 	// endregion

@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import okhttp3.Cookie
 
@@ -71,7 +72,7 @@ fun ReaderSheet(
 	reduceMotion: Boolean,
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
-	onCaptureBlocked: suspend () -> Unit,
+	onCaptureBlocked: () -> Job,
 	onClose: () -> Unit,
 	onLogout: () -> Unit,
 	onOpenExternally: (String) -> Unit,
@@ -131,7 +132,7 @@ private fun Reader(
 	onLoadPhaseChange: (ReaderLoadPhase) -> Unit,
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
-	onCaptureBlocked: suspend () -> Unit,
+	onCaptureBlocked: () -> Job,
 	onClose: () -> Unit,
 	onLogout: () -> Unit,
 	onOpenExternally: (String) -> Unit,
