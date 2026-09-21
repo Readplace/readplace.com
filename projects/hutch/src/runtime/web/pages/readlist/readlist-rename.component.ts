@@ -12,6 +12,17 @@ export function readlistRenamePopoverId(readlist: ReadlistSlug): string {
 	return `readlist-rename-${readlist}`;
 }
 
+export function readlistRenameFallbackInputId(readlist: ReadlistSlug): string {
+	return `readlist-rename-fallback-${readlist}`;
+}
+
+export function readlistRenameAction(readlist: ReadlistSlug): string {
+	return withInternalTracking(readlistRenamePath(readlist), {
+		source: "queue-nav",
+		content: "rename-readlist",
+	});
+}
+
 const RENAME_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions readlist-rename" method="POST" action="{{action}}" data-readlist-rename data-test-form="readlist-rename">
 	<label class="readlist-rename__label" for="{{inputId}}">Readlist Name</label>
 	<input class="readlist-rename__input" id="{{inputId}}" type="text" name="{{field}}" value="{{label}}" maxlength="{{maxLength}}" required autocomplete="off" data-test-readlist-rename-input>
@@ -31,10 +42,7 @@ export function renderReadlistRename(input: { slug: ReadlistSlug; label: string 
 		title: "Edit readlist",
 		body: "",
 		actionsHtml: render(RENAME_ACTIONS_TEMPLATE, {
-			action: withInternalTracking(readlistRenamePath(input.slug), {
-				source: "queue-nav",
-				content: "rename-readlist",
-			}),
+			action: readlistRenameAction(input.slug),
 			inputId: `${popoverId}-name`,
 			field: READLIST_RENAME_FIELD,
 			label: input.label,

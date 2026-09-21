@@ -1,13 +1,22 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	READLIST_LABEL_MAX_LENGTH,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import type { IconName } from "@packages/ui-icons";
 import { render, withInternalTracking } from "@packages/web-shell";
 
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import type { Readlist } from "./readlist.nav";
 import { buildReadlistUrl, readlistDeletePath, readlistReturnQuery } from "./readlist.url";
-import { readlistRenamePopoverId } from "./readlist-rename.component";
+import {
+	READLIST_RENAME_FIELD,
+	readlistRenameAction,
+	readlistRenameFallbackInputId,
+	readlistRenamePopoverId,
+} from "./readlist-rename.component";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-nav.template.html"), "utf-8");
 
@@ -18,6 +27,10 @@ interface ReadlistNavMenu {
 	deleteAction?: string;
 	deletePopoverId?: string;
 	renamePopoverId?: string;
+	renameAction?: string;
+	renameInputId?: string;
+	renameField?: string;
+	renameMaxLength?: number;
 }
 
 export interface ReadlistNavItem extends ReadlistNavMenu {
@@ -56,6 +69,10 @@ function navMenu(input: {
 		),
 		deletePopoverId: readlistDeleteConfirmPopoverId(input.slug),
 		renamePopoverId: readlistRenamePopoverId(input.slug),
+		renameAction: readlistRenameAction(input.slug),
+		renameInputId: readlistRenameFallbackInputId(input.slug),
+		renameField: READLIST_RENAME_FIELD,
+		renameMaxLength: READLIST_LABEL_MAX_LENGTH,
 	};
 }
 

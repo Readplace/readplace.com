@@ -239,6 +239,13 @@
   display: none;
 }
 
+.readlist-nav__rename-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
 @supports selector(:popover-open) {
   .readlist-nav__confirm-trigger,
   .readlist-article__menu-item.readlist-article__confirm-trigger {
@@ -249,6 +256,7 @@
     display: inline-flex;
   }
 
+  .readlist-nav__rename-fallback,
   .readlist-nav__delete-fallback,
   .readlist-article__menu-form.readlist-article__fallback,
   .readlist-article__status-form.readlist-article__fallback {

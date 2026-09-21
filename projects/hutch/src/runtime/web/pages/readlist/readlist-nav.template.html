@@ -8,7 +8,12 @@
       <details class="readlist-nav__menu" data-test-readlist-menu="{{name}}">
         <summary class="readlist-nav__menu-toggle" aria-label="Options for {{title}}" data-test-action="readlist-menu">{{icon "ellipsis-vertical"}}</summary>
         <div class="readlist-nav__menu-panel">
-          <button class="readlist-nav__menu-item" type="button" popovertarget="{{renamePopoverId}}" aria-haspopup="dialog" data-test-action="readlist-rename">{{icon "pencil"}}<span>Edit</span></button>
+          <button class="readlist-nav__menu-item readlist-nav__confirm-trigger" type="button" popovertarget="{{renamePopoverId}}" aria-haspopup="dialog" data-test-action="readlist-rename">{{icon "pencil"}}<span>Edit</span></button>
+          <form class="readlist-nav__rename-fallback" method="POST" action="{{renameAction}}" hx-boost="false" data-test-form="readlist-rename-fallback">
+            <label class="readlist-rename__label" for="{{renameInputId}}">Readlist Name</label>
+            <input class="readlist-rename__input" id="{{renameInputId}}" type="text" name="{{renameField}}" value="{{title}}" maxlength="{{renameMaxLength}}" required autocomplete="off" data-test-readlist-rename-fallback-input>
+            <button class="btn btn--primary" type="submit" data-test-action="readlist-rename-fallback">Save</button>
+          </form>
           <button class="readlist-nav__menu-item readlist-nav__menu-item--danger readlist-nav__confirm-trigger" type="button" popovertarget="{{deletePopoverId}}" aria-haspopup="dialog" data-test-action="readlist-delete">{{icon "trash"}}<span>Delete</span></button>
           <form class="readlist-nav__delete-fallback" method="POST" action="{{deleteAction}}" hx-boost="false">
             <button class="readlist-nav__menu-item readlist-nav__menu-item--danger" type="submit" data-test-action="readlist-delete-fallback">{{icon "trash"}}<span>Delete</span></button>

@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { READLIST_LABEL_MAX_LENGTH, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
 import { JSDOM } from "jsdom";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
-import { readlistRenamePopoverId } from "./readlist-rename.component";
+import {
+	READLIST_RENAME_FIELD,
+	readlistRenameFallbackInputId,
+	readlistRenamePopoverId,
+} from "./readlist-rename.component";
 
 const WORK: Readlist = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
 const READLISTS: readonly Readlist[] = [DEFAULT_READLIST, WORK];
@@ -97,6 +101,47 @@ describe("buildReadlistNav", () => {
 		assert(del, "the menu must offer a Delete control");
 		expect(del.getAttribute("popovertarget")).toBe(readlistDeleteConfirmPopoverId(WORK.slug));
 		expect(del.getAttribute("aria-haspopup")).toBe("dialog");
+	});
+
+	it("gates both the Edit and Delete triggers behind popover support", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		const menu = doc.querySelector('[data-test-readlist-menu="work"]');
+		assert(menu, "a custom readlist must carry its own menu");
+		const edit = menu.querySelector('[data-test-action="readlist-rename"]');
+		assert(edit, "the menu must offer an Edit control");
+		const del = menu.querySelector('[data-test-action="readlist-delete"]');
+		assert(del, "the menu must offer a Delete control");
+		expect(edit.classList.contains("readlist-nav__confirm-trigger")).toBe(true);
+		expect(del.classList.contains("readlist-nav__confirm-trigger")).toBe(true);
+	});
+
+	it("backs the rename trigger with a plain-post fallback that carries the current name and its own field", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		const save = doc.querySelector('[data-test-action="readlist-rename-fallback"]');
+		assert(save, "the menu must keep a no-popover fallback for renaming");
+		const form = save.closest("form");
+		assert(form, "the fallback must submit through a form");
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("hx-boost")).toBe("false");
+		const action = new URL(form.getAttribute("action") ?? "", "https://internal.invalid");
+		expect(action.pathname).toBe(`/queue/queues/${WORK.slug}/rename`);
+		expect(action.searchParams.get("utm_source")).toBe("queue-nav");
+		expect(action.searchParams.get("utm_content")).toBe("rename-readlist");
+
+		const inputId = readlistRenameFallbackInputId(WORK.slug);
+		const input = form.querySelector<HTMLInputElement>(`#${inputId}`);
+		assert(input, "the fallback must carry a labelled name input");
+		expect(input.getAttribute("name")).toBe(READLIST_RENAME_FIELD);
+		expect(input.getAttribute("value")).toBe(WORK.label);
+		expect(input.getAttribute("maxlength")).toBe(String(READLIST_LABEL_MAX_LENGTH));
+		expect(input.hasAttribute("required")).toBe(true);
+		expect(inputId).not.toBe(`${readlistRenamePopoverId(WORK.slug)}-name`);
+
+		const label = form.querySelector(`label[for="${inputId}"]`);
+		assert(label, "the fallback input must be labelled");
+		expect(doc.querySelectorAll(`#${inputId}`)).toHaveLength(1);
 	});
 
 	it("backs the delete trigger with a plain-post fallback carrying the return state", () => {

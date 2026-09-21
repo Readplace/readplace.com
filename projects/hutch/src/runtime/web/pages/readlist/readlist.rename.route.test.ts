@@ -275,6 +275,38 @@ describe("POST /queue/queues/:slug/rename", () => {
 			);
 		});
 
+		it("renames through the plain form the menu offers a no-popover browser", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const readlist = await createReadlist(agent);
+
+			const menu = parse((await agent.get("/queue")).text).querySelector(
+				`[data-test-readlist-menu="${readlist}"]`,
+			);
+			assert(menu, "the custom readlist must carry its menu in the rail");
+			const form = menu.querySelector('form[data-test-form="readlist-rename-fallback"]');
+			assert(form, "a no-popover browser must find a plain rename form in the menu");
+			const action = form.getAttribute("action");
+			assert(action, "the fallback form must post somewhere");
+			const input = form.querySelector("[data-test-readlist-rename-fallback-input]");
+			assert(input, "the fallback form must carry a name field");
+			const field = input.getAttribute("name");
+			assert(field, "the name field must be named");
+			const target = new URL(action, TEST_APP_ORIGIN);
+
+			const response = await agent
+				.post(`${target.pathname}${target.search}`)
+				.set("Accept", BROWSER_ACCEPT)
+				.type("form")
+				.send({ [field]: "Deep Work" });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(`/queue?queue=${readlist}`);
+			expect(readlistTab(parse((await agent.get("/queue")).text), readlist).textContent).toBe(
+				"Deep Work",
+			);
+		});
+
 		it("redirects a refused name back to the readlist instead of answering JSON", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
