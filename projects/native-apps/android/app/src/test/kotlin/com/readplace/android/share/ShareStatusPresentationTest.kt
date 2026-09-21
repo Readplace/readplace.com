@@ -13,52 +13,95 @@ class ShareStatusPresentationTest {
 		ServerMessage(type = type, content = ServerMessage.Content(type = "text/html", body = body))
 
 	@Test
-	fun `saved is success`() {
-		// The no-readlist outcome: there is no content waiting on the app, so the card
-		// has nothing to add under the title.
-		val status = present(SaveSharedOutcome.Saved(emptyList()))
-		assertEquals("Saved", status.message)
-		assertNull(status.subtitle)
-		assertEquals(ShareStatusIcon.CHECKMARK, status.icon)
-		assertEquals(ShareStatusTone.SUCCESS, status.tone)
+	fun `saved with no messages is a bare success`() {
+		assertEquals(
+			ShareStatusPresentation(
+				message = "Saved",
+				subtitle = null,
+				icon = ShareStatusIcon.CHECKMARK,
+				tone = ShareStatusTone.SUCCESS,
+			),
+			present(SaveSharedOutcome.Saved(emptyList())),
+		)
 	}
 
 	@Test
-	fun `saved speaks the servers confirmation when it sent one`() {
-		val status = present(
-			SaveSharedOutcome.Saved(
-				listOf(
-					message(type = "success", body = "Article saved"),
-					message(type = "success", body = "Saved to your reading list"),
+	fun `saved carries one server confirmation as its footnote`() {
+		assertEquals(
+			ShareStatusPresentation(
+				message = "Saved",
+				subtitle = "Article saved",
+				icon = ShareStatusIcon.CHECKMARK,
+				tone = ShareStatusTone.SUCCESS,
+			),
+			present(SaveSharedOutcome.Saved(listOf(message(type = "success", body = "Article saved")))),
+		)
+	}
+
+	@Test
+	fun `saved joins several server confirmations in order under a Saved title`() {
+		assertEquals(
+			ShareStatusPresentation(
+				message = "Saved",
+				subtitle = "Article saved\nSaved to your reading list",
+				icon = ShareStatusIcon.CHECKMARK,
+				tone = ShareStatusTone.SUCCESS,
+			),
+			present(
+				SaveSharedOutcome.Saved(
+					listOf(
+						message(type = "success", body = "Article saved"),
+						message(type = "success", body = "Saved to your reading list"),
+					),
 				),
 			),
 		)
-		assertEquals("Article saved\nSaved to your reading list", status.message)
-		assertNull(status.subtitle)
-		assertEquals(ShareStatusTone.SUCCESS, status.tone)
 	}
 
 	@Test
-	fun `saved awaiting upload says who will carry the content`() {
-		val status = present(SaveSharedOutcome.SavedAwaitingUpload(emptyList()))
-		assertEquals("Saved url", status.message)
-		assertEquals("Content will be uploaded when you open the Readplace app", status.subtitle)
-		assertEquals(ShareStatusIcon.CHECKMARK, status.icon)
-		assertEquals(ShareStatusTone.SUCCESS, status.tone)
+	fun `saved awaiting upload with no messages reads the same as any save`() {
+		assertEquals(
+			ShareStatusPresentation(
+				message = "Saved",
+				subtitle = null,
+				icon = ShareStatusIcon.CHECKMARK,
+				tone = ShareStatusTone.SUCCESS,
+			),
+			present(SaveSharedOutcome.SavedAwaitingUpload(emptyList())),
+		)
 	}
 
 	@Test
-	fun `saved awaiting upload keeps the servers confirmation as its title`() {
-		val status = present(
-			SaveSharedOutcome.SavedAwaitingUpload(
-				listOf(
-					message(type = "success", body = "Article saved"),
-					message(type = "success", body = "Saved to your reading list"),
+	fun `saved awaiting upload carries one server confirmation as its footnote`() {
+		assertEquals(
+			ShareStatusPresentation(
+				message = "Saved",
+				subtitle = "Article saved",
+				icon = ShareStatusIcon.CHECKMARK,
+				tone = ShareStatusTone.SUCCESS,
+			),
+			present(SaveSharedOutcome.SavedAwaitingUpload(listOf(message(type = "success", body = "Article saved")))),
+		)
+	}
+
+	@Test
+	fun `saved awaiting upload joins several server confirmations in order under a Saved title`() {
+		assertEquals(
+			ShareStatusPresentation(
+				message = "Saved",
+				subtitle = "Article saved\nSaved to your reading list",
+				icon = ShareStatusIcon.CHECKMARK,
+				tone = ShareStatusTone.SUCCESS,
+			),
+			present(
+				SaveSharedOutcome.SavedAwaitingUpload(
+					listOf(
+						message(type = "success", body = "Article saved"),
+						message(type = "success", body = "Saved to your reading list"),
+					),
 				),
 			),
 		)
-		assertEquals("Article saved\nSaved to your reading list", status.message)
-		assertEquals("Content will be uploaded when you open the Readplace app", status.subtitle)
 	}
 
 	@Test
@@ -68,7 +111,20 @@ class ShareStatusPresentationTest {
 				listOf(message(type = "success", body = "<strong>Article</strong> saved")),
 			),
 		)
-		assertEquals("Article saved", status.message)
+		assertEquals("Article saved", status.subtitle)
+	}
+
+	@Test
+	fun `saved confirmation decodes html entities in the footnote`() {
+		val status = present(
+			SaveSharedOutcome.Saved(
+				listOf(
+					message(type = "success", body = "Article saved"),
+					message(type = "success", body = "Saved to &#x27;Work&#x27;"),
+				),
+			),
+		)
+		assertEquals("Article saved\nSaved to 'Work'", status.subtitle)
 	}
 
 	@Test

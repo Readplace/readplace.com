@@ -70,17 +70,15 @@ data class ShareStatusPresentation(
 	companion object {
 		fun of(outcome: SaveSharedOutcome): ShareStatusPresentation = when (outcome) {
 			is SaveSharedOutcome.Saved -> ShareStatusPresentation(
-				// The server's confirmation when it sent one, so the sheet's copy can
-				// change without a Play Store release; the client's own word otherwise.
-				message = serverCopy(outcome.messages).ifEmpty { "Saved" },
-				subtitle = null,
+				message = "Saved",
+				subtitle = footnote(outcome.messages),
 				icon = ShareStatusIcon.CHECKMARK,
 				tone = ShareStatusTone.SUCCESS,
 			)
 
 			is SaveSharedOutcome.SavedAwaitingUpload -> ShareStatusPresentation(
-				message = serverCopy(outcome.messages).ifEmpty { "Saved url" },
-				subtitle = "Content will be uploaded when you open the Readplace app",
+				message = "Saved",
+				subtitle = footnote(outcome.messages),
 				icon = ShareStatusIcon.CHECKMARK,
 				tone = ShareStatusTone.SUCCESS,
 			)
@@ -132,6 +130,9 @@ data class ShareStatusPresentation(
 				tone = ShareStatusTone.ERROR,
 			)
 		}
+
+		private fun footnote(messages: List<ServerMessage>): String? =
+			if (messages.isEmpty()) null else serverCopy(messages)
 
 		private fun serverCopy(messages: List<ServerMessage>): String =
 			messages.joinToString("\n") { it.plainText }
