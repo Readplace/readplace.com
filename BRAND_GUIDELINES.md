@@ -192,7 +192,7 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
 
 ### List Markers
 
-List markers carry polarity. An included / positive item takes the `check` icon in a success colour; an excluded / negative item — a "what this will **not** do" list — takes the `x` icon in `--color-text-muted` (or `--color-error` for a louder refusal), as `.comparison-table__cross` does. Never mark an exclusion list with a neutral dash or bullet — a dash reads as a feature, not a refusal.
+List markers carry polarity. An included / positive item takes the `check` icon in a success colour; an excluded / negative item — a "what this will **not** do" list — takes the `x` icon in `--color-text-muted` (or `--color-error` for a louder refusal), as `.lp-limits__marker` does. Never mark an exclusion list with a neutral dash or bullet — a dash reads as a feature, not a refusal.
 
 ### Buttons
 
