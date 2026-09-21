@@ -58,8 +58,8 @@ Longer is not looser. A refresh token is still single-use and a replayed one is 
 
 One boundary worth naming: the website in a browser signs in through its own cookie with its own shorter window, and that window didn't move this week. This change covers what runs on tokens, which is the iPhone app, the browser extensions, and connected assistants like ChatGPT and Claude.
 
-## The next long absence
+## Built for coming back
 
 A read-it-later product makes a strange promise: leave, and your reading will still be here. The sign-in was the one part of Readplace not keeping it. That promise now includes the sign-in.
 
-A sign-in made today in [the browser extension](https://readplace.com/install) or [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store) now outlasts any break in your reading shorter than 6 months. The article you save tonight opens without a password when its evening finally comes, and [your readlist](/?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=home) is exactly where you left it.
+A sign-in made today in [the browser extension](https://readplace.com/install) or [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store) now outlasts any break in your reading shorter than 6 months. Whatever you save tonight opens without a password when its evening finally comes. [Your readlist](/?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=home) will be exactly where you left it.
