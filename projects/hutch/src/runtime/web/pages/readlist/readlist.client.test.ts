@@ -15,6 +15,17 @@ function menusMarkup(): string {
 	`;
 }
 
+function dialogsMarkup(): string {
+	return `
+		<details class="readlist-nav__menu" open data-test-readlist-menu="work"><summary data-test-action="readlist-menu">Options</summary><div class="readlist-nav__menu-panel"><button type="button" popovertarget="rename-work" data-test-nav-trigger>Edit</button></div></details>
+		<details class="readlist-article__menu" open data-test-article-menu><summary data-test-action="article-menu">More</summary><div class="readlist-article__menu-panel"><button type="button" popovertarget="delete-article" data-test-card-trigger>Delete</button></div></details>
+		<button type="button" data-test-outside>Elsewhere</button>
+		<div id="rename-work" popover data-test-dialog="nav"><button type="button" data-test-dialog-close>Close</button></div>
+		<div id="delete-article" popover data-test-dialog="card"><button type="button">Close</button></div>
+		<div id="orphan-dialog" popover data-test-dialog="orphan"><button type="button">Close</button></div>
+	`;
+}
+
 function renameFormMarkup(action = "/queue/queues/work/rename"): string {
 	return `<form data-readlist-rename data-test-form="readlist-rename" action="${action}"><input name="label" value="Work Reading"><p data-readlist-rename-error class="readlist-rename__error readlist-rename__error--hidden"></p><button type="submit">Save</button></form>`;
 }
@@ -68,6 +79,16 @@ function init(
 		form.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
 	}
 
+	function dispatchToggle(target: EventTarget, newState: string): void {
+		const event = new dom.window.Event("toggle");
+		Object.defineProperty(event, "newState", { value: newState });
+		target.dispatchEvent(event);
+	}
+
+	function dialog(name: string): HTMLElement {
+		return element<HTMLElement>(`[data-test-dialog='${name}']`, `the ${name} dialog must be in the document`);
+	}
+
 	return {
 		document,
 		window: dom.window,
@@ -80,6 +101,16 @@ function init(
 		},
 		navMenu,
 		cardMenu,
+		navSummary: () => element<HTMLElement>("[data-test-readlist-menu='work'] summary", "the readlist menu opens from a summary"),
+		cardSummary: () => element<HTMLElement>("[data-test-article-menu] summary", "the card menu opens from a summary"),
+		outside: () => element<HTMLElement>("[data-test-outside]", "an outside control must be in the document"),
+		activeElement: () => document.activeElement,
+		focusInDialog: (name: string) =>
+			element<HTMLElement>(`[data-test-dialog='${name}'] button`, `the ${name} dialog must hold a control`).focus(),
+		closeDialog: (name: string) => dispatchToggle(dialog(name), "closed"),
+		openDialog: (name: string) => dispatchToggle(dialog(name), "open"),
+		collapseNavMenu: () => dispatchToggle(navMenu(), "closed"),
+		toggleOnDocument: () => dispatchToggle(document, "closed"),
 		click,
 		clickInside: () => click(element("[data-test-inside]", "the in-menu control must be in the document")),
 		clickOutside: () => click(element("[data-test-outside]", "an outside control must be in the document")),
@@ -328,5 +359,71 @@ describe("initReadlist", () => {
 
 		expect(jsdomErrors).toHaveLength(1);
 		assert.match(jsdomErrors[0]?.message ?? "", /the rename form always posts somewhere/);
+	});
+
+	it("returns focus to the launching menu's summary when its dialog closes with focus on the body", () => {
+		const app = init(dialogsMarkup());
+
+		app.closeDialog("nav");
+
+		expect(app.activeElement()).toBe(app.navSummary());
+	});
+
+	it("returns focus to the card menu that launched the dialog, skipping the menus that did not", () => {
+		const app = init(dialogsMarkup());
+
+		app.closeDialog("card");
+
+		expect(app.activeElement()).toBe(app.cardSummary());
+	});
+
+	it("returns focus to the summary when focus was still inside the dialog being closed", () => {
+		const app = init(dialogsMarkup());
+
+		app.focusInDialog("nav");
+		app.closeDialog("nav");
+
+		expect(app.activeElement()).toBe(app.navSummary());
+	});
+
+	it("leaves focus alone when it has already moved to a control outside the menus", () => {
+		const app = init(dialogsMarkup());
+
+		app.outside().focus();
+		app.closeDialog("nav");
+
+		expect(app.activeElement()).toBe(app.outside());
+	});
+
+	it("does nothing while a dialog is opening", () => {
+		const app = init(dialogsMarkup());
+
+		app.openDialog("nav");
+
+		expect(app.activeElement()).toBe(app.document.body);
+	});
+
+	it("does nothing when a closing dialog belongs to no menu", () => {
+		const app = init(dialogsMarkup());
+
+		app.closeDialog("orphan");
+
+		expect(app.activeElement()).toBe(app.document.body);
+	});
+
+	it("does nothing when a menu itself collapses", () => {
+		const app = init(dialogsMarkup());
+
+		app.collapseNavMenu();
+
+		expect(app.activeElement()).toBe(app.document.body);
+	});
+
+	it("ignores a toggle that names no element", () => {
+		const app = init(dialogsMarkup());
+
+		app.toggleOnDocument();
+
+		expect(app.activeElement()).toBe(app.document.body);
 	});
 });

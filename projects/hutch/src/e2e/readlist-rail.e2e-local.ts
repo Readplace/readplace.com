@@ -24,6 +24,13 @@ const RENAME_POPOVER = '[data-test-confirm-popover="readlist-rename"]';
 const RENAME_INPUT = "[data-test-readlist-rename-input]";
 const RENAME_SAVE = '[data-test-action="readlist-rename-save"]';
 const RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
+const RENAME_DISMISS = '[data-test-action="readlist-rename-dismiss"]';
+const DELETE_DISMISS = '[data-test-action="readlist-delete-dismiss"]';
+const CARD = "[data-test-article]";
+const CARD_MENU = "[data-test-article-menu]";
+const CARD_MENU_TOGGLE = '[data-test-action="article-menu"]';
+const CARD_DELETE_TRIGGER = '[data-test-action="delete"]';
+const CARD_DELETE_DISMISS = '[data-test-action="delete-dismiss"]';
 const LISTING = `${MAIN} .readlist-listing`;
 const UNREAD_TAB = `${MAIN} [data-test-filter="unread"]`;
 const UNREAD_TAB_LABEL = `${UNREAD_TAB} span[id]`;
@@ -269,6 +276,86 @@ test.describe("The readlists rail", () => {
 
 		assert.deepEqual(await renameableSlugs(page), [slug]);
 		await expect(page.locator(`${DEFAULT_RAIL_LINK} ${RENAME_TRIGGER}`)).toHaveCount(0);
+	});
+});
+
+test.describe("Dismissing a menu dialog returns focus to the kebab that opened it", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("returns focus to the rail kebab after Edit and Delete are dismissed", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-rail-focus-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await makeReadlist(page);
+
+		const menu = page.locator(READLIST_MENU).first();
+		const toggle = menu.locator(READLIST_MENU_TOGGLE);
+		const summary = menu.locator("summary").first();
+
+		await toggle.click();
+		await menu.locator(RENAME_TRIGGER).click();
+		await expect(page.locator(`${RENAME_POPOVER}:popover-open`)).toHaveCount(1);
+		await page.keyboard.press("Escape");
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
+
+		await toggle.click();
+		await menu.locator(RENAME_TRIGGER).click();
+		await page.locator(RENAME_CANCEL).click();
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
+
+		await toggle.click();
+		await menu.locator(RENAME_TRIGGER).click();
+		await page.locator(RENAME_DISMISS).click();
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
+
+		await toggle.click();
+		await menu.locator(DELETE_TRIGGER).click();
+		await page.keyboard.press("Escape");
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
+
+		await toggle.click();
+		await menu.locator(DELETE_TRIGGER).click();
+		await page.locator(DELETE_DISMISS).click();
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
+	});
+
+	test("returns focus to the card kebab after the delete dialog is dismissed", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-card-focus-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUserWithArticles(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+
+		const card = page.locator(CARD).first();
+		const menu = card.locator(CARD_MENU);
+		const toggle = menu.locator(CARD_MENU_TOGGLE);
+		const summary = menu.locator("summary").first();
+		const trigger = card.locator(CARD_DELETE_TRIGGER);
+		const popoverId = await trigger.getAttribute("popovertarget");
+		assert.ok(popoverId, "the card's delete trigger must reference its confirmation popover");
+		const dismiss = page.locator(`[id="${popoverId}"] ${CARD_DELETE_DISMISS}`);
+
+		await toggle.click();
+		await trigger.click();
+		await page.keyboard.press("Escape");
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
+
+		await toggle.click();
+		await trigger.click();
+		await dismiss.click();
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
 	});
 });
 

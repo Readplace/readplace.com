@@ -78,6 +78,25 @@ export function initReadlist(deps: ReadlistDeps): void {
 		if (event.key === "Escape") closeOpenMenus(deps.document, null);
 	});
 
+	deps.document.addEventListener(
+		"toggle",
+		(event) => {
+			const dialog = event.target;
+			if (event.newState !== "closed" || !isElement(dialog)) return;
+			const focused = deps.document.activeElement;
+			if (focused !== deps.document.body && !dialog.contains(focused)) return;
+			const menus = deps.document.querySelectorAll(MENU_SELECTOR);
+			for (let i = 0; i < menus.length; i++) {
+				if (menus[i].querySelector(`[popovertarget="${dialog.id}"]`) === null) continue;
+				const summary = menus[i].querySelector<HTMLElement>("summary");
+				assert(summary, "every menu opens from its summary");
+				summary.focus({ preventScroll: true });
+				return;
+			}
+		},
+		true,
+	);
+
 	let renaming = false;
 	deps.document.addEventListener("submit", (event) => {
 		const target = event.target;
