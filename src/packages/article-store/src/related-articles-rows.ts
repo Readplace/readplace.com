@@ -8,7 +8,7 @@ import type { RelatedCandidate } from "@packages/provider-contracts/related-arti
 import { dynamoField } from "@packages/hutch-storage-client";
 import { z } from "zod";
 
-const ArticleRelatedRow = z.object({
+export const ArticleRelatedRow = z.object({
 	url: z.string(),
 	routeId: dynamoField(z.string()),
 	title: dynamoField(z.string()),
@@ -24,7 +24,7 @@ const LooseArticleRelatedRow = z.looseObject({ url: z.string() });
 
 export const ARTICLE_FIELDS = ArticleRelatedRow.keyof().options;
 
-const DescribableArticle = ArticleRelatedRow.extend({
+export const DescribableArticle = ArticleRelatedRow.extend({
 	title: z.string(),
 	siteName: z.string(),
 	excerpt: z.string(),
@@ -48,7 +48,7 @@ export function usable<T extends z.ZodObject>(
 	return parsed.data.purgedAt ? undefined : parsed.data;
 }
 
-function descriptionOf(row: {
+export function descriptionOf(row: {
 	summary?: string;
 	summaryExcerpt?: string;
 	excerpt: string;

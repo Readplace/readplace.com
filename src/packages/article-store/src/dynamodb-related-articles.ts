@@ -1,6 +1,5 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { CrawlStatusSchema } from "@packages/article-state-types";
 import {
 	ArticleStatusSchema,
 	ReaderArticleHashIdSchema,
@@ -23,10 +22,17 @@ import type {
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 	RelatedArticleDisplay,
-	RelatedCandidate,
-	RelatedCandidates,
 } from "@packages/provider-contracts/related-articles";
 import { z } from "zod";
+import {
+	ARTICLE_FIELDS,
+	ArticleRelatedRow,
+	DescribableArticle,
+	LinkableArticle,
+	descriptionOf,
+	initArticleReads,
+	usable,
+} from "./related-articles-rows";
 
 const RelatedArticleLinkRow = z.object({
 	url: z.string(),
@@ -43,54 +49,6 @@ const UserArticleRelatedRow = z.object({
 	relatedInputTokens: dynamoField(z.number()),
 	relatedOutputTokens: dynamoField(z.number()),
 });
-
-const ArticleRelatedRow = z.object({
-	url: z.string(),
-	routeId: dynamoField(z.string()),
-	title: dynamoField(z.string()),
-	siteName: dynamoField(z.string()),
-	excerpt: dynamoField(z.string()),
-	summary: dynamoField(z.string()),
-	summaryExcerpt: dynamoField(z.string()),
-	crawlStatus: dynamoField(CrawlStatusSchema),
-	purgedAt: dynamoField(z.string()),
-});
-
-const LooseArticleRelatedRow = z.looseObject({ url: z.string() });
-
-const ARTICLE_FIELDS = ArticleRelatedRow.keyof().options;
-
-const DescribableArticle = ArticleRelatedRow.extend({
-	title: z.string(),
-	siteName: z.string(),
-	excerpt: z.string(),
-});
-
-const LinkableArticle = ArticleRelatedRow.extend({
-	routeId: z.string(),
-	title: z.string(),
-	siteName: z.string(),
-});
-
-/** Rows that fail their schema, or carry a tombstone, are dropped rather than
- * defaulted — a half-written row can never reach the model as empty strings, or
- * the reader as a link with no title. */
-function usable<T extends z.ZodObject>(
-	schema: T,
-	row: unknown,
-): z.infer<T> | undefined {
-	const parsed = schema.safeParse(row);
-	if (!parsed.success) return undefined;
-	return parsed.data.purgedAt ? undefined : parsed.data;
-}
-
-function descriptionOf(row: {
-	summary?: string;
-	summaryExcerpt?: string;
-	excerpt: string;
-}): string {
-	return row.summary ?? row.summaryExcerpt ?? row.excerpt;
-}
 
 export function initDynamoDbRelatedArticles(deps: {
 	client: DynamoDBDocumentClient;
@@ -116,6 +74,8 @@ export function initDynamoDbRelatedArticles(deps: {
 		tableName,
 		schema: ArticleRelatedRow,
 	});
+
+	const { readArticles, hydrateCandidates } = initArticleReads({ client, tableName });
 
 	async function writeRelated(params: {
 		userId: UserId;
@@ -195,46 +155,6 @@ export function initDynamoDbRelatedArticles(deps: {
 		};
 	};
 
-	async function readArticles(
-		keys: string[],
-		projection: readonly (keyof z.infer<typeof ArticleRelatedRow>)[],
-	): Promise<Map<string, unknown>> {
-		const rows = await batchGetFromTable({
-			client,
-			tableName,
-			schema: LooseArticleRelatedRow,
-			keys: keys.map((url) => ({ url })),
-			projection,
-		});
-		return new Map(rows.map((row) => [row.url, row]));
-	}
-
-	async function hydrateCandidates(
-		savedUrls: string[],
-	): Promise<RelatedCandidates> {
-		if (savedUrls.length === 0) return { candidates: [], awaitingCrawl: 0 };
-
-		const byUrl = await readArticles(savedUrls, ARTICLE_FIELDS);
-
-		const candidates: RelatedCandidate[] = [];
-		let awaitingCrawl = 0;
-		for (const url of savedUrls) {
-			const article = usable(DescribableArticle, byUrl.get(url));
-			if (!article) continue;
-			if (article.title === stubMetadataFor(article.siteName).title) {
-				if (article.crawlStatus === "pending") awaitingCrawl += 1;
-				continue;
-			}
-			candidates.push({
-				url,
-				title: article.title,
-				siteName: article.siteName,
-				description: descriptionOf(article),
-			});
-		}
-		return { candidates, awaitingCrawl };
-	}
-
 	const findRelatedCandidateArticles: FindRelatedCandidateArticles = async (
 		params,
 	) => {
@@ -245,9 +165,9 @@ export function initDynamoDbRelatedArticles(deps: {
 		do {
 			const { items, lastEvaluatedKey } = await userArticles.query({
 				IndexName: "userId-savedAt-index",
-				/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
 				KeyConditionExpression: "userId = :userId",
 				FilterExpression: "#status = :status",
+				/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
 				ExpressionAttributeNames: { "#status": "status" },
 				ExpressionAttributeValues: {
 					":userId": params.userId,
@@ -267,11 +187,11 @@ export function initDynamoDbRelatedArticles(deps: {
 		return hydrateCandidates(savedUrls);
 	};
 
-	/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
 	const findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles = async (
 		params,
 	) => {
 		const excludeKey = ArticleResourceUniqueId.parse(params.excludeUrl).value;
+		/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
 		const savedUrls: string[] = [];
 		let exclusiveStartKey: Record<string, unknown> | undefined;
 
