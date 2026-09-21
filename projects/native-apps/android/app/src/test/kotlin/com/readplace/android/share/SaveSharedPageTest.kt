@@ -745,6 +745,44 @@ class SaveSharedPageTest {
 	}
 
 	@Test
+	fun `a rejected refresh grant signs the share target out so the next share asks to sign in`() = runTest {
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		server.handle { record ->
+			when (record.path) {
+				"/oauth/token" -> Stub.json(400, """{"error":"invalid_grant"}""")
+				else -> Stub.json(401, "{}")
+			}
+		}
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html()), container = container)
+
+		val first = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+		val second = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.Failed("Your session expired. Please sign in again."), first)
+		assertEquals(SaveSharedOutcome.NotLoggedIn, second)
+		assertEquals("the rejected refresh token is never sent again", 1, server.records("/oauth/token").size)
+	}
+
+	@Test
+	fun `a throttled refresh keeps the share target signed in and says to try again`() = runTest {
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		server.handle { record ->
+			when (record.path) {
+				"/oauth/token" -> Stub(429, mapOf("Content-Type" to "text/plain", "Retry-After" to "60"), "slow down".toByteArray())
+				else -> Stub.json(401, "{}")
+			}
+		}
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html()), container = container)
+
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.Failed("Could not refresh the session. Please try again."), outcome)
+		assertEquals(OAuthTokens(AccessToken("access-1"), RefreshToken("refresh-1")), store.tokens)
+	}
+
+	@Test
 	fun `names the store's failure when the tokens cannot be read`() = runTest {
 		// An unreadable store is not a signed-out account: the shell must name the
 		// failure rather than tell a signed-in user to sign in.

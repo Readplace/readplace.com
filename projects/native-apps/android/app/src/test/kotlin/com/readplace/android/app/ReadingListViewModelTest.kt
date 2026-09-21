@@ -1753,6 +1753,22 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `a load whose refresh the server cannot serve right now keeps the reader signed in behind the banner`() = runTest {
+		var expired = false
+		val store = loggedInStore()
+		val viewModel = viewModel(store = store, onSessionExpired = { expired = true })
+		server.handle { record ->
+			if (record.path == "/oauth/token") Stub.json(503, "{}") else Stub.json(401, "{}")
+		}
+
+		viewModel.refresh()
+
+		assertFalse("a refresh the server could not serve is not a dead session", expired)
+		assertEquals("Could not refresh the session. Please try again.", viewModel.state.value.errorText)
+		assertEquals(OAuthTokens(AccessToken("access-1"), RefreshToken("refresh-1")), store.tokens)
+	}
+
+	@Test
 	fun `a load with no stored token logs out without an error banner`() = runTest {
 		var expired = false
 		val viewModel = viewModel(store = TokenStore(RecordingTokenStorage()), onSessionExpired = { expired = true })

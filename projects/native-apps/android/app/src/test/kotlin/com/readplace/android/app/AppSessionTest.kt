@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import com.readplace.android.RecordingServer
+import com.readplace.android.RecordingServer.Gate
 import com.readplace.android.RecordingServer.Stub
 import com.readplace.android.core.AccessToken
 import com.readplace.android.core.AppConfig
@@ -21,9 +22,14 @@ import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.WebAuthFlow
 import com.readplace.android.core.WebAuthPresentation
 import com.readplace.android.core.initWebAuthFlow
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -109,6 +115,7 @@ class AppSessionTest {
 	private fun TestScope.session(
 		store: TokenStore = this@AppSessionTest.store,
 		baseUrl: String = server.baseUrl,
+		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 		newClientBuilder: () -> OkHttpClient.Builder = { OkHttpClient.Builder() },
 		makeWebAuthFlow: (OAuth) -> WebAuthFlow = CapturedFlow().make(),
 	): AppSession =
@@ -118,7 +125,7 @@ class AppSessionTest {
 			oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = NATIVE_USER_AGENT),
 			newClientBuilder = newClientBuilder,
 			nativeUserAgent = NATIVE_USER_AGENT,
-			ioDispatcher = StandardTestDispatcher(testScheduler),
+			ioDispatcher = ioDispatcher,
 			scope = this,
 			makeWebAuthFlow = makeWebAuthFlow,
 			webDataWiper = wiper,
@@ -532,6 +539,61 @@ class AppSessionTest {
 		readerWipe.join()
 	}
 
+	@Test
+	fun `signing out while a refresh is on the wire leaves the reader signed out`() = runTest {
+		val tokenGate = Gate()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(401, "{}")
+				"/oauth/token" -> tokenGate.holding(Stub.json(200, tokenResponse("fresh-access", "fresh-refresh")))
+				"/oauth/revoke" -> Stub.json(200, "{}")
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val session = session(store = loggedInStore())
+
+		val load = async { runCatching { session.makeApi().loadReadlist() } }
+		withContext(Dispatchers.IO) { tokenGate.awaitArrival() }
+		session.logout()
+		tokenGate.release()
+
+		val failure = load.await().exceptionOrNull()
+		assertTrue("the refresh must report the ended session, got $failure", failure is OAuthError.SessionChanged)
+		assertNull("a rotation landing after sign-out must not restore the pair", store.tokens)
+		assertFalse(session.isLoggedIn.value)
+	}
+
+	@Test
+	fun `a 401 answered after the next account signed in never refreshes or replays under that account`() = runTest {
+		val staleAnswer = Gate()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> staleAnswer.holding(Stub.json(401, "{}"))
+				"/oauth/revoke" -> Stub.json(200, "{}")
+				"/oauth/token" -> Stub.json(200, tokenResponse("next-access", "next-refresh"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val session = session(store = loggedInStore(), ioDispatcher = Dispatchers.IO)
+
+		val load = async(start = CoroutineStart.UNDISPATCHED) { runCatching { session.makeApi().loadReadlist() } }
+		withContext(Dispatchers.IO) { staleAnswer.awaitArrival() }
+		session.logout()
+		signInWith(session, callbackQuery = "code=abc&state=S")
+		staleAnswer.release()
+
+		val failure = load.await().exceptionOrNull()
+		assertTrue("the late 401 must report the ended session, got $failure", failure is OAuthError.SessionChanged)
+		assertEquals(
+			"only the next account's code exchange reached the token endpoint",
+			listOf("authorization_code"),
+			server.records("/oauth/token").map { formFields(it.body)["grant_type"] },
+		)
+		assertEquals("the signed-out account's request is never replayed", 1, server.records("/").size)
+		assertEquals(OAuthTokens(AccessToken("next-access"), RefreshToken("next-refresh")), store.tokens)
+		assertTrue(session.isLoggedIn.value)
+	}
+
 	// endregion
 
 	// region factories
@@ -557,6 +619,34 @@ class AppSessionTest {
 			2,
 			server.records(AppConfig.SLOGANS_PATH).size,
 		)
+	}
+
+	@Test
+	fun `every API the session makes shares one refresh, so two that 401 together spend one rotation`() = runTest {
+		val tokenGate = Gate()
+		server.handle { record ->
+			when (record.path) {
+				"/" ->
+					if (record.header("Authorization") == "Bearer fresh-access") {
+						Stub.json(200, collection(article("a1")))
+					} else {
+						Stub.json(401, "{}")
+					}
+				"/oauth/token" -> tokenGate.holding(Stub.json(200, tokenResponse("fresh-access", "fresh-refresh")))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val session = session(store = loggedInStore(access = "stale"))
+
+		val list = async { session.makeApi().loadReadlist() }
+		val drain = async { session.makeApi().loadReadlist() }
+		withContext(Dispatchers.IO) { tokenGate.awaitArrival() }
+		tokenGate.release()
+
+		assertEquals(listOf("a1"), list.await().articles.map { it.id })
+		assertEquals(listOf("a1"), drain.await().articles.map { it.id })
+		assertEquals("both clients share one rotation", 1, server.records("/oauth/token").size)
+		assertTrue(session.isLoggedIn.value)
 	}
 
 	@Test
