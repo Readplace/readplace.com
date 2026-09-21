@@ -490,7 +490,6 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
 
 const LLMS_TXT = readFileSync(join(__dirname, "llms.txt"), "utf-8");
 const LLMS_FULL_TXT = readFileSync(join(__dirname, "llms-full.txt"), "utf-8");
-const INDEXNOW_KEY = getEnv("INDEXNOW_KEY");
 const OPENAI_APPS_CHALLENGE_TOKEN = "dfMZUMNhT2ApI31okvdB5BD1vdly8Ku5QRGcSLtDQ5k";
 const LANDING_PAGE_SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 
@@ -760,12 +759,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.get("/slogans", (_req: Request, res: Response) => {
 		res.json({ slogans: SLOGANS });
 	});
-
-	if (INDEXNOW_KEY) {
-		app.get(`/${INDEXNOW_KEY}.txt`, (_req: Request, res: Response) => {
-			res.type("text/plain").send(INDEXNOW_KEY);
-		});
-	}
 
 	app.get("/sitemap.xml", (_req: Request, res: Response) => {
 		/** Blog URLs live in the blog's own sitemap at /blog/sitemap.xml
