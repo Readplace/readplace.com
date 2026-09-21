@@ -21,14 +21,6 @@ const SHORT_SURFACES = {
 
 export const SAVE_SURFACES_SHORT_PHRASE = `${SHORT_SURFACES.browserExtension}, ${SHORT_SURFACES.nativeApp}, or ${SHORT_SURFACES.aiAssistant}`;
 
-const SETUP_LOCATIONS = {
-	browserExtension: "in your browser",
-	nativeApp: "on your phone",
-	aiAssistant: "in your AI assistant",
-} satisfies Record<ClientGroup, string>;
-
-export const SETUP_SURFACES_PHRASE = `${SETUP_LOCATIONS.browserExtension}, ${SETUP_LOCATIONS.nativeApp}, or ${SETUP_LOCATIONS.aiAssistant}`;
-
 /**
  * What each advertised content-capture client is called when a pitch names the
  * surfaces that save the full rendered page. Keyed per ADVERTISED client, not

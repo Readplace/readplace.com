@@ -25,19 +25,11 @@ function createS3Config(options: S3ConfigOptions) {
 		return `${getBucketBaseUrl(stage)}/latest.txt`;
 	}
 
-	function getUpdateManifestUrl(
-		stage: string,
-		manifestFilename: string,
-	): string {
-		return `${getBucketBaseUrl(stage)}/${manifestFilename}`;
-	}
-
 	return {
 		getBucketName,
 		getBucketBaseUrl,
 		getExtensionDownloadUrl,
 		getLatestPointerUrl,
-		getUpdateManifestUrl,
 	};
 }
 

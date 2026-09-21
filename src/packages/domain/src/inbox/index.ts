@@ -12,7 +12,6 @@ export type {
 } from "./inbox-address.types";
 export {
 	addressCapReached,
-	countLiveAddresses,
 	countLiveCappedAddresses,
 	isLiveAddress,
 	isCappedAddress,

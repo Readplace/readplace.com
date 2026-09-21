@@ -4,13 +4,11 @@ import {
 	FULL_PAGE_CAPTURE_PHRASE,
 	SAVE_SURFACES_PHRASE,
 	SAVE_SURFACES_SHORT_PHRASE,
-	SETUP_SURFACES_PHRASE,
 } from "./client-surface-phrases";
 
 const ALL_PHRASES = [
 	SAVE_SURFACES_PHRASE,
 	SAVE_SURFACES_SHORT_PHRASE,
-	SETUP_SURFACES_PHRASE,
 	FULL_PAGE_CAPTURE_PHRASE,
 ];
 
@@ -21,10 +19,6 @@ describe("client surface phrases", () => {
 
 	it("pins the queue empty-state save-surfaces phrase", () => {
 		assert.equal(SAVE_SURFACES_SHORT_PHRASE, "your browser, phone, or AI assistant");
-	});
-
-	it("pins the home features setup-surfaces phrase", () => {
-		assert.equal(SETUP_SURFACES_PHRASE, "in your browser, on your phone, or in your AI assistant");
 	});
 
 	it("pins the reader-failed full-page-capture phrase", () => {

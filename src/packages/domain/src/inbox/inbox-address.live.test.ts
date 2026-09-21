@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { UserIdSchema } from "../user";
 import {
 	addressCapReached,
-	countLiveAddresses,
 	countLiveCappedAddresses,
 	isLiveAddress,
 	isCappedAddress,
@@ -46,21 +45,6 @@ describe("isLiveAddress", () => {
 
 	it("treats a disabled address as not live", () => {
 		assert.equal(isLiveAddress(makeEntry({ disabledAt: DISABLED_AT })), false);
-	});
-});
-
-describe("countLiveAddresses", () => {
-	it("counts only the entries without a disabledAt stamp", () => {
-		const entries = [makeEntry(), makeEntry({ disabledAt: DISABLED_AT }), makeEntry()];
-		assert.equal(countLiveAddresses(entries), 2);
-	});
-
-	it("returns zero when every address is disabled", () => {
-		assert.equal(countLiveAddresses([makeEntry({ disabledAt: DISABLED_AT })]), 0);
-	});
-
-	it("returns zero for an empty list", () => {
-		assert.equal(countLiveAddresses([]), 0);
 	});
 });
 

@@ -16,10 +16,4 @@ describe("firefoxS3Config", () => {
 			"https://hutch-extension-prod.s3.ap-southeast-2.amazonaws.com/latest.txt",
 		);
 	});
-
-	it("should build update manifest URL", () => {
-		expect(firefoxS3Config.getUpdateManifestUrl("prod", "updates.json")).toBe(
-			"https://hutch-extension-prod.s3.ap-southeast-2.amazonaws.com/updates.json",
-		);
-	});
 });

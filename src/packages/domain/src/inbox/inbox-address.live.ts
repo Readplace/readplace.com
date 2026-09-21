@@ -10,10 +10,6 @@ export function isLiveAddress(entry: InboxAddressEntry): boolean {
 	return entry.disabledAt === undefined;
 }
 
-export function countLiveAddresses(entries: readonly InboxAddressEntry[]): number {
-	return entries.filter(isLiveAddress).length;
-}
-
 export function isCappedAddress(entry: InboxAddressEntry): boolean {
 	return entry.purpose !== "gmail-forwarding";
 }
