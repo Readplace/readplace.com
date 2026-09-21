@@ -347,18 +347,33 @@ class OAuthTest {
 	}
 
 	@Test
-	fun `a rejected refresh reports a refresh failure and keeps the stored pair`() = runTest {
+	fun `a 401 from the token endpoint is not a rejected grant, so the pair is kept`() = runTest {
 		signedInWith(refreshToken = "rt-1")
 		server.enqueue(MockResponse(code = 401, body = """{"error":"invalid_grant"}"""))
 		val oauth = oauth()
 
 		try {
 			oauth.refresh(after = oauth.snap())
-			fail("a rejected refresh must not resolve")
+			fail("a transient refusal must not resolve")
 		} catch (error: OAuthError.RefreshFailed) {
-			assertEquals("Could not refresh the session. Please sign in again.", error.message)
+			assertEquals("Could not refresh the session. Please try again.", error.message)
 		}
 		assertEquals(OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")), store.tokens)
+	}
+
+	@Test
+	fun `a rejected grant discards the pair and reports that no refresh token remains`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 400, body = """{"error":"invalid_grant"}"""))
+		val oauth = oauth()
+
+		try {
+			oauth.refresh(after = oauth.snap())
+			fail("a rejected grant must not resolve")
+		} catch (error: OAuthError.NoRefreshToken) {
+			assertEquals("No refresh token is stored. Please sign in again.", error.message)
+		}
+		assertNull("a rejected grant clears the stored pair", store.tokens)
 	}
 
 	@Test

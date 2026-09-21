@@ -159,7 +159,7 @@ class AppSession(
 		_isLoggedIn.value = false
 	}
 
-	/** Local sign-out used when the session is already invalid (refresh failed).
+	/** Local sign-out used when the session is already invalid.
 	 * Stays synchronous so the non-suspending `onSessionExpired` caller is
 	 * unaffected; the returned wipe job lets tests await the fire-and-forget
 	 * WebView wipe. */

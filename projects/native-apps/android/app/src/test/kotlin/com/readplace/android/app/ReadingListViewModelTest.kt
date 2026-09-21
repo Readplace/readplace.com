@@ -213,7 +213,7 @@ class ReadingListViewModelTest {
 		val live = twoPageHandler()
 		return { record ->
 			when {
-				accountDeleted.get() -> if (record.path == "/oauth/token") Stub.json(400, "{}") else Stub.json(401, "{}")
+				accountDeleted.get() -> if (record.path == "/oauth/token") Stub.json(400, """{"error":"invalid_grant"}""") else Stub.json(401, "{}")
 				else -> live(record)
 			}
 		}
@@ -1739,16 +1739,16 @@ class ReadingListViewModelTest {
 	// region Session expiry & warnings
 
 	@Test
-	fun `an unauthorized load logs out without an error banner`() = runTest {
+	fun `a load whose refresh grant is rejected logs out without an error banner`() = runTest {
 		var expired = false
 		val viewModel = viewModel(onSessionExpired = { expired = true })
-		// 401 everywhere: the entry-point load 401s, the single refresh 401s, and
-		// the load surfaces Unauthorized.
-		server.handle { Stub.json(401, "{}") }
+		server.handle { record ->
+			if (record.path == "/oauth/token") Stub.json(400, """{"error":"invalid_grant"}""") else Stub.json(401, "{}")
+		}
 
 		viewModel.refresh()
 
-		assertTrue("a 401 whose refresh also fails logs the user out", expired)
+		assertTrue("a 401 whose refresh grant is rejected logs the user out", expired)
 		assertNull("a session-expiry logout is not shown as an error banner", viewModel.state.value.errorText)
 	}
 

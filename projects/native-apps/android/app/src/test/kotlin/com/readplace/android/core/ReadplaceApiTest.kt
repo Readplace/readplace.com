@@ -247,7 +247,7 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `loadReadlist is unauthorized when the refresh fails, without retrying`() = runTest {
+	fun `a rejected refresh grant is unauthorized and discards the pair so it is never sent again`() = runTest {
 		val store = loggedInStore(access = "stale")
 		val entryAttempts = AtomicInteger()
 		server.handle { record ->
@@ -256,28 +256,73 @@ class ReadplaceApiTest {
 					entryAttempts.incrementAndGet()
 					Stub.json(401, "{}")
 				}
-				"/oauth/token" -> Stub.json(400, "{}")
+				"/oauth/token" -> Stub.json(400, """{"error":"invalid_grant"}""")
 				else -> Stub.json(404, "{}")
 			}
 		}
+		val oauth = oauthFor(store)
 
-		val error = failsWith<ApiError.Unauthorized> { api(store).loadReadlist() }
-
+		val error = failsWith<ApiError.Unauthorized> { api(store, oauth = oauth).loadReadlist() }
 		assertEquals("Your session expired. Please sign in again.", error.message)
 		assertEquals("must not retry the entry point when refresh fails", 1, entryAttempts.get())
 		assertEquals(1, server.records("/oauth/token").size)
+		assertNull("a rejected grant clears the stored pair", store.tokens)
+
+		failsWith<ApiError.NoToken> { api(store, oauth = oauth).loadReadlist() }
+		assertEquals("the discarded refresh token is never re-sent", 1, server.records("/oauth/token").size)
 	}
 
 	@Test
-	fun `loadReadlist is unauthorized when the refresh fails on transport`() = runTest {
-		val store = loggedInStore(access = "stale")
+	fun `a refresh the network never delivers keeps the pair and reports a retryable failure`() = runTest {
+		val store = loggedInStore(access = "stale", refresh = "r1")
 		server.handle { Stub.json(401, "{}") }
 
-		failsWith<ApiError.Unauthorized> {
+		failsWith<OAuthError.RefreshFailed> {
 			api(store, oauth = oauthFor(store, baseUrl = unreachableBaseUrl())).loadReadlist()
 		}
 
 		assertEquals("must not retry the entry point when refresh fails", 1, server.records("/").size)
+		assertEquals(
+			"a transport failure leaves the session intact",
+			OAuthTokens(AccessToken("stale"), RefreshToken("r1")),
+			store.tokens,
+		)
+	}
+
+	@Test
+	fun `a refresh that fails any way but a rejected grant keeps the pair and reports a retryable failure`() = runTest {
+		val transient = listOf(
+			Stub.json(400, "{}"),
+			Stub.json(400, """{"error":"invalid_request"}"""),
+			Stub.json(401, "{}"),
+			Stub(429, mapOf("Content-Type" to "text/plain", "Retry-After" to "60"), "slow down".toByteArray()),
+			Stub.json(500, "{}"),
+			Stub.json(503, "{}"),
+			Stub.json(200, "not json"),
+		)
+		for (tokenAnswer in transient) {
+			val store = loggedInStore(access = "stale", refresh = "r1")
+			val entryAttempts = AtomicInteger()
+			server.handle { record ->
+				when (record.path) {
+					"/" -> {
+						entryAttempts.incrementAndGet()
+						Stub.json(401, "{}")
+					}
+					"/oauth/token" -> tokenAnswer
+					else -> Stub.json(404, "{}")
+				}
+			}
+
+			failsWith<OAuthError> { api(store).loadReadlist() }
+
+			assertEquals(
+				"status ${tokenAnswer.status} keeps the session intact",
+				OAuthTokens(AccessToken("stale"), RefreshToken("r1")),
+				store.tokens,
+			)
+			assertEquals("the entry point is tried once, never re-refreshed", 1, entryAttempts.get())
+		}
 	}
 
 	@Test

@@ -26,7 +26,7 @@ private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 sealed class OAuthError(message: String) : Exception(message) {
 	class TokenExchangeFailed(val status: Int) : OAuthError("Token exchange failed (HTTP $status).")
 
-	class RefreshFailed : OAuthError("Could not refresh the session. Please sign in again.")
+	class RefreshFailed : OAuthError("Could not refresh the session. Please try again.")
 
 	class MalformedResponse : OAuthError("The server returned an unexpected token response.")
 
@@ -134,10 +134,19 @@ class OAuth(
 	@Synchronized
 	private fun settle(failed: Snapshot, answer: Answer?): Snapshot {
 		if (generation != failed.generation) throw OAuthError.SessionChanged()
-		if (answer == null || answer.status != 200) throw OAuthError.RefreshFailed()
+		if (answer == null) throw OAuthError.RefreshFailed()
+		if (answer.status != 200) throw refusalOf(answer)
 		val minted = tokensFrom(answer.body, fallbackRefresh = failed.tokens.refreshToken)
 		store.save(minted)
 		return Snapshot(minted, generation)
+	}
+
+	private fun refusalOf(answer: Answer): OAuthError {
+		if (answer.status != 400 || stringOf(jsonObjectOf(answer.body)?.get("error")) != "invalid_grant") {
+			return OAuthError.RefreshFailed()
+		}
+		endSession()
+		return OAuthError.NoRefreshToken()
 	}
 
 	/** Best-effort token revocation (logout), then clears the local tokens. */

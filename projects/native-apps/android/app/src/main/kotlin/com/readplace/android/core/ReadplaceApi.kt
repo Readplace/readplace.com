@@ -409,7 +409,7 @@ class ReadplaceApi(
 	private suspend fun refreshOrThrowUnauthorized(after: OAuth.Snapshot): OAuth.Snapshot {
 		try {
 			return oauth.refresh(after)
-		} catch (_: OAuthError) {
+		} catch (_: OAuthError.NoRefreshToken) {
 			throw ApiError.Unauthorized()
 		}
 	}

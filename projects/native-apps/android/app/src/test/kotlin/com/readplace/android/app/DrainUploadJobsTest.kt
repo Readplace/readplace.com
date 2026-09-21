@@ -473,6 +473,81 @@ class DrainUploadJobsTest {
 	}
 
 	@Test
+	fun `stops the sweep and keeps the job when an upload's refresh grant is rejected`() = runTest {
+		val jobs = makeStore()
+		val admitted = job()
+		jobs.admit(admitted)
+		val ready = jobs.stageReady(admitted, multipartForm())
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(actionsJson = Fixtures.COLLECTION_ACTIONS))
+				"/queue/save-content" -> Stub.json(401, "{}")
+				"/oauth/token" -> Stub.json(400, """{"error":"invalid_grant"}""")
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		makeDrain(jobs, emptyCaptor()).run()
+
+		assertEquals(
+			"a rejected grant costs no job its place in the readlist",
+			listOf(ready),
+			jobs.loadAll(now = epoch.plusSeconds(86_400)),
+		)
+	}
+
+	@Test
+	fun `leaves every due job in place when discovery cannot refresh the session right now`() = runTest {
+		val jobs = makeStore()
+		val admitted = job()
+		jobs.admit(admitted)
+		val ready = jobs.stageReady(admitted, multipartForm())
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(401, "{}")
+				"/oauth/token" -> Stub.json(503, "{}")
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		makeDrain(jobs, emptyCaptor()).run()
+
+		assertEquals(
+			"a transient discovery refresh failure keeps every due job",
+			listOf(ready),
+			jobs.loadAll(now = epoch.plusSeconds(86_400)),
+		)
+	}
+
+	@Test
+	fun `leaves the staged bytes when an upload cannot refresh the session right now`() = runTest {
+		val jobs = makeStore()
+		val admitted = job()
+		jobs.admit(admitted)
+		val ready = jobs.stageReady(admitted, multipartForm())
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(actionsJson = Fixtures.COLLECTION_ACTIONS))
+				"/queue/save-content" -> Stub.json(401, "{}")
+				"/oauth/token" -> Stub.json(503, "{}")
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		makeDrain(jobs, emptyCaptor()).run()
+
+		assertEquals(
+			"a transient upload refresh failure keeps the staged job",
+			listOf(ready),
+			jobs.loadAll(now = epoch.plusSeconds(86_400)),
+		)
+		assertTrue("the staged bytes survive a transient refresh failure", jobs.bytesFile(ready).exists())
+	}
+
+	@Test
 	fun `reschedules a job whose advertised action cannot be followed`() = runTest {
 		val jobs = makeStore()
 		val admitted = job()

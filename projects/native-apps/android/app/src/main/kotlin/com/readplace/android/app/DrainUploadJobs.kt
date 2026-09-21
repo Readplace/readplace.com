@@ -4,6 +4,7 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.MultipartForm
+import com.readplace.android.core.OAuthError
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.SirenAction
 import com.readplace.android.core.UploadJob
@@ -30,6 +31,8 @@ class DrainUploadJobs(
 			api.loadReadlist()
 		} catch (_: ApiError) {
 			return
+		} catch (_: OAuthError) {
+			return
 		} catch (_: IOException) {
 			return
 		}
@@ -54,7 +57,11 @@ class DrainUploadJobs(
 			}
 			current = readied.job
 			val body = jobs.bytesFile(readied.job).readBytes()
-			api.saveContent(through, readied.contentType, body)
+			try {
+				api.saveContent(through, readied.contentType, body)
+			} catch (_: OAuthError) {
+				return false
+			}
 			jobs.remove(readied.job)
 		} catch (_: ApiError.Unauthorized) {
 			return false
