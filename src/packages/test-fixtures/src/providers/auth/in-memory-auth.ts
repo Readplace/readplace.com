@@ -24,6 +24,7 @@ import type {
 	FindUserContactByUserId,
 	GetSessionUserId,
 	MarkAccountDeleted,
+	RenewSession,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
@@ -33,6 +34,7 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
+import { SESSION_TTL_SECONDS } from "@packages/web-session";
 
 interface StoredUser {
 	id: UserId;
@@ -49,6 +51,7 @@ interface StoredUser {
 interface StoredSession {
 	userId: UserId;
 	emailVerified: boolean;
+	expiresAt: number;
 }
 
 function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | undefined {
@@ -58,6 +61,7 @@ function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | 
 export function initInMemoryAuth(opts: {
 	hashPassword: (password: string) => Promise<string>;
 	verifyPassword: (password: string, stored: string | undefined) => Promise<boolean>;
+	now: () => Date;
 }): {
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
@@ -69,6 +73,7 @@ export function initInMemoryAuth(opts: {
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
+	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
 	closeUserAccount: CloseUserAccount;
@@ -224,19 +229,35 @@ export function initInMemoryAuth(opts: {
 		return { ok: true, userId: user.id, emailVerified: user.emailVerified };
 	};
 
+	const nowSeconds = () => Math.floor(opts.now().getTime() / 1000);
+
+	const liveSession = (sessionId: string): StoredSession | undefined => {
+		const session = sessions.get(sessionId);
+		if (!session) return undefined;
+		return session.expiresAt >= nowSeconds() ? session : undefined;
+	};
+
 	const createSession: CreateSession = async ({ userId, emailVerified }) => {
 		const sessionId = randomBytes(32).toString("hex");
-		sessions.set(sessionId, { userId, emailVerified });
+		sessions.set(sessionId, { userId, emailVerified, expiresAt: nowSeconds() + SESSION_TTL_SECONDS });
 		return sessionId;
 	};
 
 	const getSessionUserId: GetSessionUserId = async (sessionId) => {
-		const session = sessions.get(sessionId);
+		const session = liveSession(sessionId);
 		if (!session) return null;
 		return {
 			userId: authenticatedUserIdFrom(session.userId),
 			emailVerified: session.emailVerified,
+			expiresAt: session.expiresAt,
 		};
+	};
+
+	const renewSession: RenewSession = async ({ sessionId }) => {
+		const session = liveSession(sessionId);
+		if (!session) return "session-gone";
+		session.expiresAt = nowSeconds() + SESSION_TTL_SECONDS;
+		return "renewed";
 	};
 
 	const destroySession: DestroySession = async (sessionId) => {
@@ -281,7 +302,7 @@ export function initInMemoryAuth(opts: {
 	};
 
 	const markSessionEmailVerified: MarkSessionEmailVerified = async (sessionId) => {
-		const session = sessions.get(sessionId);
+		const session = liveSession(sessionId);
 		if (session) {
 			session.emailVerified = true;
 		}
@@ -363,6 +384,7 @@ export function initInMemoryAuth(opts: {
 		verifyCredentials,
 		createSession,
 		getSessionUserId,
+		renewSession,
 		destroySession,
 		destroyUserSessions,
 		closeUserAccount,

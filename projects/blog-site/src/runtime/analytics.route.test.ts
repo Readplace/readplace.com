@@ -20,7 +20,7 @@ const capture: HutchLogger.Typed<AnalyticsEvent> = {
 const guestResolver: ResolveLogin = async () => ({ isAuthenticated: false });
 const authedResolver: ResolveLogin = async (cookieHeader) =>
 	cookieHeader === "hutch_sid=valid"
-		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true }
+		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true, sessionExpiresAt: 1_800_000_000 }
 		: { isAuthenticated: false };
 
 const VISITOR_ID = "00000000-0000-4000-8000-000000000000";

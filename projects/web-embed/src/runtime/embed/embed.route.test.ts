@@ -25,7 +25,7 @@ const guestResolver: ResolveLogin = async () => ({ isAuthenticated: false });
  * without standing up a real session store (DI, not mocks). */
 const authedResolver: ResolveLogin = async (cookieHeader) =>
 	cookieHeader === "hutch_sid=valid"
-		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true }
+		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true, sessionExpiresAt: 1_800_000_000 }
 		: { isAuthenticated: false };
 
 function makeServer(overrides?: { appOrigin?: string; resolveLogin?: ResolveLogin }): Server {

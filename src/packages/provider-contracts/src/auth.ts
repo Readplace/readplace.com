@@ -49,7 +49,9 @@ export type CreateSession = (session: {
 
 export type GetSessionUserId = (
 	sessionId: string,
-) => Promise<{ userId: AuthenticatedUserId; emailVerified: boolean } | null>;
+) => Promise<{ userId: AuthenticatedUserId; emailVerified: boolean; expiresAt: number } | null>;
+
+export type RenewSession = (session: { sessionId: string }) => Promise<"renewed" | "session-gone">;
 
 export type DestroySession = (sessionId: string) => Promise<void>;
 

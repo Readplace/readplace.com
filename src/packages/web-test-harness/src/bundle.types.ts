@@ -107,6 +107,7 @@ import type {
 	ForceMarkCrawlPending,
 	GetOnboardingSignals,
 	GetSessionUserId,
+	RenewSession,
 	InMemoryMarkCrawlFailed,
 	InMemoryMarkCrawlReady,
 	InMemoryMarkCrawlStage,
@@ -218,6 +219,7 @@ export interface AuthBundle {
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
+	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
 	markAccountDeleted: MarkAccountDeleted;

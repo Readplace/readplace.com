@@ -29,7 +29,7 @@ describe("initGetSessionUserId", () => {
 			emailVerified: true,
 		});
 
-		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: true });
+		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: true, expiresAt: FUTURE });
 	});
 
 	it("treats a missing emailVerified attribute as not verified", async () => {
@@ -39,7 +39,7 @@ describe("initGetSessionUserId", () => {
 			expiresAt: FUTURE,
 		});
 
-		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: false });
+		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: false, expiresAt: FUTURE });
 	});
 
 	it("returns null when no row exists", async () => {

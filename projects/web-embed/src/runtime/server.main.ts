@@ -22,7 +22,7 @@ const base = initBase({
 	renderNav: GlobalNav,
 	htmx: HtmxOmitted,
 });
-const auth = initInMemoryAuth({ hashPassword, verifyPassword });
+const auth = initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
 const resolveLogin = initResolveLogin({ getSessionUserId: auth.getSessionUserId, logger });
 
 const app = express();

@@ -34,12 +34,17 @@ describe("initResolveLogin", () => {
 	it("resolves to authenticated for a valid session cookie", async () => {
 		const getSessionUserId: GetSessionUserId = async (sessionId) => {
 			expect(sessionId).toBe("valid");
-			return { userId: USER, emailVerified: true };
+			return { userId: USER, emailVerified: true, expiresAt: 1_800_000_000 };
 		};
 
 		const state = await resolverWith(getSessionUserId)("hutch_sid=valid");
 
-		expect(state).toEqual({ isAuthenticated: true, userId: USER, emailVerified: true });
+		expect(state).toEqual({
+			isAuthenticated: true,
+			userId: USER,
+			emailVerified: true,
+			sessionExpiresAt: 1_800_000_000,
+		});
 	});
 
 	it("resolves to guest when the session is missing or expired", async () => {

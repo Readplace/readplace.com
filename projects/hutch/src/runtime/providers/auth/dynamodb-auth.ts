@@ -41,6 +41,7 @@ import type {
 	GetSessionUserId,
 	MarkAccountDeleted,
 	MarkEmailVerified,
+	RenewSession,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
 	SetUserAppearance,
@@ -101,6 +102,7 @@ export function initDynamoDbAuth(deps: {
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
+	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
 	closeUserAccount: CloseUserAccount;
@@ -331,6 +333,22 @@ export function initDynamoDbAuth(deps: {
 		return sessionId;
 	};
 
+	const renewSession: RenewSession = async ({ sessionId }) => {
+		const now = Math.floor(Date.now() / 1000);
+		try {
+			await sessions.update({
+				Key: { sessionId },
+				UpdateExpression: "SET expiresAt = :expiresAt",
+				ConditionExpression: "attribute_exists(sessionId) AND expiresAt >= :now",
+				ExpressionAttributeValues: { ":expiresAt": now + SESSION_TTL_SECONDS, ":now": now },
+			});
+			return "renewed";
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return "session-gone";
+			throw error;
+		}
+	};
+
 	const getSessionUserId: GetSessionUserId = initGetSessionUserId({
 		client: deps.client,
 		sessionsTableName: deps.sessionsTableName,
@@ -507,6 +525,7 @@ export function initDynamoDbAuth(deps: {
 		verifyCredentials,
 		createSession,
 		getSessionUserId,
+		renewSession,
 		destroySession,
 		destroyUserSessions,
 		closeUserAccount,

@@ -74,18 +74,23 @@ export async function runOAuthRevokeFlow(options: {
 
 		// One session per reader open — mint two, like opening two articles.
 		const mintReaderSession = async (): Promise<string> => {
-			const minted = await probe.post('/auth/session', {
-				headers: { authorization: `Bearer ${tokens.access_token}` },
-				maxRedirects: 0,
-			})
-			assert.equal(minted.status(), 204, 'minting a reader session from the bearer must succeed')
-			const sessionCookie = minted
-				.headersArray()
-				.filter((header) => header.name.toLowerCase() === 'set-cookie')
-				.map((header) => header.value)
-				.find((value) => value.startsWith('hutch_sid='))
-			assert(sessionCookie, 'minting must set hutch_sid')
-			return sessionCookie.split(';')[0].slice('hutch_sid='.length)
+			const readerContext = await playwrightRequest.newContext({ baseURL })
+			try {
+				const minted = await readerContext.post('/auth/session', {
+					headers: { authorization: `Bearer ${tokens.access_token}` },
+					maxRedirects: 0,
+				})
+				assert.equal(minted.status(), 204, 'minting a reader session from the bearer must succeed')
+				const sessionCookie = minted
+					.headersArray()
+					.filter((header) => header.name.toLowerCase() === 'set-cookie')
+					.map((header) => header.value)
+					.find((value) => value.startsWith('hutch_sid='))
+				assert(sessionCookie, 'minting must set hutch_sid')
+				return sessionCookie.split(';')[0].slice('hutch_sid='.length)
+			} finally {
+				await readerContext.dispose()
+			}
 		}
 		const readerSessionA = await mintReaderSession()
 		const readerSessionB = await mintReaderSession()

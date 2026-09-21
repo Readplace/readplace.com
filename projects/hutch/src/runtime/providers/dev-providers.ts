@@ -133,7 +133,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress, logInfo, proxyUrl: undefined });
 	const staleTtlMs = 86400000;
 
-	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
+	const auth = initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
 	const onboardingSignals = initInMemoryOnboardingSignals({ now: () => new Date() });
 	const articleStore = initInMemoryArticleStore();
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });

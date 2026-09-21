@@ -14,7 +14,7 @@ const logger = HutchLogger.from(consoleLogger);
 /** Local dev needs no AWS: an in-memory auth resolver (no sessions, so every
  * request resolves to guest); the production lambda wires the DynamoDB session
  * reader instead. */
-const auth = initInMemoryAuth({ hashPassword, verifyPassword });
+const auth = initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
 const resolveLogin = initResolveLogin({ getSessionUserId: auth.getSessionUserId, logger });
 
 const app = createBlogApp(

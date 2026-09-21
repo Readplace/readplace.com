@@ -5,11 +5,11 @@ import { readCookie } from "./cookie";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
 
 /** A request's resolved login standing. The extension point for future
- * capabilities ("what the user can do"): today it carries identity only, but new
+ * capabilities ("what the user can do"): new
  * fields hang off the `isAuthenticated: true` arm without touching call sites
  * that only branch on `isAuthenticated`. */
 export type LoginState =
-	| { isAuthenticated: true; userId: AuthenticatedUserId; emailVerified: boolean }
+	| { isAuthenticated: true; userId: AuthenticatedUserId; emailVerified: boolean; sessionExpiresAt: number }
 	| { isAuthenticated: false };
 
 const GUEST: LoginState = { isAuthenticated: false };
@@ -40,6 +40,7 @@ export function initResolveLogin(deps: {
 				isAuthenticated: true,
 				userId: session.userId,
 				emailVerified: session.emailVerified,
+				sessionExpiresAt: session.expiresAt,
 			};
 		} catch (error) {
 			deps.logger.error("[web-session] session lookup failed; resolving as guest", { error });

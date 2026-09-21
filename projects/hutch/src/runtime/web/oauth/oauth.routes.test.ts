@@ -973,6 +973,7 @@ describe("OAuth routes", () => {
 			expect(await harness.auth.getSessionUserId(session)).toEqual({
 				userId: TEST_USER_ID,
 				emailVerified: true,
+				expiresAt: expect.any(Number),
 			});
 			expect(await harness.oauthModel.getRefreshToken("extension-revoke-refresh")).toBeNull();
 			const bystander = await harness.oauthModel.getRefreshToken("ios-bystander-refresh");

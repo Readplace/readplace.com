@@ -5,6 +5,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	CountUsers,
 	CreateSession,
+	RenewSession,
 	CreateUserWithPasswordHash,
 	DestroySession,
 	FindUserByEmail,
@@ -104,6 +105,7 @@ interface AuthDependencies {
 	verifyCredentials: VerifyCredentials;
 	validateAccessToken: ValidateAccessToken;
 	createSession: CreateSession;
+	renewSession: RenewSession;
 	destroySession: DestroySession;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
@@ -615,6 +617,16 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		if (!validated) {
 			res.status(401).set("WWW-Authenticate", 'Bearer error="invalid_token"').end();
 			return;
+		}
+		if (req.userId === validated.userId) {
+			const presentedSessionId = req.cookies?.[SESSION_COOKIE_NAME];
+			assert(presentedSessionId, "a resolved req.userId must come from a session cookie");
+			const outcome = await deps.renewSession({ sessionId: presentedSessionId });
+			if (outcome === "renewed") {
+				res.cookie(SESSION_COOKIE_NAME, presentedSessionId, sessionCookieOptions);
+				res.status(204).end();
+				return;
+			}
 		}
 		const sessionId = await deps.createSession({
 			userId: validated.userId,

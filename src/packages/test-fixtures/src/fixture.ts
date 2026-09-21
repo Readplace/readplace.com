@@ -234,7 +234,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 
 	const fastHashPassword = async (p: string) => `plain:${p}`;
 	const fastVerifyPassword = async (p: string, stored: string | undefined) => stored === `plain:${p}`;
-	const auth = initInMemoryAuth({ hashPassword: fastHashPassword, verifyPassword: fastVerifyPassword });
+	const auth = initInMemoryAuth({ hashPassword: fastHashPassword, verifyPassword: fastVerifyPassword, now: () => new Date() });
 	const articleStoreMemory = initInMemoryArticleStore();
 	const articleCrawl = initInMemoryArticleCrawl();
 	const queueEntryCreated = initInMemoryQueueEntryCreated({ logger: noopLogger });

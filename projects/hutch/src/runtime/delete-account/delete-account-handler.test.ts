@@ -59,6 +59,7 @@ function buildSubject() {
 	const auth = initInMemoryAuth({
 		hashPassword: async (password) => `hashed:${password}`,
 		verifyPassword: async (password, stored) => stored === `hashed:${password}`,
+		now: () => new Date(),
 	});
 	const oauthDeps = initInMemoryOAuthModel();
 	const articleStore = initInMemoryArticleStore();

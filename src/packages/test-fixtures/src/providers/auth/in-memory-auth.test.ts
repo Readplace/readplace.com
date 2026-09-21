@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema, hashPassword, verifyPassword } from "@packages/domain/user";
+import { SESSION_TTL_SECONDS } from "@packages/web-session";
 import { initInMemoryAuth } from "./in-memory-auth";
 
-const makeAuth = () => initInMemoryAuth({ hashPassword, verifyPassword });
+const makeAuth = () => initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
+const makeAuthAt = (clock: { now: Date }) =>
+	initInMemoryAuth({ hashPassword, verifyPassword, now: () => clock.now });
 
 describe("initInMemoryAuth", () => {
 	describe("createUser", () => {
@@ -314,7 +317,7 @@ describe("initInMemoryAuth", () => {
 			await auth.markSessionEmailVerified(sessionId);
 			const session = await auth.getSessionUserId(sessionId);
 
-			expect(session).toEqual({ userId, emailVerified: true });
+			expect(session).toEqual({ userId, emailVerified: true, expiresAt: expect.any(Number) });
 		});
 
 		it("should be a no-op for unknown sessions", async () => {
@@ -643,7 +646,7 @@ describe("initInMemoryAuth", () => {
 
 			const resolved = await auth.getSessionUserId(sessionId);
 
-			expect(resolved).toEqual({ userId, emailVerified: false });
+			expect(resolved).toEqual({ userId, emailVerified: false, expiresAt: expect.any(Number) });
 		});
 
 		it("should return null for unknown session", async () => {
@@ -689,6 +692,52 @@ describe("initInMemoryAuth", () => {
 		it("returns undefined for an unknown email (no matching row)", async () => {
 			const auth = makeAuth();
 			expect(await auth.getAcquisitionAttribution("missing@example.com")).toBeUndefined();
+		});
+	});
+
+	describe("session lifetime", () => {
+		it("reads an expired session as no session", async () => {
+			const clock = { now: new Date("2026-01-01T00:00:00.000Z") };
+			const auth = makeAuthAt(clock);
+			const sessionId = await auth.createSession({ userId: UserIdSchema.parse("u1"), emailVerified: true });
+
+			clock.now = new Date(clock.now.getTime() + (SESSION_TTL_SECONDS + 1) * 1000);
+
+			expect(await auth.getSessionUserId(sessionId)).toBeNull();
+		});
+
+		it("renewing a live session moves its expiry a full window from now", async () => {
+			const clock = { now: new Date("2026-01-01T00:00:00.000Z") };
+			const auth = makeAuthAt(clock);
+			const sessionId = await auth.createSession({ userId: UserIdSchema.parse("u1"), emailVerified: true });
+
+			clock.now = new Date(clock.now.getTime() + 100 * 24 * 60 * 60 * 1000);
+			expect(await auth.renewSession({ sessionId })).toBe("renewed");
+
+			const session = await auth.getSessionUserId(sessionId);
+			assert(session, "the renewed session is still live");
+			expect(session.expiresAt).toBe(Math.floor(clock.now.getTime() / 1000) + SESSION_TTL_SECONDS);
+		});
+
+		it("reports session-gone and leaves no row when a renewal loses to a logout", async () => {
+			const clock = { now: new Date("2026-01-01T00:00:00.000Z") };
+			const auth = makeAuthAt(clock);
+			const sessionId = await auth.createSession({ userId: UserIdSchema.parse("u1"), emailVerified: true });
+
+			await auth.destroySession(sessionId);
+
+			expect(await auth.renewSession({ sessionId })).toBe("session-gone");
+			expect(await auth.getSessionUserId(sessionId)).toBeNull();
+		});
+
+		it("refuses to resurrect an expired session", async () => {
+			const clock = { now: new Date("2026-01-01T00:00:00.000Z") };
+			const auth = makeAuthAt(clock);
+			const sessionId = await auth.createSession({ userId: UserIdSchema.parse("u1"), emailVerified: true });
+
+			clock.now = new Date(clock.now.getTime() + (SESSION_TTL_SECONDS + 1) * 1000);
+
+			expect(await auth.renewSession({ sessionId })).toBe("session-gone");
 		});
 	});
 });

@@ -27,6 +27,7 @@ export function initGetSessionUserId(deps: {
 		return {
 			userId: authenticatedUserIdFrom(row.userId),
 			emailVerified: row.emailVerified === true,
+			expiresAt: row.expiresAt,
 		};
 	};
 }

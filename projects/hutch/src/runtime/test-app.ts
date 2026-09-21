@@ -140,6 +140,7 @@ function flattenFixtureToAppDependencies(
 		findUserByEmail: fixture.auth.findUserByEmail,
 		verifyCredentials: fixture.auth.verifyCredentials,
 		createSession: fixture.auth.createSession,
+		renewSession: fixture.auth.renewSession,
 		getSessionUserId: fixture.auth.getSessionUserId,
 		destroySession: fixture.auth.destroySession,
 		destroyUserSessions: fixture.auth.destroyUserSessions,

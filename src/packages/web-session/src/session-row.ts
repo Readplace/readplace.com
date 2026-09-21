@@ -2,11 +2,11 @@ import { dynamoField } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { z } from "zod";
 
-/** How long a session lives. hutch stamps `expiresAt = now + this` on every
+/** hutch stamps `expiresAt = now + this` on every
  * session it writes; the DynamoDB TTL evicts rows past it and the read path
  * treats a lingering past-TTL row as no session. Single-sourced so the writer
  * (hutch) and every reader agree on the window. */
-export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const SESSION_TTL_SECONDS = 180 * 24 * 60 * 60;
 
 /** The shape of a row in hutch's sessions table — the single contract shared by
  * hutch (which writes sessions on login) and every frontend that reads one to

@@ -22,6 +22,7 @@ import type {
 	FindUserById,
 	FindUserByEmail,
 	GetSessionUserId,
+	RenewSession,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
@@ -194,6 +195,7 @@ import {
 } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { initAuthRoutes } from "./web/auth/auth.page";
+import { initSlideSession } from "./web/middleware/slide-session.middleware";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
@@ -311,6 +313,7 @@ interface AppDependencies {
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
+	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
 	markAccountDeleted: MarkAccountDeleted;
@@ -675,23 +678,31 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(contentSignalMiddleware);
 	app.use(linkHeaderMiddleware);
 
-	const resolveLogin = initResolveLogin({
-		getSessionUserId,
-		logger: HutchLogger.from({
-			info: noop,
-			warn: noop,
-			debug: noop,
-			error: (...args) => deps.logError(String(args[0])),
-		}),
+	const sessionLogger = HutchLogger.from({
+		info: noop,
+		warn: noop,
+		debug: noop,
+		error: (...args) => deps.logError(String(args[0])),
 	});
+	const resolveLogin = initResolveLogin({ getSessionUserId, logger: sessionLogger });
 	app.use(async (req: Request, _res: Response, next: NextFunction) => {
 		const login = await resolveLogin(req.headers.cookie);
 		if (login.isAuthenticated) {
 			req.userId = login.userId;
 			req.emailVerified = login.emailVerified;
+			req.sessionExpiresAt = login.sessionExpiresAt;
 		}
 		next();
 	});
+
+	app.use(
+		initSlideSession({
+			renewSession: deps.renewSession,
+			now: deps.now,
+			logger: sessionLogger,
+			secureCookies,
+		}),
+	);
 
 	const resolveVerificationStatus = initResolveVerificationStatus({
 		findUserById: deps.findUserById,
@@ -1125,6 +1136,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		verifyCredentials: deps.verifyCredentials,
 		validateAccessToken: deps.validateAccessToken,
 		createSession: deps.createSession,
+		renewSession: deps.renewSession,
 		destroySession: deps.destroySession,
 		countUsers,
 		markEmailVerified: deps.markEmailVerified,

@@ -520,4 +520,40 @@ describe("initDynamoDbAuth", () => {
 			});
 		});
 	});
+
+	describe("renewSession", () => {
+		it("renews conditionally so a deleted or expired row is never resurrected", async () => {
+			const { client, commands } = createWriteFakeClient();
+			const auth = initAuth(client);
+
+			const outcome = await auth.renewSession({ sessionId: "sid" });
+
+			expect(outcome).toBe("renewed");
+			const update = commands.find((command) => command.name === "UpdateCommand");
+			assert(update, "renewSession issues an UpdateCommand");
+			expect(update.input).toMatchObject({
+				Key: { sessionId: "sid" },
+				UpdateExpression: "SET expiresAt = :expiresAt",
+				ConditionExpression: "attribute_exists(sessionId) AND expiresAt >= :now",
+			});
+			const values = update.input.ExpressionAttributeValues as { ":expiresAt": number; ":now": number };
+			expect(values[":expiresAt"] - values[":now"]).toBe(180 * 24 * 60 * 60);
+		});
+
+		it("reports session-gone when the row is missing or already expired", async () => {
+			const { client } = createWriteFakeClient({
+				fail: new ConditionalCheckFailedException({ $metadata: {}, message: "condition failed" }),
+			});
+			const auth = initAuth(client);
+
+			expect(await auth.renewSession({ sessionId: "sid" })).toBe("session-gone");
+		});
+
+		it("rethrows any other write failure rather than reporting session-gone", async () => {
+			const { client } = createWriteFakeClient({ fail: new Error("dynamo unavailable") });
+			const auth = initAuth(client);
+
+			await expect(auth.renewSession({ sessionId: "sid" })).rejects.toThrow("dynamo unavailable");
+		});
+	});
 });
