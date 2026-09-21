@@ -1659,8 +1659,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 
 // --- Similar-past-reads Dashboard ---
 // Its own board rather than more widgets on the analytics one: this reads a
-// single feature end to end (the offline arm experiment that chose the candidate
-// gathering, then the shipped card's engagement), and it is meant to be retired
+// single feature end to end, and it is meant to be retired
 // once the feature has proved itself.
 new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 	dashboardName: "readplace-related-past-reads",

@@ -26,9 +26,6 @@ interface UnfilteredWidget {
 	reason: string;
 }
 
-const OFFLINE_HARNESS_REASON =
-	"Offline prompt-arm harness output. An arm-result line describes one model run against a stored anchor, not a person, so ExperimentArmResultEvent carries neither visitor_id nor user_id for a clause to match.";
-
 const METRIC_COUNTER_REASON =
 	"Renders a CloudWatch metric filled by a LogMetricFilter, which matches a line at ingest and increments a counter. The exclusion is expressible in that pattern language, and it fits: factored as ($.visitor_id NOT EXISTS || ($.visitor_id != \"…\" && …)), today's 9 visitor and 7 user ids come to 988 of the 1,024 characters CloudWatch allows, and aws logs test-metric-filter confirms that pattern drops an internal visitor while keeping both an ordinary visitor and a line carrying no visitor_id. It is left off by choice rather than by that ceiling. A filter pattern applies at ingest and never retroactively, so each identity added would silently redefine what the series had been counting, turning a config edit into a step change nobody could distinguish from real traffic — and the list has grown three times in recent work, with no room for another id of either kind before the pattern crosses 1,024 regardless. A constant, disclosed overcount beats a series whose definition moves.";
 
@@ -67,13 +64,6 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 	},
 ];
 
-const RELATED_PAST_READS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
-	{ title: "Experiment — picks per arm (unread vs past read)", reason: OFFLINE_HARNESS_REASON },
-	{ title: "Experiment — cost and latency per arm", reason: OFFLINE_HARNESS_REASON },
-	{ title: "Experiment — picks per arm over successive runs", reason: OFFLINE_HARNESS_REASON },
-	{ title: "Experiment — every arm result (newest first)", reason: OFFLINE_HARNESS_REASON },
-];
-
 const DASHBOARDS: {
 	name: string;
 	body: DashboardBody;
@@ -97,7 +87,7 @@ const DASHBOARDS: {
 			region: "ap-southeast-2",
 			analyticsLogGroupName: ANALYTICS_LOG_GROUP,
 		}),
-		unfiltered: RELATED_PAST_READS_UNFILTERED_WIDGETS,
+		unfiltered: [],
 	},
 ];
 

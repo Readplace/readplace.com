@@ -1,9 +1,5 @@
 import assert from "node:assert/strict";
 import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
-import {
-	EXPERIMENT_RESULT_STREAM,
-	RELATED_PAST_READS_EXPERIMENT,
-} from "@packages/hutch-infra-components";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, STREAMS } from "./events";
 import type { ExcludedIdentities } from "./excluded-identities";
@@ -136,28 +132,6 @@ describe("buildRelatedPastReadsDashboardBody", () => {
 				"a click widget must scope itself to the analytics stream",
 			);
 		}
-	});
-
-	it("scopes every experiment widget to this experiment, so another one cannot bleed in", () => {
-		const experiment = logQueries().filter((query) =>
-			query.includes(`stream = "${EXPERIMENT_RESULT_STREAM}"`),
-		);
-
-		expect(experiment.length).toBeGreaterThan(0);
-		for (const query of experiment) {
-			assert(
-				query.includes(`experiment = "${RELATED_PAST_READS_EXPERIMENT}"`),
-				"an experiment widget must name the experiment it plots",
-			);
-		}
-	});
-
-	it("compares every arm against the others rather than plotting one", () => {
-		const perArm = logQueries().filter(
-			(query) => query.includes(`stream = "${EXPERIMENT_RESULT_STREAM}"`) && query.includes(" by arm"),
-		);
-
-		expect(perArm.length).toBeGreaterThan(0);
 	});
 
 	it("drops the internal visitor from the shipped-feature widgets", () => {

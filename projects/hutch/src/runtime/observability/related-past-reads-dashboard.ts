@@ -1,9 +1,5 @@
 import assert from "node:assert";
 import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
-import {
-	EXPERIMENT_RESULT_STREAM,
-	RELATED_PAST_READS_EXPERIMENT,
-} from "@packages/hutch-infra-components";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, STREAMS } from "./events";
 import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
@@ -127,8 +123,6 @@ export function buildRelatedPastReadsDashboardBody(
 				"One `click` event covers both halves of the card, and the `utm_content` element says which card mode the reader was looking at — so a dismissal tells you whether they were turning down something new or something they had already read.",
 				"",
 				...ELEMENT_LEGEND,
-				"",
-				"The top row is the shipped feature. The bottom row is the offline prompt-arm experiment that chose how candidates are gathered, written by the arm harness when it is run with publishing enabled.",
 			].join("\n"),
 			x: 0,
 			y: 0,
@@ -214,78 +208,6 @@ export function buildRelatedPastReadsDashboardBody(
 			].join(" "),
 			x: 12,
 			y: 16,
-			width: 12,
-			height: 8,
-			view: "table",
-		}),
-	);
-
-	// --- Offline prompt-arm experiment ---
-	// Each harness run publishes one arm-result line per arm per anchor, so the
-	// arms stay comparable across runs rather than living in a local report file.
-
-	const experimentFilter = `| filter stream = "${EXPERIMENT_RESULT_STREAM}" and event = "arm-result" and experiment = "${RELATED_PAST_READS_EXPERIMENT}"`;
-
-	widgets.push(
-		logWidget({
-			region,
-			title: "Experiment — picks per arm (unread vs past read)",
-			logGroupNames: analyticsSource,
-			query: [
-				"fields arm, unread_picks, read_picks",
-				experimentFilter,
-				"| stats sum(unread_picks) as unread_picks, sum(read_picks) as read_picks by arm",
-				"| sort arm asc",
-			].join(" "),
-			x: 0,
-			y: 24,
-			width: 12,
-			height: 8,
-			view: "bar",
-		}),
-		logWidget({
-			region,
-			title: "Experiment — cost and latency per arm",
-			logGroupNames: analyticsSource,
-			query: [
-				"fields arm, input_tokens, output_tokens, latency_ms",
-				experimentFilter,
-				"| stats sum(input_tokens) as input_tokens, sum(output_tokens) as output_tokens, avg(latency_ms) as avg_latency_ms, max(latency_ms) as max_latency_ms, sum(over_production_timeout) as over_timeout by arm",
-				"| sort arm asc",
-			].join(" "),
-			x: 12,
-			y: 24,
-			width: 12,
-			height: 8,
-			view: "table",
-		}),
-		logWidget({
-			region,
-			title: "Experiment — picks per arm over successive runs",
-			logGroupNames: analyticsSource,
-			query: [
-				"fields @timestamp, arm, picks",
-				experimentFilter,
-				"| stats avg(picks) as avg_picks by bin(1d), arm",
-			].join(" "),
-			x: 0,
-			y: 32,
-			width: 12,
-			height: 8,
-			view: "timeSeries",
-		}),
-		logWidget({
-			region,
-			title: "Experiment — every arm result (newest first)",
-			logGroupNames: analyticsSource,
-			query: [
-				"fields @timestamp, run_id, arm, anchor_url, repeat, picks, unread_picks, read_picks, unread_pool, read_pool, input_tokens, output_tokens, latency_ms, over_production_timeout, failed",
-				experimentFilter,
-				"| sort @timestamp desc",
-				"| limit 100",
-			].join(" "),
-			x: 12,
-			y: 32,
 			width: 12,
 			height: 8,
 			view: "table",
