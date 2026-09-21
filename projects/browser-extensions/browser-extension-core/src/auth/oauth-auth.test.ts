@@ -411,7 +411,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			const result = await auth.refreshTokens();
+			const result = await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(result).toEqual({ ok: true });
 			expect(capturedUrl).toBe("http://localhost:3000/oauth/token");
@@ -447,7 +447,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			await auth.refreshTokens();
+			await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(tokenStorage.stored).toEqual({
 				accessToken: "refreshed-access",
@@ -483,7 +483,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			await auth.refreshTokens();
+			await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			const guarded = auth.whenLoggedIn(() => "still-here");
 			expect(guarded).toEqual({ ok: true, value: "still-here" });
@@ -493,7 +493,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps();
 			const auth = await initOAuthAuth(deps);
 
-			const result = await auth.refreshTokens();
+			const result = await auth.refreshTokens({ refusedAccessToken: "any-token" });
 
 			expect(result).toEqual({ ok: false, reason: "no-refresh-token" });
 		});
@@ -504,7 +504,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({ tokenStorage });
 			const auth = await initOAuthAuth(deps);
 
-			await auth.refreshTokens();
+			await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			const guarded = auth.whenLoggedIn(() => "value");
 			expect(guarded).toEqual({ ok: false, reason: "not-logged-in" });
@@ -516,7 +516,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({ tokenStorage });
 			const auth = await initOAuthAuth(deps);
 
-			await auth.refreshTokens();
+			await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(tokenStorage.stored).toBeNull();
 		});
@@ -542,7 +542,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			const result = await auth.refreshTokens();
+			const result = await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(result).toEqual({ ok: false, reason: "refresh-failed" });
 		});
@@ -568,7 +568,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			await auth.refreshTokens();
+			await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(tokenStorage.stored).toBeNull();
 			const guarded = auth.whenLoggedIn(() => "value");
@@ -600,7 +600,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			const result = await auth.refreshTokens();
+			const result = await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(result).toEqual({ ok: false, reason: "unavailable" });
 			expect(tokenStorage.stored).toEqual({
@@ -641,8 +641,8 @@ describe("initOAuthAuth", () => {
 			await auth.login();
 
 			const [first, second] = await Promise.all([
-				auth.refreshTokens(),
-				auth.refreshTokens(),
+				auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" }),
+				auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" }),
 			]);
 
 			expect(first).toEqual({ ok: true });
@@ -654,7 +654,49 @@ describe("initOAuthAuth", () => {
 			});
 		});
 
-		it("starts a new token grant once the previous one has settled", async () => {
+		it("spends no token grant for a caller whose refused token was already replaced", async () => {
+			const tokenStorage = createInMemoryTokenStorage();
+			let refreshGrants = 0;
+			const deps = createInMemoryOAuthDeps({
+				tokenStorage,
+				fetchFn: async (_url, init) => {
+					if (init.body?.includes("grant_type=refresh_token")) {
+						refreshGrants += 1;
+						return {
+							ok: true as boolean,
+							status: 200,
+							json: async () => ({
+								access_token: `rotated-${refreshGrants}`,
+								refresh_token: `refresh-${refreshGrants}`,
+							}),
+						};
+					}
+					return {
+						ok: true as boolean,
+						status: 200,
+						json: async () => ({
+							access_token: "access-123",
+							refresh_token: "refresh-456",
+						}),
+					};
+				},
+			});
+			const auth = await initOAuthAuth(deps);
+			await auth.login();
+
+			const first = await auth.refreshTokens({ refusedAccessToken: "access-123" });
+			const second = await auth.refreshTokens({ refusedAccessToken: "access-123" });
+
+			expect(first).toEqual({ ok: true });
+			expect(second).toEqual({ ok: true });
+			expect(refreshGrants).toBe(1);
+			expect(tokenStorage.stored).toEqual({
+				accessToken: "rotated-1",
+				refreshToken: "refresh-1",
+			});
+		});
+
+		it("starts a fresh grant for a caller refused with the current token after the previous grant settled", async () => {
 			const tokenStorage = createInMemoryTokenStorage();
 			let refreshGrants = 0;
 			const deps = createInMemoryOAuthDeps({
@@ -684,10 +726,44 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			await auth.refreshTokens();
-			await auth.refreshTokens();
+			await auth.refreshTokens({ refusedAccessToken: "access-123" });
+			await auth.refreshTokens({ refusedAccessToken: "access-1" });
 
 			expect(refreshGrants).toBe(2);
+		});
+
+		it("spends no grant when the stored token is rotated between the pre-check and the single-flight exchange", async () => {
+			const tokenStorage = createInMemoryTokenStorage();
+			await tokenStorage.setTokens({ accessToken: "access-123", refreshToken: "refresh-456" });
+			let refreshGrants = 0;
+			const deps = createInMemoryOAuthDeps({
+				tokenStorage,
+				fetchFn: async (_url, init) => {
+					if (init.body?.includes("grant_type=refresh_token")) {
+						refreshGrants += 1;
+					}
+					return {
+						ok: true as boolean,
+						status: 200,
+						json: async () => ({ access_token: "access-123", refresh_token: "refresh-456" }),
+					};
+				},
+			});
+			const auth = await initOAuthAuth(deps);
+
+			// The pre-check reads the refused token so it passes and takes the slot; the
+			// exchange's own read then sees a token another refresh already rotated in, so
+			// it short-circuits without spending a grant.
+			const readValues = [
+				{ accessToken: "access-123", refreshToken: "refresh-456" },
+				{ accessToken: "rotated-by-another", refreshToken: "rotated-refresh" },
+			];
+			deps.tokenStorage.getTokens = async () => readValues.shift() ?? null;
+
+			const result = await auth.refreshTokens({ refusedAccessToken: "access-123" });
+
+			expect(result).toEqual({ ok: true });
+			expect(refreshGrants).toBe(0);
 		});
 
 		it.each([429, 500, 502, 503])(
@@ -713,7 +789,7 @@ describe("initOAuthAuth", () => {
 				const auth = await initOAuthAuth(deps);
 				await auth.login();
 
-				const result = await auth.refreshTokens();
+				const result = await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 				expect(result).toEqual({ ok: false, reason: "unavailable" });
 				expect(tokenStorage.stored).toEqual({
@@ -745,7 +821,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			const result = await auth.refreshTokens();
+			const result = await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(result).toEqual({ ok: false, reason: "unavailable" });
 			expect(tokenStorage.stored).toEqual({
@@ -782,7 +858,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			const result = await auth.refreshTokens();
+			const result = await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(result).toEqual({ ok: false, reason: "unavailable" });
 			expect(tokenStorage.stored).toEqual({
@@ -821,7 +897,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			await auth.refreshTokens();
+			await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 
 			expect(capturedBody).toContain("refresh_token=refresh-456");
 		});
@@ -875,7 +951,7 @@ describe("initOAuthAuth", () => {
 			const auth = await initOAuthAuth(deps);
 			await auth.login();
 
-			await auth.refreshTokens();
+			await auth.refreshTokens({ refusedAccessToken: tokenStorage.stored?.accessToken ?? "" });
 			const token = await auth.getAccessToken();
 
 			expect(token).toBe("refreshed-access");

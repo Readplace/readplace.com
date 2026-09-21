@@ -1,6 +1,6 @@
 import "../zod-config";
 import { z } from "zod";
-import type { Auth, LoginResult, OAuthAuthDeps, RefreshResult, WhenLoggedIn } from "./auth.types";
+import type { Auth, LoginResult, OAuthAuthDeps, RefreshResult, RefreshTokens, WhenLoggedIn } from "./auth.types";
 import { generateCodeVerifier, generateCodeChallenge } from "./pkce";
 
 const TokenResponse = z.object({
@@ -130,12 +130,15 @@ export async function initOAuthAuth(deps: OAuthAuthDeps): Promise<Auth> {
 		};
 	};
 
-	const exchangeRefreshToken = async (): Promise<RefreshResult> => {
+	const exchangeRefreshToken = async (refused: { refusedAccessToken: string }): Promise<RefreshResult> => {
 		const storedTokens = await deps.tokenStorage.getTokens();
 		if (!storedTokens?.refreshToken) {
 			await deps.tokenStorage.clearTokens();
 			loggedIn = false;
 			return { ok: false, reason: "no-refresh-token" };
+		}
+		if (storedTokens.accessToken !== refused.refusedAccessToken) {
+			return { ok: true };
 		}
 
 		const grant = await requestGrant(storedTokens.refreshToken);
@@ -156,8 +159,14 @@ export async function initOAuthAuth(deps: OAuthAuthDeps): Promise<Auth> {
 		return { ok: true };
 	};
 
-	const refreshTokens = async (): Promise<RefreshResult> => {
-		refreshing ??= exchangeRefreshToken().finally(() => {
+	const refreshTokens: RefreshTokens = async (refused) => {
+		const storedTokens = await deps.tokenStorage.getTokens();
+		if (storedTokens !== null) {
+			if (storedTokens.accessToken !== refused.refusedAccessToken) {
+				return { ok: true };
+			}
+		}
+		refreshing ??= exchangeRefreshToken(refused).finally(() => {
 			refreshing = undefined;
 		});
 		return refreshing;

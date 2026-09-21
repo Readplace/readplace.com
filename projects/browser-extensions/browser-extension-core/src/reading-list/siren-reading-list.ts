@@ -320,23 +320,23 @@ function createAuthorizedFetch(deps: {
 	onUnauthorized: () => Promise<void>;
 	refreshTokens: RefreshTokens;
 }): DoFetch {
-	async function attempt(url: string, init?: DoFetchInit): Promise<Response> {
-		const token = await deps.getAccessToken();
-		assert(token, "No access token available");
+	async function attempt(url: string, init?: DoFetchInit): Promise<{ response: Response; accessToken: string }> {
+		const accessToken = await deps.getAccessToken();
+		assert(accessToken, "No access token available");
 		const headers: Record<string, string> = {
-			Authorization: `Bearer ${token}`,
+			Authorization: `Bearer ${accessToken}`,
 			Accept: SIREN_MEDIA_TYPE,
 			...init?.headers,
 		};
-		return deps.fetchFn(url, { ...init, headers });
+		return { response: await deps.fetchFn(url, { ...init, headers }), accessToken };
 	}
 	return async (url, init) => {
-		const response = await attempt(url, init);
-		if (response.status !== 401) return response;
-		const refreshed = await deps.refreshTokens();
+		const first = await attempt(url, init);
+		if (first.response.status !== 401) return first.response;
+		const refreshed = await deps.refreshTokens({ refusedAccessToken: first.accessToken });
 		if (refreshed.ok) {
 			const retried = await attempt(url, init);
-			if (retried.status !== 401) return retried;
+			if (retried.response.status !== 401) return retried.response;
 		} else if (refreshed.reason === "unavailable") {
 			throw new RefreshUnavailableError();
 		}

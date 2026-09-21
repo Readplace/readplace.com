@@ -20,7 +20,7 @@ export type Login = () => Promise<LoginResult>;
 
 export type Logout = () => Promise<void>;
 
-export type RefreshTokens = () => Promise<RefreshResult>;
+export type RefreshTokens = (refused: { refusedAccessToken: string }) => Promise<RefreshResult>;
 
 export type GetAccessToken = () => Promise<string | null>;
 

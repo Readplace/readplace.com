@@ -63,7 +63,7 @@ describe("initInMemoryAuth", () => {
 		it("should return ok true", async () => {
 			const auth = initInMemoryAuth();
 
-			const result = await auth.refreshTokens();
+			const result = await auth.refreshTokens({ refusedAccessToken: "in-memory-token" });
 
 			expect(result).toEqual({ ok: true });
 		});

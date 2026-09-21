@@ -1066,6 +1066,36 @@ describe("initExtension", () => {
 			expect(onUnauthorizedCallCount).toBe(1);
 		});
 
+		it("hands the refresh the access token the refused request carried", async () => {
+			const SEARCH_ROUTE =
+				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					[SEARCH_ROUTE]: { status: 401 },
+				}),
+			);
+			const refusedTokens: string[] = [];
+			const start = initExtension(createUnderstandings(), {
+				...createDeps(fetchFn),
+				getAccessToken: async () => "stale-token",
+				refreshTokens: async (refused) => {
+					refusedTokens.push(refused.refusedAccessToken);
+					return { ok: false, reason: "unavailable" };
+				},
+			});
+			const collection = await start();
+
+			await collection.actions
+				.search({ url: "https://example.com/article" })
+				.catch(() => undefined);
+
+			expect(refusedTokens).toEqual(["stale-token"]);
+		});
+
 		it("should refresh and replay the same request behind the fresh token on 401", async () => {
 			const SEARCH_ROUTE =
 				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
