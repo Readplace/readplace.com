@@ -228,8 +228,11 @@ val Affordance.isToolbarControl: Boolean
 	get() {
 		if (isStructuralLink) return false
 		if (!presentation.isToolbarControl || !isInvokableByBareControl) return false
-		return presentation.isRecognizedToken || hasServerTitle
+		return isUserControl
 	}
+
+val Affordance.isUserControl: Boolean
+	get() = presentation.isRecognizedToken || hasServerTitle
 
 /**
  * Whether the server gave this affordance a human `title` — its signal that the
@@ -255,5 +258,5 @@ private val Affordance.hasServerTitle: Boolean
  * without standing up a view.
  */
 val Article.rowControls: List<Affordance>
-	get() = affordances.filter { it.isInvokableByBareControl } +
-		links.mapNotNull { Affordance.of(it) }.filter { it.isSemanticControlLink }
+	get() = affordances.filter { it.isInvokableByBareControl && it.isUserControl } +
+		links.mapNotNull { Affordance.of(it) }.filter { it.isSemanticControlLink && it.isUserControl }
