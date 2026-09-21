@@ -322,7 +322,7 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("keeps siteName on the saved url when the crawl redirected", () => {
+	it("falls back to the saved-url host for siteName so the read-time rule can rehost it to the destination", () => {
 		const htmlWithoutSiteName = `
 		<html><head><title>Post</title></head>
 		<body><article>

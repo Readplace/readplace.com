@@ -1025,6 +1025,9 @@ importers:
       '@packages/crawl-article':
         specifier: workspace:*
         version: link:../crawl-article
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@packages/site-rules':
         specifier: workspace:*
         version: link:../site-rules

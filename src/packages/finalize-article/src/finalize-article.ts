@@ -8,6 +8,7 @@ import {
 	type ThumbnailImage,
 } from "@packages/crawl-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { imageSavedFromHostExcerpt } from "@packages/domain/article";
 import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
 import type { PutImageObject } from "./put-image-object.types";
 import { estimatedReadTimeFromWordCount } from "./estimated-read-time";
@@ -197,7 +198,7 @@ async function finalizeImageArticle(args: {
 			metadata: {
 				title,
 				siteName: hostname,
-				excerpt: `Image saved from ${hostname}.`,
+				excerpt: imageSavedFromHostExcerpt(hostname),
 				wordCount: 0,
 				estimatedReadTime: estimatedReadTimeFromWordCount(0),
 				imageUrl,

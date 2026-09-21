@@ -16,6 +16,7 @@
   "dependencies": {
     "@mozilla/readability": "0.6.0",
     "@packages/crawl-article": "workspace:*",
+    "@packages/domain": "workspace:*",
     "@packages/site-rules": "workspace:*",
     "linkedom": "0.18.12",
     "parse-srcset": "1.0.2",
