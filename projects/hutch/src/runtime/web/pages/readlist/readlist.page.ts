@@ -20,7 +20,7 @@ import {
 	decodeImportSkippedCookie,
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
-import { ReaderArticleHashIdSchema, calculateReadTime, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
@@ -1011,13 +1011,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 
 		if (state.notice !== undefined) {
-			const hostname = new URL(ownedArticle.url).hostname;
 			return {
 				kind: "ready",
 				article: {
 					...ownedArticle,
 					content: undefined,
-					metadata: { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 },
+					metadata: { ...hostStubMetadata(ownedArticle.destinationUrl), wordCount: 0 },
 					estimatedReadTime: calculateReadTime(0),
 				},
 				state,

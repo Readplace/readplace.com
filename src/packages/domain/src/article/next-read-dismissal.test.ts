@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { articleDestinationUrl, articleDisplayMetadata } from "./article-site";
 import { MinutesSchema } from "./article.schema";
 import type { SavedArticle } from "./article.types";
 import {
@@ -15,11 +16,17 @@ const SIBLING = ReaderArticleHashId.fromHash("fedcba9876543210fedcba9876543210")
 const dismissedAgo = (ms: number) => new Date(NOW.getTime() - ms);
 
 function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
+	const url = "https://example.com/article";
+	const destinationUrl = articleDestinationUrl({ url, displayUrl: undefined });
 	return {
 		id: SUGGESTED,
 		userId: UserIdSchema.parse("user-1"),
-		url: "https://example.com/article",
-		metadata: { title: "t", siteName: "s", excerpt: "e", wordCount: 1 },
+		url,
+		destinationUrl,
+		metadata: {
+			...articleDisplayMetadata({ url, destinationUrl, title: "t", siteName: "s", excerpt: "e" }),
+			wordCount: 1,
+		},
 		estimatedReadTime: MinutesSchema.parse(1),
 		status: "unread",
 		savedAt: NOW,

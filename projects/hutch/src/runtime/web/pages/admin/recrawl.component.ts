@@ -1,6 +1,7 @@
 import type {
-	ArticleMetadata,
+	ArticleDestinationUrl,
 	Minutes,
+	SavedArticle,
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -66,8 +67,8 @@ export function formatRecrawlDocumentTitle(articleTitle: string): string {
 
 export interface AdminRecrawlPageInput {
 	articleUrl: string;
-	displayUrl?: string;
-	metadata: ArticleMetadata;
+	destinationUrl: ArticleDestinationUrl;
+	metadata: SavedArticle["metadata"];
 	estimatedReadTime: Minutes;
 	content?: string;
 	crawl?: ArticleCrawl;
@@ -102,7 +103,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
 		readTime: displayableReadTime(input),
-		url: input.displayUrl ?? input.articleUrl,
+		url: input.destinationUrl,
 		content: input.content,
 		crawl: input.crawl,
 		readerPollUrl: input.readerPollUrl,

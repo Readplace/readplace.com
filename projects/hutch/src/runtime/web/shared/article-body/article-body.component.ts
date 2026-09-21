@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
-import type { DisplayableReadTime } from "@packages/domain/article";
+import type { ArticleDestinationUrl, DisplayableReadTime, SiteLabel } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { render } from "@packages/web-shell";
@@ -20,9 +20,9 @@ const ARTICLE_BODY_TEMPLATE = readFileSync(
 
 export interface ArticleBodyInput {
 	title: string;
-	siteName: string;
+	siteName: SiteLabel;
 	readTime: DisplayableReadTime | undefined;
-	url: string;
+	url: ArticleDestinationUrl;
 	content?: string;
 	crawl?: ArticleCrawl;
 	readerPollUrl?: string;

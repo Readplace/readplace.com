@@ -7,6 +7,7 @@ import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-cra
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
 import { MAX_POLLS } from "@packages/web-shell";
+import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { initArticleReader } from "./article-reader";
 import type {
 	ArticleReaderDeps,
@@ -52,9 +53,10 @@ function defaultFakeArticle(): GlobalArticleData {
 	return {
 		id: ReaderArticleHashId.from(ARTICLE_URL),
 		url: ARTICLE_URL,
+		destinationUrl: destinationUrl(ARTICLE_URL),
 		metadata: {
 			title: "Post",
-			siteName: "example.com",
+			siteName: siteLabel("example.com"),
 			excerpt: "Excerpt.",
 			wordCount: 100,
 		},
@@ -1024,7 +1026,7 @@ describe("initArticleReader", () => {
 				...defaultFakeArticle(),
 				metadata: {
 					title: "Why Rust beats Go",
-					siteName: "example.com",
+					siteName: siteLabel("example.com"),
 					excerpt: "",
 					wordCount: 0,
 				},
@@ -1062,7 +1064,7 @@ describe("initArticleReader", () => {
 				...defaultFakeArticle(),
 				metadata: {
 					title: "Why Rust beats Go",
-					siteName: "example.com",
+					siteName: siteLabel("example.com"),
 					excerpt: "",
 					wordCount: 0,
 				},
@@ -1096,7 +1098,7 @@ describe("initArticleReader", () => {
 			});
 			state.article = {
 				...defaultFakeArticle(),
-				displayUrl: "https://destination.example/article",
+				destinationUrl: destinationUrl("https://destination.example/article"),
 			};
 			const reader = initArticleReader(deps);
 
@@ -1156,7 +1158,7 @@ describe("initArticleReader", () => {
 			});
 			state.article = {
 				...defaultFakeArticle(),
-				displayUrl: "https://destination.example/article",
+				destinationUrl: destinationUrl("https://destination.example/article"),
 			};
 			const reader = initArticleReader(deps);
 
@@ -1222,7 +1224,7 @@ describe("initArticleReader", () => {
 				...defaultFakeArticle(),
 				metadata: {
 					title: "Why Rust beats Go",
-					siteName: "example.com",
+					siteName: siteLabel("example.com"),
 					excerpt: "",
 					wordCount: 0,
 				},
@@ -1261,7 +1263,7 @@ describe("initArticleReader", () => {
 			});
 			state.article = {
 				...defaultFakeArticle(),
-				displayUrl: "https://destination.example/article",
+				destinationUrl: destinationUrl("https://destination.example/article"),
 			};
 			const reader = initArticleReader(deps);
 

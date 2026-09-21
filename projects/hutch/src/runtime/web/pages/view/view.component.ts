@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
 import type {
-	ArticleMetadata,
+	ArticleDestinationUrl,
 	Minutes,
+	SavedArticle,
 } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -104,11 +105,9 @@ export function renderViewDownloadsOob(articleUrl: string): string {
 export interface ViewPageInput {
 	/** Identity: drives the /view share path, the save action, and SEO. */
 	articleUrl: string;
-	/** Redirect destination for a merged article; shown as the header "View
-	 * original" in place of `articleUrl`. Absent on a normal article. */
-	displayUrl?: string;
+	destinationUrl: ArticleDestinationUrl;
 	appOrigin: string;
-	metadata: ArticleMetadata;
+	metadata: SavedArticle["metadata"];
 	estimatedReadTime: Minutes;
 	content?: string;
 	crawl?: ArticleCrawl;
@@ -132,7 +131,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		readTime: displayableReadTime(input),
 		// Header "View original" only; the share path, save action and SEO below
 		// keep `articleUrl` (the identity).
-		url: input.displayUrl ?? input.articleUrl,
+		url: input.destinationUrl,
 		content: input.content,
 		crawl: input.crawl,
 		readerPollUrl: input.readerPollUrl,

@@ -1,4 +1,4 @@
-import type { SavedArticle } from "./article.types";
+import type { Minutes } from "./article.types";
 
 export interface DisplayableReadTime {
 	value: string;
@@ -6,7 +6,7 @@ export interface DisplayableReadTime {
 }
 
 export function displayableReadTime(
-	article: Pick<SavedArticle, "metadata" | "estimatedReadTime">,
+	article: { metadata: { wordCount: number }; estimatedReadTime: Minutes },
 ): DisplayableReadTime | undefined {
 	if (article.metadata.wordCount <= 0) {
 		return undefined;

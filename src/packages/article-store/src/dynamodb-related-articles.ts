@@ -3,6 +3,8 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	ArticleStatusSchema,
 	ReaderArticleHashIdSchema,
+	articleDestinationUrl,
+	articleLinkedDisplay,
 	stubMetadataFor,
 } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
@@ -259,10 +261,16 @@ export function initDynamoDbRelatedArticles(deps: {
 			if (!saved) continue;
 			const article = usable(LinkableArticle, byUrl.get(link.key));
 			if (!article) continue;
-			items.push({
-				id: ReaderArticleHashIdSchema.parse(article.routeId),
+			const display = articleLinkedDisplay({
+				url: article.originalUrl,
+				destinationUrl: articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl }),
 				title: article.title,
 				siteName: article.siteName,
+			});
+			items.push({
+				id: ReaderArticleHashIdSchema.parse(article.routeId),
+				title: display.title,
+				siteName: display.siteName,
 				reason: link.reason,
 				status: saved.status,
 				savedAt: new Date(saved.savedAt),

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { siteLabel } from "../test-helpers/article-fixtures";
 import { computeArticleContentVersion, type ArticleContentVersionInput } from "./article-content-version";
 
 function baseInput(overrides?: Partial<ArticleContentVersionInput>): ArticleContentVersionInput {
@@ -6,7 +7,7 @@ function baseInput(overrides?: Partial<ArticleContentVersionInput>): ArticleCont
 		article: {
 			metadata: {
 				title: "A Title",
-				siteName: "example.com",
+				siteName: siteLabel("example.com"),
 				excerpt: "An excerpt",
 				wordCount: 500,
 				imageUrl: "https://cdn.example.com/img.jpg",
@@ -33,34 +34,34 @@ describe("computeArticleContentVersion", () => {
 	});
 
 	it("changes when the title changes", () => {
-		const a = withMetadata({ title: "One", siteName: "s.com", excerpt: "e", wordCount: 1 });
-		const b = withMetadata({ title: "Two", siteName: "s.com", excerpt: "e", wordCount: 1 });
+		const a = withMetadata({ title: "One", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 1 });
+		const b = withMetadata({ title: "Two", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 1 });
 		assert.notEqual(computeArticleContentVersion(a), computeArticleContentVersion(b));
 	});
 
 	it("changes when the excerpt changes", () => {
-		const a = withMetadata({ title: "T", siteName: "s.com", excerpt: "one", wordCount: 1 });
-		const b = withMetadata({ title: "T", siteName: "s.com", excerpt: "two", wordCount: 1 });
+		const a = withMetadata({ title: "T", siteName: siteLabel("s.com"), excerpt: "one", wordCount: 1 });
+		const b = withMetadata({ title: "T", siteName: siteLabel("s.com"), excerpt: "two", wordCount: 1 });
 		assert.notEqual(computeArticleContentVersion(a), computeArticleContentVersion(b));
 	});
 
 	it("changes when the siteName changes", () => {
-		const a = withMetadata({ title: "T", siteName: "a.com", excerpt: "e", wordCount: 1 });
-		const b = withMetadata({ title: "T", siteName: "b.com", excerpt: "e", wordCount: 1 });
+		const a = withMetadata({ title: "T", siteName: siteLabel("a.com"), excerpt: "e", wordCount: 1 });
+		const b = withMetadata({ title: "T", siteName: siteLabel("b.com"), excerpt: "e", wordCount: 1 });
 		assert.notEqual(computeArticleContentVersion(a), computeArticleContentVersion(b));
 	});
 
 	it("changes when the word count changes", () => {
-		const a = withMetadata({ title: "T", siteName: "s.com", excerpt: "e", wordCount: 1 });
-		const b = withMetadata({ title: "T", siteName: "s.com", excerpt: "e", wordCount: 2 });
+		const a = withMetadata({ title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 1 });
+		const b = withMetadata({ title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 2 });
 		assert.notEqual(computeArticleContentVersion(a), computeArticleContentVersion(b));
 	});
 
 	it("changes when imageUrl is filled in where there was none", () => {
-		const without = withMetadata({ title: "T", siteName: "s.com", excerpt: "e", wordCount: 1 });
+		const without = withMetadata({ title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 1 });
 		const withImage = withMetadata({
 			title: "T",
-			siteName: "s.com",
+			siteName: siteLabel("s.com"),
 			excerpt: "e",
 			wordCount: 1,
 			imageUrl: "https://cdn.example.com/i.jpg",
@@ -117,7 +118,7 @@ describe("computeArticleContentVersion", () => {
 	});
 
 	it("changes when contentFetchedAt changes even if every metadata field is identical", () => {
-		const metadata = { title: "T", siteName: "s.com", excerpt: "e", wordCount: 1 } as const;
+		const metadata = { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 1 } as const;
 		const earlier = baseInput({
 			article: { metadata: { ...metadata }, contentFetchedAt: new Date("2026-01-01T00:00:00.000Z") },
 			crawl: { status: "ready" },
@@ -134,7 +135,7 @@ describe("computeArticleContentVersion", () => {
 	it("is stable for a legacy article that has no contentFetchedAt", () => {
 		const legacy = baseInput({
 			article: {
-				metadata: { title: "T", siteName: "s.com", excerpt: "e", wordCount: 1 },
+				metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 1 },
 				contentFetchedAt: undefined,
 			},
 		});

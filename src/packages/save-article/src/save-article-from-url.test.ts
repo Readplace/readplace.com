@@ -1,4 +1,4 @@
-import { ReaderArticleHashIdSchema, SaveableUrlSchema } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, SaveableUrlSchema, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
 import type { SaveProvenance, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -10,6 +10,7 @@ import {
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
+const destination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 const provenance: SaveProvenance = { kind: "web" };
 const operationSavedAt = new Date("2026-08-01T10:00:00.000Z");
 
@@ -18,7 +19,8 @@ function makeSaved(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		id: articleId,
 		userId,
 		url: exampleUrl,
-		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+		destinationUrl: destination,
+		metadata: { ...articleDisplayMetadata({ url: exampleUrl, destinationUrl: destination, title: "", siteName: "", excerpt: "" }), wordCount: 0 },
 		estimatedReadTime: MinutesSchema.parse(0),
 		status: "unread",
 		savedAt: new Date(),

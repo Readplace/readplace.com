@@ -181,7 +181,7 @@ async function renderRecrawlPage(
 
 	const html = Base(AdminRecrawlPage({
 		articleUrl,
-		displayUrl: existing.displayUrl,
+		destinationUrl: existing.destinationUrl,
 		appOrigin: deps.appOrigin,
 		metadata: existing.metadata,
 		estimatedReadTime: existing.estimatedReadTime,

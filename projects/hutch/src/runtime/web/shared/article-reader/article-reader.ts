@@ -1,4 +1,10 @@
-import { displayableReadTime, isNonArticleHost } from "@packages/domain/article";
+import {
+	type ArticleDestinationUrl,
+	articleDestinationUrl,
+	displayableReadTime,
+	hostStubMetadata,
+	isNonArticleHost,
+} from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -53,7 +59,7 @@ import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
  */
 interface PollResponseBodyInput {
 	primary: "reader" | "summary";
-	url: string;
+	url: ArticleDestinationUrl;
 	crawl: ArticleCrawl | undefined;
 	summary: GeneratedSummary | undefined;
 	content: string | undefined;
@@ -347,11 +353,12 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		primary: "reader" | "summary",
 		articleUrl: string,
 	): Component {
-		const hostname = new URL(articleUrl).hostname;
+		const destinationUrl = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
+		const stub = hostStubMetadata(destinationUrl);
 		return HtmlPage(
 			renderPollResponseBody({
 				primary,
-				url: articleUrl,
+				url: destinationUrl,
 				crawl: undefined,
 				summary: undefined,
 				content: undefined,
@@ -365,13 +372,13 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				progress: undefined,
 				metadataOob:
 					renderArticleHeaderOob({
-						title: hostname,
-						siteName: hostname,
+						title: stub.title,
+						siteName: stub.siteName,
 						readTime: undefined,
-						url: articleUrl,
+						url: destinationUrl,
 						provenance: undefined,
 						readlistTags: undefined,
-					}) + renderDocumentTitleOob(deps.formatDocumentTitle(hostname)),
+					}) + renderDocumentTitleOob(deps.formatDocumentTitle(stub.title)),
 				readerViewFailedOob: "",
 				downloadsOob: "",
 				appOrigin: deps.appOrigin,
@@ -390,7 +397,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	 */
 	function buildMetadataOob(
 		article: GlobalArticleData | null,
-		displayUrl: string,
+		destinationUrl: ArticleDestinationUrl,
 		provenance: SaveProvenance | undefined,
 		readlistTags: ReaderReadlistTags | undefined,
 	): string {
@@ -399,7 +406,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
 			readTime: displayableReadTime(article),
-			url: displayUrl,
+			url: destinationUrl,
 			provenance,
 			readlistTags,
 		});
@@ -418,13 +425,13 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.readArticleContent(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
-		const displayUrl = article?.displayUrl ?? articleUrl;
+		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const { readerPollUrl, summaryPollUrl, capturePollUrl } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder, capturing: params.capturing,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "summary",
-			url: displayUrl,
+			url: destinationUrl,
 			crawl,
 			summary,
 			content,
@@ -436,7 +443,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.readlistTags),
+			metadataOob: buildMetadataOob(article, destinationUrl, params.provenance, params.readlistTags),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({
 				crawl,
@@ -459,13 +466,13 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.readArticleContent(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
-		const displayUrl = article?.displayUrl ?? articleUrl;
+		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const { readerPollUrl, summaryPollUrl, capturePollUrl } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder, capturing: params.capturing,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "reader",
-			url: displayUrl,
+			url: destinationUrl,
 			crawl,
 			summary,
 			content,
@@ -477,7 +484,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, displayUrl, params.provenance, params.readlistTags),
+			metadataOob: buildMetadataOob(article, destinationUrl, params.provenance, params.readlistTags),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({
 				crawl,

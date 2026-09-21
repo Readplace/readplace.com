@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Minutes, SavedArticle } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
+import { destinationUrl, siteLabel } from "../../../test-helpers/article-fixtures";
 import { computeReadlistCardEtag } from "./readlist-card.etag";
 
 const ARTICLE_URL = "https://example.com/post";
@@ -11,9 +12,10 @@ function makeArticle(overrides?: Partial<SavedArticle>): SavedArticle {
 		id: ReaderArticleHashId.from(ARTICLE_URL),
 		userId: "user-1" as UserId,
 		url: ARTICLE_URL,
+		destinationUrl: destinationUrl(ARTICLE_URL),
 		metadata: {
 			title: "Test Article",
-			siteName: "example.com",
+			siteName: siteLabel("example.com"),
 			excerpt: "An excerpt",
 			wordCount: 500,
 		},
@@ -60,12 +62,12 @@ describe("computeReadlistCardEtag", () => {
 
 	it("changes when wordCount changes", () => {
 		const a = computeReadlistCardEtag({
-			article: makeArticle({ metadata: { title: "T", siteName: "s.com", excerpt: "e", wordCount: 0 } }),
+			article: makeArticle({ metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 0 } }),
 			crawl: { status: "pending" },
 			summary: { status: "pending" },
 		});
 		const b = computeReadlistCardEtag({
-			article: makeArticle({ metadata: { title: "T", siteName: "s.com", excerpt: "e", wordCount: 750 } }),
+			article: makeArticle({ metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 750 } }),
 			crawl: { status: "pending" },
 			summary: { status: "pending" },
 		});
@@ -74,13 +76,13 @@ describe("computeReadlistCardEtag", () => {
 
 	it("changes when imageUrl is filled in late by the S3 thumbnail copy", () => {
 		const without = computeReadlistCardEtag({
-			article: makeArticle({ metadata: { title: "T", siteName: "s.com", excerpt: "e", wordCount: 500 } }),
+			article: makeArticle({ metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 500 } }),
 			crawl: { status: "ready" },
 			summary: { status: "ready", summary: "TL;DR" },
 		});
 		const withImage = computeReadlistCardEtag({
 			article: makeArticle({
-				metadata: { title: "T", siteName: "s.com", excerpt: "e", wordCount: 500, imageUrl: "https://cdn.example.com/img.jpg" },
+				metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 500, imageUrl: "https://cdn.example.com/img.jpg" },
 			}),
 			crawl: { status: "ready" },
 			summary: { status: "ready", summary: "TL;DR" },

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { UserId } from "../user/user.types";
+import type { ArticleDestinationUrl, SiteLabel } from "./article-site";
 import type { MinutesSchema } from "./article.schema";
 import type { ReaderArticleHashId } from "./reader-article-hash-id";
 import type { SaveProvenance } from "./save-provenance";
@@ -16,17 +17,16 @@ export interface ArticleMetadata {
 	imageUrl?: string;
 }
 
+type DisplayMetadata = Omit<ArticleMetadata, "siteName"> & { siteName: SiteLabel };
+
 export interface SavedArticle {
 	id: ReaderArticleHashId;
 	userId: UserId;
 	/** Identity: the URL every lookup keys on (crawl status, content, freshness).
 	 * Never swap this for the destination — `resolveReaderState` reads it. */
 	url: string;
-	/** The redirect destination this article was adopted onto, when it was reached
-	 * by following a redirect from `url`. Purely for display ("View original", the
-	 * Siren/API `url`, the queue card link); absent on a normal, non-adopted save. */
-	displayUrl?: string;
-	metadata: ArticleMetadata;
+	destinationUrl: ArticleDestinationUrl;
+	metadata: DisplayMetadata;
 	content?: string;
 	estimatedReadTime: Minutes;
 	status: ArticleStatus;

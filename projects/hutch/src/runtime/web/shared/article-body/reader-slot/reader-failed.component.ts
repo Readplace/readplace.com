@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
+import { type ArticleDestinationUrl, articleDestinationHost } from "@packages/domain/article";
 import { render, withInternalTracking } from "@packages/web-shell";
 import { FULL_PAGE_CAPTURE_PHRASE } from "../../client-surface-phrases";
 
@@ -12,7 +13,7 @@ const TEMPLATE = readFileSync(
 export type { ReaderFailedVariant };
 
 export interface ReaderFailedInput {
-	url: string;
+	url: ArticleDestinationUrl;
 	/**
 	 * Distinguishes the four states that all surface the same "your link is
 	 * saved, open it on the source" page:
@@ -77,7 +78,7 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 	return render(TEMPLATE, {
 		url: input.url,
 		variant: input.variant,
-		ctaLabel: CTA_LABELS[input.variant](new URL(input.url).hostname),
+		ctaLabel: CTA_LABELS[input.variant](articleDestinationHost(input.url)),
 		explanation: EXPLANATIONS[input.variant],
 		showCapture: input.variant === "blocked",
 		capturePollUrl: input.capturePollUrl,

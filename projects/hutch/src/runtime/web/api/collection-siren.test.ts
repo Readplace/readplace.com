@@ -7,6 +7,7 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import type { UserId } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
+import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { toArticleCollectionEntity } from "./collection-siren";
 
 const tabs = [
@@ -29,9 +30,10 @@ function makeArticle(idHint: string): SavedArticle {
 		id: ReaderArticleHashId.from(url),
 		userId: "test-user-id" as UserId,
 		url,
+		destinationUrl: destinationUrl(url),
 		metadata: {
 			title: `Article ${idHint}`,
-			siteName: "Example",
+			siteName: siteLabel("Example"),
 			excerpt: "First paragraph...",
 			wordCount: 1200,
 		},

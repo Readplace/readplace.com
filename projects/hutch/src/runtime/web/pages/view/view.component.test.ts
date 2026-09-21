@@ -3,6 +3,7 @@ import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import { calculateReadTime } from "@packages/domain/article";
 import { Base } from "../../base.component";
+import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import {
 	ViewPage,
 	renderViewCtaActionOob,
@@ -12,10 +13,11 @@ import {
 
 const baseInput: ViewPageInput = {
 	articleUrl: "https://example.com/post",
+	destinationUrl: destinationUrl("https://example.com/post"),
 	appOrigin: "http://localhost:3000",
 	metadata: {
 		title: "Hello World",
-		siteName: "example.com",
+		siteName: siteLabel("example.com"),
 		excerpt: "A lovely article.",
 		wordCount: 500,
 		imageUrl: "https://cdn.example.com/hero.jpg",
@@ -71,7 +73,7 @@ describe("ViewPage", () => {
 		const doc = render({
 			...baseInput,
 			articleUrl: "https://example.com/post.html",
-			displayUrl: "https://example.com/post",
+			destinationUrl: destinationUrl("https://example.com/post"),
 		});
 
 		const link = doc.querySelector("[data-test-original-link]");

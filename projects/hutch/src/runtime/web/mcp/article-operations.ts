@@ -53,7 +53,7 @@ export function toMcpArticle(
 	return {
 		id: article.id.value,
 		readlists,
-		url: article.displayUrl ?? article.url,
+		url: article.destinationUrl,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
 		excerpt: article.metadata.excerpt,

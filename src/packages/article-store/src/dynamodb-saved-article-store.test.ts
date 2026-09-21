@@ -916,6 +916,36 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 		expect(article?.status).toBe("unread");
 	});
 
+	it("findArticleById names a cross-host redirect after its destination and links to it, keeping the saved url as identity", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				default: {
+					Items: [
+						articleItem({
+							originalUrl: "https://nodeweekly.com/link/190528",
+							displayUrl: "https://memcached.org/",
+							siteName: "nodeweekly.com",
+						}),
+					],
+					Count: 1,
+				},
+			},
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect({
+			url: article?.url,
+			destinationUrl: article?.destinationUrl,
+			siteName: article?.metadata.siteName,
+		}).toEqual({
+			url: "https://nodeweekly.com/link/190528",
+			destinationUrl: "https://memcached.org/",
+			siteName: "memcached.org",
+		});
+	});
+
 	it("findArticleById carries contentFetchedAt from the global row, so the reader can version its content", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: {
@@ -1666,7 +1696,32 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 
 		const data = await initStore(client).findArticleByUrl(URL);
 
-		expect(data?.displayUrl).toBe("https://example.com/dest");
+		expect(data?.destinationUrl).toBe("https://example.com/dest");
+	});
+
+	it("findArticleByUrl names a cross-host redirect after its destination when the page declared no site name", async () => {
+		const { client } = createFakeClient({
+			GetCommand: {
+				default: {
+					Item: articleItem({
+						originalUrl: "https://nodeweekly.com/link/190528",
+						displayUrl: "https://memcached.org/",
+						title: "Article from nodeweekly.com",
+						siteName: "nodeweekly.com",
+						excerpt: "Content saved from nodeweekly.com.",
+						content: undefined,
+					}),
+				},
+			},
+		});
+
+		const data = await initStore(client).findArticleByUrl("https://nodeweekly.com/link/190528");
+
+		expect(data?.metadata).toMatchObject({
+			title: "Article from memcached.org",
+			siteName: "memcached.org",
+			excerpt: "Content saved from memcached.org.",
+		});
 	});
 
 	it("findArticleByUrl falls back to the epoch savedAt for legacy rows missing the column", async () => {

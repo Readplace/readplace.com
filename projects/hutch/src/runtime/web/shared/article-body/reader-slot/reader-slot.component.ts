@@ -1,4 +1,5 @@
 import { parseCrawlFailureReason } from "@packages/article-state-types";
+import type { ArticleDestinationUrl } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
 import { type ReaderFailedVariant, renderReaderFailed } from "./reader-failed.component";
@@ -8,7 +9,7 @@ import { renderReaderReady } from "./reader-ready.component";
 export interface ReaderSlotInput {
 	crawl?: ArticleCrawl;
 	content?: string;
-	url: string;
+	url: ArticleDestinationUrl;
 	readerPollUrl?: string;
 	extensionInstallUrl?: string;
 	appOrigin: string;

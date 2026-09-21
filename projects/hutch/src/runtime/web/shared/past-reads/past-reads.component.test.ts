@@ -3,6 +3,7 @@ import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { PastReads } from "@packages/provider-contracts/related-articles";
 import { JSDOM } from "jsdom";
+import { siteLabel } from "../../test-helpers/article-fixtures";
 import { renderPastReadsSection } from "./past-reads.component";
 
 function parse(html: string) {
@@ -53,8 +54,8 @@ describe("renderPastReadsSection", () => {
 		const pastReads: PastReads = {
 			status: "ready",
 			items: [
-				{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readAt: READ_THREE_DAYS_AGO, readlist: WORK },
-				{ id: IN_DEFAULT, title: "In the default list", siteName: "Example", reason: "Also the subject" },
+				{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readAt: READ_THREE_DAYS_AGO, readlist: WORK },
+				{ id: IN_DEFAULT, title: "In the default list", siteName: siteLabel("Example"), reason: "Also the subject" },
 			],
 		};
 		const html = renderPastReadsSection({
@@ -103,8 +104,8 @@ describe("renderPastReadsSection", () => {
 			pastReads: {
 				status: "ready",
 				items: [
-					{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readAt: READ_THREE_DAYS_AGO, readlist: WORK },
-					{ id: IN_DEFAULT, title: "In the default list", siteName: "Example", reason: "Also the subject" },
+					{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readAt: READ_THREE_DAYS_AGO, readlist: WORK },
+					{ id: IN_DEFAULT, title: "In the default list", siteName: siteLabel("Example"), reason: "Also the subject" },
 				],
 			},
 			computeUrl: "/queue/x/topic-reads",
@@ -135,8 +136,8 @@ describe("renderPastReadsSection", () => {
 			pastReads: {
 				status: "ready",
 				items: [
-					{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK },
-					{ id: IN_DEFAULT, title: "In the default list", siteName: "Example", reason: "Also the subject" },
+					{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readlist: WORK },
+					{ id: IN_DEFAULT, title: "In the default list", siteName: siteLabel("Example"), reason: "Also the subject" },
 				],
 			},
 			computeUrl: "/queue/x/topic-reads",
@@ -162,8 +163,8 @@ describe("renderPastReadsSection", () => {
 			pastReads: {
 				status: "ready",
 				items: [
-					{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK },
-					{ id: IN_DEFAULT, title: "In the default list", siteName: "Elsewhere", reason: "Also the subject" },
+					{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readlist: WORK },
+					{ id: IN_DEFAULT, title: "In the default list", siteName: siteLabel("Elsewhere"), reason: "Also the subject" },
 				],
 			},
 			computeUrl: "/queue/x/topic-reads",
@@ -183,7 +184,7 @@ describe("renderPastReadsSection", () => {
 		const html = renderPastReadsSection({
 			pastReads: {
 				status: "ready",
-				items: [{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK }],
+				items: [{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readlist: WORK }],
 			},
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
@@ -197,7 +198,7 @@ describe("renderPastReadsSection", () => {
 		const html = renderPastReadsSection({
 			pastReads: {
 				status: "ready",
-				items: [{ id: IN_WORK, title: "In a custom list", siteName: "Example", reason: "Same subject", readlist: WORK }],
+				items: [{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readlist: WORK }],
 			},
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,
@@ -214,7 +215,7 @@ describe("renderPastReadsSection", () => {
 		const html = renderPastReadsSection({
 			pastReads: {
 				status: "ready",
-				items: [{ id: IN_DEFAULT, title: "The lone match", siteName: "Solo", reason: "Same subject" }],
+				items: [{ id: IN_DEFAULT, title: "The lone match", siteName: siteLabel("Solo"), reason: "Same subject" }],
 			},
 			computeUrl: "/queue/x/topic-reads",
 			sourceArticleId: SOURCE_ID,

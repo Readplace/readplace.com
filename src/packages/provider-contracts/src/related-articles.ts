@@ -1,4 +1,4 @@
-import type { ArticleStatus, ReaderArticleHashId } from "@packages/domain/article";
+import type { ArticleStatus, ReaderArticleHashId, SiteLabel } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 
@@ -27,7 +27,7 @@ export type MarkRelatedArticlesSkipped = (params: {
 export interface RelatedArticleDisplay {
 	id: ReaderArticleHashId;
 	title: string;
-	siteName: string;
+	siteName: SiteLabel;
 	reason: string;
 	status: ArticleStatus;
 	savedAt: Date;
@@ -141,7 +141,7 @@ export type ReadPastReadsState = (params: {
 export interface PastReadDisplay {
 	id: ReaderArticleHashId;
 	title: string;
-	siteName: string;
+	siteName: SiteLabel;
 	reason: string;
 	/** When the reader last read this match, taken as the most recent read across
 	 * every list it is still read in. Absent only for a legacy read row that

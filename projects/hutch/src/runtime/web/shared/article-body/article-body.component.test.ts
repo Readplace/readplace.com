@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { toAbsoluteShortDateTime } from "@packages/web-shell/local-time.format";
+import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { renderArticleBody } from "./article-body.component";
 
 const baseInput = {
 	title: "Hello World",
-	siteName: "example.com",
+	siteName: siteLabel("example.com"),
 	readTime: { value: "3", label: "~3 min read" },
-	url: "https://example.com/post",
+	url: destinationUrl("https://example.com/post"),
 	appOrigin: "https://readplace.com",
 	topActionsHtml: "",
 	bottomActionsHtml: "",

@@ -8,6 +8,7 @@ import {
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { generateCspNonce } from "@packages/web-shell";
+import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { Base } from "../../base.component";
 import { ReaderPage } from "./reader.component";
 import { EXIT_CONFIRM_SCOPE } from "./reader-exit-confirm.component";
@@ -31,9 +32,10 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		id: articleId,
 		userId,
 		url,
+		destinationUrl: destinationUrl(url),
 		metadata: {
 			title: "Hello World",
-			siteName: "example.com",
+			siteName: siteLabel("example.com"),
 			excerpt: "A lovely article.",
 			wordCount: 500,
 		},
@@ -135,7 +137,7 @@ describe("ReaderPage", () => {
 	it("points the header 'View original' at the redirect destination for a merged article", () => {
 		const article = makeArticle({
 			url: SaveableUrlSchema.parse("https://example.com/post.html"),
-			displayUrl: "https://example.com/post",
+			destinationUrl: destinationUrl("https://example.com/post"),
 		});
 		const html = Base(
 			ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, readlistFiling: NO_QUEUE_FILING, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
@@ -247,7 +249,7 @@ describe("ReaderPage", () => {
 		const article = makeArticle({
 			metadata: {
 				title: 'Why <script> & "quotes" break naive templates',
-				siteName: "example.com",
+				siteName: siteLabel("example.com"),
 				excerpt: "A lovely article.",
 				wordCount: 500,
 			},

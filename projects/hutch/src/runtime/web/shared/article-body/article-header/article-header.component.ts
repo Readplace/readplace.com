@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Handlebars from "handlebars";
-import type { DisplayableReadTime, SaveProvenance } from "@packages/domain/article";
+import type { ArticleDestinationUrl, DisplayableReadTime, SaveProvenance, SiteLabel } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { render } from "@packages/web-shell";
 import { provenanceLabel } from "./provenance-label";
@@ -16,9 +16,9 @@ export interface ReaderReadlistTags {
 
 export interface ArticleHeaderInput {
 	title: string;
-	siteName: string;
+	siteName: SiteLabel;
 	readTime: DisplayableReadTime | undefined;
-	url: string;
+	url: ArticleDestinationUrl;
 	/** Required-undefined rather than optional: the header is re-rendered on every
 	 * poll, so every call site has to decide whether it can supply the tag instead
 	 * of dropping it by omission. */

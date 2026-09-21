@@ -7,7 +7,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ReaderArticleHashId, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
@@ -101,12 +101,23 @@ interface UserArticle {
 }
 
 function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): SavedArticle {
+	const destinationUrl = articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl });
 	return {
 		id: article.routeId,
 		userId: userArticle.userId,
 		url: article.originalUrl,
-		displayUrl: article.displayUrl,
-		metadata: article.metadata,
+		destinationUrl,
+		metadata: {
+			...articleDisplayMetadata({
+				url: article.originalUrl,
+				destinationUrl,
+				title: article.metadata.title,
+				siteName: article.metadata.siteName,
+				excerpt: article.metadata.excerpt,
+			}),
+			wordCount: article.metadata.wordCount,
+			imageUrl: article.metadata.imageUrl,
+		},
 		content: article.content,
 
 		estimatedReadTime: article.estimatedReadTime,
@@ -355,11 +366,22 @@ export function initInMemoryArticleStore(): {
 		const article = articles.get(articleResourceUniqueId.value);
 		if (!article) return null;
 
+		const destinationUrl = articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl });
 		return {
 			id: article.routeId,
 			url: article.originalUrl,
-			displayUrl: article.displayUrl,
-			metadata: article.metadata,
+			destinationUrl,
+			metadata: {
+				...articleDisplayMetadata({
+					url: article.originalUrl,
+					destinationUrl,
+					title: article.metadata.title,
+					siteName: article.metadata.siteName,
+					excerpt: article.metadata.excerpt,
+				}),
+				wordCount: article.metadata.wordCount,
+				imageUrl: article.metadata.imageUrl,
+			},
 			content: article.content,
 
 			estimatedReadTime: article.estimatedReadTime,

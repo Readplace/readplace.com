@@ -4,9 +4,10 @@ import express from "express";
 import type {
 	ArticleMetadata,
 	Minutes,
+	SavedArticle,
 } from "@packages/domain/article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { calculateReadTime, isNonArticleHost } from "@packages/domain/article";
+import { articleDestinationUrl, calculateReadTime, hostStubMetadata, isNonArticleHost } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -286,7 +287,7 @@ function handleViewArticle(
 				.status(200)
 				.set({
 					"Content-Type": "application/epub+zip",
-					"Content-Disposition": `attachment; filename="${epubFilename({ title, articleUrl })}"`,
+					"Content-Disposition": `attachment; filename="${epubFilename({ title, destinationUrl: existing.destinationUrl })}"`,
 					"Cache-Control": "private, no-cache",
 					"X-Robots-Tag": "noindex",
 					"Content-Signal": "search=no, ai-input=no, ai-train=no",
@@ -296,6 +297,8 @@ function handleViewArticle(
 		}
 		const hostname = articleHostFrom(articleUrl);
 		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
+		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
+		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };
 		const stubReadTime = calculateReadTime(0);
 		const gated = isNonArticleHost(articleUrl);
 		// A prefetch gets the rendered page (stub metadata below) but triggers
@@ -341,13 +344,16 @@ function handleViewArticle(
 		// eventually consistent), so a transient miss renders the row we already
 		// had or the stub we just wrote — pending, never a 500.
 		const articleSnapshot = await deps.findArticleByUrl(articleUrl);
-		const pendingSnapshot: { metadata: ArticleMetadata; estimatedReadTime: Minutes } =
-			existing ?? { metadata: stubMetadata, estimatedReadTime: stubReadTime };
+		const pendingSnapshot: { metadata: SavedArticle["metadata"]; estimatedReadTime: Minutes } =
+			existing ?? { metadata: renderStub, estimatedReadTime: stubReadTime };
 		const snapshot = gated
-			? { metadata: stubMetadata, estimatedReadTime: stubReadTime }
+			? { metadata: renderStub, estimatedReadTime: stubReadTime }
 			: (articleSnapshot ?? pendingSnapshot);
-		const metadata: ArticleMetadata = snapshot.metadata;
+		const metadata: SavedArticle["metadata"] = snapshot.metadata;
 		const estimatedReadTime: Minutes = snapshot.estimatedReadTime;
+		const destinationUrl = gated
+			? fallbackDestination
+			: (articleSnapshot?.destinationUrl ?? existing?.destinationUrl ?? fallbackDestination);
 
 		const utmParams = collectUtmParams(req.query);
 		const pollUrlBuilder = pollUrlBuilderFor(articleUrl, utmParams);
@@ -411,7 +417,7 @@ function handleViewArticle(
 			Base(
 				ViewPage({
 					articleUrl,
-					displayUrl: articleSnapshot?.displayUrl,
+					destinationUrl,
 					appOrigin: deps.appOrigin,
 					metadata,
 					estimatedReadTime,

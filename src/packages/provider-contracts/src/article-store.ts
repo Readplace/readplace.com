@@ -1,5 +1,7 @@
 import type { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
+	ArticleDestinationUrl,
+	ArticleMetadata,
 	ArticleStatus,
 	SaveProvenance,
 	SavedArticle,
@@ -11,7 +13,7 @@ import type { UserId } from "@packages/domain/user";
 export interface SaveArticleParams {
 	userId: UserId;
 	url: string;
-	metadata: SavedArticle["metadata"];
+	metadata: ArticleMetadata;
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	provenance: SaveProvenance;
 	savedAt: Date;
@@ -64,7 +66,7 @@ export type FindSavedUrls = (params: {
 
 export interface SaveArticleGloballyParams {
 	url: string;
-	metadata: SavedArticle["metadata"];
+	metadata: ArticleMetadata;
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	savedAt: Date;
 }
@@ -98,8 +100,7 @@ export type FindArticleUrlById = (
 export interface GlobalArticleData {
 	id: ReaderArticleHashId;
 	url: string;
-	/** Redirect destination for a merged article; drives display only. */
-	displayUrl?: string;
+	destinationUrl: ArticleDestinationUrl;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	savedAt: Date;

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { destinationUrl } from "../../../test-helpers/article-fixtures";
 import { renderReaderSlot } from "./reader-slot.component";
 
 function parse(html: string) {
@@ -7,7 +8,7 @@ function parse(html: string) {
 		.document;
 }
 
-const URL = "https://example.com/article";
+const URL = destinationUrl("https://example.com/article");
 const APP_ORIGIN = "https://readplace.com";
 
 describe("renderReaderSlot", () => {
@@ -44,7 +45,7 @@ describe("renderReaderSlot", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: { status: "pending" },
-				url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
+				url: destinationUrl("https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf"),
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 			}),
@@ -59,7 +60,7 @@ describe("renderReaderSlot", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: { status: "pending" },
-				url: "https://example.com/articles/some-post",
+				url: destinationUrl("https://example.com/articles/some-post"),
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 			}),
@@ -72,7 +73,7 @@ describe("renderReaderSlot", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: { status: "pending" },
-				url: "not-a-valid-url",
+				url: destinationUrl("not-a-valid-url"),
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 			}),
@@ -495,7 +496,7 @@ describe("renderReaderSlot", () => {
 				notice: "not-an-article",
 				crawl: { status: "ready" },
 				content: "<p>Inbox (42) — someone@example.com</p>",
-				url: "https://mail.google.com/mail/u/0/",
+				url: destinationUrl("https://mail.google.com/mail/u/0/"),
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 			}),

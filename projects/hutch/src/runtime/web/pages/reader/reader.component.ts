@@ -181,9 +181,7 @@ export function ReaderPage(
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
 		readTime: displayableReadTime(article),
-		// Header "View original" points at the redirect destination once merged;
-		// the share path below stays on `article.url` (the /view identity).
-		url: article.displayUrl ?? article.url,
+		url: article.destinationUrl,
 		provenance: article.provenance,
 		readlistTags: options.readlistFiling.tags,
 		content: article.content,

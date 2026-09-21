@@ -781,6 +781,7 @@ describe("initDynamoDbRelatedArticles", () => {
 						[ARTICLES_TABLE]: [
 							{
 								url: "example.com/first",
+								originalUrl: "https://example.com/first",
 								routeId: "0123456789abcdef0123456789abcdef",
 								title: "First",
 								siteName: "Example",
@@ -788,6 +789,7 @@ describe("initDynamoDbRelatedArticles", () => {
 							},
 							{
 								url: "example.com/second",
+								originalUrl: "https://example.com/second",
 								routeId: "fedcba9876543210fedcba9876543210",
 								title: "Second",
 								siteName: "Example",
@@ -795,6 +797,7 @@ describe("initDynamoDbRelatedArticles", () => {
 							},
 							{
 								url: "example.com/finished",
+								originalUrl: "https://example.com/finished",
 								routeId: "33333333333333333333333333333333",
 								title: "Finished",
 								siteName: "Example",
@@ -842,6 +845,55 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(savedRowProjection).toContain("#readAt");
 		});
 
+		it("names a relation that redirected across hosts after its destination, not the saved link's host", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							relatedStatus: "ready",
+							relatedArticles: [{ url: "nodeweekly.com/link/190528", reason: "Same event" }],
+						},
+					};
+				}
+				const requestItems = (command.input as { RequestItems: Record<string, unknown> }).RequestItems;
+				if (Object.keys(requestItems)[0] === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ url: "nodeweekly.com/link/190528", status: "unread", savedAt: "2026-06-01T00:00:00.000Z" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "nodeweekly.com/link/190528",
+								originalUrl: "https://nodeweekly.com/link/190528",
+								displayUrl: "https://memcached.org/",
+								routeId: "0123456789abcdef0123456789abcdef",
+								title: "Article from nodeweekly.com",
+								siteName: "nodeweekly.com",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => ({ title: item.title, siteName: item.siteName }))).toEqual([
+				{ title: "Article from memcached.org", siteName: "memcached.org" },
+			]);
+		});
+
 		it("carries a read relation whose row predates the read timestamp without one", async () => {
 			const { store } = build((command) => {
 				if (command.constructorName === "GetCommand") {
@@ -872,6 +924,7 @@ describe("initDynamoDbRelatedArticles", () => {
 						[ARTICLES_TABLE]: [
 							{
 								url: "example.com/finished",
+								originalUrl: "https://example.com/finished",
 								routeId: "33333333333333333333333333333333",
 								title: "Finished",
 								siteName: "Example",
@@ -995,6 +1048,7 @@ describe("initDynamoDbRelatedArticles", () => {
 						[ARTICLES_TABLE]: [
 							{
 								url: "example.com/purged",
+								originalUrl: "https://example.com/purged",
 								routeId: "11111111111111111111111111111111",
 								title: "Purged",
 								siteName: "Example",
@@ -1003,6 +1057,7 @@ describe("initDynamoDbRelatedArticles", () => {
 							},
 							{
 								url: "example.com/kept",
+								originalUrl: "https://example.com/kept",
 								routeId: "22222222222222222222222222222222",
 								title: "Kept",
 								siteName: "Example",

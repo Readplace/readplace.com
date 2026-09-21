@@ -3,6 +3,7 @@ import { DOMParser } from "linkedom";
 import { strFromU8, unzipSync } from "fflate";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
+import { destinationUrl } from "../../test-helpers/article-fixtures";
 import { epubFilename, initBuildArticleEpub } from "./article-epub";
 
 const ARTICLE_URL = "https://example.com/article";
@@ -189,13 +190,13 @@ describe("initBuildArticleEpub", () => {
 
 describe("epubFilename", () => {
 	it("slugifies the title", () => {
-		expect(epubFilename({ title: "Hello, World! 2026", articleUrl: ARTICLE_URL })).toBe(
+		expect(epubFilename({ title: "Hello, World! 2026", destinationUrl: destinationUrl(ARTICLE_URL) })).toBe(
 			"hello-world-2026.epub",
 		);
 	});
 
 	it("falls back to the host slug when the title has no ascii letters", () => {
-		expect(epubFilename({ title: "日本語", articleUrl: "https://news.example.com/x" })).toBe(
+		expect(epubFilename({ title: "日本語", destinationUrl: destinationUrl("https://news.example.com/x") })).toBe(
 			"news-example-com.epub",
 		);
 	});

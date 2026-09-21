@@ -3,6 +3,8 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	ArticleStatusSchema,
 	ReaderArticleHashIdSchema,
+	articleDestinationUrl,
+	articleLinkedDisplay,
 } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -321,10 +323,16 @@ export function initDynamoDbPastReads(deps: {
 			const destination = priority.find((readlist) => lists.includes(readlist));
 			assert(destination, "an owned list is always within the priority order");
 			const lastReadAt = lastReadByUrl.get(link.url);
-			items.push({
-				id: ReaderArticleHashIdSchema.parse(article.routeId),
+			const display = articleLinkedDisplay({
+				url: article.originalUrl,
+				destinationUrl: articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl }),
 				title: article.title,
 				siteName: article.siteName,
+			});
+			items.push({
+				id: ReaderArticleHashIdSchema.parse(article.routeId),
+				title: display.title,
+				siteName: display.siteName,
 				reason: link.reason,
 				...(lastReadAt !== undefined ? { readAt: new Date(lastReadAt) } : {}),
 				...(destination === DEFAULT_READLIST_SLUG ? {} : { readlist: destination }),

@@ -1,5 +1,6 @@
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
+import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type {
@@ -31,9 +32,10 @@ function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		id: ReaderArticleHashId.from(url),
 		userId,
 		url,
+		destinationUrl: destinationUrl(url),
 		metadata: {
 			title: "Title",
-			siteName: "Example",
+			siteName: siteLabel("Example"),
 			excerpt: "An excerpt",
 			wordCount: 400,
 			imageUrl: "https://example.com/i.png",
@@ -125,7 +127,7 @@ describe("toMcpArticle", () => {
 	it("returns the redirect destination as the url for a merged article", () => {
 		const article = buildArticle({
 			url: "https://example.com/a.html",
-			displayUrl: "https://example.com/a",
+			destinationUrl: destinationUrl("https://example.com/a"),
 		});
 		expect(toMcpArticle(article, []).url).toBe("https://example.com/a");
 	});
@@ -134,7 +136,7 @@ describe("toMcpArticle", () => {
 		const article = buildArticle({
 			metadata: {
 				title: "T",
-				siteName: "S",
+				siteName: siteLabel("S"),
 				excerpt: "E",
 				wordCount: 1,
 			},
@@ -148,7 +150,7 @@ describe("toMcpArticle", () => {
 		const article = buildArticle({
 			metadata: {
 				title: "T",
-				siteName: "S",
+				siteName: siteLabel("S"),
 				excerpt: "E",
 				wordCount: 0,
 			},
@@ -202,7 +204,7 @@ describe("toSummaryResult", () => {
 
 describe("initMcpArticleOperations", () => {
 	it("uses the saved URL for membership while displaying a merged article's destination URL", async () => {
-		const article = buildArticle({ displayUrl: "https://example.com/destination" });
+		const article = buildArticle({ destinationUrl: destinationUrl("https://example.com/destination") });
 		const readlist = { id: ReadlistSlugSchema.parse("work"), name: "Work" };
 		const resolveReadlistMembership = jest.fn(async () => new Map([[article.url, [readlist]]]));
 		const findReadlistArticles = jest.fn(async () => ({
@@ -216,7 +218,7 @@ describe("initMcpArticleOperations", () => {
 		const listing = await ops.listReadlist({ userId, readlist: readlist.id });
 		const fetched = await ops.getArticle({ userId, id: article.id.value });
 		expect(listing.articles).toEqual([fetched]);
-		expect(fetched).toMatchObject({ url: article.displayUrl, readlists: [readlist] });
+		expect(fetched).toMatchObject({ url: article.destinationUrl, readlists: [readlist] });
 		expect(resolveReadlistMembership.mock.calls).toEqual([
 			[{ userId, urls: [article.url] }],
 			[{ userId, urls: [article.url] }],
@@ -532,7 +534,7 @@ describe("initMcpArticleOperations", () => {
 						{
 							id: relatedId,
 							title: "Earlier read",
-							siteName: "Example",
+							siteName: siteLabel("Example"),
 							reason: "Same argument",
 							status: "read",
 							savedAt: new Date("2026-06-01T00:00:00.000Z"),
@@ -541,7 +543,7 @@ describe("initMcpArticleOperations", () => {
 						{
 							id: laterId,
 							title: "Still to read",
-							siteName: "Example",
+							siteName: siteLabel("Example"),
 							reason: "Follow-up",
 							status: "unread",
 							savedAt: new Date("2026-05-01T00:00:00.000Z"),

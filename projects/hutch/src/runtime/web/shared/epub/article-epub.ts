@@ -1,4 +1,4 @@
-import { articleHostFrom } from "@packages/web-analytics";
+import { type ArticleDestinationUrl, articleDestinationHost } from "@packages/domain/article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 import { articleEpubXhtml, collectArticleImages } from "./epub-xhtml";
 import { type ArticleFrontMatter, articleFrontMatterXhtml } from "./article-front-matter";
@@ -24,10 +24,10 @@ function slugify(value: string): string {
 		.slice(0, 80);
 }
 
-export function epubFilename(params: { title: string; articleUrl: string }): string {
+export function epubFilename(params: { title: string; destinationUrl: ArticleDestinationUrl }): string {
 	const titleSlug = slugify(params.title);
 	if (titleSlug) return `${titleSlug}.epub`;
-	return `${slugify(articleHostFrom(params.articleUrl))}.epub`;
+	return `${slugify(articleDestinationHost(params.destinationUrl))}.epub`;
 }
 
 export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildArticleEpub {

@@ -1,4 +1,4 @@
-import { ReaderArticleHashIdSchema, SaveableUrlSchema } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, SaveableUrlSchema, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
 import type { SaveProvenance, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -7,6 +7,7 @@ import { initSaveArticleAtReadlistTop } from "./save-article-at-readlist-top";
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
+const destination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 const provenance: SaveProvenance = { kind: "web" };
 const allocatedInstant = new Date("2026-08-04T00:00:00.123Z");
 
@@ -14,7 +15,8 @@ const saved: SavedArticle = {
 	id: articleId,
 	userId,
 	url: exampleUrl,
-	metadata: { title: "Post", siteName: "Example", excerpt: "", wordCount: 0 },
+	destinationUrl: destination,
+	metadata: { ...articleDisplayMetadata({ url: exampleUrl, destinationUrl: destination, title: "Post", siteName: "Example", excerpt: "" }), wordCount: 0 },
 	estimatedReadTime: MinutesSchema.parse(0),
 	status: "unread",
 	savedAt: allocatedInstant,

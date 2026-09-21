@@ -3,6 +3,7 @@ import type { Minutes, SavedArticle } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
+import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { buildMcpReaderPath } from "./owner-reader-link";
 import {
 	initReaderPermalink,
@@ -22,7 +23,8 @@ function savedArticleFor(userId = OWNER_ID): SavedArticle {
 		id: ARTICLE_ID,
 		userId,
 		url: ARTICLE_URL,
-		metadata: { title: "Post", siteName: "example.com", excerpt: "", wordCount: 100 },
+		destinationUrl: destinationUrl(ARTICLE_URL),
+		metadata: { title: "Post", siteName: siteLabel("example.com"), excerpt: "", wordCount: 100 },
 		estimatedReadTime: 1 as Minutes,
 		status: "unread",
 		savedAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -90,7 +92,8 @@ describe("resolveReaderPermalink", () => {
 					? {
 						id: ARTICLE_ID,
 						url: ARTICLE_URL,
-						metadata: { title: "example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
+						destinationUrl: destinationUrl(ARTICLE_URL),
+						metadata: { title: "example.com", siteName: siteLabel("example.com"), excerpt: "", wordCount: 0 },
 						estimatedReadTime: 0 as Minutes,
 						savedAt: new Date("2026-01-01T00:00:00.000Z"),
 						purgedAt: new Date("2026-07-16T10:00:00.000Z"),

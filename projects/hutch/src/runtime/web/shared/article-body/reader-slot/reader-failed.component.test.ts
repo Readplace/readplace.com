@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { destinationUrl } from "../../../test-helpers/article-fixtures";
 import {
 	type ReaderFailedVariant,
 	renderReaderFailed,
@@ -22,7 +23,7 @@ const ALL_VARIANTS = [
 
 function ctaLabelFor(variant: ReaderFailedVariant): string {
 	const doc = parse(
-		renderReaderFailed({ url: "https://example.com/some-article", variant }),
+		renderReaderFailed({ url: destinationUrl("https://example.com/some-article"), variant }),
 	);
 	return doc.querySelector("[data-test-reader-failed-primary]")?.textContent?.trim() ?? "";
 }
@@ -31,7 +32,7 @@ describe("renderReaderFailed", () => {
 	it("renders the reassuring 'Your link is saved' title regardless of variant", () => {
 		for (const variant of ALL_VARIANTS) {
 			const doc = parse(
-				renderReaderFailed({ url: "https://example.com/post", variant }),
+				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant }),
 			);
 			assert.equal(
 				doc.querySelector(".article-body__reader-notice-title")?.textContent?.trim(),
@@ -44,7 +45,7 @@ describe("renderReaderFailed", () => {
 	it("renders the primary CTA pointing at the source URL with the hostname in the visible text", () => {
 		const doc = parse(
 			renderReaderFailed({
-				url: "https://example.com/some-article",
+				url: destinationUrl("https://example.com/some-article"),
 				variant: "failed",
 			}),
 		);
@@ -70,7 +71,7 @@ describe("renderReaderFailed", () => {
 		for (const [variant, expected] of cases) {
 			const doc = parse(
 				renderReaderFailed({
-					url: "https://example.com/post",
+					url: destinationUrl("https://example.com/post"),
 					variant,
 				}),
 			);
@@ -82,7 +83,7 @@ describe("renderReaderFailed", () => {
 	it("exposes the variant on the slot via data-reader-status (so tests can pin behaviour per variant)", () => {
 		for (const variant of ALL_VARIANTS) {
 			const doc = parse(
-				renderReaderFailed({ url: "https://example.com/post", variant }),
+				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant }),
 			);
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, `slot must be rendered for variant=${variant}`);
@@ -94,7 +95,7 @@ describe("renderReaderFailed", () => {
 		for (const variant of ["failed", "unsupported", "slow", "blocked"] as const) {
 			const doc = parse(
 				renderReaderFailed({
-					url: "https://example.com/post",
+					url: destinationUrl("https://example.com/post"),
 					variant,
 					extensionInstallUrl: "/install?client=chrome",
 				}),
@@ -116,7 +117,7 @@ describe("renderReaderFailed", () => {
 	it("offers the capture control only on the blocked variant — the one failure the reader's own host can still fix", () => {
 		function actionsFor(variant: ReaderFailedVariant): (string | null)[] {
 			const doc = parse(
-				renderReaderFailed({ url: "https://example.com/post", variant }),
+				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant }),
 			);
 			return Array.from(doc.querySelectorAll("[data-test-reader-action]")).map(
 				(el) => el.getAttribute("data-test-reader-action"),
@@ -132,7 +133,7 @@ describe("renderReaderFailed", () => {
 	it("withholds the extension pitch on the not-found variant — no client can capture a page the origin has deleted", () => {
 		const doc = parse(
 			renderReaderFailed({
-				url: "https://example.com/post",
+				url: destinationUrl("https://example.com/post"),
 				variant: "not-found",
 				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
@@ -147,7 +148,7 @@ describe("renderReaderFailed", () => {
 	it("withholds the extension pitch on the origin-down variant — the reader's own browser would hit the same dead origin", () => {
 		const doc = parse(
 			renderReaderFailed({
-				url: "https://example.com/post",
+				url: destinationUrl("https://example.com/post"),
 				variant: "origin-down",
 				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
@@ -166,7 +167,7 @@ describe("renderReaderFailed", () => {
 	it("never blames a bot wall on the not-found variant — the 404 copy must not send the reader after a fix that cannot work", () => {
 		const doc = parse(
 			renderReaderFailed({
-				url: "https://example.com/post",
+				url: destinationUrl("https://example.com/post"),
 				variant: "not-found",
 				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
@@ -178,7 +179,7 @@ describe("renderReaderFailed", () => {
 	it("ships the capture control hidden and keeps the source link primary, so a plain browser still sees only the affordance it can honour", () => {
 		const doc = parse(
 			renderReaderFailed({
-				url: "https://example.com/some-article",
+				url: destinationUrl("https://example.com/some-article"),
 				variant: "blocked",
 			}),
 		);
@@ -209,7 +210,7 @@ describe("renderReaderFailed", () => {
 	it("withholds the extension pitch on the not-an-article variant — a capture of a mail session is not an article either", () => {
 		const doc = parse(
 			renderReaderFailed({
-				url: "https://mail.google.com/mail/u/0/",
+				url: destinationUrl("https://mail.google.com/mail/u/0/"),
 				variant: "not-an-article",
 				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
 			}),
@@ -223,7 +224,7 @@ describe("renderReaderFailed", () => {
 
 	it("omits the extension install pitch when extensionInstallUrl is not provided (extension already installed)", () => {
 		const doc = parse(
-			renderReaderFailed({ url: "https://example.com/post", variant: "failed" }),
+			renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant: "failed" }),
 		);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");

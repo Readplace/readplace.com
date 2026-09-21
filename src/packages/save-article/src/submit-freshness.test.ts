@@ -1,14 +1,16 @@
-import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
 import type { GlobalArticleData } from "@packages/provider-contracts/article-store";
 import { initSubmitFreshness } from "./submit-freshness";
 
 const canonicalUrl = "https://example.com/canonical";
+const destination = articleDestinationUrl({ url: canonicalUrl, displayUrl: undefined });
 
 function makeGlobalArticle(overrides: Partial<GlobalArticleData> = {}): GlobalArticleData {
 	return {
 		id: ReaderArticleHashId.from(canonicalUrl),
 		url: canonicalUrl,
-		metadata: { title: "t", siteName: "s", excerpt: "e", wordCount: 100 },
+		destinationUrl: destination,
+		metadata: { ...articleDisplayMetadata({ url: canonicalUrl, destinationUrl: destination, title: "t", siteName: "s", excerpt: "e" }), wordCount: 100 },
 		estimatedReadTime: MinutesSchema.parse(1),
 		savedAt: new Date("2026-06-01T00:00:00.000Z"),
 		...overrides,

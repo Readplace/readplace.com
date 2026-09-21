@@ -7,6 +7,7 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { toArticleSubEntity, toArticleEntity, toSavedArticleEntity } from "./article-siren";
 
 const ARTICLE_URL = "https://example.com/article";
@@ -17,9 +18,10 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		id: ReaderArticleHashId.from(ARTICLE_URL),
 		userId: "test-user-id" as UserId,
 		url: ARTICLE_URL,
+		destinationUrl: destinationUrl(ARTICLE_URL),
 		metadata: {
 			title: "Test Article",
-			siteName: "Example",
+			siteName: siteLabel("Example"),
 			excerpt: "First paragraph...",
 			wordCount: 1200,
 			imageUrl: "https://example.com/image.jpg",
@@ -77,7 +79,7 @@ describe("toArticleSubEntity", () => {
 			makeArticle({
 				metadata: {
 					title: "Test Article",
-					siteName: "Example",
+					siteName: siteLabel("Example"),
 					excerpt: "",
 					wordCount: 0,
 				},
@@ -96,7 +98,7 @@ describe("toArticleSubEntity", () => {
 			makeArticle({
 				metadata: {
 					title: "Test Article",
-					siteName: "Example",
+					siteName: siteLabel("Example"),
 					excerpt: "",
 					wordCount: 500,
 				},
@@ -188,7 +190,7 @@ describe("toArticleSubEntity", () => {
 
 	it("advertises the redirect destination as the url for a merged article", () => {
 		const subEntity = toArticleSubEntity(
-			makeArticle({ url: "https://example.com/article.html", displayUrl: "https://example.com/article" }),
+			makeArticle({ url: "https://example.com/article.html", destinationUrl: destinationUrl("https://example.com/article") }),
 		);
 		expect(subEntity.properties?.url).toBe("https://example.com/article");
 	});

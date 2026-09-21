@@ -1,4 +1,4 @@
-import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
 import type { SavedArticle, SaveProvenance } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
@@ -7,6 +7,7 @@ import { initFileArticleIntoReadlist } from "./file-article-into-readlist";
 const USER = UserIdSchema.parse("user-a");
 const WORK = ReadlistSlugSchema.parse("work");
 const URL = "https://example.com/article";
+const DESTINATION = articleDestinationUrl({ url: URL, displayUrl: undefined });
 const ARTICLE_ID = ReaderArticleHashId.from(URL);
 const ONE_MINUTE = MinutesSchema.parse(1);
 const PROVENANCE: SaveProvenance = { kind: "client", clientName: "Chrome" };
@@ -16,7 +17,8 @@ function articleWith(status: "read" | "unread"): SavedArticle {
 		id: ARTICLE_ID,
 		userId: USER,
 		url: URL,
-		metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 1 },
+		destinationUrl: DESTINATION,
+		metadata: { ...articleDisplayMetadata({ url: URL, destinationUrl: DESTINATION, title: "T", siteName: "S", excerpt: "E" }), wordCount: 1 },
 		estimatedReadTime: ONE_MINUTE,
 		status,
 		savedAt: new Date("2026-08-19T10:00:00.000Z"),

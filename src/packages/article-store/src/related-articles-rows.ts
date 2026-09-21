@@ -11,6 +11,8 @@ import { z } from "zod";
 export const ArticleRelatedRow = z.object({
 	url: z.string(),
 	routeId: dynamoField(z.string()),
+	originalUrl: dynamoField(z.string()),
+	displayUrl: dynamoField(z.string()),
 	title: dynamoField(z.string()),
 	siteName: dynamoField(z.string()),
 	excerpt: dynamoField(z.string()),
@@ -32,6 +34,7 @@ export const DescribableArticle = ArticleRelatedRow.extend({
 
 export const LinkableArticle = ArticleRelatedRow.extend({
 	routeId: z.string(),
+	originalUrl: z.string(),
 	title: z.string(),
 	siteName: z.string(),
 });

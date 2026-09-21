@@ -6,6 +6,7 @@ import type {
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { toReadlistArticleViewModel, toReadlistViewModel } from "./readlist.viewmodel";
@@ -18,9 +19,10 @@ function makeArticle(overrides?: Partial<SavedArticle>): SavedArticle {
 		id: ReaderArticleHashId.from(ARTICLE_URL),
 		userId: "user-1" as UserId,
 		url: ARTICLE_URL,
+		destinationUrl: destinationUrl(ARTICLE_URL),
 		metadata: {
 			title: "Test Article",
-			siteName: "example.com",
+			siteName: siteLabel("example.com"),
 			excerpt: "An excerpt",
 			wordCount: 500,
 		},
@@ -56,7 +58,7 @@ describe("toReadlistViewModel", () => {
 
 	it("shows the redirect destination as the card url for a merged article", () => {
 		const vm = toReadlistViewModel(
-			makeResult([makeArticle({ url: "https://example.com/post.html", displayUrl: "https://example.com/post" })]),
+			makeResult([makeArticle({ url: "https://example.com/post.html", destinationUrl: destinationUrl("https://example.com/post") })]),
 			DEFAULT_FILTERS,
 			{ now: NOW },
 		);
@@ -167,7 +169,7 @@ describe("toReadlistViewModel", () => {
 		const article = makeArticle({
 			metadata: {
 				title: "Test Article",
-				siteName: "example.com",
+				siteName: siteLabel("example.com"),
 				excerpt: "An excerpt",
 				wordCount: 500,
 				imageUrl: "https://example.com/thumbnail.jpg",

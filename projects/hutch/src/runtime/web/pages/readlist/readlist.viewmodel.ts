@@ -270,9 +270,7 @@ export function toReadlistArticleViewModel(params: {
 		siteName: article.metadata.siteName,
 		excerpt: excerpt.text,
 		excerptSource: excerpt.source,
-		// The card's source link shows the redirect destination once merged; the
-		// title/excerpt still open the reader by `id`, so identity is untouched.
-		url: article.displayUrl ?? article.url,
+		url: article.destinationUrl,
 		status: article.status,
 		isUnread: article.status === "unread",
 		readTime: displayableReadTime(article),

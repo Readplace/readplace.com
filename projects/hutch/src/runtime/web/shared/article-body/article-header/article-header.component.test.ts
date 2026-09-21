@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { destinationUrl, siteLabel } from "../../../test-helpers/article-fixtures";
 import {
 	renderArticleHeader,
 	renderArticleHeaderOob,
@@ -9,9 +10,9 @@ import {
 
 const baseInput = {
 	title: "Hello World",
-	siteName: "example.com",
+	siteName: siteLabel("example.com"),
 	readTime: { value: "3", label: "~3 min read" },
-	url: "https://example.com/post",
+	url: destinationUrl("https://example.com/post"),
 	provenance: undefined,
 	readlistTags: undefined,
 };

@@ -9,7 +9,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
-import { MinutesSchema, ArticleStatusSchema, SaveProvenanceSchema } from "@packages/domain/article";
+import { MinutesSchema, ArticleStatusSchema, SaveProvenanceSchema, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
@@ -150,15 +150,20 @@ function toSavedArticle(
 	article: z.infer<typeof ArticleRow>,
 	userArticle: z.infer<typeof UserArticleRow>,
 ): SavedArticle {
+	const destinationUrl = articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl });
 	return {
 		id: article.routeId,
 		userId: userArticle.userId,
 		url: article.originalUrl,
-		displayUrl: article.displayUrl,
+		destinationUrl,
 		metadata: {
-			title: article.title,
-			siteName: article.siteName,
-			excerpt: article.excerpt,
+			...articleDisplayMetadata({
+				url: article.originalUrl,
+				destinationUrl,
+				title: article.title,
+				siteName: article.siteName,
+				excerpt: article.excerpt,
+			}),
 			wordCount: article.wordCount,
 			imageUrl: article.imageUrl,
 		},
@@ -1195,14 +1200,19 @@ export function initDynamoDbSavedArticleStore(deps: {
 			);
 			return null;
 		}
+		const destinationUrl = articleDestinationUrl({ url: row.originalUrl, displayUrl: row.displayUrl });
 		return {
 			id: row.routeId,
 			url: row.originalUrl,
-			displayUrl: row.displayUrl,
+			destinationUrl,
 			metadata: {
-				title: row.title,
-				siteName: row.siteName,
-				excerpt: row.excerpt,
+				...articleDisplayMetadata({
+					url: row.originalUrl,
+					destinationUrl,
+					title: row.title,
+					siteName: row.siteName,
+					excerpt: row.excerpt,
+				}),
 				wordCount: row.wordCount,
 				imageUrl: row.imageUrl,
 			},

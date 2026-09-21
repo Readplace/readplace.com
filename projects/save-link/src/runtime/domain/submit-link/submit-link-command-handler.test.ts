@@ -4,6 +4,8 @@ import {
 	MinutesSchema,
 	ReaderArticleHashIdSchema,
 	SaveableUrlSchema,
+	articleDestinationUrl,
+	articleDisplayMetadata,
 	validateSaveableUrl,
 } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
@@ -25,6 +27,7 @@ import { initSubmitLinkCommandHandler } from "./submit-link-command-handler";
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
+const exampleDestination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -59,7 +62,8 @@ function makeSaved(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		id: articleId,
 		userId,
 		url: exampleUrl,
-		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+		destinationUrl: exampleDestination,
+		metadata: { ...articleDisplayMetadata({ url: exampleUrl, destinationUrl: exampleDestination, title: "", siteName: "", excerpt: "" }), wordCount: 0 },
 		estimatedReadTime: MinutesSchema.parse(0),
 		status: "unread",
 		savedAt: new Date("2026-06-01T00:00:00.000Z"),

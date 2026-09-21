@@ -506,6 +506,7 @@ describe("initDynamoDbPastReads", () => {
 						[ARTICLES_TABLE]: [
 							{
 								url: "example.com/kept",
+								originalUrl: "https://example.com/kept",
 								routeId: "0123456789abcdef0123456789abcdef",
 								title: "Kept",
 								siteName: "Example",
@@ -527,6 +528,53 @@ describe("initDynamoDbPastReads", () => {
 					siteName: "Example",
 					reason: "Same subject",
 				},
+			]);
+		});
+
+		it("names a match that redirected across hosts after its destination, not the saved link's host", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [{ url: "nodeweekly.com/link/190528", reason: "Same subject" }],
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") return { Items: [] };
+				if (tableOf(command) === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [{ userId: USER_ID, url: "nodeweekly.com/link/190528", status: "read" }],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "nodeweekly.com/link/190528",
+								originalUrl: "https://nodeweekly.com/link/190528",
+								displayUrl: "https://memcached.org/",
+								routeId: "0123456789abcdef0123456789abcdef",
+								title: "Article from nodeweekly.com",
+								siteName: "nodeweekly.com",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => ({ title: item.title, siteName: item.siteName }))).toEqual([
+				{ title: "Article from memcached.org", siteName: "memcached.org" },
 			]);
 		});
 
@@ -569,6 +617,7 @@ describe("initDynamoDbPastReads", () => {
 						[ARTICLES_TABLE]: [
 							{
 								url: "example.com/newer-in-work",
+								originalUrl: "https://example.com/newer-in-work",
 								routeId: "44444444444444444444444444444444",
 								title: "Newer in work",
 								siteName: "Example",
@@ -576,6 +625,7 @@ describe("initDynamoDbPastReads", () => {
 							},
 							{
 								url: "example.com/newer-in-default",
+								originalUrl: "https://example.com/newer-in-default",
 								routeId: "55555555555555555555555555555555",
 								title: "Newer in default",
 								siteName: "Example",
@@ -624,6 +674,7 @@ describe("initDynamoDbPastReads", () => {
 						[ARTICLES_TABLE]: [
 							{
 								url: "example.com/legacy",
+								originalUrl: "https://example.com/legacy",
 								routeId: "66666666666666666666666666666666",
 								title: "Legacy",
 								siteName: "Example",
@@ -702,6 +753,7 @@ describe("initDynamoDbPastReads", () => {
 						[ARTICLES_TABLE]: [
 							{
 								url: "example.com/in-work",
+								originalUrl: "https://example.com/in-work",
 								routeId: "11111111111111111111111111111111",
 								title: "In Work",
 								siteName: "Example",
@@ -709,6 +761,7 @@ describe("initDynamoDbPastReads", () => {
 							},
 							{
 								url: "example.com/purged",
+								originalUrl: "https://example.com/purged",
 								routeId: "22222222222222222222222222222222",
 								title: "Purged",
 								siteName: "Example",
@@ -770,6 +823,7 @@ describe("initDynamoDbPastReads", () => {
 						[ARTICLES_TABLE]: [
 							{
 								url: "example.com/in-reading",
+								originalUrl: "https://example.com/in-reading",
 								routeId: "33333333333333333333333333333333",
 								title: "In Reading",
 								siteName: "Example",

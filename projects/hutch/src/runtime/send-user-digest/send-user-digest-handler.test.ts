@@ -6,6 +6,7 @@ import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
 import type { GlobalArticleData, UserArticleNotificationState } from "@packages/provider-contracts/article-store";
 import { EmailRejectedError } from "@packages/provider-contracts/email";
+import { destinationUrl, siteLabel } from "../web/test-helpers/article-fixtures";
 import { initSendUserDigestHandler, type SendUserDigestDeps } from "./send-user-digest-handler";
 
 const USER_ID = "user-1";
@@ -37,7 +38,8 @@ function article(url: string, title: string, overrides: Partial<GlobalArticleDat
 	return {
 		id: ReaderArticleHashId.from(url),
 		url,
-		metadata: { title, siteName: "example.com", excerpt: "", wordCount: 100 },
+		destinationUrl: destinationUrl(url),
+		metadata: { title, siteName: siteLabel("example.com"), excerpt: "", wordCount: 100 },
 		estimatedReadTime: MinutesSchema.parse(3),
 		savedAt: SAVED_AT,
 		readerAvailableAt: READER_AVAILABLE_AT,

@@ -6,6 +6,7 @@ import {
 } from "@packages/domain/article";
 import type { RelatedArticleDisplay } from "@packages/provider-contracts/related-articles";
 import { JSDOM } from "jsdom";
+import { siteLabel } from "../../test-helpers/article-fixtures";
 import { renderNextRead } from "./next-read.component";
 
 function parse(html: string) {
@@ -48,7 +49,7 @@ const dismissedAgo = (ms: number, suggestionId: typeof firstId): NextReadDismiss
 const FIRST: RelatedArticleDisplay = {
 	id: firstId,
 	title: "First",
-	siteName: "Example",
+	siteName: siteLabel("Example"),
 	reason: "Same argument",
 	status: "unread",
 	savedAt: savedDaysAgo(60),
@@ -57,7 +58,7 @@ const FIRST: RelatedArticleDisplay = {
 const SECOND: RelatedArticleDisplay = {
 	id: secondId,
 	title: "Second",
-	siteName: "Other",
+	siteName: siteLabel("Other"),
 	reason: "Follow-up",
 	status: "unread",
 	savedAt: savedDaysAgo(7),
@@ -66,7 +67,7 @@ const SECOND: RelatedArticleDisplay = {
 const FINISHED: RelatedArticleDisplay = {
 	id: secondId,
 	title: "Finished",
-	siteName: "Other",
+	siteName: siteLabel("Other"),
 	reason: "Same field",
 	status: "read",
 	savedAt: savedDaysAgo(60),
@@ -148,7 +149,7 @@ describe("renderNextRead", () => {
 		}).toEqual({
 			href: `/queue/${firstId.value}/view?utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${sourceId.value}`,
 			title: "First",
-			siteName: "Example",
+			siteName: siteLabel("Example"),
 			reason: "Same argument",
 			saved: "You saved this 2 months ago",
 			eyebrow: "Next read",
