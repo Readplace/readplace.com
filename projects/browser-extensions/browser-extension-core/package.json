@@ -60,7 +60,6 @@
     "check-unused-css": "node scripts/check-unused-css.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
-    "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "perf": "node scripts/run-perf.js",
     "check": "nx run browser-extension-core:check",

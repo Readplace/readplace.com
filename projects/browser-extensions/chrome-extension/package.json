@@ -9,7 +9,6 @@
     "check-unused-css": "node scripts/check-unused-css.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --passWithNoTests",
-    "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand --passWithNoTests",
     "test-with-coverage": "pnpm compile && c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "test:e2e": "E2E_PORT=3001 HUTCH_SERVER_URL=http://127.0.0.1:3001 node scripts/build-extension.js && E2E_PORT=3001 node --test dist/e2e/login-flow/run.e2e-local.main.js",
     "test:e2e:pdf-save-staging": "node --test dist/e2e/pdf-save-flow/run.e2e-staging.main.js",

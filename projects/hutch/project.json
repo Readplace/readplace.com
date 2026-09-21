@@ -39,7 +39,6 @@
       "cache": false
     },
     "test": {},
-    "test-integration": {},
     "e2e-server": {
       "cache": false
     },
