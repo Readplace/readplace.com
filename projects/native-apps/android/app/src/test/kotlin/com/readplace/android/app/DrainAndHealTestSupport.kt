@@ -68,7 +68,7 @@ object DrainAndHealTestSupport {
 	): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
 		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
-		return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, ioDispatcher)
+		return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, ioDispatcher)
 	}
 
 	fun multipartForm(

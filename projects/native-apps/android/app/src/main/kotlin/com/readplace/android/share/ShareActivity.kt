@@ -1,6 +1,5 @@
 package com.readplace.android.share
 
-import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -43,17 +42,15 @@ import androidx.lifecycle.lifecycleScope
 import com.readplace.android.BuildConfig
 import com.readplace.android.app.BrandColors
 import com.readplace.android.app.HtmlCaptor
-import com.readplace.android.app.KeystoreTokenStorage
 import com.readplace.android.app.LocalBrandColors
+import com.readplace.android.app.ProcessCredentials
 import com.readplace.android.app.ReadplaceTheme
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.NativeCleartextPolicy
-import com.readplace.android.core.OAuth
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
-import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJobStore
 import kotlinx.coroutines.CompletableDeferred
@@ -64,10 +61,7 @@ import okhttp3.OkHttpClient
 import java.time.Clock
 
 /**
- * The share target's composition root. A share arrives in its own task with no
- * app state behind it, so the storage, HTTP and auth dependencies are built here
- * from the same app-private roots MainActivity uses, and handed to the tested
- * save journey; this activity only paints what the journey reports.
+ * The share target's composition root.
  */
 class ShareActivity : ComponentActivity() {
 	private val sheet = ShareSheetState()
@@ -92,9 +86,7 @@ class ShareActivity : ComponentActivity() {
 	}
 
 	private fun makeSaver(): SaveSharedPage {
-		val store = TokenStore(
-			KeystoreTokenStorage(getSharedPreferences(KeystoreTokenStorage.PREFERENCES_NAME, Context.MODE_PRIVATE)),
-		)
+		val credentials = ProcessCredentials.of(this)
 		val http = OkHttpClient.Builder()
 			.addNetworkInterceptor(NativeCleartextPolicy.forEnvironment(AppConfig.serverEnvironment))
 			.cookieJar(EphemeralCookieJar())
@@ -102,17 +94,11 @@ class ShareActivity : ComponentActivity() {
 			.build()
 		val nativeUserAgent = AppConfig.nativeUserAgent(BuildConfig.VERSION_CODE, Build.VERSION.RELEASE)
 		return SaveSharedPage(
-			store = store,
+			store = credentials.store,
 			api = ReadplaceApi(
 				baseUrl = AppConfig.serverBaseUrl,
 				client = http,
-				store = store,
-				oauth = OAuth(
-					baseUrl = AppConfig.serverBaseUrl,
-					store = store,
-					http = http,
-					nativeUserAgent = nativeUserAgent,
-				),
+				oauth = credentials.oauth,
 				nativeUserAgent = nativeUserAgent,
 				ioDispatcher = Dispatchers.IO,
 			),

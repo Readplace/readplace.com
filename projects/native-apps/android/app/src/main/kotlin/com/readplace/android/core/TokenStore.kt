@@ -69,11 +69,6 @@ class TokenStore(private val storage: TokenStorage) {
 		storage.setValue(TokenKey.REFRESH_TOKEN, tokens.refreshToken.raw)
 	}
 
-	fun updateAccessToken(accessToken: AccessToken, refreshToken: RefreshToken?) {
-		storage.setValue(TokenKey.ACCESS_TOKEN, accessToken.raw)
-		if (refreshToken != null) storage.setValue(TokenKey.REFRESH_TOKEN, refreshToken.raw)
-	}
-
 	fun clear() {
 		storage.removeValue(TokenKey.ACCESS_TOKEN)
 		storage.removeValue(TokenKey.REFRESH_TOKEN)

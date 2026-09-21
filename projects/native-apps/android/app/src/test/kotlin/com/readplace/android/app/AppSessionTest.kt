@@ -115,6 +115,7 @@ class AppSessionTest {
 		AppSession(
 			baseUrl = baseUrl,
 			store = store,
+			oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = NATIVE_USER_AGENT),
 			newClientBuilder = newClientBuilder,
 			nativeUserAgent = NATIVE_USER_AGENT,
 			ioDispatcher = StandardTestDispatcher(testScheduler),

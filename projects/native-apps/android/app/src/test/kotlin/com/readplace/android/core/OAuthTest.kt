@@ -1,5 +1,7 @@
 package com.readplace.android.core
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -263,14 +265,17 @@ class OAuthTest {
 
 	// region refresh
 
+	private fun OAuth.snap(): OAuth.Snapshot = checkNotNull(snapshot()) { "expected a signed-in snapshot" }
+
 	@Test
-	fun `a refresh posts the stored token and returns the new access token`() = runTest {
+	fun `a refresh posts the snapshot's refresh token and stores the rotated pair`() = runTest {
 		signedInWith(refreshToken = "rt-1")
 		server.enqueue(
 			MockResponse(code = 200, body = """{"access_token":"at-2","refresh_token":"rt-2"}"""),
 		)
+		val oauth = oauth()
 
-		val accessToken = oauth().refresh()
+		val result = oauth.refresh(after = oauth.snap())
 
 		val recorded = server.takeRequest()
 		assertEquals("POST", recorded.method)
@@ -286,7 +291,7 @@ class OAuthTest {
 			"grant_type=refresh_token&refresh_token=rt-1&client_id=android-app",
 			recorded.body?.utf8(),
 		)
-		assertEquals(AccessToken("at-2"), accessToken)
+		assertEquals(AccessToken("at-2"), result.tokens.accessToken)
 		assertEquals(OAuthTokens(AccessToken("at-2"), RefreshToken("rt-2")), store.tokens)
 	}
 
@@ -294,8 +299,10 @@ class OAuthTest {
 	fun `a refresh response that omits a new refresh token keeps the stored one`() = runTest {
 		signedInWith(refreshToken = "rt-1")
 		server.enqueue(MockResponse(code = 200, body = """{"access_token":"at-2"}"""))
+		val oauth = oauth()
 
-		assertEquals(AccessToken("at-2"), oauth().refresh())
+		val result = oauth.refresh(after = oauth.snap())
+		assertEquals(AccessToken("at-2"), result.tokens.accessToken)
 		assertEquals(
 			"the server rotates refresh tokens only sometimes; dropping the stored one on a " +
 				"non-rotating response would sign the user out at the next refresh",
@@ -310,15 +317,28 @@ class OAuthTest {
 		server.enqueue(
 			MockResponse(code = 200, body = """{"access_token":"at-2","refresh_token":null}"""),
 		)
+		val oauth = oauth()
 
-		assertEquals(AccessToken("at-2"), oauth().refresh())
+		val result = oauth.refresh(after = oauth.snap())
+		assertEquals(AccessToken("at-2"), result.tokens.accessToken)
 		assertEquals(OAuthTokens(AccessToken("at-2"), RefreshToken("rt-1")), store.tokens)
 	}
 
 	@Test
-	fun `a refresh with nothing stored fails before any request is made`() = runTest {
+	fun `an empty store offers no snapshot to refresh from`() = runTest {
+		assertNull(oauth().snapshot())
+		assertEquals(0, server.requestCount)
+	}
+
+	@Test
+	fun `a refresh after the pair was cleared fails before any request is made`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val oauth = oauth()
+		val stale = oauth.snap()
+		store.clear()
+
 		try {
-			oauth().refresh()
+			oauth.refresh(after = stale)
 			fail("there is nothing to refresh with")
 		} catch (error: OAuthError.NoRefreshToken) {
 			assertEquals("No refresh token is stored. Please sign in again.", error.message)
@@ -330,9 +350,10 @@ class OAuthTest {
 	fun `a rejected refresh reports a refresh failure and keeps the stored pair`() = runTest {
 		signedInWith(refreshToken = "rt-1")
 		server.enqueue(MockResponse(code = 401, body = """{"error":"invalid_grant"}"""))
+		val oauth = oauth()
 
 		try {
-			oauth().refresh()
+			oauth.refresh(after = oauth.snap())
 			fail("a rejected refresh must not resolve")
 		} catch (error: OAuthError.RefreshFailed) {
 			assertEquals("Could not refresh the session. Please sign in again.", error.message)
@@ -344,15 +365,68 @@ class OAuthTest {
 	fun `a refresh whose body is malformed is a malformed response`() = runTest {
 		signedInWith(refreshToken = "rt-1")
 		server.enqueue(MockResponse(code = 200, body = "["))
+		val oauth = oauth()
 
 		try {
-			oauth().refresh()
+			oauth.refresh(after = oauth.snap())
 			fail("an unparseable refresh body must not resolve")
 		} catch (_: OAuthError.MalformedResponse) {
 		}
 	}
 
-	// endregion
+	@Test
+	fun `callers refreshing after the same snapshot share one request`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(
+			MockResponse(code = 200, body = """{"access_token":"at-2","refresh_token":"rt-2"}"""),
+		)
+		val oauth = oauth()
+		val snap = oauth.snap()
+
+		val a = async(start = CoroutineStart.UNDISPATCHED) { oauth.refresh(after = snap) }
+		val b = async(start = CoroutineStart.UNDISPATCHED) { oauth.refresh(after = snap) }
+
+		assertEquals(a.await().tokens, b.await().tokens)
+		assertEquals("the two callers share one token request", 1, server.requestCount)
+	}
+
+	@Test
+	fun `a refresh after a failed one sends a new request instead of repeating the failure`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 503, body = "{}"))
+		server.enqueue(
+			MockResponse(code = 200, body = """{"access_token":"at-2","refresh_token":"rt-2"}"""),
+		)
+		val oauth = oauth()
+		val snap = oauth.snap()
+
+		try {
+			oauth.refresh(after = snap)
+			fail("the first refresh fails transiently")
+		} catch (_: OAuthError.RefreshFailed) {
+		}
+		val result = oauth.refresh(after = snap)
+
+		assertEquals(AccessToken("at-2"), result.tokens.accessToken)
+		assertEquals("the failed single-flight does not block a later refresh", 2, server.requestCount)
+	}
+
+		@Test
+	fun `a refresh whose session ended and was replaced is refused as changed`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val oauth = oauth()
+		val stale = oauth.snap()
+		oauth.endSession()
+		signedInWith(refreshToken = "rt-9")
+
+		try {
+			oauth.refresh(after = stale)
+			fail("a refresh carrying a snapshot from an ended session must not resolve")
+		} catch (error: OAuthError.SessionChanged) {
+			assertEquals("The session changed. Please try again.", error.message)
+		}
+		assertEquals(0, server.requestCount)
+	}
 
 	// region revoke
 
@@ -449,10 +523,9 @@ class OAuthTest {
 			)
 
 			try {
-				oauth.refresh()
+				oauth.refresh(after = oauth.snap())
 				fail("a refresh whose redirect leaves the permitted host must not resolve")
-			} catch (error: IOException) {
-				assertTrue(error.message.orEmpty().contains("not permitted for native requests"))
+			} catch (_: OAuthError.RefreshFailed) {
 			}
 
 			assertEquals("the forbidden hop must never be sent", 1, target.requestCount)

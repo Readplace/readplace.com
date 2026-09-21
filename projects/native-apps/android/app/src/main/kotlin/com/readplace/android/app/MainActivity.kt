@@ -40,7 +40,6 @@ import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.NativeCleartextPolicy
 import com.readplace.android.core.ShareArtifacts
-import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJobStore
 import com.readplace.android.core.initWebAuthFlow
@@ -61,11 +60,9 @@ import kotlin.random.nextULong
 private const val SLOGAN_INTERVAL_MILLIS = 12_000L
 
 /**
- * The app's composition root: every concrete storage, HTTP, auth and WebView
- * dependency is built here once and handed down, so nothing below reaches for a
- * global or falls back to an in-memory stand-in. It is also the activity the
- * OAuth redirect returns to (singleTask + the `readplace://oauth-callback/android`
- * intent filter), so it forwards that intent and its own resume to the auth relay.
+ * The app's composition root. It is also the activity the OAuth redirect returns
+ * to (singleTask + the `readplace://oauth-callback/android` intent filter), so it
+ * forwards that intent and its own resume to the auth relay.
  */
 class MainActivity : ComponentActivity() {
 	private val relays = AuthRelays()
@@ -78,9 +75,8 @@ class MainActivity : ComponentActivity() {
 		super.onCreate(savedInstanceState)
 		// API 35+ enforces this; the call brings 29-34 in line so the intro fills behind the system bars.
 		enableEdgeToEdge()
-		val store = TokenStore(
-			KeystoreTokenStorage(getSharedPreferences(KeystoreTokenStorage.PREFERENCES_NAME, Context.MODE_PRIVATE)),
-		)
+		val credentials = ProcessCredentials.of(this)
+		val store = credentials.store
 		val flags = PreferenceFlags(getSharedPreferences(PreferenceFlags.PREFERENCES_NAME, Context.MODE_PRIVATE))
 		val jobs = UploadJobStore(filesDir, Dispatchers.IO)
 		val unseenSave = UnseenSave(filesDir)
@@ -90,6 +86,7 @@ class MainActivity : ComponentActivity() {
 		session = AppSession(
 			baseUrl = AppConfig.serverBaseUrl,
 			store = store,
+			oauth = credentials.oauth,
 			newClientBuilder = {
 				OkHttpClient.Builder()
 					.addNetworkInterceptor(NativeCleartextPolicy.forEnvironment(AppConfig.serverEnvironment))

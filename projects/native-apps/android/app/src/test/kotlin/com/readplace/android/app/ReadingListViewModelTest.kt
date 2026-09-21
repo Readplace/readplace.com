@@ -74,7 +74,7 @@ class ReadingListViewModelTest {
 	private fun TestScope.api(store: TokenStore, ioDispatcher: CoroutineDispatcher): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
 		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
-		return ReadplaceApi(server.baseUrl, client, store, oauth, "Readplace/1 Android/16", ioDispatcher)
+		return ReadplaceApi(server.baseUrl, client, oauth, "Readplace/1 Android/16", ioDispatcher)
 	}
 
 	/** A heal or a drain no test asked for is a wrong turn, not a silent no-op:

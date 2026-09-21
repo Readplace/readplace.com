@@ -65,26 +65,6 @@ class TokenStoreTest {
 	}
 
 	@Test
-	fun `updating the access token alone keeps the stored refresh token`() {
-		val store = TokenStore(InMemoryTokenStorage())
-		store.save(OAuthTokens(AccessToken("a"), RefreshToken("r")))
-
-		store.updateAccessToken(AccessToken("a2"), null)
-
-		assertEquals(OAuthTokens(AccessToken("a2"), RefreshToken("r")), store.tokens)
-	}
-
-	@Test
-	fun `updating the access token with a refresh token replaces both`() {
-		val store = TokenStore(InMemoryTokenStorage())
-		store.save(OAuthTokens(AccessToken("a"), RefreshToken("r")))
-
-		store.updateAccessToken(AccessToken("a2"), RefreshToken("r2"))
-
-		assertEquals(OAuthTokens(AccessToken("a2"), RefreshToken("r2")), store.tokens)
-	}
-
-	@Test
 	fun `clear removes both tokens`() {
 		val storage = InMemoryTokenStorage()
 		val store = TokenStore(storage)

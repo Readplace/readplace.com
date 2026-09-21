@@ -135,7 +135,6 @@ class EphemeralCookieJar : CookieJar {
 class ReadplaceApi(
 	val baseUrl: String,
 	client: OkHttpClient,
-	private val store: TokenStore,
 	private val oauth: OAuth,
 	private val nativeUserAgent: String,
 	private val ioDispatcher: CoroutineDispatcher,
@@ -388,10 +387,10 @@ class ReadplaceApi(
 		val contentType: String? get() = headers["Content-Type"]
 	}
 
-	private suspend fun send(request: Request, retryOn401: Boolean = true): Answer {
-		val token = store.tokens?.accessToken ?: throw ApiError.NoToken()
+	private suspend fun send(request: Request, refreshed: OAuth.Snapshot? = null): Answer {
+		val credentials = refreshed ?: oauth.snapshot() ?: throw ApiError.NoToken()
 		val authed = request.newBuilder()
-			.header("Authorization", "Bearer ${token.raw}")
+			.header("Authorization", "Bearer ${credentials.tokens.accessToken.raw}")
 			.header("Accept", AppConfig.SIREN_MEDIA_TYPE)
 			// Identifies this request as coming from the Android app so the server
 			// records onboarding completion per-user (a browser on the same phone can't
@@ -401,19 +400,16 @@ class ReadplaceApi(
 			.header("User-Agent", nativeUserAgent)
 			.build()
 		val answer = withContext(ioDispatcher) { followingRedirects(authed) }
-		if (answer.status == 401 && retryOn401) {
-			refreshOrThrowUnauthorized()
-			return send(request, retryOn401 = false)
+		if (answer.status == 401 && refreshed == null) {
+			return send(request, refreshed = refreshOrThrowUnauthorized(after = credentials))
 		}
 		return answer
 	}
 
-	private suspend fun refreshOrThrowUnauthorized() {
+	private suspend fun refreshOrThrowUnauthorized(after: OAuth.Snapshot): OAuth.Snapshot {
 		try {
-			oauth.refresh()
+			return oauth.refresh(after)
 		} catch (_: OAuthError) {
-			throw ApiError.Unauthorized()
-		} catch (_: IOException) {
 			throw ApiError.Unauthorized()
 		}
 	}

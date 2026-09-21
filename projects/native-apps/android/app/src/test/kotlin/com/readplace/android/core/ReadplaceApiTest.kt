@@ -1,8 +1,15 @@
 package com.readplace.android.core
 
 import com.readplace.android.RecordingServer
+import com.readplace.android.RecordingServer.Gate
 import com.readplace.android.RecordingServer.Record
 import com.readplace.android.RecordingServer.Stub
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -29,6 +36,12 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.URLDecoder
 import java.util.concurrent.atomic.AtomicInteger
+
+private fun Record.formField(name: String): String? =
+	String(body, Charsets.UTF_8).split("&").firstNotNullOfOrNull {
+		val (k, v) = it.split("=", limit = 2).let { p -> p[0] to p.getOrElse(1) { "" } }
+		if (k == name) URLDecoder.decode(v, "UTF-8") else null
+	}
 
 class ReadplaceApiTest {
 	@get:Rule
@@ -60,23 +73,27 @@ class ReadplaceApiTest {
 		return store
 	}
 
+	private fun oauthFor(store: TokenStore, baseUrl: String = server.baseUrl): OAuth =
+		OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
+
 	/** Builds the client the way the composition root does: one OkHttp client with
 	 * its own jar. A ceiling is passed only when a test lowers it, so the default
-	 * ceiling is what every other test fetches under. */
+	 * ceiling is what every other test fetches under. A race test passes a real
+	 * `ioDispatcher` (the Gate parks the server thread, not the test scheduler) and a
+	 * shared `oauth` so two API instances refresh through one coordinator. */
 	private fun TestScope.api(
 		store: TokenStore = loggedInStore(),
 		jar: CookieJar = EphemeralCookieJar(),
 		baseUrl: String = server.baseUrl,
-		oauthBaseUrl: String = server.baseUrl,
+		oauth: OAuth = oauthFor(store),
+		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 		maxExternalContentBytes: Long? = null,
 	): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(jar).followRedirects(false).build()
-		val oauth = OAuth(baseUrl = oauthBaseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
-		val dispatcher = StandardTestDispatcher(testScheduler)
 		if (maxExternalContentBytes == null) {
-			return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, dispatcher)
+			return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, ioDispatcher)
 		}
-		return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, dispatcher, maxExternalContentBytes)
+		return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, ioDispatcher, maxExternalContentBytes)
 	}
 
 	private fun saveArticleAction(): SirenAction =
@@ -256,7 +273,9 @@ class ReadplaceApiTest {
 		val store = loggedInStore(access = "stale")
 		server.handle { Stub.json(401, "{}") }
 
-		failsWith<ApiError.Unauthorized> { api(store, oauthBaseUrl = unreachableBaseUrl()).loadReadlist() }
+		failsWith<ApiError.Unauthorized> {
+			api(store, oauth = oauthFor(store, baseUrl = unreachableBaseUrl())).loadReadlist()
+		}
 
 		assertEquals("must not retry the entry point when refresh fails", 1, server.records("/").size)
 	}
@@ -1142,7 +1161,7 @@ class ReadplaceApiTest {
 			.addNetworkInterceptor(policy)
 			.build()
 		val oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
-		return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, StandardTestDispatcher(testScheduler))
+		return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, StandardTestDispatcher(testScheduler))
 	}
 
 	@Test
@@ -1200,7 +1219,6 @@ class ReadplaceApiTest {
 			val api = ReadplaceApi(
 				baseUrl,
 				client,
-				store,
 				OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
 				USER_AGENT,
 				StandardTestDispatcher(testScheduler),
@@ -1238,6 +1256,108 @@ class ReadplaceApiTest {
 	}
 
 	// endregion
+
+	private inner class CoordinatingServer {
+		private var access = "at-1"
+		private var refresh = "rt-1"
+		var rotations = 0
+			private set
+		var tokenGate: Gate? = null
+		var firstStaleGate: Gate? = null
+		private val staleHits = AtomicInteger()
+
+		fun store(): TokenStore {
+			val store = TokenStore(RecordingTokenStorage())
+			store.save(OAuthTokens(AccessToken("stale"), RefreshToken("rt-1")))
+			return store
+		}
+
+		fun install() {
+			server.handle { record ->
+				when (record.path) {
+					"/oauth/token" ->
+						if (record.formField("refresh_token") != refresh) {
+							Stub.json(400, """{"error":"invalid_grant"}""")
+						} else {
+							rotations += 1
+							access = "at-${rotations + 1}"
+							refresh = "rt-${rotations + 1}"
+							val stub = Stub.json(200, Fixtures.tokenResponse(access = access, refresh = refresh))
+							tokenGate?.holding(stub) ?: stub
+						}
+					"/" ->
+						if (record.header("Authorization") == "Bearer $access") {
+							Stub.json(200, Fixtures.collection(listOf(Fixtures.article("home"))))
+						} else {
+							val stale = Stub.json(401, "{}")
+							if (staleHits.incrementAndGet() == 1) firstStaleGate?.holding(stale) ?: stale else stale
+						}
+					else -> Stub.json(404, "{}")
+				}
+			}
+		}
+	}
+
+	@Test
+	fun `two clients that 401 together on one coordinator spend one rotation and both succeed`() = runTest {
+		val coordinating = CoordinatingServer()
+		val store = coordinating.store()
+		val tokenGate = Gate().also { coordinating.tokenGate = it }
+		coordinating.install()
+		val oauth = oauthFor(store)
+
+		val a = async(start = CoroutineStart.UNDISPATCHED) {
+			api(store, oauth = oauth, ioDispatcher = Dispatchers.IO).loadReadlist()
+		}
+		withContext(Dispatchers.IO) { tokenGate.awaitArrival() }
+		val b = async(start = CoroutineStart.UNDISPATCHED) {
+			api(store, oauth = oauth, ioDispatcher = Dispatchers.IO).loadReadlist()
+		}
+		tokenGate.release()
+
+		assertEquals(listOf("home"), a.await().articles.map { it.id })
+		assertEquals(listOf("home"), b.await().articles.map { it.id })
+		assertEquals("both callers share one rotation", 1, coordinating.rotations)
+	}
+
+	@Test
+	fun `a 401 answered for a bearer already replaced replays with the replacement instead of rotating again`() = runTest {
+		val coordinating = CoordinatingServer()
+		val store = coordinating.store()
+		val firstStale = Gate().also { coordinating.firstStaleGate = it }
+		coordinating.install()
+		val oauth = oauthFor(store)
+
+		val slow = async(start = CoroutineStart.UNDISPATCHED) {
+			api(store, oauth = oauth, ioDispatcher = Dispatchers.IO).loadReadlist()
+		}
+		withContext(Dispatchers.IO) { firstStale.awaitArrival() }
+		api(store, oauth = oauth, ioDispatcher = Dispatchers.IO).loadReadlist()
+		firstStale.release()
+
+		assertEquals(listOf("home"), slow.await().articles.map { it.id })
+		assertEquals("the delayed 401 replays with the rotated token, no second rotation", 1, coordinating.rotations)
+	}
+
+	@Test
+	fun `a load cancelled while its refresh is on the wire still keeps the rotated pair`() = runTest {
+		val coordinating = CoordinatingServer()
+		val store = coordinating.store()
+		val tokenGate = Gate().also { coordinating.tokenGate = it }
+		coordinating.install()
+		val oauth = oauthFor(store)
+
+		val load = launch(start = CoroutineStart.UNDISPATCHED) {
+			api(store, oauth = oauth, ioDispatcher = Dispatchers.IO).loadReadlist()
+		}
+		withContext(Dispatchers.IO) { tokenGate.awaitArrival() }
+		load.cancel()
+		tokenGate.release()
+		load.join()
+
+		api(store, oauth = oauth, ioDispatcher = Dispatchers.IO).loadReadlist()
+		assertEquals("the cancelled refresh still persisted the rotated pair", 1, coordinating.rotations)
+	}
 
 	private object Fixtures {
 		fun article(

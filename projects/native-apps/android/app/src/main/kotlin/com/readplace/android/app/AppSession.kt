@@ -60,10 +60,10 @@ private class SessionCookieJar : CookieJar {
 }
 
 /**
- * App-wide auth/session state, plus factories so screens reach the API and OAuth
+ * App-wide auth/session state, plus factories so screens reach the API
  * with current config rather than constructing them with stale values.
  *
- * The API/OAuth clients keep their cookie jar in an isolated, in-memory store
+ * The API clients keep their cookie jar in an isolated, in-memory store
  * rather than the process-wide WebView CookieManager — the minted reader session
  * cookie must not linger in a shared jar where it would outlive a sign-out — and
  * cache nothing, so the app's list views always revalidate; only the share target
@@ -75,6 +75,7 @@ private class SessionCookieJar : CookieJar {
 class AppSession(
 	private val baseUrl: String,
 	private val store: TokenStore,
+	private val oauth: OAuth,
 	newClientBuilder: () -> OkHttpClient.Builder,
 	private val nativeUserAgent: String,
 	private val ioDispatcher: CoroutineDispatcher,
@@ -100,15 +101,15 @@ class AppSession(
 	}
 
 	suspend fun startLogin(): Result<Unit>? =
-		authenticate(makeOAuth().makeNativeLoginAuthorizationRequest())
+		authenticate(oauth.makeNativeLoginAuthorizationRequest())
 
 	suspend fun startSignup(): Result<Unit>? =
-		authenticate(makeOAuth().makeSignupAuthorizationRequest())
+		authenticate(oauth.makeSignupAuthorizationRequest())
 
 	/** Runs one attempt; the flow answers `null` when the user dismissed the
 	 * sign-in page. */
 	private suspend fun authenticate(request: AuthorizationRequest): Result<Unit>? {
-		val outcome = makeWebAuthFlow(makeOAuth()).start(request)
+		val outcome = makeWebAuthFlow(oauth).start(request)
 		refreshLoginState()
 		return outcome
 	}
@@ -135,7 +136,7 @@ class AppSession(
 		if (value("state") != expectedState) return Result.failure(AuthFlowError.StateMismatch())
 
 		return try {
-			makeOAuth().exchangeCode(code = code, verifier = verifier, redirectUri = redirectUri)
+			oauth.exchangeCode(code = code, verifier = verifier, redirectUri = redirectUri)
 			refreshLoginState()
 			Result.success(Unit)
 		} catch (error: Exception) {
@@ -150,7 +151,7 @@ class AppSession(
 		// concurrently; both finish before the logged-out state is published.
 		coroutineScope {
 			val readerWipe = launch { webDataWiper.wipe(serverHost) }
-			makeOAuth().revoke()
+			oauth.revoke()
 			clearSessionCookie()
 			shareArtifacts.purge()
 			readerWipe.join()
@@ -163,7 +164,7 @@ class AppSession(
 	 * unaffected; the returned wipe job lets tests await the fire-and-forget
 	 * WebView wipe. */
 	fun forceLogout(): Job {
-		store.clear()
+		oauth.endSession()
 		clearSessionCookie()
 		shareArtifacts.purge()
 		val readerWipe = scope.launch { webDataWiper.wipe(serverHost) }
@@ -196,14 +197,10 @@ class AppSession(
 		ReadplaceApi(
 			baseUrl = baseUrl,
 			client = http,
-			store = store,
-			oauth = makeOAuth(),
+			oauth = oauth,
 			nativeUserAgent = nativeUserAgent,
 			ioDispatcher = ioDispatcher,
 		)
-
-	fun makeOAuth(): OAuth =
-		OAuth(baseUrl = baseUrl, store = store, http = http, nativeUserAgent = nativeUserAgent)
 
 	fun makeSloganSource(): SloganSource =
 		initSloganSource(client = http, baseUrl = baseUrl, nativeUserAgent = nativeUserAgent)

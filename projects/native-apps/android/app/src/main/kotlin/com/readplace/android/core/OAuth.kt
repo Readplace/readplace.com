@@ -1,6 +1,11 @@
 package com.readplace.android.core
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -26,6 +31,8 @@ sealed class OAuthError(message: String) : Exception(message) {
 	class MalformedResponse : OAuthError("The server returned an unexpected token response.")
 
 	class NoRefreshToken : OAuthError("No refresh token is stored. Please sign in again.")
+
+	class SessionChanged : OAuthError("The session changed. Please try again.")
 }
 
 /** The parameters needed to launch the in-app authorization flow (shared by Login
@@ -47,6 +54,21 @@ class OAuth(
 	private val http: OkHttpClient,
 	private val nativeUserAgent: String,
 ) {
+	data class Snapshot(val tokens: OAuthTokens, val generation: Long)
+
+	private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+	private var generation = 0L
+	private var pending: Deferred<Snapshot>? = null
+
+	@Synchronized
+	fun snapshot(): Snapshot? = store.tokens?.let { Snapshot(it, generation) }
+
+	@Synchronized
+	fun endSession() {
+		generation += 1
+		pending = null
+		store.clear()
+	}
 	/** The custom-scheme redirect used by the auth flow (both Login and Sign up),
 	 * which the in-app auth session captures to end the web flow. */
 	val nativeRedirectUri: String get() = AppConfig.NATIVE_CALLBACK_URL
@@ -84,20 +106,38 @@ class OAuth(
 		return minted
 	}
 
-	/** Uses the stored refresh token to mint a new access token. Persists the result
-	 * and returns the new access token, or throws on failure. */
-	suspend fun refresh(): AccessToken {
-		val stored = store.tokens?.refreshToken ?: throw OAuthError.NoRefreshToken()
+	suspend fun refresh(after: Snapshot): Snapshot = joinOrStart(after).await()
+
+	@Synchronized
+	private fun joinOrStart(failed: Snapshot): Deferred<Snapshot> {
+		val current = snapshot() ?: throw OAuthError.NoRefreshToken()
+		if (current.generation != failed.generation) throw OAuthError.SessionChanged()
+		if (current.tokens != failed.tokens) return CompletableDeferred(current)
+		pending?.takeIf { it.isActive }?.let { return it }
+		return refreshScope.async { performRefresh(failed) }.also { pending = it }
+	}
+
+	private suspend fun performRefresh(failed: Snapshot): Snapshot {
 		val form = FormBody.Builder()
 			.add("grant_type", "refresh_token")
-			.add("refresh_token", stored.raw)
+			.add("refresh_token", failed.tokens.refreshToken.raw)
 			.add("client_id", AppConfig.CLIENT_ID)
 			.build()
-		val answer = send(tokenRequest(form))
-		if (answer.status != 200) throw OAuthError.RefreshFailed()
-		val minted = tokensFrom(answer.body, fallbackRefresh = stored)
-		store.updateAccessToken(minted.accessToken, minted.refreshToken)
-		return minted.accessToken
+		val answer = try {
+			send(tokenRequest(form))
+		} catch (_: IOException) {
+			null
+		}
+		return settle(failed, answer)
+	}
+
+	@Synchronized
+	private fun settle(failed: Snapshot, answer: Answer?): Snapshot {
+		if (generation != failed.generation) throw OAuthError.SessionChanged()
+		if (answer == null || answer.status != 200) throw OAuthError.RefreshFailed()
+		val minted = tokensFrom(answer.body, fallbackRefresh = failed.tokens.refreshToken)
+		store.save(minted)
+		return Snapshot(minted, generation)
 	}
 
 	/** Best-effort token revocation (logout), then clears the local tokens. */
@@ -115,7 +155,7 @@ class OAuth(
 			} catch (_: IOException) {
 			}
 		}
-		store.clear()
+		endSession()
 	}
 
 	private data class Answer(val status: Int, val body: String)

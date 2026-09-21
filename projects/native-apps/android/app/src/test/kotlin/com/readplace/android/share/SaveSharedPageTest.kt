@@ -112,7 +112,6 @@ class SaveSharedPageTest {
 		ReadplaceApi(
 			baseUrl = server.baseUrl,
 			client = OkHttpClient.Builder().followRedirects(false).build(),
-			store = store,
 			oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
 			nativeUserAgent = USER_AGENT,
 			ioDispatcher = StandardTestDispatcher(testScheduler),
