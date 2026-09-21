@@ -16,11 +16,27 @@ object UrlDetection {
 	fun firstWebUrl(text: String): String? =
 		CANDIDATE.findAll(text)
 			.map { trimTrailingPunctuation(it.value) }
-			.firstOrNull { isWebUrl(it) }
+			.firstNotNullOfOrNull(::normalizeWebUrl)
 
-	fun isWebUrl(value: String): Boolean {
-		val scheme = runCatching { URI(value).scheme }.getOrNull()?.lowercase() ?: return false
-		return scheme == "http" || scheme == "https"
+	fun normalizeWebUrl(value: String): String? {
+		val normalized = encodeBrowserSupportedSuffix(value)
+		val scheme = runCatching { URI(normalized).scheme }.getOrNull()?.lowercase() ?: return null
+		return if (scheme == "http" || scheme == "https") normalized else null
+	}
+
+	/** `^` and `|` are the two characters a browser and iOS's Foundation URL accept
+	 * but `java.net.URI` rejects; encoding them in the path, query and fragment brings
+	 * the share flow to the same save behaviour. Only the suffix is touched — a `^` or
+	 * `|` in the authority is left literal so the parser still rejects it, rather than
+	 * a rewrite turning a malformed host into an accepted one. Existing percent escapes
+	 * survive because only the two literal characters are replaced. */
+	private fun encodeBrowserSupportedSuffix(value: String): String {
+		val schemeSeparator = value.indexOf("://")
+		if (schemeSeparator < 0) return value
+		val suffixStart = value.indexOfAny(charArrayOf('/', '?', '#'), startIndex = schemeSeparator + 3)
+		if (suffixStart < 0) return value
+		val suffix = value.substring(suffixStart).replace("^", "%5E").replace("|", "%7C")
+		return value.substring(0, suffixStart) + suffix
 	}
 
 	/** Sentence punctuation that follows a URL in prose is not part of it. A closing

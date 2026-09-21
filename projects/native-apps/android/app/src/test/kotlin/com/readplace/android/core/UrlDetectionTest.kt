@@ -1,9 +1,7 @@
 package com.readplace.android.core
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UrlDetectionTest {
@@ -54,8 +52,51 @@ class UrlDetectionTest {
 	}
 
 	@Test
-	fun `rejects a candidate no uri parser accepts`() {
-		assertNull(UrlDetection.firstWebUrl("look at https://example.com/a^b now"))
+	fun `encodes a caret so a link a browser opens is no longer rejected`() {
+		assertEquals(
+			"https://example.com/a%5Eb",
+			UrlDetection.firstWebUrl("look at https://example.com/a^b now"),
+		)
+	}
+
+	@Test
+	fun `encodes a pipe in a shared url found in prose`() {
+		assertEquals(
+			"https://example.com/a%7Cb",
+			UrlDetection.firstWebUrl("open https://example.com/a|b please"),
+		)
+	}
+
+	@Test
+	fun `encodes a caret in a query value found in prose`() {
+		assertEquals(
+			"https://example.com/s?q=a%5Eb",
+			UrlDetection.firstWebUrl("try https://example.com/s?q=a^b today"),
+		)
+	}
+
+	@Test
+	fun `drops a trailing full stop before encoding a caret`() {
+		assertEquals(
+			"https://example.com/a%5Eb",
+			UrlDetection.firstWebUrl("Read https://example.com/a^b. Then stop"),
+		)
+	}
+
+	@Test
+	fun `keeps a balanced bracket the url opened and encodes a caret inside it`() {
+		assertEquals(
+			"https://example.com/path_(a%5Eb)",
+			UrlDetection.firstWebUrl("see https://example.com/path_(a^b). Next"),
+		)
+	}
+
+	@Test
+	fun `leaves an already escaped caret untouched in prose`() {
+		assertEquals(
+			"https://example.com/a%5Eb",
+			UrlDetection.firstWebUrl("see https://example.com/a%5Eb here"),
+		)
 	}
 
 	@Test
@@ -77,46 +118,89 @@ class UrlDetectionTest {
 	}
 
 	@Test
-	fun `is a web url for http and https`() {
-		assertTrue(UrlDetection.isWebUrl("http://example.com"))
-		assertTrue(UrlDetection.isWebUrl("https://example.com/a.pdf"))
+	fun `normalizes an http or https url to itself when it has nothing to encode`() {
+		assertEquals("http://example.com", UrlDetection.normalizeWebUrl("http://example.com"))
+		assertEquals("https://example.com/a.pdf", UrlDetection.normalizeWebUrl("https://example.com/a.pdf"))
 	}
 
 	@Test
-	fun `is a web url whatever case the scheme is written in`() {
-		assertTrue(UrlDetection.isWebUrl("HTTP://EXAMPLE.COM"))
-		assertTrue(UrlDetection.isWebUrl("HttpS://Example.com/a"))
+	fun `normalizes a url whatever case the scheme is written in`() {
+		assertEquals("HTTP://EXAMPLE.COM", UrlDetection.normalizeWebUrl("HTTP://EXAMPLE.COM"))
+		assertEquals("HttpS://Example.com/a", UrlDetection.normalizeWebUrl("HttpS://Example.com/a"))
 	}
 
 	@Test
-	fun `is not a web url for mailto`() {
-		assertFalse(UrlDetection.isWebUrl("mailto:me@example.com"))
+	fun `encodes a caret in an explicit url path`() {
+		assertEquals("https://example.com/a%5Eb", UrlDetection.normalizeWebUrl("https://example.com/a^b"))
 	}
 
 	@Test
-	fun `is not a web url for tel`() {
-		assertFalse(UrlDetection.isWebUrl("tel:+15551234567"))
+	fun `encodes a pipe in an explicit url path`() {
+		assertEquals("https://example.com/a%7Cb", UrlDetection.normalizeWebUrl("https://example.com/a|b"))
 	}
 
 	@Test
-	fun `is not a web url for a shared file`() {
-		assertFalse(UrlDetection.isWebUrl("file:///tmp/shared.pdf"))
+	fun `encodes a caret and pipe in a query value and keeps the query delimiters`() {
+		assertEquals(
+			"https://example.com/s?a=1&b=x%5Ey%7Cz",
+			UrlDetection.normalizeWebUrl("https://example.com/s?a=1&b=x^y|z"),
+		)
 	}
 
 	@Test
-	fun `is not a web url for a content provider`() {
-		assertFalse(UrlDetection.isWebUrl("content://com.android.providers.downloads/1"))
+	fun `encodes a caret in a fragment`() {
+		assertEquals("https://example.com/p#sec%5E1", UrlDetection.normalizeWebUrl("https://example.com/p#sec^1"))
 	}
 
 	@Test
-	fun `is not a web url without a scheme`() {
-		assertFalse(UrlDetection.isWebUrl("no-scheme"))
-		assertFalse(UrlDetection.isWebUrl(""))
+	fun `leaves an already escaped caret untouched`() {
+		assertEquals("https://example.com/a%5Eb", UrlDetection.normalizeWebUrl("https://example.com/a%5Eb"))
 	}
 
 	@Test
-	fun `is not a web url when the value does not parse`() {
-		assertFalse(UrlDetection.isWebUrl("http://exa mple.com"))
+	fun `does not normalize a mailto link`() {
+		assertNull(UrlDetection.normalizeWebUrl("mailto:me@example.com"))
+	}
+
+	@Test
+	fun `does not normalize a tel link`() {
+		assertNull(UrlDetection.normalizeWebUrl("tel:+15551234567"))
+	}
+
+	@Test
+	fun `does not normalize a shared file url`() {
+		assertNull(UrlDetection.normalizeWebUrl("file:///tmp/shared.pdf"))
+	}
+
+	@Test
+	fun `does not normalize a content provider url`() {
+		assertNull(UrlDetection.normalizeWebUrl("content://com.android.providers.downloads/1"))
+	}
+
+	@Test
+	fun `does not normalize a value without a scheme`() {
+		assertNull(UrlDetection.normalizeWebUrl("no-scheme"))
+		assertNull(UrlDetection.normalizeWebUrl(""))
+	}
+
+	@Test
+	fun `does not normalize a value the uri parser rejects`() {
+		assertNull(UrlDetection.normalizeWebUrl("http://exa mple.com"))
+	}
+
+	@Test
+	fun `still rejects a caret in the authority`() {
+		assertNull(UrlDetection.normalizeWebUrl("https://exa^mple.com/a"))
+	}
+
+	@Test
+	fun `still rejects a pipe in the authority`() {
+		assertNull(UrlDetection.normalizeWebUrl("https://exa|mple.com/a"))
+	}
+
+	@Test
+	fun `still rejects an unescaped control character in the path`() {
+		assertNull(UrlDetection.normalizeWebUrl("https://example.com/a\u0001b"))
 	}
 
 	@Test
