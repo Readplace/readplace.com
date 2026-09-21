@@ -16,8 +16,16 @@ class CosmicWaveFieldTest {
 	private val zeroSize = WaveSize(width = 0.0, height = 0.0)
 	private val field = CosmicWaveField(seed = 42uL, zone = CosmicZone.ABOVE_BRAND)
 
+	private val visit = StarVisit(anchor = WavePoint(x = 180.0, y = 250.0), bornAt = 3.0, hue = CosmicHue.MAGENTA, ordinal = 0)
+
 	private fun strokes(elapsed: Double): List<FilamentStroke> =
-		field.strokes(zoneFrame = topFrame, screenSize = screenSize, elapsed = elapsed)
+		field.strokes(zoneFrame = topFrame, screenSize = screenSize, elapsed = elapsed, visits = emptyList())
+
+	private fun guests(elapsed: Double): List<FilamentStroke> {
+		val lanes = strokes(elapsed)
+		val all = field.strokes(zoneFrame = topFrame, screenSize = screenSize, elapsed = elapsed, visits = listOf(visit))
+		return all.drop(lanes.size)
+	}
 
 	private fun cores(elapsed: Double, hue: CosmicHue): List<FilamentStroke> =
 		strokes(elapsed).filterIndexed { offset, stroke -> offset % 2 == 1 && stroke.hue == hue }
@@ -70,14 +78,14 @@ class CosmicWaveFieldTest {
 
 		assertNotEquals(
 			strokes(4.0).firstOrNull()?.points,
-			other.strokes(zoneFrame = topFrame, screenSize = screenSize, elapsed = 4.0).firstOrNull()?.points,
+			other.strokes(zoneFrame = topFrame, screenSize = screenSize, elapsed = 4.0, visits = emptyList()).firstOrNull()?.points,
 		)
 	}
 
 	@Test
 	fun `degenerate geometry produces no strokes`() {
-		assertEquals(emptyList<FilamentStroke>(), field.strokes(zoneFrame = zeroFrame, screenSize = screenSize, elapsed = 6.0))
-		assertEquals(emptyList<FilamentStroke>(), field.strokes(zoneFrame = topFrame, screenSize = zeroSize, elapsed = 6.0))
+		assertEquals(emptyList<FilamentStroke>(), field.strokes(zoneFrame = zeroFrame, screenSize = screenSize, elapsed = 6.0, visits = listOf(visit)))
+		assertEquals(emptyList<FilamentStroke>(), field.strokes(zoneFrame = topFrame, screenSize = zeroSize, elapsed = 6.0, visits = listOf(visit)))
 		assertEquals(emptyList<FilamentStroke>(), field.staticStrokes(zoneFrame = zeroFrame, screenSize = screenSize))
 		assertEquals(emptyList<FilamentStroke>(), field.staticStrokes(zoneFrame = topFrame, screenSize = zeroSize))
 	}
@@ -213,11 +221,13 @@ class CosmicWaveFieldTest {
 			zoneFrame = WaveRect(x = 0.0, y = 60.0, width = 390.0, height = 330.0),
 			screenSize = screenSize,
 			elapsed = 4.0,
+			visits = emptyList(),
 		)
 		val lower = field.strokes(
 			zoneFrame = WaveRect(x = 0.0, y = 400.0, width = 390.0, height = 330.0),
 			screenSize = screenSize,
 			elapsed = 4.0,
+			visits = emptyList(),
 		)
 
 		assertNotEquals("moving the zone must slide it over one fixed sphere", higher.firstOrNull()?.points, lower.firstOrNull()?.points)
@@ -228,12 +238,12 @@ class CosmicWaveFieldTest {
 		val below = CosmicWaveField(seed = 42uL, zone = CosmicZone.BELOW_ACTIONS)
 		for (elapsed in stride(from = 0.5, through = 40.0, by = 0.1)) {
 			assertBandsStayApart(
-				field.strokes(zoneFrame = topFrame, screenSize = screenSize, elapsed = elapsed),
+				field.strokes(zoneFrame = topFrame, screenSize = screenSize, elapsed = elapsed, visits = emptyList()),
 				zoneSize = topFrame.size,
 				elapsed = elapsed,
 			)
 			assertBandsStayApart(
-				below.strokes(zoneFrame = bottomFrame, screenSize = screenSize, elapsed = elapsed),
+				below.strokes(zoneFrame = bottomFrame, screenSize = screenSize, elapsed = elapsed, visits = emptyList()),
 				zoneSize = bottomFrame.size,
 				elapsed = elapsed,
 			)
@@ -409,6 +419,115 @@ class CosmicWaveFieldTest {
 		assertEquals(3.0, running.pausing(start.minusSeconds(30)).accumulated, 1e-12)
 	}
 
+	@Test
+	fun `a visit leaves the lanes untouched`() {
+		val lanes = strokes(3.5)
+		val hosting = field.strokes(zoneFrame = topFrame, screenSize = screenSize, elapsed = 3.5, visits = listOf(visit))
+
+		assertEquals(lanes, hosting.take(lanes.size))
+		assertTrue("the visit adds its own bolt", hosting.size > lanes.size)
+	}
+
+	@Test
+	fun `a visit lives only between its birth and its fade`() {
+		assertEquals(emptyList<FilamentStroke>(), guests(2.9))
+		assertEquals("a fresh visit draws its strike over its veil", 32, guests(3.5).size)
+		assertEquals("a settled visit is veil alone", 16, guests(4.5).size)
+		assertEquals(emptyList<FilamentStroke>(), guests(5.4))
+	}
+
+	@Test
+	fun `a visit strikes from its anchor at full strength and settles into the veil`() {
+		val struck = guests(3.05)
+		val origin = requireNotNull(struck.firstOrNull()?.points?.firstOrNull())
+		assertEquals(visit.anchor.x - topFrame.x, origin.x, 0.001)
+		assertEquals(visit.anchor.y - topFrame.y, origin.y, 0.001)
+		assertEquals(setOf(StrokeTone.VEIL, StrokeTone.STAR), struck.map { it.tone }.toSet())
+		assertEquals(setOf(CosmicHue.MAGENTA), struck.map { it.hue }.toSet())
+
+		val earlyStrike = guests(3.1).filter { it.tone == StrokeTone.STAR }.maxOfOrNull { it.opacity } ?: 0.0
+		val laterStrike = guests(3.4).filter { it.tone == StrokeTone.STAR }.maxOfOrNull { it.opacity } ?: 0.0
+		assertTrue("the strike dims as the bolt settles in", earlyStrike > laterStrike)
+		assertEquals("once settled, the guest wears the lanes' veil", setOf(StrokeTone.VEIL), guests(3.7).map { it.tone }.toSet())
+	}
+
+	@Test
+	fun `a visit draws itself out and then fades away`() {
+		val justBorn = length(guests(3.05))
+		val drawn = length(guests(3.4))
+		val brightest = guests(4.0).maxOfOrNull { it.opacity } ?: 0.0
+		val dying = guests(5.3).maxOfOrNull { it.opacity } ?: 0.0
+
+		assertTrue(justBorn > 0)
+		assertTrue("the strike draws itself out like any lane bolt", drawn > justBorn * 2)
+		assertTrue(brightest > 0)
+		assertTrue("the guest leaves by fading", dying < brightest * 0.35)
+	}
+
+	@Test
+	fun `the visit head is the furthest point of the bolt still on screen`() {
+		val drawn = guests(3.5).filterIndexed { offset, _ -> offset < 16 && offset % 2 == 1 }.flatMap { it.points }
+		val visible = WaveRect(x = 0.0, y = 0.0, width = topFrame.width, height = topFrame.height)
+
+		val head = field.visitHead(visit, zoneFrame = topFrame, screenSize = screenSize)
+		val local = WavePoint(x = head.x - topFrame.x, y = head.y - topFrame.y)
+
+		assertTrue("a star cannot leave from a point the reader never sees", visible.contains(local))
+		val index = requireNotNull(
+			drawn.indexOfFirst { hypot(it.x - local.x, it.y - local.y) < 0.001 }.takeIf { it >= 0 },
+		) { "the head must sit on the bolt itself, not near it" }
+		assertFalse(
+			"the head is the LAST visible point: whatever the bolt draws next has left the zone",
+			drawn.drop(index + 1).take(1).all { visible.contains(it) },
+		)
+		assertTrue("the guest is a bolt, not a dot", hypot(head.x - visit.anchor.x, head.y - visit.anchor.y) > 40)
+	}
+
+	@Test
+	fun `the visit head never escapes the zone it struck`() {
+		val zones = listOf(
+			topFrame,
+			WaveRect(x = 0.0, y = 100.0, width = 390.0, height = 60.0),
+			WaveRect(x = 20.0, y = 80.0, width = 120.0, height = 200.0),
+		)
+		for (ordinal in 0 until 25) {
+			for (zone in zones) {
+				val landed = StarVisit(
+					anchor = WavePoint(x = zone.x + zone.width / 2, y = zone.y + zone.height / 2),
+					bornAt = 0.0,
+					hue = CosmicHue.CYAN,
+					ordinal = ordinal,
+				)
+
+				val head = field.visitHead(landed, zoneFrame = zone, screenSize = screenSize)
+
+				assertTrue(
+					"visit $ordinal in $zone launches its star from $head, outside the panel",
+					WaveRect(x = zone.x - 0.5, y = zone.y - 0.5, width = zone.width + 1, height = zone.height + 1).contains(head),
+				)
+			}
+		}
+	}
+
+	@Test
+	fun `the star tone is the hue at full strength`() {
+		for (hue in CosmicHue.entries) {
+			for (dark in listOf(false, true)) {
+				val star = hue.star(dark)
+				val veil = hue.resolved(dark)
+				assertEquals(hue.name, veil.red, star.red)
+				assertEquals(hue.name, veil.green, star.green)
+				assertEquals(hue.name, veil.blue, star.blue)
+				assertEquals(hue.name, 1.0, star.alpha, 1e-9)
+			}
+		}
+	}
+
+	private fun length(strokes: List<FilamentStroke>): Double =
+		strokes.filterIndexed { offset, _ -> offset % 2 == 1 }.sumOf { stroke ->
+			stroke.points.zipWithNext { from, to -> hypot(to.x - from.x, to.y - from.y) }.sum()
+		}
+
 	private fun assertBandsStayApart(visible: List<FilamentStroke>, zoneSize: WaveSize, elapsed: Double) {
 		val onScreen = WaveRect(x = -8.0, y = -8.0, width = zoneSize.width + 16, height = zoneSize.height + 16)
 		val spans = mutableMapOf<Int, ClosedFloatingPointRange<Double>>()
@@ -471,8 +590,4 @@ class CosmicWaveFieldTest {
 
 	private val WaveRect.size: WaveSize
 		get() = WaveSize(width = width, height = height)
-
-	/** `CGRect.contains`: inside, or on the minimum edges; the maximum edges are outside. */
-	private fun WaveRect.contains(point: WavePoint): Boolean =
-		point.x >= x && point.x < x + width && point.y >= y && point.y < y + height
 }

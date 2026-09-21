@@ -1,8 +1,6 @@
 package com.readplace.android.app
 
 import android.content.res.Configuration
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,19 +33,22 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalConfiguration
@@ -56,6 +57,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -66,17 +68,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.readplace.android.R
-import com.readplace.android.core.AppConfig
+import java.time.Instant
 import kotlin.math.max
-import kotlin.random.Random
-import kotlin.random.nextULong
-import kotlinx.coroutines.delay
 
 @Composable
 fun LoginScreen(
-	/** Seeded by the caller with the compiled-in slogan so the screen never renders
-	 * blank, then replaced by whatever the server publishes. */
-	slogans: List<String>,
+	/** Owned above login (see [SloganRotationOwner]) so its storm clock and seed
+	 * survive this screen coming and going; it drives the slogan hand-over, the two
+	 * wave zones, and the comet from one timeline. */
+	rotation: SloganRotation,
+	/** Injected so the composition point wires the live fetch; the rotation loads it
+	 * once, then keeps the compiled-in fallback if it comes back empty. */
+	loadSlogans: suspend () -> List<String>,
 	/** Owned by the root, the app's auth-state root, so a failed Login or Sign up
 	 * message outlives any remount of this screen. */
 	errorText: String?,
@@ -96,29 +99,80 @@ fun LoginScreen(
 	AlwaysLight {
 		val brand = LocalBrandColors.current
 		val isMuted by intro.isMuted.collectAsState()
-		val cosmicSeed = remember { Random.nextULong() }
-		var sloganIndex by remember { mutableIntStateOf(0) }
-		val currentSlogan = if (slogans.isEmpty()) AppConfig.FALLBACK_SLOGAN else slogans[sloganIndex % slogans.size]
 
-		// Cycles the slogans for as long as this screen is up — leaving composition
-		// cancels the delay, and a signed-in user never sees the screen again.
-		//
-		// A reader who asked for reduced motion gets the first slogan and no cycling:
-		// text swapping under them is exactly the motion that setting turns off.
-		LaunchedEffect(slogans, reduceMotion) {
-			sloganIndex = 0
-			if (reduceMotion || slogans.size <= 1) return@LaunchedEffect
+		val clock by rotation.clock.collectAsState()
+		val handoff by rotation.handoff.collectAsState()
+		val slogans by rotation.slogans.collectAsState()
+		val index by rotation.index.collectAsState()
+
+		// One clock and one frame loop feed both wave zones, the subtitle, and the
+		// comet, so the sky and the words can never disagree. The loop ticks the
+		// shared "now" at ~30 fps only while foregrounded and in motion; Reduce
+		// Motion and the background hold it still.
+		val paused = !isForeground
+		var frameNow by remember { mutableStateOf(Instant.now()) }
+		LaunchedEffect(reduceMotion, paused) {
+			if (reduceMotion || paused) return@LaunchedEffect
+			var last = 0L
 			while (true) {
-				delay(SLOGAN_INTERVAL_MILLIS)
-				sloganIndex = (sloganIndex + 1) % slogans.size
+				withFrameNanos { now ->
+					if (now - last >= FRAME_INTERVAL_NANOS) {
+						last = now
+						frameNow = Instant.now()
+					}
+				}
 			}
 		}
 
+		// Loads the published slogans, then hands them over one to the next until this
+		// screen leaves composition. Restarting on a Reduce Motion change mirrors the
+		// iOS `.task(id:)`: republish, and cycle only when motion is allowed.
+		LaunchedEffect(reduceMotion) {
+			rotation.run(reduceMotion = reduceMotion, now = { Instant.now() }, load = loadSlogans)
+		}
+		// Freeze or restart the shared clock with the foreground signal, so time the
+		// app spent in the background never plays back on return.
+		LaunchedEffect(isForeground) {
+			rotation.setPaused(paused = !isForeground, at = Instant.now())
+		}
+
+		val windowInfo = LocalWindowInfo.current
+		val windowSize = WaveSize(
+			width = windowInfo.containerSize.width.toDouble(),
+			height = windowInfo.containerSize.height.toDouble(),
+		)
+		var skyRect by remember { mutableStateOf<WaveRect?>(null) }
+		var belowRect by remember { mutableStateOf<WaveRect?>(null) }
+		var subtitleRect by remember { mutableStateOf<WaveRect?>(null) }
+		var cometOrigin by remember { mutableStateOf<WavePoint?>(null) }
+
+		val elapsed = if (reduceMotion) 0.0 else clock.elapsed(frameNow)
+		val subtitleFrame = if (reduceMotion) {
+			SubtitleFrame(
+				outgoing = SloganLine(text = "", pose = TextPose.hidden),
+				incoming = SloganLine(text = sloganAsReview(slogans[index]), pose = TextPose.shown),
+			)
+		} else {
+			rotation.subtitle(at = frameNow)
+		}
+		val visits = if (reduceMotion) emptyList() else skyVisits(handoff = handoff, sky = skyRect)
+		val comet = if (reduceMotion) {
+			SloganComet.idle
+		} else {
+			loginComet(
+				handoff = handoff,
+				sky = skyRect,
+				subtitle = subtitleRect,
+				seed = rotation.seed,
+				screenSize = windowSize,
+				elapsed = elapsed,
+			)
+		}
+
 		val density = LocalDensity.current
-		val windowHeight = LocalWindowInfo.current.containerSize.height
 		var contentTop by remember { mutableFloatStateOf(0f) }
 		val topGap = with(density) {
-			val markCenter = LaunchIntro.LOGO_SCREEN_FRACTION.toFloat() * windowHeight
+			val markCenter = LaunchIntro.LOGO_SCREEN_FRACTION.toFloat() * windowInfo.containerSize.height
 			val markTop = markCenter - BrandMarkGeometry.SIDE.dp.toPx() / 2
 			max(0f, markTop - contentTop - CONTENT_PADDING.toPx() - STACK_SPACING.toPx()).toDp()
 		}
@@ -133,6 +187,14 @@ fun LoginScreen(
 				}
 				.onGloballyPositioned { contentTop = it.positionInWindow().y },
 		) {
+			// Behind the content: the shooting star travelling between the words and the
+			// sky. Input-transparent, so it never eats a button or the mute/replay taps.
+			SloganCometsCanvas(
+				comet = comet,
+				cometOrigin = cometOrigin,
+				modifier = Modifier.onGloballyPositioned { cometOrigin = it.originInWindow() },
+			)
+
 			Column(
 				modifier = Modifier.fillMaxSize().padding(CONTENT_PADDING),
 				horizontalAlignment = Alignment.CenterHorizontally,
@@ -140,10 +202,16 @@ fun LoginScreen(
 			) {
 				CosmicWavesCanvas(
 					zone = CosmicZone.ABOVE_BRAND,
-					seed = cosmicSeed,
+					seed = rotation.seed,
+					zoneFrame = skyRect,
+					screenSize = windowSize,
+					elapsed = elapsed,
+					visits = visits,
 					reduceMotion = reduceMotion,
-					paused = !isForeground,
-					modifier = Modifier.fillMaxWidth().height(topGap),
+					modifier = Modifier
+						.fillMaxWidth()
+						.height(topGap)
+						.onGloballyPositioned { skyRect = it.rectInWindow() },
 				)
 
 				Column(
@@ -159,31 +227,10 @@ fun LoginScreen(
 						style = MaterialTheme.typography.headlineLarge,
 						fontWeight = FontWeight.Bold,
 					)
-					key(reduceMotion) {
-						Crossfade(
-							targetState = currentSlogan,
-							animationSpec = tween(durationMillis = if (reduceMotion) 0 else SLOGAN_FADE_MILLIS),
-							label = "slogan",
-						) { slogan ->
-							val subtitleStyle = MaterialTheme.typography.bodyMedium
-							BasicText(
-								text = sloganAsReview(slogan),
-								modifier = Modifier.fillMaxWidth(),
-								style = subtitleStyle.copy(
-									color = MaterialTheme.colorScheme.onSurfaceVariant,
-									textAlign = TextAlign.Center,
-								),
-								// One line, so a longer slogan swapping in cannot move the brand mark
-								// the launch intro lands on.
-								maxLines = 1,
-								overflow = TextOverflow.Ellipsis,
-								autoSize = TextAutoSize.StepBased(
-									minFontSize = subtitleStyle.fontSize * MIN_SLOGAN_SCALE,
-									maxFontSize = subtitleStyle.fontSize,
-								),
-							)
-						}
-					}
+					Subtitle(
+						frame = subtitleFrame,
+						modifier = Modifier.onGloballyPositioned { subtitleRect = it.rectInWindow() },
+					)
 				}
 
 				Column(
@@ -221,10 +268,16 @@ fun LoginScreen(
 
 				CosmicWavesCanvas(
 					zone = CosmicZone.BELOW_ACTIONS,
-					seed = cosmicSeed,
+					seed = rotation.seed,
+					zoneFrame = belowRect,
+					screenSize = windowSize,
+					elapsed = elapsed,
+					visits = emptyList(),
 					reduceMotion = reduceMotion,
-					paused = !isForeground,
-					modifier = Modifier.fillMaxWidth().weight(1f),
+					modifier = Modifier
+						.fillMaxWidth()
+						.weight(1f)
+						.onGloballyPositioned { belowRect = it.rectInWindow() },
 				)
 
 				Footer(onOpenPrivacyPolicy = onOpenPrivacyPolicy, onReplay = intro::replay)
@@ -239,14 +292,73 @@ fun LoginScreen(
 	}
 }
 
-private const val SLOGAN_INTERVAL_MILLIS = 12_000L
-private const val SLOGAN_FADE_MILLIS = 300
+private const val FRAME_INTERVAL_NANOS = 1_000_000_000L / 30
 private const val MIN_SLOGAN_SCALE = 0.85f
 private val CONTENT_PADDING = 24.dp
 private val STACK_SPACING = 28.dp
 private val ACTION_PADDING = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
 
-private fun sloganAsReview(slogan: String): String = "\u201C$slogan\u201D"
+/** Window-space rectangle of a laid-out node — one coordinate space (window pixels)
+ * shared by both wave zones, the subtitle, and the comet, so no two mix screen,
+ * window, dp, and pixel units. Re-fires on inset, font-scale, rotation and resize. */
+private fun LayoutCoordinates.rectInWindow(): WaveRect {
+	val position = positionInWindow()
+	return WaveRect(
+		x = position.x.toDouble(),
+		y = position.y.toDouble(),
+		width = size.width.toDouble(),
+		height = size.height.toDouble(),
+	)
+}
+
+private fun LayoutCoordinates.originInWindow(): WavePoint {
+	val position = positionInWindow()
+	return WavePoint(x = position.x.toDouble(), y = position.y.toDouble())
+}
+
+/** The two subtitle lines stacked in place: the outgoing slogan condenses away as
+ * the incoming one blooms in, each posed by the hand-over. One accessibility label,
+ * the settled/incoming slogan, stands for both. */
+@Composable
+private fun Subtitle(frame: SubtitleFrame, modifier: Modifier = Modifier) {
+	Box(
+		modifier = modifier
+			.fillMaxWidth()
+			.clearAndSetSemantics { contentDescription = frame.incoming.text },
+		contentAlignment = Alignment.Center,
+	) {
+		SloganLineText(frame.outgoing)
+		SloganLineText(frame.incoming)
+	}
+}
+
+@Composable
+private fun SloganLineText(line: SloganLine) {
+	val style = MaterialTheme.typography.bodyMedium
+	BasicText(
+		text = line.text,
+		modifier = Modifier
+			.fillMaxWidth()
+			.graphicsLayer {
+				alpha = line.pose.opacity.toFloat()
+				scaleX = line.pose.scale.toFloat()
+				scaleY = line.pose.scale.toFloat()
+			}
+			.blur(line.pose.blur.dp),
+		style = style.copy(
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+			textAlign = TextAlign.Center,
+		),
+		// One line, so a longer slogan swapping in cannot move the brand mark the
+		// launch intro lands on; it shrinks to fit rather than truncating.
+		maxLines = 1,
+		overflow = TextOverflow.Ellipsis,
+		autoSize = TextAutoSize.StepBased(
+			minFontSize = style.fontSize * MIN_SLOGAN_SCALE,
+			maxFontSize = style.fontSize,
+		),
+	)
+}
 
 @Composable
 private fun AlwaysLight(content: @Composable () -> Unit) {

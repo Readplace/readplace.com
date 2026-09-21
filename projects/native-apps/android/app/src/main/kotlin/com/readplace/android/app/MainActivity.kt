@@ -53,6 +53,12 @@ import okhttp3.OkHttpClient
 import java.time.Clock
 import java.time.Instant
 import kotlin.coroutines.resume
+import kotlin.random.Random
+import kotlin.random.nextULong
+
+/** How long each slogan stands before it hands over to the next — the storm's
+ * 12-second cycle, matching iOS. */
+private const val SLOGAN_INTERVAL_MILLIS = 12_000L
 
 /**
  * The app's composition root: every concrete storage, HTTP, auth and WebView
@@ -132,6 +138,26 @@ class MainActivity : ComponentActivity() {
 			},
 		).get(LaunchIntroOwner::class).model
 
+		// The sign-in motion's clock and seed are fixed here, at the root, before the
+		// intro or login appears: the storm clock starts at app launch and, held in an
+		// Activity-scoped ViewModel, survives recreation and signing back out to login
+		// so no second storm begins where the first left off.
+		val rotation = ViewModelProvider(
+			this,
+			viewModelFactory {
+				initializer {
+					SloganRotationOwner(
+						SloganRotation(
+							seed = Random.nextULong(),
+							intervalMillis = SLOGAN_INTERVAL_MILLIS,
+							startedAt = Instant.now(),
+							fallback = AppConfig.FALLBACK_SLOGAN,
+						),
+					)
+				}
+			},
+		).get(SloganRotationOwner::class).rotation
+
 		handleCallback(intent)
 
 		setContent {
@@ -141,10 +167,11 @@ class MainActivity : ComponentActivity() {
 						session = session,
 						createReadingList = createReadingList,
 						intro = intro,
+						rotation = rotation,
 						reduceMotion = reduceMotionUpdates
 							.collectAsStateWithLifecycle(initialValue = reduceMotion).value,
 						isForeground = foreground.collectAsStateWithLifecycle().value,
-						slogans = { session.makeSloganSource().load() },
+						loadSlogans = { session.makeSloganSource().load() },
 						onOpenExternally = ::openExternally,
 						applySystemBarIcons = ::applySystemBarIcons,
 					)
@@ -233,9 +260,10 @@ private fun Root(
 	session: AppSession,
 	createReadingList: () -> ReadingListViewModel,
 	intro: LaunchIntroModel,
+	rotation: SloganRotation,
 	reduceMotion: Boolean,
 	isForeground: Boolean,
-	slogans: suspend () -> List<String>,
+	loadSlogans: suspend () -> List<String>,
 	onOpenExternally: (String) -> Unit,
 	applySystemBarIcons: (needLightIcons: Boolean) -> Unit,
 ) {
@@ -246,17 +274,10 @@ private fun Root(
 	val scope = androidx.compose.runtime.rememberCoroutineScope()
 	var authErrorText by remember { mutableStateOf<String?>(null) }
 	var authBusy by remember { mutableStateOf(false) }
-	var sloganList by remember { mutableStateOf(listOf(AppConfig.FALLBACK_SLOGAN)) }
 	val context = androidx.compose.ui.platform.LocalContext.current
 
 	LaunchedEffect(isLoggedIn, isForeground) {
 		intro.sync(isLoggedIn = isLoggedIn, isForeground = isForeground)
-	}
-	LaunchedEffect(isLoggedIn) {
-		if (!isLoggedIn) {
-			val fetched = slogans()
-			if (fetched.isNotEmpty()) sloganList = fetched
-		}
 	}
 
 	fun authenticate(start: suspend () -> Result<Unit>?) {
@@ -298,7 +319,8 @@ private fun Root(
 			val surface = if (introBackdropIsDark) SystemBarSurface.LAUNCH_INTRO else SystemBarSurface.LOGIN
 			SideEffect { applySystemBarIcons(AppearancePresentation.systemBarsNeedLightIcons(surface)) }
 			LoginScreen(
-				slogans = sloganList,
+				rotation = rotation,
+				loadSlogans = loadSlogans,
 				errorText = authErrorText,
 				reduceMotion = reduceMotion,
 				isForeground = isForeground,
