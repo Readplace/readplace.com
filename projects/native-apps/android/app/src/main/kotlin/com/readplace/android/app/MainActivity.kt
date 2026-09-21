@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebStorage
 import androidx.activity.ComponentActivity
@@ -40,6 +41,7 @@ import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.NativeCleartextPolicy
 import com.readplace.android.core.ShareArtifacts
+import com.readplace.android.core.SloganDiagnostics
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJobStore
 import com.readplace.android.core.initWebAuthFlow
@@ -97,6 +99,7 @@ class MainActivity : ComponentActivity() {
 			makeWebAuthFlow = { oauth -> initWebAuthFlow(present = { url -> customTabAuth.present(url) }, oauth = oauth) },
 			webDataWiper = WebViewDataWiper,
 			shareArtifacts = ShareArtifacts(jobs, unseenSave, discoveryCache),
+			sloganDiagnostics = SloganDiagnostics { failure -> Log.w("Slogans", "slogan load failed: $failure") },
 		)
 
 		val api = session.makeApi()

@@ -7,6 +7,7 @@ import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthError
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ShareArtifacts
+import com.readplace.android.core.SloganDiagnostics
 import com.readplace.android.core.SloganSource
 import com.readplace.android.core.TokenStore
 import com.readplace.android.core.WebAuthFlow
@@ -83,6 +84,7 @@ class AppSession(
 	private val makeWebAuthFlow: (OAuth) -> WebAuthFlow,
 	private val webDataWiper: WebDataWiper,
 	private val shareArtifacts: ShareArtifacts,
+	private val sloganDiagnostics: SloganDiagnostics,
 ) {
 	private val _isLoggedIn = MutableStateFlow(store.isLoggedIn)
 	val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
@@ -203,5 +205,10 @@ class AppSession(
 		)
 
 	fun makeSloganSource(): SloganSource =
-		initSloganSource(client = http, baseUrl = baseUrl, nativeUserAgent = nativeUserAgent)
+		initSloganSource(
+			client = http,
+			baseUrl = baseUrl,
+			nativeUserAgent = nativeUserAgent,
+			diagnostics = sloganDiagnostics,
+		)
 }
