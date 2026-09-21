@@ -73,7 +73,7 @@ Every raster asset is generated — never hand-rendered — by `projects/hutch/s
 
 | Role | Colour | Hex / HSL | CSS variable | Usage |
 |---|---|---|---|---|
-| **Warm amber** (Primary) | Warm terracotta/amber-brown | `#c8702a` / `hsl(27 65% 47%)` | `--color-brand`, `--primary`, `--accent` | Interactive elements, CTAs, default header brand text. Not text ink on a light page: it is 3.62:1 on white |
+| **Warm amber** (Primary) | Warm terracotta/amber-brown | `#c8702a` / `hsl(27 65% 47%)` | `--color-brand`, `--primary` | Interactive elements, CTAs, default header brand text. Not text ink on a light page: it is 3.62:1 on white |
 | **Amber dark** | Darker amber | `#a85a1e` | `--color-brand-dark`, `--primary-fill` | Brand text and links on a light page (via `--primary-text`); the hover/active fill of every button (via `--primary-fill`, which is pinned to this value in **both** themes). Never reach for `--color-brand-dark` directly as a hover fill — it flips to a *lighter* `#e89a55` in dark mode, so the hover would darken on a white page and lighten on a dark one |
 | **Amber light** | Pale amber tint | `#f5e6d3` | `--color-brand-light` | Subtle brand-tinted backgrounds |
 | **Warm amber highlight** | Warm gold — the logo dot colour | `#c8923c` | `--color-highlight` | Highlight words in the wordmark and copy (see Highlight Words below) |
