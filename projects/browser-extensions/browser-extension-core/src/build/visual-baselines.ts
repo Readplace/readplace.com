@@ -56,8 +56,6 @@ function dockerRunArgs(input: {
 		"run",
 		"--rm",
 		"--ipc=host",
-		"--platform",
-		"linux/amd64",
 		"--volume",
 		`${input.workspaceRoot}:${input.workspaceRoot}`,
 		"--workdir",
@@ -74,11 +72,6 @@ function dockerRunArgs(input: {
 export function initVisualBaselines(deps: VisualBaselinesDeps) {
 	return {
 		createBaselinePlan(input: BaselinePlanInput) {
-			assert.equal(
-				deps.platform,
-				"darwin",
-				"the -darwin baselines can only be captured on macOS; on any other host this run would refresh linux alone and leave darwin stale",
-			);
 			assert(
 				input.playwrightVersion && /^\d+\.\d+\.\d+$/.test(input.playwrightVersion),
 				`@playwright/test must be pinned to an exact version so the container matches the host renderer, got "${input.playwrightVersion}"`,
@@ -106,32 +99,28 @@ export function initVisualBaselines(deps: VisualBaselinesDeps) {
 					command,
 				}),
 
-				/** Docker is the only place the -linux baselines can be captured, so a
-				 * failure to reach it aborts before the darwin pass rather than leaving
-				 * the two platforms out of step. */
 				pullImage(): void {
 					try {
-						deps.run("docker", ["pull", "--platform", "linux/amd64", image]);
+						deps.run("docker", ["pull", image]);
 					} catch (cause) {
 						throw new Error(
-							`Cannot reach Docker to pull ${image}, which is the only place the -linux baselines can be captured. Refusing to refresh darwin alone and leave the two platforms out of step — start Docker (see devbox.json) and re-run.`,
+							`Cannot reach Docker to pull ${image}, which is the renderer the baselines are captured and verified in. Start Docker (see devbox.json) and re-run.`,
 							{ cause },
 						);
 					}
 				},
 
-				captureDarwin(): void {
+				buildExtension(): void {
 					deps.run("node", ["scripts/build-extension.js"], { env: input.buildEnv });
+				},
+
+				captureNatively(): void {
 					deps.run(PLAYWRIGHT_BIN, ["install", input.browser]);
 					const [bin, ...args] = command;
 					deps.run(bin, args, { env: input.captureEnv });
 				},
 
-				/** The darwin pass already packaged the popup into the bind-mounted
-				 * workspace, and those assets carry no platform-specific bytes — so the
-				 * container captures the same package rather than rebuilding it without
-				 * the packaging toolchain. */
-				captureLinux(): void {
+				captureInContainer(): void {
 					deps.run("docker", dockerRunArgs({
 						workspaceRoot: input.workspaceRoot,
 						projectRoot: input.projectRoot,
@@ -151,7 +140,7 @@ export function initVisualBaselines(deps: VisualBaselinesDeps) {
 						.trim();
 					deps.log(
 						status
-							? `\nBaselines changed — commit every platform together:\n${status}\n`
+							? `\nBaselines changed — review the diff before committing:\n${status}\n`
 							: "\nBaselines are byte-identical to the committed ones.\n",
 					);
 				},
@@ -160,13 +149,18 @@ export function initVisualBaselines(deps: VisualBaselinesDeps) {
 					deps.log(
 						`\n=== ${input.projectLabel} - Regenerating visual baselines for ${specs.join(", ")} ===\n`,
 					);
+					this.buildExtension();
+					if (deps.platform === "linux") {
+						deps.log(`\n=== ${input.projectLabel} - Capturing ${input.browser} baselines ===\n`);
+						this.captureNatively();
+						this.reportBaselines();
+						return;
+					}
 					this.pullImage();
-					deps.log(`\n=== ${input.projectLabel} - Capturing ${input.browser}-darwin baselines ===\n`);
-					this.captureDarwin();
 					deps.log(
-						`\n=== ${input.projectLabel} - Capturing ${input.browser}-linux baselines in ${image} ===\n`,
+						`\n=== ${input.projectLabel} - Capturing ${input.browser} baselines in ${image} ===\n`,
 					);
-					this.captureLinux();
+					this.captureInContainer();
 					this.reportBaselines();
 				},
 			};

@@ -69,14 +69,6 @@ describe("createBaselinePlan", () => {
 		);
 	});
 
-	it("refuses to run anywhere the darwin baselines cannot be captured", () => {
-		const { deps } = harness({ platform: "linux" });
-
-		expect(() => initVisualBaselines(deps).createBaselinePlan(planInput)).toThrow(
-			/only be captured on macOS/,
-		);
-	});
-
 	it("refuses a floating Playwright version, which would drift from the container", () => {
 		const { deps } = harness();
 
@@ -105,32 +97,40 @@ describe("plan execution", () => {
 		expect(() => plan.pullImage()).toThrow(/Cannot reach Docker/);
 	});
 
-	it("installs the same engine the suite runs before capturing on darwin", () => {
+	it("installs the same engine the suite runs before capturing natively", () => {
 		const { deps, invocations } = harness();
-		initVisualBaselines(deps).createBaselinePlan(planInput).captureDarwin();
+		initVisualBaselines(deps).createBaselinePlan(planInput).captureNatively();
+
+		expect(invocations.map((call) => [call.command, ...call.args].join(" "))).toEqual([
+			"node_modules/.bin/playwright install firefox",
+			"node_modules/.bin/playwright test --config playwright.config.local-dev.ts --update-snapshots=all src/e2e/popup-visual.e2e-local.ts",
+		]);
+	});
+
+	it("packages the popup with the toolchain that only the host has", () => {
+		const { deps, invocations } = harness();
+		initVisualBaselines(deps).createBaselinePlan(planInput).buildExtension();
 
 		expect(invocations.map((call) => [call.command, ...call.args].join(" "))).toEqual([
 			"node scripts/build-extension.js",
-			"node_modules/.bin/playwright install firefox",
-			"node_modules/.bin/playwright test --config playwright.config.local-dev.ts --update-snapshots=all src/e2e/popup-visual.e2e-local.ts",
 		]);
 		expect(invocations[0].env).toEqual({ HUTCH_SERVER_URL: "http://127.0.0.1:3000" });
 	});
 
 	it("records under the same headless renderer the gate verifies with", () => {
 		const { deps, invocations } = harness();
-		initVisualBaselines(deps).createBaselinePlan(planInput).captureDarwin();
+		initVisualBaselines(deps).createBaselinePlan(planInput).captureNatively();
 
 		const capture = invocations.find((call) => call.args.includes("--update-snapshots=all"));
 		expect(capture?.env).toEqual({ HEADLESS: "true" });
 	});
 
-	it("reports which baselines moved so every platform is committed together", () => {
+	it("reports which baselines moved so the diff is reviewed before it is committed", () => {
 		const { deps, logs } = harness({ status: "?? src/e2e/x.ts-snapshots/a.png" });
 		initVisualBaselines(deps).createBaselinePlan(planInput).reportBaselines();
 
 		expect(logs).toEqual([
-			"\nBaselines changed — commit every platform together:\n?? src/e2e/x.ts-snapshots/a.png\n",
+			"\nBaselines changed — review the diff before committing:\n?? src/e2e/x.ts-snapshots/a.png\n",
 		]);
 	});
 
@@ -141,17 +141,28 @@ describe("plan execution", () => {
 		expect(logs).toEqual(["\nBaselines are byte-identical to the committed ones.\n"]);
 	});
 
-	it("captures darwin before linux, so the container reuses the package darwin built", () => {
+	it("packages on the host, then captures in the container it first made sure it can pull", () => {
 		const { deps, invocations } = harness();
 		initVisualBaselines(deps).createBaselinePlan(planInput).run();
 
 		const commands = invocations.map((call) => `${call.command} ${call.args[0]}`);
 		expect(commands).toEqual([
+			"node scripts/build-extension.js",
 			"docker pull",
+			"docker run",
+			"git status",
+		]);
+	});
+
+	it("captures without Docker on a host that is already the renderer", () => {
+		const { deps, invocations } = harness({ platform: "linux" });
+		initVisualBaselines(deps).createBaselinePlan(planInput).run();
+
+		const commands = invocations.map((call) => `${call.command} ${call.args[0]}`);
+		expect(commands).toEqual([
 			"node scripts/build-extension.js",
 			"node_modules/.bin/playwright install",
 			"node_modules/.bin/playwright test",
-			"docker run",
 			"git status",
 		]);
 	});
@@ -161,8 +172,7 @@ describe("plan execution", () => {
 		initVisualBaselines(deps).createBaselinePlan(planInput).run();
 
 		expect(logs[0]).toContain("Firefox Extension - Regenerating visual baselines");
-		expect(logs[1]).toContain("Firefox Extension - Capturing firefox-darwin baselines");
-		expect(logs[2]).toContain("Firefox Extension - Capturing firefox-linux baselines");
+		expect(logs[1]).toContain("Firefox Extension - Capturing firefox baselines in");
 	});
 });
 

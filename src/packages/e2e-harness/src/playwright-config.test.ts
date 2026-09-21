@@ -107,6 +107,44 @@ describe("createPlaywrightConfig", () => {
 		);
 	});
 
+	it("leaves the host platform out of a baseline's name, so one renderer owns one baseline", () => {
+		const shared = {
+			testMatch: "**/*-visual.e2e-local.ts",
+			outputDir: "./test-results/local",
+			baseURL: undefined,
+			retries: 0,
+			headless: true,
+			video: "off",
+			launchOptions: undefined,
+			webServer: undefined,
+		} as const;
+
+		const template = createPlaywrightConfig({ ...shared }).snapshotPathTemplate;
+
+		assert(typeof template === "string", "a snapshot path template is configured");
+		expect(template).not.toContain("platform");
+		expect(template).not.toContain("snapshotSuffix");
+		expect(template).toContain("{projectName}");
+	});
+
+	it("anchors baselines under the test directory, so a spec at its top level cannot resolve to the filesystem root", () => {
+		const shared = {
+			testMatch: "**/*-visual.e2e-local.ts",
+			outputDir: "./test-results/local",
+			baseURL: undefined,
+			retries: 0,
+			headless: true,
+			video: "off",
+			launchOptions: undefined,
+			webServer: undefined,
+		} as const;
+
+		const template = createPlaywrightConfig({ ...shared }).snapshotPathTemplate;
+
+		assert(typeof template === "string", "a snapshot path template is configured");
+		expect(template.startsWith("{snapshotDir}/{testFileDir}/")).toBe(true);
+	});
+
 	it("falls back to a two-minute test timeout unless the suite asks for its own", () => {
 		const shared = {
 			testMatch: "**/*.e2e-local.ts",

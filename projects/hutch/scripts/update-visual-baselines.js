@@ -3,7 +3,12 @@ const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const { globSync } = require('node:fs');
 const path = require('node:path');
-const { getFreePort } = require('@packages/test-phase-runner');
+const {
+  containerisedCommand,
+  defaultDeps,
+  getFreePort,
+  playwrightImage,
+} = require('@packages/test-phase-runner');
 const { HutchLogger, consoleLogger } = require('@packages/hutch-logger');
 const { devDependencies } = require('../package.json');
 
@@ -16,16 +21,6 @@ const VISUAL_SPEC_PATTERNS = [
   'src/e2e/**/*-visual.e2e-local.ts',
   'src/e2e/readlist-flow/run.e2e-local.ts',
 ];
-
-function playwrightImage() {
-  const pinnedVersion = devDependencies['@playwright/test'];
-  assert.match(
-    pinnedVersion,
-    /^\d+\.\d+\.\d+$/,
-    `@playwright/test must be pinned to an exact version so the container matches the host renderer, got "${pinnedVersion}"`,
-  );
-  return `mcr.microsoft.com/playwright:v${pinnedVersion}-noble`;
-}
 
 function visualSpecs() {
   return VISUAL_SPEC_PATTERNS.flatMap((pattern) => {
@@ -41,10 +36,10 @@ function run(command, args, options) {
 
 function pullPlaywrightImage(image) {
   try {
-    run('docker', ['pull', '--platform', 'linux/amd64', image]);
+    run('docker', ['pull', image]);
   } catch (cause) {
     throw new Error(
-      `Cannot reach Docker to pull ${image}, which is the only place the -chromium-linux baselines can be captured. Refusing to refresh darwin alone and leave the two platforms out of step — start Docker (see devbox.json) and re-run.`,
+      `Cannot reach Docker to pull ${image}, which is the renderer the baselines are captured and verified in. Start Docker (see devbox.json) and re-run.`,
       { cause },
     );
   }
@@ -56,46 +51,30 @@ function playwrightCommand(specs) {
     'test',
     '--config',
     PLAYWRIGHT_CONFIG,
-    '--update-snapshots=changed',
+    '--update-snapshots=all',
     ...specs,
-  ];
+  ].join(' ');
 }
 
-async function captureDarwinBaselines(specs) {
-  process.env.E2E_PORT = String(await getFreePort());
-  process.env.HEADLESS = 'true';
-  run('node_modules/.bin/playwright', ['install', 'chromium']);
-  const [command, ...args] = playwrightCommand(specs);
-  run(command, args);
-}
-
-async function captureLinuxBaselines(specs, image) {
+async function captureBaselines(specs, image) {
   const port = await getFreePort();
-  const insideContainer = [
-    `cd "${WORKSPACE_ROOT}"`,
-    '. ./.envrc',
-    `cd "${PROJECT_ROOT}"`,
-    `exec ${playwrightCommand(specs).join(' ')}`,
-  ].join(' && ');
-  run('docker', [
-    'run',
-    '--rm',
-    '--ipc=host',
-    '--platform',
-    'linux/amd64',
-    '--volume',
-    `${WORKSPACE_ROOT}:${WORKSPACE_ROOT}`,
-    '--workdir',
-    PROJECT_ROOT,
-    '--env',
-    'HEADLESS=true',
-    '--env',
-    `E2E_PORT=${port}`,
+  const renderer = {
     image,
-    'bash',
-    '-c',
-    insideContainer,
-  ]);
+    workspaceRoot: WORKSPACE_ROOT,
+    forwardEnv: ['HEADLESS', 'E2E_PORT'],
+  };
+  const env = { ...process.env, HEADLESS: 'true', E2E_PORT: String(port) };
+
+  if (defaultDeps.rendersNatively()) {
+    run('node_modules/.bin/playwright', ['install', 'chromium'], { env });
+    run('bash', ['-c', playwrightCommand(specs)], { env });
+    return;
+  }
+
+  pullPlaywrightImage(image);
+  run('bash', ['-c', containerisedCommand(playwrightCommand(specs), renderer, PROJECT_ROOT)], {
+    env,
+  });
 }
 
 function reportBaselines(specs) {
@@ -105,30 +84,18 @@ function reportBaselines(specs) {
     { cwd: PROJECT_ROOT, encoding: 'utf8' },
   ).trim();
   if (status) {
-    logger.info(`\nBaselines changed — commit every platform together:\n${status}\n`);
+    logger.info(`\nBaselines changed — review the diff before committing:\n${status}\n`);
     return;
   }
   logger.info('\nBaselines are byte-identical to the committed ones.\n');
 }
 
 async function main() {
-  assert.equal(
-    process.platform,
-    'darwin',
-    'the -chromium-darwin baselines can only be captured on macOS; on any other host this run would refresh linux alone and leave darwin stale',
-  );
-
   const specs = visualSpecs();
-  const image = playwrightImage();
+  const image = playwrightImage(devDependencies['@playwright/test']);
   logger.info(`\n=== Readplace - Regenerating visual baselines for ${specs.join(', ')} ===\n`);
 
-  pullPlaywrightImage(image);
-
-  logger.info('\n=== Readplace - Capturing chromium-darwin baselines ===\n');
-  await captureDarwinBaselines(specs);
-
-  logger.info(`\n=== Readplace - Capturing chromium-linux baselines in ${image} ===\n`);
-  await captureLinuxBaselines(specs, image);
+  await captureBaselines(specs, image);
 
   reportBaselines(specs);
 }

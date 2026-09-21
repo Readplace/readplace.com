@@ -17,6 +17,7 @@ function createInMemoryDeps(overrides: Partial<TestPhaseRunnerDeps> = {}) {
 		log: () => {},
 		shouldSkipE2E: () => false,
 		shouldInstallBrowsers: () => true,
+		rendersNatively: () => true,
 		...overrides,
 	};
 
@@ -493,6 +494,85 @@ describe("runAllPhases execution", () => {
 		expect(executedCommands[1].command).toContain("playwright test");
 		expect(executedCommands[1].cwd).toBe("/projects/hutch");
 		expect(executedCommands[1].env).toEqual(expect.objectContaining({ HEADLESS: "true", E2E_PORT: "12345" }));
+	});
+
+	const RENDERER = {
+		image: "mcr.microsoft.com/playwright:v1.60.0-noble",
+		workspaceRoot: "/work",
+		forwardEnv: ["HEADLESS", "E2E_PORT"],
+	};
+
+	function playwrightPlanWithRenderer(deps: TestPhaseRunnerDeps) {
+		return createRunner(deps).createTestPlan({
+			config: {
+				projectName: "Readplace",
+				phases: [
+					{
+						type: "playwright",
+						name: "E2E tests",
+						config: "playwright.config.local-dev.ts",
+						browsers: ["chromium"],
+						env: { HEADLESS: "true", E2E_PORT: "12345" },
+						renderer: RENDERER,
+					},
+				],
+			},
+			projectRoot: "/work/projects/hutch",
+		});
+	}
+
+	it("runs the suite inside the pinned container when the host is not the renderer", async () => {
+		const { deps, executedCommands } = createInMemoryDeps({ rendersNatively: () => false });
+
+		await playwrightPlanWithRenderer(deps).runAllPhases();
+
+		expect(executedCommands).toHaveLength(1);
+		const [only] = executedCommands;
+		expect(only.command).toContain("docker run --rm --ipc=host");
+		expect(only.command).toContain("--volume '/work:/work'");
+		expect(only.command).toContain("--workdir '/work/projects/hutch'");
+		expect(only.command).toContain("--env HEADLESS --env E2E_PORT");
+		expect(only.command).toContain("mcr.microsoft.com/playwright:v1.60.0-noble");
+		expect(only.command).toContain(". ./.envrc");
+		expect(only.command).toContain("playwright test --config playwright.config.local-dev.ts");
+	});
+
+	it("skips the browser install when the container already carries the browsers", async () => {
+		const { deps, executedCommands } = createInMemoryDeps({
+			rendersNatively: () => false,
+			shouldInstallBrowsers: () => true,
+		});
+
+		await playwrightPlanWithRenderer(deps).runAllPhases();
+
+		expect(executedCommands).toHaveLength(1);
+		expect(executedCommands[0].command).not.toContain("playwright install");
+	});
+
+	it("runs the suite directly on a host that is already the renderer", async () => {
+		const { deps, executedCommands } = createInMemoryDeps({
+			rendersNatively: () => true,
+			shouldInstallBrowsers: () => false,
+		});
+
+		await playwrightPlanWithRenderer(deps).runAllPhases();
+
+		expect(executedCommands).toHaveLength(1);
+		expect(executedCommands[0].command).toBe(
+			"node_modules/.bin/playwright test --config playwright.config.local-dev.ts",
+		);
+	});
+
+	it("renders natively on Linux, where the pinned browsers are already the host's", () => {
+		const platform = process.platform;
+		try {
+			Object.defineProperty(process, "platform", { value: "linux" });
+			expect(defaultDeps.rendersNatively()).toBe(true);
+			Object.defineProperty(process, "platform", { value: "darwin" });
+			expect(defaultDeps.rendersNatively()).toBe(false);
+		} finally {
+			Object.defineProperty(process, "platform", { value: platform });
+		}
 	});
 
 	it("runs the tests without installing when the runner already supplied the browsers", async () => {

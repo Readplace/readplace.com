@@ -1,6 +1,16 @@
 const assert = require('node:assert');
+const path = require('node:path');
+const { playwrightImage } = require('@packages/test-phase-runner');
+const { devDependencies } = require('./package.json');
+
 assert(process.env.E2E_PORT, 'E2E_PORT is required');
 const port = process.env.E2E_PORT;
+
+const renderer = {
+  image: playwrightImage(devDependencies['@playwright/test']),
+  workspaceRoot: path.resolve(__dirname, '..', '..', '..'),
+  forwardEnv: ['HEADLESS', 'NODE_V8_COVERAGE'],
+};
 
 module.exports = {
   projectName: 'Firefox Extension',
@@ -33,6 +43,7 @@ module.exports = {
       browsers: ['firefox'],
       env: { HEADLESS: 'true' },
       e2e: true,
+      renderer,
     },
     {
       type: 'node-test',

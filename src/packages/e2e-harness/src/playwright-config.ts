@@ -12,6 +12,9 @@ const BROWSER_DEVICES = {
 
 type BrowserName = keyof typeof BROWSER_DEVICES
 
+const SNAPSHOT_PATH_TEMPLATE =
+	'{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}-{projectName}{ext}'
+
 interface PlaywrightConfigOptions {
 	testMatch: string
 	outputDir: string
@@ -38,6 +41,7 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
 		testDir: './src/e2e',
 		testMatch: options.testMatch,
 		outputDir: options.outputDir,
+		snapshotPathTemplate: SNAPSHOT_PATH_TEMPLATE,
 		fullyParallel: true,
 		forbidOnly: true,
 		reporter: 'html',

@@ -2,6 +2,7 @@ import assert from "node:assert";
 import { execSync as defaultExecSync } from "node:child_process";
 import type { ExecSyncOptions } from "node:child_process";
 import { globSync as defaultGlobSync } from "node:fs";
+import { type PlaywrightRenderer, containerisedCommand } from "./playwright-renderer";
 
 function getEnv(name: string): string | undefined {
 	return process.env[name];
@@ -54,6 +55,7 @@ interface PlaywrightPhase {
 	browsers: string[];
 	env?: Record<string, string>;
 	e2e?: boolean;
+	renderer?: PlaywrightRenderer;
 }
 
 export type TestPhase = JestPhase | NodeTestPhase | ScriptPhase | PlaywrightPhase;
@@ -96,6 +98,7 @@ interface ResolvedPlaywrightPhase {
 	testCommand: string;
 	env: Record<string, string>;
 	e2e: boolean;
+	renderer: PlaywrightRenderer | undefined;
 }
 
 export type ResolvedPhase =
@@ -115,6 +118,7 @@ type GlobSyncFn = (pattern: string) => string[];
 type LogFn = (message: string) => void;
 type ShouldSkipE2EFn = () => boolean;
 type ShouldInstallBrowsersFn = () => boolean;
+type RendersNativelyFn = () => boolean;
 
 export interface TestPhaseRunnerDeps {
 	execSync: ExecSyncFn;
@@ -122,6 +126,7 @@ export interface TestPhaseRunnerDeps {
 	log: LogFn;
 	shouldSkipE2E: ShouldSkipE2EFn;
 	shouldInstallBrowsers: ShouldInstallBrowsersFn;
+	rendersNatively: RendersNativelyFn;
 }
 
 /** Launches each shard in the background and fails if ANY shard fails. A bare
@@ -195,6 +200,7 @@ function resolvePlaywrightPhase(phase: PlaywrightPhase): ResolvedPlaywrightPhase
 		testCommand: `node_modules/.bin/playwright test --config ${phase.config}`,
 		env: phase.env ?? {},
 		e2e: phase.e2e === true,
+		renderer: phase.renderer,
 	};
 }
 
@@ -209,6 +215,7 @@ export const defaultDeps: TestPhaseRunnerDeps = {
 	// own — the only way a fresh clone works. Keyed on the path rather than CI
 	// because claude-listener.yml runs `CI=true pnpm check` on a bare runner.
 	shouldInstallBrowsers: () => (getEnv("PLAYWRIGHT_BROWSERS_PATH") ?? "") === "",
+	rendersNatively: () => process.platform === "linux",
 };
 
 export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
@@ -242,15 +249,20 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 	function runPlaywrightPhase(displayName: string, phase: ResolvedPlaywrightPhase, projectRoot: string) {
 		deps.log(`\n=== ${displayName} ===\n`);
 
-		if (deps.shouldInstallBrowsers()) {
+		const renderer = deps.rendersNatively() ? undefined : phase.renderer;
+
+		if (!renderer && deps.shouldInstallBrowsers()) {
 			deps.execSync(phase.browserInstallCommand, { cwd: projectRoot, stdio: "inherit" });
 		}
 
-		deps.execSync(phase.testCommand, {
-			cwd: projectRoot,
-			stdio: "inherit",
-			env: { ...parentEnv(), ...phase.env },
-		});
+		deps.execSync(
+			renderer ? containerisedCommand(phase.testCommand, renderer, projectRoot) : phase.testCommand,
+			{
+				cwd: projectRoot,
+				stdio: "inherit",
+				env: { ...parentEnv(), ...phase.env },
+			},
+		);
 	}
 
 	return {
