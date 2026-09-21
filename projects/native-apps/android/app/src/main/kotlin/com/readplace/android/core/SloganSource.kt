@@ -36,14 +36,19 @@ fun interface SloganSource {
  * slogan is already the right answer for all of them, and a slogan is not worth an
  * error on the screen a user is trying to sign in from.
  */
-fun initSloganSource(client: OkHttpClient, baseUrl: String): SloganSource =
-	SloganSource { publishedSlogans(client, baseUrl) }
+fun initSloganSource(client: OkHttpClient, baseUrl: String, nativeUserAgent: String): SloganSource =
+	SloganSource { publishedSlogans(client, baseUrl, nativeUserAgent) }
 
-private suspend fun publishedSlogans(client: OkHttpClient, baseUrl: String): List<String> {
+private suspend fun publishedSlogans(
+	client: OkHttpClient,
+	baseUrl: String,
+	nativeUserAgent: String,
+): List<String> {
 	val url = "$baseUrl${AppConfig.SLOGANS_PATH}".toHttpUrlOrNull() ?: return emptyList()
 	val request = Request.Builder()
 		.url(url)
 		.header("Accept", APPLICATION_JSON)
+		.header("User-Agent", nativeUserAgent)
 		.header(AppConfig.CLIENT_HEADER, AppConfig.CLIENT_ANDROID)
 		.build()
 	return withContext(Dispatchers.IO) {

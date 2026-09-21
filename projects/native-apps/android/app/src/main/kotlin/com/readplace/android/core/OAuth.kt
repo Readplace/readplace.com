@@ -45,6 +45,7 @@ class OAuth(
 	private val baseUrl: String,
 	private val store: TokenStore,
 	private val http: OkHttpClient,
+	private val nativeUserAgent: String,
 ) {
 	/** The custom-scheme redirect used by the auth flow (both Login and Sign up),
 	 * which the in-app auth session captures to end the web flow. */
@@ -107,6 +108,7 @@ class OAuth(
 			val request = Request.Builder()
 				.url("$baseUrl/oauth/revoke")
 				.post(payload.toByteArray(Charsets.UTF_8).toRequestBody(JSON_MEDIA_TYPE))
+				.header("User-Agent", nativeUserAgent)
 				.build()
 			try {
 				send(request)
@@ -143,6 +145,7 @@ class OAuth(
 			.url("$baseUrl/oauth/token")
 			.post(form)
 			.header("Accept", "application/json")
+			.header("User-Agent", nativeUserAgent)
 			.build()
 
 	private suspend fun send(request: Request): Answer = withContext(Dispatchers.IO) {

@@ -47,7 +47,7 @@ class WebAuthFlowTest {
 	private fun serverBaseUrl(): String = server.url("/").toString().removeSuffix("/")
 
 	private fun oauthAt(baseUrl: String): OAuth =
-		OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient())
+		OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
 
 	private fun request(): AuthorizationRequest =
 		oauthAt(serverBaseUrl()).makeNativeLoginAuthorizationRequest()
@@ -229,7 +229,12 @@ class WebAuthFlowTest {
 			override fun removeValue(key: TokenKey) {
 			}
 		}
-		val oauth = OAuth(baseUrl = serverBaseUrl(), store = TokenStore(cannotPersist), http = OkHttpClient())
+		val oauth = OAuth(
+			baseUrl = serverBaseUrl(),
+			store = TokenStore(cannotPersist),
+			http = OkHttpClient(),
+			nativeUserAgent = "Readplace/1 Android/16",
+		)
 		val request = oauth.makeNativeLoginAuthorizationRequest()
 		tokensMinted()
 

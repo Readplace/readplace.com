@@ -202,7 +202,9 @@ class AppSession(
 			ioDispatcher = ioDispatcher,
 		)
 
-	fun makeOAuth(): OAuth = OAuth(baseUrl = baseUrl, store = store, http = http)
+	fun makeOAuth(): OAuth =
+		OAuth(baseUrl = baseUrl, store = store, http = http, nativeUserAgent = nativeUserAgent)
 
-	fun makeSloganSource(): SloganSource = initSloganSource(http, baseUrl)
+	fun makeSloganSource(): SloganSource =
+		initSloganSource(client = http, baseUrl = baseUrl, nativeUserAgent = nativeUserAgent)
 }

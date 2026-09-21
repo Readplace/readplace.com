@@ -71,7 +71,7 @@ class ReadplaceApiTest {
 		maxExternalContentBytes: Long? = null,
 	): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(jar).followRedirects(false).build()
-		val oauth = OAuth(baseUrl = oauthBaseUrl, store = store, http = OkHttpClient())
+		val oauth = OAuth(baseUrl = oauthBaseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		if (maxExternalContentBytes == null) {
 			return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, dispatcher)
@@ -1141,7 +1141,7 @@ class ReadplaceApiTest {
 			.followRedirects(false)
 			.addNetworkInterceptor(policy)
 			.build()
-		val oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient())
+		val oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
 		return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, StandardTestDispatcher(testScheduler))
 	}
 
@@ -1201,7 +1201,7 @@ class ReadplaceApiTest {
 				baseUrl,
 				client,
 				store,
-				OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient()),
+				OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
 				USER_AGENT,
 				StandardTestDispatcher(testScheduler),
 			)

@@ -100,14 +100,20 @@ class ShareActivity : ComponentActivity() {
 			.cookieJar(EphemeralCookieJar())
 			.cache(DiscoveryHttpCache(cacheDir).cache)
 			.build()
+		val nativeUserAgent = AppConfig.nativeUserAgent(BuildConfig.VERSION_CODE, Build.VERSION.RELEASE)
 		return SaveSharedPage(
 			store = store,
 			api = ReadplaceApi(
 				baseUrl = AppConfig.serverBaseUrl,
 				client = http,
 				store = store,
-				oauth = OAuth(baseUrl = AppConfig.serverBaseUrl, store = store, http = http),
-				nativeUserAgent = AppConfig.nativeUserAgent(BuildConfig.VERSION_CODE, Build.VERSION.RELEASE),
+				oauth = OAuth(
+					baseUrl = AppConfig.serverBaseUrl,
+					store = store,
+					http = http,
+					nativeUserAgent = nativeUserAgent,
+				),
+				nativeUserAgent = nativeUserAgent,
 				ioDispatcher = Dispatchers.IO,
 			),
 			captor = HtmlCaptor(this) { findViewById(android.R.id.content) },

@@ -67,7 +67,7 @@ object DrainAndHealTestSupport {
 		baseUrl: String = server.baseUrl,
 	): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
-		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient())
+		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
 		return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, ioDispatcher)
 	}
 

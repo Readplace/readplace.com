@@ -6,6 +6,7 @@ import mockwebserver3.MockWebServer
 import mockwebserver3.junit4.MockWebServerRule
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -23,10 +24,16 @@ class SloganSourceTest {
 
 	private val client = OkHttpClient()
 
+	private val nativeUserAgent = "Readplace/808080 Android/SLOGAN-TEST-UA"
+
 	private val server: MockWebServer get() = serverRule.server
 
 	private fun source(): SloganSource =
-		initSloganSource(client, server.url("/").toString().removeSuffix("/"))
+		initSloganSource(
+			client = client,
+			baseUrl = server.url("/").toString().removeSuffix("/"),
+			nativeUserAgent = nativeUserAgent,
+		)
 
 	private fun publish(body: String, status: Int = 200, contentType: String = "application/json") {
 		server.enqueue(
@@ -49,7 +56,7 @@ class SloganSourceTest {
 	}
 
 	@Test
-	fun `asks for the slogan path as the android client and without a token`() = runTest {
+	fun `asks for the slogan path as the android client, with the native UA, and without a token`() = runTest {
 		publish("""{"slogans":["Your #1 AI-Powered Reading List."]}""")
 
 		source().load()
@@ -59,6 +66,16 @@ class SloganSourceTest {
 		assertEquals(AppConfig.SLOGANS_PATH, request.target)
 		assertEquals("application/json", request.headers["Accept"])
 		assertEquals(AppConfig.CLIENT_ANDROID, request.headers[AppConfig.CLIENT_HEADER])
+		assertEquals(
+			"the unauthenticated slogans request still names the build via its native UA, once",
+			listOf(nativeUserAgent),
+			request.headers.values("User-Agent"),
+		)
+		assertNotEquals(
+			"the native UA is not the spoofed browser UA the WebViews send",
+			AppConfig.WEB_VIEW_USER_AGENT,
+			request.headers["User-Agent"],
+		)
 		assertNull(
 			"sign-in has no token, so the request must not claim one",
 			request.headers["Authorization"],
@@ -149,14 +166,22 @@ class SloganSourceTest {
 
 	@Test
 	fun `ignores a transport failure`() = runTest {
-		val slogans = initSloganSource(client, unreachableBaseUrl()).load()
+		val slogans = initSloganSource(
+			client = client,
+			baseUrl = unreachableBaseUrl(),
+			nativeUserAgent = nativeUserAgent,
+		).load()
 
 		assertEquals("offline is the common case on a first launch", emptyList<String>(), slogans)
 	}
 
 	@Test
 	fun `ignores an unusable base url`() = runTest {
-		val slogans = initSloganSource(client, "not a url").load()
+		val slogans = initSloganSource(
+			client = client,
+			baseUrl = "not a url",
+			nativeUserAgent = nativeUserAgent,
+		).load()
 
 		assertEquals(emptyList<String>(), slogans)
 		assertEquals("an unusable base URL must not reach the network", 0, server.requestCount)

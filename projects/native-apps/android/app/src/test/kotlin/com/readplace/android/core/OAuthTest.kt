@@ -46,6 +46,8 @@ class OAuthTest {
 	private val storage = RecordingTokenStorage()
 	private val store = TokenStore(storage)
 
+	private val nativeUserAgent = "Readplace/909090 Android/OAUTH-TEST-UA"
+
 	/** A session is the pair: the store answers nothing at all until both tokens are
 	 * present, so a test that needs "a stored refresh token" stores a whole pair. */
 	private fun signedInWith(refreshToken: String) {
@@ -57,6 +59,7 @@ class OAuthTest {
 			baseUrl = server.url("/").toString().removeSuffix("/"),
 			store = store,
 			http = OkHttpClient(),
+			nativeUserAgent = nativeUserAgent,
 		)
 
 	/** A port nothing is listening on, so the call fails in the transport rather than
@@ -145,6 +148,16 @@ class OAuthTest {
 		assertEquals("/oauth/token", recorded.url.encodedPath)
 		assertEquals("application/x-www-form-urlencoded", recorded.headers["Content-Type"])
 		assertEquals("application/json", recorded.headers["Accept"])
+		assertEquals(
+			"the exact build-numbered native UA travels once, never OkHttp's default",
+			listOf(nativeUserAgent),
+			recorded.headers.values("User-Agent"),
+		)
+		assertNotEquals(
+			"the native UA is not the spoofed browser UA the capture WebView sends",
+			AppConfig.WEB_VIEW_USER_AGENT,
+			recorded.headers["User-Agent"],
+		)
 		assertEquals(
 			mapOf(
 				"grant_type" to "authorization_code",
@@ -265,6 +278,11 @@ class OAuthTest {
 		assertEquals("application/x-www-form-urlencoded", recorded.headers["Content-Type"])
 		assertEquals("application/json", recorded.headers["Accept"])
 		assertEquals(
+			"the refresh request carries the same build-numbered native UA, exactly once",
+			listOf(nativeUserAgent),
+			recorded.headers.values("User-Agent"),
+		)
+		assertEquals(
 			"grant_type=refresh_token&refresh_token=rt-1&client_id=android-app",
 			recorded.body?.utf8(),
 		)
@@ -350,6 +368,11 @@ class OAuthTest {
 		assertEquals("/oauth/revoke", recorded.url.encodedPath)
 		assertEquals("application/json", recorded.headers["Content-Type"])
 		assertEquals("""{"token":"rt-1"}""", recorded.body?.utf8())
+		assertEquals(
+			"revoke builds its own request, so it must set the native UA independently",
+			listOf(nativeUserAgent),
+			recorded.headers.values("User-Agent"),
+		)
 		assertEquals(emptyMap<TokenKey, String>(), storage.stored)
 		assertNull(store.tokens)
 	}
@@ -376,6 +399,7 @@ class OAuthTest {
 			baseUrl = "http://127.0.0.1:${unusedPort()}",
 			store = store,
 			http = OkHttpClient(),
+			nativeUserAgent = nativeUserAgent,
 		)
 
 		unreachable.revoke()
@@ -421,6 +445,7 @@ class OAuthTest {
 				baseUrl = "http://localhost:${target.port}",
 				store = store,
 				http = interceptingClient("localhost"),
+				nativeUserAgent = nativeUserAgent,
 			)
 
 			try {
@@ -456,6 +481,7 @@ class OAuthTest {
 				baseUrl = "http://localhost:${target.port}",
 				store = store,
 				http = interceptingClient("localhost"),
+				nativeUserAgent = nativeUserAgent,
 			)
 
 			try {
