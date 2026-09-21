@@ -1,5 +1,6 @@
 package com.readplace.android.share
 
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -70,6 +71,8 @@ class ShareActivity : ComponentActivity() {
 	 * wait is running. */
 	private var dismissNow: (() -> Unit)? = null
 
+	private val captor = HtmlCaptor(this) { findViewById(android.R.id.content) }
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val saver = makeSaver()
@@ -83,6 +86,11 @@ class ShareActivity : ComponentActivity() {
 			}
 		}
 		lifecycleScope.launch { runJourney(saver) }
+	}
+
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+		captor.invalidateActiveCapture()
 	}
 
 	private fun makeSaver(): SaveSharedPage {
@@ -102,7 +110,7 @@ class ShareActivity : ComponentActivity() {
 				nativeUserAgent = nativeUserAgent,
 				ioDispatcher = Dispatchers.IO,
 			),
-			captor = HtmlCaptor(this) { findViewById(android.R.id.content) },
+			captor = captor,
 			jobs = UploadJobStore(filesDir, Dispatchers.IO),
 			unseenSave = UnseenSave(filesDir),
 			clock = Clock.systemUTC(),

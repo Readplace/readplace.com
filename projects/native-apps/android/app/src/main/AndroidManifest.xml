@@ -36,6 +36,7 @@
       android:exported="true"
       android:excludeFromRecents="true"
       android:noHistory="true"
+      android:configChanges="orientation|screenSize"
       android:theme="@style/Theme.Readplace.Share">
       <intent-filter>
         <action android:name="android.intent.action.SEND" />

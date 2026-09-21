@@ -37,6 +37,9 @@ class ManifestActivationTest {
 		return (0 until nodes.length).mapNotNull { nodes.item(it) as? Element }
 	}
 
+	private fun activityNamed(qualifiedName: String): Element =
+		activities().single { qualified(it.androidAttr("name").orEmpty()) == qualifiedName }
+
 	private fun Element.androidAttr(name: String): String? =
 		getAttributeNS(android, name).takeIf { it.isNotEmpty() }
 
@@ -60,6 +63,23 @@ class ManifestActivationTest {
 				"intent that starts it",
 			emptyList<String>(),
 			missing,
+		)
+	}
+
+	@Test
+	fun `the share activity weathers rotation in place rather than recreating`() {
+		val configChanges = activityNamed("com.readplace.android.share.ShareActivity")
+			.androidAttr("configChanges").orEmpty().split("|")
+
+		assertTrue(
+			"ShareActivity must declare orientation in configChanges, or Android recreates it on rotation " +
+				"and onCreate starts a second save of the same link",
+			configChanges.contains("orientation"),
+		)
+		assertTrue(
+			"ShareActivity must also declare screenSize, the companion change every modern-API rotation brings, " +
+				"or the recreation it guards against still happens",
+			configChanges.contains("screenSize"),
 		)
 	}
 
