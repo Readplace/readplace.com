@@ -208,9 +208,9 @@ class OAuth(
 
 	private fun tokensFrom(body: String, fallbackRefresh: RefreshToken?): OAuthTokens {
 		val parsed = jsonObjectOf(body) ?: throw OAuthError.MalformedResponse()
-		val accessToken = stringOf(parsed["access_token"]) ?: throw OAuthError.MalformedResponse()
+		val accessToken = nonEmptyStringOf(parsed["access_token"]) ?: throw OAuthError.MalformedResponse()
 		val refreshToken = mintedRefreshToken(parsed["refresh_token"])
-			?: fallbackRefresh
+			?: fallbackRefresh?.takeIf { it.raw.isNotEmpty() }
 			?: throw OAuthError.MalformedResponse()
 		return OAuthTokens(accessToken = AccessToken(accessToken), refreshToken = refreshToken)
 	}
@@ -228,8 +228,11 @@ class OAuth(
 	 * declined rotation. */
 	private fun mintedRefreshToken(element: JsonElement?): RefreshToken? {
 		if (element == null || element is JsonNull) return null
-		return RefreshToken(stringOf(element) ?: throw OAuthError.MalformedResponse())
+		return RefreshToken(nonEmptyStringOf(element) ?: throw OAuthError.MalformedResponse())
 	}
+
+	private fun nonEmptyStringOf(element: JsonElement?): String? =
+		stringOf(element)?.takeIf { it.isNotEmpty() }
 
 	private fun stringOf(element: JsonElement?): String? {
 		val primitive = element as? JsonPrimitive ?: return null
