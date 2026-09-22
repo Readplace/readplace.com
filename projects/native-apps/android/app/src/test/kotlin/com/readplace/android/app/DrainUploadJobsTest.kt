@@ -77,7 +77,7 @@ class DrainUploadJobsTest {
 		now: () -> Instant = { epoch },
 	): DrainUploadJobs =
 		DrainUploadJobs(
-			api = api(server, store, StandardTestDispatcher(testScheduler), baseUrl),
+			api = api(server, store, StandardTestDispatcher(testScheduler), backgroundScope, baseUrl),
 			captor = captor,
 			jobs = jobs,
 			now = now,
@@ -473,6 +473,67 @@ class DrainUploadJobsTest {
 	}
 
 	@Test
+	fun `a transient refresh failure stops the sweep and preserves the staged job and session`() = runTest {
+		val jobs = makeStore()
+		val store = loggedInStore()
+		val admitted = job()
+		jobs.admit(admitted)
+		val ready = jobs.stageReady(admitted, multipartForm())
+		// The readlist load succeeds on the current bearer, but save-content 401s and
+		// the refresh then fails transiently (503) — a nonterminal OAuth error, not a
+		// verdict on these bytes.
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection())
+				"/queue/save-content" -> Stub.json(401, "{}")
+				"/oauth/token" -> Stub.json(503, "{}")
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		makeDrain(jobs, emptyCaptor(), store = store).run()
+
+		assertEquals(
+			"a refresh outage costs the job neither its place, its bytes, its attempts nor its deadline",
+			listOf(ready),
+			jobs.loadAll(now = epoch),
+		)
+		assertTrue("the staged bytes survive for the next drain", jobs.bytesFile(ready).exists())
+		assertTrue("a transient refresh failure leaves the reader signed in", store.isLoggedIn)
+		assertEquals("one save attempt; the sweep stopped rather than spending the retry budget", 1, server.records("/queue/save-content").size)
+	}
+
+	@Test
+	fun `stops the sweep when the session is rejected outright`() = runTest {
+		val jobs = makeStore()
+		val admitted = job()
+		jobs.admit(admitted)
+		val ready = jobs.stageReady(admitted, multipartForm())
+		// The readlist loads, but save-content 401s and the refresh is rejected outright
+		// (400 invalid_grant): a terminal Unauthorized. The sweep stops, and because the
+		// link is already saved, the job keeps its place for the next sign-in.
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection())
+				"/queue/save-content" -> Stub.json(401, "{}")
+				"/oauth/token" -> Stub.json(400, """{"error":"invalid_grant"}""")
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		makeDrain(jobs, emptyCaptor()).run()
+
+		assertEquals(
+			"a rejected session stops the sweep and keeps the job for the next sign-in",
+			listOf(ready),
+			jobs.loadAll(now = epoch),
+		)
+		assertEquals("one save attempt; the sweep stopped", 1, server.records("/queue/save-content").size)
+	}
+
+	@Test
 	fun `reschedules a job whose advertised action cannot be followed`() = runTest {
 		val jobs = makeStore()
 		val admitted = job()
@@ -646,6 +707,31 @@ class DrainUploadJobsTest {
 			orphan.exists(),
 		)
 		assertTrue("sweeping local garbage costs no round trip", server.records.isEmpty())
+	}
+
+	@Test
+	fun `leaves every job alone when a refresh fails during discovery`() = runTest {
+		val jobs = makeStore()
+		val admitted = job()
+		jobs.admit(admitted)
+		val ready = jobs.stageReady(admitted, multipartForm())
+		// The readlist load itself 401s and the refresh then fails transiently, so the
+		// sweep never reaches an upload — a nonterminal OAuth error, not a verdict.
+		server.handle { record ->
+			when (record.path) {
+				"/oauth/token" -> Stub.json(503, "{}")
+				else -> Stub.json(401, "{}")
+			}
+		}
+
+		makeDrain(jobs, emptyCaptor()).run()
+
+		assertEquals(
+			"a refresh outage during discovery spends none of the job's retry budget",
+			listOf(ready),
+			jobs.loadAll(now = epoch),
+		)
+		assertTrue(server.records("/queue/save-content").isEmpty())
 	}
 
 	@Test

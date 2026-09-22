@@ -1,11 +1,22 @@
 package com.readplace.android.core
 
+import com.readplace.android.RecordingServer
+import com.readplace.android.RecordingServer.Gate
+import com.readplace.android.RecordingServer.Stub
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.junit4.MockWebServerRule
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -17,6 +28,7 @@ import java.io.IOException
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.URLDecoder
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The OAuth exchange is the one flow whose request shape the server matches by
@@ -27,10 +39,28 @@ class OAuthTest {
 	@get:Rule
 	val serverRule = MockWebServerRule()
 
+	/** A second server for the barrier-based race tests: [RecordingServer.Gate] can
+	 * hold the `/oauth/token` response in flight while a second caller arrives, which
+	 * [MockWebServerRule]'s enqueue model can't express. */
+	@get:Rule
+	val recording = RecordingServer()
+
 	private val server: MockWebServer get() = serverRule.server
 
+	/** Hosts the single-flight refresh, standing in for the application-scoped scope
+	 * production supplies. Real IO so a refresh held at a [Gate] blocks a real thread
+	 * while the test coordinates; cancelled after each test. */
+	private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+	@After
+	fun cancelRefreshScope() {
+		refreshScope.cancel()
+	}
+
 	private class RecordingTokenStorage : TokenStorage {
-		val stored = mutableMapOf<TokenKey, String>()
+		// Concurrent because the race tests read and write the store from the refresh
+		// coroutine, the server's own dispatcher thread and the test thread at once.
+		val stored = ConcurrentHashMap<TokenKey, String>()
 
 		override fun readValue(key: TokenKey): Result<String?> = Result.success(stored[key])
 
@@ -60,6 +90,17 @@ class OAuthTest {
 			store = store,
 			http = OkHttpClient(),
 			nativeUserAgent = nativeUserAgent,
+			refreshScope = refreshScope,
+		)
+
+	/** An OAuth pointed at the [Gate]-capable [recording] server, for the race tests. */
+	private fun oauthAt(server: RecordingServer): OAuth =
+		OAuth(
+			baseUrl = server.baseUrl,
+			store = store,
+			http = OkHttpClient(),
+			nativeUserAgent = nativeUserAgent,
+			refreshScope = refreshScope,
 		)
 
 	/** A port nothing is listening on, so the call fails in the transport rather than
@@ -327,7 +368,10 @@ class OAuthTest {
 	}
 
 	@Test
-	fun `a rejected refresh reports a refresh failure and keeps the stored pair`() = runTest {
+	fun `an HTTP 401 invalid_grant is a nonterminal refresh failure that keeps the stored pair`() = runTest {
+		// The terminal rule is HTTP 400 `invalid_grant`; a 401 (even carrying the same
+		// error body) is not the server rejecting the token outright, so it is a
+		// retryable failure that leaves the reader signed in.
 		signedInWith(refreshToken = "rt-1")
 		server.enqueue(MockResponse(code = 401, body = """{"error":"invalid_grant"}"""))
 
@@ -335,9 +379,230 @@ class OAuthTest {
 			oauth().refresh()
 			fail("a rejected refresh must not resolve")
 		} catch (error: OAuthError.RefreshFailed) {
-			assertEquals("Could not refresh the session. Please sign in again.", error.message)
+			assertEquals("Could not refresh the session. Please try again.", error.message)
 		}
 		assertEquals(OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")), store.tokens)
+	}
+
+	@Test
+	fun `an HTTP 400 invalid_grant discards the rejected refresh token`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 400, body = """{"error":"invalid_grant"}"""))
+
+		try {
+			oauth().refresh()
+			fail("a rejected refresh token must not resolve")
+		} catch (error: OAuthError.NoRefreshToken) {
+			assertEquals("No refresh token is stored. Please sign in again.", error.message)
+		}
+		assertNull("the server rejected this token outright, so it is discarded", store.tokens)
+	}
+
+	@Test
+	fun `an HTTP 400 without invalid_grant keeps the stored pair`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 400, body = """{"error":"invalid_request"}"""))
+
+		try {
+			oauth().refresh()
+			fail("a 400 that is not invalid_grant must not resolve")
+		} catch (_: OAuthError.RefreshFailed) {
+		}
+		assertEquals(
+			"only a decoded invalid_grant discards the token; any other 400 is retryable",
+			OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")),
+			store.tokens,
+		)
+	}
+
+	@Test
+	fun `a 503 refresh keeps the stored pair`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 503, body = "{}"))
+
+		try {
+			oauth().refresh()
+			fail("a transient refresh failure must not resolve")
+		} catch (_: OAuthError.RefreshFailed) {
+		}
+		assertEquals(OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")), store.tokens)
+	}
+
+	@Test
+	fun `a delayed refresh adopts credentials another refresh already won without a second request`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"at-2","refresh_token":"rt-2"}"""))
+		val oauth = oauth()
+		val snapshot = oauth.snapshot()
+
+		oauth.refresh(after = snapshot)
+		// The same failed snapshot, replayed: the store now holds the winner, so this
+		// adopts it rather than posting a second refresh (only one response is enqueued).
+		val adopted = oauth.refresh(after = snapshot)
+
+		assertEquals(AccessToken("at-2"), adopted.tokens.accessToken)
+		assertEquals("the second caller reuses the winner, making no second refresh request", 1, server.requestCount)
+	}
+
+	@Test
+	fun `concurrent callers share one refresh and cancelling one does not cancel it`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val oauth = oauthAt(recording)
+		val snapshot = oauth.snapshot()
+		val gate = Gate()
+		recording.handle { record ->
+			when (record.path) {
+				"/oauth/token" -> gate.holding(Stub.json(200, """{"access_token":"at-2","refresh_token":"rt-2"}"""))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val first = launch { runCatching { oauth.refresh(after = snapshot) } }
+		withContext(Dispatchers.IO) { gate.awaitArrival() }
+		first.cancel()
+		val second = async { oauth.refresh(after = snapshot) }
+		gate.release()
+		val result = second.await()
+		first.join()
+
+		assertEquals("the surviving caller gets the refreshed access token", AccessToken("at-2"), result.tokens.accessToken)
+		assertEquals("both callers coalesce onto exactly one refresh request", 1, recording.records("/oauth/token").size)
+	}
+
+	@Test
+	fun `a clear during an in-flight refresh cannot restore the tokens`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val oauth = oauthAt(recording)
+		val gate = Gate()
+		recording.handle { record ->
+			when (record.path) {
+				"/oauth/token" -> gate.holding(Stub.json(200, """{"access_token":"late","refresh_token":"late-r"}"""))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val refresh = async { runCatching { oauth.refresh() } }
+		withContext(Dispatchers.IO) { gate.awaitArrival() }
+		oauth.clear()
+		gate.release()
+		refresh.await()
+
+		assertNull("a refresh that returns after a logout must not resurrect the session", store.tokens)
+	}
+
+	@Test
+	fun `clearIfUnchanged preserves a replacement pair and clears the current one`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val oauth = oauth()
+		val rejected = store.tokens
+		val replacement = OAuthTokens(AccessToken("replacement"), RefreshToken("replacement-r"))
+		store.save(replacement)
+
+		oauth.clearIfUnchanged(rejected)
+		assertEquals("a replacement login that landed first is not erased by a stale clear", replacement, store.tokens)
+
+		oauth.clearIfUnchanged(replacement)
+		assertNull("clearing against the current pair does clear it", store.tokens)
+	}
+
+	@Test
+	fun `a refresh adopts a pair an overlapping refresh stored, even on a rejection`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val oauth = oauthAt(recording)
+		recording.handle { record ->
+			when (record.path) {
+				// Another caller's refresh wins while this one is on the wire, then this
+				// one comes back rejected — the adopted winner must stand over the rejection.
+				"/oauth/token" -> {
+					store.save(OAuthTokens(AccessToken("winner"), RefreshToken("winner-r")))
+					Stub.json(400, """{"error":"invalid_grant"}""")
+				}
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val accessToken = oauth.refresh()
+
+		assertEquals("the winner is adopted, not the rejection acted on", AccessToken("winner"), accessToken)
+		assertEquals(
+			"a rejection cannot discard a pair this refresh no longer owns",
+			OAuthTokens(AccessToken("winner"), RefreshToken("winner-r")),
+			store.tokens,
+		)
+	}
+
+	@Test
+	fun `a refresh that fails in transport keeps the stored pair`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val unreachable = OAuth(
+			baseUrl = "http://127.0.0.1:${unusedPort()}",
+			store = store,
+			http = OkHttpClient(),
+			nativeUserAgent = nativeUserAgent,
+			refreshScope = refreshScope,
+		)
+
+		try {
+			unreachable.refresh()
+			fail("a transport failure must not resolve")
+		} catch (_: OAuthError.RefreshFailed) {
+		}
+		assertEquals(OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")), store.tokens)
+	}
+
+	@Test
+	fun `an HTTP 400 with a non-JSON body keeps the stored pair`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 400, body = "not json at all"))
+
+		try {
+			oauth().refresh()
+			fail("a malformed refusal must not resolve")
+		} catch (_: OAuthError.RefreshFailed) {
+		}
+		assertEquals(
+			"a 400 the client cannot decode as invalid_grant is retryable, not a discard",
+			OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")),
+			store.tokens,
+		)
+	}
+
+	@Test
+	fun `a refresh for a superseded generation reports a session change`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		val oauth = oauth()
+		val stale = oauth.snapshot()
+		// A new sign-in rotates the generation and stores a fresh pair.
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"new","refresh_token":"new-r"}"""))
+		oauth.exchangeCode(code = "c", verifier = "v", redirectUri = "readplace://oauth-callback/android")
+
+		try {
+			oauth.refresh(after = stale)
+			fail("a refresh for the superseded session must not resolve")
+		} catch (_: OAuthError.SessionChanged) {
+		}
+		assertEquals("the fenced refresh makes no token request of its own", 1, server.requestCount)
+		assertEquals(OAuthTokens(AccessToken("new"), RefreshToken("new-r")), store.tokens)
+	}
+
+	@Test
+	fun `an exchange that completes after a logout cannot overwrite the store`() = runTest {
+		val oauth = oauthAt(recording)
+		val gate = Gate()
+		recording.handle { record ->
+			when (record.path) {
+				"/oauth/token" -> gate.holding(Stub.json(200, """{"access_token":"late","refresh_token":"late-r"}"""))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val exchange = async { runCatching { oauth.exchangeCode("c", "v", "readplace://oauth-callback/android") } }
+		withContext(Dispatchers.IO) { gate.awaitArrival() }
+		oauth.clear()
+		gate.release()
+		exchange.await()
+
+		assertNull("a code exchange that returns after a logout must not populate the store", store.tokens)
 	}
 
 	@Test
@@ -400,6 +665,7 @@ class OAuthTest {
 			store = store,
 			http = OkHttpClient(),
 			nativeUserAgent = nativeUserAgent,
+			refreshScope = refreshScope,
 		)
 
 		unreachable.revoke()
@@ -446,13 +712,16 @@ class OAuthTest {
 				store = store,
 				http = interceptingClient("localhost"),
 				nativeUserAgent = nativeUserAgent,
+				refreshScope = refreshScope,
 			)
 
 			try {
 				oauth.refresh()
 				fail("a refresh whose redirect leaves the permitted host must not resolve")
-			} catch (error: IOException) {
-				assertTrue(error.message.orEmpty().contains("not permitted for native requests"))
+			} catch (_: OAuthError.RefreshFailed) {
+				// The policy blocks the forbidden hop with an IOException; a refresh maps
+				// that transport failure to the nonterminal RefreshFailed. The security
+				// property — the forbidden hop is never sent — is asserted below.
 			}
 
 			assertEquals("the forbidden hop must never be sent", 1, target.requestCount)
@@ -482,6 +751,7 @@ class OAuthTest {
 				store = store,
 				http = interceptingClient("localhost"),
 				nativeUserAgent = nativeUserAgent,
+				refreshScope = refreshScope,
 			)
 
 			try {

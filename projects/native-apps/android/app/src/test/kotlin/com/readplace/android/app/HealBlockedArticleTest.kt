@@ -30,7 +30,7 @@ class HealBlockedArticleTest {
 	private val blockedUrl = "https://example.com/post"
 
 	private fun TestScope.makeHealer(store: TokenStore, captor: HtmlCapturing): HealBlockedArticle =
-		HealBlockedArticle(api = api(server, store, StandardTestDispatcher(testScheduler)), captor = captor)
+		HealBlockedArticle(api = api(server, store, StandardTestDispatcher(testScheduler), backgroundScope), captor = captor)
 
 	private fun htmlCaptor(html: String = "<html>hi</html>", title: String? = null): RecordingHtmlCaptor =
 		RecordingHtmlCaptor(CapturedPage.Html(html = html, title = title))

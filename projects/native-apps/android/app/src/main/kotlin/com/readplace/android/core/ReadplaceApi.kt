@@ -1,6 +1,8 @@
 package com.readplace.android.core
 
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -135,7 +137,6 @@ class EphemeralCookieJar : CookieJar {
 class ReadplaceApi(
 	val baseUrl: String,
 	client: OkHttpClient,
-	private val store: TokenStore,
 	private val oauth: OAuth,
 	private val nativeUserAgent: String,
 	private val ioDispatcher: CoroutineDispatcher,
@@ -388,10 +389,26 @@ class ReadplaceApi(
 		val contentType: String? get() = headers["Content-Type"]
 	}
 
+	/**
+	 * Sends an authenticated request, refreshing once on a 401. The bearer is the
+	 * access token from the current [OAuth.Snapshot]; on a 401 that snapshot is handed
+	 * to [OAuth.refresh] so a concurrent refresh is shared and its winner adopted,
+	 * then the request is re-sent under whatever the store now holds (the refreshed or
+	 * adopted pair, or — if the session ended meanwhile — no token). Only a confirmed
+	 * rejected refresh ([OAuthError.NoRefreshToken]) becomes a terminal
+	 * [ApiError.Unauthorized]; a transient or session-changed refresh failure
+	 * propagates as its nonterminal [OAuthError], so the caller neither signs out nor
+	 * spends an upload's retry budget over a blip. A missing token is [ApiError.NoToken];
+	 * an unreadable store keeps its own storage error.
+	 */
 	private suspend fun send(request: Request, retryOn401: Boolean = true): Answer {
-		val token = store.tokens?.accessToken ?: throw ApiError.NoToken()
+		val credentials = try {
+			oauth.snapshot()
+		} catch (_: OAuthError.NoRefreshToken) {
+			throw ApiError.NoToken()
+		}
 		val authed = request.newBuilder()
-			.header("Authorization", "Bearer ${token.raw}")
+			.header("Authorization", "Bearer ${credentials.tokens.accessToken.raw}")
 			.header("Accept", AppConfig.SIREN_MEDIA_TYPE)
 			// Identifies this request as coming from the Android app so the server
 			// records onboarding completion per-user (a browser on the same phone can't
@@ -402,20 +419,17 @@ class ReadplaceApi(
 			.build()
 		val answer = withContext(ioDispatcher) { followingRedirects(authed) }
 		if (answer.status == 401 && retryOn401) {
-			refreshOrThrowUnauthorized()
+			try {
+				oauth.refresh(after = credentials)
+			} catch (_: OAuthError.NoRefreshToken) {
+				throw ApiError.Unauthorized()
+			}
+			// A caller cancelled while the shared refresh ran must not fire its retry;
+			// the retry re-reads the snapshot, adopting the winning bearer.
+			currentCoroutineContext().ensureActive()
 			return send(request, retryOn401 = false)
 		}
 		return answer
-	}
-
-	private suspend fun refreshOrThrowUnauthorized() {
-		try {
-			oauth.refresh()
-		} catch (_: OAuthError) {
-			throw ApiError.Unauthorized()
-		} catch (_: IOException) {
-			throw ApiError.Unauthorized()
-		}
 	}
 
 	/**

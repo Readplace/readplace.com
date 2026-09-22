@@ -4,6 +4,7 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.MultipartForm
+import com.readplace.android.core.OAuthError
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.SirenAction
 import com.readplace.android.core.UploadJob
@@ -28,6 +29,10 @@ class DrainUploadJobs(
 		if (due.isEmpty()) return
 		val page = try {
 			api.loadReadlist()
+		} catch (_: OAuthError) {
+			// A transient or session-changed refresh failure during discovery: stop the
+			// sweep and leave every job untouched — the next drain retries them intact.
+			return
 		} catch (_: ApiError) {
 			return
 		} catch (_: IOException) {
@@ -56,6 +61,11 @@ class DrainUploadJobs(
 			val body = jobs.bytesFile(readied.job).readBytes()
 			api.saveContent(through, readied.contentType, body)
 			jobs.remove(readied.job)
+		} catch (_: OAuthError) {
+			// A transient or session-changed refresh failure is not this job's fault:
+			// stop the sweep and preserve the ready job's bytes, attempts and deadline
+			// rather than spend a retry on an outage.
+			return false
 		} catch (_: ApiError.Unauthorized) {
 			return false
 		} catch (_: ApiError.NoToken) {

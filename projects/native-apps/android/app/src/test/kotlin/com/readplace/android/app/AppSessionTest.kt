@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import com.readplace.android.RecordingServer
+import com.readplace.android.RecordingServer.Gate
 import com.readplace.android.RecordingServer.Stub
 import com.readplace.android.core.AccessToken
 import com.readplace.android.core.AppConfig
@@ -21,9 +22,12 @@ import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.WebAuthFlow
 import com.readplace.android.core.WebAuthPresentation
 import com.readplace.android.core.initWebAuthFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -109,12 +113,20 @@ class AppSessionTest {
 	private fun TestScope.session(
 		store: TokenStore = this@AppSessionTest.store,
 		baseUrl: String = server.baseUrl,
+		oauth: OAuth = OAuth(
+			baseUrl = baseUrl,
+			store = store,
+			http = OkHttpClient(),
+			nativeUserAgent = NATIVE_USER_AGENT,
+			refreshScope = backgroundScope,
+		),
 		newClientBuilder: () -> OkHttpClient.Builder = { OkHttpClient.Builder() },
 		makeWebAuthFlow: (OAuth) -> WebAuthFlow = CapturedFlow().make(),
 	): AppSession =
 		AppSession(
 			baseUrl = baseUrl,
 			store = store,
+			oauth = oauth,
 			newClientBuilder = newClientBuilder,
 			nativeUserAgent = NATIVE_USER_AGENT,
 			ioDispatcher = StandardTestDispatcher(testScheduler),
@@ -472,9 +484,11 @@ class AppSessionTest {
 
 		assertFalse(session.isLoggedIn.value)
 		assertNull("the minted session cookie must not survive a forced sign-out", session.cookieSentNext())
-		assertNull("a forced sign-out is local: the invalid session has nothing left to revoke", store.tokens)
 		assertTrue(server.records("/oauth/revoke").isEmpty())
 		readerWipe.join()
+		// The credential clear now runs through OAuth (fencing any in-flight refresh),
+		// so it completes with the invalidate job the reader wipe joins.
+		assertNull("a forced sign-out is local: the invalid session has nothing left to revoke", store.tokens)
 		assertEquals(
 			"sign-out must wipe the reader's traces from the WebView store, scoped to the server host",
 			listOf(server.host),
@@ -508,6 +522,49 @@ class AppSessionTest {
 			uploads.purges,
 		)
 		readerWipe.join()
+	}
+
+	@Test
+	fun `forceLogout does not erase a replacement login that landed first`() = runTest {
+		val session = session(store = loggedInStore())
+		val readerWipe = session.forceLogout()
+		// A re-authentication completes before the scheduled credential clear runs, so
+		// the store no longer holds the rejected pair when the clear checks it.
+		store.save(OAuthTokens(AccessToken("replacement"), RefreshToken("replacement-r")))
+		readerWipe.join()
+
+		assertEquals(
+			"a forced sign-out clears only the rejected pair; a replacement login survives",
+			OAuthTokens(AccessToken("replacement"), RefreshToken("replacement-r")),
+			store.tokens,
+		)
+	}
+
+	@Test
+	fun `logout preserves a replacement login that completed before the revoke returned`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when (record.path) {
+				"/oauth/revoke" -> gate.holding(Stub.json(200, "{}"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val session = session(store = loggedInStore())
+
+		val logout = launch { session.logout() }
+		withContext(Dispatchers.IO) { gate.awaitArrival() }
+		// The revoke has cleared the store locally and is now in flight; a new sign-in
+		// lands before it returns.
+		store.save(OAuthTokens(AccessToken("replacement"), RefreshToken("replacement-r")))
+		gate.release()
+		logout.join()
+
+		assertTrue("re-reading login state after the revoke keeps the replacement session", session.isLoggedIn.value)
+		assertEquals(
+			"logout publishes signed-out only if the store is still empty; a replacement survives",
+			OAuthTokens(AccessToken("replacement"), RefreshToken("replacement-r")),
+			store.tokens,
+		)
 	}
 
 	@Test

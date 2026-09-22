@@ -73,8 +73,8 @@ class ReadingListViewModelTest {
 
 	private fun TestScope.api(store: TokenStore, ioDispatcher: CoroutineDispatcher): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
-		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
-		return ReadplaceApi(server.baseUrl, client, store, oauth, "Readplace/1 Android/16", ioDispatcher)
+		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16", refreshScope = backgroundScope)
+		return ReadplaceApi(server.baseUrl, client, oauth, "Readplace/1 Android/16", ioDispatcher)
 	}
 
 	/** A heal or a drain no test asked for is a wrong turn, not a silent no-op:
@@ -213,7 +213,10 @@ class ReadingListViewModelTest {
 		val live = twoPageHandler()
 		return { record ->
 			when {
-				accountDeleted.get() -> if (record.path == "/oauth/token") Stub.json(400, "{}") else Stub.json(401, "{}")
+				// Deletion revokes the token, so the refresh is rejected outright
+				// (HTTP 400 invalid_grant) — the terminal case that funnels into sign-out.
+				accountDeleted.get() ->
+					if (record.path == "/oauth/token") Stub.json(400, """{"error":"invalid_grant"}""") else Stub.json(401, "{}")
 				else -> live(record)
 			}
 		}
@@ -1742,14 +1745,32 @@ class ReadingListViewModelTest {
 	fun `an unauthorized load logs out without an error banner`() = runTest {
 		var expired = false
 		val viewModel = viewModel(onSessionExpired = { expired = true })
-		// 401 everywhere: the entry-point load 401s, the single refresh 401s, and
-		// the load surfaces Unauthorized.
-		server.handle { Stub.json(401, "{}") }
+		// The entry-point load 401s and the refresh is rejected outright (HTTP 400
+		// invalid_grant), so the session is genuinely dead and the load surfaces Unauthorized.
+		server.handle { record ->
+			if (record.path == "/oauth/token") Stub.json(400, """{"error":"invalid_grant"}""") else Stub.json(401, "{}")
+		}
 
 		viewModel.refresh()
 
-		assertTrue("a 401 whose refresh also fails logs the user out", expired)
+		assertTrue("a 401 whose refresh is rejected logs the user out", expired)
 		assertNull("a session-expiry logout is not shown as an error banner", viewModel.state.value.errorText)
+	}
+
+	@Test
+	fun `a transient refresh failure surfaces an error without logging out`() = runTest {
+		var expired = false
+		val viewModel = viewModel(onSessionExpired = { expired = true })
+		// The entry-point load 401s but the refresh fails transiently (5xx): the session
+		// is preserved and the reader is asked to retry, not signed out.
+		server.handle { record ->
+			if (record.path == "/oauth/token") Stub.json(503, "{}") else Stub.json(401, "{}")
+		}
+
+		viewModel.refresh()
+
+		assertFalse("a transient refresh outage must not sign the reader out", expired)
+		assertEquals("Could not refresh the session. Please try again.", viewModel.state.value.errorText)
 	}
 
 	@Test

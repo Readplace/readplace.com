@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.database.ContentObserver
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -35,12 +34,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.readplace.android.BuildConfig
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.NativeCleartextPolicy
 import com.readplace.android.core.ShareArtifacts
-import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJobStore
 import com.readplace.android.core.initWebAuthFlow
@@ -78,9 +75,10 @@ class MainActivity : ComponentActivity() {
 		super.onCreate(savedInstanceState)
 		// API 35+ enforces this; the call brings 29-34 in line so the intro fills behind the system bars.
 		enableEdgeToEdge()
-		val store = TokenStore(
-			KeystoreTokenStorage(getSharedPreferences(KeystoreTokenStorage.PREFERENCES_NAME, Context.MODE_PRIVATE)),
-		)
+		// One process-wide credential owner, shared with the share target so both
+		// drive a single-flight refresh through the same session generation.
+		val app = application as ReadplaceApp
+		val store = app.tokenStore
 		val flags = PreferenceFlags(getSharedPreferences(PreferenceFlags.PREFERENCES_NAME, Context.MODE_PRIVATE))
 		val jobs = UploadJobStore(filesDir, Dispatchers.IO)
 		val unseenSave = UnseenSave(filesDir)
@@ -90,11 +88,12 @@ class MainActivity : ComponentActivity() {
 		session = AppSession(
 			baseUrl = AppConfig.serverBaseUrl,
 			store = store,
+			oauth = app.oauth,
 			newClientBuilder = {
 				OkHttpClient.Builder()
 					.addNetworkInterceptor(NativeCleartextPolicy.forEnvironment(AppConfig.serverEnvironment))
 			},
-			nativeUserAgent = AppConfig.nativeUserAgent(BuildConfig.VERSION_CODE, Build.VERSION.RELEASE),
+			nativeUserAgent = app.nativeUserAgent,
 			ioDispatcher = Dispatchers.IO,
 			scope = lifecycleScope,
 			makeWebAuthFlow = { oauth -> initWebAuthFlow(present = { url -> customTabAuth.present(url) }, oauth = oauth) },

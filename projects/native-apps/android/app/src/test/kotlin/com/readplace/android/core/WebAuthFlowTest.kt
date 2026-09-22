@@ -1,11 +1,16 @@
 package com.readplace.android.core
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.junit4.MockWebServerRule
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -44,10 +49,17 @@ class WebAuthFlowTest {
 
 	private val store = TokenStore(RecordingTokenStorage())
 
+	private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+	@After
+	fun cancelRefreshScope() {
+		refreshScope.cancel()
+	}
+
 	private fun serverBaseUrl(): String = server.url("/").toString().removeSuffix("/")
 
 	private fun oauthAt(baseUrl: String): OAuth =
-		OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
+		OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16", refreshScope = refreshScope)
 
 	private fun request(): AuthorizationRequest =
 		oauthAt(serverBaseUrl()).makeNativeLoginAuthorizationRequest()
@@ -234,6 +246,7 @@ class WebAuthFlowTest {
 			store = TokenStore(cannotPersist),
 			http = OkHttpClient(),
 			nativeUserAgent = "Readplace/1 Android/16",
+			refreshScope = refreshScope,
 		)
 		val request = oauth.makeNativeLoginAuthorizationRequest()
 		tokensMinted()

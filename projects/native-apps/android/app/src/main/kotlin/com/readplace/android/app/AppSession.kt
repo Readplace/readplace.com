@@ -4,7 +4,6 @@ import com.readplace.android.core.AuthFlowError
 import com.readplace.android.core.AuthorizationRequest
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.OAuth
-import com.readplace.android.core.OAuthError
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ShareArtifacts
 import com.readplace.android.core.SloganSource
@@ -75,6 +74,11 @@ private class SessionCookieJar : CookieJar {
 class AppSession(
 	private val baseUrl: String,
 	private val store: TokenStore,
+	/** The one process-wide credential owner, built at the application composition
+	 * boundary and shared with the share target and every API consumer, so a
+	 * single-flight refresh and the session generation are the same across the
+	 * process. */
+	private val oauth: OAuth,
 	newClientBuilder: () -> OkHttpClient.Builder,
 	private val nativeUserAgent: String,
 	private val ioDispatcher: CoroutineDispatcher,
@@ -147,26 +151,39 @@ class AppSession(
 
 	suspend fun logout() {
 		// The WebView wipe and the network revoke are independent, so they run
-		// concurrently; both finish before the logged-out state is published.
+		// concurrently; both finish before login state is re-read.
 		coroutineScope {
 			val readerWipe = launch { webDataWiper.wipe(serverHost) }
-			makeOAuth().revoke()
-			clearSessionCookie()
-			shareArtifacts.purge()
+			oauth.revoke()
 			readerWipe.join()
 		}
+		// Re-read the store after the revoke/wipe round trip: a sign-in that
+		// completed while they ran has re-populated it, and that replacement session
+		// must survive — clearing cookies/artifacts or publishing logged-out here
+		// would tear down a session the user just re-established.
+		refreshLoginState()
+		if (_isLoggedIn.value) return
+		clearSessionCookie()
+		shareArtifacts.purge()
 		_isLoggedIn.value = false
 	}
 
 	/** Local sign-out used when the session is already invalid (refresh failed).
 	 * Stays synchronous so the non-suspending `onSessionExpired` caller is
 	 * unaffected; the returned wipe job lets tests await the fire-and-forget
-	 * WebView wipe. */
+	 * WebView wipe. The credential clear goes through [OAuth.clearIfUnchanged] — it
+	 * captures the rejected pair now and clears only if the store still holds it, so
+	 * a replacement login that landed first is not erased — and advances the session
+	 * generation, fencing out any refresh still in flight. */
 	fun forceLogout(): Job {
-		store.clear()
+		val rejected = store.tokens
+		val invalidate = scope.launch { oauth.clearIfUnchanged(rejected) }
 		clearSessionCookie()
 		shareArtifacts.purge()
-		val readerWipe = scope.launch { webDataWiper.wipe(serverHost) }
+		val readerWipe = scope.launch {
+			invalidate.join()
+			webDataWiper.wipe(serverHost)
+		}
 		_isLoggedIn.value = false
 		return readerWipe
 	}
@@ -196,14 +213,12 @@ class AppSession(
 		ReadplaceApi(
 			baseUrl = baseUrl,
 			client = http,
-			store = store,
-			oauth = makeOAuth(),
+			oauth = oauth,
 			nativeUserAgent = nativeUserAgent,
 			ioDispatcher = ioDispatcher,
 		)
 
-	fun makeOAuth(): OAuth =
-		OAuth(baseUrl = baseUrl, store = store, http = http, nativeUserAgent = nativeUserAgent)
+	fun makeOAuth(): OAuth = oauth
 
 	fun makeSloganSource(): SloganSource =
 		initSloganSource(client = http, baseUrl = baseUrl, nativeUserAgent = nativeUserAgent)

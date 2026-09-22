@@ -71,12 +71,12 @@ class ReadplaceApiTest {
 		maxExternalContentBytes: Long? = null,
 	): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(jar).followRedirects(false).build()
-		val oauth = OAuth(baseUrl = oauthBaseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
+		val oauth = OAuth(baseUrl = oauthBaseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT, refreshScope = backgroundScope)
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		if (maxExternalContentBytes == null) {
-			return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, dispatcher)
+			return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, dispatcher)
 		}
-		return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, dispatcher, maxExternalContentBytes)
+		return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, dispatcher, maxExternalContentBytes)
 	}
 
 	private fun saveArticleAction(): SirenAction =
@@ -230,7 +230,7 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `loadReadlist is unauthorized when the refresh fails, without retrying`() = runTest {
+	fun `loadReadlist is unauthorized when the refresh is rejected, without retrying`() = runTest {
 		val store = loggedInStore(access = "stale")
 		val entryAttempts = AtomicInteger()
 		server.handle { record ->
@@ -239,7 +239,9 @@ class ReadplaceApiTest {
 					entryAttempts.incrementAndGet()
 					Stub.json(401, "{}")
 				}
-				"/oauth/token" -> Stub.json(400, "{}")
+				// Only an HTTP 400 `invalid_grant` is the server rejecting this refresh
+				// token outright — the one refresh failure that is terminal.
+				"/oauth/token" -> Stub.json(400, """{"error":"invalid_grant"}""")
 				else -> Stub.json(404, "{}")
 			}
 		}
@@ -249,16 +251,43 @@ class ReadplaceApiTest {
 		assertEquals("Your session expired. Please sign in again.", error.message)
 		assertEquals("must not retry the entry point when refresh fails", 1, entryAttempts.get())
 		assertEquals(1, server.records("/oauth/token").size)
+		assertNull("a rejected refresh discards the pair so no surface keeps sending it", store.tokens)
 	}
 
 	@Test
-	fun `loadReadlist is unauthorized when the refresh fails on transport`() = runTest {
+	fun `loadReadlist surfaces a nonterminal refresh failure on transport without signing out`() = runTest {
 		val store = loggedInStore(access = "stale")
 		server.handle { Stub.json(401, "{}") }
 
-		failsWith<ApiError.Unauthorized> { api(store, oauthBaseUrl = unreachableBaseUrl()).loadReadlist() }
+		failsWith<OAuthError.RefreshFailed> { api(store, oauthBaseUrl = unreachableBaseUrl()).loadReadlist() }
 
 		assertEquals("must not retry the entry point when refresh fails", 1, server.records("/").size)
+		assertEquals(
+			"a transient refresh outage is not a sign-out: the pair is left intact",
+			OAuthTokens(AccessToken("stale"), RefreshToken("refresh-1")),
+			store.tokens,
+		)
+	}
+
+	@Test
+	fun `loadReadlist surfaces a nonterminal refresh failure on a 5xx without signing out`() = runTest {
+		val store = loggedInStore(access = "stale")
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(401, "{}")
+				"/oauth/token" -> Stub.json(503, "{}")
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		failsWith<OAuthError.RefreshFailed> { api(store).loadReadlist() }
+
+		assertEquals("one refresh attempt, no retry of the entry point", 1, server.records("/").size)
+		assertEquals(
+			"a 5xx at the token endpoint leaves the reader signed in",
+			OAuthTokens(AccessToken("stale"), RefreshToken("refresh-1")),
+			store.tokens,
+		)
 	}
 
 	@Test
@@ -276,6 +305,48 @@ class ReadplaceApiTest {
 
 		assertEquals("one retry with the refreshed bearer, never a second refresh", 2, server.records("/").size)
 		assertEquals(1, server.records("/oauth/token").size)
+	}
+
+	@Test
+	fun `APIs sharing one OAuth refresh once and reuse the winning bearer`() = runTest {
+		// The list surface and the share/drain surface are separate ReadplaceApi
+		// instances (their own HTTP clients) built over the ONE process OAuth, as the
+		// application composition root wires them. A stale bearer is refreshed once and
+		// the second surface reads the winner from the shared store.
+		val store = loggedInStore(access = "stale", refresh = "r1")
+		val refreshScope = backgroundScope
+		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT, refreshScope = refreshScope)
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		fun sharingApi(): ReadplaceApi =
+			ReadplaceApi(
+				server.baseUrl,
+				OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build(),
+				oauth,
+				USER_AGENT,
+				dispatcher,
+			)
+		val listApi = sharingApi()
+		val shareApi = sharingApi()
+		val staleSeen = AtomicInteger()
+		server.handle { record ->
+			when {
+				record.header("Authorization") == "Bearer stale" -> {
+					staleSeen.incrementAndGet()
+					Stub.json(401, "{}")
+				}
+				record.path == "/oauth/token" -> Stub.json(200, Fixtures.tokenResponse(access = "fresh", refresh = "r2"))
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		listApi.loadReadlist()
+		shareApi.loadReadlist()
+
+		assertEquals("the shared OAuth refreshes once, not once per API", 1, server.records("/oauth/token").size)
+		assertEquals("only the first surface sent the stale bearer; the second read the refreshed one", 1, staleSeen.get())
+		assertEquals(AccessToken("fresh"), store.tokens?.accessToken)
 	}
 
 	@Test
@@ -1141,8 +1212,8 @@ class ReadplaceApiTest {
 			.followRedirects(false)
 			.addNetworkInterceptor(policy)
 			.build()
-		val oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
-		return ReadplaceApi(baseUrl, client, store, oauth, USER_AGENT, StandardTestDispatcher(testScheduler))
+		val oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT, refreshScope = backgroundScope)
+		return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, StandardTestDispatcher(testScheduler))
 	}
 
 	@Test
@@ -1200,8 +1271,7 @@ class ReadplaceApiTest {
 			val api = ReadplaceApi(
 				baseUrl,
 				client,
-				store,
-				OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
+				OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT, refreshScope = backgroundScope),
 				USER_AGENT,
 				StandardTestDispatcher(testScheduler),
 			)

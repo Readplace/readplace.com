@@ -1,7 +1,5 @@
 package com.readplace.android.share
 
-import android.content.Context
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -40,20 +38,17 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
-import com.readplace.android.BuildConfig
 import com.readplace.android.app.BrandColors
 import com.readplace.android.app.HtmlCaptor
-import com.readplace.android.app.KeystoreTokenStorage
 import com.readplace.android.app.LocalBrandColors
+import com.readplace.android.app.ReadplaceApp
 import com.readplace.android.app.ReadplaceTheme
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.NativeCleartextPolicy
-import com.readplace.android.core.OAuth
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
-import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJobStore
 import kotlinx.coroutines.CompletableDeferred
@@ -92,27 +87,24 @@ class ShareActivity : ComponentActivity() {
 	}
 
 	private fun makeSaver(): SaveSharedPage {
-		val store = TokenStore(
-			KeystoreTokenStorage(getSharedPreferences(KeystoreTokenStorage.PREFERENCES_NAME, Context.MODE_PRIVATE)),
-		)
+		// The same process-wide credential owner MainActivity uses, so a save that
+		// refreshes a stale bearer shares the app's single-flight refresh and session
+		// generation rather than racing its own. Only the HTTP client is the share
+		// target's own — kept discovery-cached, as before.
+		val app = application as ReadplaceApp
+		val store = app.tokenStore
 		val http = OkHttpClient.Builder()
 			.addNetworkInterceptor(NativeCleartextPolicy.forEnvironment(AppConfig.serverEnvironment))
 			.cookieJar(EphemeralCookieJar())
 			.cache(DiscoveryHttpCache(cacheDir).cache)
 			.build()
-		val nativeUserAgent = AppConfig.nativeUserAgent(BuildConfig.VERSION_CODE, Build.VERSION.RELEASE)
+		val nativeUserAgent = app.nativeUserAgent
 		return SaveSharedPage(
 			store = store,
 			api = ReadplaceApi(
 				baseUrl = AppConfig.serverBaseUrl,
 				client = http,
-				store = store,
-				oauth = OAuth(
-					baseUrl = AppConfig.serverBaseUrl,
-					store = store,
-					http = http,
-					nativeUserAgent = nativeUserAgent,
-				),
+				oauth = app.oauth,
 				nativeUserAgent = nativeUserAgent,
 				ioDispatcher = Dispatchers.IO,
 			),
