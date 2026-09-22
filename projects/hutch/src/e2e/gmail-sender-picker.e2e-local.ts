@@ -3,6 +3,7 @@ import { measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { expect, type Page } from "@playwright/test";
 import { z } from "zod";
+import { measureBoxes } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -361,16 +362,20 @@ test.describe("Gmail sender picker", () => {
 		await waitForBrandFonts(page, ["Inter"]);
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await expect(page.locator(RESULTS)).toBeVisible();
+		await expect(page.locator("#gmail-sender-search")).toBeFocused();
 
-		const picker = await measuredBox(page, SENDER_PICKER);
-		const menu = await measuredBox(
-			page,
-			`${SENDER_PICKER} .gmail__picker-menu`,
-		);
-		const searchBefore = await measuredBox(page, "#gmail-sender-search-form");
 		const firstResult =
 			'[data-test-gmail-sender-option="digest-0@publisher-0.com"]';
-		const firstBefore = await measuredBox(page, firstResult);
+		const measured = [
+			SENDER_PICKER,
+			`${SENDER_PICKER} .gmail__picker-menu`,
+			"#gmail-sender-search-form",
+			firstResult,
+		];
+		const [picker, menu, searchBefore, firstBefore] = await page.evaluate(
+			measureBoxes,
+			measured,
+		);
 		assert.ok(
 			menu.x >= 0 && menu.x + menu.width <= 375,
 			"the menu must fit the viewport",
@@ -395,15 +400,17 @@ test.describe("Gmail sender picker", () => {
 			scrollTop > 0,
 			"the sender results must overflow the picker menu",
 		);
-		const searchAfter = await measuredBox(page, "#gmail-sender-search-form");
-		const firstAfter = await measuredBox(page, firstResult);
+		const [, , searchAfter, firstAfter] = await page.evaluate(
+			measureBoxes,
+			measured,
+		);
 		assert.ok(
 			Math.abs(searchAfter.y - searchBefore.y) <= 1,
-			"the sender search must stay pinned while results scroll",
+			`the sender search must stay pinned while results scroll (before ${searchBefore.y}, after ${searchAfter.y})`,
 		);
 		assert.ok(
 			firstAfter.y < firstBefore.y,
-			"sender results must scroll beneath the pinned search",
+			`sender results must scroll beneath the pinned search (before ${firstBefore.y}, after ${firstAfter.y})`,
 		);
 
 		await page.keyboard.press("Escape");
