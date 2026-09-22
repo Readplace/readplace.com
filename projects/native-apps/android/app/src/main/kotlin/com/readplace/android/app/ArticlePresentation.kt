@@ -1,44 +1,48 @@
 package com.readplace.android.app
 
 import com.readplace.android.core.Article
-import java.net.URI
-import java.net.URISyntaxException
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
 /**
- * The text a reading-list row renders for an article, derived once from the model
- * so the wording decisions stay pure and unit-tested while the Compose layout that
- * paints them is the untested OS boundary — the same split as `ReaderLoad`.
+ * The text and read state a reading-list row renders for an article, derived once
+ * from the model so the wording decisions stay pure and unit-tested while the
+ * Compose layout that paints them is the untested OS boundary — the same split as
+ * `ReaderLoad`.
  */
 data class ArticlePresentation(
 	val title: String,
-	/** `site · read-time · saved-at`, where the read time is the server's own label
-	 * rendered verbatim. Each part is present only when it carries a value; null when
-	 * none does, so the row omits the line rather than painting an empty one. */
-	val subtitle: String?,
-	/** The excerpt shown under the subtitle, or null when the server sent none or an
+	/** `read-time · saved-at`, where the read time is the server's own label rendered
+	 * verbatim. Each part is present only when it carries a value; null when none
+	 * does, so the row omits the line rather than painting an empty one. The site
+	 * name is deliberately absent: the row leads with the read-state marker, matching
+	 * the web and iOS card. */
+	val metaText: String?,
+	/** The excerpt shown under the title, or null when the server sent none or an
 	 * empty one. */
 	val excerpt: String?,
 	val isRead: Boolean,
+	/** The read-state marker's accessibility label, so the state is spoken rather than
+	 * carried by the marker's colour alone. */
+	val statusLabel: String,
 	/** The image to load for the thumbnail, or null when the article carries no
-	 * loadable URL — the row then paints the placeholder without attempting a load. */
+	 * loadable URL — the row then paints no thumbnail without attempting a load. */
 	val thumbnailUrl: String?,
 ) {
 	companion object {
 		fun of(article: Article, clock: Clock): ArticlePresentation = ArticlePresentation(
 			title = article.title,
-			subtitle = subtitle(article, clock),
+			metaText = metaText(article, clock),
 			excerpt = article.excerpt?.takeIf { it.isNotEmpty() },
 			isRead = article.isRead,
+			statusLabel = if (article.isRead) "Read" else "Unread",
 			thumbnailUrl = article.imageUrl?.takeIf { isWebUrl(it) },
 		)
 
-		private fun subtitle(article: Article, clock: Clock): String? {
+		private fun metaText(article: Article, clock: Clock): String? {
 			val parts = mutableListOf<String>()
-			article.siteName?.takeIf { it.isNotEmpty() }?.let { parts.add(it) }
 			article.readTimeLabel?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
 			article.savedAt?.let { parts.add(RelativeTime.wording(it, clock)) }
 			return if (parts.isEmpty()) null else parts.joinToString(" · ")
