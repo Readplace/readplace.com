@@ -62,6 +62,11 @@ const PAST_READS = [
 	},
 ] as const;
 
+const PINNED_READ_TIME = PAST_READS.map((_, index) => ({
+	selector: `${SECTION} ${ROW}:nth-child(${index + 1}) [data-test-topic-read-time] time`,
+	text: "just now",
+}));
+
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ ok: z.literal(true), articleId: z.string() });
 
@@ -388,7 +393,7 @@ function expandedSectionCheckpoint(name: string): VisualCheckpoint {
 		geometry: cardExpanded,
 		target: SECTION,
 		capture: "element",
-		pinnedText: [],
+		pinnedText: PINNED_READ_TIME,
 	};
 }
 
