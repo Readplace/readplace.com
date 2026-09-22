@@ -76,6 +76,11 @@ class ReadlistPage(collection: SirenCollection) {
 	 * what you render), so the caller renders whatever survives without
 	 * re-checking. Empty when the server offered none. */
 	val noticeMessages: List<ServerMessage>
+
+	/** The collection's server-driven filter tabs (e.g. To Read / Read), projected in
+	 * wire order. Empty when the server advertises none, so the client hides the strip
+	 * rather than failing the decode. */
+	val tabs: List<ReadlistTab>
 	val appearance: String?
 
 	init {
@@ -87,8 +92,14 @@ class ReadlistPage(collection: SirenCollection) {
 		affordances = actionAffordances + linkAffordances
 		warning = collection.properties?.warning
 		noticeMessages = collection.properties?.messages.orEmpty().filter { it.isRenderable }
+		tabs = collection.properties?.tabs.orEmpty().map { ReadlistTab.of(it) }
 		appearance = collection.properties?.appearance
 	}
+
+	/** The href of the tab the server marks current, or null when the collection
+	 * carries no tabs or none is current — in which case the client keeps whatever
+	 * tab it was following rather than snapping the selection. */
+	val currentTabHref: String? get() = tabs.firstOrNull { it.isCurrent }?.href
 
 	/** The advertised action with this name, when present and invokable. The
 	 * share-sheet save journey needs a specific action to build its bespoke body

@@ -104,9 +104,23 @@ data class SirenWarning(
 	val message: String,
 )
 
+/** One entry of the collection's server-driven filter strip (e.g. To Read / Read).
+ * All three fields are required strings: a tab advertised without a `label`, `rel`
+ * or `href` is dropped individually rather than failing the collection. The client
+ * keys nothing on the label or href text — `label` is shown verbatim, `href` is an
+ * opaque path the client follows — and reads only `rel == "current"` to mark the
+ * selected tab, so a server-renamed label or a reordered strip needs no client
+ * change. */
+data class CollectionTab(
+	val label: String,
+	val rel: String,
+	val href: String,
+)
+
 data class CollectionProperties(
 	val warning: SirenWarning?,
 	val messages: List<ServerMessage>?,
+	val tabs: List<CollectionTab>?,
 	val appearance: String?,
 )
 
@@ -300,8 +314,20 @@ object SirenDecoding {
 		return CollectionProperties(
 			warning = warning(obj["warning"]),
 			messages = lossyList(obj["messages"], ::serverMessage),
+			tabs = lossyList(obj["tabs"], ::collectionTab),
 			appearance = string(obj["appearance"]),
 		)
+	}
+
+	/** A tab entry, or null when it is not an object or is missing any of the three
+	 * required strings — dropped individually by [lossyList] so one malformed tab
+	 * never blanks the strip or the collection. */
+	private fun collectionTab(element: JsonElement): CollectionTab? {
+		val obj = element as? JsonObject ?: return null
+		val label = string(obj["label"]) ?: return null
+		val rel = string(obj["rel"]) ?: return null
+		val href = string(obj["href"]) ?: return null
+		return CollectionTab(label = label, rel = rel, href = href)
 	}
 
 	private fun warning(element: JsonElement?): SirenWarning? {
@@ -428,6 +454,28 @@ data class Article(
 				readHref = links.firstOrNull { it.rel.contains("read") }?.href,
 			)
 		}
+	}
+}
+
+/**
+ * One tab of the reading list's server-driven filter strip, projected from a
+ * [CollectionTab] for display and navigation. [id] is the opaque [href] — the value
+ * a selection control tags each segment with and the path the client follows to
+ * that tab — so the client never builds a `?status=…` query itself. [isCurrent]
+ * marks the tab the server says is selected (`rel == "current"`); every other
+ * relation is kept as a noncurrent tab so the strip renders whatever the server
+ * advertised, in wire order.
+ */
+data class ReadlistTab(
+	val label: String,
+	val href: String,
+	val isCurrent: Boolean,
+) {
+	val id: String get() = href
+
+	companion object {
+		fun of(tab: CollectionTab): ReadlistTab =
+			ReadlistTab(label = tab.label, href = tab.href, isCurrent = tab.rel == "current")
 	}
 }
 

@@ -34,6 +34,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -109,6 +110,10 @@ class ReadingListViewModelTest {
 	private val ReadingListViewModel.articleIds: List<String> get() = state.value.articles.map { it.id }
 
 	private val ReadingListViewModel.toolbarTokens: List<String> get() = state.value.collectionAffordances.map { it.token }
+
+	private val ReadingListViewModel.tabLabels: List<String> get() = state.value.tabs.map { it.label }
+
+	private val ReadingListViewModel.selectedTabHref: String? get() = state.value.selectedTabHref
 
 	private val Record.page: String? get() = request.url.queryParameter("page")
 
@@ -2245,6 +2250,688 @@ class ReadingListViewModelTest {
 
 	// endregion
 
+	// region Server-driven tabs
+
+	private val readTabLanding = "/queue?landing=after-toggle"
+	private val readTabLandingQuery = "landing=after-toggle"
+
+	/** A two-tab (To Read / Read) readlist. The entry point and `/queue?status=unread`
+	 * serve the To Read collection; `/queue?status=read` (and the post-toggle landing)
+	 * serve the Read one. A `/status` POST redirects to the Read landing when its href
+	 * carries `status=read` (a Read-tab toggle) and to the entry otherwise, so the
+	 * followed collection names the tab the action was invoked from as current. */
+	private fun tabbedReadlistHandler(
+		readTabExtraLinks: String = "",
+		readTabAfterStatusPost: List<String>? = null,
+	): (Record) -> Stub {
+		val unreadTab = Fixtures.collection(
+			listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+			total = 2,
+			tabsJson = Fixtures.tabs(current = "unread"),
+		)
+		val readEntities = listOf(Fixtures.readArticle("r1"))
+		var statusPosted = false
+		return { record ->
+			val query = record.request.url.query
+			when {
+				record.path.endsWith("/status") -> {
+					statusPosted = true
+					Stub.redirect(to = if (query?.contains("status=read") == true) readTabLanding else "/queue")
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" &&
+					(query?.contains("status=read") == true || query?.contains(readTabLandingQuery) == true) -> {
+					val entities = if (statusPosted) (readTabAfterStatusPost ?: readEntities) else readEntities
+					Stub.json(
+						200,
+						Fixtures.collection(
+							entities,
+							extraLinks = readTabExtraLinks,
+							total = entities.size,
+							tabsJson = Fixtures.tabs(current = "read"),
+						),
+					)
+				}
+				record.path == "/queue" -> Stub.json(200, unreadTab)
+				else -> Stub.json(404, "{}")
+			}
+		}
+	}
+
+	@Test
+	fun `refresh exposes the server's tabs and selects the current one`() = runTest {
+		server.handle(tabbedReadlistHandler())
+		val viewModel = viewModel()
+		assertEquals("no tabs before a collection has loaded", emptyList<String>(), viewModel.tabLabels)
+		assertNull(viewModel.selectedTabHref)
+
+		viewModel.refresh()
+
+		assertEquals("the tab set and labels are the server's, verbatim", listOf("To Read", "Read"), viewModel.tabLabels)
+		assertEquals(
+			"the entry point's collection decides the initial selection",
+			"/queue?status=unread",
+			viewModel.selectedTabHref,
+		)
+		assertEquals(
+			"the selection is the current tab's identity, so a strip keyed on tab ids highlights it",
+			viewModel.state.value.tabs.first { it.isCurrent }.id,
+			viewModel.selectedTabHref,
+		)
+	}
+
+	@Test
+	fun `a collection without tabs still lists its articles and shows no tab strip`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.refresh()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertEquals("a collection without tabs hides the strip", emptyList<String>(), viewModel.tabLabels)
+		assertNull(viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `selecting a tab follows its href and replaces the list and its pagination`() = runTest {
+		server.handle(tabbedReadlistHandler(readTabExtraLinks = READ_NEXT))
+		val viewModel = viewModel()
+		viewModel.refresh()
+		assertEquals(listOf("u1", "u2"), viewModel.articleIds)
+		assertFalse("precondition: the To Read tab fits on one page", viewModel.state.value.hasMore)
+
+		viewModel.selectTab("/queue?status=read")
+
+		val tabRequest = server.records.last().request.url
+		assertEquals("/queue", tabRequest.encodedPath)
+		assertEquals(
+			"the tab's server-built href is followed as-is; the client builds no status query",
+			"status=read",
+			tabRequest.query,
+		)
+		assertEquals("the tab's collection replaces the list", listOf("r1"), viewModel.articleIds)
+		assertTrue("pagination state is the new tab's: it advertises a next page", viewModel.state.value.hasMore)
+		assertEquals("the selection follows the response's current tab", "/queue?status=read", viewModel.selectedTabHref)
+
+		viewModel.loadMore()
+
+		assertEquals(
+			"load-more follows the new tab's next link, not the old tab's",
+			"status=read&page=2",
+			server.records.last().request.url.query,
+		)
+	}
+
+	@Test
+	fun `re-selecting the tab already shown issues no request`() = runTest {
+		server.handle(tabbedReadlistHandler())
+		val viewModel = viewModel()
+		viewModel.refresh()
+		val requestsAfterLoad = server.records.size
+
+		viewModel.selectTab("/queue?status=unread")
+
+		assertEquals("re-selecting the tab already shown issues no request", requestsAfterLoad, server.records.size)
+		assertEquals("and leaves the list in place", listOf("u1", "u2"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `a paginated append keeps the first-page tabs and selection`() = runTest {
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs(current = "unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		assertEquals(listOf("To Read", "Read"), viewModel.tabLabels)
+
+		viewModel.loadMore()
+
+		assertEquals(listOf("u1", "u2", "u3"), viewModel.articleIds)
+		assertEquals(
+			"a paginated page that advertises no tabs leaves the first-page strip in place",
+			listOf("To Read", "Read"),
+			viewModel.tabLabels,
+		)
+		assertEquals("and the selection is untouched by the append", "/queue?status=unread", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `invoking update-status on the Read tab stays on the Read tab`() = runTest {
+		server.handle(tabbedReadlistHandler(readTabAfterStatusPost = listOf(Fixtures.readArticle("r2"))))
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.selectTab("/queue?status=read")
+		assertEquals(listOf("r1"), viewModel.articleIds)
+
+		val target = viewModel.state.value.articles[0]
+		viewModel.invoke(advertisedAction(target, "update-status"))
+
+		assertEquals(
+			"the collection the mutation redirected to is adopted — the Read tab's, not the entry point's",
+			listOf("r2"),
+			viewModel.articleIds,
+		)
+		assertEquals(
+			"the selection follows the adopted collection's current tab, so the app stays on Read",
+			"/queue?status=read",
+			viewModel.selectedTabHref,
+		)
+		assertNull(viewModel.state.value.errorText)
+	}
+
+	/** Selects the Read tab, runs [reconcile], and returns the single re-read it
+	 * issued — asserting the reconciliation was exactly one request and kept the tab. */
+	private suspend fun TestScope.reReadAfterSelectingTheReadTab(
+		reconcile: suspend (ReadingListViewModel) -> Unit,
+	): Record {
+		server.handle(tabbedReadlistHandler())
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.selectTab("/queue?status=read")
+		val requestsBefore = server.records.size
+
+		reconcile(viewModel)
+
+		assertEquals("the reconciliation is exactly one re-read", requestsBefore + 1, server.records.size)
+		assertEquals("the selection survives the re-read", "/queue?status=read", viewModel.selectedTabHref)
+		return server.records.last()
+	}
+
+	@Test
+	fun `readerStatusChanged re-reads the selected tab`() = runTest {
+		val reRead = reReadAfterSelectingTheReadTab { it.readerStatusChanged() }
+		assertEquals("/queue", reRead.path)
+		assertEquals(
+			"the reader's status change re-reads the selected tab, not the entry point",
+			"status=read",
+			reRead.request.url.query,
+		)
+	}
+
+	@Test
+	fun `handleForeground re-reads the selected tab`() = runTest {
+		val reRead = reReadAfterSelectingTheReadTab { it.handleForeground() }
+		assertEquals("/queue", reRead.path)
+		assertEquals(
+			"the foreground converge re-reads the selected tab, not the entry point",
+			"status=read",
+			reRead.request.url.query,
+		)
+	}
+
+	@Test
+	fun `a web sheet dismissal re-reads the selected tab`() = runTest {
+		val reRead = reReadAfterSelectingTheReadTab { it.handleWebSheetDismissal() }
+		assertEquals("/queue", reRead.path)
+		assertEquals(
+			"the dismissal probe re-reads the selected tab, not the entry point",
+			"status=read",
+			reRead.request.url.query,
+		)
+	}
+
+	@Test
+	fun `the selection is kept when a followed collection carries no current tab`() = runTest {
+		val uncurrent = """
+			{ "label": "To Read", "rel": "tab", "href": "/queue?status=unread" },
+			{ "label": "Read", "rel": "tab", "href": "/queue?status=read" }
+		"""
+		val unfiltered = Fixtures.collection(listOf(Fixtures.article("any")), tabsJson = uncurrent)
+		val tabbed = tabbedReadlistHandler()
+		server.handle { record ->
+			when {
+				record.path == "/queue/purge" -> Stub.redirect(to = "/queue?all")
+				record.path == "/queue" && record.request.url.query == "all" -> Stub.json(200, unfiltered)
+				else -> tabbed(record)
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.selectTab("/queue?status=read")
+
+		viewModel.invoke(purgeAction)
+
+		assertEquals("the followed collection is still adopted", listOf("any"), viewModel.articleIds)
+		assertEquals(
+			"and its tabs are shown as the server sent them",
+			listOf(false, false),
+			viewModel.state.value.tabs.map { it.isCurrent },
+		)
+		assertEquals(
+			"with no current tab in the response, the selection the user made is kept",
+			"/queue?status=read",
+			viewModel.selectedTabHref,
+		)
+	}
+
+	@Test
+	fun `a tab whose load failed after a deep scroll still reconciles on the next read`() = runTest {
+		val readTabDown = AtomicBoolean(true)
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					if (readTabDown.get()) {
+						Stub.json(500, "{}")
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+					}
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages of To Read are loaded", listOf("u1", "u2", "u3"), viewModel.articleIds)
+
+		viewModel.selectTab("/queue?status=read")
+		assertNotNull("precondition: the Read tab's load failed", viewModel.state.value.errorText)
+		assertTrue("a failed tab load leaves that tab with no rows", viewModel.state.value.articles.isEmpty())
+
+		readTabDown.set(false)
+		viewModel.handleForeground()
+
+		assertEquals(
+			"an empty tab is a fresh single page, so the foreground re-read reconciles it rather than holding a scroll position it no longer has",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `invoking update-status on a deep-scrolled Read tab adopts the Read tab to the depth held`() = runTest {
+		val toggled = AtomicBoolean(false)
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path.endsWith("/status") -> {
+					toggled.set(true)
+					Stub.redirect(to = readTabLanding)
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							if (toggled.get()) {
+								listOf(Fixtures.readArticle("r4"), Fixtures.readArticle("w1"))
+							} else {
+								listOf(Fixtures.readArticle("r3"), Fixtures.readArticle("r4"))
+							},
+							page = 2,
+							tabsJson = Fixtures.tabs("read"),
+						),
+					)
+				record.path == "/queue" &&
+					(query?.contains("status=read") == true || query?.contains(readTabLandingQuery) == true) ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.readArticle("r1"), Fixtures.readArticle("r2")),
+							extraLinks = READ_NEXT,
+							total = 4,
+							tabsJson = Fixtures.tabs("read"),
+						),
+					)
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1")), tabsJson = Fixtures.tabs("unread")))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.selectTab("/queue?status=read")
+		viewModel.loadMore()
+		assertEquals("precondition: two pages of the Read tab are loaded", listOf("r1", "r2", "r3", "r4"), viewModel.articleIds)
+
+		val target = viewModel.state.value.articles[2]
+		viewModel.invoke(advertisedAction(target, "update-status"))
+
+		assertEquals(
+			"a toggle to unread leaves the Read tab: it is re-followed to the depth held, no longer lists the acted row, " +
+				"and shows a change (w1) only the fresh second page carried",
+			listOf("r1", "r2", "r4", "w1"),
+			viewModel.articleIds,
+		)
+		assertEquals("the app stays on the tab it acted from", "/queue?status=read", viewModel.selectedTabHref)
+		assertNull(viewModel.state.value.errorText)
+	}
+
+	@Test
+	fun `a loadMore in flight when the tab changes never lands under the new tab`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3"), Fixtures.article("u4")), page = 2, tabsJson = Fixtures.tabs("unread"))))
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 4,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		assertEquals(listOf("u1", "u2"), viewModel.articleIds)
+
+		val more = launch { viewModel.loadMore() }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+		assertEquals("precondition: the Read tab is shown while the To Read page is in flight", listOf("r1"), viewModel.articleIds)
+
+		gate.release()
+		more.join()
+
+		assertEquals(
+			"the To Read page that landed late is discarded, not appended under the Read tab",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertFalse("the discarded page's next link is not adopted either", viewModel.state.value.hasMore)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `a first-page read in flight when the tab changes does not snap the selection back`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" && query == "status=unread" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1"), Fixtures.article("u2")), total = 2, tabsJson = Fixtures.tabs("unread"))))
+				record.path == "/queue" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1"), Fixtures.article("u2")), total = 2, tabsJson = Fixtures.tabs("unread")))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		assertEquals(listOf("u1", "u2"), viewModel.articleIds)
+
+		val foreground = launch { viewModel.handleForeground() }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+
+		gate.release()
+		foreground.join()
+
+		assertEquals("the late To Read collection is discarded", listOf("r1"), viewModel.articleIds)
+		assertEquals(
+			"the selection the user made is not overridden by a superseded read",
+			"/queue?status=read",
+			viewModel.selectedTabHref,
+		)
+		assertFalse("the superseded read leaves the loading state to the load that replaced it", viewModel.state.value.isLoading)
+	}
+
+	@Test
+	fun `a mutation in flight when the tab changes does not adopt the old tab's collection`() = runTest {
+		val gate = Gate()
+		val statusPosted = AtomicBoolean(false)
+		val unreadTab = Fixtures.collection(
+			listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+			total = 2,
+			tabsJson = Fixtures.tabs(current = "unread"),
+		)
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path.endsWith("/status") -> {
+					statusPosted.set(true)
+					Stub.redirect(to = "/queue")
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" && query == null && statusPosted.get() -> gate.holding(Stub.json(200, unreadTab))
+				record.path == "/queue" -> Stub.json(200, unreadTab)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		val toggle = advertisedAction(viewModel.state.value.articles[0], "update-status")
+
+		val marked = launch { viewModel.invoke(toggle) }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+
+		gate.release()
+		marked.join()
+
+		assertEquals(
+			"the collection the mutation redirected to belongs to the tab the user left, so it is not adopted",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `a stale page load never blocks the new tab's own page load`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query == "status=unread&page=2" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread"))))
+				record.path == "/queue" && query == "status=read&page=2" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r2")), page = 2, tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), extraLinks = READ_NEXT, total = 2, tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		assertEquals(listOf("u1", "u2"), viewModel.articleIds)
+
+		val stale = launch { viewModel.loadMore() }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+		assertEquals("precondition: the Read tab is shown while the To Read page is still in flight", listOf("r1"), viewModel.articleIds)
+		viewModel.loadMore()
+
+		gate.release()
+		stale.join()
+
+		assertEquals(
+			"the Read tab's own next page loads: a superseded page request neither blocks it nor lands under it",
+			listOf("r1", "r2"),
+			viewModel.articleIds,
+		)
+		assertFalse(viewModel.state.value.hasMore)
+	}
+
+	/** Loads two To Read pages, then holds the mutation's adoption re-follow hop while
+	 * the user switches to Read, releasing it with [hopAnswer]. Returns the view model
+	 * so the caller asserts nothing from the abandoned old-tab hop landed under Read. */
+	private suspend fun TestScope.adoptionReFollowInterruptedByATabChange(hopAnswer: Stub): ReadingListViewModel {
+		val gate = Gate()
+		val statusPosted = AtomicBoolean(false)
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path.endsWith("/status") -> {
+					statusPosted.set(true)
+					Stub.redirect(to = "/queue?status=unread")
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true && statusPosted.get() -> gate.holding(hopAnswer)
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages of To Read are loaded", listOf("u1", "u2", "u3"), viewModel.articleIds)
+		val toggle = advertisedAction(viewModel.state.value.articles[0], "update-status")
+
+		val marked = launch { viewModel.invoke(toggle) }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+
+		gate.release()
+		marked.join()
+		return viewModel
+	}
+
+	@Test
+	fun `an adoption re-follow in flight when the tab changes never lands under the new tab`() = runTest {
+		val viewModel = adoptionReFollowInterruptedByATabChange(
+			hopAnswer = Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread"))),
+		)
+
+		assertEquals(
+			"the re-followed To Read pages belong to the tab the user left, so none lands under Read",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `an adoption re-follow that fails after the tab changed lands nothing under the new tab`() = runTest {
+		val viewModel = adoptionReFollowInterruptedByATabChange(
+			hopAnswer = Stub.json(500, Fixtures.sirenError(code = "boom", message = "nope")),
+		)
+
+		assertEquals(
+			"a hop that fails after the user moved on lands neither the old tab's rows nor its error under Read",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertNull(viewModel.state.value.errorText)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `a read in flight when the tab changes leaves the loading state to the new tab's load`() = runTest {
+		val hopGate = Gate()
+		val readTabGate = Gate()
+		val page2Reads = AtomicInteger()
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true -> {
+					val page2 = Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+					if (page2Reads.incrementAndGet() == 2) hopGate.holding(page2) else page2
+				}
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					readTabGate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read"))))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages of To Read are loaded", listOf("u1", "u2", "u3"), viewModel.articleIds)
+
+		val reload = launch { viewModel.readerStatusChanged() }
+		awaitArrival(hopGate)
+		val selecting = launch { viewModel.selectTab("/queue?status=read") }
+		awaitArrival(readTabGate)
+
+		hopGate.release()
+		reload.join()
+		assertTrue("the superseded re-read leaves loading on for the Read tab's load, still in flight", viewModel.state.value.isLoading)
+		assertEquals("the Read tab's page has not landed yet", emptyList<String>(), viewModel.articleIds)
+
+		readTabGate.release()
+		selecting.join()
+
+		assertFalse(viewModel.state.value.isLoading)
+		assertEquals(listOf("r1"), viewModel.articleIds)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	// endregion
+
 	private object Fixtures {
 		const val LOCKED_MESSAGE = "Your account is locked because your email was never verified. " +
 			"Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access."
@@ -2290,12 +2977,14 @@ class ReadingListViewModelTest {
 			total: Int = 1,
 			actionsJson: String = COLLECTION_ACTIONS,
 			appearance: String? = null,
+			tabsJson: String? = null,
 		): String {
 			val appearanceProperty = if (appearance != null) ", \"appearance\": \"$appearance\"" else ""
+			val tabsProperty = if (tabsJson != null) ", \"tabs\": [$tabsJson]" else ""
 			return """
 				{
 					"class": ["collection", "articles"],
-					"properties": { "total": $total, "page": $page, "pageSize": 20$appearanceProperty },
+					"properties": { "total": $total, "page": $page, "pageSize": 20$appearanceProperty$tabsProperty },
 					"entities": [${entitiesJson.joinToString(",\n")}],
 					"links": [
 						{ "rel": ["self"], "href": "/queue?page=$page" },
@@ -2305,6 +2994,32 @@ class ReadingListViewModelTest {
 				}
 			"""
 		}
+
+		/** The two-tab strip the server ships, with the tab for [current] (a status
+		 * token) marked `current` and the other left a plain `tab`. */
+		fun tabs(current: String): String {
+			fun rel(status: String): String = if (status == current) "current" else "tab"
+			return """
+				{ "label": "To Read", "rel": "${rel("unread")}", "href": "/queue?status=unread" },
+				{ "label": "Read", "rel": "${rel("read")}", "href": "/queue?status=read" }
+			"""
+		}
+
+		/** A read article whose `update-status` toggles it back to unread. Its status
+		 * href carries `?status=read` so a Read-tab toggle is distinguishable from an
+		 * entry-tab one at the fake boundary, mirroring the server's own hrefs. */
+		fun readArticle(id: String): String =
+			"""
+				{
+					"class": ["article"],
+					"rel": ["item"],
+					"properties": { "id": "$id", "url": "https://example.com/$id", "status": "read", "isRead": true },
+					"links": [{ "rel": ["read"], "href": "/queue/$id/view" }],
+					"actions": [
+						{ "name": "update-status", "title": "Mark as unread", "href": "/queue/$id/status?status=read", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "unread" }] }
+					]
+				}
+			"""
 
 		fun sirenError(code: String, message: String): String =
 			"""{ "class": ["error"], "properties": { "code": "$code", "message": "$message" } }"""
@@ -2320,5 +3035,7 @@ class ReadingListViewModelTest {
 	private companion object {
 		const val NEXT_LINK = """, { "rel": ["next"], "href": "/queue?page=2" }"""
 		const val PAGE_3_LINK = """, { "rel": ["next"], "href": "/queue?page=3" }"""
+		const val UNREAD_NEXT = """, { "rel": ["next"], "href": "/queue?status=unread&page=2" }"""
+		const val READ_NEXT = """, { "rel": ["next"], "href": "/queue?status=read&page=2" }"""
 	}
 }
