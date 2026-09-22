@@ -17,15 +17,20 @@ import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJob
 import com.readplace.android.core.UploadJobStore
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.Cache
+import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -40,6 +45,7 @@ import java.io.File
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.atomic.AtomicInteger
 import javax.crypto.AEADBadTagException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -108,13 +114,19 @@ class SaveSharedPageTest {
 		return store
 	}
 
-	private fun TestScope.api(store: TokenStore): ReadplaceApi =
+	private fun TestScope.api(
+		store: TokenStore,
+		cache: Cache? = null,
+		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
+	): ReadplaceApi =
 		ReadplaceApi(
 			baseUrl = server.baseUrl,
-			client = OkHttpClient.Builder().followRedirects(false).build(),
+			client = OkHttpClient.Builder().followRedirects(false)
+				.apply { if (cache != null) cache(cache) }
+				.build(),
 			oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
 			nativeUserAgent = USER_AGENT,
-			ioDispatcher = StandardTestDispatcher(testScheduler),
+			ioDispatcher = ioDispatcher,
 		)
 
 	private fun TestScope.jobStore(container: File): UploadJobStore =
@@ -146,15 +158,46 @@ class SaveSharedPageTest {
 		captor: HtmlCapturing,
 		container: File,
 		stillSavingAfter: Duration = 4.seconds,
+		cache: Cache? = null,
+		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 	): SaveSharedPage =
 		SaveSharedPage(
 			store = store,
-			api = api(store),
+			api = api(store, cache = cache, ioDispatcher = ioDispatcher),
 			captor = captor,
 			jobs = jobStore(container),
 			unseenSave = UnseenSave(container),
 			clock = Clock.fixed(NOW, ZoneOffset.UTC),
 			stillSavingAfter = stillSavingAfter,
+		)
+
+	private suspend fun awaitArrival(gate: RecordingServer.Gate) = withContext(Dispatchers.IO) { gate.awaitArrival() }
+
+	private fun saveArticleActionJson(href: String): String =
+		"""{ "name": "save-article", "href": "$href", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }"""
+
+	/** A collection advertising a `save-article` at [saveArticleHref], optionally with
+	 * the `save-content` action, so a test can move the URL-only save between reads and
+	 * choose whether the rediscovered page still offers a home for the capture. */
+	private fun movableCollection(saveArticleHref: String, withSaveContent: Boolean = true): String {
+		val saveContent =
+			if (withSaveContent) {
+				""", { "name": "save-content", "href": "/queue/save-content", "method": "POST", "type": "multipart/form-data", "fields": [] }"""
+			} else {
+				""
+			}
+		return Fixtures.collection(listOf(Fixtures.article("a1")), actionsJson = saveArticleActionJson(saveArticleHref) + saveContent)
+	}
+
+	private fun cacheableCollection(saveArticleHref: String): Stub =
+		Stub(
+			200,
+			headers = mapOf(
+				"Content-Type" to AppConfig.SIREN_MEDIA_TYPE,
+				"Cache-Control" to "private, max-age=3600",
+				"Vary" to "Accept, Authorization",
+			),
+			body = movableCollection(saveArticleHref).toByteArray(Charsets.UTF_8),
 		)
 
 	private fun urlOnlyPosts(): List<RecordingServer.Record> =
@@ -752,7 +795,267 @@ class SaveSharedPageTest {
 			"a refused save must not make the app reset a deep-scrolled list for a link that never landed",
 			UnseenSave(container).exists,
 		)
+		assertEquals(
+			"a refusal is the server's answer, not a stale address: the save is not re-discovered and retried",
+			1,
+			urlOnlyPosts().size,
+		)
 		assertUploadedNothing()
+	}
+
+	@Test
+	fun `re-discovers past the cache and retries once when the save action has moved`() = runTest {
+		// A real disk cache warms with the collection behind the 303 entry redirect. The
+		// first save is posted to the stale (v1) action and fails; the rediscovery must
+		// bypass that warm cache to read the moved (v2) action and retry the same URL.
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		val cache = Cache(temporaryFolder.newFolder("cache"), 10L * 1024 * 1024)
+		val queueGets = AtomicInteger()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub(303, headers = mapOf("Location" to "/queue", "Cache-Control" to "private, max-age=3600"))
+				"/queue" -> cacheableCollection(saveArticleHref = if (queueGets.incrementAndGet() == 1) "/queue/save-v1" else "/queue/save-v2")
+				"/queue/save-v1" -> Stub.json(410, "{}")
+				"/queue/save-v2" -> Stub.json(201, Fixtures.article("url-saved"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		var saved = 0
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.Empty), container = container, cache = cache)
+		val outcome = saver.run(
+			url = "https://example.com/post",
+			fallbackTitle = null,
+			sharedPdf = null,
+			onSaved = { saved += 1 },
+		)
+
+		assertEquals(SaveSharedOutcome.SavedAwaitingUpload(emptyList()), outcome)
+		assertEquals(
+			"the save is retried exactly once, against the action the fresh discovery advertised, with the same URL",
+			listOf("/queue/save-v1", "/queue/save-v2"),
+			server.records.filter { it.method == "POST" }.map { it.path },
+		)
+		assertEquals("https://example.com/post", postedUrl(server.records.last { it.method == "POST" }))
+		val rediscovery = server.records.filter { it.method == "GET" }.takeLast(2)
+		assertEquals(
+			"the re-discovery starts from the entry point, the one URL the client knows",
+			listOf("/", "/queue"),
+			rediscovery.map { it.path },
+		)
+		val bypass = CacheControl.FORCE_NETWORK.toString()
+		assertEquals(
+			"and bypasses the discovery cache on every rebuilt hop, so the moved href is never re-read from the stale copy",
+			listOf(bypass, bypass),
+			rediscovery.map { it.header("Cache-Control") },
+		)
+		assertEquals("the rediscovered page admits exactly one capture job", 1, queuedJobs(container).size)
+		assertEquals("the sheet is told the link is saved exactly once", 1, saved)
+		assertTrue("the retried save landed, so the app owes the list a refresh", UnseenSave(container).exists)
+		assertUploadedNothing()
+	}
+
+	@Test
+	fun `retries the save only once`() = runTest {
+		// The moved action fails too: one re-discovery and one retry, then the second
+		// failure surfaces rather than looping.
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, movableCollection(saveArticleHref = "/queue/save-v1"))
+				"/queue/save-v1" -> Stub.json(410, "{}")
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.Empty), container = container)
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.Failed("Server error 410."), outcome)
+		assertEquals(
+			"one re-discovery and one retry: a second failure surfaces instead of looping",
+			2,
+			server.records.count { it.method == "POST" },
+		)
+		assertEquals(
+			"the collection was read twice — the discovery and the one re-discovery",
+			2,
+			server.records("/queue").count { it.method == "GET" },
+		)
+		assertFalse("nothing landed, so the app owes the list no reset", UnseenSave(container).exists)
+	}
+
+	@Test
+	fun `does not re-discover after a forbidden save`() = runTest {
+		// A 403 is the server's answer to this exact request, not a stale address, so
+		// the save is not re-discovered and retried.
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" ->
+					if (record.method == "POST") {
+						Stub.json(403, "{}")
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.Empty), container = container)
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.Failed("Server error 403."), outcome)
+		assertEquals("a 403 is the server's answer, not a stale address: no re-discovery, no retry", 1, urlOnlyPosts().size)
+		assertEquals(1, server.records("/queue").count { it.method == "GET" })
+	}
+
+	@Test
+	fun `does not re-discover after a non-403 refusal`() = runTest {
+		// A 402 whose only message is in a media type the client can't render still
+		// classifies as a refusal — refusal identity, not the 403 exclusion, is what
+		// stops the retry — so it is never re-discovered, and it falls back to the
+		// client's own words with no article to enrich.
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" ->
+					if (record.method == "POST") {
+						Stub.json(402, Fixtures.messageRefusal(mediaType = "text/markdown", body = "**inactive**"))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.Empty), container = container)
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(
+			"the message is dropped for its media type, but the refusal still stands rather than degrading to a generic failure",
+			SaveSharedOutcome.Refused(emptyList()),
+			outcome,
+		)
+		assertEquals("a refusal is never re-discovered and retried", 1, urlOnlyPosts().size)
+		assertEquals(emptyList<UploadJob>(), queuedJobs(container))
+		assertFalse("no link landed, so the app owes the list no reset", UnseenSave(container).exists)
+	}
+
+	@Test
+	fun `saves without admission when the re-discovered page dropped save-content`() = runTest {
+		// The moved collection no longer advertises save-content. The URL save still
+		// lands on its fresh action; there is just nowhere to send a capture, so no job
+		// is admitted from the obsolete page.
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		val queueGets = AtomicInteger()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" ->
+					if (queueGets.incrementAndGet() == 1) {
+						Stub.json(200, movableCollection(saveArticleHref = "/queue/save-v1", withSaveContent = true))
+					} else {
+						Stub.json(200, movableCollection(saveArticleHref = "/queue/save-v2", withSaveContent = false))
+					}
+				"/queue/save-v1" -> Stub.json(410, "{}")
+				"/queue/save-v2" -> Stub.json(201, Fixtures.article("url-saved"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = html()), container = container)
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.Saved(emptyList()), outcome)
+		assertEquals(listOf("/queue/save-v1", "/queue/save-v2"), server.records.filter { it.method == "POST" }.map { it.path })
+		assertEquals("the obsolete page offered no home for a capture, so nothing is queued", emptyList<UploadJob>(), queuedJobs(container))
+		assertTrue("the retried save landed", UnseenSave(container).exists)
+		assertUploadedNothing()
+	}
+
+	@Test
+	fun `gives up when the re-discovered collection offers no save action`() = runTest {
+		// The fresh discovery is the truth: with no save action advertised there is
+		// nothing left to retry.
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		val queueGets = AtomicInteger()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" ->
+					if (queueGets.incrementAndGet() == 1) {
+						Stub.json(200, movableCollection(saveArticleHref = "/queue/save-v1"))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), actionsJson = ""))
+					}
+				"/queue/save-v1" -> Stub.json(404, "{}")
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.Empty), container = container)
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.NoSaveAction, outcome)
+		assertEquals(
+			"only the first, stale-href save was attempted",
+			listOf("/queue/save-v1"),
+			server.records.filter { it.method == "POST" }.map { it.path },
+		)
+		assertFalse(UnseenSave(container).exists)
+	}
+
+	@Test
+	fun `a cancellation while an eligible save failure is in flight adds no re-discovery`() = runTest {
+		// The first save is parked in flight, then the journey is cancelled and the save
+		// released. Cancellation propagates rather than being treated as an eligible
+		// failure, so no replacement save is discovered — even though the parked save
+		// may already have reached the server.
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		val gate = RecordingServer.Gate()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" ->
+					if (record.method == "POST") {
+						gate.holding(Stub.json(410, "{}"))
+					} else {
+						Stub.json(200, movableCollection(saveArticleHref = "/queue"))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		var outcome: SaveSharedOutcome? = null
+		val saver = makeSaver(
+			store = store,
+			captor = FakeHtmlCaptor(page = CapturedPage.Empty),
+			container = container,
+			ioDispatcher = Dispatchers.IO,
+		)
+		val journey = launch {
+			outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+		}
+		awaitArrival(gate)
+		journey.cancel()
+		gate.release()
+		journey.join()
+
+		assertTrue(journey.isCancelled)
+		assertNull("a cancelled journey paints nothing", outcome)
+		assertEquals("no replacement save is discovered after the cancellation", 1, urlOnlyPosts().size)
+		assertEquals("the cancellation adds no re-discovery of the collection", 1, server.records("/queue").count { it.method == "GET" })
 	}
 
 	@Test
@@ -1098,6 +1401,11 @@ class SaveSharedPageTest {
 		 * valid JSON. */
 		fun accountLockedError(): String =
 			"""{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/html", "body": "Your account is locked because your email was never verified. Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access." } }] } }"""
+
+		/** A message-only refusal carrying one message in an arbitrary media type — lets
+		 * a test model a refusal whose copy the client can't render. */
+		fun messageRefusal(mediaType: String, body: String, type: String = "warning"): String =
+			"""{ "class": ["error"], "properties": { "messages": [{ "type": "$type", "content": { "type": "$mediaType", "body": "$body" } }] } }"""
 	}
 
 	private companion object {

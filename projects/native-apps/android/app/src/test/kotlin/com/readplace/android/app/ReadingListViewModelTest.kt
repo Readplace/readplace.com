@@ -360,6 +360,37 @@ class ReadingListViewModelTest {
 		)
 	}
 
+	@Test
+	fun `an invoke refused in a media type it cannot render surfaces the client's own words and leaves the row`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue/purge" ->
+					Stub.json(403, """{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/markdown", "body": "**locked**" } }] } }""")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), total = 2))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.refresh()
+		assertEquals("precondition: the two rows loaded", listOf("a1", "a2"), viewModel.articleIds)
+
+		viewModel.invoke(purgeAction)
+
+		assertEquals(
+			"a message the client can't render is dropped rather than shown",
+			emptyList<ServerMessage>(),
+			viewModel.state.value.messages,
+		)
+		assertEquals(
+			"but the refusal still reaches the user in the client's own words instead of vanishing",
+			"Couldn't complete that.",
+			viewModel.state.value.errorText,
+		)
+		assertEquals("a refused mutation changes nothing", listOf("a1", "a2"), viewModel.articleIds)
+	}
+
 	// endregion
 
 	// region Save affordance gating

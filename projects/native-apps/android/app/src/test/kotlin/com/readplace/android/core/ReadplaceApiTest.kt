@@ -19,6 +19,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import okhttp3.Cache
+import okhttp3.CacheControl
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -88,8 +90,11 @@ class ReadplaceApiTest {
 		oauth: OAuth = oauthFor(store),
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 		maxExternalContentBytes: Long? = null,
+		cache: Cache? = null,
 	): ReadplaceApi {
-		val client = OkHttpClient.Builder().cookieJar(jar).followRedirects(false).build()
+		val client = OkHttpClient.Builder().cookieJar(jar).followRedirects(false)
+			.apply { if (cache != null) cache(cache) }
+			.build()
 		if (maxExternalContentBytes == null) {
 			return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, ioDispatcher)
 		}
@@ -98,6 +103,9 @@ class ReadplaceApiTest {
 
 	private fun saveArticleAction(): SirenAction =
 		SirenAction(name = "save-article", href = "/queue", method = "POST", title = null, type = "application/json", fields = null)
+
+	private fun saveArticleActionJson(href: String): String =
+		"""{ "name": "save-article", "href": "$href", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }"""
 
 	private fun saveContentAction(): SirenAction =
 		SirenAction(
@@ -218,6 +226,69 @@ class ReadplaceApiTest {
 		assertEquals(listOf("p2"), page.articles.map { it.id })
 		assertEquals("2", server.records.single().request.url.queryParameter("page"))
 		assertEquals("the entry point is not touched when a href is given", 0, server.records("/").size)
+	}
+
+	@Test
+	fun `rediscoverReadlist bypasses the discovery cache an ordinary load reuses`() = runTest {
+		// A real disk cache warmed with the collection behind the 303 entry redirect.
+		// An ordinary load reuses the cached collection; a rediscovery forces a network
+		// read through every hop so a moved action is read fresh rather than from the
+		// hour-long grant the server gave native clients.
+		val cache = Cache(folder.newFolder(), 10L * 1024 * 1024)
+		val queueGets = AtomicInteger()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub(
+					303,
+					headers = mapOf("Location" to "/queue", "Cache-Control" to "private, max-age=3600"),
+				)
+				"/queue" -> {
+					val version = if (queueGets.incrementAndGet() == 1) "v1" else "v2"
+					Stub(
+						200,
+						headers = mapOf(
+							"Content-Type" to AppConfig.SIREN_MEDIA_TYPE,
+							"Cache-Control" to "private, max-age=3600",
+							"Vary" to "Accept, Authorization",
+						),
+						body = Fixtures.collection(
+							listOf(Fixtures.article("a1")),
+							actionsJson = saveArticleActionJson(href = "/queue/save-$version"),
+						).toByteArray(Charsets.UTF_8),
+					)
+				}
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val api = api(cache = cache)
+
+		val warmed = api.loadReadlist()
+		assertEquals("/queue/save-v1", warmed.action("save-article")?.href)
+
+		// An ordinary second discovery serves /queue from the disk cache: only the entry
+		// redirect is re-followed, and a 303 is never cached even carrying max-age.
+		val reused = api.loadReadlist()
+		assertEquals("the collection is served from the cache, so its stale action stands", "/queue/save-v1", reused.action("save-article")?.href)
+		assertEquals("an ordinary discovery does not re-read the collection over the network", 1, server.records("/queue").count { it.method == "GET" })
+
+		// A forced rediscovery bypasses the cache on every hop, so the moved action is read.
+		val rediscovered = api.rediscoverReadlist()
+		assertEquals("the fresh network read carries the moved action", "/queue/save-v2", rediscovered.action("save-article")?.href)
+		assertEquals("the rediscovery re-reads the collection over the network", 2, server.records("/queue").count { it.method == "GET" })
+		assertEquals(
+			"a 303 entry redirect is never cached even with max-age, so the entry is re-read on every discovery",
+			3,
+			server.records("/").count { it.method == "GET" },
+		)
+
+		val bypass = CacheControl.FORCE_NETWORK.toString()
+		val rediscoveryHops = server.records.takeLast(2)
+		assertEquals(listOf("/", "/queue"), rediscoveryHops.map { it.path })
+		assertEquals(
+			"every rebuilt GET carries the bypass policy, so the redirected collection is never re-read from the stale copy",
+			listOf(bypass, bypass),
+			rediscoveryHops.map { it.header("Cache-Control") },
+		)
 	}
 
 	@Test
@@ -737,17 +808,71 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `a refusal with no renderable message is a generic server error`() = runTest {
-		// A refusal left with no renderable message falls through to a generic
-		// server error rather than showing a blank banner — the message is ignored.
+	fun `an all-unrenderable refusal stays a refusal with no messages`() = runTest {
+		// Every message is in a media type the client can't render, so all are dropped —
+		// but the refusal still stands as a Refused, not a generic server error, so the
+		// share journey never re-discovers and retries a mutation the server refused.
 		server.handle { Stub.json(403, Fixtures.messageRefusal(listOf(Triple("warning", "text/markdown", "**locked**")))) }
+
+		val error = failsWith<ApiError.Refused> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
+
+		assertEquals("a media type the client can't render is dropped", emptyList<ServerMessage>(), error.messages)
+		assertEquals("but the refusal still names its own generic copy rather than a blank string", "Couldn't complete that.", error.message)
+	}
+
+	@Test
+	fun `a refusal whose messages array is present but empty is still a refusal`() = runTest {
+		// messages: [] is a refusal that carried no copy. Present-but-empty is still a
+		// refusal — only an absent or null messages array is a generic server error.
+		server.handle { Stub.json(402, """{ "class": ["error"], "properties": { "messages": [] } }""") }
+
+		val error = failsWith<ApiError.Refused> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
+
+		assertEquals(emptyList<ServerMessage>(), error.messages)
+		assertEquals("Couldn't complete that.", error.message)
+	}
+
+	@Test
+	fun `an error body with no messages array is a generic server error`() = runTest {
+		server.handle { Stub.json(402, Fixtures.sirenError(code = "payment_required", message = "Subscription inactive.")) }
+
+		val error = failsWith<ApiError.Server> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
+
+		assertEquals(402, error.status)
+		assertEquals("Subscription inactive.", error.serverMessage)
+	}
+
+	@Test
+	fun `an error body whose messages is null is a generic server error`() = runTest {
+		server.handle { Stub.json(403, """{ "class": ["error"], "properties": { "messages": null } }""") }
 
 		val error = failsWith<ApiError.Server> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
 
 		assertEquals(403, error.status)
-		assertNull(error.code)
-		assertNull(error.serverMessage)
-		assertEquals("Server error 403.", error.message)
+	}
+
+	@Test
+	fun `refusals and auth failures are the server's answer while other failures may be a stale address`() {
+		for (answered in listOf(
+			ApiError.Refused(emptyList()),
+			ApiError.Unauthorized(),
+			ApiError.NoToken(),
+			ApiError.Server(403, code = null, serverMessage = null),
+		)) {
+			assertTrue(
+				"$answered is the server's answer to the request itself, not a stale address to re-discover",
+				ApiError.isRefusalOrAuthFailure(answered),
+			)
+		}
+		for (retriable in listOf(
+			ApiError.Server(404, code = null, serverMessage = null),
+			ApiError.Server(500, code = null, serverMessage = null),
+			ApiError.Decoding(),
+			ApiError.UnsupportedMediaType("text/html"),
+			IOException("offline"),
+		)) {
+			assertFalse("$retriable may be a stale address worth one re-discovery", ApiError.isRefusalOrAuthFailure(retriable))
+		}
 	}
 
 	@Test

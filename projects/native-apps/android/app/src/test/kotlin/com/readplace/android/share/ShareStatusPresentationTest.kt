@@ -193,6 +193,18 @@ class ShareStatusPresentationTest {
 	}
 
 	@Test
+	fun `refused falls back to its own words when no server message is renderable`() {
+		// The server refused, but every message it sent is in a media type this app
+		// can't render, so the refusal stands on the client's own copy rather than a
+		// blank card.
+		val status = present(SaveSharedOutcome.Refused(emptyList()))
+		assertEquals("Couldn't save this link.", status.message)
+		assertNull(status.subtitle)
+		assertEquals(ShareStatusIcon.LOCK, status.icon)
+		assertEquals(ShareStatusTone.WARNING, status.tone)
+	}
+
+	@Test
 	fun `failed carries the failure message as error`() {
 		val status = present(SaveSharedOutcome.Failed("Something broke"))
 		assertEquals("Something broke", status.message)
