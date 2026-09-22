@@ -708,6 +708,13 @@
   margin-top: 2px;
 }
 
+.readlist-article[data-card-status="terminal"] .readlist-article__foot {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
 .readlist-article__facts {
   display: flex;
   align-items: center;
