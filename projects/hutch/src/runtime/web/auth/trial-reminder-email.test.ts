@@ -36,9 +36,9 @@ describe("TrialReminderEmail", () => {
 			expect(text).toContain("utm_source=trial-reminder");
 		});
 
-		it("signs off with '— Fayner' and nothing after it", () => {
+		it("signs off with '— Fayner Brack, Founder & CEO' and nothing after it", () => {
 			const text = TrialReminderEmail(baseParams).to("text/plain");
-			expect(text.trimEnd().endsWith("— Fayner")).toBe(true);
+			expect(text.trimEnd().endsWith("— Fayner Brack, Founder & CEO")).toBe(true);
 		});
 
 		it("mentions the saved-articles reassurance when count > 0", () => {
@@ -66,7 +66,7 @@ describe("TrialReminderEmail", () => {
 		it("says what a subscription funds: the running expenses", () => {
 			const text = TrialReminderEmail(baseParams).to("text/plain");
 			expect(text).toContain(
-				"There's no company behind Readplace — no investors, no team, just me.",
+				"Readplace has no venture capital and runs no ads.",
 			);
 			expect(text).toContain("A subscription covers the running expenses.");
 		});
@@ -75,12 +75,12 @@ describe("TrialReminderEmail", () => {
 			const text = TrialReminderEmail({ ...baseParams, savedArticlesCount: 0 }).to(
 				"text/plain",
 			);
-			expect(text).toContain("There's no company behind Readplace");
+			expect(text).toContain("Readplace has no venture capital and runs no ads");
 		});
 
 		it("makes the funding paragraph precede the subscribe ask, keeping 'if it hasn't' next to its antecedent", () => {
 			const text = TrialReminderEmail(baseParams).to("text/plain");
-			const funding = text.indexOf("There's no company behind Readplace");
+			const funding = text.indexOf("Readplace has no venture capital and runs no ads");
 			const earned = text.indexOf("If Readplace has earned a place");
 			const hasnt = text.indexOf("If it hasn't, no action needed");
 			expect(funding).toBeGreaterThanOrEqual(0);
@@ -123,7 +123,7 @@ describe("TrialReminderEmail", () => {
 		it("renders the funding paragraph as its own <p>", () => {
 			const html = TrialReminderEmail(baseParams).to("text/html");
 			expect(html).toMatch(
-				/<p[^>]*>There's no company behind Readplace — no investors, no team, just me\. A subscription covers the running expenses\.<\/p>/,
+				/<p[^>]*>Readplace has no venture capital and runs no ads\. A subscription covers the running expenses\.<\/p>/,
 			);
 		});
 
@@ -131,7 +131,7 @@ describe("TrialReminderEmail", () => {
 			const html = TrialReminderEmail({ ...baseParams, savedArticlesCount: 0 }).to(
 				"text/html",
 			);
-			expect(html).toContain("There's no company behind Readplace");
+			expect(html).toContain("Readplace has no venture capital and runs no ads");
 		});
 	});
 });

@@ -11,7 +11,7 @@ const TEMPLATE = readFileSync(
 export const TRIAL_FEEDBACK_EMAIL_SUBJECT =
 	"you tried Readplace — what was missing?";
 
-const SIGNOFF = "— Fayner";
+const SIGNOFF = "— Fayner Brack, Founder & CEO";
 
 interface TrialFeedbackEmailParams {
 	founderAvatarUrl: string;

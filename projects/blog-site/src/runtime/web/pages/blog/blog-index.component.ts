@@ -38,7 +38,7 @@ export function BlogIndexPage(params: { posts: BlogPost[] }): PageBody {
 						description: post.description,
 						datePublished: post.date,
 						url: `https://readplace.com/blog/${post.slug}`,
-						author: { "@type": "Person", name: post.author },
+						author: { "@type": "Person", name: post.author, jobTitle: "Founder & CEO" },
 					})),
 				},
 				{

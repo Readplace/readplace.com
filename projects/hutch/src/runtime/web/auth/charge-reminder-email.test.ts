@@ -67,7 +67,7 @@ describe("ChargeReminderEmail", () => {
 
 		it("signs off with '— Fayner' and nothing after it", () => {
 			const text = ChargeReminderEmail(baseParams).to("text/plain");
-			expect(text.trimEnd().endsWith("— Fayner")).toBe(true);
+			expect(text.trimEnd().endsWith("— Fayner Brack, Founder & CEO")).toBe(true);
 		});
 	});
 

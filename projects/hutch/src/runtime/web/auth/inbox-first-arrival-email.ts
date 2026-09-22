@@ -12,7 +12,7 @@ const TEMPLATE = readFileSync(
 export const INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT =
 	"Your first email landed in your Readplace inbox";
 
-const SIGNOFF = "— Fayner";
+const SIGNOFF = "— Fayner Brack, Founder & CEO";
 
 const CTA_LABEL = "See it in your inbox";
 
@@ -20,7 +20,7 @@ const OPENING_BEFORE = "The first email to your Readplace inbox at ";
 const OPENING_AFTER = " just came through.";
 
 const PARAGRAPH =
-	"From here on, every email sent to that address shows up in your inbox, and I pull the article links out of it and add them to your queue so you can read them later.";
+	"From here on, every email sent to that address shows up in your inbox, and Readplace pulls the article links out of it and adds them to your queue so you can read them later.";
 
 interface InboxFirstArrivalEmailParams {
 	founderAvatarUrl: string;

@@ -428,6 +428,10 @@ describe("GET / principle", () => {
 		expect(avatar.getAttribute("alt")).toBe(HOME_CONTENT.principle.avatarAlt);
 		expect(avatar.getAttribute("width")).toBe("56");
 		expect(avatar.getAttribute("height")).toBe("56");
+
+		const signature = doc.querySelector(".home-principle__signature");
+		assert(signature, "the promise must be signed with the founder's name and role");
+		expect(signature.textContent?.trim()).toBe(HOME_CONTENT.principle.signature);
 	});
 
 	it("should say what Readplace is for, and what it will never grow to chase", async () => {
@@ -631,6 +635,8 @@ describe("GET / metadata", () => {
 		);
 		const organization = schemas.find((schema: { "@type": string }) => schema["@type"] === "Organization");
 		expect(organization.sameAs).toContain("https://apps.apple.com/app/readplace/id6777107238");
+		expect(organization.legalName).toBe("Proficient Pty Ltd");
+		expect(organization.founder.jobTitle).toBe("Founder & CEO");
 
 		expect(doc.querySelector('meta[name="apple-itunes-app"]')?.getAttribute("content")).toBe(
 			"app-id=6777107238",

@@ -30,7 +30,7 @@ describe("GET /terms", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/terms");
 
-		expect(response.text).toContain("Last updated: 24 June 2026");
+		expect(response.text).toContain("Last updated: 22 September 2026");
 		for (const heading of [
 			"Subscriptions, billing and renewals",
 			"Using Readplace with AI assistants",

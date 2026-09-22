@@ -310,6 +310,7 @@ export function HomePage(params: {
 				principleAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 				principleAvatarAlt: principle.avatarAlt,
 				principleBody: principle.body,
+				principleSignature: principle.signature,
 				pricingTitleBefore: pricing.titleBefore,
 				pricingPriceAmount: pricing.priceAmount,
 				pricingTitleAfter: pricing.titleAfter,

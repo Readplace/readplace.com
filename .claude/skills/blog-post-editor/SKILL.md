@@ -101,7 +101,7 @@ To surface a shipped feature to every user on every page (guests included), tag 
 
 ```yaml
 tags: ["changelog"]
-banner: I added keyboard shortcuts to the reader
+banner: Keyboard shortcuts arrived in the reader
 ```
 
 - The **newest** post tagged `changelog` drives a site-wide banner. It shows on the app and on `/blog`.
@@ -130,7 +130,7 @@ So none of the three may be a bare feature name. Name what the reader could not 
 
 **The banner has a second constraint that pulls against the first.** It is a conversion surface, so it keeps a curiosity gap: state *what* changed and let the click reveal *how*. Where the two pull apart, resolve it this way: **name the problem, withhold the mechanism.**
 
-- **Concise hook with a curiosity gap.** Name what the reader gets, then stop: *"I made deleting an account a thing you type out by hand"*. The two ways to miss are a bare feature name, which states no benefit (*"I added Sign in with Apple"*), and the full mechanism, which leaves nothing to click for (*"Account deletion now requires typing a confirmation phrase into a text field"*).
+- **Concise hook with a curiosity gap.** Name what the reader gets, then stop: *"Deleting an account is a thing you type out by hand"*. The three ways to miss are a bare feature name, which states no benefit (*"Sign in with Apple"*); the full mechanism, which leaves nothing to click for (*"Account deletion now requires typing a confirmation phrase into a text field"*); and any "I", "we" or team subject.
 - **Let the NEW chip carry the novelty.** Do not write "New:" or "Just shipped" in the hook.
 - **Brand voice.** No emoji, no exclamation marks, no superlatives. Talk like a person.
 
@@ -210,7 +210,7 @@ These numbers come from 11 of the author's pre-2024 posts, 11,476 words. They de
 - One sentence in five runs 25 words or longer. One in six runs 8 words or shorter.
 - Half of all paragraphs are a single sentence (49.9%). The standalone line is structure, not decoration. Each voice below also gives a typical paragraph length; read those as the shape of the *multi-sentence* paragraphs, not as a floor that rules the standalone line out.
 - Contractions about 25 per 1,000 words. Commas about 41 per 1,000 words.
-- Second person belongs inside paragraphs, not at the top of a post or its TL;DR, which Structural Variety caps. Across a whole post the reference register runs "you" at about 24 per 1,000 words against 3.7 for "I". The 24 is a body-text ceiling to stay under, not a quota to reach, and none of it belongs in the opening line. The 3.7 is a reference frequency rather than a cap — the first-person voices run higher, and War Story runs higher still. This caps *position and rate in post prose*. It does not touch quoted UI copy, where "Your article is saved" is the endorsed shape.
+- Second person belongs inside paragraphs, not at the top of a post or its TL;DR, which Structural Variety caps. Across a whole post the reference register runs "you" at about 24 per 1,000 words. The 24 is a body-text ceiling to stay under, not a quota to reach, and none of it belongs in the opening line. The reference posts ran "I" at about 3.7 per 1,000 words; post prose now runs it at 0 (see [No invented actors](#no-invented-actors)), so take the cadence from the reference register, not its pronouns. This caps *position and rate in post prose*. It does not touch quoted UI copy, where "Your article is saved" is the endorsed shape.
 - The older register allowed semicolons, em dashes, and exclamation marks at low rates. The rules below ban them anyway. That is a deliberate break, not an oversight.
 
 ### Punctuation, words, and phrases to avoid
@@ -275,11 +275,11 @@ Failure to comply with any of these invalidates the draft. When writing, think a
 
 ## Voice
 
-The [brand guidelines](../../../BRAND_GUIDELINES.md#voice--copy) own the product voice — solo founder writing as "I", quiet and specific, no hype. Write as "I", never as "we". The impersonal product voice ("Readplace writes the summary when the save finishes") stays available and is often the better choice, as the next section explains.
+The [brand guidelines](../../../BRAND_GUIDELINES.md#voice--copy) own the product voice — impersonal, quiet and specific, no hype. Post prose carries no first person, singular or plural: the byline names who wrote the post, and the prose names what acted ("Readplace writes the summary when the save finishes"). See [No invented actors](#no-invented-actors) for what replaces "I".
 
 ### Name the actor
 
-**Prefer the active voice. When a sentence hides who acted, name them.** In almost every case the actor is Readplace, the code, a site, the reader, or the author, and naming it is shorter and more honest.
+**Prefer the active voice. When a sentence hides who acted, name them.** In almost every case the actor is Readplace, the code, a site, the reader, or one named person, and naming it is shorter and more honest.
 
 > A summary is generated when the save finishes.
 
@@ -299,6 +299,23 @@ And these are not passives at all, so don't "fix" them: adjectival participles (
 
 Ten real fixes beat forty that flatten the prose. A sweep that de-passivises everything reads like a machine went through it, which is the one thing this blog is arguing against.
 
+### No invented actors
+
+Taking "I" out must not put a crowd in its place. A post never states or implies how many people work on the product, in either direction. Banned as actors: *we, our, us, the team, engineers, developers, staff, support, any department, "someone at", "internally", "it was decided"*, and passives that smuggle a group back in (*"after internal review"*). Use the first actor that is true:
+
+- The product, or a named part of it, for what it does at runtime — *The booking page holds the seat for 10 minutes.*
+- The change itself, for an engineering decision or a wrong turn — *The first patch retried the payment. It double-charged 3 bookings and came out the same day.*
+- The evidence, for a measurement — *A 30-day pull of check-in events had 41 of 600 marked duplicate.*
+- The page, for editorial stance or a bias disclosure — *This comparison is published by the airline it ranks first.*
+- "You", for a how-to step, within the second-person caps above.
+- One named person with their role, once, for a fact from that person's own life — *Ana Reyes, the founder, kept paper tickets in a shoebox for 10 years.*
+
+If none of these is true, restructure the sentence or cut it. A replacement adds no fact the original did not carry.
+
+### Claims about the product itself
+
+State mechanisms that exist today, not promises about the future. A post does not say the product will last, will not shut down, or will still be here next year; does not grant rights the licence does not (self-hosting, reuse) or claim data never leaves its region when a third party processes it; and does not assert a funding outcome ("pays its own bills", "the money keeps it alive") that the reader cannot check. Name what the code does now and let the reader weigh it.
+
 ### Choosing a voice
 
 Five voices are available. Before drafting, state in one sentence what the post is about, name the voice you think fits and why, and ask the person to confirm or pick another. If the material sits between two, name both and let them decide.
@@ -315,7 +332,7 @@ Then draw the content out of them **one question at a time**, so they make the c
 
 ### Shared rules across voices
 
-**Perspective.** First person, "I" not "we". Speak as a practitioner sharing what you learned, not as a teacher instructing. Never position yourself as an authority — let the ideas carry the weight. Assume the reader is a peer, not a student.
+**Perspective.** Impersonal. Write a practitioner's account with the product, the code, the change, or the evidence as the subject, not "I" or "we". Let the ideas carry the weight. Assume the reader is a peer, not a student.
 
 **Opening variety.** Structural Variety governs every opening. No voice gets to default to one fixed opening shape. The example openings under each voice show the archetype's *subject matter*, not a first word to copy: read them as "this is the kind of thing this voice notices".
 
@@ -373,7 +390,7 @@ This is not the staccato "Not X. Y." punchline banned below. A valid contrast us
 
 *Opening.* Whatever entry the material wants, checked against the lookback. Second-person observation is one way in, not the default, and it is capped. You can place the reader inside a recognizable behaviour without opening on the word "You": name the behaviour, the type, or the moment first, then bring the reader in.
 
-*Perspective shift.* This voice uses "you" to describe archetypes — "you" here means "a person like this", not the reader directly. Switch back to "I" for your own experience or interpretation.
+*Perspective shift.* This voice uses "you" to describe archetypes — "you" here means "a person like this", not the reader directly. For an interpretation or a first-hand observation, state it plainly and name its source rather than reaching for "I".
 
 *Structure.* Open with the observable behaviour. Build the profile through specific details: what these people do, say, and avoid. Reference a named concept (Dunning-Kruger, Goodhart's Law) only if it sharpens the observation, never as the foundation. Close with empathy or a reframe — you are describing something you have seen and probably been, so do not mock it.
 
@@ -387,25 +404,25 @@ This is not the staccato "Not X. Y." punchline banned below. A valid contrast us
 
 #### Voice 3: War Story
 
-**When to use:** the post reconstructs a real incident, bug, outage, or debugging session. **This is the most readable mode. The reader discovers the point alongside you.**
+**When to use:** the post reconstructs a real incident, bug, outage, or debugging session. **This is the most readable mode. The reader discovers the point alongside the account.**
 
-*Opening.* Start with the incident. Name the technology, the context, and what went wrong, and drop the reader into the middle of the problem rather than working up to it. Run the lookback first: if recent posts opened on "I [past tense]" or "A user saved …", find another way in. The incident can start on the system, the symptom, the number, or the broken output, not only on a person.
+*Opening.* Start with the incident. Name the technology, the context, and what went wrong, and drop the reader into the middle of the problem rather than working up to it. Run the lookback first: if recent posts opened on "A user saved …" or the same shape, find another way in. The incident starts on the system, the symptom, the number, or the broken output. The subject of a wrong turn is the attempt, never a person or a group.
 
 *Structure.* Chronological. Describe the debugging path step by step, including the wrong turns. Name the technologies involved — specifics make war stories credible. Extract the lesson at the end, not the beginning.
 
 *Paragraphs.* Short, two to three sentences.
 
-*Tone.* Procedural and grounded. No drama, the facts carry the tension. Be self-aware about your own mistakes: you are not the hero of the story, the debugging process is.
+*Tone.* Procedural and grounded. No drama, the facts carry the tension. Be candid about the wrong turns: the hero of the story is the debugging process, not any person.
 
-*Closing.* State what you learned in one or two sentences. Do not generalize beyond the incident unless the generalization is earned, and do not announce it with "The lesson I took from this …" if a recent incident post used that frame. The ending can land on the fixed behaviour or the result and let the lesson sit unstated.
+*Closing.* State what the incident showed in one or two sentences. Do not generalize beyond the incident unless the generalization is earned, and do not announce it with "The lesson …" if a recent incident post used that frame. The ending can land on the fixed behaviour or the result and let the lesson sit unstated.
 
 *Length.* 600 to 1,000 words. War stories that run long lose their punch.
 
 #### Voice 4: Narrative
 
-**When to use:** the post tells a personal story where tension, pacing, and sensory detail matter. Rare — origin stories, life events, formative experiences. **This is the widest-range mode. Sentence and paragraph rules loosen to serve the story.**
+**When to use:** the post tells one person's story where tension, pacing, and sensory detail matter. Rare — origin stories, life events, formative experiences, told in the third person and named once with the person's role, and only with the owner's sign-off before drafting. **This is the widest-range mode. Sentence and paragraph rules loosen to serve the story.**
 
-*Opening.* The cold sensory scene is the corpus's most over-used opening, so this is the one voice whose defining move collides with axis a. Resolve it this way: the scene opening *is* the voice, so you may use it, but only when no recent post opened on a scene, and you must still vary the scene's first word and shape against the last 8. When the lookback permits a scene, drop the reader into it with sensory detail — what you saw, heard, or physically felt. Do not set up context first. Start in the middle.
+*Opening.* The cold sensory scene is the corpus's most over-used opening, so this is the one voice whose defining move collides with axis a. Resolve it this way: the scene opening *is* the voice, so you may use it, but only when no recent post opened on a scene, and you must still vary the scene's first word and shape against the last 8. When the lookback permits a scene, drop the reader into it with sensory detail — what the person saw, heard, or physically felt. Do not set up context first. Start in the middle.
 
 *Structure.* Chronological — the structure follows time, not argument. Build suspense through pacing, not by withholding information. Atmospheric detail is encouraged here when it builds tension.
 

@@ -285,7 +285,7 @@ export const handler = initHandleByDetailType({
 		],
 		[ExportUserDataCommand.detailType]: [
 			initExportUserDataHandler({
-				findArticlesByUser: articleStore.findArticlesByUser,
+				findArticlesAcrossReadlists: articleStore.findArticlesAcrossReadlists,
 				uploadUserDataExport,
 				sendEmail,
 				publishEvent,

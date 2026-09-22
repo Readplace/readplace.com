@@ -12,7 +12,7 @@ export function PrivacyPage(): PageBody {
 		seo: {
 			title: "Privacy Policy — Readplace",
 			description:
-				"How Readplace handles your data. I collect only what's necessary to run the service and never sell your information.",
+				"How Readplace handles your data. It collects only what's necessary to run the service and never sells your information.",
 			canonicalUrl: "https://readplace.com/privacy",
 			robots: "noindex, follow",
 		},

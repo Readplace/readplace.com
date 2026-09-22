@@ -9,7 +9,7 @@ const TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-const SIGNOFF = "— Fayner";
+const SIGNOFF = "— Fayner Brack, Founder & CEO";
 
 interface ChargeReminderEmailParams {
 	founderAvatarUrl: string;

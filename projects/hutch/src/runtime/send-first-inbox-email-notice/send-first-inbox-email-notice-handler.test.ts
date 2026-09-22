@@ -24,10 +24,10 @@ const EXPECTED_INBOX_URL =
 
 const EXPECTED_TEXT = [
 	"The first email to your Readplace inbox at in-3f9a2c@read.place just came through.",
-	"From here on, every email sent to that address shows up in your inbox, and I pull the article links out of it and add them to your queue so you can read them later.",
+	"From here on, every email sent to that address shows up in your inbox, and Readplace pulls the article links out of it and adds them to your queue so you can read them later.",
 	`See it in your inbox: ${EXPECTED_INBOX_URL}`,
 	"If you have any questions, please reply to this email",
-	"— Fayner",
+	"— Fayner Brack, Founder & CEO",
 ].join("\n\n");
 
 function buildBody(

@@ -39,11 +39,11 @@ export const EARLY_USER_QUOTE = {
 };
 
 export function founderLine(slug: LandingPageSlug): string {
-	const href = withInternalTracking("/blog/why-i-built-readplace", {
+	const href = withInternalTracking("/blog/why-readplace-exists", {
 		source: `lp-${slug}-founder`,
 		content: "blog-why",
 	});
-	return `Built by one person. I wrote js-cookie, which browsers download about 22 billion times a year, and ran my own reading pipeline for ten years before turning it into this. <a href="${href}">Why I built it</a>.`;
+	return `Fayner Brack, Founder & CEO of Readplace, wrote js-cookie, which browsers download about 22 billion times a year, and ran his own reading pipeline for ten years before it became Readplace. <a href="${href}">Why Readplace exists</a>.`;
 }
 
 export const TRIAL_TERMS = `${STRIPE_TRIAL_PERIOD_DAYS} days free, no card. After that ${CHEAPEST_MONTHLY_DISPLAY}/month.`;

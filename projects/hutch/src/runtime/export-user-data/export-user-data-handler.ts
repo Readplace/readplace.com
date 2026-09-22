@@ -12,7 +12,7 @@ import {
 	UserDataExportedEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { FindArticlesByUser } from "@packages/provider-contracts/article-store";
+import type { FindArticlesAcrossReadlists } from "@packages/provider-contracts/article-store";
 import { UserIdSchema } from "@packages/domain/user";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
@@ -27,7 +27,7 @@ const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 const PAGE_SIZE = 500;
 
 export interface ExportUserDataDependencies {
-	findArticlesByUser: FindArticlesByUser;
+	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	uploadUserDataExport: UploadUserDataExport;
 	sendEmail: SendEmail;
 	publishEvent: PublishEvent;
@@ -69,7 +69,7 @@ async function processCommand(
 	const articles: ExportEnvelope["articles"] = [];
 	let page = 1;
 	while (true) {
-		const result = await deps.findArticlesByUser({
+		const result = await deps.findArticlesAcrossReadlists({
 			userId,
 			page,
 			pageSize: PAGE_SIZE,

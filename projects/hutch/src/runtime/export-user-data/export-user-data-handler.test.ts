@@ -4,6 +4,7 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { z } from "zod";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { MinutesSchema } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { UserDataExportedEvent } from "@packages/hutch-infra-components";
 import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
@@ -67,7 +68,7 @@ function createHarness(): HandlerHarness {
 	const publishedEvents: HandlerHarness["publishedEvents"] = [];
 
 	const handler = initExportUserDataHandler({
-		findArticlesByUser: store.findArticlesByUser,
+		findArticlesAcrossReadlists: store.findArticlesAcrossReadlists,
 		uploadUserDataExport,
 		sendEmail: async (msg) => {
 			emailCalls.push({ to: msg.to, subject: msg.subject, html: msg.html });
@@ -179,6 +180,48 @@ describe("initExportUserDataHandler", () => {
 		expect(harness.publishedEvents[0].detail).toMatchObject({ articleCount: TOTAL });
 	});
 
+	it("exports an article saved only to a named readlist, not just the All readlist", async () => {
+		const harness = createHarness();
+		const userId = UserIdSchema.parse("user-readlists");
+		await harness.store.saveArticle({
+			userId,
+			url: "https://example.com/in-all",
+			metadata: { title: "In All", siteName: "example.com", excerpt: "x", wordCount: 100 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-04-28T00:00:00.000Z"),
+		});
+		const work = ReadlistSlugSchema.parse("work");
+		await harness.store.createReadlistDefinition({
+			userId,
+			slug: work,
+			label: "Work",
+			createdAt: new Date("2026-04-27T00:00:00.000Z"),
+		});
+		await harness.store.saveReadlistArticle({
+			userId,
+			url: "https://example.com/only-in-work",
+			metadata: { title: "Only In Work", siteName: "example.com", excerpt: "x", wordCount: 100 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-04-29T00:00:00.000Z"),
+			readlist: work,
+		});
+
+		await invokeHandler(harness, {
+			userId,
+			email: "user@example.com",
+			requestedAt: "2026-04-30T11:59:00.000Z",
+		});
+
+		const body = ExportBodySchema.parse(harness.uploadCalls[0].parsedBody);
+		expect(body.articleCount).toBe(2);
+		expect(body.articles.map((a) => a.url).sort()).toEqual([
+			"https://example.com/in-all",
+			"https://example.com/only-in-work",
+		]);
+	});
+
 	it("emits an empty export when the user has no articles", async () => {
 		const harness = createHarness();
 		const userId = UserIdSchema.parse("user-empty");
@@ -222,10 +265,8 @@ describe("initExportUserDataHandler", () => {
 	});
 
 	it("stops on the first empty page when total claims more rows (orphaned user_articles)", async () => {
-		// findArticlesByUser drops orphans, so total can exceed the rows the
-		// handler will ever see; termination must come from an empty page.
 		const userId = UserIdSchema.parse("user-orphan");
-		const findArticlesByUser = jest
+		const findArticlesAcrossReadlists = jest
 			.fn()
 			.mockResolvedValueOnce({
 				articles: [
@@ -250,7 +291,7 @@ describe("initExportUserDataHandler", () => {
 		const publishedEvents: Array<{ detail: unknown }> = [];
 
 		const handler = initExportUserDataHandler({
-			findArticlesByUser,
+			findArticlesAcrossReadlists,
 			uploadUserDataExport: async ({ userId: uid, body }) => {
 				uploadCalls.push({ parsedBody: JSON.parse(body) });
 				return { s3Key: `exports/${uid}/x.json`, downloadUrl: "https://example.com/d" };
@@ -276,7 +317,7 @@ describe("initExportUserDataHandler", () => {
 		);
 		if (result instanceof Promise) await result;
 
-		expect(findArticlesByUser).toHaveBeenCalledTimes(2);
+		expect(findArticlesAcrossReadlists).toHaveBeenCalledTimes(2);
 		expect(result).toBeInstanceOf(Promise);
 		const body = ExportBodySchema.parse(uploadCalls[0].parsedBody);
 		expect(body.articleCount).toBe(1);

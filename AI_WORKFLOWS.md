@@ -1,6 +1,6 @@
 # AI Engineering Workflow
 
-A working example of how I use Claude + GitHub Actions as a solo developer. The short version: Claude acts as an autonomous agent in the CI pipeline — reviewing PRs, fixing failures, resolving conflicts, and responding to natural-language instructions in issue comments.
+A working example of how Readplace uses Claude + GitHub Actions. The short version: Claude acts as an autonomous agent in the CI pipeline — reviewing PRs, fixing failures, resolving conflicts, and responding to natural-language instructions in issue comments.
 
 ## How it works
 
@@ -51,4 +51,4 @@ The Claude integration uses [`claude-code-action`](https://github.com/anthropics
 
 ## What it looks like in practice
 
-Claude handles the mechanical parts (CI flakiness, review nits, conflict resolution) so I stay focused on architecture and product decisions. The browser extension and web app in this repo were built through PR review cycles with Claude.
+Claude handles the mechanical parts (CI flakiness, review nits, conflict resolution) so human attention goes to architecture and product decisions. The browser extension and web app in this repo were built through PR review cycles with Claude.

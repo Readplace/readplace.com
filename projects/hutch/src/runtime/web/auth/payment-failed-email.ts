@@ -10,7 +10,7 @@ const TEMPLATE = readFileSync(
 
 export const PAYMENT_FAILED_EMAIL_SUBJECT = "your Readplace payment didn't go through";
 
-const SIGNOFF = "— Fayner";
+const SIGNOFF = "— Fayner Brack, Founder & CEO";
 
 interface PaymentFailedEmailParams {
 	founderAvatarUrl: string;

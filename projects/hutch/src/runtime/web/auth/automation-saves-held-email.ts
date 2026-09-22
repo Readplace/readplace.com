@@ -12,7 +12,7 @@ const TEMPLATE = readFileSync(
 export const AUTOMATION_SAVES_HELD_EMAIL_SUBJECT =
 	"links sent to your Readplace inbox are waiting";
 
-const SIGNOFF = "— Fayner";
+const SIGNOFF = "— Fayner Brack, Founder & CEO";
 
 interface AutomationSavesHeldEmailParams {
 	founderAvatarUrl: string;

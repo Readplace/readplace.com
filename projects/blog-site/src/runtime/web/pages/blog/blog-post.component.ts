@@ -33,6 +33,7 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 					author: {
 						"@type": "Person",
 						name: post.author,
+						jobTitle: "Founder & CEO",
 						url: "https://www.linkedin.com/in/fagnerbrack/",
 					},
 					url: `https://readplace.com/blog/${post.slug}`,

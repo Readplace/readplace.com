@@ -119,7 +119,7 @@ export const HOME_WAYS_WITHOUT_A_CLIENT: readonly HomeWayRow[] = [
 	{
 		name: "A file, or a page full of links",
 		bodyLead:
-			"Upload a Pocket, Instapaper, or bookmark export — anything text-shaped — or paste a newsletter or index URL, and Readplace pulls every link out for you to review. All of that works without an account so you can see how we extract links.",
+			"Upload a Pocket, Instapaper, or bookmark export — anything text-shaped — or paste a newsletter or index URL, and Readplace pulls every link out for you to review. All of that works without an account, so you can watch Readplace extract the links first.",
 		links: [{ label: "Import your links", href: "/import", trackContent: "import", order: 1 }],
 	},
 	{
@@ -169,7 +169,7 @@ export const HOME_CONTENT = {
 	},
 	ways: {
 		title: "Every way to save.",
-		noteLead: `Our PDF extraction doesn't hallucinate like other LLMs — we use Tesseract to read it off pixels directly, up to ${MAX_PDF_PAGES} pages.`,
+		noteLead: `Readplace's PDF extraction doesn't hallucinate the way an LLM can — Tesseract reads the text off the pixels directly, up to ${MAX_PDF_PAGES} pages.`,
 		noteLink: {
 			label: "How PDF extraction works",
 			href: "/pdf-ocr",
@@ -192,25 +192,26 @@ export const HOME_CONTENT = {
 		quote:
 			"The app works really well. It has really made it easier to save articles, and I haven't experienced any issues at all — it just works.",
 		quoteAttribution: "Matthew Motz, early user",
-		founderLead: "Built by Fayner Brack. I wrote",
+		founderLead: "Fayner Brack is the Founder & CEO of Readplace. He wrote",
 		founderJsCookieLink: {
 			label: "js-cookie",
 			href: "https://www.jsdelivr.com/package/npm/js-cookie",
 		},
 		founderMid:
-			"which browsers download about 1.5 billion times a month, and ran my own reading on Gmail filters and Reddit automations for ten years before turning it into this. That decade taught me the bottleneck was never saving. It was",
+			"which browsers download about 1.5 billion times a month, and ran his own reading on Gmail filters and Reddit automations for ten years before turning it into Readplace. That decade showed the bottleneck was never saving. It was",
 		founderLink: {
 			label: "deciding what NOT to read",
 			href: "/view?url=https://fagnerbrack.com/whats-the-point-to-save-articles-youll-never-read-22d07f6609ad",
 			content: "what-not-to-read",
 		},
 		founderClose:
-			"Pocket was acquired and abandoned, Omnivore shut down overnight. Readplace is built in public, one feature at a time, and I'd rather be honest about what works today than promise what doesn't exist yet.",
+			"Pocket was acquired and abandoned, Omnivore shut down overnight. Readplace is built in public, one feature at a time, and this page says what works today rather than promising what doesn't exist yet.",
 	},
 	principle: {
 		title: "My personal promise to you",
 		avatarAlt: "Fayner Brack",
 		body: "It will not grow social feeds, public collections, or silent browsing-history capture. Those apps grow daily active users by encouraging saving. Readplace is for reading what matters, not saving more.",
+		signature: "— Fayner Brack, Founder & CEO",
 	},
 	pricing: {
 		titleBefore: "From",
@@ -219,7 +220,9 @@ export const HOME_CONTENT = {
 		panelCtaLabel: "Become a Member",
 		ctaNote: `Google, Apple, or an email address — about twenty seconds. No card at any point in the ${TRIAL_DAYS} days.`,
 		assurances: [
-			"Export everything, anytime — even after you cancel.",
+			"Export a list of every article you saved, as JSON, anytime — even after you cancel.",
+			"Stop paying and the account goes read-only, not dark — every saved article stays readable.",
+			"No venture capital, no ads — revenue comes from subscriptions.",
 			"Hosted in Sydney under the Australian Privacy Act. No 3rd-party trackers, no data resale.",
 		],
 		sourceLead: "The code is",
@@ -228,7 +231,7 @@ export const HOME_CONTENT = {
 			href: "https://github.com/Readplace/readplace.com",
 		},
 		sourceClose:
-			"— if I ever shut Readplace down, you can fork it and self-host the same software the day after.",
+			"— the branch that turns a cancelled account read-only, and the export route with no subscription gate, are there to read. No licence grants reuse rights.",
 	},
 	faq: {
 		title: "Questions",
@@ -244,7 +247,12 @@ export const HOME_CONTENT = {
 			{
 				question: "What happens to my articles if I stop paying?",
 				answer:
-					"You keep reading every one of them. Saving new links and importing stop; the readlist and the reader stay, and you can still export everything as JSON.",
+					"You keep reading every one of them. Saving new links and importing stop; the readlist and the reader stay, and you can still export a list of every article as JSON.",
+			},
+			{
+				question: "How do I get my readlist out?",
+				answer:
+					"Request an export from the account page, paying or not. You get one JSON file listing every article you saved — URL, title, site, excerpt, read status and dates — by an emailed link that works for 7 days. It does not include article text.",
 			},
 			{
 				question: "Can I bring my Pocket export?",
@@ -263,7 +271,12 @@ export const HOME_CONTENT = {
 			{
 				question: "Where does my data live?",
 				answer:
-					"In Sydney, under the Australian Privacy Act. No data resale.",
+					"Accounts and saved articles are stored on AWS in Sydney, under the Australian Privacy Act. Article text is sent to DeepSeek to write summaries. No data resale.",
+			},
+			{
+				question: "Who runs Readplace?",
+				answer:
+					"Fayner Brack is the Founder & CEO. Readplace has no venture capital, runs no ads and sells no data; revenue comes from subscriptions. The code is source-available on GitHub.",
 			},
 		] as const satisfies readonly HomeFaqEntry[],
 	},

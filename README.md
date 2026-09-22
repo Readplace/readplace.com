@@ -1,10 +1,10 @@
 # Readplace
 
-A read-it-later app. Save articles, read them later. Built from a personal reading system I've been running for 10 years.
+A read-it-later app. Save articles, read them later. Built from a personal reading system refined over 10 years.
 
 → [readplace.com](https://readplace.com)
 
-Solo-built, with Claude as a working agent in the pipeline.
+Built in public, with Claude as a working agent in the pipeline.
 
 ---
 
@@ -24,7 +24,7 @@ A request emits a Command. A handler runs it and publishes one or more Events. E
 
 ### Deliberately boring infrastructure
 
-Pulumi over AWS managed services — Lambda, DynamoDB, EventBridge, S3, CloudFront. No Kubernetes, no ORMs, no custom orchestration. Dependencies are wired explicitly at the composition root for each entry point; nothing silently falls back to an in-memory store or a no-op logger. After maintaining [js-cookie](https://github.com/js-cookie/js-cookie) for 10+ years (22B+ annual npm downloads), I've learned that the best stack is the one that doesn't need babysitting.
+Pulumi over AWS managed services — Lambda, DynamoDB, EventBridge, S3, CloudFront. No Kubernetes, no ORMs, no custom orchestration. Dependencies are wired explicitly at the composition root for each entry point; nothing silently falls back to an in-memory store or a no-op logger. The stack follows a lesson from Fayner Brack's 10+ years maintaining [js-cookie](https://github.com/js-cookie/js-cookie) (22B+ annual jsDelivr downloads): the best stack is the one that doesn't need babysitting.
 
 The codebase has strong opinions on testing, typing, branded IDs, and comments that document **why** rather than **what** — [CLAUDE.md](./CLAUDE.md) has the detail, written for AI agents but reads as a human contributor's guide.
 

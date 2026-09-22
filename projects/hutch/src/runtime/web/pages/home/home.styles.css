@@ -284,6 +284,12 @@
   color: var(--color-text-secondary);
 }
 
+.home-principle__signature {
+  margin: 16px 0 0;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
 .home-pricing__container {
   text-align: center;
 }

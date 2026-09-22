@@ -43,7 +43,7 @@ describe("TrialFeedbackEmail", () => {
 
 		it("signs off with '— Fayner' and nothing after it", () => {
 			const text = TrialFeedbackEmail(baseParams).to("text/plain");
-			expect(text.trimEnd().endsWith("— Fayner")).toBe(true);
+			expect(text.trimEnd().endsWith("— Fayner Brack, Founder & CEO")).toBe(true);
 		});
 
 		it("is first-person ('I'/'I'm') and never speaks for the company in plural", () => {

@@ -13,7 +13,7 @@ Use this exact form on brand and user-facing surfaces — *Web* and *Slop* capit
 
 **What Readplace is:** A read-it-later app that saves articles, blog posts, and web pages for later reading. Born from a personal reading system refined over 10 years.
 
-**What Readplace feels like:** A well-made tool built by someone who uses it every day. A private reading nook in a home library — warm wood, good lighting, no distractions. Not a co-working space. Not a productivity dashboard. A quiet place that's yours.
+**What Readplace feels like:** A well-made tool shaped by daily use. A private reading nook in a home library — warm wood, good lighting, no distractions. Not a co-working space. Not a productivity dashboard. A quiet place that's yours.
 
 ### Brand Attributes
 
@@ -322,7 +322,8 @@ Use a **4px base unit** with the following standard increments:
 ### Writing Principles
 
 - **Talk like a person.** Imagine explaining the feature to a friend who's a developer. No marketing speak, no superlatives, no corporate filler.
-- **Use "I" not "we."** Readplace is solo-built. "I" is more honest and personal.
+- **Product copy is impersonal.** Name the actor: "Readplace saves the article", "the export lists every saved article". No "I", no "we/our/us". First person belongs only to correspondence signed by Fayner Brack, Founder & CEO — emails, the onboarding greeting, the share balloon, the home promise — and there it is "I", never "we".
+- **Say nothing about who or how many build Readplace, or about the business behind it.** Copy describes what the product does and what the code shows. Where a legal name is required, the operator is "Proficient Pty Ltd"; the word "company" does not appear in reader-facing copy.
 - **Be specific over vague.** "Your article is saved" beats "Action completed." "Import your 847 Pocket articles" beats "Migrate your data."
 - **Modest language.** Never say "best", "revolutionary", "game-changing", "reimagined". The product speaks for itself.
 - **Acknowledge limitations honestly.** "This feature isn't ready yet" is always better than hiding it or over-promising.
@@ -382,7 +383,7 @@ Use a **4px base unit** with the following standard increments:
 - HTML emails should use the warm amber palette.
 - Keep emails short. One purpose per email, one CTA.
 - Always include a plain-text version.
-- Sender name: "Fayner from Readplace" (personal, not corporate).
+- Sender name: "Fayner from Readplace" (personal, not corporate). Sign off "— Fayner Brack, Founder & CEO".
 
 ---
 
@@ -403,7 +404,7 @@ Use a **4px base unit** with the following standard increments:
 
 - Use pure black, neon colours, or heavy gradients.
 - Add emojis, exclamation marks, or playful copy to the product UI.
-- Use "we" — Readplace is solo-built; use "I" or speak from the product's perspective.
+- Use "I", "we" or "our" in product copy — speak from the product's perspective; "I" belongs to signed correspondence only.
 - Clutter the reading surface with chrome, toolbars, or feature promotions.
 - Copy any competitor's visual language (especially Pocket's red or Readwise's yellow).
 - Sacrifice legibility for aesthetics.
@@ -413,4 +414,4 @@ Use a **4px base unit** with the following standard increments:
 
 ---
 
-*Last updated: July 2026*
+*Last updated: September 2026*

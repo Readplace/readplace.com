@@ -154,6 +154,7 @@ export function buildHomeSeo(input: {
 				"@type": "Organization",
 				"@id": "https://readplace.com/#organization",
 				name: "Readplace",
+				legalName: "Proficient Pty Ltd",
 				alternateName: ["Readplace App", "Readplace Read-It-Later"],
 				url: "https://readplace.com",
 				logo: `${staticBaseUrl}/android-chrome-512x512.png`,
@@ -174,7 +175,7 @@ export function buildHomeSeo(input: {
 						"https://medium.com/@fagnerbrack",
 						"https://www.reddit.com/user/fagnerbrack",
 					],
-					jobTitle: "Founder",
+					jobTitle: "Founder & CEO",
 					worksFor: { "@id": "https://readplace.com/#organization" },
 					knowsAbout: [
 						"JavaScript",
@@ -184,7 +185,7 @@ export function buildHomeSeo(input: {
 						"open source maintenance",
 					],
 					description:
-						"Software engineer and creator of js-cookie, a JavaScript library with 22 billion+ annual downloads on jsDelivr CDN. Founder of Readplace.",
+						"Software engineer and creator of js-cookie, a JavaScript library with 22 billion+ annual downloads on jsDelivr CDN. Founder & CEO of Readplace.",
 					award: "Creator of js-cookie — 22 billion+ annual downloads on jsDelivr CDN",
 				},
 				description:

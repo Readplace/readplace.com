@@ -288,6 +288,12 @@ describe("old hutch-vs-* slug redirects", () => {
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later");
 	});
+
+	it("should 301 redirect why-i-built-readplace to why-readplace-exists", async () => {
+		const response = await request(app).get("/blog/why-i-built-readplace");
+		expect(response.status).toBe(301);
+		expect(response.headers.location).toBe("/blog/why-readplace-exists");
+	});
 });
 
 describe("GET /blog/sitemap.xml", () => {

@@ -1,7 +1,7 @@
 ---
 title: "Why I Built Readplace"
 description: "I ran my own reading system on Gmail filters and DynamoDB for ten years. When Pocket and Omnivore shut down, I turned it into a product. Here's the story, and the promise I wrote into the code."
-slug: "why-i-built-readplace"
+slug: "why-readplace-exists"
 date: "2026-07-23"
 author: "Fayner Brack"
 keywords: "Readplace founder, why I built Readplace, js-cookie, read-it-later app, Pocket alternative, Omnivore alternative, build in public, data ownership"
