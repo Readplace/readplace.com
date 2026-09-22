@@ -4,9 +4,12 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.MultipartForm
+import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadlistPage
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
+import com.readplace.android.core.ShareTarget
+import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJob
@@ -26,6 +29,17 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
+ * Presents the "where do shared articles drop?" chooser and awaits the reader's
+ * answer — the set of extra readlists they ticked (mainline is implied). A seam so
+ * the save journey is tested with a canned answer; production shows the sheet.
+ * Cancellation (the share dismissed mid-choice) throws, and is never delivered as
+ * an empty answer.
+ */
+fun interface ReadlistChooser {
+	suspend fun choose(drops: List<SharedArticlesDrop>): Set<Readlist>
+}
+
+/**
  * The share-sheet save journey, lifted out of the share activity so the full
  * decision tree runs against the real API and token types under test — only the
  * Android shell and the WebView are left behind in the share target.
@@ -40,6 +54,8 @@ class SaveSharedPage(
 	/** Null for the same no-store reason as [jobs], which costs only the app's
 	 * automatic list refresh on return. */
 	private val unseenSave: UnseenSave?,
+	private val shareTarget: ShareTarget,
+	private val readlistChooser: ReadlistChooser,
 	private val clock: Clock,
 	private val stillSavingAfter: Duration = 4.seconds,
 ) {
@@ -98,17 +114,21 @@ class SaveSharedPage(
 		onStillSaving: () -> Unit,
 	): SaveSharedOutcome {
 		var page = api.loadReadlist()
+		// Snapshot the destination choice once — asking the reader if they have never
+		// answered and there is somewhere other than mainline to drop — before the save
+		// so the save carries the same array the reader confirmed.
+		val queues = tickedReadlists(page)
 		onNotice(page.noticeMessages)
 		val action = page.action(named = "save-article") ?: return SaveSharedOutcome.NoSaveAction
 		val confirmation = try {
-			api.saveArticle(action, url)
+			api.saveArticle(action, url, queues)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (error: Exception) {
 			if (ApiError.isRefusalOrAuthFailure(error)) throw error
 			page = api.rediscoverReadlist()
 			val moved = page.action(named = "save-article") ?: return SaveSharedOutcome.NoSaveAction
-			api.saveArticle(moved, url)
+			api.saveArticle(moved, url, queues)
 		}
 		unseenSave?.record()
 		val admitted = admit(page = page, url = url, title = fallbackTitle)
@@ -125,6 +145,25 @@ class SaveSharedPage(
 			stillSaving.cancel()
 		}
 		return SaveSharedOutcome.SavedAwaitingUpload(confirmation.messages)
+	}
+
+	/**
+	 * The extra readlist hrefs this save should file into, snapshotted once. Asks the
+	 * reader — once, ever — only when they have not answered and the collection
+	 * advertises somewhere other than mainline to drop; a Done answer (even ticking
+	 * nothing) is persisted before the save so it survives even if the save then
+	 * fails. Only-mainline or no-readlist collections save without asking or
+	 * recording an answer. The mainline root is subtracted so it is never sent as a
+	 * queue — every save drops there implicitly; a stale stored href the collection
+	 * no longer advertises is still sent, and the server filters it to owned
+	 * readlists.
+	 */
+	private suspend fun tickedReadlists(page: ReadlistPage): Set<String> {
+		val drops = SharedArticlesDrop.firstAsk(readlists = page.readlists, mainlineHref = page.rootHref)
+		if (!shareTarget.isDecided && drops.any { it.choice != null }) {
+			shareTarget.record(readlistChooser.choose(drops).map { it.href }.toSet())
+		}
+		return shareTarget.hrefs - setOfNotNull(page.rootHref)
 	}
 
 	private suspend fun admit(page: ReadlistPage, url: String, title: String?): UploadJob? {

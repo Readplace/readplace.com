@@ -9,11 +9,15 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
 import com.readplace.android.core.EphemeralCookieJar
+import com.readplace.android.core.InMemoryReaderChoiceStorage
+import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.RefreshToken
 import com.readplace.android.core.ServerMessage
+import com.readplace.android.core.ShareTarget
+import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.SirenAction
 import com.readplace.android.core.SirenLink
 import com.readplace.android.core.TokenKey
@@ -94,6 +98,8 @@ class ReadingListViewModelTest {
 	private fun TestScope.viewModel(
 		store: TokenStore = loggedInStore(),
 		unseenSave: UnseenSave = UnseenSave(folder.newFolder()),
+		lastViewed: LastViewedReadlist = LastViewedReadlist(InMemoryReaderChoiceStorage()),
+		shareTarget: ShareTarget = ShareTarget(InMemoryReaderChoiceStorage()),
 		healBlockedArticle: suspend (String) -> HealBlockedOutcome = { throw AssertionError("no heal expected for $it") },
 		drainUploadJobs: suspend () -> Unit = { throw AssertionError("no drain expected") },
 		onSessionExpired: () -> Unit = {},
@@ -102,6 +108,8 @@ class ReadingListViewModelTest {
 		ReadingListViewModel(
 			api = api(store, ioDispatcher),
 			unseenSave = unseenSave,
+			lastViewed = lastViewed,
+			shareTarget = shareTarget,
 			healBlockedArticle = healBlockedArticle,
 			drainUploadJobs = drainUploadJobs,
 			onSessionExpired = onSessionExpired,
@@ -2597,6 +2605,566 @@ class ReadingListViewModelTest {
 
 	// endregion
 
+	// region Readlists and share destinations
+
+	/** Serves a two-readlist world: mainline "All" at `/queue` and "Work" at
+	 * `/queue?queue=work`, each advertising the tab strip and the readlist set with
+	 * itself marked current. */
+	private fun readlistedHandler(
+		workTabsJson: String = Fixtures.tabs(currentLabel = "To Read", queue = "/queue?queue=work"),
+	): (Record) -> Stub = { record ->
+		when {
+			record.path == "/" -> Stub.redirect(to = "/queue")
+			record.path == "/queue" && record.request.url.query == "queue=work" ->
+				Stub.json(
+					200,
+					Fixtures.collection(
+						listOf(Fixtures.article("w1")),
+						tabsJson = workTabsJson,
+						readlistsJson = Fixtures.readlists(current = "/queue?queue=work"),
+					),
+				)
+			record.path == "/queue" ->
+				Stub.json(
+					200,
+					Fixtures.collection(
+						listOf(Fixtures.article("a1")),
+						tabsJson = Fixtures.tabs(currentLabel = "To Read", queue = "/queue"),
+						readlistsJson = Fixtures.readlists(current = "/queue"),
+					),
+				)
+			else -> Stub.json(404, "{}")
+		}
+	}
+
+	private fun ReadingListViewModel.readlist(href: String) =
+		state.value.readlists.first { it.href == href }
+
+	@Test
+	fun `a loaded collection publishes the readlists and marks the current one selected`() = runTest {
+		server.handle(readlistedHandler())
+		val viewModel = viewModel()
+
+		viewModel.loadIfNeeded()
+
+		assertEquals(listOf("All", "Work"), viewModel.state.value.readlists.map { it.label })
+		assertEquals("/queue", viewModel.state.value.selectedReadlistHref)
+		assertEquals("All", viewModel.state.value.currentReadlistLabel)
+		assertTrue("two readlists earn the switcher", viewModel.state.value.offersReadlistSwitching)
+	}
+
+	@Test
+	fun `a single readlist offers no switcher and no drop row`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(
+					200,
+					Fixtures.collection(
+						listOf(Fixtures.article("a1")),
+						tabsJson = Fixtures.tabs(queue = "/queue"),
+						readlistsJson = """{ "label": "All", "rel": "current", "href": "/queue" }""",
+					),
+				)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.loadIfNeeded()
+
+		assertFalse("one readlist earns no switcher", viewModel.state.value.offersReadlistSwitching)
+		assertNull("and no drop row, because there is nowhere else a share could drop", viewModel.state.value.sharedArticlesDrop)
+	}
+
+	@Test
+	fun `the menu badges mainline and chosen share destinations`() = runTest {
+		server.handle(readlistedHandler())
+		val viewModel = viewModel()
+		viewModel.loadIfNeeded()
+
+		assertEquals(
+			"mainline is a share target from the start; the extra is not until chosen",
+			listOf(true, false),
+			viewModel.state.value.readlistMenu.map { it.isShareTarget },
+		)
+
+		viewModel.toggleSharedArticlesDrop(viewModel.readlist("/queue?queue=work"))
+
+		assertEquals(
+			"the chosen extra is now badged",
+			listOf(true, true),
+			viewModel.state.value.readlistMenu.map { it.isShareTarget },
+		)
+	}
+
+	@Test
+	fun `the drop row is offered on the landing tab and shows mainline locked and ticked`() = runTest {
+		server.handle(readlistedHandler())
+		val viewModel = viewModel()
+
+		viewModel.loadIfNeeded()
+
+		assertEquals(
+			"on mainline's landing tab the drop row is the locked, always-ticked mainline",
+			SharedArticlesDrop.Always("All"),
+			viewModel.state.value.sharedArticlesDrop,
+		)
+	}
+
+	@Test
+	fun `the drop row is hidden on a tab other than the landing one`() = runTest {
+		// The Work collection lands on its "Read" tab, not "To Read" — a shared article
+		// never arrives already read, so the checkbox would promise what the tab can't keep.
+		server.handle(readlistedHandler(workTabsJson = Fixtures.tabs(currentLabel = "Read", queue = "/queue?queue=work")))
+		val viewModel = viewModel()
+		viewModel.loadIfNeeded()
+
+		viewModel.select("/queue?queue=work")
+
+		assertNull(viewModel.state.value.sharedArticlesDrop)
+		assertTrue("the switcher stays — switching readlists is not tab-bound", viewModel.state.value.offersReadlistSwitching)
+	}
+
+	@Test
+	fun `selecting a different readlist loads it, clears the old rows, and names it`() = runTest {
+		server.handle(readlistedHandler())
+		val viewModel = viewModel()
+		viewModel.loadIfNeeded()
+		assertEquals(listOf("a1"), viewModel.articleIds)
+
+		viewModel.select("/queue?queue=work")
+
+		assertEquals(listOf("w1"), viewModel.articleIds)
+		assertEquals("/queue?queue=work", viewModel.state.value.selectedReadlistHref)
+		assertEquals("Work", viewModel.state.value.currentReadlistLabel)
+		assertEquals("the drop row follows to the newly selected readlist", "Work", viewModel.state.value.sharedArticlesDrop?.choice?.label)
+	}
+
+	@Test
+	fun `re-selecting the current readlist does not reload`() = runTest {
+		server.handle(readlistedHandler())
+		val viewModel = viewModel()
+		viewModel.loadIfNeeded()
+		val readsBefore = server.records("/queue").size
+
+		viewModel.select("/queue")
+
+		assertEquals("re-selecting the readlist already shown issues no read", readsBefore, server.records("/queue").size)
+	}
+
+	@Test
+	fun `a loaded current readlist is remembered`() = runTest {
+		server.handle(readlistedHandler())
+		val storage = InMemoryReaderChoiceStorage()
+		val lastViewed = LastViewedReadlist(storage)
+		val viewModel = viewModel(lastViewed = lastViewed)
+
+		viewModel.loadIfNeeded()
+		viewModel.select("/queue?queue=work")
+
+		assertEquals("the server-confirmed current readlist is remembered for next launch", "/queue?queue=work", lastViewed.href)
+	}
+
+	@Test
+	fun `toggling a drop destination ticks and unticks it`() = runTest {
+		server.handle(readlistedHandler())
+		val viewModel = viewModel()
+		viewModel.loadIfNeeded()
+		viewModel.select("/queue?queue=work")
+		assertEquals(false, viewModel.state.value.sharedArticlesDrop?.showsTick)
+
+		viewModel.toggleSharedArticlesDrop(viewModel.readlist("/queue?queue=work"))
+		assertEquals("the drop box on screen is now ticked", true, viewModel.state.value.sharedArticlesDrop?.showsTick)
+
+		viewModel.toggleSharedArticlesDrop(viewModel.readlist("/queue?queue=work"))
+		assertEquals("and unticked again", false, viewModel.state.value.sharedArticlesDrop?.showsTick)
+	}
+
+	@Test
+	fun `a foreground re-reads the share choice into state with no network read`() = runTest {
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2")), page = 2))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("a1")),
+							extraLinks = NEXT_LINK,
+							tabsJson = Fixtures.tabs(queue = "/queue"),
+							readlistsJson = Fixtures.readlists(current = "/queue"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		val viewModel = viewModel(shareTarget = shareTarget)
+		viewModel.loadIfNeeded()
+		viewModel.loadMore()
+		val readsBefore = firstPageReads()
+
+		// A choice written elsewhere (the share target) while the app was away.
+		shareTarget.record(setOf("/queue?queue=work"))
+		viewModel.handleForeground()
+
+		assertEquals("a deep-scrolled foreground with no unseen save does not re-fetch", readsBefore, firstPageReads())
+		assertEquals(
+			"but the newly written share choice appears in state",
+			setOf("/queue?queue=work"),
+			viewModel.state.value.shareTargetHrefs,
+		)
+	}
+
+	@Test
+	fun `a remembered readlist is requested directly on a fresh load`() = runTest {
+		server.handle(readlistedHandler())
+		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=work") }
+		val viewModel = viewModel(lastViewed = lastViewed)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("the remembered readlist is the first thing requested", "queue=work", server.records.first().request.url.query)
+		assertTrue("no entry-point flash precedes it", server.records("/").isEmpty())
+		assertEquals(listOf("w1"), viewModel.articleIds)
+		assertEquals("/queue?queue=work", viewModel.state.value.selectedReadlistHref)
+	}
+
+	@Test
+	fun `a remembered readlist that fails falls back to entry-point discovery`() = runTest {
+		server.handle { record ->
+			when {
+				record.path == "/queue" && record.request.url.query == "queue=deleted" -> Stub.json(404, "{}")
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" -> Stub.json(
+					200,
+					Fixtures.collection(
+						listOf(Fixtures.article("a1")),
+						tabsJson = Fixtures.tabs(queue = "/queue"),
+						readlistsJson = Fixtures.readlists(current = "/queue"),
+					),
+				)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(
+			lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=deleted") },
+		)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("the failed remembered read falls back to the entry point", listOf("a1"), viewModel.articleIds)
+		assertEquals("/queue", viewModel.state.value.selectedReadlistHref)
+	}
+
+	@Test
+	fun `a remembered readlist that fails on both reads keeps the stored href`() = runTest {
+		server.handle { record ->
+			when {
+				record.path == "/queue" && record.request.url.query == "queue=deleted" -> Stub.json(404, "{}")
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" -> Stub.json(500, "{}")
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=deleted") }
+		val viewModel = viewModel(lastViewed = lastViewed)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("the last stored successful choice survives a failed load", "/queue?queue=deleted", lastViewed.href)
+		assertNotNull("the fallback failure surfaces", viewModel.state.value.errorText)
+	}
+
+	@Test
+	fun `a remembered readlist auth failure signs out with no fallback`() = runTest {
+		var expiries = 0
+		server.handle { record ->
+			when (record.path) {
+				"/queue" -> Stub.json(401, Fixtures.sirenError(code = "invalid-token", message = "expired"))
+				"/oauth/token" -> Stub.json(400, """{"error":"invalid_grant"}""")
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(
+			lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=work") },
+			onSessionExpired = { expiries += 1 },
+		)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("an auth failure funnels into the existing sign-out", 1, expiries)
+		assertTrue("with no entry-point fallback", server.records("/").isEmpty())
+	}
+
+	@Test
+	fun `a fresh load without current metadata does not fabricate a remembered readlist`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(
+					200,
+					Fixtures.collection(
+						listOf(Fixtures.article("a1")),
+						readlistsJson = """
+							{ "label": "All", "rel": "readlist", "href": "/queue" },
+							{ "label": "Work", "rel": "readlist", "href": "/queue?queue=work" }
+						""",
+					),
+				)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage())
+		val viewModel = viewModel(lastViewed = lastViewed)
+
+		viewModel.loadIfNeeded()
+
+		assertNull("no current readlist means none is named", viewModel.state.value.selectedReadlistHref)
+		assertNull("and none is remembered", lastViewed.href)
+		assertNull(viewModel.state.value.currentReadlistLabel)
+	}
+
+	@Test
+	fun `a server-confirmed different current readlist supersedes the stale stored selection`() = runTest {
+		// The server answers a no-longer-owned readlist href with the mainline
+		// collection, which names "All" as current.
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" -> Stub.json(
+					200,
+					Fixtures.collection(
+						listOf(Fixtures.article("a1")),
+						tabsJson = Fixtures.tabs(queue = "/queue"),
+						readlistsJson = Fixtures.readlists(current = "/queue"),
+					),
+				)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=deleted") }
+		val viewModel = viewModel(lastViewed = lastViewed)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("the subtitle names what landed, not what was asked for", "All", viewModel.state.value.currentReadlistLabel)
+		assertEquals("/queue", viewModel.state.value.selectedReadlistHref)
+		assertEquals("the stale stored selection is superseded", "/queue", lastViewed.href)
+	}
+
+	@Test
+	fun `a held load from the readlist just left cannot repaint the one switched back to`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.request.url.query == "queue=work" ->
+					gate.holding(
+						Stub.json(
+							200,
+							Fixtures.collection(
+								listOf(Fixtures.article("w1")),
+								tabsJson = Fixtures.tabs(queue = "/queue?queue=work"),
+								readlistsJson = Fixtures.readlists(current = "/queue?queue=work"),
+							),
+						),
+					)
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("a1")),
+							tabsJson = Fixtures.tabs(queue = "/queue"),
+							readlistsJson = Fixtures.readlists(current = "/queue"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.loadIfNeeded()
+		assertEquals(listOf("a1"), viewModel.articleIds)
+
+		val toWork = launch { viewModel.select("/queue?queue=work") }
+		awaitArrival(gate)
+		viewModel.select("/queue")
+		assertEquals("the switch back to All lands its own rows", listOf("a1"), viewModel.articleIds)
+
+		gate.release()
+		toWork.join()
+
+		assertEquals("the held Work load is dropped, not painted into All", listOf("a1"), viewModel.articleIds)
+		assertEquals("/queue", viewModel.state.value.selectedReadlistHref)
+	}
+
+	@Test
+	fun `a late page from the readlist just left is not appended after a switch`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2")), page = 2)))
+				record.path == "/queue" && record.request.url.query == "queue=work" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("w1")),
+							tabsJson = Fixtures.tabs(queue = "/queue?queue=work"),
+							readlistsJson = Fixtures.readlists(current = "/queue?queue=work"),
+						),
+					)
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("a1")),
+							extraLinks = NEXT_LINK,
+							tabsJson = Fixtures.tabs(queue = "/queue"),
+							readlistsJson = Fixtures.readlists(current = "/queue"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.loadIfNeeded()
+
+		val more = launch { viewModel.loadMore() }
+		awaitArrival(gate)
+		viewModel.select("/queue?queue=work")
+		assertEquals("the switch replaced the list with the new readlist", listOf("w1"), viewModel.articleIds)
+
+		gate.release()
+		more.join()
+
+		assertEquals("the page from the readlist just left is dropped, not stitched onto the new one", listOf("w1"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `the drop row is hidden when the collection advertises no tab metadata`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(
+					200,
+					Fixtures.collection(listOf(Fixtures.article("a1")), readlistsJson = Fixtures.readlists(current = "/queue")),
+				)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.loadIfNeeded()
+
+		assertTrue("the switcher still shows for multiple readlists", viewModel.state.value.offersReadlistSwitching)
+		assertNull(
+			"with no advertised tabs there is no landing tab to gate the drop row on",
+			viewModel.state.value.sharedArticlesDrop,
+		)
+	}
+
+	@Test
+	fun `a mutation result from the readlist just left is not adopted into the new one`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/queue/a1/status" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2")))))
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.request.url.query == "queue=work" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("w1")),
+							tabsJson = Fixtures.tabs(queue = "/queue?queue=work"),
+							readlistsJson = Fixtures.readlists(current = "/queue?queue=work"),
+						),
+					)
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("a1")),
+							tabsJson = Fixtures.tabs(queue = "/queue"),
+							readlistsJson = Fixtures.readlists(current = "/queue"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.loadIfNeeded()
+		val toggle = advertisedAction(viewModel.state.value.articles.first(), "update-status")
+
+		val mutation = launch { viewModel.invoke(toggle) }
+		awaitArrival(gate)
+		viewModel.select("/queue?queue=work")
+		assertEquals("the switch replaced the list with the new readlist", listOf("w1"), viewModel.articleIds)
+
+		gate.release()
+		mutation.join()
+
+		assertEquals(
+			"the mutation's post-action collection belongs to the readlist just left and is not adopted",
+			listOf("w1"),
+			viewModel.articleIds,
+		)
+	}
+
+	@Test
+	fun `a failed selection can be left for another readlist`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.request.url.query == "queue=work" ->
+					gate.holding(Stub.json(500, "{}"))
+				record.path == "/queue" && record.request.url.query == "queue=later" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("l1")),
+							tabsJson = Fixtures.tabs(queue = "/queue?queue=later"),
+							readlistsJson = """
+								{ "label": "All", "rel": "readlist", "href": "/queue" },
+								{ "label": "Later", "rel": "current", "href": "/queue?queue=later" }
+							""",
+						),
+					)
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("a1")),
+							tabsJson = Fixtures.tabs(queue = "/queue"),
+							readlistsJson = Fixtures.readlists(current = "/queue"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.loadIfNeeded()
+
+		val toWork = launch { viewModel.select("/queue?queue=work") }
+		awaitArrival(gate)
+		viewModel.select("/queue?queue=later")
+		assertEquals("the reader moved on to another readlist while the first was failing", listOf("l1"), viewModel.articleIds)
+
+		gate.release()
+		toWork.join()
+
+		assertEquals("the abandoned failing load neither repaints rows nor surfaces its error", listOf("l1"), viewModel.articleIds)
+		assertNull(viewModel.state.value.errorText)
+	}
+
+	// endregion
+
 	private val readTabLanding = "/queue?landing=after-toggle"
 	private val readTabLandingQuery = "landing=after-toggle"
 
@@ -2607,7 +3175,7 @@ class ReadingListViewModelTest {
 		val unreadTab = Fixtures.collection(
 			listOf(Fixtures.article("u1"), Fixtures.article("u2")),
 			total = 2,
-			tabsJson = Fixtures.tabs(current = "unread"),
+			tabsJson = Fixtures.statusTabs(current = "unread"),
 		)
 		val readEntities = listOf(Fixtures.readArticle("r1"))
 		var statusPosted = false
@@ -2628,7 +3196,7 @@ class ReadingListViewModelTest {
 							entities,
 							extraLinks = readTabExtraLinks,
 							total = entities.size,
-							tabsJson = Fixtures.tabs(current = "read"),
+							tabsJson = Fixtures.statusTabs(current = "read"),
 						),
 					)
 				}
@@ -2736,7 +3304,7 @@ class ReadingListViewModelTest {
 							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
 							extraLinks = UNREAD_NEXT,
 							total = 3,
-							tabsJson = Fixtures.tabs(current = "unread"),
+							tabsJson = Fixtures.statusTabs(current = "unread"),
 						),
 					)
 				else -> Stub.json(404, "{}")
@@ -2872,12 +3440,12 @@ class ReadingListViewModelTest {
 			when {
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" && query?.contains("page=2") == true ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.statusTabs("unread")))
 				record.path == "/queue" && query?.contains("status=read") == true ->
 					if (readTabDown.get()) {
 						Stub.json(500, "{}")
 					} else {
-						Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.statusTabs("read")))
 					}
 				record.path == "/queue" ->
 					Stub.json(
@@ -2886,7 +3454,7 @@ class ReadingListViewModelTest {
 							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
 							extraLinks = UNREAD_NEXT,
 							total = 3,
-							tabsJson = Fixtures.tabs("unread"),
+							tabsJson = Fixtures.statusTabs("unread"),
 						),
 					)
 				else -> Stub.json(404, "{}")
@@ -2933,7 +3501,7 @@ class ReadingListViewModelTest {
 								listOf(Fixtures.readArticle("r3"), Fixtures.readArticle("r4"))
 							},
 							page = 2,
-							tabsJson = Fixtures.tabs("read"),
+							tabsJson = Fixtures.statusTabs("read"),
 						),
 					)
 				record.path == "/queue" &&
@@ -2944,10 +3512,10 @@ class ReadingListViewModelTest {
 							listOf(Fixtures.readArticle("r1"), Fixtures.readArticle("r2")),
 							extraLinks = READ_NEXT,
 							total = 4,
-							tabsJson = Fixtures.tabs("read"),
+							tabsJson = Fixtures.statusTabs("read"),
 						),
 					)
-				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1")), tabsJson = Fixtures.tabs("unread")))
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1")), tabsJson = Fixtures.statusTabs("unread")))
 				else -> Stub.json(404, "{}")
 			}
 		}
@@ -2978,9 +3546,9 @@ class ReadingListViewModelTest {
 			when {
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" && query?.contains("page=2") == true ->
-					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3"), Fixtures.article("u4")), page = 2, tabsJson = Fixtures.tabs("unread"))))
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3"), Fixtures.article("u4")), page = 2, tabsJson = Fixtures.statusTabs("unread"))))
 				record.path == "/queue" && query?.contains("status=read") == true ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.statusTabs("read")))
 				record.path == "/queue" ->
 					Stub.json(
 						200,
@@ -2988,7 +3556,7 @@ class ReadingListViewModelTest {
 							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
 							extraLinks = UNREAD_NEXT,
 							total = 4,
-							tabsJson = Fixtures.tabs("unread"),
+							tabsJson = Fixtures.statusTabs("unread"),
 						),
 					)
 				else -> Stub.json(404, "{}")
@@ -3023,11 +3591,11 @@ class ReadingListViewModelTest {
 			when {
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" && query?.contains("status=read") == true ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.statusTabs("read")))
 				record.path == "/queue" && query == "status=unread" ->
-					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1"), Fixtures.article("u2")), total = 2, tabsJson = Fixtures.tabs("unread"))))
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1"), Fixtures.article("u2")), total = 2, tabsJson = Fixtures.statusTabs("unread"))))
 				record.path == "/queue" ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1"), Fixtures.article("u2")), total = 2, tabsJson = Fixtures.tabs("unread")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1"), Fixtures.article("u2")), total = 2, tabsJson = Fixtures.statusTabs("unread")))
 				else -> Stub.json(404, "{}")
 			}
 		}
@@ -3058,7 +3626,7 @@ class ReadingListViewModelTest {
 		val unreadTab = Fixtures.collection(
 			listOf(Fixtures.article("u1"), Fixtures.article("u2")),
 			total = 2,
-			tabsJson = Fixtures.tabs(current = "unread"),
+			tabsJson = Fixtures.statusTabs(current = "unread"),
 		)
 		server.handle { record ->
 			val query = record.request.url.query
@@ -3069,7 +3637,7 @@ class ReadingListViewModelTest {
 				}
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" && query?.contains("status=read") == true ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.statusTabs("read")))
 				record.path == "/queue" && query == null && statusPosted.get() -> gate.holding(Stub.json(200, unreadTab))
 				record.path == "/queue" -> Stub.json(200, unreadTab)
 				else -> Stub.json(404, "{}")
@@ -3102,11 +3670,11 @@ class ReadingListViewModelTest {
 			when {
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" && query == "status=unread&page=2" ->
-					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread"))))
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.statusTabs("unread"))))
 				record.path == "/queue" && query == "status=read&page=2" ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r2")), page = 2, tabsJson = Fixtures.tabs("read")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r2")), page = 2, tabsJson = Fixtures.statusTabs("read")))
 				record.path == "/queue" && query?.contains("status=read") == true ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), extraLinks = READ_NEXT, total = 2, tabsJson = Fixtures.tabs("read")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), extraLinks = READ_NEXT, total = 2, tabsJson = Fixtures.statusTabs("read")))
 				record.path == "/queue" ->
 					Stub.json(
 						200,
@@ -3114,7 +3682,7 @@ class ReadingListViewModelTest {
 							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
 							extraLinks = UNREAD_NEXT,
 							total = 3,
-							tabsJson = Fixtures.tabs("unread"),
+							tabsJson = Fixtures.statusTabs("unread"),
 						),
 					)
 				else -> Stub.json(404, "{}")
@@ -3154,9 +3722,9 @@ class ReadingListViewModelTest {
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" && query?.contains("page=2") == true && statusPosted.get() -> gate.holding(hopAnswer)
 				record.path == "/queue" && query?.contains("page=2") == true ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.statusTabs("unread")))
 				record.path == "/queue" && query?.contains("status=read") == true ->
-					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.statusTabs("read")))
 				record.path == "/queue" ->
 					Stub.json(
 						200,
@@ -3164,7 +3732,7 @@ class ReadingListViewModelTest {
 							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
 							extraLinks = UNREAD_NEXT,
 							total = 3,
-							tabsJson = Fixtures.tabs("unread"),
+							tabsJson = Fixtures.statusTabs("unread"),
 						),
 					)
 				else -> Stub.json(404, "{}")
@@ -3188,7 +3756,7 @@ class ReadingListViewModelTest {
 	@Test
 	fun `an adoption re-follow in flight when the tab changes never lands under the new tab`() = runTest {
 		val viewModel = adoptionReFollowInterruptedByATabChange(
-			hopAnswer = Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread"))),
+			hopAnswer = Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.statusTabs("unread"))),
 		)
 
 		assertEquals(
@@ -3224,11 +3792,11 @@ class ReadingListViewModelTest {
 			when {
 				record.path == "/" -> Stub.redirect(to = "/queue")
 				record.path == "/queue" && query?.contains("page=2") == true -> {
-					val page2 = Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+					val page2 = Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.statusTabs("unread")))
 					if (page2Reads.incrementAndGet() == 2) hopGate.holding(page2) else page2
 				}
 				record.path == "/queue" && query?.contains("status=read") == true ->
-					readTabGate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read"))))
+					readTabGate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.statusTabs("read"))))
 				record.path == "/queue" ->
 					Stub.json(
 						200,
@@ -3236,7 +3804,7 @@ class ReadingListViewModelTest {
 							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
 							extraLinks = UNREAD_NEXT,
 							total = 3,
-							tabsJson = Fixtures.tabs("unread"),
+							tabsJson = Fixtures.statusTabs("unread"),
 						),
 					)
 				else -> Stub.json(404, "{}")
@@ -3311,13 +3879,15 @@ class ReadingListViewModelTest {
 			actionsJson: String = COLLECTION_ACTIONS,
 			appearance: String? = null,
 			tabsJson: String? = null,
+			readlistsJson: String? = null,
 		): String {
 			val appearanceProperty = if (appearance != null) ", \"appearance\": \"$appearance\"" else ""
 			val tabsProperty = if (tabsJson != null) ", \"tabs\": [$tabsJson]" else ""
+			val readlistsProperty = if (readlistsJson != null) ", \"readlists\": [$readlistsJson]" else ""
 			return """
 				{
 					"class": ["collection", "articles"],
-					"properties": { "total": $total, "page": $page, "pageSize": 20$appearanceProperty$tabsProperty },
+					"properties": { "total": $total, "page": $page, "pageSize": 20$appearanceProperty$tabsProperty$readlistsProperty },
 					"entities": [${entitiesJson.joinToString(",\n")}],
 					"links": [
 						{ "rel": ["self"], "href": "/queue?page=$page" },
@@ -3328,7 +3898,22 @@ class ReadingListViewModelTest {
 			"""
 		}
 
-		fun tabs(current: String): String {
+		/** Two tabs whose first ("To Read") is the landing tab a shared article
+		 * arrives on. [currentLabel] names which tab the server marks `current`; the
+		 * hrefs hang off [queue] so a readlist's tabs resolve under that readlist. */
+		fun tabs(currentLabel: String = "To Read", queue: String = "/queue"): String {
+			fun rel(label: String) = if (label == currentLabel) "current" else "tab"
+			return """
+				{ "label": "To Read", "rel": "${rel("To Read")}", "href": "$queue" },
+				{ "label": "Read", "rel": "${rel("Read")}", "href": "$queue?status=read" }
+			"""
+		}
+
+		/** The status tabs the To Read / Read control renders, hrefs keyed by status;
+		 * [current] ("unread"/"read") is the status the server marks `current`. Kept
+		 * distinct from [tabs] (queue-keyed) so the tab-switching suite asserts the
+		 * status-scheme hrefs its stubs answer. */
+		fun statusTabs(current: String): String {
 			fun rel(status: String): String = if (status == current) "current" else "tab"
 			return """
 				{ "label": "To Read", "rel": "${rel("unread")}", "href": "/queue?status=unread" },
@@ -3348,6 +3933,16 @@ class ReadingListViewModelTest {
 					]
 				}
 			"""
+
+		/** Mainline "All" (at the root) plus "Work"; [current] is the href the server
+		 * marks the current readlist. */
+		fun readlists(current: String = "/queue"): String {
+			fun rel(href: String) = if (href == current) "current" else "readlist"
+			return """
+				{ "label": "All", "rel": "${rel("/queue")}", "href": "/queue" },
+				{ "label": "Work", "rel": "${rel("/queue?queue=work")}", "href": "/queue?queue=work" }
+			"""
+		}
 
 		fun sirenError(code: String, message: String): String =
 			"""{ "class": ["error"], "properties": { "code": "$code", "message": "$message" } }"""
