@@ -134,6 +134,38 @@ class ShareExtractorTest {
 	}
 
 	@Test
+	fun `extracts a scheme-less domain from plain text as an http url`() {
+		assertEquals(
+			"a scheme-less link shared as text is normalised to an absolute http URL",
+			ShareExtractor.Shared(url = "http://example.com/p", title = null, pdf = null),
+			ShareExtractor.extract(items(item(texts = listOf("read this example.com/p ok")))),
+		)
+	}
+
+	@Test
+	fun `a url attachment beats a scheme-less domain in the same item's text`() {
+		assertEquals(
+			ShareExtractor.Shared(url = "https://example.com/u", title = null, pdf = null),
+			ShareExtractor.extract(
+				items(item(texts = listOf("see example.com/t"), urls = listOf("https://example.com/u"))),
+			),
+		)
+	}
+
+	@Test
+	fun `an earlier item's scheme-less text beats a later item's url attachment`() {
+		assertEquals(
+			ShareExtractor.Shared(url = "http://example.com/t", title = null, pdf = null),
+			ShareExtractor.extract(
+				items(
+					item(texts = listOf("see example.com/t")),
+					item(urls = listOf("https://example.com/u")),
+				),
+			),
+		)
+	}
+
+	@Test
 	fun `finds the url in a later item when the first has none`() {
 		assertEquals(
 			ShareExtractor.Shared(url = "https://example.com/t", title = null, pdf = null),

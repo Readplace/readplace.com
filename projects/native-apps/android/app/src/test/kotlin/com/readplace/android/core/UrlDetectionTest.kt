@@ -306,4 +306,92 @@ class UrlDetectionTest {
 			UrlDetection.firstWebUrl("see [https://example.com/a]"),
 		)
 	}
+
+	@Test
+	fun `defaults a scheme-less domain to http`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("example.com/post"))
+	}
+
+	@Test
+	fun `finds a scheme-less domain surrounded by prose`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("Read example.com/post today"))
+	}
+
+	@Test
+	fun `keeps the path query and fragment of a scheme-less www domain`() {
+		assertEquals(
+			"http://www.example.com/a?q=1#part",
+			UrlDetection.firstWebUrl("www.example.com/a?q=1#part"),
+		)
+	}
+
+	@Test
+	fun `drops the sentence stop after a scheme-less domain`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("Read example.com/post."))
+	}
+
+	@Test
+	fun `keeps a scheme-less domain wrapped in parentheses`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("(example.com/post)"))
+	}
+
+	@Test
+	fun `drops the parenthesis and stop around a scheme-less domain`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("(example.com/post)."))
+	}
+
+	@Test
+	fun `takes a scheme-less domain that comes before an explicit url`() {
+		assertEquals(
+			"http://example.com/first",
+			UrlDetection.firstWebUrl("example.com/first then https://example.com/second"),
+		)
+	}
+
+	@Test
+	fun `takes an explicit url that comes before a scheme-less domain`() {
+		assertEquals(
+			"https://example.com/first",
+			UrlDetection.firstWebUrl("https://example.com/first then example.com/second"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain in an email address`() {
+		assertNull(UrlDetection.firstWebUrl("someone@example.com"))
+	}
+
+	@Test
+	fun `finds no scheme-less domain in a mailto payload`() {
+		assertNull(UrlDetection.firstWebUrl("mailto:someone@example.com"))
+	}
+
+	@Test
+	fun `does not recover a web url from a file scheme host`() {
+		assertNull(
+			"the host inside an unsupported scheme must not be rescued as a bare domain",
+			UrlDetection.firstWebUrl("file://example.com/a"),
+		)
+	}
+
+	@Test
+	fun `does not recover a web url from a content scheme host`() {
+		assertNull(
+			"the host inside an unsupported scheme must not be rescued as a bare domain",
+			UrlDetection.firstWebUrl("content://example.com/a"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain in a version number`() {
+		assertNull("a dotted number has no alphabetic final label", UrlDetection.firstWebUrl("version 1.2.3"))
+	}
+
+	@Test
+	fun `finds no scheme-less domain in a bare filename`() {
+		assertNull(
+			"a dotted token without a path is ordinary prose, not a link",
+			UrlDetection.firstWebUrl("the file report.pdf is attached"),
+		)
+	}
 }
