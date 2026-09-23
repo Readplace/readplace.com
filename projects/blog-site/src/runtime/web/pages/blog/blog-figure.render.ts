@@ -89,7 +89,7 @@ function renderMatrix(figure: MatrixFigure, id: string): string {
 	const rows = figure.rows
 		.map((row) => {
 			const cells = row.cells
-				.map((cell) => {
+				.map((cell, column) => {
 					const before =
 						cell.state === "unreported"
 							? `<span class="rpf-matrix__cell rpf-matrix__cell--before rpf-matrix__cell--unreported">${NOT_REPORTED}</span>`
@@ -99,7 +99,7 @@ function renderMatrix(figure: MatrixFigure, id: string): string {
 					 * same restraint that keeps its before half from being filled in. */
 					const moved = cell.state === "differs" || cell.before !== cell.after;
 					const changed = cell.state !== "unreported" && moved ? " rpf-matrix__cell--now" : "";
-					return `<td>${before}<span class="rpf-matrix__cell rpf-matrix__cell--after${changed}">${esc(cell.after)}</span></td>`;
+					return `<td data-label="${esc(figure.columns[column])}">${before}<span class="rpf-matrix__cell rpf-matrix__cell--after${changed}">${esc(cell.after)}</span></td>`;
 				})
 				.join("");
 			return `<tr><th scope="row">${esc(row.label)}</th>${cells}</tr>`;
@@ -109,14 +109,12 @@ function renderMatrix(figure: MatrixFigure, id: string): string {
 	return `<figure class="rpf rpf-matrix" id="${id}">
 ${heading(figure)}
 ${switchControl(`${id}-after`, "rpf-matrix__flip", figure.toggle)}
-<div class="rpf-matrix__scroll">
 <table class="rpf-matrix__table">
 <thead><tr><th scope="col">${esc(figure.corner)}</th>${head}</tr></thead>
 <tbody>
 ${rows}
 </tbody>
 </table>
-</div>
 </figure>`;
 }
 
@@ -149,11 +147,13 @@ function renderBudget(figure: BudgetFigure, id: string): string {
 
 	return `<figure class="rpf rpf-budget" id="${id}">
 ${heading(figure)}
+<div role="radiogroup" aria-labelledby="${id}-input">
 ${radios}
 <div class="rpf-budget__control">
-<span class="rpf-budget__input">${esc(figure.input)}</span>
+<span class="rpf-budget__input" id="${id}-input">${esc(figure.input)}</span>
 <div class="rpf-budget__track">
 ${ticks}
+</div>
 </div>
 </div>
 <div class="rpf-budget__states">

@@ -268,6 +268,28 @@ describe("GET /blog/:slug", () => {
 		const response = await request(app).get("/blog/nonexistent-post");
 		expect(response.status).toBe(404);
 	});
+
+	it("renders the not-found copy for an unknown slug", async () => {
+		const response = await request(app).get("/blog/no-such-post");
+		expect(response.status).toBe(404);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector(".not-found__title")?.textContent).toBe("Page not found");
+		expect(doc.querySelector(".not-found__text")?.textContent).toBe(
+			"The page you're looking for doesn't exist or has moved.",
+		);
+	});
+
+	it("labels a post table's cells with their column header so they stack on a phone", async () => {
+		const response = await request(app).get("/blog/pocket-migration");
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const labelled = doc.querySelector("td[data-label]");
+		assert(labelled, "the post table's cells carry a data-label");
+		const labels = Array.from(doc.querySelectorAll("td[data-label]")).map((td) =>
+			td.getAttribute("data-label"),
+		);
+		expect(labels).toContain("Readplace");
+	});
 });
 
 describe("old hutch-vs-* slug redirects", () => {

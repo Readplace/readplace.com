@@ -8,6 +8,7 @@ import {
 	CHANGELOG_VERSION_LENGTH,
 	type ChangelogBanner,
 	isChangelogVersion,
+	toAbsoluteDate,
 	withInternalTracking,
 } from "@packages/web-shell";
 import matter from "gray-matter";
@@ -26,6 +27,26 @@ interface FigureEnv {
 	figureCount: number;
 }
 
+function headingText(state: MarkdownIt.StateCore, inlineIndex: number): string {
+	const { children } = state.tokens[inlineIndex];
+	assert(children, "markdown-it pushes an inline token with children after every th_open");
+	return state.md.renderer.renderInlineAsText(children, state.md.options, state.env).trim();
+}
+
+function labelTableCells(state: MarkdownIt.StateCore): void {
+	let headings: string[] = [];
+	let column = 0;
+	state.tokens.forEach((token, index) => {
+		if (token.type === "thead_open") headings = [];
+		if (token.type === "tr_open") column = 0;
+		if (token.type === "th_open") headings.push(headingText(state, index + 1));
+		if (token.type !== "td_open") return;
+		const label = headings[column];
+		column += 1;
+		if (label !== "") token.attrSet("data-label", label);
+	});
+}
+
 function initMarkdown(): MarkdownIt {
 	const renderer = new MarkdownIt({ html: true });
 	renderer.renderer.rules.fence = (tokens, index, options, env: FigureEnv, self) => {
@@ -34,6 +55,7 @@ function initMarkdown(): MarkdownIt {
 		env.figureCount += 1;
 		return `${renderFigure(parseFigure(token.content), env.figureCount)}\n`;
 	};
+	renderer.core.ruler.push("table_cell_labels", labelTableCells);
 	return renderer;
 }
 
@@ -43,7 +65,7 @@ const md = initMarkdown();
  * `env` so a figure's input ids depend only on its position within its own post
  * — a counter shared across the directory would renumber every later post's
  * inputs whenever an earlier one gained a figure. */
-function renderPostBody(content: string): string {
+export function renderPostBody(content: string): string {
 	const env: FigureEnv = { figureCount: 0 };
 	return withTldrCaret(md.render(content, env));
 }
@@ -154,16 +176,6 @@ export function deriveChangelogBanner(
 	return { hook: latest.banner, href, version };
 }
 
-function formatDate(isoDate: string): string {
-	const date = new Date(`${isoDate}T00:00:00Z`);
-	return date.toLocaleDateString("en-US", {
-		day: "numeric",
-		month: "long",
-		year: "numeric",
-		timeZone: "UTC",
-	});
-}
-
 export interface BlogPosts {
 	getAllPosts: () => BlogPost[];
 	findPostBySlug: (slug: string) => BlogPost | undefined;
@@ -186,7 +198,7 @@ export function initBlogPosts(): BlogPosts {
 				...frontmatter,
 				htmlContent: renderPostBody(content),
 				markdownContent: content,
-				formattedDate: formatDate(frontmatter.date),
+				formattedDate: toAbsoluteDate({ iso: `${frontmatter.date}T00:00:00Z` }).label,
 			};
 		})
 		.sort((a, b) => b.date.localeCompare(a.date));

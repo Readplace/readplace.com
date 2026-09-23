@@ -13,6 +13,7 @@ const CELL_SEPARATOR = ">>";
  * cover. Raising one means adding the matching rules in blog.styles.css. */
 export const MAX_WHENS = 4;
 export const MAX_STEPS = 10;
+export const MAX_BUDGET_STEPS = 6;
 
 /** One `key: value` line. A key may repeat, which is how a figure carries a list
  * of rows or steps without nesting — the fence body has to stay legible as prose
@@ -205,7 +206,10 @@ function parseBudget(lines: Line[], title: string, note?: string): BudgetFigure 
 		const [at, oldCount, newCount] = fields(step, 3, "a budget step");
 		return { at, oldCount: Num.parse(oldCount), newCount: Num.parse(newCount) };
 	});
-	assert(steps.length >= 2 && steps.length <= MAX_STEPS, `rp-figure: a budget needs 2 to ${MAX_STEPS} steps`);
+	assert(
+		steps.length >= 2 && steps.length <= MAX_BUDGET_STEPS,
+		`rp-figure: a budget needs 2 to ${MAX_BUDGET_STEPS} steps`,
+	);
 	return {
 		kind: "budget",
 		title,

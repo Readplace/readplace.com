@@ -153,8 +153,14 @@ describe("matrix figures", () => {
 	});
 
 	it("should not claim a cell moved when the post never reported where it started", () => {
-		const unreported = draw(MATRIX).split("<td>").find((cell) => cell.includes("--unreported"));
+		const unreported = draw(MATRIX).split("<td").find((cell) => cell.includes("--unreported"));
 		expect(unreported).not.toContain("rpf-matrix__cell--now");
+	});
+
+	it("should label every data cell with its column so it can stack on a phone", () => {
+		const html = draw(MATRIX);
+		expect(html).toContain('<td data-label="curl">');
+		expect(html).toContain('<td data-label="HTTP/2">');
 	});
 
 	it("should require two columns", () => {
@@ -188,7 +194,15 @@ describe("budget figures", () => {
 
 	it("should require at least two steps", () => {
 		const body = BUDGET.split("\n").filter((line) => !line.startsWith("step: 2") && !line.startsWith("step: 8")).join("\n");
-		expect(() => parseFigure(body)).toThrow(/2 to 10 steps/);
+		expect(() => parseFigure(body)).toThrow(/2 to 6 steps/);
+	});
+
+	it("should cap a budget at six steps so each tick keeps a 44px tap target", () => {
+		const base = "kind: budget\ntitle: t\ninput: i\noldLabel: old\nnewLabel: new\nunit: u";
+		const withSteps = (count: number) =>
+			`${base}\n${Array.from({ length: count }, (_, i) => `step: ${i + 1} | ${i + 1} | ${i + 1}`).join("\n")}`;
+		expect(() => parseFigure(withSteps(6))).not.toThrow();
+		expect(() => parseFigure(withSteps(7))).toThrow(/2 to 6 steps/);
 	});
 });
 

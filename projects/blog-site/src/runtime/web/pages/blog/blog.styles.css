@@ -3,15 +3,15 @@
 .blog {
   max-width: var(--reader-max-width);
   margin: 0 auto;
-  padding: 48px 20px;
+  padding: 48px 16px;
 }
 
 .blog__title {
   font-family: var(--font-serif);
   font-size: 2.75rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin: 0 0 8px;
   line-height: 1.3;
   text-wrap: balance;
@@ -19,7 +19,7 @@
 
 .blog__subtitle {
   font-size: 1.05rem;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   margin: 0 0 40px;
   line-height: 1.6;
   text-wrap: pretty;
@@ -34,7 +34,7 @@
 /* Blog card */
 
 .blog-card {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border);
   padding-bottom: 32px;
 }
 
@@ -52,28 +52,28 @@
 .blog-card__title {
   font-family: var(--font-serif);
   font-size: 1.35rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
+  font-weight: 700;
+  color: var(--foreground);
   margin: 0 0 6px;
   line-height: 1.3;
-  transition: color 0.15s ease;
+  transition: color 150ms ease;
   text-wrap: balance;
 }
 
 .blog-card__link:hover .blog-card__title {
-  color: var(--color-brand);
+  color: var(--primary-text);
 }
 
 .blog-card__date {
   display: block;
   font-size: 0.875rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   margin-bottom: 8px;
 }
 
 .blog-card__description {
   font-size: 1rem;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   margin: 0;
   line-height: 1.6;
   text-wrap: pretty;
@@ -84,7 +84,7 @@
 .blog-post {
   max-width: var(--reader-max-width);
   margin: 0 auto;
-  padding: 48px 20px;
+  padding: 48px 16px;
 }
 
 .blog-post__header {
@@ -95,15 +95,15 @@
   font-family: var(--font-serif);
   font-size: 2.2rem;
   font-weight: 700;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin: 0 0 12px;
-  line-height: 1.2;
+  line-height: 1.3;
   text-wrap: balance;
 }
 
 .blog-post__meta {
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
 }
 
 .blog-post__date {
@@ -113,7 +113,7 @@
 /* Rendered markdown content */
 
 .blog-post__content {
-  color: var(--color-text-primary);
+  color: var(--foreground);
   line-height: 1.7;
   font-size: 1.05rem;
   text-wrap: pretty;
@@ -122,30 +122,30 @@
 .blog-post__content h2 {
   font-family: var(--font-serif);
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 700;
   margin: 40px 0 16px;
   line-height: 1.3;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   text-wrap: balance;
 }
 
 .blog-post__content h3 {
   font-family: var(--font-serif);
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 700;
   margin: 32px 0 12px;
   line-height: 1.3;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   text-wrap: balance;
 }
 
 .blog-post__content h4 {
   font-family: var(--font-serif);
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: 700;
   margin: 24px 0 8px;
   line-height: 1.4;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   text-wrap: balance;
 }
 
@@ -173,7 +173,7 @@
   margin: 40px 0;
   padding: 0;
   text-align: center;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   font-size: 1.35rem;
   font-weight: 500;
   line-height: 1.5;
@@ -200,14 +200,18 @@
 .blog-post__content code {
   font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
   font-size: 0.9em;
-  background: var(--color-surface);
+  background: var(--muted);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
 }
 
+.blog-post__content :not(pre) > code {
+  overflow-wrap: anywhere;
+}
+
 .blog-post__content pre {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
   overflow-x: auto;
@@ -230,7 +234,7 @@
 
 .blog-post__content hr {
   border: none;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border);
   margin: 40px 0;
 }
 
@@ -239,17 +243,15 @@
 }
 
 .blog-post__content table {
-  display: block;
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
   border-collapse: collapse;
   margin: 0 0 24px;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
 }
 
 .blog-post__content thead {
-  background: var(--color-surface);
+  background: var(--muted);
 }
 
 .blog-post__content th,
@@ -257,12 +259,13 @@
   padding: 10px 14px;
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
 }
 
 .blog-post__content th {
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .blog-post__content tbody tr:last-child td {
@@ -274,8 +277,8 @@
 /* purgecss-ignore-start: used in <details> HTML embedded in markdown blog posts */
 .blog-tldr {
   margin: 0 0 32px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 
@@ -288,12 +291,12 @@
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
   list-style: none;
   user-select: none;
   border-radius: var(--radius);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
 .blog-tldr__toggle::-webkit-details-marker {
@@ -301,17 +304,13 @@
 }
 
 .blog-tldr__toggle:hover {
-  background: color-mix(in srgb, var(--color-brand) 8%, transparent);
-  color: var(--color-text-primary);
-}
-
-.blog-tldr__toggle:active {
-  background: color-mix(in srgb, var(--color-brand) 14%, transparent);
+  background: var(--card);
+  color: var(--foreground);
 }
 
 .blog-tldr__toggle:focus-visible {
   outline: 2px solid var(--ring);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
 .blog-tldr[open] .blog-tldr__toggle {
@@ -321,17 +320,13 @@
 .blog-tldr__caret {
   display: inline-flex;
   flex-shrink: 0;
-  color: var(--color-text-muted);
-  transition: transform 0.2s ease, color 0.2s ease;
+  color: var(--muted-foreground);
+  transition: transform 150ms ease, color 150ms ease;
 }
 
 .blog-tldr__caret svg {
-  width: 1.2em;
-  height: 1.2em;
-}
-
-.blog-tldr__toggle:hover .blog-tldr__caret {
-  color: var(--color-brand);
+  width: 1em;
+  height: 1em;
 }
 
 .blog-tldr[open] .blog-tldr__caret {
@@ -340,7 +335,7 @@
 
 .blog-tldr__body {
   padding: 0 1.5rem 1.25rem;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   line-height: 1.6;
   font-size: 1rem;
 }
@@ -352,27 +347,34 @@
 .blog-post__content .blog-cta {
   margin: 32px 0;
   padding: 24px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 
 .blog-post__content .blog-cta__title {
   margin: 0 0 8px;
-  font-size: 1.125rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--foreground);
+  text-wrap: balance;
 }
 
 .blog-post__content .blog-cta__text {
   margin: 0 0 16px;
-  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+.blog-post__content .blog-cta__button {
+  width: 100%;
 }
 
 .blog-post__content .blog-cta__note {
   margin: 12px 0 0;
   font-size: 0.875rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 /* purgecss-ignore-end */
 
@@ -403,33 +405,35 @@
   padding: 0;
 }
 
-.rpf__title {
-  font-size: 0.95rem;
+.blog-post__content .rpf__title {
+  font-family: var(--font-sans);
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin: 0 0 4px;
+  text-wrap: balance;
 }
 
-.rpf__note {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  margin: 0 0 18px;
+.blog-post__content .rpf__note {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  margin: 0 0 16px;
   line-height: 1.5;
 }
 
 .rpf__legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 18px;
+  gap: 6px 12px;
   margin: 0 0 16px;
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
 }
 
 .rpf__legend span {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
 }
 
 .rpf__swatch {
@@ -439,14 +443,14 @@
   flex: none;
 }
 
-.rpf__swatch--before { background: var(--color-text-muted); }
-.rpf__swatch--after { background: var(--color-brand); }
+.rpf__swatch--before { background: var(--muted-foreground); }
+.rpf__swatch--after { background: var(--primary-text); }
 
 /* The one switch shape the interactive figures share. */
 
 .rpf__switch {
   display: block;
-  margin: 0 0 20px;
+  margin: 0 0 8px;
 }
 
 .rpf__switch input {
@@ -461,38 +465,47 @@
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  min-height: 44px;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
 }
 
 .rpf__switch-track {
-  width: 38px;
-  height: 22px;
-  border-radius: 11px;
-  background: var(--color-border);
+  width: 40px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--muted-foreground);
   position: relative;
   flex: none;
-  transition: background 0.18s ease;
+  transition: background-color 150ms ease;
 }
 
 .rpf__switch-track::after {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 4px;
+  left: 4px;
   width: 16px;
   height: 16px;
-  border-radius: 50%;
-  background: var(--color-surface-elevated);
-  transition: transform 0.18s ease;
+  border-radius: calc(var(--radius-sm) - 4px);
+  background: var(--card);
+  transition: transform 150ms ease;
 }
 
-.rpf__switch input:checked + label .rpf__switch-track { background: var(--color-brand); }
+.rpf__switch input:checked + label .rpf__switch-track { background: var(--primary); }
 .rpf__switch input:checked + label .rpf__switch-track::after { transform: translateX(16px); }
 
 .rpf__switch input:focus-visible + label .rpf__switch-track {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rpf__switch-track,
+  .rpf__switch-track::after,
+  .blog-tldr__caret {
+    transition: none;
+  }
 }
 
 /* --- bars ---------------------------------------------------------------- */
@@ -504,9 +517,9 @@
 }
 
 .rpf-bars__label {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  margin-bottom: 5px;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
 }
 
 .rpf-bars__pair {
@@ -524,23 +537,24 @@
 
 .rpf-bars__track {
   height: 14px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--color-text-muted) 26%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  overflow: hidden;
 }
 
 .rpf-bars__fill {
   display: block;
   height: 14px;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
-.rpf-bars__fill--before { background: var(--color-text-muted); }
-.rpf-bars__fill--after { background: var(--color-brand); }
+.rpf-bars__fill--before { background: var(--muted-foreground); }
+.rpf-bars__fill--after { background: var(--primary-text); }
 
 .rpf-bars__value {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   min-width: 7em;
   text-align: right;
 }
@@ -561,9 +575,10 @@
 
 .rpf-walk__step {
   display: grid;
-  grid-template-columns: 26px 1fr;
+  grid-template-columns: 26px minmax(0, 1fr);
   gap: 14px;
   align-items: start;
+  min-height: 44px;
   cursor: pointer;
 }
 
@@ -579,43 +594,49 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: var(--color-background);
-  border: 2px solid var(--color-text-muted);
+  background: var(--background);
+  border: 2px solid var(--muted-foreground);
   flex: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 
 .rpf-walk__stem {
   width: 2px;
   flex: 1;
   min-height: 24px;
-  background: var(--color-border);
+  background: var(--border);
 }
 
 .rpf-walk__step:last-child .rpf-walk__stem { display: none; }
 
-.rpf-walk__body { padding: 0 0 18px; }
+.rpf-walk__body {
+  padding: 0 0 16px;
+  overflow-wrap: anywhere;
+}
 
 .rpf-walk__name {
   display: block;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--color-text-secondary);
-  transition: color 0.15s ease;
+  color: var(--muted-foreground);
+  transition: color 150ms ease;
 }
 
-.rpf-walk__step:hover .rpf-walk__name { color: var(--color-text-primary); }
+.rpf-walk__step:hover .rpf-walk__name { color: var(--foreground); }
 
 .rpf-walk__note {
   display: none;
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
   margin-top: 4px;
   line-height: 1.5;
 }
 
-.rpf-walk__pick:focus-visible + .rpf-walk__pick,
-.rpf-walk__step:focus-within .rpf-walk__name { color: var(--color-text-primary); }
+.rpf-walk__pick:focus-visible ~ .rpf-walk__chain {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 
 /* Fallback with no `:has()`: the chain reads as a list with its first stage
   open, which is the state the figure loads in when the selector is supported. */
@@ -623,36 +644,34 @@
 
 /* --- matrix -------------------------------------------------------------- */
 
-.rpf-matrix__scroll { overflow-x: auto; }
-
-.rpf-matrix__table {
+.blog-post__content .rpf-matrix__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  margin: 0;
+  font-size: 0.8125rem;
 }
 
 .rpf-matrix__table th,
 .rpf-matrix__table td {
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border);
   padding: 0;
+  overflow-wrap: anywhere;
 }
 
 .rpf-matrix__table thead th {
-  font-size: 0.72rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
   font-weight: 600;
   padding: 8px 10px;
 }
 
 .rpf-matrix__table tbody th {
-  font-weight: 500;
-  color: var(--color-text-primary);
+  font-weight: 600;
+  color: var(--foreground);
   width: 26%;
-  padding: 9px 10px;
+  padding: 8px 10px;
 }
 
 .rpf-matrix__table tbody tr:last-child th,
@@ -667,21 +686,21 @@
 .rpf-matrix__cell {
   display: block;
   height: 100%;
-  padding: 9px 10px;
-  color: var(--color-text-secondary);
+  padding: 8px 10px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
 }
 
-.rpf-matrix__cell--differs { color: var(--color-error); }
+.rpf-matrix__cell--differs { color: var(--error-text); }
 
 .rpf-matrix__cell--unreported {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   font-style: italic;
 }
 
 .rpf-matrix__cell--now {
-  color: var(--color-text-primary);
-  background: color-mix(in srgb, var(--color-brand) 10%, transparent);
-  font-weight: 500;
+  color: var(--foreground);
+  background: var(--color-brand-light);
 }
 
 /* Fallback with no `:has()`: the before column, which is the table the post
@@ -701,26 +720,26 @@
 
 .rpf-budget__input {
   display: block;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
   margin-bottom: 12px;
 }
 
 .rpf-budget__track {
   display: flex;
   justify-content: space-between;
-  gap: 4px;
+  gap: 0;
   position: relative;
 }
 
 .rpf-budget__track::before {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 22px;
+  right: 22px;
   top: 5px;
   height: 2px;
-  background: var(--color-border);
+  background: var(--border);
 }
 
 /* Not `flex: 1` — an equal share would centre each stop inside its own slice, so
@@ -733,30 +752,31 @@
   gap: 8px;
   cursor: pointer;
   position: relative;
-  min-width: 0;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .rpf-budget__stop {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--color-surface);
-  border: 2px solid var(--color-border);
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  background: var(--muted);
+  border: 2px solid var(--border);
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 
 .rpf-budget__at {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
-  transition: color 0.15s ease;
+  color: var(--muted-foreground);
+  transition: color 150ms ease;
 }
 
 .rpf-budget__tick:hover .rpf-budget__stop { border-color: var(--color-brand); }
 
-.rpf-budget__pick:focus-visible + .rpf-budget__control .rpf-budget__track {
+.rpf-budget__pick:focus-visible ~ .rpf-budget__control .rpf-budget__track {
   outline: 2px solid var(--ring);
-  outline-offset: 6px;
+  outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
@@ -780,10 +800,10 @@
 }
 
 .rpf-budget__count {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .rpf-budget__bar {
@@ -794,32 +814,32 @@
 }
 
 /* purgecss-ignore-start: the bar modifier is composed at runtime from the figure's variant, so purgecss cannot see the complete class name */
-.rpf-budget__bar--old { background: var(--color-text-muted); }
-.rpf-budget__bar--new { background: var(--color-brand); }
+.rpf-budget__bar--old { background: var(--muted-foreground); }
+.rpf-budget__bar--new { background: var(--primary-text); }
 /* purgecss-ignore-end */
 
 .rpf-budget__axis {
   display: flex;
   gap: 24px;
   justify-content: center;
-  border-top: 1px solid var(--color-border);
-  padding-top: 9px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
 }
 
 .rpf-budget__axis span {
   flex: 1;
   max-width: 100px;
-  font-size: 0.78rem;
-  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
   text-align: center;
-  line-height: 1.35;
+  line-height: 1.5;
 }
 
-.rpf-budget__unit {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
+.blog-post__content .rpf-budget__unit {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
   text-align: center;
-  margin: 14px 0 0;
+  margin: 12px 0 0;
 }
 
 /* Fallback with no `:has()`: the last step, which is the case the post argues
@@ -833,14 +853,15 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin: 0 0 22px;
+  margin: 0 0 24px;
 }
 
 .rpf-rule__legend {
   display: block;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  margin-bottom: 7px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 8px;
 }
 
 .rpf-rule__options,
@@ -860,26 +881,26 @@
 .rpf-rule__option {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 7px 14px;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  min-height: 44px;
+  padding: var(--button-padding-sm);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
 .rpf-rule__option:hover {
-  background: color-mix(in srgb, var(--color-brand) 9%, var(--color-surface));
-  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-brand) 9%, var(--muted));
+  color: var(--foreground);
 }
 
 .rpf-rule__input:checked + .rpf-rule__option {
-  background: var(--color-brand);
-  border-color: var(--color-brand);
-  color: var(--color-on-brand);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
   font-weight: 600;
 }
 
@@ -889,31 +910,31 @@
 }
 
 .rpf-rule__readout {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px 18px;
+  padding: 16px 20px;
 }
 
-.rpf-rule__outcome {
+.blog-post__content .rpf-rule__outcome {
   display: none;
   margin: 0;
   flex-wrap: wrap;
   gap: 4px 10px;
   align-items: baseline;
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
   line-height: 1.55;
 }
 
 .rpf-rule__verdict { font-weight: 600; }
-.rpf-rule__outcome--ok .rpf-rule__verdict { color: var(--color-success); }
-.rpf-rule__outcome--no .rpf-rule__verdict { color: var(--color-error); }
+.rpf-rule__outcome--ok .rpf-rule__verdict { color: var(--success-text); }
+.rpf-rule__outcome--no .rpf-rule__verdict { color: var(--error-text); }
 .rpf-rule__because { flex: 1; min-width: 14em; }
 
 /* Fallback with no `:has()`: the else branch, which is the rule's default
   answer and true whenever nothing above it fires. */
-.rpf-rule__outcome--fallback { display: flex; }
+.blog-post__content .rpf-rule__outcome--fallback { display: flex; }
 
 @supports selector(:has(*)) {
   /* The chain's first stage stops being unconditional once `:has()` can pick one. */
@@ -957,7 +978,7 @@
   .rpf-walk:has(.rpf-walk__pick:nth-of-type(8):checked) .rpf-walk__step:nth-child(8) .rpf-walk__name,
   .rpf-walk:has(.rpf-walk__pick:nth-of-type(9):checked) .rpf-walk__step:nth-child(9) .rpf-walk__name,
   .rpf-walk:has(.rpf-walk__pick:nth-of-type(10):checked) .rpf-walk__step:nth-child(10) .rpf-walk__name {
-    color: var(--color-text-primary);
+    color: var(--foreground);
   }
 
   .rpf-walk:has(.rpf-walk__pick:nth-of-type(1):checked) .rpf-walk__step:nth-child(1) .rpf-walk__dot,
@@ -970,8 +991,8 @@
   .rpf-walk:has(.rpf-walk__pick:nth-of-type(8):checked) .rpf-walk__step:nth-child(8) .rpf-walk__dot,
   .rpf-walk:has(.rpf-walk__pick:nth-of-type(9):checked) .rpf-walk__step:nth-child(9) .rpf-walk__dot,
   .rpf-walk:has(.rpf-walk__pick:nth-of-type(10):checked) .rpf-walk__step:nth-child(10) .rpf-walk__dot {
-    background: var(--color-brand);
-    border-color: var(--color-brand);
+    background: var(--primary-text);
+    border-color: var(--primary-text);
   }
 
   /* A refusing stage is a failure, so it takes the error token, not amber. */
@@ -1019,9 +1040,8 @@
   .rpf-budget:has(.rpf-budget__pick:nth-of-type(8):checked) .rpf-budget__tick:nth-child(8) .rpf-budget__stop,
   .rpf-budget:has(.rpf-budget__pick:nth-of-type(9):checked) .rpf-budget__tick:nth-child(9) .rpf-budget__stop,
   .rpf-budget:has(.rpf-budget__pick:nth-of-type(10):checked) .rpf-budget__tick:nth-child(10) .rpf-budget__stop {
-    background: var(--color-brand);
-    border-color: var(--color-brand);
-    transform: scale(1.3);
+    background: var(--primary-text);
+    border-color: var(--primary-text);
   }
 
   .rpf-budget:has(.rpf-budget__pick:nth-of-type(1):checked) .rpf-budget__tick:nth-child(1) .rpf-budget__at,
@@ -1034,7 +1054,7 @@
   .rpf-budget:has(.rpf-budget__pick:nth-of-type(8):checked) .rpf-budget__tick:nth-child(8) .rpf-budget__at,
   .rpf-budget:has(.rpf-budget__pick:nth-of-type(9):checked) .rpf-budget__tick:nth-child(9) .rpf-budget__at,
   .rpf-budget:has(.rpf-budget__pick:nth-of-type(10):checked) .rpf-budget__tick:nth-child(10) .rpf-budget__at {
-    color: var(--color-text-primary);
+    color: var(--foreground);
     font-weight: 600;
   }
 
@@ -1062,5 +1082,62 @@
   /* And the else branch yields to any branch at all. */
   .rpf-rule:has([data-fires]:checked) [data-out="else"] {
     display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .blog-post__content thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .blog-post__content tbody tr {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin: 0 0 12px;
+  }
+
+  .blog-post__content tbody th,
+  .blog-post__content tbody td {
+    display: block;
+    padding: 0;
+    border-bottom: none;
+    height: auto;
+  }
+
+  .blog-post__content tbody tr > * + * {
+    margin-top: 8px;
+  }
+
+  .blog-post__content td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+
+  .blog-post__content td:first-child::before {
+    content: none;
+  }
+
+  .blog-post__content tbody th,
+  .blog-post__content tbody td:first-child {
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .blog-post__content .rpf-matrix__cell {
+    height: auto;
+    padding: 0;
   }
 }

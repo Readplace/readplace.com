@@ -10,8 +10,8 @@ const NOT_FOUND_TEMPLATE = readFileSync(join(__dirname, "not-found.template.html
 export function NotFoundPage(): PageBody {
 	return {
 		seo: {
-			title: "Page Not Found — Readplace",
-			description: "The page you are looking for does not exist.",
+			title: "Page not found — Readplace",
+			description: "The page you're looking for doesn't exist.",
 			canonicalUrl: "https://readplace.com",
 			robots: "noindex, nofollow",
 		},

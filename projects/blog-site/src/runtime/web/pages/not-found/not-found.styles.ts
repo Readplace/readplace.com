@@ -1,6 +1,6 @@
 export const NOT_FOUND_STYLES = `
 .not-found {
-	padding: 120px 20px;
+	padding: 120px 16px;
 	text-align: center;
 }
 
@@ -15,6 +15,7 @@ export const NOT_FOUND_STYLES = `
 	font-weight: 700;
 	margin-bottom: 12px;
 	color: var(--foreground);
+	text-wrap: balance;
 }
 
 .not-found__text {
@@ -22,6 +23,7 @@ export const NOT_FOUND_STYLES = `
 	line-height: 1.7;
 	color: var(--muted-foreground);
 	margin-bottom: 24px;
+	text-wrap: pretty;
 }
 
 .not-found__link {

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { deriveChangelogBanner, initBlogPosts, parseBlogFrontmatter } from "./blog.posts";
+import { JSDOM } from "jsdom";
+import { deriveChangelogBanner, initBlogPosts, parseBlogFrontmatter, renderPostBody } from "./blog.posts";
 
 const blogPosts = initBlogPosts();
 
@@ -54,6 +55,12 @@ describe("blog posts", () => {
 		}
 	});
 
+	it("renders dates in short-month form (e.g. Sep 7, 2026)", () => {
+		for (const post of posts) {
+			expect(post.formattedDate).toMatch(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+		}
+	});
+
 	it("should sort posts by date descending", () => {
 		for (let i = 1; i < posts.length; i++) {
 			expect(posts[i - 1].date >= posts[i].date).toBe(true);
@@ -84,6 +91,27 @@ describe("getAllSlugs", () => {
 		const slugs = blogPosts.getAllSlugs();
 		const posts = blogPosts.getAllPosts();
 		expect(slugs).toEqual(posts.map((p) => p.slug));
+	});
+});
+
+describe("renderPostBody table labels", () => {
+	const TABLE_FIXTURE = `Intro paragraph.
+
+| | **Readplace** | Readwise |
+| --- | --- | --- |
+| Price | Free | Paid |
+| Trial | Yes |
+`;
+
+	it("labels each body cell with its column header, leaving the empty corner and first cell unlabelled", () => {
+		const doc = new JSDOM(renderPostBody(TABLE_FIXTURE)).window.document;
+		const rows = doc.querySelectorAll("tbody tr");
+		const labelsOf = (row: Element) =>
+			Array.from(row.querySelectorAll("td")).map((td) => td.getAttribute("data-label"));
+		// The bold header renders as plain text, and the empty corner leaves the row label unlabelled.
+		expect(labelsOf(rows[0])).toEqual([null, "Readplace", "Readwise"]);
+		// A short row still labels the empty cell markdown-it pads it with.
+		expect(labelsOf(rows[1])).toEqual([null, "Readplace", "Readwise"]);
 	});
 });
 
