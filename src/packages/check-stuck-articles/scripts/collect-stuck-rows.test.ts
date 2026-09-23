@@ -162,7 +162,6 @@ describe("collectStuckRows", () => {
 			"crawlPendingSince",
 			"summaryPendingSince",
 			"savedAt",
-			"aggregateTransitionName",
 			"summarySkippedReason",
 		]) {
 			assert.ok(projection.includes(attr), `ProjectionExpression must include ${attr}`);
@@ -301,31 +300,6 @@ describe("collectStuckRows", () => {
 			stuck[0]?.recrawlUrl,
 			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("example.test/legacy")}`,
 		);
-	});
-
-	it("buckets stuck rows produced by Phase 2 migrated transitions under the -after-aggregate-migration variant (falsifiable measurement)", async () => {
-		const { client } = createFakeClient(() => ({
-			Items: [
-				{
-					url: "example.test/migrated-but-stuck",
-					originalUrl: "https://example.test/migrated-but-stuck",
-					crawlStatus: "pending",
-					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
-					aggregateTransitionName: "recrawlTieKeptCanonical",
-				},
-			],
-			Count: 1,
-		}));
-		const stuck = await collectStuckRows({
-			client,
-			tableName: TABLE,
-			origin: ORIGIN,
-			now: () => NOW,
-		});
-		assert.equal(stuck.length, 1);
-		assert.deepEqual(stuck[0]?.reasons, [
-			"crawl-pending-after-aggregate-migration",
-		]);
 	});
 
 	it("surfaces a summary.skipped('ai-unavailable') row as summary-skipped-ai-unavailable (the AI was down, manual recrawl needed)", async () => {

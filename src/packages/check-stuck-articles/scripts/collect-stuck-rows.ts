@@ -27,7 +27,6 @@ const StuckArticleRow = z.object({
 	crawlPendingSince: dynamoField(z.string()),
 	summaryPendingSince: dynamoField(z.string()),
 	savedAt: z.string(),
-	aggregateTransitionName: dynamoField(z.string()),
 	summarySkippedReason: dynamoField(z.string()),
 });
 
@@ -102,7 +101,7 @@ export function buildScanInput(now: Date) {
 			`(contentFetchedAt < :summaryMinAge OR (attribute_not_exists(contentFetchedAt) AND savedAt < :summaryMinAge)))`,
 		ProjectionExpression:
 			"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, " +
-			"crawlPendingSince, summaryPendingSince, savedAt, aggregateTransitionName, " +
+			"crawlPendingSince, summaryPendingSince, savedAt, " +
 			"summarySkippedReason",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: {

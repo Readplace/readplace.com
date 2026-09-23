@@ -8,7 +8,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "pending",
 				crawlStatus: "ready",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["summary-pending"]);
@@ -18,7 +17,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "failed",
 				crawlStatus: "ready",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -28,7 +26,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "ready",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -38,7 +35,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "ready",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: "content-too-short",
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -48,7 +44,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "unsupported",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: "crawl-unsupported",
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -58,7 +53,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "ready",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -70,7 +64,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "pending",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["crawl-pending"]);
@@ -80,7 +73,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "failed",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -90,7 +82,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "unsupported",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: "crawl-unsupported",
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -100,7 +91,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "ready",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -112,7 +102,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "ready",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: "ai-unavailable",
 			});
 			assert.deepStrictEqual(reasons, ["summary-skipped-ai-unavailable"]);
@@ -122,7 +111,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "ready",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: "ai-unavailable",
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -134,7 +122,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "pending",
 				crawlStatus: "pending",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["summary-pending", "crawl-pending"]);
@@ -144,7 +131,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "failed",
 				crawlStatus: "failed",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
@@ -154,7 +140,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "pending",
-				aggregateTransitionName: undefined,
 				summarySkippedReason: "ai-unavailable",
 			});
 			assert.deepStrictEqual(reasons, [
@@ -169,81 +154,9 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: undefined,
 				crawlStatus: undefined,
-				aggregateTransitionName: undefined,
 				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
-		});
-	});
-
-	describe("Phase 2 cross-axis writer migration", () => {
-		it("flips a summary-pending row written by markCrawlExhausted to the -after-aggregate-migration variant", () => {
-			const reasons = classifyRow({
-				summaryStatus: "pending",
-				crawlStatus: "ready",
-				aggregateTransitionName: "markCrawlExhausted",
-				summarySkippedReason: undefined,
-			});
-			assert.deepStrictEqual(reasons, [
-				"summary-pending-after-aggregate-migration",
-			]);
-		});
-
-		it("flips a crawl-pending row written by recrawlTieKeptCanonical to the -after-aggregate-migration variant", () => {
-			const reasons = classifyRow({
-				summaryStatus: "ready",
-				crawlStatus: "pending",
-				aggregateTransitionName: "recrawlTieKeptCanonical",
-				summarySkippedReason: undefined,
-			});
-			assert.deepStrictEqual(reasons, [
-				"crawl-pending-after-aggregate-migration",
-			]);
-		});
-
-		it("flips a crawl-pending row written by recrawlPromoteTier to the -after-aggregate-migration variant", () => {
-			const reasons = classifyRow({
-				summaryStatus: "ready",
-				crawlStatus: "pending",
-				aggregateTransitionName: "recrawlPromoteTier",
-				summarySkippedReason: undefined,
-			});
-			assert.deepStrictEqual(reasons, [
-				"crawl-pending-after-aggregate-migration",
-			]);
-		});
-
-		it("does NOT flip a row written by refreshContent (Phase 1 — not in the Phase 2 bet)", () => {
-			const reasons = classifyRow({
-				summaryStatus: "pending",
-				crawlStatus: "ready",
-				aggregateTransitionName: "refreshContent",
-				summarySkippedReason: undefined,
-			});
-			assert.deepStrictEqual(reasons, ["summary-pending"]);
-		});
-
-		it("returns no reasons when the migrated transition succeeded (failed crawl is terminal, not stuck)", () => {
-			const reasons = classifyRow({
-				summaryStatus: "failed",
-				crawlStatus: "failed",
-				aggregateTransitionName: "markCrawlExhausted",
-				summarySkippedReason: undefined,
-			});
-			assert.deepStrictEqual(reasons, []);
-		});
-
-		it("emits both axes with -after-aggregate-migration when both are pending under a migrated writer", () => {
-			const reasons = classifyRow({
-				summaryStatus: "pending",
-				crawlStatus: "pending",
-				aggregateTransitionName: "markCrawlExhausted",
-				summarySkippedReason: undefined,
-			});
-			assert.deepStrictEqual(reasons, [
-				"summary-pending-after-aggregate-migration",
-				"crawl-pending-after-aggregate-migration",
-			]);
 		});
 	});
 });
