@@ -157,7 +157,7 @@ describe("Gmail sender mapping presentation", () => {
 		assert(mappedSender, "the mapped sender must render");
 		assert.equal(mappedSender.querySelector(".gmail__mapped-sender-email")?.tagName, "SPAN");
 		assert.deepEqual(Array.from(mappedSender.querySelectorAll("button"), (button) => button.textContent?.trim()), ["Exclude"]);
-		assert.equal(cards[1].querySelector("[data-test-gmail-mapping-destination-label]")?.textContent, "still need an inbox.");
+		assert.equal(cards[1].querySelector("[data-test-gmail-mapping-destination-label]")?.textContent, "still need an inbox. Choose the sender in the picker above, then pick an inbox.");
 		const manage = Array.from(doc.querySelectorAll("[data-test-gmail-manage-inboxes]"));
 		assert.equal(manage.length, 1);
 		assert.equal(manage[0].textContent, "Manage Your Inboxes");
@@ -165,6 +165,18 @@ describe("Gmail sender mapping presentation", () => {
 		assert.equal(manageUrl.pathname, "/inbox/addresses");
 		assert.equal(manageUrl.searchParams.get("utm_source"), "integrations-gmail");
 		assert.equal(manageUrl.searchParams.get("utm_content"), "manage-inboxes");
+	});
+
+	it("drops the picker guidance from a legacy card while the sender picker is hidden", () => {
+		const doc = pageDocument(input({
+			metadataScopeGranted: false,
+			senders: [sender({ email: "legacy@example.com" })],
+		}));
+		const reconnect = doc.querySelector("[data-test-gmail-metadata-reconnect]");
+		assert(reconnect, "the metadata reconnect prompt stands in for the hidden sender picker");
+		const cards = Array.from(doc.querySelectorAll("[data-test-gmail-mapping]"));
+		assert.equal(cards.length, 1);
+		assert.equal(cards[0].querySelector("[data-test-gmail-mapping-destination-label]")?.textContent, "still need an inbox.");
 	});
 });
 

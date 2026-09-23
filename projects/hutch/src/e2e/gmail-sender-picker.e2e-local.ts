@@ -154,7 +154,7 @@ test.describe("Gmail sender picker", () => {
 		});
 		await expect(
 			legacyMapping.locator("[data-test-gmail-mapping-destination-label]"),
-		).toHaveText("still need an inbox.");
+		).toHaveText("still need an inbox. Choose the sender in the picker above, then pick an inbox.");
 
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await expect(page.locator("#gmail-sender-search")).toBeFocused();

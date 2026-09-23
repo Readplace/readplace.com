@@ -152,7 +152,7 @@
               </li>
               {{/each}}
             </ul>
-            <p class="gmail__mapping-destination-label" data-test-gmail-mapping-destination-label>{{#if name}}are saved to <strong>{{name}}</strong>.{{else}}still need an inbox.{{/if}}</p>
+            <p class="gmail__mapping-destination-label" data-test-gmail-mapping-destination-label>{{#if name}}are saved to <strong>{{name}}</strong>.{{else}}still need an inbox.{{#if @root.showSenders}} Choose the sender in the picker above, then pick an inbox.{{/if}}{{/if}}</p>
             {{#if disabled}}<span class="gmail__mapping-disabled" data-test-gmail-mapping-disabled>Inbox disabled</span>{{/if}}
           </section>
           {{/each}}
