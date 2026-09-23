@@ -252,7 +252,7 @@ describe("Gmail sender chooser", () => {
 
 	it("names the finished scan at no senders, one sender and many", () => {
 		const none = toGmailPageViewModel(input({ discoveredSenders: [], senders: [] }));
-		assert.equal(none.chooser.message, "I didn't find any senders in your Gmail account.");
+		assert.equal(none.chooser.message, "Readplace didn't find any senders in your Gmail account.");
 		const one = toGmailPageViewModel(input({ discoveredSenders: [{ email: TLDR, name: "TLDR" }], senders: [] }));
 		assert.equal(one.chooser.message, "1 Gmail sender available.");
 		const many = toGmailPageViewModel(input({ discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: BREW }], senders: [] }));

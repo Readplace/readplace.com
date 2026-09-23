@@ -214,7 +214,7 @@ function bannersFor(key: string | undefined, messages: Record<string, string>): 
 }
 
 function availableSendersMessage(count: number): string {
-	if (count === 0) return "I didn't find any senders in your Gmail account.";
+	if (count === 0) return "Readplace didn't find any senders in your Gmail account.";
 	return `${count} Gmail sender${count === 1 ? "" : "s"} available.`;
 }
 
