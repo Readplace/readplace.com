@@ -56,7 +56,7 @@ Longer is not looser. A refresh token is still single-use and a replayed one is 
 
 2 tests now hold the number. Each runs a real token exchange against the live routes, 1 for a fresh sign-in and 1 for a renewal, then reads the stored expiry back and requires 180 days. Remove the configuration line and exactly those 2 fail, reporting the library's fortnight.
 
-One boundary worth naming: the website in a browser signs in through its own cookie with its own shorter window, and that window didn't move this week. This change covers what runs on tokens, which is the iPhone app, the browser extensions, and connected assistants like ChatGPT and Claude.
+One boundary worth naming: this change covers what runs on tokens, which is the iPhone app, the browser extensions, and connected assistants like ChatGPT and Claude. The website in a browser signs in through its own cookie, and that cookie carried its own version of the same problem, an absolute 7-day window that arrived as a hardcoded number rather than a decision. It has since moved to the same 180 days, reset by any visit.
 
 ## Built for coming back
 
