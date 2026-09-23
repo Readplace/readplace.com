@@ -10,3 +10,4 @@ export { mediumSiteRules } from "./medium-site-rules";
 export { theInformationSiteRules } from "./the-information-site-rules";
 export { replaceVideosWithPlaceholder } from "./replace-videos-with-placeholder";
 export { resolveRelativeUrls } from "./resolve-relative-urls";
+export { restoreRetaggedTables } from "./restore-retagged-tables";

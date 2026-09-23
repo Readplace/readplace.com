@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { initReadabilityParser } from "./readability-parser";
+import { restoreRetaggedTables } from "./restore-retagged-tables";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 
@@ -41,12 +42,14 @@ const ARTICLE_HTML = `
 function initParser(overrides: {
 	crawlArticle?: Parameters<typeof initReadabilityParser>[0]["crawlArticle"];
 	siteRules?: readonly TestSite[];
+	restoreRetaggedTables?: (html: string) => string;
 	logError?: (message: string, error?: Error) => void;
 } = {}) {
 	return initReadabilityParser({
 		crawlArticle:
 			overrides.crawlArticle ?? (async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) })),
 		siteRules: (overrides.siteRules ?? []).map(toSiteRules),
+		restoreRetaggedTables: overrides.restoreRetaggedTables ?? restoreRetaggedTables,
 		logError: overrides.logError ?? (() => {}),
 	});
 }
@@ -295,6 +298,26 @@ describe("initReadabilityParser", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.article.content).toContain('src="https://dest.example/quake_shareware_cd/qcrack.webp"');
+		}
+	});
+
+	it("persists what the injected restoreRetaggedTables returns for Readability's content, with its relative URLs resolved", () => {
+		const { parseHtml } = initParser({
+			restoreRetaggedTables: () => '<table><tr><td><img src="/restored.png"></td></tr></table>',
+		});
+
+		const result = parseHtml({
+			url: "https://blog.example.com/post",
+			documentUrl: "https://blog.example.com/post",
+			html: ARTICLE_HTML,
+			thumbnailUrl: null,
+		});
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.content).toBe(
+				'<table><tr><td><img src="https://blog.example.com/restored.png"></td></tr></table>',
+			);
 		}
 	});
 

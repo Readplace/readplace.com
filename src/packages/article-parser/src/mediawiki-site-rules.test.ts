@@ -1,6 +1,7 @@
 import { parseHTML } from "linkedom";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { initReadabilityParser } from "./readability-parser";
+import { restoreRetaggedTables } from "./restore-retagged-tables";
 
 /* A Vector-2022 section heading: an <h2> and its "[edit]" chrome wrapped in one
  * `.mw-heading` div — the shape whose link density makes Readability drop the
@@ -110,6 +111,7 @@ describe("mediaWikiSiteRules end-to-end through parseHtml", () => {
 				bodyHash: "a".repeat(64),
 			}),
 			siteRules,
+			restoreRetaggedTables,
 			logError: () => {},
 		});
 

@@ -10,7 +10,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
 } from "@packages/test-fixtures";
-import { initReadabilityParser } from "@packages/article-parser";
+import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
 
 const useApp = useTestServer();
 
@@ -45,6 +45,7 @@ function buildHarness(): ReturnType<typeof useApp> {
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
 		siteRules: [],
+		restoreRetaggedTables,
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

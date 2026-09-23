@@ -11,7 +11,7 @@ import {
 } from "@packages/test-fixtures";
 import type { TestAppFixture } from "@packages/test-fixtures";
 import type { UserId } from "@packages/domain/user";
-import { initReadabilityParser } from "@packages/article-parser";
+import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -36,6 +36,7 @@ function buildFixture(opts?: { summaryReady?: boolean }): TestAppFixture {
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
 		siteRules: [],
+		restoreRetaggedTables,
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

@@ -19,6 +19,7 @@ import {
 	linkedinSiteRules,
 	mediaWikiSiteRules,
 	mediumSiteRules,
+	restoreRetaggedTables,
 	theInformationSiteRules,
 } from "@packages/article-parser";
 import type { ParseHtml } from "@packages/article-parser";
@@ -78,6 +79,7 @@ export function initParserDepBundle(deps: {
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		siteRules,
+		restoreRetaggedTables,
 		logError: deps.logError,
 	});
 	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(crawlClaimingSiteRules) };
@@ -131,6 +133,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		siteRules,
+		restoreRetaggedTables,
 		logError: deps.logError,
 	});
 	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(crawlClaimingSiteRules) };

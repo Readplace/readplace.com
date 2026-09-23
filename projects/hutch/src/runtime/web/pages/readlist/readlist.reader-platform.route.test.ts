@@ -10,7 +10,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
 } from "@packages/test-fixtures";
-import { initReadabilityParser } from "@packages/article-parser";
+import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
 import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
@@ -49,7 +49,7 @@ function buildHarness(useServer: typeof useApp = useApp): ReturnType<typeof useA
 		summary: "Key points distilled into a brief summary.",
 	});
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], logError: createNoopLogError() });
+	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,

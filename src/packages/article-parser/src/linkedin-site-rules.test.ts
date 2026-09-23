@@ -1,6 +1,7 @@
 import { parseHTML } from "linkedom";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { initReadabilityParser } from "./readability-parser";
+import { restoreRetaggedTables } from "./restore-retagged-tables";
 
 /* Parse a body fragment, run the in-place transform, and return the body HTML
  * before and after. Decline cases assert `after === before`; transform cases
@@ -138,6 +139,7 @@ describe("linkedinSiteRules end-to-end through parseHtml", () => {
 				bodyHash: "a".repeat(64),
 			}),
 			siteRules,
+			restoreRetaggedTables,
 			logError: () => {},
 		});
 

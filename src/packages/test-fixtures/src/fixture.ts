@@ -9,7 +9,7 @@ import type {
 	ConversionEvent,
 } from "@packages/provider-contracts/auth";
 import type { ParseArticle } from "@packages/article-parser";
-import { initReadabilityParser } from "@packages/article-parser";
+import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
 import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
@@ -243,6 +243,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
 		siteRules: [],
+		restoreRetaggedTables,
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

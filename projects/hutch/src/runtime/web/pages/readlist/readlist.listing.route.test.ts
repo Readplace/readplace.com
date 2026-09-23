@@ -11,7 +11,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
 } from "@packages/test-fixtures";
-import { initReadabilityParser } from "@packages/article-parser";
+import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
 
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { FindArticlesQuery } from "@packages/provider-contracts/article-store";
@@ -220,7 +220,7 @@ describe("Readlist routes", () => {
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,

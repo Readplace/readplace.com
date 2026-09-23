@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { initReadabilityParser } from "@packages/article-parser";
+import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
@@ -46,6 +46,7 @@ async function buildHarness(options: { findPastReads?: FindPastReads } = {}) {
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
 		siteRules: [],
+		restoreRetaggedTables,
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

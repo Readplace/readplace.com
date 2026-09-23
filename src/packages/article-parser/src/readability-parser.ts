@@ -14,6 +14,7 @@ import { resolveRelativeUrls } from "./resolve-relative-urls";
 export function initReadabilityParser(deps: {
 	crawlArticle: CrawlArticle;
 	siteRules: readonly SiteRules[];
+	restoreRetaggedTables: (html: string) => string;
 	logError: (message: string, error?: Error) => void;
 }): { parseArticle: ParseArticle; parseHtml: ParseHtml } {
 	const parseHtml: ParseHtml = (params) => {
@@ -111,7 +112,7 @@ export function initReadabilityParser(deps: {
 				siteName: parsed.siteName || hostname,
 				excerpt: parsed.excerpt || contentSavedFromHostExcerpt(hostname),
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-				content: resolveRelativeUrls({ html: parsed.content, baseUrl: params.documentUrl }),
+				content: resolveRelativeUrls({ html: deps.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,
 			},
 		};

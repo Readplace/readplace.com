@@ -1,5 +1,6 @@
 import { parseHTML } from "linkedom";
 import { initReadabilityParser } from "./readability-parser";
+import { restoreRetaggedTables } from "./restore-retagged-tables";
 import { promoteBrParagraphHosts } from "./promote-br-paragraph-hosts";
 
 /* Parse a body fragment, run the transform, and return the body HTML before
@@ -146,6 +147,7 @@ describe("promoteBrParagraphHosts end-to-end through parseHtml", () => {
 			bodyHash: "a".repeat(64),
 		}),
 		siteRules: [],
+		restoreRetaggedTables,
 		logError: () => {},
 	});
 

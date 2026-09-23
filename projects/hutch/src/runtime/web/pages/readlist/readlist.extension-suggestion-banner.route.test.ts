@@ -10,7 +10,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
 } from "@packages/test-fixtures";
-import { initReadabilityParser } from "@packages/article-parser";
+import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 
@@ -144,6 +144,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const { parseArticle } = initReadabilityParser({
 			crawlArticle,
 			siteRules: [],
+			restoreRetaggedTables,
 			logError: createNoopLogError(),
 		});
 		const applyParseResult = createFakeApplyParseResult({
@@ -191,6 +192,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const { parseArticle } = initReadabilityParser({
 			crawlArticle,
 			siteRules: [],
+			restoreRetaggedTables,
 			logError: createNoopLogError(),
 		});
 		const applyParseResult = createFakeApplyParseResult({
