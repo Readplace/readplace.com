@@ -238,6 +238,42 @@ class SaveSharedPageTest {
 	}
 
 	@Test
+	fun `a shared link with browser-only characters saves and captures one normalized url`() = runTest {
+		val store = loggedInStore()
+		val captor = FakeHtmlCaptor(page = html())
+		val container = temporaryFolder.newFolder("files")
+		serveReadlistAndSave()
+
+		val shared = ShareExtractor.extract(
+			SharedItems(
+				listOf(
+					SharedItem(
+						contentText = null,
+						urls = emptyList(),
+						texts = listOf("Read https://example.com/path_(a^b)|c. Then stop"),
+						pdfs = emptyList(),
+					),
+				),
+			),
+		)
+		val normalized = "https://example.com/path_(a%5Eb)%7Cc"
+		assertEquals("extraction settles on the one normalized article", normalized, shared?.url)
+
+		val saver = makeSaver(store = store, captor = captor, container = container)
+		val outcome = saver.run(url = shared?.url, fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.SavedAwaitingUpload(emptyList()), outcome)
+		assertEquals("the capture keys on the normalized url", listOf(normalized), captor.capturedUrls)
+		assertEquals("the link is saved under the normalized url", normalized, postedUrl(urlOnlyPosts().single()))
+		assertEquals(
+			"the staged content form carries the same normalized url",
+			normalized,
+			part(stagedParts(queuedJobs(container).single(), container), "url")?.text,
+		)
+		assertUploadedNothing()
+	}
+
+	@Test
 	fun `readlists the job before it reports the link saved`() = runTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html(), renderTakes = 200.milliseconds)

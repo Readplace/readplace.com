@@ -66,6 +66,6 @@ object ShareExtractor {
 	 * the same order per item, so a later item's URL never outranks an earlier
 	 * item's text. */
 	private fun webUrl(item: SharedItem): String? =
-		item.urls.firstOrNull(UrlDetection::isWebUrl)
+		item.urls.firstNotNullOfOrNull(UrlDetection::normalizeWebUrl)
 			?: item.texts.firstNotNullOfOrNull(UrlDetection::firstWebUrl)
 }

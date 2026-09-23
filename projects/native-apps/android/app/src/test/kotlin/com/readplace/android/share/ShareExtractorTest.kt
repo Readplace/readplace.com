@@ -50,6 +50,46 @@ class ShareExtractorTest {
 	}
 
 	@Test
+	fun `encodes a caret in a shared url attachment`() {
+		assertEquals(
+			ShareExtractor.Shared(url = "https://example.com/a%5Eb", title = null, pdf = null),
+			ShareExtractor.extract(items(item(urls = listOf("https://example.com/a^b")))),
+		)
+	}
+
+	@Test
+	fun `encodes a pipe in a shared url attachment`() {
+		assertEquals(
+			ShareExtractor.Shared(url = "https://example.com/a%7Cb", title = null, pdf = null),
+			ShareExtractor.extract(items(item(urls = listOf("https://example.com/a|b")))),
+		)
+	}
+
+	@Test
+	fun `encodes a caret and pipe in a query found in shared text`() {
+		assertEquals(
+			ShareExtractor.Shared(url = "https://example.com/s?q=a%5Eb%7Cc", title = null, pdf = null),
+			ShareExtractor.extract(items(item(texts = listOf("read https://example.com/s?q=a^b|c ok")))),
+		)
+	}
+
+	@Test
+	fun `leaves an already escaped shared url attachment untouched`() {
+		assertEquals(
+			ShareExtractor.Shared(url = "https://example.com/a%5Eb", title = null, pdf = null),
+			ShareExtractor.extract(items(item(urls = listOf("https://example.com/a%5Eb")))),
+		)
+	}
+
+	@Test
+	fun `ignores a shared url whose authority carries a disallowed character`() {
+		assertNull(
+			"a caret in the host is still rejected, so a hostile authority never becomes a save",
+			ShareExtractor.extract(items(item(urls = listOf("https://exa^mple.com/a")))),
+		)
+	}
+
+	@Test
 	fun `ignores the content url a pdf arrives under and keeps the pdf`() {
 		val pdf = RecordingPdf(suggestedName = "doc.pdf")
 		assertEquals(
