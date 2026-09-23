@@ -24,12 +24,6 @@ object UrlDetection {
 		return if (scheme == "http" || scheme == "https") normalized else null
 	}
 
-	/** `^` and `|` are the two characters a browser and iOS's Foundation URL accept
-	 * but `java.net.URI` rejects; encoding them in the path, query and fragment brings
-	 * the share flow to the same save behaviour. Only the suffix is touched — a `^` or
-	 * `|` in the authority is left literal so the parser still rejects it, rather than
-	 * a rewrite turning a malformed host into an accepted one. Existing percent escapes
-	 * survive because only the two literal characters are replaced. */
 	private fun encodeBrowserSupportedSuffix(value: String): String {
 		val schemeSeparator = value.indexOf("://")
 		if (schemeSeparator < 0) return value
