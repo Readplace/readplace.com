@@ -97,6 +97,43 @@ export function initCreatePaymentPlan(deps: Deps): (input: Input) => PaymentPlan
 
 For real examples, grep for `export function init` in the main server's domain layer and providers.
 
+### Behaviour Added on Top of a Library Is an Injected Dependency
+
+When a module wraps a library or other standard component (a parser, a PDF extractor, an HTTP client) and adds behaviour its standard output lacks — a repair, a post-processing step, a transform — take that behaviour as a required dependency of the `init*` function. Wire the real implementation at the composition root; never `import` it inside the module.
+
+**Why:** an imported step is an implementation detail. Deleting its call still compiles, and production silently loses the behaviour unless some test happens to feed the exact input the step exists for. As a required dependency, the step becomes part of the interface:
+
+| Removal | Caught by |
+|---|---|
+| Dropping the step from a composition root | The compiler — the dependency is required |
+| Deleting the call inside the module | The module's interface test — it injects a stub and asserts the module returns what the stub produced |
+
+```typescript
+// ❌ BAD - The repair is an import: delete the call and everything still compiles
+import { restoreFareFootnotes } from "./restore-fare-footnotes";
+
+export function initFareRulesReader(deps: { extractPdfText: ExtractPdfText }) {
+	return async (pdf: Buffer) => restoreFareFootnotes(await deps.extractPdfText(pdf));
+}
+
+// ✅ GOOD - The repair is a required dependency every composition root must supply
+export function initFareRulesReader(deps: {
+	extractPdfText: ExtractPdfText;
+	restoreFareFootnotes: (text: string) => string;
+}) {
+	return async (pdf: Buffer) => deps.restoreFareFootnotes(await deps.extractPdfText(pdf));
+}
+
+// The interface test: whatever the injected step returns is what the module returns
+const readFareRules = initFareRulesReader({
+	extractPdfText: async () => "Refundable¹",
+	restoreFareFootnotes: () => "Refundable [1]",
+});
+expect(await readFareRules(sydneyToMelbourneFarePdf)).toBe("Refundable [1]");
+```
+
+Unit-test the step in its own module; exporting it for the composition root is production use, not an export for tests. Every other caller that builds the real module — composition roots and integration tests alike — passes the real step, so it keeps exercising production behaviour; only the interface test injects a stub.
+
 ### Do Not Export Internal Functions for Testing
 
 Do not export functions solely so tests can call them directly. Constructor functions (`init*`) MUST return all functions that need testing as part of their return value — analogous to how class methods are accessed through an instance, not exported separately.
@@ -361,7 +398,7 @@ For files that wrap a single AWS SDK call (DynamoDB `update`, S3 `get`, EventBri
 - Use the `Partial<DynamoDBDocumentClient>` fake-client pattern. Capture the command in a closure and assert on `UpdateExpression`, `ConditionExpression`, and `ExpressionAttributeValues` shape with `toContain` (not `toBe`) so minor formatting changes don't break the test. To find current examples, grep for `Partial<DynamoDBDocumentClient>` in `*.test.ts`.
 - Reach 100% coverage with the fake client. Do NOT add a `.integration.ts` to plug coverage gaps — extract the mapping/parsing logic into a dedicated helper and unit-test the helper directly.
 - When the wrapper is truly trivial (3–5 lines, no branching), mark it `/* c8 ignore start -- thin AWS SDK wrapper, tested via production canaries */` and rely on production canaries for end-to-end verification. To find current canaries, list the GitHub workflows (`ls .github/workflows`) whose name says health or canary, and the health scripts in the crawler package's scripts directory (`ls` it).
-- Reserve `.integration.ts` files for cross-service flows that benefit from real-AWS sanity checking. Mark their phase `e2e: true` in the project's `run-tests.config.js` so they don't gate CI on AWS credentials being present.
+- Reserve `.integration.ts` files for cross-service flows that benefit from real-AWS sanity checking. Mark their phase `e2e: true` in the project's test-phase config (the file at the project root that lists its test phases; `git grep -l "e2e: true" -- '*.config.js'` finds the existing ones) so they don't gate CI on AWS credentials being present.
 
 ## Code Coverage
 
