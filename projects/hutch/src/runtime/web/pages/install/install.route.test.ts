@@ -445,12 +445,25 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const serverUrl = doc.querySelector(
-			'[data-test-section="ai-server-url"] .install-page__server-url-value',
+			'[data-test-section="ai-server-url"] .install-page__copy-value',
 		);
 		expect(serverUrl?.textContent).toBe("https://readplace.com/mcp");
 
 		const guide = doc.querySelector('[data-test-cta="ai-full-guide"]');
-		expect(guide?.getAttribute("href")).toBe("/mcp");
+		expect(guide?.getAttribute("href")).toBe(
+			"/mcp?utm_source=install-ai-panel&utm_medium=internal&utm_content=mcp-guide",
+		);
+	});
+
+	it("should tag the other-clients guide link apart from the full-setup-guide link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=claude");
+		const doc = load(response.text);
+
+		const guide = doc.querySelector('[data-test-section="ai-other-clients"] a');
+		expect(guide?.getAttribute("href")).toBe(
+			"/mcp?utm_source=install-ai-panel&utm_medium=internal&utm_content=mcp-guide-other-clients",
+		);
 	});
 
 	it("should tell an AI panel reader the sentence that saves once the connector is on", async () => {
@@ -470,7 +483,7 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const prompt = doc.querySelector(
-			'[data-test-section="ai-prompt"] .install-page__prompt-text',
+			'[data-test-section="ai-prompt"] .install-page__copy-value',
 		);
 		expect(prompt?.textContent).toBe(
 			"Connect to readplace.com so you can save pages to and read my reading list.",
@@ -483,6 +496,24 @@ describe("GET /install", () => {
 		}
 		const copyTargets = copyButtons.map((b) => b.getAttribute("data-install-text"));
 		expect(copyTargets).toContain("https://readplace.com/mcp");
+	});
+
+	it("should render every copyable value in one box with the Copy button that copies it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=claude");
+		const doc = load(response.text);
+
+		const fields = Array.from(doc.querySelectorAll(".install-page__copy-field")).map((field) => ({
+			value: field.querySelector(".install-page__copy-value")?.textContent,
+			copies: field.querySelector("[data-install-copy]")?.getAttribute("data-install-text"),
+		}));
+		expect(fields).toEqual([
+			{ value: "https://readplace.com/mcp", copies: "https://readplace.com/mcp" },
+			{
+				value: "Connect to readplace.com so you can save pages to and read my reading list.",
+				copies: "Connect to readplace.com so you can save pages to and read my reading list.",
+			},
+		]);
 	});
 
 	it("should load the copy-button script on an AI panel", async () => {
@@ -525,7 +556,7 @@ describe("GET /install", () => {
 			"Connect Readplace to ChatGPT",
 		);
 		expect(
-			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-text')?.textContent,
+			doc.querySelector('[data-test-section="ai-prompt"] .install-page__copy-value')?.textContent,
 		).toBe("Connect to readplace.com so you can save pages to and read my reading list.");
 	});
 
@@ -583,10 +614,10 @@ describe("GET /install", () => {
 			"Connect Readplace to Gemini",
 		);
 		expect(
-			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-label')?.textContent,
+			doc.querySelector('[data-test-section="ai-prompt"] .install-page__copy-label')?.textContent,
 		).toBe("Run this once");
 		expect(
-			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-text')?.textContent,
+			doc.querySelector('[data-test-section="ai-prompt"] .install-page__copy-value')?.textContent,
 		).toBe("gemini mcp add --transport http readplace https://readplace.com/mcp");
 	});
 

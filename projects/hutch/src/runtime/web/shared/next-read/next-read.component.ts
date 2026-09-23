@@ -6,6 +6,7 @@ import type {
 	RelatedArticleDisplay,
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
+import type { IconName } from "@packages/ui-icons";
 import { render, toRelativePhrase, withInternalTracking } from "@packages/web-shell";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { NEXT_READ_TRACKING } from "./next-read.tracking";
@@ -23,15 +24,25 @@ const STATUS_COPY = {
 		eyebrow: "Next read",
 		statusLabel: "Unread",
 		statusClass: "next-read__status--unread",
+		statusIcons: [],
+		cardClass: "next-read__card",
 	},
 	read: {
 		eyebrow: "Similar past reads",
 		statusLabel: "Read",
 		statusClass: "next-read__status--read",
+		statusIcons: ["check"],
+		cardClass: "next-read__card next-read__card--read",
 	},
 } satisfies Record<
 	ArticleStatus,
-	{ eyebrow: string; statusLabel: string; statusClass: string }
+	{
+		eyebrow: string;
+		statusLabel: string;
+		statusClass: string;
+		statusIcons: readonly IconName[];
+		cardClass: string;
+	}
 >;
 
 export const NEXT_READ_SCRIPT =
@@ -68,6 +79,8 @@ interface NextReadCard {
 	readStatus: ArticleStatus;
 	statusLabel: string;
 	statusClass: string;
+	statusIcons: readonly IconName[];
+	cardClass: string;
 	dated: DatedLine;
 }
 
@@ -133,6 +146,8 @@ function cardsOf(input: NextReadInput): NextReadCard[] {
 			eyebrow: copy.eyebrow,
 			statusLabel: copy.statusLabel,
 			statusClass: copy.statusClass,
+			statusIcons: copy.statusIcons,
+			cardClass: copy.cardClass,
 			dated: datedOf(item, related.now),
 		},
 	];

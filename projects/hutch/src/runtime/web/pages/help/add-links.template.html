@@ -5,28 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex">
     <title>Add links with Share — Readplace</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
     <style nonce="{{cspNonce}}">
       {{{baseStyles}}}
-      :root {
-        color-scheme: light dark;
-        --help-bg: #ffffff;
-        --help-text: #1a202c;
-        --help-text-secondary: #5a6170;
-        --help-brand: #c8702a;
-        --help-surface: #f7f8fa;
-        --help-border: #e2e5ea;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --help-bg: #121212;
-          --help-text: #e4e4e4;
-          --help-text-secondary: #9ba1ae;
-          --help-brand: #d4833a;
-          --help-surface: #1a1a1a;
-          --help-border: #2e2e2e;
-        }
-      }
 
       * {
         box-sizing: border-box;
@@ -34,9 +18,9 @@
 
       body {
         margin: 0;
-        background: var(--help-bg);
-        color: var(--help-text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: var(--font-sans);
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
       }
@@ -44,7 +28,13 @@
       .help {
         max-width: 32rem;
         margin: 0 auto;
-        padding: 2.5rem 1.5rem;
+        padding: 40px 16px;
+      }
+
+      @media (min-width: 768px) {
+        .help {
+          padding-inline: 24px;
+        }
       }
 
       /* The app sheet is presented ignoring the safe area and this WKWebView's
@@ -55,32 +45,43 @@
         padding-bottom: 4rem;
       }
 
-      /* The app sheet's only way back to the native list, matching the account
-       * page's back affordance so the two chromeless surfaces read identically. */
+      /* The app sheet's only way back to the native list. */
       .help__back {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        margin: 0 0 1rem;
-        font-size: 0.9375rem;
-        font-weight: 600;
-        color: var(--help-text);
+        min-height: 44px;
+        margin: 0 0 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--foreground);
         text-decoration: none;
+        transition: color 0.15s ease;
       }
 
       .help__back:hover {
-        text-decoration: underline;
+        color: var(--primary-text);
+      }
+
+      .help__back:focus-visible,
+      .help__video:focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
       }
 
       .help__title {
-        font-family: var(--font-serif);
+        font-family: var(--font-sans);
         margin: 0 0 1.5rem;
         font-size: 1.5rem;
-        font-weight: 700;
+        font-weight: 600;
         line-height: 1.3;
+        text-wrap: balance;
       }
 
       .help__steps {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
         margin: 0 0 1.5rem;
         padding: 0;
         list-style: none;
@@ -89,90 +90,64 @@
 
       .help__step {
         counter-increment: help-step;
-        position: relative;
-        padding: 0.75rem 0 0.75rem 3rem;
-        font-size: 1.0625rem;
-        border-bottom: 1px solid var(--help-border);
-      }
-
-      .help__step:last-child {
-        border-bottom: 0;
+        display: grid;
+        grid-template-columns: 1.75rem minmax(0, 1fr);
+        align-items: baseline;
+        gap: 12px;
+        font-size: 0.9375rem;
+        text-wrap: pretty;
       }
 
       .help__step::before {
         content: counter(help-step);
-        position: absolute;
-        left: 0;
-        top: 0.65rem;
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 2rem;
-        height: 2rem;
-        background: var(--help-surface);
-        color: var(--help-brand);
-        border-radius: 6px;
+        width: 1.75rem;
+        height: 1.75rem;
+        background: var(--secondary);
+        color: var(--primary-text);
+        border-radius: var(--radius-sm);
         font-weight: 600;
       }
 
       .help__note {
         margin: 0;
         padding: 1rem 1.25rem;
-        background: var(--help-surface);
-        border-radius: 8px;
-        color: var(--help-text-secondary);
+        background: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        color: var(--muted-foreground);
         font-size: 0.9375rem;
+        text-wrap: pretty;
       }
 
       .help__pin {
         margin: 0 0 1.5rem;
         padding-top: 1.5rem;
-        border-top: 1px solid var(--help-border);
+        border-top: 1px solid var(--border);
       }
 
       .help__pin-title {
-        font-family: var(--font-serif);
+        font-family: var(--font-sans);
         margin: 0 0 0.5rem;
-        font-size: 1.125rem;
-        font-weight: 700;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--foreground);
+        text-wrap: balance;
       }
 
       .help__pin-lead {
         margin: 0 0 1.25rem;
-        color: var(--help-text-secondary);
+        color: var(--muted-foreground);
         font-size: 0.9375rem;
+        text-wrap: pretty;
       }
 
       /* The recording carries no audio and no captions, so these steps are its
        * text alternative — and what a reader sees while it is paused. */
       .help__pin-steps {
         margin: 0 0 1.25rem;
-        padding: 0;
-        list-style: none;
-        counter-reset: help-pin-step;
-      }
-
-      .help__pin-step {
-        counter-increment: help-pin-step;
-        position: relative;
-        padding: 0.5rem 0 0.5rem 2.5rem;
-        font-size: 0.9375rem;
-      }
-
-      .help__pin-step::before {
-        content: counter(help-pin-step);
-        position: absolute;
-        left: 0;
-        top: 0.4rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 1.75rem;
-        height: 1.75rem;
-        background: var(--help-surface);
-        color: var(--help-brand);
-        border-radius: 6px;
-        font-weight: 600;
       }
 
       /**
@@ -189,8 +164,8 @@
         width: min(100%, 320px); /* 1 */
         height: auto;
         margin: 0; /* 2 */
-        border: 1px solid var(--help-border); /* 3 */
-        border-radius: 10px;
+        border: 1px solid var(--border); /* 3 */
+        border-radius: var(--radius);
       }
     </style>
   </head>
@@ -209,9 +184,9 @@
       <section class="help__pin" data-test-help-pin>
         <h2 class="help__pin-title" data-test-help-pin-title>{{pin.title}}</h2>
         <p class="help__pin-lead" data-test-help-pin-lead>{{pin.lead}}</p>
-        <ol class="help__pin-steps">
+        <ol class="help__steps help__pin-steps">
           {{#each pin.steps}}
-          <li class="help__pin-step" data-test-help-pin-step>{{this}}</li>
+          <li class="help__step" data-test-help-pin-step>{{this}}</li>
           {{/each}}
         </ol>
         <video class="help__video" width="{{pin.demo.width}}" height="{{pin.demo.height}}" poster="{{pin.demo.poster}}" muted playsinline controls preload="none" aria-label="{{pin.demo.label}}" data-test-help-video>

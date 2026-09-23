@@ -1,26 +1,29 @@
-      {{#if errorMessage}}
-      <p class="import__upload-error" role="alert" data-test-import-error>{{errorMessage}}</p>
-      {{/if}}
-      <form class="import__upload-form" method="POST" action="{{uploadAction}}" enctype="multipart/form-data"
-            data-import-state="idle" data-test-form="import-file"
-            hx-post="{{uploadAction}}" hx-encoding="multipart/form-data"
-            hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-        <div class="import__idle" data-import-region="idle">
-          <label class="import__dropzone" data-import-dropzone>
-            <input type="file" name="file" required class="import__file-input" data-test-import-file-input>
-            <span class="import__dropzone-icon" aria-hidden="true">{{icon "upload"}}</span>
-            <span class="import__dropzone-primary">
-              <span class="import__dropzone-link">Choose a file</span>
-              <span class="import__dropzone-or"> or drag it here</span>
-            </span>
-            <span class="import__dropzone-meta" data-import-dropzone-meta>HTML, JSON, or plain text &middot; up to 4.5&nbsp;MB &middot; up to 2,000 links</span>
-          </label>
-          <button class="btn btn--primary btn--field import__upload-btn" type="submit" data-test-action="import-upload">Upload</button>
+{{#if errorMessage}}
+        <div class="import__alert" role="alert">
+          <span class="import__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
+          <p class="import__alert-text" data-test-import-error>{{errorMessage}}</p>
         </div>
-        <div class="import__uploading" data-import-region="uploading" aria-live="polite">
-          <div class="import__progress-bar" data-import-progress-bar>
-            <div class="import__progress-fill" data-import-progress-fill style="width: 0%"></div>
+        {{/if}}
+        <form class="import__upload-form import__panel" method="POST" action="{{uploadAction}}" enctype="multipart/form-data"
+          data-import-state="idle" data-test-form="import-file"
+          hx-post="{{uploadAction}}" hx-encoding="multipart/form-data"
+          hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+          <div class="import__idle" data-import-region="idle">
+            <label class="import__dropzone" data-import-dropzone>
+              <input type="file" name="file" required class="import__file-input" data-test-import-file-input>
+              <span class="import__dropzone-icon" aria-hidden="true">{{icon "upload"}}</span>
+              <span class="import__dropzone-primary">
+                <span class="import__dropzone-link">Choose a file</span>
+                <span class="import__dropzone-or"> or drag it here</span>
+              </span>
+              <span class="import__dropzone-meta" data-import-dropzone-meta>HTML, JSON, or plain text &middot; up to 4.5&nbsp;MB &middot; up to 2,000 links</span>
+            </label>
+            <button class="btn btn--primary btn--field import__upload-btn" type="submit" data-test-action="import-upload">Upload</button>
           </div>
-          <p class="import__progress-label" data-import-progress-label>Preparing upload&hellip;</p>
-        </div>
-      </form>
+          <div class="import__uploading" data-import-region="uploading" aria-live="polite">
+            <div class="import__progress-bar" data-import-progress-bar>
+              <div class="import__progress-fill" data-import-progress-fill style="width: 0%"></div>
+            </div>
+            <p class="import__progress-label" data-import-progress-label>Preparing upload&hellip;</p>
+          </div>
+        </form>

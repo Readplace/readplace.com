@@ -114,7 +114,7 @@ describe("Gmail sender mapping presentation", () => {
 		);
 		const createForm = picker.querySelector("[data-test-gmail-destination-create] form");
 		assert(createForm, "the final destination row must carry the create-and-save form");
-		assert.equal(createForm.getAttribute("action"), vm.saveAction);
+		assert.equal(createForm.getAttribute("action"), vm.createInboxAction);
 		assert.deepEqual(
 			Array.from(createForm.querySelectorAll('input[type="hidden"]'), (field) => [field.getAttribute("name"), field.getAttribute("value")]),
 			[["sender", TLDR], ["destination", "new"]],
@@ -181,6 +181,27 @@ describe("Gmail sender mapping presentation", () => {
 });
 
 describe("Gmail forwarding confirmation step", () => {
+	it("keeps Open Gmail the one amber CTA beside a ready mapping and a sender-access reconnect", () => {
+		const awaiting = connection({ forwardingConfirmedAt: undefined });
+		const saving = pageDocument(input({
+			connection: awaiting,
+			selectedSender: TLDR,
+			selectedDestination: ALIAS,
+			inboxes: [inbox({ name: "tech", address: ALIAS })],
+		}));
+		assert.deepEqual(
+			Array.from(saving.querySelectorAll(".btn--primary"), (button) => button.hasAttribute("data-test-gmail-open")),
+			[true],
+		);
+		assert.equal(saving.querySelector("[data-test-gmail-save]")?.classList.contains("btn--neutral"), true);
+		const reconnecting = pageDocument(input({ connection: awaiting, metadataScopeGranted: false }));
+		assert.deepEqual(
+			Array.from(reconnecting.querySelectorAll(".btn--primary"), (button) => button.hasAttribute("data-test-gmail-open")),
+			[true],
+		);
+		assert.equal(reconnecting.querySelector("[data-test-gmail-metadata-reconnect-button]")?.classList.contains("btn--neutral"), true);
+	});
+
 	it("renders the poll line under step 2 for an unconfirmed connection", () => {
 		const doc = pageDocument(input({ connection: connection({ forwardingConfirmedAt: undefined }) }));
 		const poll = doc.querySelector("[data-test-gmail-poll]");
@@ -215,5 +236,27 @@ describe("Gmail sender discovery fragments", () => {
 		assert(replacement, "the sender fragment must carry its load-button replacement");
 		assert.equal(replacement.getAttribute("hx-swap-oob"), "outerHTML");
 		assert.equal(replacement.textContent, "Checking 200 of 500 messages…");
+	});
+
+	it("swaps in a neutral discovery Reconnect when Save mapping already holds the amber CTA", () => {
+		const requiresReconnect: GmailPageInput["discovery"] = {
+			state: "failed",
+			mode: "full",
+			scannedCount: 0,
+			estimatedTotalMessages: undefined,
+			requiresReconnect: true,
+		};
+		const saving = toGmailPageViewModel(input({
+			discovery: requiresReconnect,
+			selectedSender: TLDR,
+			selectedDestination: ALIAS,
+			inboxes: [inbox({ name: "tech", address: ALIAS })],
+		}));
+		const beside = fragmentDocument(renderGmailSenderResults(saving, { outOfBandLoadButton: true }));
+		const neutral = beside.querySelector("[data-test-gmail-discovery-reconnect]");
+		assert(neutral, "a discovery that needs reconnecting must offer Reconnect");
+		assert.equal(neutral.getAttribute("class"), "btn btn--neutral");
+		const alone = fragmentDocument(renderGmailSenderResults(toGmailPageViewModel(input({ discovery: requiresReconnect }))));
+		assert.equal(alone.querySelector("[data-test-gmail-discovery-reconnect]")?.getAttribute("class"), "btn btn--primary");
 	});
 });

@@ -23,7 +23,7 @@
 .readlist__side {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -55,20 +55,6 @@
 
   .readlist-subscription {
     order: -1;
-  }
-
-  .readlist-tabs {
-    flex-wrap: wrap;
-  }
-
-  .readlist-pagination__controls {
-    flex-wrap: wrap;
-  }
-
-  .readlist-article__title,
-  .readlist-article__excerpt,
-  .readlist-article__stale {
-    overflow-wrap: anywhere;
   }
 }
 
@@ -171,10 +157,20 @@
   display: none;
 }
 
-.readlist-nav__menu-toggle:hover,
-.readlist-article__menu-toggle:hover {
+.readlist-nav__menu-toggle:hover {
   background: var(--card);
   color: var(--foreground);
+}
+
+.readlist-article__menu-toggle:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.readlist-nav__menu-toggle:focus-visible,
+.readlist-article__menu-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .readlist-nav__menu-toggle svg,
@@ -315,6 +311,8 @@
 .readlist__alert-icon {
   flex: 0 0 auto;
   display: inline-flex;
+  align-items: center;
+  height: calc(0.875rem * 1.6);
   color: var(--error-text);
 }
 
@@ -324,10 +322,12 @@
 }
 
 .readlist__alert-title {
+  font-family: var(--font-sans);
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--foreground);
   margin: 0 0 2px;
+  text-wrap: balance;
 }
 
 .readlist__alert-body {
@@ -338,7 +338,7 @@
 }
 
 .readlist-save {
-  padding: 20px 24px 24px;
+  padding: 20px 24px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -358,17 +358,19 @@
   font-weight: 600;
   color: var(--foreground);
   margin: 0 0 4px;
+  text-wrap: balance;
 }
 
 .readlist-save__lede {
   font-size: 0.875rem;
   color: var(--muted-foreground);
-  margin: 0 0 14px;
+  margin: 0 0 16px;
+  text-wrap: pretty;
 }
 
 .readlist-save__form {
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 
 .readlist-save__input {
@@ -376,6 +378,7 @@
   min-width: 0;
   height: var(--input-height);
   padding: var(--input-padding);
+  font-family: inherit;
   font-size: var(--input-font-size);
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
@@ -406,14 +409,9 @@
   white-space: nowrap;
 }
 
-.readlist-save__form--disabled .readlist-save__input,
-.readlist-save__form--disabled .readlist-save__btn {
+.readlist-save__form--disabled .readlist-save__input {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.readlist-save__form--enabled .readlist-save__btn {
-  cursor: pointer;
 }
 
 .readlist-save__error {
@@ -432,7 +430,7 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 16px;
   padding: 14px 16px;
   border: 1px solid var(--color-error);
   border-radius: var(--radius);
@@ -442,6 +440,8 @@
 .readlist-save__skipped-icon {
   flex: 0 0 auto;
   display: inline-flex;
+  align-items: center;
+  height: calc(0.875rem * 1.6);
   color: var(--error-text);
 }
 
@@ -456,9 +456,11 @@
 
 .readlist-save__skipped-title {
   margin: 0 0 6px;
+  font-family: var(--font-sans);
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .readlist-save__skipped-list {
@@ -478,10 +480,6 @@
   color: var(--muted-foreground);
 }
 
-.readlist-save__skipped-reason::after {
-  content: " —";
-}
-
 .readlist-save__skipped-url {
   word-break: break-all;
 }
@@ -494,6 +492,7 @@
 
 .readlist-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   border-bottom: 1px solid var(--border);
 }
@@ -524,6 +523,7 @@
 
 .readlist-tabs__label::after {
   content: attr(data-widest);
+  font-weight: 600;
   visibility: hidden;
 }
 
@@ -539,11 +539,13 @@
 
 .readlist-tabs.htmx-request .readlist-tabs__link--active {
   color: var(--muted-foreground);
+  font-weight: 500;
   border-bottom-color: var(--muted-foreground);
 }
 
 .readlist-tabs.htmx-request .readlist-tabs__link.htmx-request {
   color: var(--foreground);
+  font-weight: 600;
   border-bottom-color: var(--foreground);
 }
 
@@ -570,6 +572,7 @@
 }
 
 .readlist__count {
+  font-family: var(--font-sans);
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--foreground);
@@ -606,6 +609,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 36px;
+  margin-block: -6px;
   font-size: 0.875rem;
   color: var(--muted-foreground);
   text-decoration: none;
@@ -680,6 +685,7 @@
   line-height: 1.35;
   color: var(--foreground);
   text-decoration: none;
+  overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 
@@ -706,6 +712,7 @@
   line-height: 1.55;
   color: var(--muted-foreground);
   text-decoration: none;
+  overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 
@@ -719,6 +726,7 @@
 .readlist-article__stale {
   font-size: 0.8125rem;
   color: var(--muted-foreground);
+  overflow-wrap: anywhere;
 }
 
 .readlist-article__stale a {
@@ -854,14 +862,14 @@
 .readlist-article__processing {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin: 0;
   font-size: 0.8125rem;
   color: var(--muted-foreground);
 }
 
 .readlist-article__processing svg {
-  color: var(--primary);
+  color: var(--primary-text);
   animation: readlist-spin 1s linear infinite;
 }
 
@@ -886,31 +894,7 @@
 }
 
 .readlist-article__status-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 40px;
-  padding: 8px 16px;
-  border: 1px solid var(--color-brand);
-  border-radius: var(--radius-sm);
-  background: var(--secondary);
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--primary-text);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.readlist-article__status-btn:hover {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-
-.readlist-article__status-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  position: relative;
 }
 
 .readlist-article__status-form.htmx-request .readlist-article__action-btn-label {
@@ -919,15 +903,6 @@
 
 .readlist-article__status-form.htmx-request .readlist-article__action-btn-loader {
   display: flex;
-}
-
-.readlist-article__status-form.htmx-request .readlist-article__status-btn:disabled {
-  cursor: progress;
-  opacity: 1;
-}
-
-.readlist-article__status-btn {
-  position: relative;
 }
 
 .readlist-empty {
@@ -942,7 +917,6 @@
 .readlist-empty__illustration {
   width: 96px;
   height: 80px;
-  margin-bottom: 8px;
   color: var(--foreground);
 }
 
@@ -970,15 +944,7 @@
 }
 
 .readlist-empty__cta {
-  margin-top: 12px;
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: inset 0 0 0 1px var(--border);
-}
-
-.readlist-empty__cta:hover,
-.readlist-empty__cta:active {
-  background: var(--muted);
+  margin-top: 4px;
 }
 
 .readlist-save-skeleton--armed.htmx-request ~ .readlist-empty {
@@ -1012,6 +978,7 @@
 
 .readlist-pagination__controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -1118,9 +1085,9 @@
 }
 
 .readlist-subscription__chip--warning {
-  background: var(--error-bg);
-  color: var(--error-text);
-  border: 1px solid var(--color-error);
+  background: var(--warning-bg);
+  color: var(--foreground);
+  border: 1px solid var(--color-warning);
 }
 
 .readlist-subscription__chip--error {
@@ -1135,6 +1102,7 @@
   font-weight: 600;
   color: var(--foreground);
   margin: 0;
+  text-wrap: balance;
 }
 
 .readlist-subscription__body {
@@ -1148,9 +1116,9 @@
 .readlist-subscription__tiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  margin: 6px 0 4px;
+  margin: 4px 0;
 }
 
 .readlist-subscription__tile {
@@ -1194,22 +1162,22 @@
 }
 
 .readlist__save-btn-saving {
-  display: none;
+  visibility: hidden;
 }
 
 .htmx-request .readlist__save-btn-label {
-  display: none;
+  visibility: hidden;
 }
 
 .htmx-request .readlist__save-btn-saving {
-  display: inline;
+  visibility: visible;
 }
 
 .readlist-save-skeleton {
   display: none;
   flex-direction: column;
-  gap: 8px;
-  padding: clamp(12px, 3vw, 16px);
+  gap: 10px;
+  padding: 20px;
   background: var(--secondary);
   color: var(--muted-foreground);
 }
@@ -1222,30 +1190,19 @@
   display: flex;
 }
 
-.readlist-save-skeleton__header {
+.readlist-save-skeleton__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
 }
 
-.readlist-save-skeleton__meta {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-size: 0.75rem;
-}
-
-.readlist-save-skeleton__dot {
+.readlist-save-skeleton__menu {
   flex: 0 0 auto;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.25;
+  width: 36px;
+  height: 36px;
+  margin: -6px -8px 0 0;
 }
 
 .readlist-save-skeleton__bar {
@@ -1257,45 +1214,15 @@
   opacity: 0.25;
 }
 
-.readlist-save-skeleton__bar--site {
-  width: 7em;
-}
-
-.readlist-save-skeleton__bar--time {
-  width: 4em;
-}
-
-.readlist-save-skeleton__actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 4px;
-}
-
-.readlist-save-skeleton__action {
-  min-width: 44px;
-  min-height: 44px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-.readlist-save-skeleton__action--status {
-  width: 5.75rem;
-}
-
-.readlist-save-skeleton__body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
 .readlist-save-skeleton__line {
   display: block;
 }
 
 .readlist-save-skeleton__line--title {
-  font-size: clamp(0.9375rem, 0.86rem + 0.35vw, 1.0625rem);
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 1.0625rem;
   line-height: 1.35;
-  padding-bottom: 2px;
 }
 
 .readlist-save-skeleton__bar--title {
@@ -1304,21 +1231,28 @@
 
 .readlist-save-skeleton__line--excerpt {
   font-size: 0.875rem;
-  line-height: 1.5;
-  padding-top: 2px;
+  line-height: 1.55;
 }
 
 .readlist-save-skeleton__bar--excerpt {
   width: 30%;
 }
 
+.readlist-save-skeleton__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+
 .readlist-save-skeleton__status {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 4px 0 0;
-  font-size: 0.75rem;
-  font-weight: 500;
+  margin: 0;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
 }
 
@@ -1327,7 +1261,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--primary-text);
   animation: readlist-processing-pulse 1.2s ease-in-out infinite;
 }
 
@@ -1342,34 +1276,11 @@
   }
 }
 
-@media (max-width: 600px) {
-  .readlist-save-skeleton__bar--site {
-    display: none;
-  }
-}
-
-.readlist-delete__cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 44px;
-  padding: var(--button-padding);
-  border: none;
+.readlist-save-skeleton__toggle {
+  width: 7rem;
+  min-height: 40px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.25;
-  background: var(--error-fill);
-  color: var(--error-foreground);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.readlist-delete__cta:hover,
-.readlist-delete__cta:active {
-  background: var(--error-fill-hover);
 }
 
 .readlist-migrate--visible {
@@ -1386,9 +1297,9 @@
 }
 
 .readlist-migrate__label {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .readlist-migrate__select {
@@ -1397,16 +1308,16 @@
   padding: var(--input-padding);
   font-family: inherit;
   font-size: var(--input-font-size);
-  color: var(--color-text-primary);
-  background: var(--input);
-  border: 1px solid var(--border);
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .readlist-migrate__select:focus-visible {
   outline: 2px solid var(--ring);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 .readlist-delete__cta-label--migrate {
@@ -1423,62 +1334,13 @@
   }
 }
 
-.readlist .confirm-popover {
-  border-radius: 16px;
-  text-align: center;
-}
-
-.readlist .confirm-popover--illustrated .confirm-popover__header {
-  justify-content: center;
-}
-
-.readlist .confirm-popover--illustrated .confirm-popover__close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  margin: 0;
-}
-
-.readlist .confirm-popover__illustration {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto 12px;
-  color: var(--foreground);
-}
-
-.readlist .confirm-popover__illustration svg {
-  width: 100%;
-  height: 100%;
-}
-
-.readlist .confirm-popover__body:empty {
-  display: none;
-}
-
-.readlist .confirm-popover__items {
-  list-style: none;
-  padding: 0;
-  text-align: left;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.readlist .confirm-popover__item {
-  padding: 12px 14px;
-}
-
-.readlist .confirm-popover__item + .confirm-popover__item {
-  border-top: 1px solid var(--border);
-}
-
 .readlist .confirm-popover__actions {
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: center;
 }
 
-.readlist .confirm-popover__actions .btn,
-.readlist .confirm-popover__actions .readlist-delete__cta {
+.readlist .confirm-popover__actions .btn {
   width: auto;
   flex: 1 1 auto;
 }
@@ -1488,15 +1350,10 @@
   text-align: left;
 }
 
-.readlist .subscribe-plans__grid {
-  text-align: left;
-}
-
 .readlist .confirm-popover__actions.wizard__form {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  text-align: left;
 }
 
 .readlist .confirm-popover__actions.wizard__form .btn {
@@ -1509,7 +1366,6 @@
   align-items: stretch;
   justify-content: flex-start;
   width: 100%;
-  text-align: left;
   gap: 8px;
 }
 
@@ -1523,6 +1379,7 @@
   width: 100%;
   height: var(--input-height);
   padding: var(--input-padding);
+  font-family: inherit;
   font-size: var(--input-font-size);
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
@@ -1534,6 +1391,10 @@
   outline: none;
   border-color: var(--ring);
   box-shadow: 0 0 0 3px var(--ring-shadow);
+}
+
+.readlist-rename:has(.readlist-rename__error--visible) .readlist-rename__input {
+  border-color: var(--color-error);
 }
 
 .readlist-rename__error {
@@ -1552,7 +1413,6 @@
 
 .readlist-rename__buttons {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
   margin-top: 8px;
 }

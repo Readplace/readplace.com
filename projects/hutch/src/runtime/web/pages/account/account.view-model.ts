@@ -160,9 +160,9 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 }
 
 const ACCOUNT_ACTION_BUTTON_CLASS: Record<AccountActionVariant, string> = {
-	primary: "btn btn--primary btn--compact account-card__action",
-	secondary: "btn btn--secondary btn--compact account-card__action",
-	destructive: "account-card__action account-card__action--destructive",
+	primary: "btn btn--primary account-card__action",
+	secondary: "btn btn--secondary account-card__action",
+	destructive: "btn btn--destructive account-card__action",
 };
 
 function action(input: Omit<AccountAction, "isPending" | "buttonClass">): AccountAction {
@@ -220,7 +220,7 @@ export type CardActionKey = "promote" | "remove";
 export interface CardActionView {
 	key: CardActionKey;
 	name: string;
-	variant: "secondary" | "destructive";
+	variant: "toggle" | "destructive";
 	buttonClass: string;
 	href: string;
 }
@@ -242,6 +242,7 @@ export interface CardSectionViewModel {
 	stateClass: string;
 	heading: string;
 	isLoaded: boolean;
+	isError: boolean;
 	message: string;
 	hasNotice: boolean;
 	notice: string;
@@ -293,21 +294,30 @@ function formatExpiry(card: SavedCard): string {
 }
 
 const CARD_ACTION_BUTTON_CLASS: Record<CardActionView["variant"], string> = {
-	secondary: "btn btn--secondary btn--compact",
-	destructive: "account-cards__action account-cards__action--destructive",
+	toggle: "btn btn--toggle btn--compact",
+	destructive: "btn btn--destructive btn--compact",
 };
 
 function cardAction(input: Omit<CardActionView, "buttonClass">): CardActionView {
-	return { ...input, buttonClass: CARD_ACTION_BUTTON_CLASS[input.variant] };
+	return {
+		...input,
+		buttonClass: CARD_ACTION_BUTTON_CLASS[input.variant],
+		href: withInternalTracking(input.href, { source: ACCOUNT_SOURCE, content: `${input.key}-card` }),
+	};
 }
 
 function cardActions(card: SavedCard): CardActionView[] {
 	if (card.isPrimary) return [];
 	return [
-		cardAction({ key: "promote", name: "Make primary", variant: "secondary", href: buildCardPrimaryUrl(card.id) }),
+		cardAction({ key: "promote", name: "Make primary", variant: "toggle", href: buildCardPrimaryUrl(card.id) }),
 		cardAction({ key: "remove", name: "Remove", variant: "destructive", href: buildCardRemoveUrl(card.id) }),
 	];
 }
+
+const ADD_CARD_URL = withInternalTracking(ACCOUNT_CARDS_NEW_URL, {
+	source: ACCOUNT_SOURCE,
+	content: "add-card",
+});
 
 function toCardViewItem(card: SavedCard): CardViewItem {
 	return {
@@ -330,12 +340,13 @@ function unavailableSection(
 		stateClass: `account-cards account-cards--${state}`,
 		heading: "Payment methods",
 		isLoaded: false,
+		isError: state === "provider-error",
 		message,
 		hasNotice: false,
 		notice: "",
 		cards: [],
 		showAddButton: false,
-		addUrl: ACCOUNT_CARDS_NEW_URL,
+		addUrl: ADD_CARD_URL,
 		showLimitHint: false,
 		limitHint: "",
 		isAdding: false,
@@ -361,6 +372,7 @@ export function buildCardSectionViewModel(input: CardSectionInput): CardSectionV
 		stateClass: "account-cards account-cards--loaded",
 		heading: "Payment methods",
 		isLoaded: true,
+		isError: false,
 		message: "",
 		hasNotice: notice.length > 0,
 		notice,
@@ -368,7 +380,7 @@ export function buildCardSectionViewModel(input: CardSectionInput): CardSectionV
 		// The add button only appears when there's room AND a publishable key to
 		// drive Elements; without a key (local dev) the list/manage actions still render.
 		showAddButton: canAddCard && hasKey && !isAdding,
-		addUrl: ACCOUNT_CARDS_NEW_URL,
+		addUrl: ADD_CARD_URL,
 		showLimitHint: !canAddCard,
 		limitHint: LIMIT_HINT,
 		isAdding,
@@ -530,7 +542,7 @@ export interface AppearanceOptionView {
 	label: string;
 	active: boolean;
 	ariaPressed: "true" | "false";
-	variant: "primary" | "secondary";
+	variant: "secondary" | "neutral";
 }
 
 export interface AppearanceSectionViewModel {
@@ -564,7 +576,7 @@ export function buildAppearanceSection(input: {
 				label: APPEARANCE_LABELS[value],
 				active,
 				ariaPressed: active ? "true" : "false",
-				variant: active ? "primary" : "secondary",
+				variant: active ? "secondary" : "neutral",
 			};
 		}),
 	};

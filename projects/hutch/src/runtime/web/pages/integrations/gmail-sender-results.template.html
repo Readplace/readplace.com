@@ -2,7 +2,7 @@
 <div id="gmail-sender-results" data-test-gmail-sender-results data-discovery-state="{{state}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="{{pollTrigger}}" hx-swap="outerHTML" hx-sync="#gmail-sender-search-form:drop"{{/if}}>
   <p class="gmail__discovery-status" role="status" data-test-gmail-discovery-status>{{message}}</p>
   {{#if discoveryAfter}}<input type="hidden" form="gmail-sender-search-form" name="discovery_after" value="{{discoveryAfter}}">{{/if}}
-  {{#if reconnectAction}}<form method="POST" action="{{reconnectAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"><button class="btn btn--primary" type="submit" data-test-gmail-discovery-reconnect>Reconnect Gmail</button></form>{{/if}}
+  {{#if reconnectAction}}<form method="POST" action="{{reconnectAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"><button class="btn btn--{{reconnectVariant}}" type="submit" data-test-gmail-discovery-reconnect>Reconnect Gmail</button></form>{{/if}}
   <ul class="gmail__options gmail__sender-options">
     {{#each options}}
     <li>

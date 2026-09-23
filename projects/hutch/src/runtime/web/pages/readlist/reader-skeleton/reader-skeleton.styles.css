@@ -5,7 +5,7 @@
 .reader-skeleton__line {
   display: block;
   height: 0.875rem;
-  margin-block: 0.6rem;
+  margin-block: 0.625rem;
   background: var(--muted);
   border-radius: var(--radius-sm);
 }

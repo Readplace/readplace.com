@@ -54,15 +54,15 @@
         <a href="{{panel.assistant.directInstallUrl}}" class="btn btn--primary install-page__download" data-test-cta="ai-direct-install">{{panel.assistant.directInstallLabel}}</a>
         {{/if}}
 
-        <div class="install-page__server-url" data-test-section="ai-server-url">
-          <span class="install-page__server-url-label">Server URL</span>
-          <code class="install-page__server-url-value">{{mcpServerUrl}}</code>
+        <div class="install-page__copy-field" data-test-section="ai-server-url">
+          <span class="install-page__copy-label">Server URL</span>
+          <code class="install-page__copy-value install-page__copy-value--url">{{mcpServerUrl}}</code>
           <button type="button" class="btn btn--secondary btn--compact install-page__copy-btn" data-install-copy data-install-text="{{mcpServerUrl}}" hidden>Copy</button>
         </div>
 
-        <div class="install-page__prompt" data-test-section="ai-prompt">
-          <span class="install-page__prompt-label">{{panel.assistant.promptLabel}}</span>
-          <p class="install-page__prompt-text">{{panel.assistant.prompt}}</p>
+        <div class="install-page__copy-field" data-test-section="ai-prompt">
+          <span class="install-page__copy-label">{{panel.assistant.promptLabel}}</span>
+          <p class="install-page__copy-value">{{panel.assistant.prompt}}</p>
           <button type="button" class="btn btn--secondary btn--compact install-page__copy-btn" data-install-copy data-install-text="{{panel.assistant.prompt}}" hidden>Copy</button>
         </div>
 
@@ -70,9 +70,9 @@
 
         <p class="install-page__ai-after" data-test-section="ai-after-connect">Once connected, saving is one sentence: &ldquo;{{saveIntentPrompt}}&rdquo;</p>
 
-        <p class="install-page__ai-note">You sign in once with OAuth — {{panel.assistant.name}} never sees your password, and you can revoke access at any time. <a href="{{mcpGuideUrl}}" class="install-page__ai-guide" data-test-cta="ai-full-guide">Full setup guide {{icon "arrow-right"}}</a></p>
+        <p class="install-page__ai-note">You sign in once with OAuth — {{panel.assistant.name}} never sees your password, and you can revoke access at any time. <a href="{{mcpGuideHref}}" class="install-page__ai-guide" data-test-cta="ai-full-guide">Full setup guide {{icon "arrow-right"}}</a></p>
 
-        <p class="install-page__foot-note" data-test-section="ai-other-clients">Perplexity, Claude Code, Cursor, VS Code, and other MCP clients connect the same way: paste the server URL above and sign in once. <a href="{{mcpGuideUrl}}" class="install-page__ai-guide">See the full guide {{icon "arrow-right"}}</a></p>
+        <p class="install-page__foot-note" data-test-section="ai-other-clients">Perplexity, Claude Code, Cursor, VS Code, and other MCP clients connect the same way: paste the server URL above and sign in once. <a href="{{mcpOtherClientsGuideHref}}" class="install-page__ai-guide">See the full guide {{icon "arrow-right"}}</a></p>
       </section>
       {{/case}}
 

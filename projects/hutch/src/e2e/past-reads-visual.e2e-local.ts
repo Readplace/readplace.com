@@ -35,7 +35,7 @@ const SUMMARY_SLOT = "#article-body-summary-slot";
 const SUMMARY_CARD = ".article-body__summary";
 const SUMMARY_TOGGLE = ".article-body__summary-toggle";
 const READER_SLOT = "#article-body-reader-slot";
-const ROW_GAP_PX = 8;
+const ROW_GAP_PX = 0;
 
 const LONG_TITLE =
 	"How the Postgres Query Planner Picks Between Sequential, Index and Bitmap Heap Scans Once Table Statistics Go Stale";
@@ -213,7 +213,7 @@ async function rowsCompactAndPlain(page: Page): Promise<void> {
 		const gap = current.y - (previous.y + previous.height);
 		assert.ok(
 			Math.abs(gap - ROW_GAP_PX) <= 0.5,
-			`rows must stack with an ${ROW_GAP_PX}px gap, got ${gap}px between rows ${index - 1} and ${index}`,
+			`rows must stack flush, split only by a divider, got ${gap}px between rows ${index - 1} and ${index}`,
 		);
 	}
 
@@ -234,37 +234,32 @@ async function rowsCompactAndPlain(page: Page): Promise<void> {
 			const site = link.querySelector(".past-reads__site");
 			if (!title || !site) throw new Error("every past-read row renders a title and a site");
 			const linkBox = link.getBoundingClientRect();
-			const titleBox = title.getBoundingClientRect();
 			const siteBox = site.getBoundingClientRect();
 			return {
-				linkWidth: linkBox.width,
 				linkRight: linkBox.right,
-				titleWidth: titleBox.width,
-				titleNaturalWidth: title.scrollWidth,
-				titleWrapped: title.scrollHeight > title.clientHeight + 1,
+				titleClipped: title.scrollWidth > title.clientWidth,
 				siteWidth: siteBox.width,
 				siteRight: siteBox.right,
 			};
 		}),
 	);
 	for (const heading of headings) {
-		assert.equal(heading.titleWrapped, false, "a title must stay on one line");
+		assert.equal(heading.titleClipped, false, "a title must render whole rather than clip");
 		assert.ok(heading.siteWidth > 0, "the site name must stay visible");
 		assert.ok(
 			heading.siteRight <= heading.linkRight + 0.5,
 			"the site name must never overflow its row",
 		);
-		assert.ok(
-			heading.titleWidth >= Math.min(heading.titleNaturalWidth, heading.linkWidth) - 1,
-			`a title must keep the line width it needs before the site name takes any of it (got ${heading.titleWidth}px of ${heading.linkWidth}px)`,
-		);
 	}
 
-	const longTitleClipped = await page
+	const longTitleWrapped = await page
 		.locator(TITLE)
 		.first()
-		.evaluate((el) => el.scrollWidth > el.clientWidth);
-	assert.equal(longTitleClipped, true, "a long title must ellipsize rather than widen the row");
+		.evaluate(
+			(el) =>
+				el.getBoundingClientRect().height > Number.parseFloat(window.getComputedStyle(el).lineHeight) * 1.5,
+		);
+	assert.equal(longTitleWrapped, true, "a long title must wrap rather than widen the row");
 	await expect(page.locator(LINK).first()).toHaveAttribute("aria-label", new RegExp(LONG_TITLE));
 
 	const reasonsClipped = await page
@@ -319,15 +314,16 @@ async function cardCollapsed(page: Page): Promise<void> {
 	await expect(page.locator(CARD)).toHaveCSS("background-color", summaryBackground);
 	await expect(page.locator(CARD)).toHaveCSS("border-top-width", "1px");
 	await expect(page.locator(CARD)).toHaveCSS("border-top-color", summaryBorderColor);
-	await expect(page.locator(CARD)).toHaveCSS("border-top-left-radius", "8px");
+	await expect(page.locator(CARD)).toHaveCSS("border-top-left-radius", "12px");
 	await expect(page.locator(TOGGLE)).toHaveCSS("padding", summaryTogglePadding);
 
 	const previewTitle = await page.locator(PREVIEW_TITLE).evaluate((el) => ({
 		clipped: el.scrollWidth > el.clientWidth,
-		wrapped: el.scrollHeight > el.clientHeight + 1,
+		wrapped:
+			el.getBoundingClientRect().height > Number.parseFloat(window.getComputedStyle(el).lineHeight) * 1.5,
 	}));
-	assert.equal(previewTitle.clipped, true, "a long preview title ellipsizes");
-	assert.equal(previewTitle.wrapped, false, "the preview title stays on one line");
+	assert.equal(previewTitle.clipped, false, "a long preview title renders whole");
+	assert.equal(previewTitle.wrapped, true, "a long preview title wraps rather than clipping");
 
 	const cardBox = await measuredBox(page, CARD);
 	const more = await page.locator(MORE).evaluate((el) => {

@@ -223,6 +223,27 @@ describe("renderNextRead", () => {
 		});
 	});
 
+	it("marks a past read with a check and dims its card, where an unread suggestion keeps the dot", () => {
+		const markerOf = (doc: Document) => {
+			const card = doc.querySelector(".next-read__card");
+			assert(card, "a ready slot must render the card");
+			const badge = card.querySelector(".next-read__status");
+			assert(badge, "the suggestion carries its read state");
+			return {
+				dimmed: card.classList.contains("next-read__card--read"),
+				check: badge.querySelector("svg") !== null,
+			};
+		};
+
+		expect({
+			unread: markerOf(parse(readyWith([FIRST]))),
+			read: markerOf(parse(readyWith([FINISHED]))),
+		}).toEqual({
+			unread: { dimmed: false, check: false },
+			read: { dimmed: true, check: true },
+		});
+	});
+
 	it("dates a past read by when it was saved when the row never recorded a read time", () => {
 		const { readAt: _readAt, ...undatedRead } = FINISHED;
 		const doc = parse(readyWith([undatedRead]));
@@ -242,15 +263,16 @@ describe("renderNextRead", () => {
 		});
 	});
 
-	it("reads the unread badge and the saved time as one line", () => {
+	it("reads the unread badge, the site and the saved time as one metadata row", () => {
 		const doc = parse(readyWith([FIRST]));
 
 		const meta = doc.querySelector(".next-read__meta");
-		assert(meta, "the badge and the saved time must share a row");
+		assert(meta, "the badge, the site and the saved time must share a row");
 		expect(
 			Array.from(meta.children).map((child) => child.className),
 		).toEqual([
 			"next-read__status next-read__status--unread",
+			"next-read__site",
 			"next-read__saved",
 		]);
 	});

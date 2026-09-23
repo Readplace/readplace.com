@@ -5,11 +5,11 @@
         <p class="auth-card__subtitle">{{subtitle}}</p>
         {{{foundingProgressHtml}}}
         {{#if foundingAvailable}}<p class="auth-card__founding-blurb" data-test-founding-blurb>Free account for the first {{foundingMemberLimit}} readers</p>{{/if}}
-        {{#if globalError}}<div class="auth-form__global-error" data-test-global-error>{{globalError}}</div>{{/if}}
+        {{#if globalError}}<div class="auth-form__global-error" role="alert" data-test-global-error><span class="auth-form__global-error-icon" aria-hidden="true">{{icon "x-circle"}}</span><p class="auth-form__global-error-title">{{globalError}}</p></div>{{/if}}
         {{{authProvidersHtml}}}
         <div class="auth-divider">or</div>
-        <form class="auth-form" method="POST" action="/signup?utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn{{#if returnUrl}}&return={{returnUrl}}{{/if}}" data-test-form="signup">
-          <div class="auth-form__visually-hidden" aria-hidden="true">
+        <form class="auth-form" method="POST" action="{{formAction}}" data-test-form="signup">
+          <div class="sr-only" aria-hidden="true">
             <label for="website">Website (do not fill)</label>
             <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
           </div>
@@ -28,7 +28,7 @@
           {{#unless foundingAvailable}}<p class="auth-form__hint" data-test-trial-hint>{{trialPeriodDays}}-day free trial, then {{monthlyPriceDisplay}}/month. No credit card required.</p>{{/unless}}
         </form>
         <p class="auth-card__footer">
-          Already have an account? <a href="/login?utm_source=auth-page&utm_medium=internal&utm_content=sign-in-link{{#if returnUrl}}&return={{returnUrl}}{{/if}}" data-test-action="sign-in">Sign in</a>
+          Already have an account? <a class="auth-card__link" href="{{signInHref}}" data-test-action="sign-in">Sign in</a>
         </p>
       </div>
     </main>

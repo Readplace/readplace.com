@@ -11,7 +11,6 @@ const ARTICLE_CONTENT_REGIONS = [
 	// The past-reads compute triggers fire automatically on load rather than on a
 	// reader click, so tagging them would count a click on every reader open.
 	".past-reads__request",
-	".past-reads__fallback",
 ];
 
 const GUEST_PATHS = [
@@ -20,16 +19,24 @@ const GUEST_PATHS = [
 	"/signup",
 	"/forgot-password",
 	"/install",
+	"/install?client=chrome",
+	"/install?client=iphone",
+	"/install?client=chatgpt",
+	"/install?client=gemini",
+	"/install?client=claude",
 	"/import",
 	"/privacy",
 	"/terms",
 	"/support",
 	"/help/add-links",
+	"/mcp",
 	"/pocket-alternative",
 	"/pdf-ocr",
 	"/ai-reading-list",
 	"/read-it-later-that-wont-die",
 	"/queue",
+	"/save",
+	"/view/not-a-url",
 	"/no-such-page",
 ];
 
@@ -41,9 +48,17 @@ const MEMBER_PATHS = [
 	"/account?section=subscription",
 	"/export",
 	"/install",
+	"/install?client=chrome",
+	"/install?client=iphone",
+	"/install?client=chatgpt",
+	"/install?client=gemini",
+	"/install?client=claude",
 	"/import",
 	"/import?mode=upload",
 	"/integrations",
+	"/mcp",
+	"/save",
+	"/view/not-a-url",
 	"/no-such-page",
 ];
 

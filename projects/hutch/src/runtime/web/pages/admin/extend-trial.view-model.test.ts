@@ -16,6 +16,7 @@ it("renders an empty form before any lookup", () => {
 	expect(viewModel.refused).toBe(false);
 	expect(viewModel.notFound).toBe(false);
 	expect(viewModel.extended).toBe(false);
+	expect(viewModel.lookupButtonVariant).toBe("btn--primary");
 });
 
 it("flags an unknown email", () => {
@@ -62,6 +63,7 @@ it("exposes the current window and the prefilled input when extendable", () => {
 	expect(viewModel.currentTrialEndsAt).toBe("2026-10-15T03:52:32.114Z");
 	expect(viewModel.trialEndsAtInput).toBe("2026-10-15T03:52");
 	expect(viewModel.extended).toBe(true);
+	expect(viewModel.lookupButtonVariant).toBe("btn--neutral");
 });
 
 it("reports a user with no window at all", () => {

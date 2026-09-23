@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { fireEvent } from "@testing-library/dom";
 import { JSDOM } from "jsdom";
+import { BUTTON_STYLES } from "../../base.styles";
 import { initClipboardCopy } from "./clipboard-copy.client";
 
 const TEXT = "https://readplace.com/mcp";
@@ -94,6 +95,33 @@ describe("initClipboardCopy", () => {
 		await flushPromises();
 
 		expect(btn.textContent).toBe("Press Ctrl+C");
+	});
+
+	it("reserves the width of every label it can flash, so the row keeps its footprint", () => {
+		const { document, ctrl } = setup();
+
+		ctrl.attach();
+
+		const btn = copyButton(document);
+		expect(btn.children).toHaveLength(1);
+		const stack = btn.children[0];
+		assert(stack, "the label stack must wrap the button's label");
+		expect(stack.className).toBe("btn__label-stack");
+		expect([stack.getAttribute("data-reserve-1"), stack.getAttribute("data-reserve-2")]).toEqual([
+			"Copied",
+			"Press Ctrl+C",
+		]);
+		expect(stack.textContent).toBe("Copy");
+		expect(BUTTON_STYLES).toContain(`.${stack.className}::before {`);
+		expect(BUTTON_STYLES).toContain(`.${stack.className}::after {`);
+	});
+
+	it("keeps the button's own markup when the clipboard API is unavailable to flash into it", () => {
+		const { document, ctrl } = setup({ navigator: {} });
+
+		ctrl.attach();
+
+		expect(copyButton(document).innerHTML).toBe("Copy");
 	});
 
 	it("holds the copied label for a full window across two clicks, then restores the original", async () => {

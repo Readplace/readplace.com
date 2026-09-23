@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CHEAPEST_MONTHLY_DISPLAY, render, VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, render, VERIFICATION_CONTACT_EMAIL, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
@@ -38,6 +38,14 @@ interface FieldViewModel {
 	error?: string;
 }
 
+const AUTH_PAGE_SOURCE = "auth-page";
+
+function authPageHref(target: { path: string; content: string; returnUrl?: string }): string {
+	const params = new URLSearchParams();
+	if (target.returnUrl) params.set("return", target.returnUrl);
+	return withInternalTracking(`${target.path}?${params}`, { source: AUTH_PAGE_SOURCE, content: target.content });
+}
+
 function toFieldViewModel(
 	errors: ComponentError[] | undefined,
 	field: string,
@@ -56,7 +64,8 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 	const content = render(LOGIN_TEMPLATE, {
 		email,
 		globalError: errors?.find((e) => !e.fieldName)?.message,
-		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
+		formAction: authPageHref({ path: "/login", content: "login-btn", returnUrl: data.returnUrl }),
+		signupHref: authPageHref({ path: "/signup", content: "create-acc-btn", returnUrl: data.returnUrl }),
 		authProvidersHtml: renderAuthProviders({
 			intent: "sign-in",
 			returnUrl: data.returnUrl,
@@ -122,7 +131,8 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 	const content = render(SIGNUP_TEMPLATE, {
 		email,
 		globalError: errors?.find((e) => !e.fieldName)?.message,
-		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
+		formAction: authPageHref({ path: "/signup", content: "signup-submit-btn", returnUrl: data.returnUrl }),
+		signInHref: authPageHref({ path: "/login", content: "sign-in-link", returnUrl: data.returnUrl }),
 		pendingSaveHost: data.pendingSaveHost,
 		subtitle: data.pendingSaveHost
 			? "Sign up and this article is saved to your readlist"
@@ -196,7 +206,13 @@ export function ResetPasswordPage(
 	const errors = data.errors;
 
 	const content = render(RESET_PASSWORD_TEMPLATE, {
-		token: data.token,
+		formAction:
+			data.token === undefined
+				? undefined
+				: withInternalTracking(`/reset-password?${new URLSearchParams({ token: data.token })}`, {
+						source: "auth-reset",
+						content: "set-new-password",
+					}),
 		globalError: errors?.find((e) => !e.fieldName)?.message,
 		success: data.success,
 		error: data.error,

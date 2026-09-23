@@ -22,7 +22,7 @@ const READLIST_DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__
 			{{/each}}
 		</select>
 	</div>
-	<button class="readlist-delete__cta" type="submit" data-test-action="readlist-delete-confirm">
+	<button class="btn btn--destructive" type="submit" data-test-action="readlist-delete-confirm">
 		<span class="readlist-delete__cta-label readlist-delete__cta-label--delete">Confirm Deletion</span>
 		<span class="readlist-delete__cta-label readlist-delete__cta-label--migrate">Move and Delete</span>
 	</button>

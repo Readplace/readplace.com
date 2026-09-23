@@ -9,14 +9,14 @@
   {{#if readlistPicker}}
   <div class="article-body__readlists-slot article-body__readlists-slot--visible" data-test-readlists-slot>
     <details class="article-body__readlists">
-      <summary class="article-body__readlists-trigger" data-test-readlists-trigger><span class="article-body__action-icon">{{icon "plus"}}</span><span class="article-body__action-label">Add to readlist</span><span class="article-body__action-label-short" aria-hidden="true">Add</span>{{icon "chevron-down"}}</summary>
+      <summary class="btn btn--neutral btn--compact article-body__readlists-trigger" data-test-readlists-trigger><span class="article-body__action-icon">{{icon "plus"}}</span><span class="article-body__action-label">Add to readlist</span><span class="article-body__action-label-short" aria-hidden="true">Add</span><span class="article-body__readlists-chevron" aria-hidden="true">{{icon "chevron-down"}}</span></summary>
       <ul class="article-body__readlists-menu" data-test-readlists-menu>
         {{#each readlistPicker.options}}
         <li class="article-body__readlists-item" data-test-readlists-row="{{slug}}">
           <form class="article-body__readlists-form" method="POST" action="{{../readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
             <input type="hidden" name="queue" value="{{slug}}">
             <input type="hidden" name="returnTo" value="{{../readlistPicker.returnTo}}">
-            <button class="article-body__readlists-option" type="submit" data-test-assign-readlist="{{slug}}">{{label}}</button>
+            <button class="article-body__readlists-option" type="submit" data-test-assign-readlist="{{slug}}">{{icon "folder"}}{{label}}</button>
           </form>
         </li>
         {{/each}}

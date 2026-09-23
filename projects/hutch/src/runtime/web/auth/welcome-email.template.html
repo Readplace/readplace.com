@@ -4,29 +4,36 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome to Readplace</title>
+    <style>
+      @media (min-width: 768px) {
+        .email-card__body {
+          padding: 40px !important;
+        }
+      }
+    </style>
   </head>
-  <body style="margin:0;padding:0;background-color:{{colors.background}};font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{{colors.background}};padding:40px 20px;">
+  <body style="margin:0;padding:0;background-color:{{colors.muted}};font-family:{{fontStack}};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{{colors.muted}};padding:40px 20px;font-family:{{fontStack}};table-layout:fixed;">
       <tr>
         <td align="center">
-          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background-color:{{colors.surface}};border-radius:8px;padding:40px;">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:100%;background-color:{{colors.card}};border:1px solid {{colors.border}};border-radius:12px;">
             <tr>
-              <td>
+              <td class="email-card__body" style="padding:24px;">
                 <img src="{{avatarUrl}}" alt="Fayner Brack" width="80" height="80" style="display:block;border-radius:50%;margin:0 0 16px;">
-                <h1 style="margin:0 0 16px;font-size:24px;color:{{colors.heading}};">Welcome to Readplace</h1>
-                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.body}};">Thanks for joining — really glad you're here.</p>
-                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.body}};">I started Readplace because I wanted a quiet place to keep the things I want to read later, without the noise of a feed or the rot of bookmarks.</p>
-                <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:{{colors.body}};">Save from wherever you read — {{saveSurfaces}}.</p>
+                <h1 style="margin:0 0 16px;font-size:24px;font-weight:600;line-height:1.3;color:{{colors.foreground}};">Welcome to Readplace</h1>
+                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">Thanks for joining — really glad you're here.</p>
+                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">I started Readplace because I wanted a quiet place to keep the things I want to read later, without the noise of a feed or the rot of bookmarks.</p>
+                <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">Save from wherever you read — {{saveSurfaces}}.</p>
                 <table role="presentation" cellpadding="0" cellspacing="0">
                   <tr>
-                    <td style="border-radius:6px;background-color:{{colors.brand}};">
-                      <a href="{{installUrl}}" style="display:inline-block;padding:12px 24px;font-size:16px;color:{{colors.brandText}};text-decoration:none;border-radius:6px;">See the ways to save</a>
+                    <td style="border-radius:6px;background-color:{{colors.primary}};">
+                      <a href="{{installUrl}}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;line-height:20px;color:{{colors.primaryForeground}};text-decoration:none;border-radius:6px;">See the ways to save</a>
                     </td>
                   </tr>
                 </table>
-                <p style="margin:24px 0 0;font-size:16px;line-height:1.6;color:{{colors.body}};">If anything breaks or feels off, just reply to this email — it comes straight to me, and I read everything.</p>
-                <p style="margin:16px 0 0;font-size:16px;line-height:1.6;color:{{colors.body}};">— Fayner Brack, Founder &amp; CEO</p>
-                <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:{{colors.muted}};">Your feedback shapes what Readplace builds next.</p>
+                <p style="margin:24px 0 0;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">If anything breaks or feels off, just reply to this email — it comes straight to me, and I read everything.</p>
+                <p style="margin:16px 0 0;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">— Fayner Brack, Founder &amp; CEO</p>
+                <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:{{colors.mutedForeground}};">Your feedback shapes what Readplace builds next.</p>
               </td>
             </tr>
           </table>

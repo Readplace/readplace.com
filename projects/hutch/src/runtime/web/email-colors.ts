@@ -1,9 +1,13 @@
 export const EMAIL_COLORS = {
-	background: "#F7F8FA",
-	surface: "#FFFFFF",
-	heading: "#1A202C",
-	body: "#5A6170",
-	muted: "#8C919D",
-	brand: "#C8702A",
-	brandText: "#FFFFFF",
+	muted: "#F7F8FA",
+	card: "#FFFFFF",
+	border: "#E2E5EA",
+	foreground: "#1A202C",
+	mutedForeground: "#5A6170",
+	primary: "#AD6225",
+	primaryForeground: "#FFFFFF",
+	primaryText: "#A85A1E",
 } as const;
+
+export const EMAIL_FONT_STACK =
+	"Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";

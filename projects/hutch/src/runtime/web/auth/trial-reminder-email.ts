@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMAIL_COLORS } from "../email-colors";
+import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { render } from "@packages/web-shell";
 import { TRIAL_REMINDER_LEAD_DAYS } from "../../domain/stripe/stripe-trial-config";
 
@@ -54,6 +54,7 @@ export function TrialReminderEmail(
 					ctaUrl: params.ctaUrl,
 					signoff: SIGNOFF,
 					colors: EMAIL_COLORS,
+					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 

@@ -1,25 +1,11 @@
-import type { PageBody } from "@packages/web-shell";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { type PageBody, render } from "@packages/web-shell";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 
-export function AdminRecrawlLandingPage(): PageBody {
-	const content = `
-		<main class="admin-recrawl" data-test-admin-recrawl-landing>
-			<h1 class="admin-recrawl__title">Admin recrawl</h1>
-			<p>Forces a fresh re-crawl of any URL already in the articles DB. No caching, no TTL.</p>
-			<form method="GET" action="/admin/recrawl" data-test-admin-recrawl-form>
-				<label for="admin-recrawl-url">Article URL</label>
-				<input
-					id="admin-recrawl-url"
-					type="url"
-					name="url"
-					required
-					placeholder="https://example.com/article"
-					class="admin-recrawl__url-input"
-					data-test-admin-recrawl-input>
-				<button type="submit" class="btn btn--primary btn--field">Recrawl</button>
-			</form>
-		</main>`;
+const TEMPLATE = readFileSync(join(__dirname, "recrawl-landing.template.html"), "utf-8");
 
+export function AdminRecrawlLandingPage(): PageBody {
 	return {
 		seo: {
 			title: "Admin recrawl | Readplace",
@@ -29,6 +15,6 @@ export function AdminRecrawlLandingPage(): PageBody {
 		},
 		styles: RECRAWL_STYLES,
 		bodyClass: "page-admin-recrawl",
-		content: { html: content },
+		content: { html: render(TEMPLATE, {}) },
 	};
 }

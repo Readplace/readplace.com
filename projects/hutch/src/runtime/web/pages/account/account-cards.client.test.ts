@@ -26,12 +26,24 @@ function makeDoc(html: string): Document {
 
 function fakeStripe(confirmResult: ConfirmResult) {
 	const mounted: Element[] = [];
+	const elementsOptions: unknown[] = [];
+	const cardOptions: unknown[] = [];
 	return {
 		stripe: {
-			elements: () => ({ create: () => ({ mount: (el: Element) => mounted.push(el) }) }),
+			elements: (elementsArg: unknown) => {
+				elementsOptions.push(elementsArg);
+				return {
+					create: (_type: string, createArg: unknown) => {
+						cardOptions.push(createArg);
+						return { mount: (el: Element) => mounted.push(el) };
+					},
+				};
+			},
 			confirmCardSetup: async () => confirmResult,
 		},
 		mounted,
+		elementsOptions,
+		cardOptions,
 	};
 }
 
@@ -127,7 +139,7 @@ describe("mountElements", () => {
 	) {
 		const loadCalls: string[] = [];
 		const confirmedAdds: string[] = [];
-		const { stripe, mounted } = fakeStripe(options.confirmResult ?? {});
+		const { stripe, mounted, elementsOptions, cardOptions } = fakeStripe(options.confirmResult ?? {});
 		const accountDeps: AccountCardsDeps = {
 			document: doc,
 			loadStripe: async (key) => {
@@ -138,7 +150,7 @@ describe("mountElements", () => {
 			confirmAdd: (input) => confirmedAdds.push(input.setupId),
 			addSettleListener: () => undefined,
 		};
-		return { accountDeps, loadCalls, confirmedAdds, mounted };
+		return { accountDeps, loadCalls, confirmedAdds, mounted, elementsOptions, cardOptions };
 	}
 
 	it("is a no-op when no Elements container is present", async () => {
@@ -168,6 +180,48 @@ describe("mountElements", () => {
 		const d = deps(doc);
 		await mountElements(d.accountDeps);
 		expect(d.loadCalls).toEqual([]);
+	});
+
+	it("is a no-op when the document has no window to resolve the card field's styles", async () => {
+		const doc = makeDoc("").implementation.createHTMLDocument("");
+		doc.body.innerHTML = CONTAINER_HTML;
+		const d = deps(doc);
+		await mountElements(d.accountDeps);
+		expect(d.loadCalls).toEqual([]);
+	});
+
+	it("styles the card field from the page's own face and ink, so it follows the reader's theme", async () => {
+		const doc = makeDoc(`
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<div data-card-elements data-publishable-key="pk_test_123" data-client-secret="seti_123_secret" data-setup-id="seti_123">
+	<div data-card-element style="color: rgb(228, 228, 228); font-family: Inter; font-size: 16px; --color-text-muted: #6b6b6b"></div>
+	<p data-card-error style="color: rgb(210, 128, 128)"></p>
+	<button type="button" data-card-submit>Save card</button>
+</div>
+`);
+		const d = deps(doc);
+		await mountElements(d.accountDeps);
+
+		expect(d.elementsOptions).toEqual([
+			{
+				fonts: [
+					{ cssSrc: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" },
+				],
+			},
+		]);
+		expect(d.cardOptions).toEqual([
+			{
+				style: {
+					base: {
+						color: "rgb(228, 228, 228)",
+						fontFamily: "Inter",
+						fontSize: "16px",
+						"::placeholder": { color: "#6b6b6b" },
+					},
+					invalid: { color: "rgb(210, 128, 128)" },
+				},
+			},
+		]);
 	});
 
 	it("loads Stripe, mounts the card element, and confirms on submit click", async () => {

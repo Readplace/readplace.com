@@ -24,7 +24,7 @@ describe("renderReaderPending", () => {
 		).toBe("Generating clean reader view");
 	});
 
-	it("renders a supplied label in place of the default, keeping the animated-dots treatment", () => {
+	it("renders a supplied label in place of the default, keeping the spinning loader", () => {
 		const doc = parse(
 			renderReaderPending({
 				pollUrl: "/queue/abc/reader?poll=1&capturing=1",
@@ -35,6 +35,7 @@ describe("renderReaderPending", () => {
 		const loading = doc.querySelector(".article-body__reader-loading");
 		assert(loading, "the pending label must render");
 		expect(loading.textContent).toBe("Copying the page from your device");
+		expect(loading.querySelectorAll("svg").length).toBe(1);
 	});
 
 	it("omits the loading-hint subtitle when no hint is provided", () => {

@@ -19,9 +19,10 @@ describe("renderSummaryPending", () => {
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
 		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
-		expect(doc.querySelector(".article-body__summary-loading")?.textContent).toBe(
-			"Generating summary",
-		);
+		const loading = doc.querySelector(".article-body__summary-loading");
+		assert(loading, "the pending line must render");
+		expect(loading.textContent).toBe("Generating summary");
+		expect(loading.querySelectorAll("svg").length).toBe(1);
 	});
 
 	it("renders a terminal slot without polling attributes when pollUrl is omitted", () => {
@@ -30,8 +31,9 @@ describe("renderSummaryPending", () => {
 		const slot = doc.querySelector("[data-test-reader-summary]");
 		assert(slot, "summary slot must be rendered");
 		expect(slot.hasAttribute("hx-get")).toBe(false);
-		expect(doc.querySelector(".article-body__summary-loading")?.textContent).toContain(
-			"Still generating",
-		);
+		const loading = doc.querySelector(".article-body__summary-loading");
+		assert(loading, "the terminal line must render");
+		expect(loading.textContent).toContain("Still generating");
+		expect(loading.querySelectorAll("svg").length).toBe(0);
 	});
 });

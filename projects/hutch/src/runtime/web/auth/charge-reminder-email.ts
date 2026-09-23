@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMAIL_COLORS } from "../email-colors";
+import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { PRICING_PLANS, formatLocalInstant, render } from "@packages/web-shell";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 
@@ -65,6 +65,7 @@ export function ChargeReminderEmail(
 					ctaUrl: params.ctaUrl,
 					signoff: SIGNOFF,
 					colors: EMAIL_COLORS,
+					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 

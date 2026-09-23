@@ -6,7 +6,7 @@
       <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}} data-test-readlist="{{name}}">{{icon iconName}}<span class="readlist-nav__label">{{title}}</span></a>
       {{#if isDeletable}}
       <details class="readlist-nav__menu" data-test-readlist-menu="{{name}}">
-        <summary class="readlist-nav__menu-toggle" aria-label="Options for {{title}}" data-test-action="readlist-menu">{{icon "ellipsis-vertical"}}</summary>
+        <summary class="readlist-nav__menu-toggle" data-test-action="readlist-menu">{{icon "ellipsis-vertical"}}<span class="sr-only">Options for {{title}}</span></summary>
         <div class="readlist-nav__menu-panel">
           <button class="readlist-nav__menu-item readlist-nav__confirm-trigger" type="button" popovertarget="{{renamePopoverId}}" aria-haspopup="dialog" data-test-action="readlist-rename">{{icon "pencil"}}<span>Edit</span></button>
           <form class="readlist-nav__rename-fallback" method="POST" action="{{renameAction}}" hx-boost="false" data-test-form="readlist-rename-fallback">

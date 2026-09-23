@@ -566,6 +566,7 @@ describe("buildCardSectionViewModel", () => {
 		assert.equal(vm.state, "no-customer");
 		assert.equal(vm.stateClass, "account-cards account-cards--no-customer");
 		assert.equal(vm.isLoaded, false);
+		assert.equal(vm.isError, false);
 		assert.match(vm.message, /start your subscription/);
 		assert.deepEqual(vm.cards, []);
 		assert.equal(vm.showAddButton, false);
@@ -575,6 +576,7 @@ describe("buildCardSectionViewModel", () => {
 		const vm = buildCardSectionViewModel({ kind: "provider-error" });
 		assert.equal(vm.state, "provider-error");
 		assert.equal(vm.isLoaded, false);
+		assert.equal(vm.isError, true);
 		assert.match(vm.message, /couldn't load your saved cards/);
 	});
 
@@ -591,6 +593,7 @@ describe("buildCardSectionViewModel", () => {
 		});
 
 		assert.equal(vm.isLoaded, true);
+		assert.equal(vm.isError, false);
 		const [primary, backup] = vm.cards;
 		assert.equal(primary.primaryTestAttr, "data-test-card-primary");
 		assert.equal(primary.brandLabel, "Mastercard");
@@ -604,8 +607,15 @@ describe("buildCardSectionViewModel", () => {
 			backup.actions.map((a) => a.key),
 			["promote", "remove"],
 		);
-		assert.equal(backup.actions[0].href, "/account/cards/pm_backup/primary");
-		assert.equal(backup.actions[1].href, "/account/cards/pm_backup/remove");
+		assert.equal(
+			backup.actions[0].href,
+			"/account/cards/pm_backup/primary?utm_source=account&utm_medium=internal&utm_content=promote-card",
+		);
+		assert.equal(
+			backup.actions[1].href,
+			"/account/cards/pm_backup/remove?utm_source=account&utm_medium=internal&utm_content=remove-card",
+		);
+		assert.equal(backup.actions[0].variant, "toggle");
 		assert.equal(backup.actions[1].variant, "destructive");
 	});
 
@@ -619,6 +629,7 @@ describe("buildCardSectionViewModel", () => {
 		});
 		assert.equal(vm.showAddButton, true);
 		assert.equal(vm.showLimitHint, false);
+		assert.equal(vm.addUrl, "/account/cards/new?utm_source=account&utm_medium=internal&utm_content=add-card");
 	});
 
 	it("hides the add button and shows the limit hint at the 3-card cap", () => {
@@ -729,9 +740,9 @@ describe("buildAppearanceSection", () => {
 		assert.deepEqual(
 			section.options.map((o) => [o.value, o.active, o.variant, o.ariaPressed]),
 			[
-				["system", false, "secondary", "false"],
-				["light", false, "secondary", "false"],
-				["dark", true, "primary", "true"],
+				["system", false, "neutral", "false"],
+				["light", false, "neutral", "false"],
+				["dark", true, "secondary", "true"],
 			],
 		);
 	});

@@ -5,12 +5,12 @@
 
       <section class="legal-page__section">
         <h2>Who operates Readplace</h2>
-        <p>Readplace is a read-it-later web application operated by Proficient Pty Ltd in Australia; where this policy says what Readplace does, "Readplace" means that operator. The website is <a href="https://readplace.com">readplace.com</a>.</p>
+        <p>Readplace is a read-it-later web application operated by Proficient Pty Ltd in Australia; where this policy says what Readplace does, "Readplace" means that operator. The website is <a href="{{track '/' source='privacy' content='home'}}">readplace.com</a>.</p>
       </section>
 
       <section class="legal-page__section">
         <h2>What data Readplace collects</h2>
-        <ul>
+        <ul class="legal-page__list">
           <li><strong>Account information:</strong> your email address, used for authentication, account recovery, and the emails Readplace sends you about your account and your saved articles.</li>
           <li><strong>Saved articles:</strong> URLs, titles, and metadata of articles you save to your reading list.</li>
           <li><strong>Usage data:</strong> basic server logs (IP address, request timestamps) necessary to operate and secure the service.</li>
@@ -20,10 +20,10 @@
 
       <section class="legal-page__section">
         <h2>What Readplace does not collect</h2>
-        <ul>
-          <li>Readplace does not use third-party analytics or tracking scripts.</li>
-          <li>Readplace does not sell or rent your personal data, and shares it only with the providers that run the service: AWS (hosting), Stripe (payments), and Resend (email).</li>
-          <li>The operator of Readplace does not read the content of the articles you save &mdash; article text is sent to DeepSeek to pick and clean up the readable text and to write the summary and excerpt on your cards.</li>
+        <ul class="legal-page__list legal-page__list--excluded">
+          <li class="legal-page__item"><span class="legal-page__marker">{{icon "x"}}</span><span class="legal-page__item-text">Readplace does not use third-party analytics or tracking scripts.</span></li>
+          <li class="legal-page__item"><span class="legal-page__marker">{{icon "x"}}</span><span class="legal-page__item-text">Readplace does not sell or rent your personal data, and shares it only with the providers that run the service: AWS (hosting), Stripe (payments), and Resend (email).</span></li>
+          <li class="legal-page__item"><span class="legal-page__marker">{{icon "x"}}</span><span class="legal-page__item-text">The operator of Readplace does not read the content of the articles you save &mdash; article text is sent to DeepSeek to pick and clean up the readable text and to write the summary and excerpt on your cards.</span></li>
         </ul>
       </section>
 

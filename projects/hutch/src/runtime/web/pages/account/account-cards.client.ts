@@ -8,8 +8,22 @@ interface StripeElement {
 	mount(target: Element): void;
 }
 
+interface StripeCardStyle {
+	base: {
+		color: string;
+		fontFamily: string;
+		fontSize: string;
+		"::placeholder": { color: string };
+	};
+	invalid: { color: string };
+}
+
 interface StripeElements {
-	create(type: string): StripeElement;
+	create(type: "card", options: { style: StripeCardStyle }): StripeElement;
+}
+
+interface StripeElementsOptions {
+	fonts: { cssSrc: string }[];
 }
 
 interface StripeConfirmResult {
@@ -17,7 +31,7 @@ interface StripeConfirmResult {
 }
 
 interface StripeLike {
-	elements(): StripeElements;
+	elements(options: StripeElementsOptions): StripeElements;
 	confirmCardSetup(
 		clientSecret: string,
 		data: { payment_method: { card: StripeElement } },
@@ -35,6 +49,29 @@ export interface ElementsConfig {
 const GENERIC_ERROR = "We couldn't save your card. Please try again.";
 const STRIPE_LOAD_ERROR =
 	"We couldn't load the secure card form. Check your connection or ad blocker, then reload to try again.";
+
+const FONT_STYLESHEET_SELECTOR = 'link[href^="https://fonts.googleapis.com/css2"]';
+
+function readFontSources(doc: Document): StripeElementsOptions["fonts"] {
+	return Array.from(doc.querySelectorAll<HTMLLinkElement>(FONT_STYLESHEET_SELECTOR), (link) => ({
+		cssSrc: link.href,
+	}));
+}
+
+function readCardFieldStyle(input: {
+	field: CSSStyleDeclaration;
+	error: CSSStyleDeclaration;
+}): StripeCardStyle {
+	return {
+		base: {
+			color: input.field.color,
+			fontFamily: input.field.fontFamily,
+			fontSize: input.field.fontSize,
+			"::placeholder": { color: input.field.getPropertyValue("--color-text-muted").trim() },
+		},
+		invalid: { color: input.error.color },
+	};
+}
 
 /** Read the SetupIntent config straight from the DOM the server rendered —
  * never hardcode keys in the bundle. Returns undefined when any attribute is
@@ -90,7 +127,8 @@ export async function mountElements(deps: AccountCardsDeps): Promise<void> {
 	const mountPoint = container.querySelector("[data-card-element]");
 	const errorEl = container.querySelector("[data-card-error]");
 	const submitButton = container.querySelector<HTMLButtonElement>("[data-card-submit]");
-	if (!mountPoint || !errorEl || !submitButton) return;
+	const view = deps.document.defaultView;
+	if (!mountPoint || !errorEl || !submitButton || !view) return;
 
 	let stripe: StripeLike;
 	try {
@@ -105,7 +143,12 @@ export async function mountElements(deps: AccountCardsDeps): Promise<void> {
 	// Mark mounted only after a successful load so a transient failure stays retryable.
 	container.setAttribute("data-card-mounted", "true");
 
-	const card = stripe.elements().create("card");
+	const card = stripe.elements({ fonts: readFontSources(deps.document) }).create("card", {
+		style: readCardFieldStyle({
+			field: view.getComputedStyle(mountPoint),
+			error: view.getComputedStyle(errorEl),
+		}),
+	});
 	card.mount(mountPoint);
 
 	submitButton.addEventListener("click", () => {

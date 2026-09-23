@@ -25,8 +25,8 @@ export function readlistRenameAction(readlist: ReadlistSlug): string {
 
 const RENAME_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions readlist-rename" method="POST" action="{{action}}" data-readlist-rename data-test-form="readlist-rename">
 	<label class="readlist-rename__label" for="{{inputId}}">Readlist Name</label>
-	<input class="readlist-rename__input" id="{{inputId}}" type="text" name="{{field}}" value="{{label}}" maxlength="{{maxLength}}" required autocomplete="off" data-test-readlist-rename-input>
-	<p class="readlist-rename__error readlist-rename__error--hidden" role="alert" data-readlist-rename-error data-test-readlist-rename-error></p>
+	<input class="readlist-rename__input" id="{{inputId}}" type="text" name="{{field}}" value="{{label}}" maxlength="{{maxLength}}" required autocomplete="off" aria-describedby="{{inputId}}-error" data-test-readlist-rename-input>
+	<p class="readlist-rename__error readlist-rename__error--hidden" id="{{inputId}}-error" role="alert" data-readlist-rename-error data-test-readlist-rename-error></p>
 	<div class="readlist-rename__buttons">
 		<button class="btn btn--secondary" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="readlist-rename-cancel">Cancel</button>
 		<button class="btn btn--primary" type="submit" data-test-action="readlist-rename-save">Save</button>

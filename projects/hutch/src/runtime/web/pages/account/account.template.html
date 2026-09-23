@@ -1,100 +1,110 @@
     <main class="account">
-      <div class="account__header">
-        {{#if backLink}}
-        <a class="account__back" href="{{backLink.href}}" data-test-account-back-link>{{icon "arrow-left"}} {{backLink.label}}</a>
-        {{/if}}
-        <h1 class="account__title">{{heading}}</h1>
-        <p class="account__email" data-test-account-email>Signed in as <strong>{{email}}</strong></p>
-      </div>
-      {{{cardHtml}}}
-      {{#if showCardSection}}
-      <section class="{{cardSection.stateClass}}" data-test-cards-section data-test-cards-state="{{cardSection.state}}">
-        <h2 class="account-cards__heading">{{cardSection.heading}}</h2>
-        {{#if cardSection.isLoaded}}
-        {{#if cardSection.hasNotice}}
-        <p class="account-cards__notice" role="alert" data-test-cards-notice>{{cardSection.notice}}</p>
-        {{/if}}
-        <ul class="account-cards__list">
-          {{#each cardSection.cards}}
-          <li class="{{itemClass}}" data-test-card {{primaryTestAttr}}>
-            <div class="account-cards__summary">
-              <span class="account-cards__brand">{{brandLabel}}</span>
-              <span class="account-cards__sep">·</span>
-              <span class="account-cards__digits">•••• {{last4}}</span>
-              <span class="account-cards__sep">·</span>
-              <span class="account-cards__exp">exp {{expLabel}}</span>
-              {{#each badges}}<span class="account-cards__badge" data-test-card-badge>{{label}}</span>{{/each}}
-            </div>
-            <div class="account-cards__actions">
-              {{#each actions}}
-              <form method="POST" action="{{href}}" class="account-cards__action-form"
-                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-                    data-test-card-action="{{key}}">
-                <button type="submit" class="{{buttonClass}}">{{name}}</button>
-              </form>
-              {{/each}}
-            </div>
-          </li>
-          {{/each}}
-        </ul>
-        {{#if cardSection.showLimitHint}}
-        <p class="account-cards__hint" data-test-cards-limit-hint>{{cardSection.limitHint}}</p>
-        {{/if}}
-        {{#if cardSection.showAddButton}}
-        <form method="POST" action="{{cardSection.addUrl}}" class="account-cards__add-form"
-              hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-              hx-push-url="false" data-test-add-card>
-          <button type="submit" class="btn btn--primary btn--compact">Add a card</button>
-        </form>
-        {{/if}}
-        {{#if cardSection.isAdding}}
-        <div class="account-cards__elements" data-test-card-elements data-card-elements
-          data-publishable-key="{{cardSection.adding.publishableKey}}"
-          data-client-secret="{{cardSection.adding.clientSecret}}"
-          data-setup-id="{{cardSection.adding.setupId}}">
-          <div class="account-cards__element-mount" data-card-element></div>
-          <p class="account-cards__element-error" data-card-error role="alert"></p>
-          <div class="account-cards__elements-actions">
-            <button type="button" class="btn btn--primary btn--compact" data-card-submit>Save card</button>
-            <a class="btn btn--secondary btn--compact" href="/account" data-card-cancel>Cancel</a>
-          </div>
+      <div class="account__layout">
+        <div class="account__header">
+          {{#if backLink}}
+          <a class="account__back" href="{{backLink.href}}" data-test-account-back-link>{{icon "arrow-left"}} {{backLink.label}}</a>
+          {{/if}}
+          <h1 class="account__title">{{heading}}</h1>
+          <p class="account__email" data-test-account-email>Signed in as <strong>{{email}}</strong></p>
         </div>
+        {{{cardHtml}}}
+        {{#if showCardSection}}
+        <section class="{{cardSection.stateClass}}"{{#if cardSection.isError}} role="alert"{{/if}} data-test-cards-section data-test-cards-state="{{cardSection.state}}">
+          {{#if cardSection.isError}}
+          <span class="account-cards__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
+          {{/if}}
+          <h2 class="account-cards__heading">{{cardSection.heading}}</h2>
+          {{#if cardSection.isLoaded}}
+          {{#if cardSection.hasNotice}}
+          <div class="account-cards__notice" role="alert" data-test-cards-notice>
+            <span class="account-cards__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
+            <p class="account-cards__notice-text">{{cardSection.notice}}</p>
+          </div>
+          {{/if}}
+          <ul class="account-cards__list">
+            {{#each cardSection.cards}}
+            <li class="{{itemClass}}" data-test-card {{primaryTestAttr}}>
+              <div class="account-cards__summary">
+                <span class="account-cards__brand">{{brandLabel}}</span>
+                <span class="account-cards__sep">·</span>
+                <span class="account-cards__digits">•••• {{last4}}</span>
+                <span class="account-cards__sep">·</span>
+                <span class="account-cards__exp">exp {{expLabel}}</span>
+                {{#each badges}}<span class="account-cards__badge" data-test-card-badge>{{label}}</span>{{/each}}
+              </div>
+              <div class="account-cards__actions">
+                {{#each actions}}
+                <form method="POST" action="{{href}}" class="account-cards__action-form"
+                      hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+                      data-test-card-action="{{key}}">
+                  <button type="submit" class="{{buttonClass}}"><span class="account__action-label">{{name}}</span>{{{@root.actionLoaderHtml}}}</button>
+                </form>
+                {{/each}}
+              </div>
+            </li>
+            {{/each}}
+          </ul>
+          {{#if cardSection.showLimitHint}}
+          <p class="account-cards__hint" data-test-cards-limit-hint>{{cardSection.limitHint}}</p>
+          {{/if}}
+          {{#if cardSection.showAddButton}}
+          <form method="POST" action="{{cardSection.addUrl}}" class="account-cards__add-form"
+                hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+                hx-push-url="false" data-test-add-card>
+            <button type="submit" class="btn btn--primary"><span class="account__action-label">Add a card</span>{{{actionLoaderHtml}}}</button>
+          </form>
+          {{/if}}
+          {{#if cardSection.isAdding}}
+          <div class="account-cards__elements" data-test-card-elements data-card-elements
+            data-publishable-key="{{cardSection.adding.publishableKey}}"
+            data-client-secret="{{cardSection.adding.clientSecret}}"
+            data-setup-id="{{cardSection.adding.setupId}}">
+            <div class="account-cards__element-mount" data-card-element></div>
+            <p class="account-cards__element-error" data-card-error role="alert"></p>
+            <div class="account-cards__elements-actions">
+              <button type="button" class="btn btn--primary" data-card-submit><span class="account__action-label">Save card</span>{{{actionLoaderHtml}}}</button>
+              <a class="btn btn--secondary" href="{{track '/account' source='account' content='cancel-add-card'}}" data-card-cancel>Cancel</a>
+            </div>
+          </div>
+          {{/if}}
+          {{else}}
+          <p class="account-cards__body" data-test-cards-message>{{cardSection.message}}</p>
+          {{/if}}
+        </section>
         {{/if}}
-        {{else}}
-        <p class="account-cards__body" data-test-cards-message>{{cardSection.message}}</p>
-        {{/if}}
-      </section>
-      {{/if}}
-      <section class="account-appearance" data-test-account-appearance>
-        <h2 class="account-appearance__heading">Appearance</h2>
-        <p class="account-appearance__body">Choose how Readplace looks. System follows your device's light or dark setting.</p>
-        <form class="account-appearance__form" method="POST" action="{{appearance.formAction}}">
-          {{#each appearance.options}}
-          <button type="submit" name="appearance" value="{{value}}" aria-pressed="{{ariaPressed}}" class="btn btn--compact btn--{{variant}} account-appearance__option" data-test-appearance-option="{{value}}">{{label}}</button>
-          {{/each}}
-        </form>
-      </section>
-      <section class="account-export" data-test-account-export>
-        <h2 class="account-export__heading">Your data</h2>
-        <p class="account-export__body">Download every article you have saved, with your reading history, as a file you keep.</p>
-        <a class="btn btn--secondary btn--compact account-export__action" href="{{exportHref}}" data-test-account-export-link>Export my data</a>
-      </section>
-      <section class="account-danger" data-test-account-danger>
-        <h2 class="account-danger__heading">Danger zone</h2>
-        <p class="account-danger__body">Permanently delete your account, every saved article, and your reading history. This can't be undone — you will lose all your data.</p>
-        {{#if dangerConfirmation.hasNotice}}
-        <p class="account-danger__notice" role="alert" data-test-danger-notice>{{dangerConfirmation.notice}}</p>
-        {{/if}}
-        <form method="{{dangerAction.method}}" action="{{dangerAction.href}}" class="account-danger__action-form"
-              hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-              data-test-danger-action="{{dangerAction.key}}">
-          <label class="account-danger__confirm-label" for="delete-account-confirmation">Type "{{dangerConfirmation.phrase}}" to confirm:</label>
-          <input type="text" id="delete-account-confirmation" class="account-danger__confirm-input"
-            name="{{dangerConfirmation.field}}" required pattern="{{dangerConfirmation.pattern}}"
-            title="{{dangerConfirmation.title}}" autocomplete="off" autocapitalize="off" spellcheck="false"
-            data-test-danger-confirm-input>
-          <button type="submit" class="{{dangerAction.buttonClass}}">{{dangerAction.name}}</button>
-        </form>
-      </section>
+        <section class="account-appearance" data-test-account-appearance>
+          <h2 class="account-appearance__heading">Appearance</h2>
+          <p class="account-appearance__body">Choose how Readplace looks. System follows your device's light or dark setting.</p>
+          <form class="account-appearance__form" method="POST" action="{{appearance.formAction}}">
+            {{#each appearance.options}}
+            <button type="submit" name="appearance" value="{{value}}" aria-pressed="{{ariaPressed}}" class="btn btn--compact btn--{{variant}} account-appearance__option" data-test-appearance-option="{{value}}">{{label}}</button>
+            {{/each}}
+          </form>
+        </section>
+        <section class="account-export" data-test-account-export>
+          <h2 class="account-export__heading">Your data</h2>
+          <p class="account-export__body">Download every article you have saved, with your reading history, as a file you keep.</p>
+          <a class="btn btn--neutral account-export__action" href="{{exportHref}}" data-test-account-export-link>Export my data</a>
+        </section>
+        <section class="account-danger" data-test-account-danger>
+          <h2 class="account-danger__heading">Danger zone</h2>
+          <p class="account-danger__body">Permanently delete your account, every saved article, and your reading history. This can't be undone — you will lose all your data.</p>
+          <form method="{{dangerAction.method}}" action="{{dangerAction.href}}" class="account-danger__action-form"
+                hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+                data-test-danger-action="{{dangerAction.key}}">
+            <div class="account-danger__field">
+              <label class="account-danger__confirm-label" for="delete-account-confirmation">Type "{{dangerConfirmation.phrase}}" to confirm:</label>
+              <input type="text" id="delete-account-confirmation" class="account-danger__confirm-input"
+                name="{{dangerConfirmation.field}}" required pattern="{{dangerConfirmation.pattern}}"
+                title="{{dangerConfirmation.title}}" autocomplete="off" autocapitalize="off" spellcheck="false"{{#if dangerConfirmation.hasNotice}} aria-invalid="true" aria-describedby="delete-account-confirmation-error"{{/if}}
+                data-test-danger-confirm-input>
+              {{#if dangerConfirmation.hasNotice}}
+              <p id="delete-account-confirmation-error" class="account-danger__notice" role="alert" data-test-danger-notice>{{dangerConfirmation.notice}}</p>
+              {{/if}}
+            </div>
+            <button type="submit" class="{{dangerAction.buttonClass}}"><span class="account__action-label">{{dangerAction.name}}</span>{{{actionLoaderHtml}}}</button>
+          </form>
+        </section>
+      </div>
       {{{subscribePlansHtml}}}
     </main>

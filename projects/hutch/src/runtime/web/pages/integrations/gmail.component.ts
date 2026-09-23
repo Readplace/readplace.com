@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, renderInFlightDots } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { GMAIL_PAGE_STYLES } from "./gmail.styles";
@@ -13,6 +13,8 @@ const GMAIL_SENDER_RESULTS_TEMPLATE = readFileSync(join(__dirname, "gmail-sender
 const GMAIL_LOAD_BUTTON_TEMPLATE = readFileSync(join(__dirname, "gmail-load-button.template.html"), "utf-8");
 
 const GMAIL_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
+
+const SUBMIT_LOADER_HTML = renderInFlightDots("gmail__submit-loader in-flight-dots");
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 
@@ -69,6 +71,7 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 						: renderGmailPoll(toGmailPollViewModel({ pollCount: 0, state: vm.pollState })),
 				loadButton: renderGmailLoadButton(vm, false),
 				senderResults: renderGmailSenderResults(vm),
+				submitLoader: SUBMIT_LOADER_HTML,
 			}),
 		},
 		scripts: GMAIL_COPY_SCRIPT,

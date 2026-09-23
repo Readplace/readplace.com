@@ -40,7 +40,7 @@ export type OnboardingContext =
 	| NoInstallableClientOnboarding;
 
 export type OnboardingActionMethod = "GET" | "POST";
-export type OnboardingActionVariant = "primary" | "text";
+export type OnboardingActionVariant = "primary" | "primary-full-width" | "text";
 export type OnboardingActionKey =
 	| "install"
 	| "download-client"

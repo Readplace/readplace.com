@@ -4,23 +4,36 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hii Fayner here! So you tried Readplace.. what was missing?</title>
+    <style>
+      @media (min-width: 768px) {
+        .email-card__body {
+          padding: 40px !important;
+        }
+      }
+    </style>
   </head>
-  <body style="margin:0;padding:0;background-color:{{colors.background}};font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{{colors.background}};padding:40px 20px;">
+  <body style="margin:0;padding:0;background-color:{{colors.muted}};font-family:{{fontStack}};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{{colors.muted}};padding:40px 20px;font-family:{{fontStack}};table-layout:fixed;">
       <tr>
         <td align="center">
-          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background-color:{{colors.surface}};border-radius:8px;padding:40px;">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:100%;background-color:{{colors.card}};border:1px solid {{colors.border}};border-radius:12px;">
             <tr>
-              <td align="center" style="padding-bottom:16px;">
-                <img src="{{founderAvatarUrl}}" width="64" height="64" alt="Fayner Brack" style="border-radius:50%;display:block;">
-              </td>
-            </tr>
-            <tr>
-              <td>
-                {{#each paragraphs}}
-                <p style="margin:0 0 {{#if @last}}24px{{else}}16px{{/if}};font-size:16px;line-height:1.6;color:{{../colors.body}};">{{{this}}}</p>
-                {{/each}}
-                <p style="margin:0;font-size:16px;line-height:1.6;color:{{colors.body}};">{{{signoff}}}</p>
+              <td class="email-card__body" style="padding:24px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center" style="padding-bottom:16px;">
+                      <img src="{{founderAvatarUrl}}" width="64" height="64" alt="Fayner Brack" style="border-radius:50%;display:block;">
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      {{#each paragraphs}}
+                      <p style="margin:0 0 {{#if @last}}24px{{else}}16px{{/if}};font-size:16px;line-height:1.6;color:{{../colors.mutedForeground}};">{{{this}}}</p>
+                      {{/each}}
+                      <p style="margin:0;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">{{{signoff}}}</p>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
           </table>

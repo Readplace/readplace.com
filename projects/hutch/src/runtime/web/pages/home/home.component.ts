@@ -149,29 +149,23 @@ const HOMEPAGE_WAYS: readonly HomeWayRow[] = [
 	...HOME_WAYS_WITHOUT_A_CLIENT,
 ];
 
-const HOMEPAGE_PRICING_PANELS = PRICING_PANELS.map((panel) => {
-	const emphasis = panel.featured
-		? {
-				panelClass: "home-pricing__plan home-pricing__plan--featured",
-				buttonVariant: "btn--primary",
-			}
-		: { panelClass: "home-pricing__plan", buttonVariant: "btn--secondary" };
-	return {
-		tierId: panel.key,
-		name: panel.name,
-		monthlyDisplay: panel.monthlyDisplay,
-		billedNote: panel.billedNote,
-		badge: panel.badge,
-		panelClass: emphasis.panelClass,
-		cta: renderAction({
-			key: `plan-${panel.key}`,
-			label: pricing.panelCtaLabel,
-			href: "/signup",
-			content: `plan-${panel.key}`,
-			cssClass: `${emphasis.buttonVariant} home-pricing__plan-button`,
-		}),
-	};
-});
+const HOMEPAGE_PRICING_PANELS = PRICING_PANELS.map((panel) => ({
+	tierId: panel.key,
+	name: panel.name,
+	monthlyDisplay: panel.monthlyDisplay,
+	billedNote: panel.billedNote,
+	badge: panel.badge,
+	panelClass: panel.featured
+		? "home-pricing__plan home-pricing__plan--featured"
+		: "home-pricing__plan",
+	cta: renderAction({
+		key: `plan-${panel.key}`,
+		label: pricing.panelCtaLabel,
+		href: "/signup",
+		content: `plan-${panel.key}`,
+		cssClass: "btn--primary home-pricing__plan-button",
+	}),
+}));
 function buildPasteAction(input: { primary: boolean; saveTipState: SaveTipState }): RenderedAction {
 	return renderAction({
 		key: "homepage-link-input",
@@ -235,7 +229,7 @@ function buildHeroActions(input: {
 				: hero.saveLastViewLabel.replace("{host}", article.host),
 		href: `/save?url=${encodeURIComponent(input.lastViewUrl)}&${SAVE_SURFACE_QUERY}=${SAVE_SURFACES.homepageHero}`,
 		content: "hero-save-last-view",
-		cssClass: "btn--on-dark",
+		cssClass: "btn--on-dark home-hero__save-button",
 		target,
 	});
 	return [saveLastView, buildPasteAction({ primary: false, saveTipState: input.saveTipState })];

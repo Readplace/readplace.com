@@ -119,9 +119,9 @@ describe("send-first-inbox-email-notice handler", () => {
 		assert.equal(sent.text, EXPECTED_TEXT);
 		assert.ok(
 			sent.html.includes(
-				`<span style="white-space:nowrap;font-weight:700;">${INBOX_ADDRESS}</span>`,
+				`<span style="display:inline-block;overflow-wrap:anywhere;word-break:break-word;font-weight:700;">${INBOX_ADDRESS}</span>`,
 			),
-			"the hyphenated address must be bold, unbreakable and byte-exact in the HTML",
+			"the hyphenated address must be bold and byte-exact in the HTML",
 		);
 		assert.ok(sent.html.includes("Your first email landed in your Readplace inbox"));
 		assert.ok(sent.html.includes(`src="${FOUNDER_AVATAR_URL}"`));

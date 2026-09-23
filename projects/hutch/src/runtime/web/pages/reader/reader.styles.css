@@ -37,8 +37,8 @@
   align-items: center;
   margin-bottom: 1.5rem;
   padding-block: 0.5rem;
-  background: var(--color-background);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
   transition: transform 0.25s ease;
 }
 

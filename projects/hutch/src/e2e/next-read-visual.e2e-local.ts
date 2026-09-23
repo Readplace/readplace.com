@@ -28,7 +28,7 @@ const CARD = "[data-test-reader-related]";
  * space beside it and breaking the right-edge alignment with the balloon — fails
  * the checkpoint instead of passing on the wrapper's box. */
 const CARD_SURFACE = ".next-read__card";
-const SITE = ".next-read__site";
+const SITE = ".next-read__site-name";
 const STACK = "[data-test-reader-float-stack]";
 const BALLOON = "[data-test-share-balloon-wrap]";
 const DISMISS = '[data-test-action="next-read-dismiss"]';

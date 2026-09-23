@@ -18,6 +18,10 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("ellipsis-vertical")).toBe(iconSvg("ellipsis-vertical"));
 	});
 
+	it("resolves the copy icon a copy control names its action with", () => {
+		expect(findIconSvg("copy")).toBe(iconSvg("copy"));
+	});
+
 	it("reports an unknown name rather than drawing nothing, so a caller can fail a typo", () => {
 		expect(findIconSvg("fa-solid fa-inbox")).toBeUndefined();
 	});

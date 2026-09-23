@@ -18,7 +18,7 @@ const UNSTYLED_HOOK_CLASSES = new Set([
 	"article-body__reader-slot",
 	"reader-skeleton",
 ]);
-const SHELL_BUTTON_CLASSES = new Set(["btn", "btn--secondary", "btn--compact"]);
+const SHELL_BUTTON_CLASSES = new Set(["btn", "btn--secondary", "btn--neutral", "btn--compact"]);
 
 function templateContent(): DocumentFragment {
 	const html = renderReaderSkeleton({ cspNonce: generateCspNonce() });
@@ -45,14 +45,23 @@ describe("renderReaderSkeleton", () => {
 		const slots = [
 			".article-body__back-slot",
 			".article-body__readlists-slot",
-			".article-body__mark-read-slot",
 			".article-body__downloads-slot",
+			".article-body__mark-read-slot",
 		].map((selector) => {
 			const slot = content.querySelector(selector);
 			assert(slot, `${selector} must be present`);
 			return slot.classList.contains(`${selector.slice(1)}--visible`);
 		});
 		expect(slots).toEqual([true, true, true, true]);
+		const toolbarOrder = Array.from(content.querySelectorAll(".article-body__actions--top > div")).map((slot) =>
+			slot.classList.item(0),
+		);
+		expect(toolbarOrder).toEqual([
+			"article-body__back-slot",
+			"article-body__readlists-slot",
+			"article-body__downloads-slot",
+			"article-body__mark-read-slot",
+		]);
 	});
 
 	it("makes the dummy controls inert so the skeleton cannot be interacted with", () => {

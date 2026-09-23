@@ -12,7 +12,7 @@ import type {
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
 import type { ReadlistSlug } from "@packages/domain/readlist";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
@@ -66,12 +66,7 @@ function markReadPostUrl({
 	articleId,
 	utmContent,
 }: { articleId: string; utmContent: string }): string {
-	const params = new URLSearchParams([
-		["utm_source", "reader"],
-		["utm_medium", "internal"],
-		["utm_content", utmContent],
-	]);
-	return `/queue/${articleId}/status?${params.toString()}`;
+	return withInternalTracking(`/queue/${articleId}/status`, { source: "reader", content: utmContent });
 }
 
 function buildExitConfirmHtml(input: {

@@ -8,7 +8,7 @@
         {{/each}}
 
         {{#each alerts}}
-        <div class="integrations__alert" role="alert" data-test-integrations-alert data-test-integrations-alert-key="{{key}}">{{message}}</div>
+        <div class="integrations__alert" role="alert" data-test-integrations-alert data-test-integrations-alert-key="{{key}}"><span class="integrations__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>{{message}}</div>
         {{/each}}
 
         <ul class="integrations__list" data-test-integrations-list>

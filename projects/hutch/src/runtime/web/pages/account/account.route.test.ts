@@ -3,7 +3,11 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
-import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import {
+	BROWSER_USER_AGENT,
+	describeUntrackedCtas,
+	findUntrackedCtas,
+} from "@packages/web-test-harness";
 import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -2128,6 +2132,32 @@ describe("GET /account — card management section", () => {
 		expect(cardActionKeys(backupRow)).toEqual(["promote", "remove"]);
 	});
 
+	it("tags every card-management CTA with its own utm_source, from the saved-card rows to the add-card cancel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "cards-utm@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const listingDoc = new JSDOM((await agent.get("/account")).text).window.document;
+		const addingDoc = new JSDOM((await agent.post("/account/cards/new")).text).window.document;
+
+		const listingSection = listingDoc.querySelector("[data-test-cards-section]");
+		assert(listingSection, "the card section must render");
+		const backupRow = cardRows(listingDoc).find((row) => !row.hasAttribute("data-test-card-primary"));
+		assert(backupRow, "backup row must render");
+		expect(cardActionKeys(backupRow)).toEqual(["promote", "remove"]);
+		assert(listingSection.querySelector("[data-test-add-card]"), "the add-card form must render below the cap");
+		const addingSection = addingDoc.querySelector("[data-test-cards-section]");
+		assert(addingSection, "the card section must render in the adding state");
+		assert(addingSection.querySelector("[data-card-cancel]"), "the adding state must render its cancel link");
+
+		const untracked = [listingSection, addingSection].flatMap((section) =>
+			describeUntrackedCtas(findUntrackedCtas(section.outerHTML, { skipSelectors: [] })),
+		);
+		expect(untracked).toEqual([]);
+	});
+
 	it("renders the add-card button when below the cap", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await activeUserWithCards(harness, "cards-add@example.com", [
@@ -2786,6 +2816,10 @@ describe("POST /account/delete", () => {
 		expect(notice.textContent).toBe(
 			'Your account was not deleted. Type "delete my account permanently" exactly to confirm.',
 		);
+		const input = doc.querySelector("[data-test-danger-confirm-input]");
+		assert(input, "the typed-confirmation input must render beside its notice");
+		expect(input.getAttribute("aria-invalid")).toBe("true");
+		expect(input.getAttribute("aria-describedby")).toBe(notice.getAttribute("id"));
 	});
 
 	it("rejects a delete whose confirmation phrase does not match exactly", async () => {

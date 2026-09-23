@@ -10,13 +10,14 @@
       {{#each rows}}
       <li class="past-reads__row">
         <a class="past-reads__link" href="{{href}}" data-test-topic-read-item="{{id}}" aria-label="{{accessibleLabel}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top">
-          <span class="past-reads__heading"><span class="past-reads__title">{{title}}</span> <span class="past-reads__site">{{siteName}}</span></span>
+          <span class="past-reads__title">{{title}}</span>
           <span class="past-reads__reason">{{reason}}</span>
-          {{#if readDated}}
           <span class="past-reads__meta">
-            <span class="past-reads__read-time" data-test-topic-read-time>{{readDated.lead}} <time datetime="{{readDated.time.iso}}" data-local-time="{{readDated.time.mode}}">{{readDated.time.label}}</time></span>
+            <span class="past-reads__site" title="{{siteName}}">{{icon "globe"}}<span class="past-reads__site-name">{{siteName}}</span></span>
+            {{#if readDated}}
+            <span class="past-reads__read-time" data-test-topic-read-time>{{icon "clock"}}<span>{{readDated.lead}} <time datetime="{{readDated.time.iso}}" data-local-time="{{readDated.time.mode}}">{{readDated.time.label}}</time></span></span>
+            {{/if}}
           </span>
-          {{/if}}
         </a>
       </li>
       {{/each}}
@@ -31,8 +32,8 @@
 </section>
 {{#if showNoscriptFallback}}
 <noscript>
-  <form class="past-reads__fallback" method="POST" action="{{computeUrl}}">
-    <button type="submit" class="btn btn--secondary btn--compact past-reads__fallback-btn">Find previously read on this topic</button>
+  <form class="past-reads__fallback" method="POST" action="{{track computeUrl source='reader' content='find-past-reads' term=sourceArticleId}}">
+    <button type="submit" class="btn btn--neutral btn--compact past-reads__fallback-btn">Find previously read on this topic</button>
   </form>
 </noscript>
 {{/if}}

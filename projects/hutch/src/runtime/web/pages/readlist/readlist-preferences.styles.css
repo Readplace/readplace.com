@@ -1,5 +1,5 @@
 .readlist-preferences {
-  padding: clamp(16px, 4vw, 24px);
+  padding: 20px 24px;
 }
 
 .readlist-preferences__trigger {
@@ -8,6 +8,7 @@
 
 .readlist-preferences__setup {
   width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .readlist-preferences__purpose {
@@ -18,6 +19,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--background);
+  font: inherit;
   color: var(--foreground);
   text-align: left;
   cursor: pointer;

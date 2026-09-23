@@ -1,0 +1,22 @@
+<main class="admin-recrawl-landing" data-test-admin-recrawl-landing>
+  <div class="admin-recrawl-landing__layout">
+    <section class="admin-recrawl-landing__panel">
+      <h1 class="admin-recrawl-landing__title">Admin recrawl</h1>
+      <p class="admin-recrawl-landing__lede">Forces a fresh re-crawl of any URL already in the articles DB. No caching, no TTL.</p>
+      <form method="GET" action="/admin/recrawl" data-test-admin-recrawl-form>
+        <label class="admin-recrawl-landing__label" for="admin-recrawl-url">Article URL</label>
+        <div class="admin-recrawl-landing__row">
+          <input
+            id="admin-recrawl-url"
+            class="admin-recrawl-landing__input"
+            type="url"
+            name="url"
+            required
+            placeholder="https://example.com/article"
+            data-test-admin-recrawl-input>
+          <button type="submit" class="btn btn--primary btn--field admin-recrawl-landing__btn">Recrawl</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</main>

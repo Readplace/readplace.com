@@ -4,10 +4,10 @@
         <h1 class="auth-card__title">Welcome back</h1>
         <p class="auth-card__subtitle">{{subtitle}}</p>
         {{{foundingProgressHtml}}}
-        {{#if globalError}}<div class="auth-form__global-error" data-test-global-error>{{globalError}}</div>{{/if}}
+        {{#if globalError}}<div class="auth-form__global-error" role="alert" data-test-global-error><span class="auth-form__global-error-icon" aria-hidden="true">{{icon "x-circle"}}</span><p class="auth-form__global-error-title">{{globalError}}</p></div>{{/if}}
         {{{authProvidersHtml}}}
         <div class="auth-divider">or</div>
-        <form class="auth-form" method="POST" action="/login?utm_source=auth-page&utm_medium=internal&utm_content=login-btn{{#if returnUrl}}&return={{returnUrl}}{{/if}}" data-test-form="login">
+        <form class="auth-form" method="POST" action="{{formAction}}" data-test-form="login">
           <div class="auth-form__field">
             <label class="auth-form__label" for="email">Email</label>
             <input class="auth-form__input{{emailField.errorClass}}" type="email" id="email" name="email" value="{{email}}" required autocomplete="email">
@@ -21,10 +21,10 @@
           <button class="btn btn--primary btn--field auth-form__submit" type="submit">Sign in</button>
         </form>
         <p class="auth-card__footer auth-card__footer--forgot">
-          <a href="{{track '/forgot-password' source='auth-login' content='forgot-password'}}">Forgot your password?</a>
+          <a class="auth-card__link" href="{{track '/forgot-password' source='auth-login' content='forgot-password'}}">Forgot your password?</a>
         </p>
         <p class="auth-card__footer">
-          Don't have an account? <a href="/signup?utm_source=auth-page&utm_medium=internal&utm_content=create-acc-btn{{#if returnUrl}}&return={{returnUrl}}{{/if}}">Create one</a>
+          Don't have an account? <a class="auth-card__link" href="{{signupHref}}">Create one</a>
         </p>
       </div>
     </main>

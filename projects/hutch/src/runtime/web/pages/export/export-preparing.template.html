@@ -1,15 +1,19 @@
     <main class="export" data-test-export-preparing>
-      <div class="export__header">
-        <h1 class="export__title">I'm preparing your export</h1>
-        <p class="export__subtitle">Check your inbox shortly.</p>
-      </div>
+      <div class="export__layout">
+        <div class="export__card">
+          <div class="export__header">
+            <h1 class="export__title">I'm preparing your export</h1>
+            <p class="export__subtitle">Check your inbox shortly.</p>
+          </div>
 
-      <section class="export__section">
-        <p class="export__text">Building your archive can take a few minutes if you have a lot of saved articles. I'll email you a link as soon as it's ready.</p>
-        <p class="export__text">The download link will be valid for <strong>{{ttlDays}} days</strong>.</p>
-      </section>
+          <section class="export__section">
+            <p class="export__text">Building your archive can take a few minutes if you have a lot of saved articles. I'll email you a link as soon as it's ready.</p>
+            <p class="export__text">The download link will be valid for <strong>{{ttlDays}} days</strong>.</p>
+          </section>
 
-      <div class="export__action">
-        <a href="{{track '/queue' source='export-preparing' content='back-to-queue'}}" class="btn btn--primary">Back to Readlist</a>
+          <div class="export__action">
+            <a href="{{track '/queue' source='export-preparing' content='back-to-queue'}}" class="btn btn--primary">Back to Readlist</a>
+          </div>
+        </div>
       </div>
     </main>

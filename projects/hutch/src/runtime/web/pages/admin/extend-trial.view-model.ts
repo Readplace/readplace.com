@@ -38,6 +38,7 @@ export interface ExtendTrialViewModel {
 	hasCurrentTrialEndsAt: boolean;
 	trialEndsAtInput: string | undefined;
 	refusalMessage: string | undefined;
+	lookupButtonVariant: "btn--primary" | "btn--neutral";
 }
 
 /** `<input type="datetime-local">` wants a zone-less `YYYY-MM-DDTHH:mm`. Every
@@ -74,5 +75,6 @@ export function toExtendTrialViewModel(input: {
 		hasCurrentTrialEndsAt: lookup.kind === "ready" && lookup.currentTrialEndsAt !== undefined,
 		trialEndsAtInput: lookup.kind === "ready" ? lookup.trialEndsAtInput : undefined,
 		refusalMessage: lookup.kind === "refused" ? lookup.message : undefined,
+		lookupButtonVariant: lookup.kind === "ready" ? "btn--neutral" : "btn--primary",
 	};
 }

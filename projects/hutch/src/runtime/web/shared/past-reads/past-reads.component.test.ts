@@ -258,6 +258,31 @@ describe("renderPastReadsSection", () => {
 		).toBe("pending");
 	});
 
+	it("tags the no-JS fallback as a reader click, leaving the auto-firing request untagged", () => {
+		const html = renderPastReadsSection({
+			pastReads: { status: "pending" },
+			computeUrl: "/queue/x/topic-reads?platform=ios",
+			sourceArticleId: SOURCE_ID,
+			now: NOW,
+			readerPathForReadlist,
+		});
+		const doc = parse(html);
+		const noscript = doc.querySelector("noscript");
+		assert(noscript, "the no-JS fallback is rendered");
+		const fallback = parse(noscript.innerHTML).querySelector("form.past-reads__fallback");
+		assert(fallback, "the no-JS fallback is a form");
+		const request = doc.querySelector("form.past-reads__request");
+		assert(request, "the htmx compute request form is present");
+
+		expect({
+			fallback: fallback.getAttribute("action"),
+			request: request.getAttribute("action"),
+		}).toEqual({
+			fallback: `/queue/x/topic-reads?platform=ios&utm_source=reader&utm_medium=internal&utm_content=find-past-reads&utm_term=${SOURCE_ID}`,
+			request: "/queue/x/topic-reads?platform=ios",
+		});
+	});
+
 	it("renders no compute triggers when the caller supplies no compute url", () => {
 		const html = renderPastReadsSection({
 			pastReads: { status: "pending" },

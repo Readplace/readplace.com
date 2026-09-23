@@ -382,7 +382,7 @@ describe("Auth routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const form = doc.querySelector('[data-test-form="signup"]');
 			assert(form, "signup form must be rendered");
-			const honeypotContainer = form.querySelector(".auth-form__visually-hidden");
+			const honeypotContainer = form.querySelector(".sr-only");
 			assert(honeypotContainer, "honeypot container must be rendered inside the signup form");
 			expect(honeypotContainer.getAttribute("aria-hidden")).toBe("true");
 			const honeypot = honeypotContainer.querySelector('input[name="website"]');
@@ -428,7 +428,7 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const action = doc.querySelector('[data-test-form="signup"]')?.getAttribute("action");
-			expect(action).toBe("/signup?utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn&return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
+			expect(action).toBe("/signup?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest&utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn");
 		});
 
 		it("appends the return URL after the UTM params on the signup OAuth links", async () => {

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMAIL_COLORS } from "../email-colors";
+import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { EMAIL_REPLY_INVITATION } from "../email-copy";
 import { render } from "@packages/web-shell";
 
@@ -52,6 +52,7 @@ export function InboxFirstArrivalEmail(
 					replyLine: EMAIL_REPLY_INVITATION,
 					signoff: SIGNOFF,
 					colors: EMAIL_COLORS,
+					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 

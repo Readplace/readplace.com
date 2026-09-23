@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
+import {
+	CONFIRM_POPOVER_STYLES,
+	render,
+	renderInFlightDots,
+	withInternalTracking,
+} from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import {
@@ -42,6 +47,8 @@ export interface AccountSurface {
 
 const ACCOUNT_ACTION_FORM_CLASS = "account-card__action-form";
 
+const ACTION_LOADER_HTML = renderInFlightDots("account__action-loader in-flight-dots");
+
 interface AccountCardPopoverTrigger {
 	popoverTarget: string;
 	buttonClass: string;
@@ -51,17 +58,24 @@ interface AccountCardPopoverTrigger {
 
 interface AccountCardAction extends AccountAction {
 	formClass: string;
+	loaderHtml: string;
 	popoverTriggers: readonly AccountCardPopoverTrigger[];
 }
 
 function toAccountCardAction(action: AccountAction): AccountCardAction {
 	const popoverTarget = action.popoverTarget;
 	if (popoverTarget === undefined) {
-		return { ...action, formClass: ACCOUNT_ACTION_FORM_CLASS, popoverTriggers: [] };
+		return {
+			...action,
+			formClass: ACCOUNT_ACTION_FORM_CLASS,
+			loaderHtml: ACTION_LOADER_HTML,
+			popoverTriggers: [],
+		};
 	}
 	return {
 		...action,
 		formClass: `${ACCOUNT_ACTION_FORM_CLASS} subscribe-plans__fallback`,
+		loaderHtml: ACTION_LOADER_HTML,
 		popoverTriggers: [
 			{
 				popoverTarget,
@@ -103,6 +117,7 @@ export function AccountPage(
 				email: page.email,
 				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
+				actionLoaderHtml: ACTION_LOADER_HTML,
 				backLink: surface?.backLink,
 			}),
 		},

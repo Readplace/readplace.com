@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { ARTICLE_FRAME_STYLES } from "../../../shared/article-body/article-frame.styles";
 import { CRAWL_BOOKMARK_SCRIPT } from "../../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
@@ -19,7 +19,7 @@ const SKELETON_ONLY_STYLES = readFileSync(join(__dirname, "reader-skeleton.style
 const SKELETON_STYLES = ARTICLE_FRAME_STYLES + READER_ONLY_STYLES + SKELETON_ONLY_STYLES;
 
 export const VIEW_BACK_LINK = {
-	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
+	topHref: withInternalTracking("/queue", { source: "reader", content: "back-top" }),
 	label: "Back to readlist",
 } as const;
 

@@ -69,6 +69,51 @@ describe("Gmail sender chooser", () => {
 		assert.equal(vm.canSave, false);
 	});
 
+	it("keeps Open Gmail the only amber CTA while the forwarding step shows", () => {
+		const awaiting = toGmailPageViewModel(input({ connection: connection({ forwardingConfirmedAt: undefined }) }));
+		assert.equal(awaiting.showStep, true);
+		assert.equal(awaiting.commitVariant, "neutral");
+		const confirmed = toGmailPageViewModel(input());
+		assert.equal(confirmed.showStep, false);
+		assert.equal(confirmed.commitVariant, "primary");
+	});
+
+	it("tells inline inbox creation and sender-access reconnects apart in their tracking", () => {
+		const vm = toGmailPageViewModel(input());
+		const tracked = (href: string) => {
+			const url = new URL(href, "https://readplace.com");
+			return [url.pathname, url.searchParams.get("utm_source"), url.searchParams.get("utm_content")];
+		};
+		assert.deepEqual(tracked(vm.saveAction), ["/integrations/gmail/senders/add", "integrations-gmail", "save-mapping"]);
+		assert.deepEqual(tracked(vm.createInboxAction), ["/integrations/gmail/senders/add", "integrations-gmail", "create-inbox"]);
+		assert.deepEqual(tracked(vm.reconnectAction), ["/integrations/gmail/connect", "integrations-gmail", "reconnect"]);
+		assert.deepEqual(tracked(vm.metadataReconnectAction), ["/integrations/gmail/connect", "integrations-gmail", "grant-sender-access"]);
+	});
+
+	it("keeps the discovery Reconnect amber only when no other amber CTA is on screen", () => {
+		const requiresReconnect = discovery({ state: "failed", scannedCount: 0, requiresReconnect: true });
+		const alone = toGmailPageViewModel(input({ discovery: requiresReconnect }));
+		assert.equal(alone.showStep, false);
+		assert.equal(alone.canSave, false);
+		assert.equal(alone.chooser.reconnectVariant, "primary");
+		const besideOpenGmail = toGmailPageViewModel(input({
+			discovery: requiresReconnect,
+			connection: connection({ forwardingConfirmedAt: undefined }),
+		}));
+		assert.equal(besideOpenGmail.showStep, true);
+		assert.equal(besideOpenGmail.chooser.reconnectVariant, "neutral");
+		const besideSave = toGmailPageViewModel(input({
+			discovery: requiresReconnect,
+			selectedSender: TLDR,
+			selectedDestination: ALIAS,
+			inboxes: [inbox({ name: "tech", address: ALIAS })],
+		}));
+		assert.equal(besideSave.showStep, false);
+		assert.equal(besideSave.canSave, true);
+		assert.equal(besideSave.commitVariant, "primary");
+		assert.equal(besideSave.chooser.reconnectVariant, "neutral");
+	});
+
 	it("searches cached names and emails without offering an arbitrary address", () => {
 		const byName = toGmailPageViewModel(input({ search: " tLdR " }));
 		const byEmail = toGmailPageViewModel(input({ search: "MORNINGBREW" }));
@@ -314,6 +359,7 @@ describe("Gmail inbox mappings and connection status", () => {
 			state: "waiting-confirmation",
 			message: "Forwarding starts once Gmail confirms the forwarding address.",
 			messageClass: "gmail__step-copy",
+			alert: false,
 			actions: [],
 		});
 
@@ -324,6 +370,7 @@ describe("Gmail inbox mappings and connection status", () => {
 			state: "reconnect",
 			message: "Reconnect Gmail to update the forwarding rule.",
 			messageClass: "gmail__step-copy",
+			alert: false,
 			actions: [],
 		});
 
@@ -389,6 +436,7 @@ describe("Gmail inbox mappings and connection status", () => {
 			state: "none",
 			message: "No forwarding rule in Gmail yet.",
 			messageClass: "gmail__step-copy",
+			alert: false,
 			actions: [],
 		});
 	});
@@ -429,6 +477,7 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.deepEqual(vm.alerts.map((entry) => entry.key), ["destination_invalid"]);
 		assert.equal(vm.filter.state, "failed");
 		assert.equal(vm.filter.messageClass, "gmail__alert");
+		assert.equal(vm.filter.alert, true);
 		assert.equal(vm.notices[0].key, "sender_removed");
 		const unknown = toGmailPageViewModel(input({ error: "unexpected", notice: "unexpected" }));
 		assert.deepEqual(unknown.alerts, []);

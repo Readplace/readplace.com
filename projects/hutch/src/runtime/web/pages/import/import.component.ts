@@ -59,7 +59,6 @@ const uploadAutoSubmitScript = (cspNonce: CspNonce) => `
 
 			function showFilename() {
 				if (!input.files || input.files.length === 0) return;
-				dropzone.classList.add('import__dropzone--has-file');
 				if (meta) meta.textContent = input.files[0].name;
 			}
 

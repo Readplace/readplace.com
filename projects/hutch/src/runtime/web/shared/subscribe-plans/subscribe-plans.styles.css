@@ -1,6 +1,6 @@
 .subscribe-plans__grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -16,8 +16,7 @@
 }
 
 .subscribe-plans__panel--featured {
-  border-color: var(--ring);
-  box-shadow: var(--shadow-md);
+  border-color: var(--color-brand);
 }
 
 .subscribe-plans__badge {
@@ -25,14 +24,13 @@
   top: 0;
   left: 50%;
   transform: translate(-50%, -50%);
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  padding: 4px 12px;
+  border: 1px solid var(--color-brand);
+  border-radius: 999px;
+  background: var(--secondary);
+  color: var(--primary-text);
+  font-size: 0.75rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -49,20 +47,21 @@
   font-weight: 700;
   line-height: 1.1;
   color: var(--foreground);
+  font-variant-numeric: tabular-nums;
 }
 
 .subscribe-plans__cadence {
   font-family: var(--font-sans);
   font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text-secondary);
+  font-weight: 400;
+  color: var(--muted-foreground);
 }
 
 .subscribe-plans__billed {
   margin-bottom: 16px;
   font-size: 0.8125rem;
   line-height: 1.5;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   text-wrap: pretty;
 }
 
@@ -90,6 +89,6 @@
 
 @media (min-width: 768px) {
   .subscribe-plans__grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

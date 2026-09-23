@@ -17,9 +17,10 @@ describe("renderSummaryFailed", () => {
 		expect(slot.classList.contains("article-body__summary-slot--visible")).toBe(
 			true,
 		);
-		expect(
-			doc.querySelector(".article-body__summary-error")?.textContent,
-		).toContain("couldn't generate a summary");
+		const alert = doc.querySelector(".article-body__summary-error");
+		assert(alert, "the failure alert must render");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.textContent).toContain("couldn't generate a summary");
 		const detail = doc.querySelector(
 			"[data-test-reader-summary-failure-reason]",
 		);

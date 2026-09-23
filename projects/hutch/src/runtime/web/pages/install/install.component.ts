@@ -96,6 +96,14 @@ const claude = clientByName("claude");
 assert(claude.install.kind === "mcpConnector", "Claude install must be the MCP connector");
 const MCP_SERVER_URL = claude.install.serverUrl;
 const MCP_GUIDE_URL = claude.install.guidePath;
+const MCP_GUIDE_HREF = withInternalTracking(MCP_GUIDE_URL, {
+	source: "install-ai-panel",
+	content: "mcp-guide",
+});
+const MCP_OTHER_CLIENTS_GUIDE_HREF = withInternalTracking(MCP_GUIDE_URL, {
+	source: "install-ai-panel",
+	content: "mcp-guide-other-clients",
+});
 
 /** Inbound links use per-client values; `ai` is accepted as a convenience entry
  * that lands on the Claude tab. Anything else 400s — the route relies on
@@ -485,7 +493,8 @@ export function InstallPage(params: {
 					panel,
 					browserOutro: BROWSER_SETUP_OUTRO,
 					mcpServerUrl: MCP_SERVER_URL,
-					mcpGuideUrl: MCP_GUIDE_URL,
+					mcpGuideHref: MCP_GUIDE_HREF,
+					mcpOtherClientsGuideHref: MCP_OTHER_CLIENTS_GUIDE_HREF,
 					saveIntentPrompt: SAVE_INTENT_PROMPT,
 				},
 				{ helpers: switchHelpers },

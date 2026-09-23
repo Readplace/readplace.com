@@ -7,7 +7,9 @@
   align-items: stretch;
   min-height: 54px;
   font-size: 0.8125rem;
-  color: var(--color-text-primary);
+  color: var(--foreground);
+  border-radius: var(--radius) 0 0 var(--radius);
+  box-shadow: var(--shadow-md);
 }
 
 .crawl-bookmark::details-content {
@@ -15,17 +17,36 @@
 }
 
 .crawl-bookmark__handle {
+  position: relative;
   list-style: none;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 20px;
   cursor: pointer;
-  background: var(--color-brand);
-  border: 1px solid var(--color-border);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-right: none;
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius) 0 0 var(--radius);
+  transition: background-color 0.15s ease;
+}
+
+.crawl-bookmark__handle::before {
+  content: "";
+  position: absolute;
+  top: calc(50% - 27px);
+  right: 0;
+  left: -24px;
+  height: 54px;
+}
+
+.crawl-bookmark__handle:hover {
+  background: var(--muted);
+}
+
+.crawl-bookmark__handle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .crawl-bookmark__handle::-webkit-details-marker {
@@ -36,8 +57,7 @@
   width: 4px;
   height: 24px;
   border-radius: 2px;
-  background: var(--color-surface-elevated);
-  opacity: 0.85;
+  background: var(--muted-foreground);
 }
 
 .crawl-bookmark__tabs {
@@ -46,8 +66,9 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface-elevated);
-  border: 1px solid var(--color-border);
+  max-width: calc(100vw - 44px);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-left: none;
   max-height: 60vh;
   overflow-y: auto;
@@ -60,10 +81,10 @@
 .crawl-bookmark__tab {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  white-space: nowrap;
   line-height: 1.3;
 }
 
@@ -76,62 +97,35 @@
 }
 
 .crawl-bookmark__time {
-  opacity: 0.75;
+  white-space: nowrap;
 }
 
 /* purgecss-ignore-start: modifier suffix is interpolated at runtime (crawl-bookmark__tab--{{state}}), so it never appears literally for the purge scanner to keep */
 .crawl-bookmark__tab--disabled {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   cursor: not-allowed;
-}
-
-.crawl-bookmark__tab--disabled .crawl-bookmark__time {
-  opacity: 0.55;
 }
 /* purgecss-ignore-end */
 
 .crawl-bookmark__badge {
-  padding: 0.05rem 0.4rem;
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: 0.6875rem;
-  font-weight: 500;
+  font-size: 0.75rem;
+  font-weight: 600;
   background: var(--color-brand-light);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   border: 1px solid var(--color-brand);
 }
 
 .crawl-bookmark__badge--me {
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  border-color: var(--color-border);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+  font-weight: 500;
 }
 
 .crawl-bookmark__remove {
   margin: 0;
-}
-
-.crawl-bookmark__remove-btn {
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  padding: var(--button-padding-xs);
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--error-text);
-}
-
-.crawl-bookmark__remove-btn:hover {
-  background: var(--error-fill);
-  border-color: var(--error-fill);
-  color: var(--error-foreground);
-}
-
-.crawl-bookmark__remove-btn:active {
-  background: var(--error-fill-hover);
-  border-color: var(--error-fill-hover);
-  color: var(--error-foreground);
 }
 
 @media (max-width: 767px) {

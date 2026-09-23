@@ -7,6 +7,7 @@
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.3;
+  text-wrap: balance;
   color: var(--foreground);
   margin-bottom: 12px;
 }
@@ -14,20 +15,20 @@
 .lp-section__lede {
   font-size: 1.0625rem;
   line-height: 1.6;
+  text-wrap: pretty;
   color: var(--muted-foreground);
   margin-bottom: 32px;
 }
 
 /**
  * 1. Reading measure. Chrome may run wider, body copy stays narrow.
- * 2. The 4px spacing scale: 48px page-level, 24px section padding.
  */
 .lp-band {
-  padding: 48px 24px; /* 2 */
+  padding: 48px 16px;
 }
 
 .lp-band__inner {
-  max-width: 680px; /* 1 */
+  max-width: var(--reader-max-width); /* 1 */
   margin: 0 auto;
 }
 
@@ -47,22 +48,22 @@
  * underneath the nav.
  */
 .lp-hero {
-  background: linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%);
+  background: linear-gradient(135deg, var(--color-secondary) 0%, #1E2A40 100%);
   color: var(--color-on-brand);
-  padding: 128px 24px 64px;
+  padding: calc(var(--header-height, 64px) + 64px) 16px 64px;
 }
 
 .lp-hero__inner {
-  max-width: 680px;
+  max-width: var(--reader-max-width);
   margin: 0 auto;
 }
 
 .lp-hero__eyebrow {
   font-size: 0.875rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.72);
+  color: color-mix(in srgb, var(--color-on-brand) 72%, transparent);
   margin-bottom: 16px;
+  text-wrap: balance;
 }
 
 .lp-hero__title {
@@ -70,6 +71,7 @@
   font-size: 2.5rem;
   font-weight: 700;
   line-height: 1.3;
+  text-wrap: balance;
   margin-bottom: 16px;
 }
 
@@ -84,7 +86,8 @@
 .lp-hero__lede {
   font-size: 1.125rem;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.86);
+  text-wrap: pretty;
+  color: color-mix(in srgb, var(--color-on-brand) 86%, transparent);
   margin-bottom: 32px;
 }
 
@@ -98,7 +101,8 @@
 
 .lp-hero__reassurance {
   font-size: 0.9375rem;
-  color: rgba(255, 255, 255, 0.66);
+  text-wrap: pretty;
+  color: color-mix(in srgb, var(--color-on-brand) 66%, transparent);
 }
 
 /**
@@ -107,13 +111,13 @@
  */
 .lp-action {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
 .lp-action__input {
-  flex: 1 1 auto;
+  flex: 1 1 12rem;
   min-width: 0;
   height: var(--input-height);
   padding: var(--input-padding);
@@ -121,18 +125,17 @@
   font-family: inherit;
   color: var(--foreground);
   background: var(--background);
-  border: 1px solid var(--border);
+  border: 1px solid var(--input);
   border-radius: var(--radius-sm);
 }
 
 .lp-action__input::placeholder {
-  color: var(--muted-foreground);
+  color: var(--color-text-muted);
 }
 
 .lp-action__input:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-  border-color: var(--primary);
 }
 
 /**
@@ -145,21 +148,11 @@
   max-width: 520px;
 }
 
-/** Below this width a field and its button cannot share a line legibly. */
-@media (max-width: 520px) {
-  .lp-action {
-    flex-wrap: wrap;
-  }
-
-  .lp-action__input {
-    flex: 1 1 100%;
-  }
-}
-
 .lp-close__actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: flex-end;
   gap: 16px;
 }
 
@@ -174,6 +167,11 @@
   max-width: 480px;
 }
 
+.lp-close__actions .lp-action--field {
+  flex-basis: 100%;
+  max-width: 520px;
+}
+
 .lp-steps {
   list-style: none;
   display: grid;
@@ -182,7 +180,7 @@
 
 .lp-steps__item {
   display: grid;
-  grid-template-columns: 32px 1fr;
+  grid-template-columns: 32px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -194,16 +192,18 @@
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  background: var(--color-brand-light);
-  color: var(--secondary-foreground);
-  font-weight: 700;
+  background: var(--secondary);
+  color: var(--primary-text);
+  font-weight: 600;
   font-size: 0.9375rem;
 }
 
 .lp-steps__heading {
+  font-family: var(--font-sans);
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.3;
+  text-wrap: balance;
   color: var(--foreground);
   margin-bottom: 4px;
 }
@@ -211,12 +211,14 @@
 .lp-steps__body {
   font-size: 1rem;
   line-height: 1.6;
+  text-wrap: pretty;
   color: var(--muted-foreground);
 }
 
 .lp-prose__paragraph {
   font-size: 1.0625rem;
   line-height: 1.6;
+  text-wrap: pretty;
   color: var(--foreground);
   margin-bottom: 16px;
 }
@@ -246,6 +248,7 @@
 .lp-proof__caption {
   font-size: 0.9375rem;
   line-height: 1.6;
+  text-wrap: pretty;
   color: var(--muted-foreground);
   margin-top: 12px;
 }
@@ -272,6 +275,7 @@
 .lp-proof__founder {
   font-size: 1rem;
   line-height: 1.6;
+  text-wrap: pretty;
   color: var(--muted-foreground);
 }
 
@@ -283,6 +287,7 @@
 .lp-offer__note {
   font-size: 0.9375rem;
   line-height: 1.6;
+  text-wrap: pretty;
   color: var(--muted-foreground);
   margin-top: 8px;
 }
@@ -299,16 +304,17 @@
  */
 .lp-limits {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--card);
   padding: 24px;
 }
 
 .lp-limits__title {
-  font-family: var(--font-serif);
-  font-size: 1.0625rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.3;
+  text-wrap: balance;
   color: var(--foreground);
   margin-bottom: 12px;
 }
@@ -325,7 +331,7 @@
  */
 .lp-limits__item {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 12px;
   font-size: 1rem;
   line-height: 1.6;
@@ -334,8 +340,15 @@
 
 .lp-limits__marker {
   display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
-  color: var(--color-text-muted);
+  height: 1.6em;
+  color: var(--muted-foreground);
+}
+
+.lp-limits__text {
+  min-width: 0;
+  text-wrap: pretty;
 }
 
 .lp-faq__list {
@@ -344,9 +357,11 @@
 }
 
 .lp-faq__question {
+  font-family: var(--font-sans);
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.3;
+  text-wrap: balance;
   color: var(--foreground);
   margin-bottom: 8px;
 }
@@ -354,6 +369,7 @@
 .lp-faq__answer {
   font-size: 1rem;
   line-height: 1.6;
+  text-wrap: pretty;
   color: var(--muted-foreground);
   margin-left: 0;
 }
@@ -372,6 +388,7 @@
   font-size: 1.75rem;
   font-weight: 700;
   line-height: 1.3;
+  text-wrap: balance;
   color: var(--foreground);
   margin-bottom: 24px;
 }
@@ -379,6 +396,7 @@
 .lp-close__note {
   font-size: 0.9375rem;
   line-height: 1.6;
+  text-wrap: pretty;
   color: var(--muted-foreground);
   margin-top: 16px;
 }
@@ -390,7 +408,7 @@
 
 @media (min-width: 768px) {
   .lp-hero {
-    padding: 160px 24px 96px;
+    padding: calc(var(--header-height, 64px) + 96px) 24px 96px;
   }
 
   .lp-hero__title {

@@ -172,14 +172,18 @@ describe("buildReadlistTabs", () => {
 		expect(tabLink(renderTabs({ activeTab: "queue" }), "unread").textContent).toBe("To Read");
 	});
 
-	it("reserves the counted tab's widest label, on that tab only", () => {
-		const doc = renderTabs({ activeTab: "queue" });
+	it("reserves every tab's widest label, so the pressed tab's weight change never moves the row", () => {
+		const doc = renderTabs({ activeTab: "queue", readlist: WORK, preferencesEnabled: true });
 
 		const reserved = Array.from(doc.querySelectorAll("[data-widest]"), (label) => [
 			label.closest("[data-test-filter]")?.getAttribute("data-test-filter"),
 			label.getAttribute("data-widest"),
 		]);
-		expect(reserved).toEqual([["unread", "To Read (99+)"]]);
+		expect(reserved).toEqual([
+			["unread", "To Read (99+)"],
+			["read", "Read"],
+			["preferences", "Preferences"],
+		]);
 	});
 
 	it("names the strip, the pressed tab and the listing as where a tab switch paints its in-flight state", () => {

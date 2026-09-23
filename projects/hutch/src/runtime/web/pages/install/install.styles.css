@@ -1,5 +1,13 @@
 .install-page {
-  padding: 80px 20px;
+  flex: 1 1 auto;
+  padding: 24px 16px 64px;
+  background: var(--muted);
+}
+
+@media (min-width: 1024px) {
+  .install-page {
+    padding: 28px 24px 80px;
+  }
 }
 
 .install-page__container {
@@ -8,11 +16,12 @@
 }
 
 .install-page__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .install-page__subtitle {
@@ -20,34 +29,33 @@
   line-height: 1.6;
   color: var(--muted-foreground);
   margin-bottom: 40px;
+  text-wrap: pretty;
 }
 
 /**
  * 1. Two labelled tab groups share a row and wrap as a unit when the viewport
- *    runs out of width — flex-wrap alone, no media query, so the layout is
- *    identical mobile and desktop.
+ *    runs out of width — flex-wrap alone.
  */
 .install-page__groups {
   display: flex;
   flex-wrap: wrap; /* 1 */
   align-items: stretch;
-  gap: 16px 28px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 24px;
-  margin-bottom: 40px;
+  gap: 16px 0;
+  margin-bottom: 16px;
 }
 
 .install-page__group {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
   min-width: 0;
 }
 
 .install-page__group-label {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
@@ -55,34 +63,44 @@
 .install-page__group-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.install-page__group:not(:last-child) .install-page__group-tabs {
+  padding-inline-end: 24px;
+}
+
+@media (max-width: 600px) {
+  .install-page__group:not(:last-child) .install-page__group-tabs {
+    padding-inline-end: 0;
+  }
 }
 
 .install-page__tab {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: var(--button-padding-sm);
+  min-height: 44px;
+  padding: 10px 12px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
   font-size: 0.9375rem;
   font-weight: 500;
   text-decoration: none;
+  white-space: nowrap;
   color: var(--muted-foreground);
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: color 0.2s, background 0.2s, border-color 0.2s;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
-.install-page__tab:not(.install-page__tab--active):hover {
+.install-page__tab:hover {
   color: var(--foreground);
-  border-color: var(--primary);
 }
 
 .install-page__tab--active {
-  color: var(--primary-text);
-  background: var(--secondary);
-  border-color: var(--primary-text);
+  color: var(--foreground);
   font-weight: 600;
+  border-bottom-color: var(--foreground);
 }
 
 .install-page__tab-icon {
@@ -91,86 +109,63 @@
 }
 
 .install-page__panel {
-  padding-top: 8px;
+  padding: 20px 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .install-page__panel-title {
-  font-family: var(--font-serif);
-  font-size: 1.375rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .install-page__lead {
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--foreground);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--muted-foreground);
   margin: 0 0 28px;
-  max-width: 600px;
+  text-wrap: pretty;
 }
 
 .install-page__download {
   margin-bottom: 36px;
+  text-wrap: balance;
 }
 
 .install-page__unavailable {
   color: var(--muted-foreground);
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.55;
   margin-bottom: 36px;
+  text-wrap: pretty;
 }
 
 .install-page__steps-outro {
-  max-width: 600px;
   margin: 0;
-  font-size: 0.9375rem;
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.55;
   color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
-.install-page__server-url {
+.install-page__copy-field {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--muted);
-  margin-bottom: 20px;
-}
-
-.install-page__server-url-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted-foreground);
-}
-
-.install-page__server-url-value {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--foreground);
-  word-break: break-all;
-}
-
-.install-page__prompt {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 12px;
+  gap: 8px 12px;
   margin-bottom: 16px;
-  padding: 14px 16px;
+  padding: 12px 16px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--muted);
 }
 
-.install-page__prompt-label {
+.install-page__copy-label {
   flex: 0 0 100%;
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -178,53 +173,55 @@
   color: var(--muted-foreground);
 }
 
-.install-page__prompt-text {
-  flex: 1 1 auto;
+.install-page__copy-value {
+  flex: 1 1 16rem;
   min-width: 0;
   margin: 0;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.9375rem;
   line-height: 1.5;
   color: var(--foreground);
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.install-page__copy-value--url {
+  word-break: break-all;
 }
 
 .install-page__copy-btn {
   flex: 0 0 auto;
 }
 
-.install-page__ai-req {
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-  margin-bottom: 20px;
+.install-page__copy-btn[hidden] {
+  display: none;
 }
 
-.install-page__ai-after {
-  font-size: 0.9375rem;
-  line-height: 1.6;
+.install-page__ai-req,
+.install-page__ai-after,
+.install-page__ai-note {
+  font-size: 0.875rem;
+  line-height: 1.55;
   color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.install-page__ai-req,
+.install-page__ai-after {
   margin-bottom: 20px;
 }
 
 .install-page__ai-note {
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
   margin-bottom: 24px;
 }
 
 .install-page__ai-guide {
   color: var(--primary-text);
   font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.install-page__ai-guide:hover {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+  white-space: nowrap;
 }
 
 .install-page__ai-guide svg {
@@ -236,8 +233,9 @@
   padding-top: 20px;
   border-top: 1px solid var(--border);
   font-size: 0.875rem;
-  line-height: 1.6;
+  line-height: 1.55;
   color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 /**
@@ -256,9 +254,12 @@
   display: block;
   width: 100%;
   height: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+}
+
+.install-page__video:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .install-page__video-frame--wide {

@@ -1,8 +1,10 @@
 <section class="setup-guide {{stateClass}}" data-test-onboarding data-test-setup-guide>
   {{#if noClient}}
   <div class="setup-guide__no-client" data-test-onboarding-no-client>
-    <h2 class="setup-guide__title">Readplace doesn't have an app for this device yet</h2>
-    <p class="setup-guide__lede">{{noClientLede}}</p>
+    <header class="setup-guide__header">
+      <h2 class="setup-guide__title">Readplace doesn't have an app for this device yet</h2>
+      <p class="setup-guide__lede">{{noClientLede}}</p>
+    </header>
     <div class="setup-guide__actions">
       <form method="{{installOptions.method}}" action="{{installOptions.action}}">
         {{#each installOptions.inputs}}
@@ -19,7 +21,7 @@
   {{#if allComplete}}
   <div class="setup-guide__success" data-test-onboarding-success>
     <form method="{{dismiss.method}}" action="{{dismiss.action}}" class="setup-guide__dismiss-form">
-      <button type="submit" class="setup-guide__dismiss" aria-label="Dismiss" data-test-onboarding-dismiss>{{icon "x"}}</button>
+      <button type="submit" class="setup-guide__dismiss" data-test-onboarding-dismiss>{{icon "x"}}<span class="sr-only">Dismiss</span></button>
     </form>
     <h2 class="setup-guide__success-title">You did it! {{icon "check-circle"}}</h2>
     <p class="{{successMessageClass}}">You're officially one of us. Welcome to Readplace.</p>

@@ -1,30 +1,34 @@
     <main class="export">
-      <div class="export__header">
-        <h1 class="export__title">Export Your Data</h1>
-        <p class="export__subtitle">Your data belongs to you. Download everything anytime.</p>
+      <div class="export__layout">
+        <div class="export__card">
+          <div class="export__header">
+            <h1 class="export__title">Export Your Data</h1>
+            <p class="export__subtitle">Your data belongs to you. Download everything anytime.</p>
+          </div>
+
+          <section class="export__section">
+            <h2 class="export__section-title">What's included</h2>
+            <ul class="export__list">
+              <li class="export__list-item"><span class="export__list-marker" aria-hidden="true">{{icon "check"}}</span><span class="export__list-text">All saved articles (unread and read)</span></li>
+              <li class="export__list-item"><span class="export__list-marker" aria-hidden="true">{{icon "check"}}</span><span class="export__list-text">Original URLs and article metadata</span></li>
+              <li class="export__list-item"><span class="export__list-marker" aria-hidden="true">{{icon "check"}}</span><span class="export__list-text">Read timestamps</span></li>
+              <li class="export__list-item"><span class="export__list-marker" aria-hidden="true">{{icon "check"}}</span><span class="export__list-text">Word counts and estimated read times</span></li>
+            </ul>
+          </section>
+
+          <section class="export__section">
+            <h2 class="export__section-title">Format</h2>
+            <p class="export__text">Your data is exported as a single <strong>JSON file</strong> — a standard, open format that can be read by any programming language or text editor.</p>
+          </section>
+
+          <section class="export__section">
+            <h2 class="export__section-title">How it works</h2>
+            <p class="export__text">I'll prepare your export in the background and email you a download link when it's ready. The link is valid for <strong>{{ttlDays}} days</strong>.</p>
+          </section>
+
+          <form action="{{track '/export/start' source='export' content='start'}}" method="POST" class="export__action">
+            <button type="submit" class="btn btn--primary" data-test-export-start>Email Me My Data</button>
+          </form>
+        </div>
       </div>
-
-      <section class="export__section">
-        <h2 class="export__section-title">What's included</h2>
-        <ul class="export__list">
-          <li>All saved articles (unread and read)</li>
-          <li>Original URLs and article metadata</li>
-          <li>Read timestamps</li>
-          <li>Word counts and estimated read times</li>
-        </ul>
-      </section>
-
-      <section class="export__section">
-        <h2 class="export__section-title">Format</h2>
-        <p class="export__text">Your data is exported as a single <strong>JSON file</strong> — a standard, open format that can be read by any programming language or text editor.</p>
-      </section>
-
-      <section class="export__section">
-        <h2 class="export__section-title">How it works</h2>
-        <p class="export__text">I'll prepare your export in the background and email you a download link when it's ready. The link is valid for <strong>{{ttlDays}} days</strong>.</p>
-      </section>
-
-      <form action="{{track '/export/start' source='export' content='start'}}" method="POST" class="export__action">
-        <button type="submit" class="btn btn--primary" data-test-export-start>Email Me My Data</button>
-      </form>
     </main>

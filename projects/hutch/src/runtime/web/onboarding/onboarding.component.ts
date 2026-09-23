@@ -38,6 +38,7 @@ interface OnboardingChecklistOptions {
 
 const BUTTON_CLASS_BY_VARIANT: Record<OnboardingActionVariant, string> = {
 	primary: "btn btn--primary btn--compact",
+	"primary-full-width": "btn btn--primary setup-guide__cta",
 	text: "setup-guide__action-text",
 };
 
@@ -147,7 +148,7 @@ const SEE_INSTALL_OPTIONS_ACTION: OnboardingAction = {
 	method: "GET",
 	href: "/install",
 	label: "See install options",
-	variant: "primary",
+	variant: "primary-full-width",
 };
 
 const TOTAL_STEPS = ONBOARDING_STEPS.length;

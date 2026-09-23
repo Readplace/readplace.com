@@ -27,19 +27,32 @@ export function initClipboardCopy(deps: ClipboardCopyDeps): ClipboardCopyControl
 	const FAILED_LABEL = "Press Ctrl+C";
 	const wired = new WeakSet<HTMLButtonElement>();
 
+	function stackLabel(button: HTMLButtonElement): HTMLSpanElement {
+		const label = deps.document.createElement("span");
+		label.textContent = button.textContent;
+		const stack = deps.document.createElement("span");
+		stack.className = "btn__label-stack";
+		stack.setAttribute("data-reserve-1", COPIED_LABEL);
+		stack.setAttribute("data-reserve-2", FAILED_LABEL);
+		stack.append(label);
+		button.replaceChildren(stack);
+		return label;
+	}
+
 	function wire(button: HTMLButtonElement, clipboard: CopyClipboard): void {
 		const text = button.getAttribute(deps.textAttr);
 		if (text === null) return;
 		if (wired.has(button)) return;
 		wired.add(button);
-		const idleLabel = button.textContent;
+		const label = stackLabel(button);
+		const idleLabel = label.textContent;
 		let pendingReset: CopyTimerId | undefined;
 
 		function flash(message: string): void {
 			if (pendingReset !== undefined) deps.clearTimeoutFn(pendingReset);
-			button.textContent = message;
+			label.textContent = message;
 			pendingReset = deps.setTimeoutFn(() => {
-				button.textContent = idleLabel;
+				label.textContent = idleLabel;
 				pendingReset = undefined;
 			}, RESET_MS);
 		}

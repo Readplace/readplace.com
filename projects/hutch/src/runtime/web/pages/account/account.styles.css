@@ -1,7 +1,18 @@
 .account {
+  flex: 1 1 auto;
+  background: var(--muted);
+}
+
+.account__layout {
   max-width: 640px;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: 24px 16px 64px;
+}
+
+@media (min-width: 1024px) {
+  .account__layout {
+    padding: 28px 24px 80px;
+  }
 }
 
 .account__header {
@@ -15,19 +26,20 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 12px;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  min-height: 44px;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--foreground);
   text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .account__back:hover {
-  text-decoration: underline;
+  color: var(--primary-text);
 }
 
 .account__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--foreground);
@@ -35,47 +47,65 @@
 
 .account__email {
   margin-top: 4px;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   color: var(--muted-foreground);
   overflow-wrap: anywhere;
 }
 
-/* The sheet is presented with .ignoresSafeArea() and the chromeless <head> sets no
- * viewport-fit=cover, so env(safe-area-inset-bottom) resolves to 0 inside this
- * WKWebView — the pad has to be hard-coded to clear the home indicator, the same
- * reason the chromeless reader hard-codes its own. */
-.page-account--chromeless .account {
-  padding-bottom: 4rem;
-}
-
 /* purgecss-ignore-start: account-card and its modifiers are interpolated dynamically from a state class in the template */
 .account-card {
-  padding: 20px;
-  border-radius: var(--radius);
-  background: var(--muted);
+  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
   border: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
-/* Founding, active and trial are healthy states — they stay on the neutral chassis.
- * Tints match the readlist banner and the header chip, which render the same states. */
-.account-card--cancellation-scheduled {
-  background: var(--warning-bg);
-  border-color: var(--color-warning);
-}
-
-.account-card--inactive,
 .account-card--error-payment-method,
 .account-card--error-subscribe-failed {
+  padding: 14px 16px;
   background: var(--error-bg);
   border-color: var(--color-error);
 }
 /* purgecss-ignore-end */
 
+.account-card__alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.account-card__alert-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: calc(0.875rem * 1.6);
+  color: var(--error-text);
+}
+
+.account-card__alert-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.account-card__alert-text {
+  min-width: 0;
+}
+
 .account-card__status {
   font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 0 0 16px;
   color: var(--foreground);
+  text-wrap: pretty;
+}
+
+.account-card--error-subscribe-failed .account-card__status {
+  margin: 12px 0 16px;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--muted-foreground);
 }
 
 /* purgecss-ignore-start: the next-charge modifiers are interpolated from the view model's stateClass */
@@ -86,8 +116,9 @@
  */
 .account-card__next-charge--visible {
   display: block;
-  font-size: 0.9375rem;
-  margin: -8px 0 16px; /* 1 */
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  margin: -12px 0 16px; /* 1 */
   color: var(--muted-foreground);
 }
 
@@ -101,64 +132,72 @@
 }
 
 .account-card__heading {
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0 0 12px;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0 0 2px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .account-card__body {
-  font-size: 0.9375rem;
-  margin: 0 0 12px;
-  color: var(--foreground);
-  line-height: 1.45;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.5;
+  margin: 0;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 .account-card__notice {
-  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 0 0 12px;
-  color: var(--foreground);
-  font-style: italic;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.account-card__notice svg {
+  flex: 0 0 auto;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: var(--primary-text);
+  animation: account-spin 1s linear infinite;
+}
+
+@keyframes account-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-card__notice svg {
+    animation: none;
+  }
 }
 
 .account-card__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
-  align-items: center;
+}
+
+.account-card__actions .btn {
+  width: 100%;
 }
 
 .account-card__action-form {
   margin: 0;
 }
 
-/* purgecss-ignore-start: action variants are interpolated dynamically in the template */
-.account-card__action--destructive {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  cursor: pointer;
-  border: 0;
-  font-family: inherit;
-  padding: var(--button-padding);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  border-radius: var(--radius-sm);
-  background: var(--error-fill);
-  color: var(--error-foreground);
-}
-
-.account-card__action--destructive:hover,
-.account-card__action--destructive:active {
-  background: var(--error-fill-hover);
-}
-
 .account-card__action:disabled {
   cursor: progress;
   opacity: 1;
 }
-/* purgecss-ignore-end */
 
 .account-card__support-link {
   color: var(--foreground);
@@ -166,47 +205,59 @@
 }
 
 .account-export {
-  padding: 20px;
-  border-radius: var(--radius);
-  background: var(--muted);
+  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
 .account-export__heading {
-  font-family: var(--font-serif);
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0 0 12px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 4px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .account-export__body {
-  font-size: 0.9375rem;
-  margin: 0 0 12px;
-  color: var(--foreground);
-  line-height: 1.45;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  margin: 0 0 16px;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.account-export__action {
+  width: 100%;
 }
 
 .account-appearance {
-  padding: 20px;
-  border-radius: var(--radius);
-  background: var(--muted);
+  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
 .account-appearance__heading {
-  font-family: var(--font-serif);
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0 0 12px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 4px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .account-appearance__body {
-  font-size: 0.9375rem;
-  margin: 0 0 12px;
-  color: var(--color-text-secondary);
-  line-height: 1.45;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  margin: 0 0 16px;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 .account-appearance__form {
@@ -218,53 +269,53 @@
   flex: 1;
 }
 
-/* Rim, not fill: a permanently red-washed delete box shouts at a user who is not
- * deleting anything. The rim marks the boundary without raising the volume. */
 .account-danger {
-  padding: 20px;
-  border-radius: var(--radius);
-  background: var(--muted);
-  border: 1px solid var(--color-error);
+  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
 .account-danger__heading {
-  font-family: var(--font-serif);
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0 0 12px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 4px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .account-danger__body {
-  font-size: 0.9375rem;
-  margin: 0 0 12px;
-  color: var(--foreground);
-  line-height: 1.45;
-}
-
-.account-danger__notice {
   font-size: 0.875rem;
-  margin: 0 0 12px;
-  color: var(--color-error);
+  font-weight: 400;
+  line-height: 1.5;
+  margin: 0 0 16px;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 .account-danger__action-form {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  align-items: flex-start;
+  gap: var(--form-gap);
+}
+
+.account-danger__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .account-danger__confirm-label {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   color: var(--foreground);
 }
 
 .account-danger__confirm-input {
   width: 100%;
-  max-width: 360px;
   height: var(--input-height);
   padding: var(--input-padding);
   font-size: var(--input-font-size);
@@ -275,22 +326,38 @@
   color: var(--foreground);
 }
 
+.account-danger__confirm-input[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
 .account-danger__confirm-input:focus {
   outline: none;
   border-color: var(--ring);
   box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
+.account-danger__notice {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--error-text);
+  text-wrap: pretty;
+}
+
 /* purgecss-ignore-start: account-cards and its state modifiers are interpolated from CardSectionViewModel.stateClass / item.itemClass in account.template.html */
 .account-cards {
-  padding: 20px;
-  border-radius: var(--radius);
-  background: var(--muted);
+  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
   border: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
 .account-cards--provider-error {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 14px 16px;
   background: var(--error-bg);
   border-color: var(--color-error);
 }
@@ -302,44 +369,87 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.account-cards__item--primary {
-  font-weight: 600;
-}
-
-.account-cards__item--backup {
-  font-weight: 400;
 }
 /* purgecss-ignore-end */
 
+.account-cards__item + .account-cards__item {
+  border-top: 1px solid var(--border);
+}
+
+.account-cards__alert-icon {
+  grid-row: 1 / span 2;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--error-text);
+}
+
+.account-cards--provider-error .account-cards__alert-icon {
+  height: calc(0.875rem * 1.6);
+}
+
+.account-cards__notice .account-cards__alert-icon {
+  height: calc(0.8125rem * 1.5);
+}
+
+.account-cards__alert-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
 .account-cards__heading {
-  font-family: var(--font-serif);
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0 0 12px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 4px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .account-cards__body {
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
   margin: 0;
-  color: var(--foreground);
-  line-height: 1.45;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.account-cards--provider-error .account-cards__heading {
+  font-size: 0.875rem;
+  margin: 0 0 2px;
+}
+
+.account-cards--provider-error .account-cards__body {
+  font-size: 0.8125rem;
 }
 
 .account-cards__notice {
-  font-size: 0.875rem;
-  margin: 0 0 12px;
-  color: var(--error);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 12px 0 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius);
+  background: var(--error-bg);
+}
+
+.account-cards__notice-text {
+  min-width: 0;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 .account-cards__hint {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
   margin: 12px 0 0;
-  color: var(--foreground);
-  font-style: italic;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
 .account-cards__list {
@@ -353,6 +463,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   color: var(--foreground);
 }
 
@@ -370,27 +481,28 @@
 
 .account-cards__exp {
   color: var(--muted-foreground);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .account-cards__badge {
   display: inline-flex;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--foreground);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .account-cards__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
 }
 
 .account-cards__action-form {
+  display: flex;
   margin: 0;
 }
 
@@ -398,28 +510,9 @@
   margin: 16px 0 0;
 }
 
-/* purgecss-ignore-start: action variants are interpolated from CardActionView.variant in account.template.html */
-.account-cards__action--destructive {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  cursor: pointer;
-  border: 0;
-  font-family: inherit;
-  padding: var(--button-padding-sm);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  border-radius: var(--radius-sm);
-  background: var(--error-fill);
-  color: var(--error-foreground);
+.account-cards__add-form .btn {
+  width: 100%;
 }
-
-.account-cards__action--destructive:hover,
-.account-cards__action--destructive:active {
-  background: var(--error-fill-hover);
-}
-/* purgecss-ignore-end */
 
 .account-cards__elements {
   margin: 16px 0 0;
@@ -429,20 +522,55 @@
 }
 
 .account-cards__element-mount {
-  padding: 12px;
-  border: 1px solid var(--border);
+  padding: var(--input-padding);
+  border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   background: var(--background);
+  color: var(--foreground);
+  font-size: var(--input-font-size);
+}
+
+.account-cards__element-mount:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
 .account-cards__element-error {
   margin: 0;
-  font-size: 0.875rem;
-  color: var(--error);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--error-text);
+  text-wrap: pretty;
 }
 
 .account-cards__elements-actions {
   display: flex;
   gap: 12px;
-  align-items: center;
+}
+
+.account-cards__elements-actions .btn {
+  flex: 1 1 0;
+}
+
+.account-cards__elements-actions .btn:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.btn:has(> .account__action-loader) {
+  position: relative;
+}
+
+.account form.htmx-request .btn {
+  cursor: progress;
+}
+
+.account form.htmx-request .account__action-label,
+.account-cards__elements-actions .btn:disabled .account__action-label {
+  visibility: hidden;
+}
+
+.account form.htmx-request .account__action-loader,
+.account-cards__elements-actions .btn:disabled .account__action-loader {
+  display: flex;
 }

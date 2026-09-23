@@ -25,7 +25,7 @@
       aria-label="Copy link"
       data-test-share-balloon-copy
     >
-      <span class="share-balloon__icon" aria-hidden="true">{{{copyIconSvg}}}</span>
+      {{icon "copy"}}<span class="sr-only">Copy link</span>
     </button>
     <button
       type="button"
@@ -36,17 +36,17 @@
       aria-label="Share this article"
       data-test-share-balloon
     >
-      <span class="share-balloon__icon" aria-hidden="true">{{{shareIconSvg}}}</span>
+      {{icon "share"}}<span class="sr-only">Share this article</span>
+    </button>
+    <button
+      type="button"
+      class="share-balloon__close"
+      data-share-balloon-close
+      data-test-share-balloon-close
+      aria-label="Dismiss message"
+    >
+      {{icon "x"}}<span class="sr-only">Dismiss message</span>
     </button>
   </div>
-  <button
-    type="button"
-    class="share-balloon__close"
-    data-share-balloon-close
-    data-test-share-balloon-close
-    aria-label="Dismiss message"
-  >
-    {{icon "x"}}
-  </button>
   <span class="share-balloon__copied" data-share-balloon-copied data-test-share-balloon-copied aria-hidden="true">Link copied!</span>
 </div>

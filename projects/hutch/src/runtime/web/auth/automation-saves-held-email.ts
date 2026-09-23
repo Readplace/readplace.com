@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMAIL_COLORS } from "../email-colors";
+import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { EMAIL_REPLY_INVITATION } from "../email-copy";
 import { render } from "@packages/web-shell";
 
@@ -57,7 +57,7 @@ function bodyParagraphs(input: {
 	const reactivateUrl = input.reactivateUrl;
 	return [
 		{
-			html: `${REASSURANCE_PREFIX}<a href="${reactivateUrl}" style="color:${EMAIL_COLORS.heading};">${REASSURANCE_LINK_TEXT}</a>.`,
+			html: `${REASSURANCE_PREFIX}<a href="${reactivateUrl}" style="color:${EMAIL_COLORS.primaryText};">${REASSURANCE_LINK_TEXT}</a>.`,
 			text: `${REASSURANCE_PREFIX}${REASSURANCE_LINK_TEXT}: ${reactivateUrl}`,
 		},
 	];
@@ -81,6 +81,7 @@ export function AutomationSavesHeldEmail(
 					manageAddressesUrl: params.manageAddressesUrl,
 					signoff: SIGNOFF,
 					colors: EMAIL_COLORS,
+					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 

@@ -252,8 +252,30 @@ describe("Admin extend-trial routes", () => {
 				.send({ email: USER_EMAIL, trialEndsAt: "not-a-date" });
 
 			expect(response.status).toBe(422);
-			const error = doc(response.text).querySelector('[data-test-error="trialEndsAt"]');
+			const page = doc(response.text);
+			const error = page.querySelector('[data-test-error="trialEndsAt"]');
 			expect(error?.textContent?.trim()).toBe("Choose a date and time");
+			const dateInput = page.querySelector("[data-test-extend-trial-date]");
+			expect(dateInput?.getAttribute("aria-invalid")).toBe("true");
+			expect(dateInput?.getAttribute("aria-describedby")).toBe(error?.id);
+		});
+
+		it("rejects a malformed email", async () => {
+			const harness = buildHarness();
+			const agent = await createAdmin(harness);
+
+			const response = await agent
+				.post("/admin/extend-trial")
+				.type("form")
+				.send({ email: "not-an-email", trialEndsAt: NEW_TRIAL_END });
+
+			expect(response.status).toBe(422);
+			const page = doc(response.text);
+			const error = page.querySelector('[data-test-error="email"]');
+			expect(error?.textContent?.trim()).toBe("Enter a valid email address");
+			const emailInput = page.querySelector("[data-test-extend-trial-email]");
+			expect(emailInput?.getAttribute("aria-invalid")).toBe("true");
+			expect(emailInput?.getAttribute("aria-describedby")).toBe(error?.id);
 		});
 
 		it("refuses a founding member on POST without creating a row", async () => {

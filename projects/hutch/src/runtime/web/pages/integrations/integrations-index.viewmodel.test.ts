@@ -109,7 +109,7 @@ describe("toIntegrationsIndexViewModel", () => {
 				"manage",
 				"GET",
 				`${GMAIL_PATH}?utm_source=integrations&utm_medium=internal&utm_content=manage`,
-				"secondary",
+				"neutral",
 			]],
 		);
 	});
@@ -130,7 +130,7 @@ describe("toIntegrationsIndexViewModel", () => {
 				"manage",
 				"GET",
 				`${GMAIL_PATH}?utm_source=integrations&utm_medium=internal&utm_content=manage`,
-				"secondary",
+				"neutral",
 			]],
 		);
 	});

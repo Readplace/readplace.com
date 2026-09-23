@@ -1,6 +1,6 @@
 <div id="article-body-related-slot" class="next-read {{stateClass}}" data-next-read data-test-reader-related data-related-status="{{status}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
   {{#each cards}}
-  <div class="next-read__card">
+  <div class="{{cardClass}}">
     <form class="next-read__dismiss-form" method="POST" action="{{dismissUrl}}" hx-boost="true" hx-target="#article-body-related-slot" hx-select="#article-body-related-slot" hx-swap="outerHTML show:none" hx-push-url="false">
       <input type="hidden" name="returnTo" value="{{returnTo}}">
       <input type="hidden" name="suggestionId" value="{{id}}">
@@ -9,11 +9,11 @@
     <a class="next-read__link" href="{{href}}" data-test-related-item="{{id}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top">
       <span class="next-read__eyebrow">{{eyebrow}}</span>
       <span class="next-read__title">{{title}}</span>
-      <span class="next-read__site">{{siteName}}</span>
       <span class="next-read__reason">{{reason}}</span>
       <span class="next-read__meta">
-        <span class="next-read__status {{statusClass}}" data-test-read-status="{{readStatus}}"><span class="next-read__status-label">{{statusLabel}}</span></span>
-        <span class="next-read__saved">{{dated.lead}} <time datetime="{{dated.time.iso}}" data-local-time="{{dated.time.mode}}">{{dated.time.label}}</time></span>
+        <span class="next-read__status {{statusClass}}" data-test-read-status="{{readStatus}}">{{#each statusIcons}}{{icon this}}{{/each}}<span class="next-read__status-label sr-only">{{statusLabel}}</span></span>
+        <span class="next-read__site" title="{{siteName}}">{{icon "globe"}}<span class="next-read__site-name">{{siteName}}</span></span>
+        <span class="next-read__saved">{{icon "clock"}}<span>{{dated.lead}} <time datetime="{{dated.time.iso}}" data-local-time="{{dated.time.mode}}">{{dated.time.label}}</time></span></span>
       </span>
     </a>
   </div>

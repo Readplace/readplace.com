@@ -1,29 +1,48 @@
 .not-found {
-  padding: 120px 20px;
-  text-align: center;
+  background: var(--muted);
+  flex: 1 1 auto;
+  padding: 24px 16px 64px;
 }
 
 .not-found__container {
   max-width: 480px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 24px 44px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
 }
 
 .not-found__title {
-  font-family: var(--font-serif);
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 12px;
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
   color: var(--foreground);
+  margin: 0;
+  text-wrap: balance;
 }
 
 .not-found__text {
-  font-size: 1rem;
-  line-height: 1.7;
+  max-width: 44ch;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
   color: var(--muted-foreground);
-  margin-bottom: 24px;
+  text-wrap: pretty;
 }
 
-.not-found__link {
-  color: var(--primary-text);
-  text-decoration: underline;
+.not-found__action {
+  margin-top: 4px;
+}
+
+@media (min-width: 1024px) {
+  .not-found {
+    padding: 28px 24px 80px;
+  }
 }

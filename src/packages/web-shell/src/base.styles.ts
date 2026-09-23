@@ -2,6 +2,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--font-sans":
 		"Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
 	"--font-serif": 'Georgia, "Times New Roman", serif',
+	"--font-mono": "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
 	"--color-background": "#FFFFFF",
 	"--color-surface": "#F7F8FA",
 	"--color-surface-elevated": "#FFFFFF",
@@ -270,6 +271,40 @@ export const BUTTON_STYLES = `
 		background: color-mix(in srgb, var(--primary) 12%, var(--secondary));
 	}
 
+	.btn--destructive {
+		background: var(--error-fill);
+		color: var(--error-foreground);
+	}
+
+	.btn--destructive:hover,
+	.btn--destructive:active {
+		background: var(--error-fill-hover);
+	}
+
+	.btn--neutral {
+		background: var(--card);
+		color: var(--foreground);
+		box-shadow: inset 0 0 0 1px var(--border);
+	}
+
+	.btn--neutral:hover,
+	.btn--neutral:active {
+		background: var(--muted);
+	}
+
+	.btn--toggle {
+		background: var(--secondary);
+		color: var(--primary-text);
+		box-shadow: inset 0 0 0 1px var(--color-brand);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.btn--toggle:hover,
+	.btn--toggle:active {
+		background: var(--primary);
+		color: var(--primary-foreground);
+	}
+
 	.btn--on-dark {
 		background: var(--color-on-brand);
 		color: var(--secondary-foreground);
@@ -299,6 +334,41 @@ export const BUTTON_STYLES = `
 	.btn--compact {
 		padding: var(--button-padding-sm);
 		font-size: 0.8125rem;
+	}
+
+	.btn--toggle.btn--compact {
+		min-height: 40px;
+	}
+
+	.btn:disabled,
+	.btn[aria-disabled="true"] {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	:where(form.htmx-request) .btn:disabled {
+		opacity: 1;
+		cursor: progress;
+	}
+
+	.btn__label-stack {
+		display: inline-grid;
+	}
+
+	.btn__label-stack > *,
+	.btn__label-stack::before,
+	.btn__label-stack::after {
+		grid-area: 1 / 1;
+	}
+
+	.btn__label-stack::before {
+		content: attr(data-reserve-1);
+		visibility: hidden;
+	}
+
+	.btn__label-stack::after {
+		content: attr(data-reserve-2);
+		visibility: hidden;
 	}
 `;
 

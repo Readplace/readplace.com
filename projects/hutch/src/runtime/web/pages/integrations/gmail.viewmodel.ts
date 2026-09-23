@@ -57,6 +57,7 @@ interface GmailFilterViewModel {
 	state: GmailFilterState;
 	message: string;
 	messageClass: "gmail__alert" | "gmail__step-copy";
+	alert: boolean;
 	actions: GmailFilterAction[];
 }
 export interface GmailBannerViewModel { key: string; message: string }
@@ -98,15 +99,18 @@ export interface GmailPageViewModel {
 	pagePath: string;
 	searchPath: string;
 	saveAction: string;
+	createInboxAction: string;
 	removeSenderAction: string;
 	discoveryAction: string;
 	disconnectAction: string;
 	reconnectAction: string;
+	metadataReconnectAction: string;
 	manageInboxesUrl: string;
 	showStep: boolean;
 	showSenders: boolean;
 	showReconnect: boolean;
 	showMetadataReconnect: boolean;
+	commitVariant: "primary" | "neutral";
 	autoDiscover: boolean;
 	search: string;
 	searchFields: FormField[];
@@ -129,6 +133,7 @@ export interface GmailPageViewModel {
 		hasOptions: boolean;
 		refineMessage: string | undefined;
 		reconnectAction: string | undefined;
+		reconnectVariant: "primary" | "neutral";
 		pollUrl: string | undefined;
 		pollTrigger: string | undefined;
 		pagePath: string;
@@ -379,6 +384,7 @@ function filterFor(input: GmailPageInput, mappings: GmailMappingGroup[]): GmailF
 		state,
 		message: filterMessage(input, state),
 		messageClass: FILTER_MESSAGE_CLASS_BY_STATE[state],
+		alert: state === "failed",
 		actions: FILTER_ACTIONS_BY_STATE[state],
 	};
 }
@@ -434,19 +440,24 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	for (const field of fieldsFor(params, "load-senders")) poll.searchParams.set(field.name, field.value);
 	poll.searchParams.set("poll", String(pollCount + 1));
 	const mappings = mappingGroups(input);
+	const showStep = pollState !== undefined && input.gatewayLive;
+	const canSave = input.selectedSender !== undefined && selectedInbox !== undefined;
 	return {
 		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state], pollState,
 		integrationsPath: track(INTEGRATIONS_PATH, "back-to-integrations"),
 		gatewayAddress: input.connection.gatewayAddress, mailboxUrl: buildGmailMailboxUrl(input.connection.accountEmail),
 		pagePath: GMAIL_PATH, searchPath: GMAIL_SENDERS_PATH,
 		saveAction: track(GMAIL_SENDER_ADD_PATH, "save-mapping"),
+		createInboxAction: track(GMAIL_SENDER_ADD_PATH, "create-inbox"),
 		removeSenderAction: track(GMAIL_SENDER_REMOVE_PATH, "exclude-sender"),
 		discoveryAction: track(GMAIL_DISCOVERY_START_PATH, "load-senders"),
 		disconnectAction: track(GMAIL_DISCONNECT_PATH, "disconnect"), reconnectAction: track(GMAIL_CONNECT_PATH, "reconnect"),
+		metadataReconnectAction: track(GMAIL_CONNECT_PATH, "grant-sender-access"),
 		manageInboxesUrl: track("/inbox/addresses", "manage-inboxes"),
-		showStep: pollState !== undefined && input.gatewayLive,
+		showStep,
 		showSenders: !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect,
 		showReconnect: revoked, showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
+		commitVariant: showStep ? "neutral" : "primary",
 		autoDiscover: !input.discoveryStarted,
 		search: input.search,
 		searchFields: fieldsFor(params, "search-senders").filter((field) => field.name !== "search" && field.name !== "discovery_after"),
@@ -456,7 +467,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			fields: fieldsFor({ ...params, destination: entry.address }, "choose-inbox") })),
 		inboxPickerOpen, inboxName: input.inboxName ?? "", inboxLimit, inboxMax: INBOX_ADDRESS_MAX_PER_USER,
 		canCreateInbox: !inboxLimit,
-		canSave: input.selectedSender !== undefined && selectedInbox !== undefined,
+		canSave,
 		chooser: {
 			state: input.discovery.state,
 			discoveryAfter: input.discoveryAfter,
@@ -465,6 +476,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			options, hasOptions: options.length > 0,
 			refineMessage: matches.length > 100 ? `Showing 100 of ${matches.length} matching senders. Refine your search to find another sender.` : undefined,
 			reconnectAction: input.discovery.requiresReconnect ? track(GMAIL_CONNECT_PATH, "reconnect-sender-access") : undefined,
+			reconnectVariant: showStep || canSave ? "neutral" : "primary",
 			pollUrl: polling ? `${poll.pathname}${poll.search}` : undefined,
 			pollTrigger: polling ? discoveryPollTrigger(pollCount + 1) : undefined, pagePath: GMAIL_PATH,
 		},

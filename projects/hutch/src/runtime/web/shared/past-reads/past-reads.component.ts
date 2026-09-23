@@ -99,6 +99,7 @@ export function renderPastReadsSection(input: PastReadsSectionInput): string {
 		rows,
 		pollUrl: status === "pending" ? input.pollUrl : undefined,
 		computeUrl: input.computeUrl,
+		sourceArticleId: input.sourceArticleId,
 		// The no-JS fallback only appears when there is nothing to show, so a
 		// reader with results never sees a stray "find" button beneath them.
 		showNoscriptFallback: input.computeUrl !== undefined && !hasRows,

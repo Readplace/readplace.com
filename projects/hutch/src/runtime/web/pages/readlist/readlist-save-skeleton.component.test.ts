@@ -63,18 +63,17 @@ describe("renderReadlistSaveSkeleton", () => {
 		expect(skeleton.getAttribute("aria-hidden")).toBe("true");
 	});
 
-	it("mirrors the stub card's four text bars and two action controls", () => {
+	it("mirrors the stub card's title and excerpt bars, its menu trigger and its state toggle", () => {
 		const skeleton = skeletonOf({ filters: DESTINATION_FILTERS, accessIsReadOnly: false });
 		const bars = Array.from(skeleton.querySelectorAll(".readlist-save-skeleton__bar")).map((el) =>
 			el.className.split(" ").filter((c) => c.startsWith("readlist-save-skeleton__bar--")).join(""),
 		);
 		expect(bars).toEqual([
-			"readlist-save-skeleton__bar--site",
-			"readlist-save-skeleton__bar--time",
 			"readlist-save-skeleton__bar--title",
 			"readlist-save-skeleton__bar--excerpt",
 		]);
-		expect(skeleton.querySelectorAll(".readlist-save-skeleton__action").length).toBe(2);
+		expect(skeleton.querySelectorAll(".readlist-save-skeleton__menu").length).toBe(1);
+		expect(skeleton.querySelectorAll(".readlist-save-skeleton__toggle").length).toBe(1);
 	});
 
 	it("says Saving… so the skeleton reads as the save in flight", () => {

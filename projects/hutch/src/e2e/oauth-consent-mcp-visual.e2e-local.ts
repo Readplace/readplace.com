@@ -13,7 +13,7 @@ const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
 const BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 
-const CONSENT_CARD = "main.oauth-authorize";
+const CONSENT_CARD = "body.page-oauth-authorize .auth-card";
 const CONSENT_PASSWORD = "password123";
 const CONNECTOR_REDIRECT_URI = "https://chatgpt.com/connector/oauth/cb";
 const CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";

@@ -227,14 +227,10 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 		await loginAs(page, email);
 		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 
-		const dots = page.locator(".article-body__summary-loading");
-		await expect(dots).toBeVisible();
-		const painted = await dots.evaluate((el) => {
-			const after = getComputedStyle(el, "::after");
-			return { animationName: after.animationName, content: after.content };
-		});
+		const loader = page.locator(".article-body__summary-loading svg");
+		await expect(loader).toBeVisible();
+		const animationName = await loader.evaluate((el) => getComputedStyle(el).animationName);
 
-		assert.equal(painted.animationName, "none", "a panel that refuses motion must not animate");
-		assert.equal(painted.content, '"..."', "the dots the animation drew must still be painted");
+		assert.equal(animationName, "none", "a panel that refuses motion must not animate");
 	});
 });

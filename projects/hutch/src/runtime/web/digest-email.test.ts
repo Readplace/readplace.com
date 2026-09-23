@@ -69,7 +69,7 @@ describe("buildDigestEmailHtml", () => {
 		expect(`${cta.origin}${cta.pathname}`).toBe(QUEUE_URL);
 		expect(cta.searchParams.get("utm_source")).toBe("reader-ready-email");
 		expect(cta.searchParams.get("utm_medium")).toBe("email");
-		expect(cta.searchParams.get("utm_content")).toBe("bottom");
+		expect(cta.searchParams.get("utm_content")).toBe("continue-reading");
 	});
 
 	it("places the only CTA after the last card, never before the first", () => {

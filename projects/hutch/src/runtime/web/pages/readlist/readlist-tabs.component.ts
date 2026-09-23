@@ -21,7 +21,7 @@ export interface ReadlistTab {
 	testFilter: string;
 	isActive: boolean;
 	labelId?: string;
-	widestLabel?: string;
+	widestLabel: string;
 }
 
 export interface ReadlistTabsDisplayModel {
@@ -56,6 +56,7 @@ function preferencesTabs(input: {
 			label: PREFERENCES_TAB.label,
 			testFilter: PREFERENCES_TAB.testFilter,
 			isActive,
+			widestLabel: PREFERENCES_TAB.label,
 		},
 	];
 }
@@ -86,7 +87,7 @@ export function buildReadlistTabs(input: {
 				isActive: tab.id === input.activeTab,
 				labelId: tab.labelId?.(input.readlist),
 				widestLabel:
-					tab.labelId === undefined ? undefined : formatUnreadLabel(Number.MAX_SAFE_INTEGER),
+					tab.labelId === undefined ? tab.label : formatUnreadLabel(Number.MAX_SAFE_INTEGER),
 			})),
 			...preferencesTabs(input),
 		],

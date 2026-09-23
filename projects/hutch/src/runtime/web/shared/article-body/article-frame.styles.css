@@ -1,7 +1,7 @@
 .article-body__header {
   margin-bottom: 2rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border);
 }
 
 .article-body__actions {
@@ -24,13 +24,16 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   font-size: 0.875rem;
-  color: var(--primary-text);
+  font-weight: 500;
+  color: var(--foreground);
   text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .article-body__back:hover {
-  text-decoration: underline;
+  color: var(--primary-text);
 }
 
 /**
@@ -45,7 +48,7 @@
   display: none; /* 1 */
 }
 
-@media (max-width: 599px) {
+@media (max-width: 600px) {
   .article-body__action-icon {
     display: inline-flex;
   }
@@ -69,7 +72,6 @@
   .article-body__back {
     justify-content: center;
     min-width: 44px;
-    min-height: 44px;
   }
 }
 
@@ -105,8 +107,8 @@
 }
 
 .article-body__download svg {
-  width: 0.875em;
-  height: 0.875em;
+  width: 1rem;
+  height: 1rem;
 }
 
 .article-body__readlists-slot--visible {
@@ -123,33 +125,27 @@
 }
 
 .article-body__readlists-trigger {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
-  min-height: 44px;
-  padding: var(--button-padding-sm);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
   list-style: none;
-  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .article-body__readlists-trigger::-webkit-details-marker {
   display: none;
 }
 
-.article-body__readlists-trigger:hover {
-  background: var(--color-surface);
+.article-body__readlists-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
-.article-body__readlists-trigger svg {
-  width: 0.875em;
-  height: 0.875em;
+.article-body__readlists-chevron {
+  display: inline-flex;
+  color: var(--muted-foreground);
+  transition: transform 0.15s ease;
+}
+
+.article-body__readlists[open] .article-body__readlists-chevron {
+  transform: rotate(180deg);
 }
 
 .article-body__readlists-menu {
@@ -159,11 +155,11 @@
   z-index: 13;
   min-width: max-content;
   margin: 0;
-  padding: 4px;
+  padding: 6px;
   list-style: none;
   background: var(--card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-md);
 }
 
@@ -172,29 +168,39 @@
 }
 
 .article-body__readlists-option {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  min-height: 44px;
-  padding: var(--button-padding-sm);
-  font-family: inherit;
+  min-height: 40px;
+  padding: 8px 10px;
+  font: inherit;
   font-size: 0.875rem;
   text-align: left;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease;
+  overflow-wrap: anywhere;
+  transition: background-color 0.15s ease;
+}
+
+.article-body__readlists-option svg {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
 }
 
 .article-body__readlists-option:hover {
-  background: var(--color-surface);
+  background: var(--muted);
 }
 
 .article-body__readlists-item + .article-body__readlists-create-item {
   margin-top: 4px;
   padding-top: 4px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border);
 }
 
 .article-body__readlists-create {
@@ -208,13 +214,18 @@
 .article-body__readlists-create-input {
   flex: 1;
   min-width: 0;
-  height: 44px;
-  padding: 0 16px;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font: inherit;
   font-size: var(--input-font-size);
   color: var(--foreground);
   background: var(--background);
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
+}
+
+.article-body__readlists-create-input::placeholder {
+  color: var(--color-text-muted);
 }
 
 .article-body__readlists-create-input:focus {
@@ -225,24 +236,31 @@
 
 .article-body__readlists-create-btn {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: var(--input-height);
+  height: var(--input-height);
   padding: var(--button-padding-xs);
-  color: var(--color-text-primary);
+  color: var(--muted-foreground);
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .article-body__readlists-create-btn:hover {
-  background: var(--color-surface);
+  background: var(--muted);
+  color: var(--foreground);
 }
 
-@media (max-width: 599px) {
+.article-body__readlists-create-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+@media (max-width: 600px) {
   .article-body__actions--top {
     position: relative;
   }
@@ -297,6 +315,7 @@
 }
 
 .article-body__mark-read:disabled {
+  opacity: 1;
   cursor: progress;
 }
 
@@ -315,15 +334,32 @@
   font-weight: 700;
   line-height: 1.3;
   margin: 0 0 0.75rem;
-  color: var(--color-text-primary);
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .article-body__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 14px;
   font-size: 0.875rem;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
+}
+
+.article-body__site {
+  flex: 1 1 12ch;
+  min-width: 0;
+  max-width: max-content;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.article-body__read-time {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .article-body__read-time--empty {
@@ -340,22 +376,25 @@
 /** 1. One size for both icon sets: the client logos carry an 18px attribute and
  *     the UI icons 1em, and neither matches the meta row's smaller type. */
 .article-body__provenance svg {
-  width: 0.875em; /* 1 */
-  height: 0.875em; /* 1 */
+  width: 0.9375rem; /* 1 */
+  height: 0.9375rem; /* 1 */
   vertical-align: -0.125em;
-  margin-right: 0.25rem;
+  margin-right: 5px;
 }
 
 .article-body__readlist-tag {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 4px 1px 8px;
-  font-size: 0.8125rem;
-  color: var(--color-text-primary);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  min-width: 0;
+  padding: 2px 4px 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--foreground);
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
 }
 
 .article-body__readlist-tag-remove-form {
@@ -364,28 +403,36 @@
 }
 
 .article-body__readlist-tag-remove {
+  position: relative;
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   min-width: 24px;
   min-height: 24px;
   padding: 4px;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.article-body__readlist-tag-remove::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
 }
 
 .article-body__readlist-tag-remove:hover {
-  background: var(--color-border);
-  color: var(--color-text-primary);
+  background: var(--card);
+  color: var(--foreground);
 }
 
 .article-body__readlist-tag-remove svg {
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .article-body__original-link {

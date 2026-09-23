@@ -36,7 +36,7 @@ export const CONFIRM_POPOVER_STYLES = `
 	max-height: calc(100% - 32px);
 	padding: 24px;
 	border: 1px solid var(--border);
-	border-radius: var(--radius-lg);
+	border-radius: 16px;
 	background: var(--card);
 	color: var(--card-foreground);
 	box-shadow: var(--shadow-md);
@@ -73,6 +73,22 @@ export const CONFIRM_POPOVER_STYLES = `
 
 body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	background: rgb(13 13 13 / 0.72); /* 3 */
+}
+
+.confirm-popover--illustrated {
+	text-align: center;
+}
+
+.confirm-popover__illustration {
+	width: 72px;
+	height: 72px;
+	margin: 0 auto 12px;
+	color: var(--foreground);
+}
+
+.confirm-popover__illustration svg {
+	width: 100%;
+	height: 100%;
 }
 
 .confirm-popover__header {
@@ -125,6 +141,17 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	height: 1rem;
 }
 
+.confirm-popover--illustrated .confirm-popover__header {
+	justify-content: center;
+}
+
+.confirm-popover--illustrated .confirm-popover__close {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	margin: 0;
+}
+
 .confirm-popover__lead {
 	margin-bottom: 16px;
 	font-size: 0.9375rem;
@@ -140,20 +167,33 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	text-wrap: pretty;
 }
 
+.confirm-popover__body:empty {
+	display: none;
+}
+
 .confirm-popover__body--above-list {
 	margin-bottom: 8px;
 }
 
 .confirm-popover__items {
 	margin: 0 0 24px;
-	padding-left: 20px;
-	list-style: disc;
+	padding: 0;
+	list-style: none;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
 	font-size: 0.9375rem;
 	line-height: 1.5;
+	text-align: left;
 }
 
 .confirm-popover__item {
+	padding: 12px 14px;
+	overflow-wrap: anywhere;
 	text-wrap: pretty;
+}
+
+.confirm-popover__item + .confirm-popover__item {
+	border-top: 1px solid var(--border);
 }
 
 .confirm-popover__actions {

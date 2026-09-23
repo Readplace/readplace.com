@@ -100,7 +100,10 @@ interface ViewDependencies {
 }
 
 async function renderError(deps: ViewDependencies, req: Request, res: Response): Promise<void> {
-	const redirectUrl = req.userId ? "/queue" : "/";
+	const redirectUrl = withInternalTracking(req.userId ? "/queue" : "/", {
+		source: "view-error",
+		content: req.userId ? "back-to-queue" : "home",
+	});
 	const linkLabel = req.userId ? "Go to your readlist" : "Go to homepage";
 	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
 }

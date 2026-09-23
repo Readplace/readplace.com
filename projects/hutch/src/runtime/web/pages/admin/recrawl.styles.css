@@ -4,10 +4,6 @@
   padding: 1rem 1rem 3rem;
 }
 
-.admin-recrawl__title {
-  font-family: var(--font-serif);
-}
-
 .admin-recrawl__body {
   display: block;
 }
@@ -15,22 +11,96 @@
 .admin-recrawl__tier-badge {
   display: inline-block;
   margin: 0 0 1rem;
-  padding: 0.25rem 0.6rem;
+  padding: 4px 12px;
   border-radius: 999px;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  background: var(--color-brand-light);
-  color: var(--color-brand-dark);
-  border: 1px solid var(--color-brand);
+  background: var(--muted);
+  color: var(--foreground);
+  border: 1px solid var(--border);
 }
 
 .admin-recrawl__tier-badge--legacy {
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  border-color: var(--color-border);
+  color: var(--muted-foreground);
 }
 
-.admin-recrawl__url-input {
+.admin-recrawl-landing {
+  background: var(--muted);
+  flex: 1 1 auto;
+}
+
+.admin-recrawl-landing__layout {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+@media (min-width: 1024px) {
+  .admin-recrawl-landing__layout {
+    padding: 28px 24px 80px;
+  }
+}
+
+.admin-recrawl-landing__panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+
+.admin-recrawl-landing__title {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 4px;
+  text-wrap: balance;
+}
+
+.admin-recrawl-landing__lede {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  margin: 0 0 16px;
+  text-wrap: pretty;
+}
+
+.admin-recrawl-landing__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.admin-recrawl-landing__row {
+  display: flex;
+  gap: 12px;
+}
+
+.admin-recrawl-landing__input {
+  flex: 1 1 auto;
+  min-width: 0;
   height: var(--input-height);
   padding: var(--input-padding);
+  font: inherit;
+  font-size: var(--input-font-size);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.admin-recrawl-landing__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.admin-recrawl-landing__input:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-shadow);
+}
+
+.admin-recrawl-landing__btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }

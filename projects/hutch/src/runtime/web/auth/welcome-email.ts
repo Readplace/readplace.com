@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMAIL_COLORS } from "../email-colors";
+import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { SAVE_SURFACES_PHRASE } from "../shared/client-surface-phrases";
 import { render } from "@packages/web-shell";
 
@@ -18,5 +18,6 @@ export function buildWelcomeEmailHtml({
 		avatarUrl,
 		saveSurfaces: SAVE_SURFACES_PHRASE,
 		colors: EMAIL_COLORS,
+		fontStack: EMAIL_FONT_STACK,
 	});
 }

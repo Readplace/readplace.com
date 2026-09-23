@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMAIL_COLORS } from "./email-colors";
+import { EMAIL_COLORS, EMAIL_FONT_STACK } from "./email-colors";
 import { EMAIL_REPLY_INVITATION } from "./email-copy";
 import { render } from "@packages/web-shell";
 
@@ -24,7 +24,7 @@ function queueCtaUrl(queueUrl: string): string {
 	const url = new URL(queueUrl);
 	url.searchParams.set("utm_source", "reader-ready-email");
 	url.searchParams.set("utm_medium", "email");
-	url.searchParams.set("utm_content", "bottom");
+	url.searchParams.set("utm_content", "continue-reading");
 	return url.toString();
 }
 
@@ -38,5 +38,6 @@ export function buildDigestEmailHtml(params: {
 		queueBottomUrl: queueCtaUrl(params.queueUrl),
 		replyLine: EMAIL_REPLY_INVITATION,
 		colors: EMAIL_COLORS,
+		fontStack: EMAIL_FONT_STACK,
 	});
 }

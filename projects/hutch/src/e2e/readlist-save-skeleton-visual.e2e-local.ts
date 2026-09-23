@@ -16,7 +16,7 @@ import { measureDocumentBoxes, pinSaveBarValue } from "./readlist-save-skeleton.
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
 const SETTLE_MS = 45000;
-const MINIMUM_TOUCH_TARGET = 44;
+const MINIMUM_TOGGLE_HEIGHT = 40;
 const LAYOUT_TOLERANCE_PX = 1;
 
 const DESKTOP = { width: 1280, height: 900 };
@@ -29,7 +29,7 @@ const SAVE_BUTTON = `${SAVE_FORM} button[type="submit"]`;
 const SAVE_FORM_IN_FLIGHT = `${SAVE_FORM}.htmx-request`;
 const SAVING_LABEL = `${SAVE_FORM} .readlist__save-btn-saving`;
 const SKELETON = "main.readlist [data-test-save-skeleton]";
-const SKELETON_HEADER = `${SKELETON} .readlist-save-skeleton__header`;
+const SKELETON_TOGGLE = `${SKELETON} .readlist-save-skeleton__toggle`;
 const SORT_ROW = "main.readlist .readlist-listing__header";
 const LIST = "[data-test-article-list]";
 const CARD = "[data-test-article]";
@@ -177,19 +177,19 @@ async function heldSkeletonGeometry(page: Page): Promise<void> {
 	assert.equal(overflows, false, "the readlist page must never scroll sideways");
 	const viewport = page.viewportSize();
 	assert.ok(viewport, "a whole-page capture needs a fixed viewport to size its clip");
-	const [sort, skeleton, list, header] = await page.evaluate(measureBoxes, [
+	const [sort, skeleton, list, toggle] = await page.evaluate(measureBoxes, [
 		SORT_ROW,
 		SKELETON,
 		LIST,
-		SKELETON_HEADER,
+		SKELETON_TOGGLE,
 	]);
 	assert.equal(skeleton.y, sort.y + sort.height, "the skeleton must sit directly under the sort row");
 	assert.equal(list.y, skeleton.y + skeleton.height, "the cards must start where the skeleton ends");
 	assert.equal(skeleton.x, list.x, "the skeleton must share the cards' left edge");
 	assert.equal(skeleton.width, list.width, "the skeleton must be as wide as the cards it stands in for");
 	assert.ok(
-		header.height >= MINIMUM_TOUCH_TARGET,
-		`the skeleton's header must hold the ${MINIMUM_TOUCH_TARGET}px action row a card carries`,
+		toggle.height >= MINIMUM_TOGGLE_HEIGHT,
+		`the skeleton must hold the ${MINIMUM_TOGGLE_HEIGHT}px state toggle a card carries`,
 	);
 	assert.ok(
 		list.y + list.height <= viewport.height,

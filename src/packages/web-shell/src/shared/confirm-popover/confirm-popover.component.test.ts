@@ -72,7 +72,7 @@ describe("renderConfirmPopover", () => {
 		expect(body.textContent).toBe("You will not get it back.");
 	});
 
-	it("renders a bulleted list under the body and describes the panel by both", () => {
+	it("renders a list under the body and describes the panel by both", () => {
 		const doc = renderPanel({ bodyItems: ["All", "Work", "Later"] });
 
 		const panel = doc.querySelector(".confirm-popover");
@@ -112,7 +112,18 @@ describe("renderConfirmPopover", () => {
 		);
 		expect(alone.className).toBe("confirm-popover__body");
 		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover__body--above-list {");
-		expect(CONFIRM_POPOVER_STYLES).toContain("list-style: disc;");
+	});
+
+	it("draws the list as one bordered box split by hairlines, so each row reads as a thing the action touches", () => {
+		const doc = renderPanel({ bodyItems: ["All", "Work"] });
+
+		const items = doc.getElementById("thing-confirm-42-items");
+		assert(items, "the list must be rendered");
+		const [first, second] = [...items.querySelectorAll("li")];
+		assert(first, "the first item must be rendered");
+		assert(second, "the second item must be rendered");
+		expect(CONFIRM_POPOVER_STYLES).toContain(`.${items.className} {`);
+		expect(CONFIRM_POPOVER_STYLES).toContain(`.${first.className} + .${second.className} {`);
 	});
 
 	it("leaves the list out entirely when the body says all there is to say", () => {
@@ -253,6 +264,19 @@ describe("renderConfirmPopover", () => {
 		assert(illustration, "the illustration wrapper must be rendered");
 		expect(illustration.getAttribute("aria-hidden")).toBe("true");
 		expect(illustration.querySelectorAll("svg[data-test-illustration]")).toHaveLength(1);
+	});
+
+	it("ships the illustrated composition with the shell, so every page that illustrates a panel centres it the same way", () => {
+		const panel = renderPanel({ illustrationHtml: "<svg data-test-illustration></svg>" }).querySelector(
+			".confirm-popover",
+		);
+
+		assert(panel, "panel must be rendered");
+		const illustration = panel.querySelector(".confirm-popover__illustration");
+		assert(illustration, "the illustration wrapper must be rendered");
+		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--illustrated {");
+		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--illustrated .confirm-popover__close {");
+		expect(CONFIRM_POPOVER_STYLES).toContain(`.${illustration.className} {`);
 	});
 
 	it("omits the illustration modifier when the caller supplies no artwork", () => {

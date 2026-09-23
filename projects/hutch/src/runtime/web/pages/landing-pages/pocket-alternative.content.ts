@@ -110,5 +110,5 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	closeTitle: "Start with the file Pocket gave you",
 	closeSecondaryAction: START_TRIAL,
 	closeNote:
-		`No account needed to see what comes across. <a href="${withInternalTracking("/blog/pocket-migration", { source: "lp-pocket-alternative-body", content: "pocket-guide" })}">The recovery guide</a> covers getting the export out of Pocket.`,
+		`No account needed to see what comes across. <a href="${withInternalTracking("/blog/pocket-migration", { source: "lp-pocket-alternative-close", content: "pocket-guide" })}">The recovery guide</a> covers getting the export out of Pocket.`,
 };

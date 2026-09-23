@@ -8,51 +8,48 @@
 }
 
 .past-reads__card {
-  background: var(--color-surface);
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .past-reads__toggle {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 1rem;
   row-gap: 0.5rem;
   cursor: pointer;
   padding: 1.25rem 1.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   list-style: none;
   user-select: none;
-  border-radius: 8px;
-  transition: background 0.15s ease, color 0.15s ease;
+  border-radius: calc(var(--radius-lg) - 1px);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .past-reads__eyebrow {
   grid-column: 1;
   grid-row: 1;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--foreground);
 }
 
 .past-reads__card[open] .past-reads__toggle {
-  border-radius: 8px 8px 0 0;
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
 }
 
-.past-reads__toggle:hover {
-  background: color-mix(in srgb, var(--color-brand) 8%, transparent);
-  color: var(--color-text-primary);
-}
-
+.past-reads__toggle:hover,
 .past-reads__toggle:active {
-  background: color-mix(in srgb, var(--color-brand) 14%, transparent);
+  background: var(--muted);
+  color: var(--foreground);
 }
 
 .past-reads__toggle:focus-visible {
   outline: 2px solid var(--ring);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
 .past-reads__toggle::-webkit-details-marker {
@@ -63,8 +60,8 @@
   grid-column: 2;
   grid-row: 1;
   display: flex;
-  color: var(--color-text-secondary);
-  transition: transform 0.2s ease, color 0.2s ease;
+  color: var(--muted-foreground);
+  transition: transform 150ms ease, color 150ms ease;
 }
 
 .past-reads__caret svg {
@@ -73,7 +70,7 @@
 }
 
 .past-reads__toggle:hover .past-reads__caret {
-  color: var(--primary-text);
+  color: var(--foreground);
 }
 
 .past-reads__card[open] .past-reads__caret {
@@ -88,11 +85,9 @@
   align-items: baseline;
   column-gap: 0.5rem;
   min-width: 0;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 400;
   line-height: 1.5;
-  text-transform: none;
-  letter-spacing: normal;
 }
 
 .past-reads__card[open] .past-reads__preview {
@@ -103,101 +98,110 @@
   min-width: 0;
   max-width: 100%;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .past-reads__preview-site {
   min-width: 0;
   max-width: 100%;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 0.8125rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .past-reads__more {
-  color: var(--primary-text);
+  color: var(--foreground);
   font-weight: 600;
   white-space: nowrap;
-}
-
-.past-reads__toggle:hover .past-reads__more {
-  text-decoration: underline;
 }
 
 .past-reads__list {
   list-style: none;
   margin: 0;
-  padding: 0 1.5rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 8px; /* 1. 8px vertical spacing between rows */
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.past-reads__row + .past-reads__row {
+  border-top: 1px solid var(--border);
 }
 
 .past-reads__link {
-  display: block;
-  text-decoration: none;
-  color: var(--primary-text);
-}
-
-/**
- * 2. Title and site share a line when both fit; otherwise the site wraps below
- *    the title, so a long host can never squeeze the title to nothing.
- * 3. Either one still ellipsizes when it alone outgrows the line; the link's
- *    aria-label keeps the full title and site available to assistive technology.
- */
-.past-reads__heading {
   display: flex;
-  flex-wrap: wrap; /* 2 */
-  align-items: baseline;
-  column-gap: 0.5rem;
-  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 24px;
+  text-decoration: none;
+  color: inherit;
 }
 
 .past-reads__title {
-  min-width: 0;
-  max-width: 100%;
+  font-size: 1.0625rem;
   font-weight: 600;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.past-reads__link:hover .past-reads__title {
   color: var(--primary-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis; /* 3 */
 }
 
-.past-reads__site {
-  min-width: 0;
-  max-width: 100%;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis; /* 3 */
-}
-
-/* 4. Connection sentences wrap naturally rather than truncating. */
 .past-reads__reason {
   display: block;
   font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  text-wrap: pretty; /* 4 */
+  color: var(--muted-foreground);
+  text-wrap: pretty;
 }
 
-/* The "last read" line borrows Next read's meta row: a small, secondary caption
- * under the connection sentence. */
 .past-reads__meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
+  gap: 14px;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.past-reads__site,
+.past-reads__read-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.past-reads__site {
+  flex: 1 1 12ch;
+  min-width: 0;
+  max-width: max-content;
 }
 
 .past-reads__read-time {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.past-reads__site-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.past-reads__site svg,
+.past-reads__read-time svg {
+  flex: 0 0 auto;
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+.past-reads__site svg {
+  color: var(--color-secondary-text);
+}
+
+.past-reads__read-time svg {
+  color: var(--color-error);
 }

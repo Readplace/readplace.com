@@ -1,7 +1,7 @@
 .wizard__title {
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 600;
   line-height: 1.3;
   color: var(--foreground);
   text-wrap: balance;
@@ -9,7 +9,7 @@
 
 .wizard__description {
   margin: 8px 0 16px;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   line-height: 1.5;
   color: var(--muted-foreground);
   text-wrap: pretty;
@@ -35,6 +35,14 @@
   resize: vertical;
 }
 
+.wizard__textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.wizard__textarea[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
 .wizard__textarea:focus {
   outline: none;
   border-color: var(--ring);
@@ -42,7 +50,7 @@
 }
 
 .wizard__error {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--error-text);
   text-wrap: pretty;

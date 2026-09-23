@@ -6,123 +6,78 @@
 .share-balloon__buttons {
   display: inline-flex;
   align-items: center;
+  gap: 0.625rem;
+  max-width: 100%;
   padding: 0.5rem;
-  background: var(--color-surface-elevated);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-md);
-  transition: border-radius 300ms ease, padding 300ms ease;
 }
 
-.share-balloon__wrap--open .share-balloon__buttons {
-  border-radius: 18px;
-  padding: 0.5rem 0.75rem;
+.share-balloon__copy,
+.share-balloon,
+.share-balloon__close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--button-padding-xs);
+  background: transparent;
+  color: var(--muted-foreground);
+  border: none;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.share-balloon__copy:hover,
+.share-balloon:hover,
+.share-balloon__close:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.share-balloon__copy svg,
+.share-balloon svg,
+.share-balloon__close svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .share-balloon__close {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  z-index: 2;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface-elevated);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 50%;
-  box-shadow: var(--shadow-md);
-  font-size: 14px;
-  cursor: pointer;
-  opacity: 0;
-  visibility: hidden;
-  transform: scale(0.7);
-  transition: opacity 180ms ease, transform 240ms ease, visibility 0s linear 240ms;
+  display: none;
 }
 
-/**
- * 1. Reveal the close button right after the chat open animation finishes
- *    (~400ms) so users immediately see how to dismiss the bubble.
- */
 .share-balloon__wrap--open .share-balloon__close {
-  opacity: 1;
-  visibility: visible;
-  transform: scale(1);
-  transition: opacity 250ms ease 500ms, transform 250ms ease 500ms, visibility 0s linear 500ms; /* 1 */
-}
-
-/**
- * 1. Padding on every side gives a 38px tap target around the 18px icon.
- * 2. The right margin keeps copy and share separated by a constant 0.625rem
- *    so adjacent tap targets do not overlap on mobile.
- */
-.share-balloon__copy {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.625rem; /* 1 */
-  margin-right: 0.625rem; /* 2 */
-  background: none;
-  color: inherit;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: transform 120ms ease, background 120ms ease;
-}
-
-.share-balloon__copy:hover {
-  background: var(--color-surface);
-}
-
-.share-balloon__copy:active {
-  transform: scale(0.98);
-}
-
-.share-balloon {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.625rem;
-  background: none;
-  color: inherit;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  transition: transform 120ms ease, background 120ms ease;
-}
-
-.share-balloon:hover {
-  background: var(--color-surface);
-}
-
-.share-balloon:active {
-  transform: scale(0.98);
 }
 
 .share-balloon__chat {
-  display: flex;
+  display: none;
+  flex: 1 1 auto;
   align-items: center;
   gap: 0.625rem;
-  overflow: hidden;
-  max-width: 0;
-  max-height: 0;
-  margin-right: 0;
-  transition: max-width 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
-    max-height 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
-    margin-right 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  min-width: 0;
 }
 
 .share-balloon__wrap--open .share-balloon__chat {
-  max-width: 320px;
-  max-height: 80px;
-  margin-right: 0.625rem;
+  display: flex;
+}
+
+@media (max-width: 600px) {
+  .share-balloon__wrap--open .share-balloon__buttons {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .share-balloon__wrap--open .share-balloon__chat {
+    flex-basis: 100%;
+  }
 }
 
 .share-balloon__avatar {
@@ -134,67 +89,43 @@
 }
 
 .share-balloon__text {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
-  min-width: max-content;
-  line-height: 1.25;
+  min-width: 0;
+  line-height: 1.5;
   font-size: 0.8125rem;
 }
 
 .share-balloon__greeting {
   font-weight: 600;
-  white-space: nowrap;
 }
 
 .share-balloon__hint {
-  color: var(--color-text-primary);
-  opacity: 0.7;
-  white-space: nowrap;
-}
-
-.share-balloon__icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.8;
+  color: var(--muted-foreground);
 }
 
 .share-balloon__copied {
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 0.5rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.25rem;
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--color-error);
+  color: var(--foreground);
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  backdrop-filter: blur(6px) saturate(1.4);
-  -webkit-backdrop-filter: blur(6px) saturate(1.4);
   transition: opacity 300ms ease;
 }
 
 .share-balloon__copied--visible {
   opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .share-balloon,
-  .share-balloon__buttons,
-  .share-balloon__chat,
-  .share-balloon__close,
-  .share-balloon__copy {
-    transition: none;
-  }
-  .share-balloon:active,
-  .share-balloon__copy:active {
-    transform: none;
-  }
 }

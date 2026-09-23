@@ -276,7 +276,7 @@ describe("View routes", () => {
 			expect(response.headers["content-type"]).toMatch(/text\/html/);
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
-			expect(meta?.getAttribute("content")).toBe("5;url=/");
+			expect(meta?.getAttribute("content")).toBe("5;url=/?utm_source=view-error&utm_medium=internal&utm_content=home");
 		});
 
 		it("renders the error page redirecting to /queue when authenticated", async () => {
@@ -299,9 +299,9 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
-			expect(meta?.getAttribute("content")).toBe("5;url=/queue");
+			expect(meta?.getAttribute("content")).toBe("5;url=/queue?utm_source=view-error&utm_medium=internal&utm_content=back-to-queue");
 			const link = doc.querySelector(".save-error__link");
-			expect(link?.getAttribute("href")).toBe("/queue");
+			expect(link?.getAttribute("href")).toBe("/queue?utm_source=view-error&utm_medium=internal&utm_content=back-to-queue");
 			expect(link?.textContent).toContain("Go to your readlist");
 		});
 
@@ -334,7 +334,7 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
-			expect(meta?.getAttribute("content")).toBe("5;url=/");
+			expect(meta?.getAttribute("content")).toBe("5;url=/?utm_source=view-error&utm_medium=internal&utm_content=home");
 		});
 
 		it("renders the save-error page when GET /view/<chrome://...> and never saves an anonymous stub", async () => {
@@ -348,7 +348,7 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
-			expect(meta?.getAttribute("content")).toBe("5;url=/");
+			expect(meta?.getAttribute("content")).toBe("5;url=/?utm_source=view-error&utm_medium=internal&utm_content=home");
 
 			const stored = await articleStore.findArticleByUrl("chrome://extensions/");
 			expect(stored).toBeFalsy();
@@ -365,7 +365,7 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
-			expect(meta?.getAttribute("content")).toBe("5;url=/");
+			expect(meta?.getAttribute("content")).toBe("5;url=/?utm_source=view-error&utm_medium=internal&utm_content=home");
 
 			const stored = await articleStore.findArticleByUrl("http://localhost:3000/queue");
 			expect(stored).toBeFalsy();

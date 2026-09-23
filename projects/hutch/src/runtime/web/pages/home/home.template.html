@@ -8,7 +8,7 @@
         {{#each heroActions}}
         <div class="home-hero__action">
           {{#if lead}}<p class="home-hero__action-lead">{{lead}}</p>{{/if}}
-          {{#if target}}<a class="home-hero__action-target" href="{{target.href}}" data-test-hero-target="{{key}}">{{target.label}}</a>{{/if}}
+          {{#if target}}<a class="home-hero__action-target" href="{{target.href}}" title="{{target.label}}" data-test-hero-target="{{key}}">{{target.label}}</a>{{/if}}
           <form class="home-hero__form" method="GET" action="{{action}}"{{#if saveTipState}} data-save-tip="{{saveTipState}}"{{/if}} data-test-hero-form="{{key}}">
             {{#each hiddenParams}}
             <input type="hidden" name="{{name}}" value="{{value}}">
@@ -36,13 +36,13 @@
           <span class="home-ways__body">{{bodyLead}}{{#if bodyIcon}} <span class="home-ways__icon">{{icon bodyIcon}}</span>{{/if}}{{#if bodyMid}}{{bodyMid}}{{/if}}{{#if bodyLink}} <a class="home-link" href="{{bodyLink.href}}" data-test-way-body-link="{{name}}">{{bodyLink.label}}</a>{{/if}}{{#if examples}} {{#each examples}}<span class="home-ways__example">{{this}}</span>{{#unless @last}} or {{/unless}}{{/each}}. {{/if}}{{#if bodyTail}}{{bodyTail}}{{/if}}</span>
           <span class="home-ways__links">
             {{#each links}}
-            <a class="home-ways__link" href="{{href}}" data-test-way-link="{{label}}">{{label}} {{icon "arrow-right"}}</a>
+            <a class="home-link" href="{{href}}" data-test-way-link="{{label}}">{{label}}{{icon "arrow-right"}}</a>
             {{/each}}
           </span>
         </li>
         {{/each}}
       </ul>
-      <p class="home-ways__note">{{waysNoteLead}} <a class="home-link" href="{{waysNoteLink.href}}" data-test-way-link="pdf">{{waysNoteLink.label}} {{icon "arrow-right"}}</a></p>
+      <p class="home-ways__note">{{waysNoteLead}} <a class="home-link" href="{{waysNoteLink.href}}" data-test-way-link="pdf">{{waysNoteLink.label}}{{icon "arrow-right"}}</a></p>
     </div>
   </section>
 
@@ -50,7 +50,7 @@
     <div class="home-section__container">
       <h2 class="home-section__title">{{assistantTitle}}</h2>
       <p class="home-assistant__body">{{assistantBodyLead}} <strong data-test-assistant-names>{{assistantNames}}</strong> {{assistantBodyTail}}</p>
-      <p class="home-assistant__action"><a class="home-link" href="{{assistantLink.href}}" data-test-cta="assistant">{{assistantLink.label}} {{icon "arrow-right"}}</a></p>
+      <p class="home-assistant__action"><a class="home-link" href="{{assistantLink.href}}" data-test-cta="assistant">{{assistantLink.label}}{{icon "arrow-right"}}</a></p>
     </div>
   </section>
 
@@ -130,8 +130,8 @@
     <div class="home-section__container home-close__container">
       <h2 class="home-section__title">{{closeTitle}}</h2>
       <p class="home-close__links">
-        <a class="home-link" href="{{closeInstallLink.href}}" data-test-cta="close-install">{{closeInstallLink.label}} {{icon "arrow-right"}}</a>
-        <a class="home-link" href="{{closeImportLink.href}}" data-test-cta="close-import">{{closeImportLink.label}} {{icon "arrow-right"}}</a>
+        <a class="home-link" href="{{closeInstallLink.href}}" data-test-cta="close-install">{{closeInstallLink.label}}{{icon "arrow-right"}}</a>
+        <a class="home-link" href="{{closeImportLink.href}}" data-test-cta="close-import">{{closeImportLink.label}}{{icon "arrow-right"}}</a>
       </p>
       <p class="home-close__signoff">{{closeSignoff}}</p>
     </div>

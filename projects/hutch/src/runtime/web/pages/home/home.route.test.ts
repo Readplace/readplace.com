@@ -220,6 +220,9 @@ describe("GET / hero (arriving from the reader view)", () => {
 		expect(target.textContent?.trim()).toBe(
 			"nytimes.com/2026/01/07/opinion/near-death-conference-grief-chicago.html",
 		);
+		expect(target.getAttribute("title")).toBe(
+			"nytimes.com/2026/01/07/opinion/near-death-conference-grief-chicago.html",
+		);
 		expect(target.getAttribute("href")).toBe(
 			"/view?url=https%3A%2F%2Fwww.nytimes.com%2F2026%2F01%2F07%2Fopinion%2Fnear-death-conference-grief-chicago.html&utm_source=homepage&utm_medium=internal&utm_content=hero-last-view-article",
 		);

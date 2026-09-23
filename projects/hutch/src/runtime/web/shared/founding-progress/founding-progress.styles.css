@@ -5,9 +5,9 @@
 }
 
 .founding-progress__bar {
-  height: 24px;
-  background: var(--border);
-  border-radius: 12px;
+  height: 6px;
+  background: var(--muted);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   margin-bottom: 8px;
 }
@@ -15,12 +15,11 @@
 .founding-progress__fill {
   height: 100%;
   background: var(--color-success);
-  border-radius: 12px;
-  transition: width 0.3s ease;
+  border-radius: var(--radius-sm);
 }
 
 .founding-progress__label {
   font-size: 0.875rem;
   color: var(--muted-foreground);
-  font-weight: 500;
+  font-weight: 400;
 }

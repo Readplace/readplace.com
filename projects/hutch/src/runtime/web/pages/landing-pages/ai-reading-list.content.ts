@@ -108,5 +108,5 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 	closeTitle: "Connect it in about a minute",
 	closeSecondaryAction: START_TRIAL,
 	closeNote:
-		`The <a href="${withInternalTracking("/mcp", { source: "lp-ai-reading-list-body", content: "mcp-guide" })}">setup guide</a> has the steps for Claude, ChatGPT and Gemini.`,
+		`The <a href="${withInternalTracking("/mcp", { source: "lp-ai-reading-list-close", content: "mcp-guide" })}">setup guide</a> has the steps for Claude, ChatGPT and Gemini.`,
 };

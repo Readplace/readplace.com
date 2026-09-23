@@ -1,5 +1,5 @@
-    <main class="oauth-authorize">
-      <div class="oauth-authorize__container">
+    <main class="auth-page">
+      <div class="auth-card">
         <h1 class="oauth-authorize__title">Authorize {{clientName}}</h1>
         {{#if selfRegistered}}
         <p class="oauth-authorize__notice"><strong>{{clientName}}</strong> registered itself with Readplace and will send your authorization to <strong>{{redirectHost}}</strong>. Continue only if you recognise it.</p>
@@ -15,10 +15,10 @@
           {{#if state}}<input type="hidden" name="state" value="{{state}}">{{/if}}
           {{#if screenHint}}<input type="hidden" name="screen_hint" value="{{screenHint}}">{{/if}}
           <div class="oauth-authorize__buttons">
-            <button type="submit" name="action" value="approve" class="oauth-authorize__btn oauth-authorize__btn--approve">Approve</button>
-            <button type="submit" name="action" value="deny" class="oauth-authorize__btn oauth-authorize__btn--deny">Deny</button>
+            <button type="submit" name="action" value="approve" class="btn btn--primary oauth-authorize__button">Approve</button>
+            <button type="submit" name="action" value="deny" class="btn btn--secondary oauth-authorize__button">Deny</button>
           </div>
-          <button type="submit" name="action" value="switch" class="oauth-authorize__btn oauth-authorize__btn--switch">Use a different account</button>
+          <button type="submit" name="action" value="switch" class="oauth-authorize__switch">Use a different account</button>
         </form>
       </div>
     </main>

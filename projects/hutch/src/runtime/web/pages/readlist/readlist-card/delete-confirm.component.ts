@@ -19,7 +19,7 @@ export function deleteConfirmPopoverId(articleId: string): string {
 }
 
 const DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-	<button class="readlist-delete__cta" type="submit" data-test-action="delete-confirm">Yes, delete it</button>
+	<button class="btn btn--destructive" type="submit" data-test-action="delete-confirm">Yes, delete it</button>
 	<button class="btn btn--secondary" type="submit" name="ack" value="{{ackNever}}" data-test-action="delete-confirm-never">Yes, delete it and don't ask again</button>
 </form>`;
 

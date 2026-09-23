@@ -4,7 +4,7 @@
       <div class="readlist-article__head">
         <a class="readlist-article__title" href="{{titleLinkUrl}}" data-test-article-title hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader data-reader-field="title">{{title}}</a>
         <details class="readlist-article__menu" data-test-article-menu>
-          <summary class="readlist-article__menu-toggle" aria-label="More options for {{title}}" data-test-action="article-menu">{{icon "ellipsis"}}</summary>
+          <summary class="readlist-article__menu-toggle" data-test-action="article-menu">{{icon "ellipsis"}}<span class="sr-only">More options for {{title}}</span></summary>
           <div class="readlist-article__menu-panel">
             {{#each menuActions}}
             <form method="{{method}}" action="{{url}}" class="readlist-article__menu-form{{fallbackClass}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
@@ -33,11 +33,11 @@
         {{#each statusActions}}
         <form method="{{method}}" action="{{url}}" class="readlist-article__status-form{{fallbackClass}}" hx-boost="true" hx-target="closest .readlist-article" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button">
           {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-          <button class="readlist-article__status-btn" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}><span class="readlist-article__action-btn-label">{{text}}</span>{{{loaderHtml}}}</button>
+          <button class="btn btn--toggle btn--compact readlist-article__status-btn" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}><span class="readlist-article__action-btn-label">{{text}}</span>{{{loaderHtml}}}</button>
         </form>
         {{/each}}
         {{#each statusTriggers}}
-        <button class="readlist-article__status-btn readlist-article__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}"><span class="readlist-article__action-btn-label">{{text}}</span></button>
+        <button class="btn btn--toggle btn--compact readlist-article__status-btn readlist-article__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}"><span class="readlist-article__action-btn-label">{{text}}</span></button>
         {{/each}}
       </div>
     </div>

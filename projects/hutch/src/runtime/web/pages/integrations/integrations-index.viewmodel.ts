@@ -10,7 +10,7 @@ export interface IntegrationActionViewModel {
 	method: "GET" | "POST";
 	href: string;
 	label: string;
-	variant: "primary" | "secondary";
+	variant: "primary" | "neutral";
 	trackSource: string;
 	trackContent: string;
 }
@@ -100,14 +100,14 @@ const GMAIL_ACTIONS: Record<
 		method: "GET",
 		href: GMAIL_PATH,
 		label: "Manage",
-		variant: "secondary",
+		variant: "neutral",
 	}],
 	filtering: [{
 		key: "manage",
 		method: "GET",
 		href: GMAIL_PATH,
 		label: "Manage",
-		variant: "secondary",
+		variant: "neutral",
 	}],
 	"filter-failed": [{
 		key: "manage",

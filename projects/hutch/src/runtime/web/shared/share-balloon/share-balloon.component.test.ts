@@ -45,4 +45,34 @@ describe("renderShareBalloon", () => {
 		assert.equal(copy.searchParams.get("utm_medium"), "copy");
 		assert.equal(copy.searchParams.get("utm_campaign"), "reader-public");
 	});
+
+	it("draws each icon-only control from the shared icon set and names it in words", () => {
+		const doc = parse(
+			renderShareBalloon({
+				shareUrl: "https://readplace.com/view/x",
+				shareTitle: "A title",
+				shareHint: "share me",
+				shareSource: "reader-public",
+			}),
+		);
+
+		const controls = [
+			"[data-test-share-balloon-copy]",
+			"[data-test-share-balloon]",
+			"[data-test-share-balloon-close]",
+		].map((selector) => {
+			const button = doc.querySelector(selector);
+			assert(button, `${selector} must be rendered`);
+			return {
+				name: button.querySelector(".sr-only")?.textContent,
+				icon: button.querySelector("svg") !== null,
+			};
+		});
+
+		assert.deepEqual(controls, [
+			{ name: "Copy link", icon: true },
+			{ name: "Share this article", icon: true },
+			{ name: "Dismiss message", icon: true },
+		]);
+	});
 });

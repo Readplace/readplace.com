@@ -126,7 +126,7 @@ describe("initSendUserDigestHandler", () => {
 				hrefs.filter((href) => href?.includes("/view?from=reader-ready-email&utm_source=reader-ready-email")),
 			);
 			expect(readerHrefs.size).toBe(2); // one private reader permalink per article
-			expect(hrefs.filter((href) => href?.includes("utm_content=bottom"))).toHaveLength(1);
+			expect(hrefs.filter((href) => href?.includes("utm_content=continue-reading"))).toHaveLength(1);
 			// Nothing in the digest may link off to the article's original site.
 			for (const href of hrefs) {
 				expect(new URL(href ?? "").origin).toBe("https://readplace.com");
