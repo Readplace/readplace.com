@@ -175,7 +175,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		logger,
 	});
 	const validateAccessToken = createValidateAccessToken({ ...oauthModel, getAccessToken: initRecoverAuthenticatedToken({ getAccessToken: oauthModel.getAccessToken, recover: verifyRecovery }) });
-	const summaryStore = initDynamoDbGeneratedSummary({ client, tableName: articlesTable });
+	const summaryStore = initDynamoDbGeneratedSummary({
+		client,
+		tableName: articlesTable,
+		now: () => new Date(),
+	});
 	const relatedArticlesStore = initDynamoDbRelatedArticles({
 		client,
 		tableName: articlesTable,

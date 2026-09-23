@@ -7,6 +7,9 @@ import { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 
 type SendFn = DynamoDBDocumentClient["send"];
 
+const FROZEN_NOW = new Date("2026-09-23T00:00:00.000Z");
+const now = () => FROZEN_NOW;
+
 function createSendingClient(
 	impl: (input: unknown) => unknown,
 ): DynamoDBDocumentClient {
@@ -25,6 +28,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -41,6 +45,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -56,6 +61,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -72,6 +78,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -97,6 +104,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		await expect(findGeneratedSummary("https://example.com/article")).rejects.toThrow(
@@ -114,6 +122,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -133,6 +142,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -149,6 +159,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -165,6 +176,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -180,6 +192,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		await expect(findGeneratedSummary("https://example.com/article")).rejects.toThrow(
@@ -195,6 +208,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -211,6 +225,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 			client,
 			tableName: "test-table",
+			now,
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
@@ -252,7 +267,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 				[{ url: "example.com/a", summaryStatus: "ready", summary: "A" }],
 				captured,
 			);
-			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
 			const map = await findGeneratedSummaries([
 				"https://example.com/a",
@@ -278,7 +293,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 				[{ url: "example.com/present", summaryStatus: "ready", summary: "Here" }],
 				captured,
 			);
-			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
 			const map = await findGeneratedSummaries([
 				"https://example.com/present",
@@ -299,7 +314,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 				],
 				captured,
 			);
-			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
 			const map = await findGeneratedSummaries([
 				"https://example.com/good",
@@ -319,7 +334,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 				],
 				captured,
 			);
-			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
 			const map = await findGeneratedSummaries([
 				"https://example.com/ok",
@@ -336,7 +351,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 				[{ url: "example.com/valid", summaryStatus: "pending" }],
 				captured,
 			);
-			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
 			const map = await findGeneratedSummaries(["https://example.com/valid", "not a url"]);
 
@@ -349,7 +364,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		it("sends no request for empty input", async () => {
 			const captured: Captured = { commands: [] };
 			const client = batchClient([], captured);
-			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
 			const map = await findGeneratedSummaries([]);
 
@@ -359,7 +374,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 	});
 
 	describe("markSummaryPending", () => {
-		it("issues an UpdateItem that sets summaryStatus=pending with a guard against ready rows", async () => {
+		it("issues an UpdateItem that sets summaryStatus=pending, stamps summaryPendingSince only when absent so a re-save keeps the original pending age, and guards against ready rows", async () => {
 			let received: unknown;
 			const client = createSendingClient((input) => {
 				received = input;
@@ -368,6 +383,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			const { markSummaryPending } = initDynamoDbGeneratedSummary({
 				client,
 				tableName: "test-table",
+				now,
 			});
 
 			await markSummaryPending({ url: "https://example.com/article" });
@@ -382,11 +398,17 @@ describe("initDynamoDbGeneratedSummary", () => {
 			expect(command.input.UpdateExpression).toContain(
 				"SET summaryStatus = :pending",
 			);
+			expect(command.input.UpdateExpression).toContain(
+				"summaryPendingSince = if_not_exists(summaryPendingSince, :pendingSince)",
+			);
 			expect(command.input.ConditionExpression).toContain(
 				"attribute_not_exists(summaryStatus) OR summaryStatus <> :ready",
 			);
 			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(
 				"pending",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":pendingSince"]).toBe(
+				"2026-09-23T00:00:00.000Z",
 			);
 			expect(command.input.ExpressionAttributeValues?.[":ready"]).toBe("ready");
 		});
@@ -401,6 +423,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			const { markSummaryPending } = initDynamoDbGeneratedSummary({
 				client,
 				tableName: "test-table",
+				now,
 			});
 
 			await expect(
@@ -415,6 +438,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			const { markSummaryPending } = initDynamoDbGeneratedSummary({
 				client,
 				tableName: "test-table",
+				now,
 			});
 
 			await expect(

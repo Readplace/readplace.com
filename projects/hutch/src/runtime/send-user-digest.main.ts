@@ -68,6 +68,7 @@ const digestQueue = initDynamoDbDigestQueue({
 const summaryStore = initDynamoDbGeneratedSummary({
 	client: dynamoClient,
 	tableName: articlesTable,
+	now: () => new Date(),
 });
 
 const { sendEmail } = initSkipReservedDomain({

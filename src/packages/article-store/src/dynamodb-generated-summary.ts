@@ -86,6 +86,7 @@ const LooseArticleSummaryRow = z.looseObject({ url: z.string() });
 export function initDynamoDbGeneratedSummary(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
+	now: () => Date;
 }): {
 	findGeneratedSummary: FindGeneratedSummary;
 	findGeneratedSummaries: FindGeneratedSummaries;
@@ -153,11 +154,13 @@ export function initDynamoDbGeneratedSummary(deps: {
 		try {
 			await table.update({
 				Key: { url: articleResourceUniqueId.value },
-				UpdateExpression: "SET summaryStatus = :pending",
+				UpdateExpression:
+					"SET summaryStatus = :pending, summaryPendingSince = if_not_exists(summaryPendingSince, :pendingSince)",
 				ConditionExpression:
 					"attribute_not_exists(summaryStatus) OR summaryStatus <> :ready",
 				ExpressionAttributeValues: {
 					":pending": "pending",
+					":pendingSince": deps.now().toISOString(),
 					":ready": "ready",
 				},
 			});

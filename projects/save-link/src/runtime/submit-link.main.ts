@@ -87,7 +87,7 @@ const savedArticleStore = initDynamoDbSavedArticleStore({
 	now: () => new Date(),
 });
 const crawlStore = initDynamoDbArticleCrawl({ client: dynamoClient, tableName: articlesTable, now });
-const summaryStore = initDynamoDbGeneratedSummary({ client: dynamoClient, tableName: articlesTable });
+const summaryStore = initDynamoDbGeneratedSummary({ client: dynamoClient, tableName: articlesTable, now });
 const resolveCanonicalIdentity = initResolveCanonicalIdentity({
 	resolveAlias: canonicalAliasStore.resolveAlias,
 });
