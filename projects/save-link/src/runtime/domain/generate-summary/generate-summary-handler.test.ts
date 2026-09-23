@@ -252,22 +252,17 @@ describe("initGenerateSummaryHandler", () => {
 		});
 	});
 
-	it("fires markSummarySkipped with reason='ai-unavailable' when the summariser reports AI unavailable", async () => {
-		const URL = "https://example.com/unavailable";
+	it("reports batchItemFailures without writing the row when the summariser declines, so SQS redelivers and a persistent refusal DLQs as failed", async () => {
+		const URL = "https://example.com/declined";
 		const { handler, deps } = createHandler({
-			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
-				kind: "skipped",
-				reason: "ai-unavailable",
-			}),
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "declined" }),
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
 		});
 
-		await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
-		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
-			url: URL,
-			input: { reason: "ai-unavailable", now: NOW.toISOString() },
-		});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 	});
 
 	it("reports batchItemFailures when the summariser returns no-text-block so SQS redelivers and eventually DLQs", async () => {

@@ -65,7 +65,7 @@ describe("initLinkSummariser", () => {
 		expect(createMessage).not.toHaveBeenCalled();
 	});
 
-	it("returns kind 'skipped' with reason='ai-unavailable' when DeepSeek returns 'Summary not available.'", async () => {
+	it("returns kind 'declined' when DeepSeek answers with the 'Summary not available.' sentinel, so the worker retries instead of recording a final skip", async () => {
 		const createMessage = createStubCreateMessage({
 			summary: "Summary not available.",
 			excerpt: "Summary not available.",
@@ -84,7 +84,7 @@ describe("initLinkSummariser", () => {
 			textContent: "Content that cannot be summarised.",
 		});
 
-		expect(result).toEqual({ kind: "skipped", reason: "ai-unavailable" });
+		expect(result).toEqual({ kind: "declined" });
 	});
 
 	it("returns kind 'no-text-block' when the response has no text block", async () => {

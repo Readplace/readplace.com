@@ -121,11 +121,10 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 					continue;
 				}
 
-				/* no-text-block: the AI returned but the response had no parseable
-				 * text. Throw so the catch block adds the record to
+				/* Throw so the catch block adds the record to
 				 * batchItemFailures — SQS redelivery re-runs; eventual DLQ
-				 * exhaustion flips the row via markSummaryFailed. */
-				throw new Error(`[GenerateSummary] ${result.kind satisfies "no-text-block"} for ${command.url}`);
+				 * exhaustion flips the row. */
+				throw new Error(`[GenerateSummary] ${result.kind satisfies "no-text-block" | "declined"} for ${command.url}`);
 			} catch (error) {
 				logger.error("[GenerateSummary] record failed", {
 					messageId: record.messageId,

@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import assert from "node:assert";
 import { z } from "zod";
-import type { SummarySkipReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
@@ -41,7 +40,8 @@ export type SummarizeResult =
 			cacheHitInputTokens?: number;
 			cacheMissInputTokens?: number;
 		}
-	| { kind: "skipped"; reason: SummarySkipReason }
+	| { kind: "skipped"; reason: "content-too-short" }
+	| { kind: "declined" }
 	| { kind: "no-text-block" };
 
 export type SummarizeArticle = (params: {
@@ -102,7 +102,7 @@ export function initLinkSummariser(deps: {
 		const summary = parsed.summary.trim();
 		if (summary === "Summary not available.") {
 			deps.logger.info("[summarize] AI returned unavailable", { url: params.url });
-			return { kind: "skipped", reason: "ai-unavailable" };
+			return { kind: "declined" };
 		}
 
 		const written = parsed.excerpt?.trim();
