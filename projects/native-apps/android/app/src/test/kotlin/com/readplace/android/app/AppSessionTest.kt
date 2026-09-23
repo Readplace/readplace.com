@@ -15,6 +15,7 @@ import com.readplace.android.core.Pkce
 import com.readplace.android.core.PurgeableUploadQueue
 import com.readplace.android.core.RefreshToken
 import com.readplace.android.core.ShareArtifacts
+import com.readplace.android.core.SloganDiagnostics
 import com.readplace.android.core.TokenKey
 import com.readplace.android.core.TokenStorage
 import com.readplace.android.core.TokenStore
@@ -134,6 +135,7 @@ class AppSessionTest {
 				UnseenSave(folder.newFolder()),
 				DiscoveryHttpCache(folder.newFolder()),
 			),
+			sloganDiagnostics = SloganDiagnostics { },
 		)
 
 	private fun callback(query: String): String = "${AppConfig.NATIVE_CALLBACK_URL}?$query"

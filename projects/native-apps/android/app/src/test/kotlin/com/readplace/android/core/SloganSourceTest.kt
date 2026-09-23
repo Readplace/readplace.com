@@ -28,11 +28,22 @@ class SloganSourceTest {
 
 	private val server: MockWebServer get() = serverRule.server
 
+	private class RecordingDiagnostics : SloganDiagnostics {
+		val reported = mutableListOf<SloganLoadFailure>()
+
+		override fun report(failure: SloganLoadFailure) {
+			reported += failure
+		}
+	}
+
+	private val diagnostics = RecordingDiagnostics()
+
 	private fun source(): SloganSource =
 		initSloganSource(
 			client = client,
 			baseUrl = server.url("/").toString().removeSuffix("/"),
 			nativeUserAgent = nativeUserAgent,
+			diagnostics = diagnostics,
 		)
 
 	private fun publish(body: String, status: Int = 200, contentType: String = "application/json") {
@@ -53,6 +64,7 @@ class SloganSourceTest {
 			listOf("Your #1 AI-Powered Reading List.", "Paste a link. Read it clean."),
 			source().load(),
 		)
+		assertEquals("a served list is not a failure", emptyList<SloganLoadFailure>(), diagnostics.reported)
 	}
 
 	@Test
@@ -91,6 +103,11 @@ class SloganSourceTest {
 			emptyList<String>(),
 			source().load(),
 		)
+		assertEquals(
+			"a status the fallback already answers is not a transport or decode fault, so it stays silent",
+			emptyList<SloganLoadFailure>(),
+			diagnostics.reported,
+		)
 	}
 
 	@Test
@@ -102,6 +119,11 @@ class SloganSourceTest {
 			emptyList<String>(),
 			source().load(),
 		)
+		assertEquals(
+			"a media-type mismatch is the proxy's doing, not a decode fault, so it stays silent",
+			emptyList<SloganLoadFailure>(),
+			diagnostics.reported,
+		)
 	}
 
 	@Test
@@ -112,6 +134,7 @@ class SloganSourceTest {
 		)
 
 		assertEquals(listOf("Paste a link. Read it clean."), source().load())
+		assertEquals(emptyList<SloganLoadFailure>(), diagnostics.reported)
 	}
 
 	@Test
@@ -119,6 +142,11 @@ class SloganSourceTest {
 		publish("{not json")
 
 		assertEquals(emptyList<String>(), source().load())
+		assertEquals(
+			"syntactically invalid JSON is a decode failure, not a silent empty",
+			listOf(SloganLoadFailure.DECODE),
+			diagnostics.reported,
+		)
 	}
 
 	@Test
@@ -126,6 +154,7 @@ class SloganSourceTest {
 		publish("""["Your #1 AI-Powered Reading List."]""")
 
 		assertEquals(emptyList<String>(), source().load())
+		assertEquals(listOf(SloganLoadFailure.DECODE), diagnostics.reported)
 	}
 
 	@Test
@@ -133,6 +162,23 @@ class SloganSourceTest {
 		publish("""{"other":[]}""")
 
 		assertEquals(emptyList<String>(), source().load())
+		assertEquals(
+			"a payload without the slogans array is a structural decode failure",
+			listOf(SloganLoadFailure.DECODE),
+			diagnostics.reported,
+		)
+	}
+
+	@Test
+	fun `ignores a slogans field that is not an array`() = runTest {
+		publish("""{"slogans":"Your #1 AI-Powered Reading List."}""")
+
+		assertEquals(emptyList<String>(), source().load())
+		assertEquals(
+			"a slogans value that is not an array is a structural decode failure",
+			listOf(SloganLoadFailure.DECODE),
+			diagnostics.reported,
+		)
 	}
 
 	@Test
@@ -144,6 +190,11 @@ class SloganSourceTest {
 			emptyList<String>(),
 			source().load(),
 		)
+		assertEquals(
+			"a non-string element is a structural decode failure, not a silent empty",
+			listOf(SloganLoadFailure.DECODE),
+			diagnostics.reported,
+		)
 	}
 
 	@Test
@@ -151,6 +202,7 @@ class SloganSourceTest {
 		publish("""{"slogans":[{"text":"Your #1 AI-Powered Reading List."}]}""")
 
 		assertEquals(emptyList<String>(), source().load())
+		assertEquals(listOf(SloganLoadFailure.DECODE), diagnostics.reported)
 	}
 
 	@Test
@@ -162,6 +214,35 @@ class SloganSourceTest {
 			listOf("Your #1 AI-Powered Reading List."),
 			source().load(),
 		)
+		assertEquals(
+			"a valid array carrying one empty string decoded cleanly, so it is not a failure",
+			emptyList<SloganLoadFailure>(),
+			diagnostics.reported,
+		)
+	}
+
+	@Test
+	fun `a valid empty slogan array is not a decode failure`() = runTest {
+		publish("""{"slogans":[]}""")
+
+		assertEquals(emptyList<String>(), source().load())
+		assertEquals(
+			"an empty array is a complete, well-formed payload — the server simply published none",
+			emptyList<SloganLoadFailure>(),
+			diagnostics.reported,
+		)
+	}
+
+	@Test
+	fun `a decode failure never emits the body it failed to parse`() = runTest {
+		publish("""{ still not json: https://readplace.com/x?access_token=SECRET-abc123 }""")
+
+		assertEquals(emptyList<String>(), source().load())
+		assertEquals(
+			"the reported failure is a bounded category with no field for the body, so no URL or token can leak",
+			listOf(SloganLoadFailure.DECODE),
+			diagnostics.reported,
+		)
 	}
 
 	@Test
@@ -170,9 +251,15 @@ class SloganSourceTest {
 			client = client,
 			baseUrl = unreachableBaseUrl(),
 			nativeUserAgent = nativeUserAgent,
+			diagnostics = diagnostics,
 		).load()
 
 		assertEquals("offline is the common case on a first launch", emptyList<String>(), slogans)
+		assertEquals(
+			"a fetch that never reached the origin is a transport failure worth one diagnostic",
+			listOf(SloganLoadFailure.TRANSPORT),
+			diagnostics.reported,
+		)
 	}
 
 	@Test
@@ -181,10 +268,16 @@ class SloganSourceTest {
 			client = client,
 			baseUrl = "not a url",
 			nativeUserAgent = nativeUserAgent,
+			diagnostics = diagnostics,
 		).load()
 
 		assertEquals(emptyList<String>(), slogans)
 		assertEquals("an unusable base URL must not reach the network", 0, server.requestCount)
+		assertEquals(
+			"a build-time misconfiguration is neither transport nor decode, so it stays silent",
+			emptyList<SloganLoadFailure>(),
+			diagnostics.reported,
+		)
 	}
 
 	private fun unreachableBaseUrl(): String =

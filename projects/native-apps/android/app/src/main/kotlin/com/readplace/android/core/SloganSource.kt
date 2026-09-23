@@ -24,6 +24,15 @@ fun interface SloganSource {
 	suspend fun load(): List<String>
 }
 
+enum class SloganLoadFailure {
+	TRANSPORT,
+	DECODE,
+}
+
+fun interface SloganDiagnostics {
+	fun report(failure: SloganLoadFailure)
+}
+
 /**
  * Partial application (`init*`) wiring an HTTP client into a [SloganSource].
  *
@@ -36,13 +45,19 @@ fun interface SloganSource {
  * slogan is already the right answer for all of them, and a slogan is not worth an
  * error on the screen a user is trying to sign in from.
  */
-fun initSloganSource(client: OkHttpClient, baseUrl: String, nativeUserAgent: String): SloganSource =
-	SloganSource { publishedSlogans(client, baseUrl, nativeUserAgent) }
+fun initSloganSource(
+	client: OkHttpClient,
+	baseUrl: String,
+	nativeUserAgent: String,
+	diagnostics: SloganDiagnostics,
+): SloganSource =
+	SloganSource { publishedSlogans(client, baseUrl, nativeUserAgent, diagnostics) }
 
 private suspend fun publishedSlogans(
 	client: OkHttpClient,
 	baseUrl: String,
 	nativeUserAgent: String,
+	diagnostics: SloganDiagnostics,
 ): List<String> {
 	val url = "$baseUrl${AppConfig.SLOGANS_PATH}".toHttpUrlOrNull() ?: return emptyList()
 	val request = Request.Builder()
@@ -53,28 +68,32 @@ private suspend fun publishedSlogans(
 		.build()
 	return withContext(Dispatchers.IO) {
 		try {
-			client.newCall(request).execute().use { slogansIn(it) }
+			client.newCall(request).execute().use { slogansIn(it, diagnostics) }
 		} catch (_: IOException) {
+			diagnostics.report(SloganLoadFailure.TRANSPORT)
 			emptyList()
 		}
 	}
 }
 
-private fun slogansIn(response: Response): List<String> {
+private fun slogansIn(response: Response, diagnostics: SloganDiagnostics): List<String> {
 	if (response.code != 200) return emptyList()
 	if (!MediaType.matches(response.header("Content-Type"), APPLICATION_JSON)) return emptyList()
-	return slogansIn(response.body.string())
+	return slogansIn(response.body.string()) ?: run {
+		diagnostics.report(SloganLoadFailure.DECODE)
+		emptyList<String>()
+	}
 }
 
 /**
  * Reads the list out of the object the server publishes — an object rather than a
  * bare array, so the server can add a sibling field without breaking a shipped
  * build. A body that is not that object, or that carries anything but strings in
- * it, is not a slogan list at all: the answer is empty rather than half-decoded.
+ * it, is not a slogan list at all.
  */
-private fun slogansIn(body: String): List<String> {
-	val slogans = jsonObjectOf(body)?.get("slogans") as? JsonArray ?: return emptyList()
-	return slogans.map { stringOf(it) ?: return emptyList() }.filter { it.isNotEmpty() }
+private fun slogansIn(body: String): List<String>? {
+	val slogans = jsonObjectOf(body)?.get("slogans") as? JsonArray ?: return null
+	return slogans.map { stringOf(it) ?: return null }.filter { it.isNotEmpty() }
 }
 
 private fun jsonObjectOf(body: String): JsonObject? =
