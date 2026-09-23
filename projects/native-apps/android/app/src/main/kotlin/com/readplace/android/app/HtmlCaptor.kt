@@ -46,8 +46,6 @@ class HtmlCaptor(
 	 * per capture rather than held, so nothing here outlives the Activity. */
 	private val captureHost: () -> ViewGroup,
 ) : HtmlCapturing {
-	private var activeView: WebView? = null
-
 	@SuppressLint("SetJavaScriptEnabled")
 	override suspend fun capture(url: String): CapturedPage = withContext(Dispatchers.Main) {
 		val loaded = CompletableDeferred<CapturedPage?>()
@@ -82,7 +80,6 @@ class HtmlCaptor(
 			val resolvedHost = captureHost()
 			host = resolvedHost
 			hostOffScreen(resolvedHost, view)
-			activeView = view
 			// The layout wait shares the one capture timeout, so hosting cannot add
 			// an unbounded suspension: if the budget elapses before the viewport is
 			// laid out, navigation never starts and there is nothing to extract.
@@ -109,7 +106,6 @@ class HtmlCaptor(
 		} catch (_: Exception) {
 			CapturedPage.Empty
 		} finally {
-			activeView = null
 			val view = webView
 			if (view != null) {
 				view.stopLoading()
@@ -117,10 +113,6 @@ class HtmlCaptor(
 				view.destroy()
 			}
 		}
-	}
-
-	fun invalidateActiveCapture() {
-		activeView?.invalidate()
 	}
 
 	/** Parents the WebView behind everything visible (index 0) at the host's own
