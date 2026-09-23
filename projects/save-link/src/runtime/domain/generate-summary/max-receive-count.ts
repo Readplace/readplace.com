@@ -1,0 +1,1 @@
+export const GENERATE_SUMMARY_MAX_RECEIVE_COUNT = 3;

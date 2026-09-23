@@ -11,6 +11,7 @@ import { GenerateSummaryCommand } from "./index";
 import type { SummarizeArticle } from "./link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "./max-receive-count";
 
 interface GenerateSummaryHandlerDeps {
 	summarizeArticle: SummarizeArticle;
@@ -121,9 +122,21 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 					continue;
 				}
 
+				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+				if (result.kind === "declined" && receiveCount >= GENERATE_SUMMARY_MAX_RECEIVE_COUNT) {
+					await transitionAndPersist(markSummarySkipped, {
+						url: command.url,
+						input: { reason: "declined", now: now().toISOString() },
+					});
+					logger.info("[GenerateSummary] declined on the final receive — marking summary skipped", {
+						url: command.url,
+						receiveCount,
+					});
+					continue;
+				}
+
 				/* Throw so the catch block adds the record to
-				 * batchItemFailures — SQS redelivery re-runs; eventual DLQ
-				 * exhaustion flips the row. */
+				 * batchItemFailures — SQS redelivery re-runs. */
 				throw new Error(`[GenerateSummary] ${result.kind satisfies "no-text-block" | "declined"} for ${command.url}`);
 			} catch (error) {
 				logger.error("[GenerateSummary] record failed", {

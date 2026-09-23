@@ -10,6 +10,7 @@ import { initGenerateSummaryHandler } from "./generate-summary-handler";
 import type { SummarizeArticle } from "./link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "./max-receive-count";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -31,6 +32,16 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 			eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:GenerateGlobalSummary",
 			awsRegion: "ap-southeast-2",
 		}],
+	};
+}
+
+function createSqsEventOnReceive(detail: { url: string }, receiveCount: number): SQSEvent {
+	const event = createSqsEvent(detail);
+	return {
+		Records: event.Records.map((record) => ({
+			...record,
+			attributes: { ...record.attributes, ApproximateReceiveCount: String(receiveCount) },
+		})),
 	};
 }
 
@@ -252,7 +263,7 @@ describe("initGenerateSummaryHandler", () => {
 		});
 	});
 
-	it("reports batchItemFailures without writing the row when the summariser declines, so SQS redelivers and a persistent refusal DLQs as failed", async () => {
+	it("reports batchItemFailures without writing the row when the summariser declines before the final receive, so SQS redelivers", async () => {
 		const URL = "https://example.com/declined";
 		const { handler, deps } = createHandler({
 			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "declined" }),
@@ -260,6 +271,60 @@ describe("initGenerateSummaryHandler", () => {
 		});
 
 		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("reports batchItemFailures without writing the row when the summariser declines on the receive before the final one, so the last retry still runs", async () => {
+		const URL = "https://example.com/declined-penultimate";
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "declined" }),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+		});
+
+		const result = await handler(
+			createSqsEventOnReceive({ url: URL }, GENERATE_SUMMARY_MAX_RECEIVE_COUNT - 1),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("marks the summary skipped (reason='declined') when the summariser declines on the final receive, instead of DLQing it as failed", async () => {
+		const URL = "https://example.com/declined-final";
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "declined" }),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+		});
+
+		const result = await handler(
+			createSqsEventOnReceive({ url: URL }, GENERATE_SUMMARY_MAX_RECEIVE_COUNT),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
+			url: URL,
+			input: { reason: "declined", now: NOW.toISOString() },
+		});
+	});
+
+	it("still reports batchItemFailures for no-text-block on the final receive, so it DLQs as failed for auto-heal", async () => {
+		const URL = "https://example.com/no-text-block-final";
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "no-text-block" }),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+		});
+
+		const result = await handler(
+			createSqsEventOnReceive({ url: URL }, GENERATE_SUMMARY_MAX_RECEIVE_COUNT),
+			buildLambdaContext(),
+			() => {},
+		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
