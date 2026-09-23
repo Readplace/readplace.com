@@ -61,14 +61,12 @@ export function initTransitionAndPersist(deps: {
 
 	async function persistAndDispatch(params: {
 		article: Article;
-		transitionName: string;
 		effects: readonly Effect[];
 		writes: readonly AggregateField[];
 	}): Promise<void> {
 		if (params.writes.length > 0) {
 			await store.save({
 				article: params.article,
-				transitionName: params.transitionName,
 				writes: params.writes,
 			});
 		}
@@ -86,7 +84,6 @@ export function initTransitionAndPersist(deps: {
 		const { article, effects, writes } = transition(existing, params.input);
 		await persistAndDispatch({
 			article,
-			transitionName: transition.name,
 			effects,
 			writes,
 		});
@@ -97,7 +94,6 @@ export function initTransitionAndPersist(deps: {
 		const { article, effects, writes } = transition(existing, params.input);
 		await persistAndDispatch({
 			article,
-			transitionName: transition.name,
 			effects,
 			writes,
 		});

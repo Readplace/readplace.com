@@ -21,7 +21,6 @@ export type AggregateField =
 export type LoadArticle = (url: string) => Promise<Article | undefined>;
 export type SaveArticle = (params: {
 	article: Article;
-	transitionName: string;
 	writes: readonly AggregateField[];
 }) => Promise<void>;
 

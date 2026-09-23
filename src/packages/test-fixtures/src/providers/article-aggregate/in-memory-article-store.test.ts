@@ -37,7 +37,6 @@ describe("initInMemoryArticleStore", () => {
 
 		await store.save({
 			article,
-			transitionName: "exampleTransition",
 			writes: ["metadata", "freshness", "summary"],
 		});
 		const loaded = await store.load("https://example.com/article");
@@ -61,7 +60,6 @@ describe("initInMemoryArticleStore", () => {
 
 		await store.save({
 			article,
-			transitionName: "exampleTransition",
 			writes: ["metadata"],
 		});
 		const loaded = await store.load(
@@ -76,13 +74,11 @@ describe("initInMemoryArticleStore", () => {
 		const store = initInMemoryArticleStore();
 		await store.save({
 			article: buildArticle("https://example.com/a", { kind: "ready", summary: "old" }),
-			transitionName: "first",
 			writes: ["summary"],
 		});
 
 		await store.save({
 			article: buildArticle("https://example.com/a", { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" }),
-			transitionName: "second",
 			writes: ["summary"],
 		});
 		const loaded = await store.load("https://example.com/a");
@@ -91,17 +87,15 @@ describe("initInMemoryArticleStore", () => {
 		assert.deepEqual(loaded.summary, { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" });
 	});
 
-	it("records each save's transitionName and writes scope so tests can assert what the orchestrator threaded through", async () => {
+	it("records each save's writes scope so tests can assert what the orchestrator threaded through", async () => {
 		const store = initInMemoryArticleStore();
 
 		await store.save({
 			article: buildArticle("https://example.com/a"),
-			transitionName: "markCrawlExhausted",
 			writes: ["crawl", "summary"],
 		});
 
 		assert.equal(store.savedCalls.length, 1);
-		assert.equal(store.savedCalls[0]?.transitionName, "markCrawlExhausted");
 		assert.deepEqual([...(store.savedCalls[0]?.writes ?? [])], ["crawl", "summary"]);
 	});
 });

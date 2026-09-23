@@ -7,7 +7,6 @@ import type {
 
 interface SavedCall {
 	article: Article;
-	transitionName: string;
 	writes: readonly AggregateField[];
 }
 
@@ -34,8 +33,8 @@ export function initInMemoryArticleStore(): ArticleStore & {
 			if (!stored) return undefined;
 			return { ...stored, url };
 		},
-		save: async ({ article, transitionName, writes }) => {
-			savedCalls.push({ article, transitionName, writes });
+		save: async ({ article, writes }) => {
+			savedCalls.push({ article, writes });
 			rows.set(key(article.url), article);
 		},
 	};

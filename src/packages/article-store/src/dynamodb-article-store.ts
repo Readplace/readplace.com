@@ -60,7 +60,6 @@ const ArticleAggregateRow = z.object({
 	summaryAutoHealAttempts: dynamoField(z.number()),
 	summaryAutoHealLastAttemptAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
-	aggregateTransitionName: dynamoField(z.string()),
 });
 
 type RowShape = z.infer<typeof ArticleAggregateRow>;
@@ -362,17 +361,14 @@ function appendReaderAvailabilityClauses(
 
 function buildSaveCommand(params: {
 	article: Article;
-	transitionName: string;
 	writes: readonly AggregateField[];
 }): {
 	UpdateExpression: string;
 	ExpressionAttributeValues: Record<string, unknown>;
 } {
-	const sets: string[] = ["aggregateTransitionName = :atn"];
+	const sets: string[] = [];
 	const removes: string[] = [];
-	const values: Record<string, unknown> = {
-		":atn": params.transitionName,
-	};
+	const values: Record<string, unknown> = {};
 
 	const writesSet = new Set<AggregateField>(params.writes);
 	if (writesSet.has("metadata")) {
@@ -422,11 +418,10 @@ export function initDynamoDbArticleStore(deps: {
 			if (!row) return undefined;
 			return rowToArticle(url, row);
 		},
-		save: async ({ article, transitionName, writes }) => {
+		save: async ({ article, writes }) => {
 			const articleResourceUniqueId = ArticleResourceUniqueId.parse(article.url);
 			const { UpdateExpression, ExpressionAttributeValues } = buildSaveCommand({
 				article,
-				transitionName,
 				writes,
 			});
 			/* A purged (tombstoned) row must never be resurrected by an in-flight or

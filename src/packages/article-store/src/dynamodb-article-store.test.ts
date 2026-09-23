@@ -568,7 +568,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle(),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -621,7 +620,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 						bodyHash: "c".repeat(64),
 					},
 				}),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -643,7 +641,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle(),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -666,7 +663,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				article: buildArticle({
 					summary: { kind: "pending", pendingSince: PENDING_SINCE },
 				}),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -692,7 +688,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({ summary: { kind: "ready", summary: "abc" } }),
-				transitionName: "markSummaryReady",
 				writes: ["summary"],
 			});
 
@@ -718,7 +713,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				article: buildArticle({
 					crawl: { kind: "pending", pendingSince: PENDING_SINCE },
 				}),
-				transitionName: "rePrimeCrawl",
 				writes: ["crawl"],
 			});
 
@@ -744,7 +738,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					crawl: { kind: "ready" },
 					readerAvailableAt: "2026-05-13T12:00:00.000Z",
 				}),
-				transitionName: "promoteTier",
 				writes: ["crawl", "readerAvailability"],
 			});
 
@@ -768,7 +761,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({ crawl: { kind: "ready" }, readerAvailableAt: "2026-05-13T12:00:00.000Z" }),
-				transitionName: "recrawlPromoteTier",
 				writes: ["crawl"],
 			});
 
@@ -789,7 +781,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({ crawl: { kind: "ready" } }),
-				transitionName: "recrawlTieKeptCanonical",
 				writes: ["crawl"],
 			});
 
@@ -810,7 +801,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({ crawl: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } as const } }),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -843,7 +833,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 						outputTokens: 50,
 					},
 				}),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -887,7 +876,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({ summary: { kind: "ready", summary: "abc" } }),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -916,7 +904,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				article: buildArticle({
 					summary: { kind: "failed", reason: { kind: "model-overload" } as const },
 				}),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -953,7 +940,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				article: buildArticle({
 					summary: { kind: "skipped", reason: "content-too-short" },
 				}),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -986,7 +972,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({ summary: { kind: "skipped" } }),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -1020,7 +1005,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 						canonicalContentHash: "a".repeat(64),
 					},
 				}),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -1048,7 +1032,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				article: buildArticle({
 					freshness: { contentFetchedAt: "2026-05-10T12:00:00.000Z" },
 				}),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -1075,7 +1058,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 						sourceContentHash: "a".repeat(64),
 					},
 				}),
-				transitionName: "markSummaryReady",
 				writes: ["summary"],
 			});
 
@@ -1103,7 +1085,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				article: buildArticle({
 					summary: { kind: "pending", pendingSince: PENDING_SINCE },
 				}),
-				transitionName: "promoteTier",
 				writes: ["summary"],
 			});
 
@@ -1134,7 +1115,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 						wordCount: 1,
 					},
 				}),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -1159,7 +1139,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle(),
-				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
 
@@ -1184,7 +1163,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			await expect(
 				store.save({
 					article: buildArticle(),
-					transitionName: "promoteTier",
 					writes: REFRESH_WRITES,
 				}),
 			).resolves.toBeUndefined();
@@ -1202,38 +1180,9 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			await expect(
 				store.save({
 					article: buildArticle(),
-					transitionName: "promoteTier",
 					writes: REFRESH_WRITES,
 				}),
 			).rejects.toThrow("throughput exceeded");
-		});
-	});
-
-	describe("save (canary marker)", () => {
-		it("always writes aggregateTransitionName so the check-stuck-articles scan can attribute the row", async () => {
-			let received: unknown;
-			const client = createFakeClient((input) => {
-				received = input;
-				return {};
-			});
-			const { store } = initDynamoDbArticleStore({
-				client,
-				tableName: TABLE,
-			});
-
-			await store.save({
-				article: buildArticle(),
-				transitionName: "markCrawlExhausted",
-				writes: ["crawl", "summary"],
-			});
-
-			const command = capturedCommand(received);
-			expect(command.input.UpdateExpression).toContain(
-				"aggregateTransitionName = :atn",
-			);
-			expect(command.input.ExpressionAttributeValues?.[":atn"]).toBe(
-				"markCrawlExhausted",
-			);
 		});
 	});
 
@@ -1254,7 +1203,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					crawl: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } as const },
 					summary: { kind: "failed", reason: { kind: "crawl-failed" } as const },
 				}),
-				transitionName: "markCrawlExhausted",
 				writes: ["crawl", "summary"],
 			});
 
@@ -1295,7 +1243,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					crawl: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } as const },
 					summary: { kind: "failed", reason: { kind: "crawl-failed" } as const },
 				}),
-				transitionName: "markCrawlExhausted",
 				writes: ["crawl", "summary"],
 			});
 
@@ -1326,7 +1273,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					crawl: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } as const },
 					summary: { kind: "failed", reason: { kind: "crawl-failed" } as const },
 				}),
-				transitionName: "markCrawlExhausted",
 				writes: ["crawl", "summary"],
 			});
 
@@ -1359,7 +1305,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 						reason: { kind: "non-html-content", contentType: "application/pdf" } as const,
 					},
 				}),
-				transitionName: "markCrawlUnsupportedFromAggregate",
 				writes: ["crawl"],
 			});
 
@@ -1393,7 +1338,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({ crawl: { kind: "pending", pendingSince: PENDING_SINCE } }),
-				transitionName: "rePrimeCrawl",
 				writes: ["crawl"],
 			});
 
@@ -1423,7 +1367,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({ crawl: { kind: "ready" } }),
-				transitionName: "recrawlTieKeptCanonical",
 				writes: ["crawl"],
 			});
 
@@ -1455,7 +1398,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					crawl: { kind: "ready" },
 					summary: { kind: "ready", summary: "kept" },
 				}),
-				transitionName: "recrawlTieKeptCanonical",
 				writes: ["crawl"],
 			});
 
@@ -1484,7 +1426,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					summary: { kind: "pending", pendingSince: PENDING_SINCE },
 					summaryAutoHeal: { attempts: 2, lastAttemptAt: PENDING_SINCE },
 				}),
-				transitionName: "incrementSummaryAutoHealAttempt",
 				writes: ["summary", "summaryAutoHeal"],
 			});
 
@@ -1519,7 +1460,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					summary: { kind: "ready", summary: "abc" },
 					summaryAutoHeal: { attempts: 0 },
 				}),
-				transitionName: "markSummaryReady",
 				writes: ["summary", "summaryAutoHeal"],
 			});
 

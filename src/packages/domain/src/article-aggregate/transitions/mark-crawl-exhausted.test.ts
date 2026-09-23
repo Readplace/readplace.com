@@ -303,10 +303,6 @@ describe("markCrawlExhausted", () => {
 		});
 	});
 
-	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {
-		assert.equal(markCrawlExhausted.name, "markCrawlExhausted");
-	});
-
 	it("no-ops (empty writes and effects) when crawl is already ready, so a stale dead-lettered retry cannot clobber a row another path healed", () => {
 		const healed = buildArticle({
 			crawl: { kind: "ready" },

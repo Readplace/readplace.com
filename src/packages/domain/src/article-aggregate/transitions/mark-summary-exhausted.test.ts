@@ -135,8 +135,4 @@ describe("markSummaryExhausted", () => {
 		assert.ok(failed && failed.kind === "publish-summary-generation-failed");
 		assert.equal(failed.reason, "content-too-large (70000 tokens)");
 	});
-
-	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {
-		assert.equal(markSummaryExhausted.name, "markSummaryExhausted");
-	});
 });

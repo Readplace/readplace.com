@@ -28,7 +28,6 @@ function seededArticle(url: string): Article {
 
 interface SavedCall {
 	article: Article;
-	transitionName: string;
 	writes: readonly AggregateField[];
 }
 
@@ -40,8 +39,8 @@ function createFakeStore(initial: readonly Article[]): {
 	for (const a of initial) rows.set(a.url, a);
 	const saved: SavedCall[] = [];
 
-	const save: SaveArticle = async ({ article, transitionName, writes }) => {
-		saved.push({ article, transitionName, writes });
+	const save: SaveArticle = async ({ article, writes }) => {
+		saved.push({ article, writes });
 		rows.set(article.url, article);
 	};
 	const store: ArticleStore = {
@@ -97,28 +96,6 @@ describe("initTransitionAndPersist", () => {
 			"save:pending",
 			"dispatch:generate-summary",
 		]);
-	});
-
-	it("threads the transition function's name through to store.save so the canary can attribute stuck rows", async () => {
-		const { store, saved } = createFakeStore([seededArticle(URL)]);
-		const dispatchEffect: DispatchEffect = async () => {};
-		function exampleTransition(article: Article): {
-			article: Article;
-			effects: readonly Effect[];
-			writes: readonly AggregateField[];
-		} {
-			return { article, effects: [], writes: ["summary"] };
-		}
-
-		const { transitionAndPersist } = initTransitionAndPersist({
-			store,
-			dispatchEffect,
-		});
-
-		await transitionAndPersist(exampleTransition, { url: URL, input: undefined });
-
-		assert.equal(saved.length, 1);
-		assert.equal(saved[0]?.transitionName, "exampleTransition");
 	});
 
 	it("threads the transition's writes scope through to store.save so the storage adapter can omit untouched axes", async () => {
@@ -389,7 +366,6 @@ describe("initTransitionAndPersist.upsertAndPersist", () => {
 
 		assert.equal(saved.length, 1);
 		assert.equal(saved[0]?.article.crawl.kind, "pending");
-		assert.equal(saved[0]?.transitionName, "transition");
 	});
 
 	it("passes the existing article through to the transition when load returns a row so subsequent saves can short-circuit", async () => {

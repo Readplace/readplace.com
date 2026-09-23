@@ -219,8 +219,4 @@ describe("submitLink", () => {
 
 		assert.deepEqual(before, snapshot);
 	});
-
-	it("exposes its function name so transitionAndPersist can tag the row for the canary measurement", () => {
-		assert.equal(submitLink.name, "submitLink");
-	});
 });

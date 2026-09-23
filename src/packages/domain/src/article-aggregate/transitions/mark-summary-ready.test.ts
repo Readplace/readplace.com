@@ -244,8 +244,4 @@ describe("markSummaryReady", () => {
 
 		assert.deepEqual(before, snapshot);
 	});
-
-	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {
-		assert.equal(markSummaryReady.name, "markSummaryReady");
-	});
 });
