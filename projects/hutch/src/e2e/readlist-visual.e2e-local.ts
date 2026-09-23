@@ -311,7 +311,7 @@ async function emptyPageSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
 	await expect(page.locator(EMPTY)).toBeVisible();
-	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
 	await settledSetupGuide(page);
 }
 
@@ -319,7 +319,7 @@ async function articlesPageSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
 	await expect(page.locator(ARTICLE)).toHaveCount(2);
-	await expect(page.locator(LISTING_COUNT)).toHaveText("2 Saved Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("2 Unread Articles");
 	await waitForImagePixels(page, CARD_THUMBNAIL);
 	await settledSetupGuide(page);
 }
@@ -329,7 +329,7 @@ async function readTabSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(READ_FILTER_TAB)).toHaveAttribute("aria-current", "page");
 	await expect(page.locator(ARTICLE)).toHaveCount(1);
-	await expect(page.locator(LISTING_COUNT)).toHaveText("1 Saved Article");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("1 Read Article");
 	await waitForImagePixels(page, CARD_THUMBNAIL);
 }
 
@@ -338,7 +338,7 @@ async function customReadlistPageSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText("New Readlist");
 	await expect(page.locator(EMPTY)).toBeVisible();
-	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
 	await settledSetupGuide(page);
 }
 
@@ -427,7 +427,7 @@ async function subscriptionInactiveSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--inactive/);
 	await expect(page.locator(`${SAVE_CARD} form`)).toHaveClass(/readlist-save__form--disabled/);
-	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
 	await settledSetupGuide(page);
 }
 

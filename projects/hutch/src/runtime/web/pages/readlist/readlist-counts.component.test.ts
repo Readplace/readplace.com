@@ -4,7 +4,6 @@ import { JSDOM } from "jsdom";
 import type { ReadlistUrlState } from "./readlist.url";
 import {
 	renderReadlistCounts,
-	savedArticlesLabel,
 	showingLabel,
 	toReadlistCountsDisplayModel,
 } from "./readlist-counts.component";
@@ -14,20 +13,6 @@ const DEFAULT_FILTERS: ReadlistUrlState = { readlist: DEFAULT_READLIST_SLUG, tab
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
-
-describe("savedArticlesLabel", () => {
-	it("uses the singular form for exactly one saved article", () => {
-		expect(savedArticlesLabel(1)).toBe("1 Saved Article");
-	});
-
-	it("uses the plural form when there are no saved articles", () => {
-		expect(savedArticlesLabel(0)).toBe("0 Saved Articles");
-	});
-
-	it("uses the plural form for many saved articles", () => {
-		expect(savedArticlesLabel(42)).toBe("42 Saved Articles");
-	});
-});
 
 describe("showingLabel", () => {
 	it("reports the page's row count alone when the total is unknown", () => {
@@ -125,6 +110,26 @@ describe("renderReadlistCounts", () => {
 			assert(el, `the ${id} span must render`);
 			expect(el.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		}
+	});
+
+	it("names the read total on the Read tab", () => {
+		const doc = parse(
+			renderReadlistCounts(
+				toReadlistCountsDisplayModel({
+					filters: { ...DEFAULT_FILTERS, tab: "done" },
+					unreadCount: 3,
+					tabTotal: 42,
+					pageSize: 20,
+				}),
+			),
+		);
+
+		const number = doc.querySelector("[data-test-listing-count-number]");
+		const noun = doc.querySelector("[data-test-listing-count-noun]");
+		assert(number, "the count number span must render");
+		assert(noun, "the count noun span must render");
+		expect(number.textContent).toBe("42");
+		expect(noun.textContent).toBe("Read Articles");
 	});
 
 	it("refreshes the unread tab label out of band, queue-scoped and capped at 99+", () => {

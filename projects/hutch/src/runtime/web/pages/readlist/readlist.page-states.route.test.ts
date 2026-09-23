@@ -67,7 +67,7 @@ describe("GET /queue", () => {
 });
 
 describe("GET /queue/counts", () => {
-	it("names the saved total, the page position and the numbered pages", async () => {
+	it("names the unread total, the page position and the numbered pages", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await save(agent, "https://example.com/a");
@@ -77,7 +77,7 @@ describe("GET /queue/counts", () => {
 
 		const count = doc.getElementById("readlist-count");
 		assert(count, "the design count span must be rendered");
-		expect(count.textContent).toBe("2 Saved Articles");
+		expect(count.textContent).toBe("2 Unread Articles");
 
 		const info = doc.getElementById("readlist-pagination-info");
 		assert(info, "the design pagination-info span must be rendered");

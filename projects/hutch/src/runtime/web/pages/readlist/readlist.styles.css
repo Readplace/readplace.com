@@ -573,6 +573,33 @@
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.readlist__count-number {
+  display: inline-grid;
+  justify-items: end;
+}
+
+.readlist__count-value,
+.readlist__count-number::after {
+  grid-area: 1 / 1;
+}
+
+.readlist__count-number::after {
+  content: attr(data-widest);
+  visibility: hidden;
+}
+
+@media (scripting: enabled) {
+  .readlist__count-value--pending {
+    align-self: center;
+    width: 3em;
+    height: 0.7em;
+    border-radius: var(--radius-sm);
+    background: currentColor;
+    opacity: 0.25;
+  }
 }
 
 .readlist-listing__sort {

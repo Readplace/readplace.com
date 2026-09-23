@@ -19,6 +19,7 @@ interface TabQuery {
 
 interface TabDefinition {
 	label: string;
+	countNoun: string;
 	testFilter: string;
 	trackingContent: string;
 	labelId?: (readlist: ReadlistSlug) => string;
@@ -32,6 +33,7 @@ export interface ReadlistTab extends TabDefinition {
 const TAB_DEFINITIONS: Record<TabId, TabDefinition> = {
 	queue: {
 		label: "To Read",
+		countNoun: "Unread",
 		testFilter: "unread",
 		trackingContent: "filter-unread",
 		labelId: unreadLabelId,
@@ -39,6 +41,7 @@ const TAB_DEFINITIONS: Record<TabId, TabDefinition> = {
 	},
 	done: {
 		label: "Read",
+		countNoun: "Read",
 		testFilter: "read",
 		trackingContent: "filter-read",
 		query: { status: "read", sort: "readAt", defaultOrder: "desc" },
@@ -59,6 +62,10 @@ export function tabQuery(tab: TabId): TabQuery {
 
 export function tabLabel(tab: TabId): string {
 	return TAB_DEFINITIONS[tab].label;
+}
+
+export function tabCountNoun(tab: TabId): string {
+	return TAB_DEFINITIONS[tab].countNoun;
 }
 
 export function formatUnreadLabel(count: number): string {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 
+import { renderReadlistTabTotal } from "./readlist-tab-total.component";
 import { formatUnreadLabel, unreadLabelId } from "./readlist.tabs";
 import { type ReadlistUrlState, buildReadlistUrl } from "./readlist.url";
 
@@ -23,13 +24,9 @@ export interface ReadlistPageLink {
 export interface ReadlistCountsDisplayModel {
 	unreadLabelId: string;
 	filterUnreadLabel: string;
-	countLabel: string;
+	countHtml: string;
 	showingLabel: string;
 	pages: readonly ReadlistPageLink[];
-}
-
-export function savedArticlesLabel(total: number): string {
-	return `${total} Saved Article${total === 1 ? "" : "s"}`;
 }
 
 export function showingLabel(input: { rowsOnPage: number; total?: number }): string {
@@ -91,7 +88,7 @@ export function toReadlistCountsDisplayModel(input: {
 	return {
 		unreadLabelId: unreadLabelId(input.filters.readlist),
 		filterUnreadLabel: formatUnreadLabel(input.unreadCount),
-		countLabel: savedArticlesLabel(input.tabTotal),
+		countHtml: renderReadlistTabTotal({ tab: input.filters.tab, total: input.tabTotal, oob: true }),
 		showingLabel: showingLabel({ rowsOnPage, total: input.tabTotal }),
 		pages: buildReadlistPageLinks({ filters: input.filters, totalPages }),
 	};

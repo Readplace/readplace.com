@@ -45,7 +45,8 @@ import type { ReadlistViewModel } from "./readlist.viewmodel";
 import { renderReadlistAlert } from "./readlist-alert.component";
 import { readlistAlertFor } from "./readlist-alerts";
 import { renderReadlistCard, toReadlistCardDisplayModel } from "./readlist-card/readlist-card.component";
-import { savedArticlesLabel, showingLabel } from "./readlist-counts.component";
+import { showingLabel } from "./readlist-counts.component";
+import { renderReadlistTabTotal } from "./readlist-tab-total.component";
 import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
 import {
 	buildReadlistTabs,
@@ -182,9 +183,9 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 	};
 }
 
-function countLabelBeforeCounts(vm: ReadlistViewModel): string {
+function firstByteTotal(vm: ReadlistViewModel): number | undefined {
 	const totalIsKnown = vm.currentPage === 1 && !vm.paginationUrls.next;
-	return totalIsKnown ? savedArticlesLabel(vm.articles.length) : "Saved Articles";
+	return totalIsKnown ? vm.articles.length : undefined;
 }
 
 export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions): PageBody {
@@ -258,7 +259,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			}),
 		),
 		countsSpanHtml: renderReadlistCountsTrigger({ countsUrl: vm.countsUrl }),
-		countLabel: countLabelBeforeCounts(vm),
+		countHtml: renderReadlistTabTotal({ tab: filters.tab, total: firstByteTotal(vm) }),
 		sortUrl: withInternalTracking(
 			buildReadlistUrl({ readlist: filters.readlist, tab: filters.tab, order: nextOrder }),
 			{ source: "queue-sort", content: "sort", term: nextOrder },

@@ -50,6 +50,28 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		return email;
 	}
 
+	async function seedManyArticles(page: Page, stamp: string, count: number): Promise<string> {
+		const email = `readlist-no-js-${stamp}@example.com`;
+		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email, password: PASSWORD, verified: true },
+		});
+		assert.equal(created.status(), 201, "the e2e user fixture must create the owner");
+		const { userId } = CreatedUser.parse(await created.json());
+		for (let index = 0; index < count; index += 1) {
+			const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+				data: {
+					url: `https://example.com/queue-no-js-${stamp}-${index}`,
+					title: `A saved article numbered ${index}`,
+					content: "<p>Seeded so the listing spans more than one page.</p>",
+					contentFetchedAt: CONTENT_FETCHED_AT,
+					savedByUserId: userId,
+				},
+			});
+			assert.equal(seeded.status(), 201, "the seed endpoint must create the saved article");
+		}
+		return email;
+	}
+
 	async function loginAs(page: Page, email: string): Promise<void> {
 		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 		await page.locator("#email").fill(email);
@@ -112,6 +134,26 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(page.locator('[data-test-read-status="read"]')).toHaveCount(1, {
 			timeout: SETTLE_MS,
 		});
+	});
+
+	test("the listing count names the tab and shows no bar when the total is deferred", async ({
+		page,
+	}, testInfo) => {
+		const email = await seedManyArticles(page, `${testInfo.workerIndex}-${Date.now()}-count`, 21);
+		await loginAs(page, email);
+
+		const noun = page.locator("#readlist-count [data-test-listing-count-noun]");
+		await expect(noun).toHaveText("Unread Articles", { timeout: SETTLE_MS });
+
+		const number = page.locator("#readlist-count [data-test-listing-count-number]");
+		await expect(number).toBeEmpty();
+		const box = await number.boundingBox();
+		if (box) {
+			assert.ok(
+				box.width < 1,
+				`with scripting off the number slot must draw no skeleton bar, measured ${box.width}`,
+			);
+		}
 	});
 
 	test("the nav opens and signs the reader out with no script", async ({ page }, testInfo) => {

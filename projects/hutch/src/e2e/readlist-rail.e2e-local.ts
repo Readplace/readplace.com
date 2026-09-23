@@ -37,6 +37,8 @@ const UNREAD_TAB_LABEL = `${UNREAD_TAB} span[id]`;
 const READ_TAB = `${MAIN} [data-test-filter="read"]`;
 const SORT_LINK = `${MAIN} [data-test-sort]`;
 const ARTICLE_TITLE = `${MAIN} [data-test-article-title]`;
+const COUNT_NUMBER = `${MAIN} [data-test-listing-count-number]`;
+const COUNT_NOUN = `${MAIN} [data-test-listing-count-noun]`;
 
 const SEEDED_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const SEEDED_ARTICLES = [
@@ -405,6 +407,42 @@ test.describe("The readlist status tabs", () => {
 		);
 		await expect(page.locator(UNREAD_TAB)).toHaveText(`To Read (${SEEDED_ARTICLES.length})`);
 		releaseDefault();
+	});
+
+	test("keeps the listing count noun fixed whatever the number's width or loading state", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-rail-count-slot-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUserWithArticles(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+		await waitForBrandFonts(page, ["Inter"]);
+		await expect(page.locator(COUNT_NOUN)).toHaveText("Unread Articles");
+		await expect(page.locator(COUNT_NUMBER)).toHaveText(String(SEEDED_ARTICLES.length));
+		const known = await measuredBox(page, COUNT_NOUN);
+
+		await page.locator(COUNT_NUMBER).evaluate((el) => {
+			el.textContent = "9999+";
+		});
+		const widest = await measuredBox(page, COUNT_NOUN);
+
+		await page.locator(COUNT_NUMBER).evaluate((el) => {
+			el.textContent = "";
+			el.setAttribute("class", "readlist__count-value readlist__count-value--pending");
+		});
+		const pending = await measuredBox(page, COUNT_NOUN);
+
+		assert.equal(
+			widest.x,
+			known.x,
+			`the widest number must not push the noun, measured ${widest.x} against ${known.x}`,
+		);
+		assert.equal(
+			pending.x,
+			known.x,
+			`a pending number must not shift the noun, measured ${pending.x} against ${known.x}`,
+		);
 	});
 
 	test("reserves the unread tab's widest count from first paint", async ({ page }, testInfo) => {
