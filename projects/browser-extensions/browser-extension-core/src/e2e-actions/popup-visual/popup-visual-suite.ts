@@ -16,6 +16,8 @@ const LIST_SKELETON = "#list-skeleton-view:not([hidden])";
  * the same change is most of the image. */
 const HEADER = ".list-view__header";
 
+const PINNED_NEWEST_SAVE = [{ selector: ".list-view__time", text: "just now" }];
+
 async function open(
 	page: Page,
 	opts: { url: string; stub: string; wait: string },
@@ -117,7 +119,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				geometry: pagerShowsEveryControl,
 				target: "body",
 				capture: "element",
-				pinnedText: [],
+				pinnedText: PINNED_NEWEST_SAVE,
 			});
 			await captureCheckpoint(page, {
 				name: "popup-header-light",
@@ -140,7 +142,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 					geometry: pagerShowsEveryControl,
 					target: "body",
 					capture: "element",
-					pinnedText: [],
+					pinnedText: PINNED_NEWEST_SAVE,
 				});
 				await captureCheckpoint(page, {
 					name: "popup-header-dark",
