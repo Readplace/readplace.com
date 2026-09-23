@@ -48,7 +48,7 @@ Junk gets filtered before any of this. A saved link whose stored text turned out
 
 Recognising a familiar argument is something your own memory manages too, on a good day. What it drops is the when.
 
-Each row's date is the most recent time you marked that article read, in whichever readlist that happened. "You read this 5 days ago" and "You read this 14 months ago" ask for different things: skim what's fresh, or accept that the details are gone and let the old piece be new again.
+Each row's date is the most recent time you marked that article read, in whichever readlist that happened. "You read this 5 days ago" and "You read this 1 year ago" ask for different things: skim what's fresh, or accept that the details are gone and let the old piece be new again.
 
 Could search have done the same? Only with a query, and the query is exactly what a faded memory can't supply.
 
