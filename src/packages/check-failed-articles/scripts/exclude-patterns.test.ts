@@ -333,11 +333,11 @@ describe("EXCLUDE_PATTERNS — nhttps typo'd-scheme entry", () => {
 
 describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
-		{ url: "fabiensanglard.net/quake", excluded: true, label: "fabiensanglard quake exact" },
-		{ url: "https://fabiensanglard.net/quake", excluded: false, label: "fabiensanglard quake with scheme — different stored value" },
-		{ url: "fabiensanglard.net/quake/", excluded: false, label: "fabiensanglard quake with trailing slash" },
-		{ url: "fabiensanglard.net/quake2", excluded: false, label: "fabiensanglard quake with extra path char" },
-		{ url: "fabiensanglard.net/other", excluded: false, label: "same host different path" },
+		{ url: "https://fabiensanglard.net/quake", excluded: true, label: "fabiensanglard quake exact" },
+		{ url: "fabiensanglard.net/quake", excluded: false, label: "fabiensanglard quake schemeless — different stored value" },
+		{ url: "https://fabiensanglard.net/quake/", excluded: false, label: "fabiensanglard quake with trailing slash" },
+		{ url: "https://fabiensanglard.net/quake2", excluded: false, label: "fabiensanglard quake with extra path char" },
+		{ url: "https://fabiensanglard.net/other", excluded: false, label: "same host different path" },
 		{ url: "https://www.theinformation", excluded: true, label: "theinformation truncated exact (no trailing dots)" },
 		{ url: "https://www.theinformation....", excluded: true, label: "theinformation truncated with four trailing dots (actual storage shape)" },
 		{ url: "https://www.theinformation.", excluded: true, label: "theinformation truncated with one trailing dot" },

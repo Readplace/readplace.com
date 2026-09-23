@@ -87,7 +87,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// decided are "known broken / not worth investigating again". Each entry
 	// is anchored with `^…$` so it matches only the exact stored URL, not a
 	// whole host or path prefix.
-	/^fabiensanglard\.net\/quake$/i,
+	/^https:\/\/fabiensanglard\.net\/quake$/i,
 	// Tolerates up to four trailing `.` — the stored row literally ends in
 	// `....` (display truncation that leaked into the saved URL).
 	/^https:\/\/www\.theinformation\.{0,4}$/i,
