@@ -20,9 +20,9 @@ Halfway into a new article, the sense of having read this before now comes with 
 
 An article read 8 months ago survives as a feeling. The argument sounds familiar, but the piece that made it, and the week it was read, are gone.
 
-The reading list had both the whole time. It holds the article and the timestamp of the read, and until this week it kept them to itself.
+The reading list had both the whole time. It holds the article and the timestamp of the read, and until this week it handed one back only at the end of an article, and only when nothing unread related.
 
-Now the reader hands them back.
+Now the reader hands them back at the top, before the text begins.
 
 ## Between the summary and the first paragraph
 
