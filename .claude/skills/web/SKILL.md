@@ -258,15 +258,9 @@ Alternatively use the POST - Redirect - GET pattern.
 | Use semantic classes | Describe visual state (`.flight-segment--outbound`) |
 | Use BEM for scoping | Prevent class collisions (`.flight-segment__label`) |
 | Orphan/widow control lives on the prose container, not on `body` | A global `text-wrap` forces a full-page reflow |
-| Fonts come from `var(--font-serif)` / `var(--font-sans)` | Never inline the `Georgia, "Times New Roman", serif` stack — one source of truth, the shared base-styles module that declares the `--font-serif` token (grep for the quoted `"--font-serif"` key — the token map is a TypeScript object, not a stylesheet), like colours |
-| Buttons come from the shared button system | One button in the product — a per-page base class is how padding, radius, height, and hover direction drift apart |
-| Icons are inline same-origin SVG, drawn by the icon Handlebars helper (the `registerHelper` call in the shared renderer that resolves a name against the shared icon set and returns a SafeString — the other registration is the UTM tracking helper) | Never an icon font, an icon CDN, an entity/Unicode glyph (`× → ✓ ▾`), or a CSS `content:` glyph. See [Icon Style](../../../BRAND_GUIDELINES.md#icon-style) |
-
-A new page's `h1` and section `h2` must set `font-family: var(--font-serif)`, or
-they ship in the body sans by inheritance. In-card sub-labels, eyebrows,
-empty-state messages, and modal titles stay on `--font-sans` — the rule is
-heading-*level*, not the tag. See [typography rules in the brand
-guidelines](../../../BRAND_GUIDELINES.md#typography-rules).
+| Fonts come from `var(--font-serif)` / `var(--font-sans)` | One source of truth: the shared base-styles module that declares the `--font-serif` token (grep for the quoted `"--font-serif"` key — a TypeScript object, not a stylesheet). Never inline the stack. See [Typography](../../../BRAND_GUIDELINES.md#typefaces-in-use) |
+| Buttons come from the shared button system | From the button stylesheet the shared base-styles module injects into every `<head>`; a page stylesheet adds layout only. See [Buttons](../../../BRAND_GUIDELINES.md#buttons) |
+| Icons are inline same-origin SVG, drawn by the icon Handlebars helper (the `registerHelper` call in the shared renderer that resolves a name against the shared icon set and returns a SafeString — the other registration is the UTM tracking helper) | See [Icon Style](../../../BRAND_GUIDELINES.md#icon-style) |
 
 ```css
 /* ❌ BAD */
@@ -276,66 +270,16 @@ guidelines](../../../BRAND_GUIDELINES.md#typography-rules).
 .flight-segment--outbound { ... }
 ```
 
-Add `text-wrap: pretty` to body-copy selectors and `text-wrap: balance` to
-heading selectors — scoped to those selectors, never on `body`. Prefer the CSS
-property over a manual `&nbsp;`/`<br>` so a later copy edit can't reintroduce the
-orphan; reach for a manual break only when a specific shape (e.g. a centred
-pyramid heading) demands it. See [orphan control in the brand
-guidelines](../../../BRAND_GUIDELINES.md#typography-rules) for the exceptions
-(keyword rotator; centred pyramid title uses `pretty`, not `balance`).
-
-### Buttons Come From the Shared System
-
-Every call to action uses the shared button base class plus one variant modifier, from the
-button stylesheet that the shared base-styles module (the one whose token map holds the quoted `"--font-serif"` key) injects
-into every page's `<head>`. A page stylesheet contributes layout only — `width`, `margin`,
-grid/flex placement, `white-space`.
-
-Do **not** define a per-page button base class (`.<page>-btn`, `.<page>__*-btn`) that
-re-declares padding, radius, weight, fill, or hover. If a button needs something the shared
-set cannot express, add a variant to the shared set. See the [button system in the brand
-guidelines](../../../BRAND_GUIDELINES.md#buttons) for the variant taxonomy, the tier table,
-and the single hover rule.
-
-```css
-/* ❌ BAD — a fourth copy of the same button, with its own radius and hover direction */
-.checkout__pay-btn {
-  padding: var(--button-padding);
-  border-radius: var(--radius);
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-.checkout__pay-btn:hover { opacity: 0.9; }
-
-/* ✅ GOOD — markup is class="<shared-button-classes> checkout__pay-btn" */
-.checkout__pay-btn { width: 100%; }
-```
-
-### One Measure Per Page Column
-
-All stacked sections in a page column share a single content measure (see [Layout Principles](../../../BRAND_GUIDELINES.md#layout-principles)):
-
-```css
-/* ❌ BAD — prose capped narrower than the full-width tab bar above it */
-.booking { max-width: 800px; }
-.booking__intro { max-width: 56ch; }
-
-/* ✅ GOOD — the whole flow shares one measure */
-.booking { max-width: var(--reader-max-width); }
-.booking__intro { /* no per-section cap */ }
-```
-
-### Responsive Container Padding
-
-Container padding starts at the `lg` 24px token and grows to 32–40px at `@media (min-width: 768px)` (see [Layout Principles](../../../BRAND_GUIDELINES.md#layout-principles)):
-
-```css
-/* ✅ GOOD — mobile-affordable base, generous on desktop */
-.booking-card { padding: 24px; }
-@media (min-width: 768px) {
-  .booking-card { padding: 40px; }
-}
-```
+The brand guidelines own the design rules this skill used to restate — which
+heading levels are sans vs serif, orphan control, the button variant/tier
+taxonomy, one measure per column, and where container padding may grow. See
+[Typography Rules](../../../BRAND_GUIDELINES.md#typography-rules),
+[Buttons](../../../BRAND_GUIDELINES.md#buttons) and [Layout
+Principles](../../../BRAND_GUIDELINES.md#layout-principles). Enforce them in CSS;
+don't re-document their values here. One implementation reminder those rules
+don't carry: reach for the CSS `text-wrap` property, not a manual `&nbsp;`/`<br>`,
+so a later copy edit can't reintroduce an orphan — a hand-placed break only for a
+shape the property can't express (e.g. a centred pyramid heading).
 
 ### CSS Comment Index Format
 
@@ -352,10 +296,15 @@ Use numbered references for multi-line explanations:
 
 Point a drifting element at the shared token or the existing house pattern rather than a bespoke per-element value. The recurring "AI-generated" tell is pieces that should read as one system each styled in isolation — a second link colour here, a hand-tuned control height there.
 
-- **Inline body-copy links set `color: var(--primary-text)`.** There is no global bare-`<a>` reset, so an unstyled link renders browser-default blue — a styling gap, not a choice. One link token per page; emphasis inside a link is weight (`<strong>`), never a second hue. `--primary` is the fill token and is only 3.62:1 on white, below the 4.5:1 floor for text.
-- **An input paired with a button shares the button's height.** Set `height: var(--input-height)` on the input and give the button the shared field-aligned button tier (named in the [brand guidelines' size table](../../../BRAND_GUIDELINES.md#buttons)), which carries that height and `padding: 0 var(--button-padding-x)`; the input keeps `padding: var(--input-padding)`. `box-sizing: border-box` is global, so an explicit shared height is the only reliable equaliser — never fake the match with padding or font-size, and never re-declare the height on the button.
+The token colours, the input/button height pairing, and the marketing
+section-band rhythm are all in the brand guidelines ([Colour
+Rules](../../../BRAND_GUIDELINES.md#colour-rules), [Form
+Inputs](../../../BRAND_GUIDELINES.md#form-inputs), [Layout
+Principles](../../../BRAND_GUIDELINES.md#layout-principles)) — reach for those
+tokens rather than a bespoke per-element value. One page-specific reminder the
+guidelines don't carry:
+
 - **A directional `→` on a guide link is all-or-nothing across a page.** If one forward/guide link carries the trailing arrow, every sibling link to the same destination carries it too — and an arrow-terminated link takes no trailing period.
-- **Section background rhythm.** A long marketing page alternates `--background` and `--muted` section bands so no two adjacent content sections share a fill; each muted band carries a `1px var(--border)` top/bottom rule (the muted-band modifier the home and landing page stylesheets each define; [Layout Principles](../../../BRAND_GUIDELINES.md#layout-principles) cites the reference pattern). `--card` is a card-only surface, never a full-bleed section background.
 
 ### Copyable Fields Are One Box
 

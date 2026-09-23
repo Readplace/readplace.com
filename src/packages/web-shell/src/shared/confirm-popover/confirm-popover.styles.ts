@@ -84,7 +84,7 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 }
 
 /* A modal's title line is UI, so it stays on the body sans even though it is
- * an h2 (BRAND_GUIDELINES.md:152). Declared, not inherited, so a later h2
+ * an h2. Declared, not inherited, so a later h2
  * rule cannot silently flip it to the serif stack. */
 .confirm-popover__title {
 	font-family: var(--font-sans);

@@ -1348,10 +1348,6 @@
   }
 }
 
-/* Per-page destructive button, deliberately not `.btn`: a page stylesheet may
- * add layout to a .btn and nothing else (BRAND_GUIDELINES.md:200), and
- * destructive is styled per page by design (:215). Hover swaps the fill rather
- * than fading it — never opacity on a filled button (:238-244). */
 .readlist-delete__cta {
   display: inline-flex;
   align-items: center;
