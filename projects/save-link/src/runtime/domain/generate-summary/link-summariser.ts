@@ -101,7 +101,11 @@ export function initLinkSummariser(deps: {
 		const parsed = SummaryPayload.parse(JSON.parse(textBlock.text));
 		const summary = parsed.summary.trim();
 		if (summary === "Summary not available.") {
-			deps.logger.info("[summarize] AI returned unavailable", { url: params.url });
+			deps.logger.info("[summarize] model returned the refusal sentinel", {
+				url: params.url,
+				raw: textBlock.text,
+				usage: response.usage,
+			});
 			return { kind: "declined" };
 		}
 

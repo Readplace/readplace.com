@@ -15,7 +15,7 @@ const REASON_MESSAGES: Record<StuckReason, string> = {
 	"summary-pending": "summaryStatus is 'pending' — summary worker never produced a terminal outcome",
 	"crawl-pending": "crawlStatus is 'pending' — crawl worker never produced a terminal outcome",
 	"summary-skipped-ai-unavailable":
-		"summaryStatus is 'skipped' with reason 'ai-unavailable' — AI was down when summarisation ran; no auto-heal fires for skipped rows, recrawl via /admin/recrawl now that AI is back",
+		"summaryStatus is 'skipped' with reason 'ai-unavailable' — the summariser's model answered with its refusal sentinel (the provider was up; this is not an outage); no auto-heal fires for skipped rows, so the summary re-runs only on a content change or a recrawl via /admin/recrawl",
 };
 
 export function checkTerminalState(fields: ArticleStateFields): TerminalCheckResult {

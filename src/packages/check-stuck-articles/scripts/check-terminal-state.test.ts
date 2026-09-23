@@ -21,7 +21,7 @@ describe("checkTerminalState", () => {
 		assert.deepStrictEqual(result, { terminal: true });
 	});
 
-	it("returns terminal:false with the ai-unavailable message when the summariser recorded AI as down", () => {
+	it("returns terminal:false with the ai-unavailable message when the model returned the refusal sentinel", () => {
 		const result = checkTerminalState({
 			summaryStatus: "skipped",
 			crawlStatus: "ready",

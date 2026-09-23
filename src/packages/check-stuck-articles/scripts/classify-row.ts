@@ -9,10 +9,10 @@ export type StuckReason =
  * Map a row to the reasons it is "stuck". Empty array = the row is healthy
  * and no manual retry is owed. The canary surfaces:
  *   - `pending` on either axis (worker never moved past in-flight).
- *   - `summary.skipped("ai-unavailable")` — AI was down when summarisation
- *     ran. The generate-summary handler treats `skipped` as a terminal cache
- *     hit and never re-runs the AI, and `decideSummaryAutoHeal` only re-primes
- *     `failed` rows, so without this signal the row sits skipped forever.
+ *   - `summary.skipped("ai-unavailable")`. The generate-summary handler treats
+ *     `skipped` as a terminal cache hit and never re-runs the AI, and
+ *     `decideSummaryAutoHeal` only re-primes `failed` rows, so without this
+ *     signal the row sits skipped forever.
  * `failed` rows are intentionally excluded — the DLQ alarm is their signal.
  * Other `skipped` reasons (`content-too-short`, `crawl-unsupported`) are not
  * surfaced: a pure retry cannot change the input that produced the skip.

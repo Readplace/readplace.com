@@ -302,12 +302,12 @@ describe("collectStuckRows", () => {
 		);
 	});
 
-	it("surfaces a summary.skipped('ai-unavailable') row as summary-skipped-ai-unavailable (the AI was down, manual recrawl needed)", async () => {
+	it("surfaces a summary.skipped('ai-unavailable') row as summary-skipped-ai-unavailable (the model returned the refusal sentinel, manual recrawl needed)", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
-					url: "example.test/ai-was-down",
-					originalUrl: "https://example.test/ai-was-down",
+					url: "example.test/refusal-sentinel",
+					originalUrl: "https://example.test/refusal-sentinel",
 					summaryStatus: "skipped",
 					summarySkippedReason: "ai-unavailable",
 					crawlStatus: "ready",

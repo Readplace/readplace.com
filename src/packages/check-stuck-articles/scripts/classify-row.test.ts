@@ -98,7 +98,7 @@ describe("classifyRow", () => {
 	});
 
 	describe("summary skipped ai-unavailable", () => {
-		it("returns summary-skipped-ai-unavailable when the summariser recorded the AI as down (no auto-heal fires for skipped, manual recrawl is the only recovery)", () => {
+		it("returns summary-skipped-ai-unavailable when the model returned the refusal sentinel (no auto-heal fires for skipped, manual recrawl is the only recovery)", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "ready",
@@ -136,7 +136,7 @@ describe("classifyRow", () => {
 			assert.deepStrictEqual(reasons, []);
 		});
 
-		it("returns crawl-pending and summary-skipped-ai-unavailable when crawl is in flight while a prior summary attempt was skipped on AI down", () => {
+		it("returns crawl-pending and summary-skipped-ai-unavailable when crawl is in flight while a prior summary attempt was skipped because the model returned the refusal sentinel", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "pending",

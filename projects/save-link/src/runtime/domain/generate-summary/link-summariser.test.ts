@@ -87,6 +87,35 @@ describe("initLinkSummariser", () => {
 		expect(result).toEqual({ kind: "declined" });
 	});
 
+	it("logs the model's raw reply and token usage with the refusal sentinel, so the refusal can be diagnosed from the logs", async () => {
+		const raw = '{"summary": "Summary not available.", "excerpt": "Summary not available.", "note": "kept"}';
+		const usage = { input_tokens: 44000, output_tokens: 20, cache_hit_input_tokens: 43000, cache_miss_input_tokens: 1000 };
+		const createMessage: CreateAiMessage = async () => ({
+			content: [{ type: "text", text: raw }],
+			usage,
+		});
+		const info = jest.fn();
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: { ...noopLogger, info },
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		await summarizeArticle({
+			url: "https://example.com/registry",
+			textContent: "A registry table with little prose.",
+		});
+
+		expect(info).toHaveBeenCalledWith("[summarize] model returned the refusal sentinel", {
+			url: "https://example.com/registry",
+			raw,
+			usage,
+		});
+	});
+
 	it("returns kind 'no-text-block' when the response has no text block", async () => {
 		const createMessage: CreateAiMessage = async () => ({
 			content: [{ type: "tool_use" }],
