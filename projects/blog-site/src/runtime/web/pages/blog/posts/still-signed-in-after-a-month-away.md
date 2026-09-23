@@ -18,7 +18,7 @@ Nothing had ever told Readplace's sign-in system how long a sign-in should last,
 </div>
 </details>
 
-On paper, a Readplace sign-in survives 180 days of neglect. A comment in the OAuth client store promises a client record that outlives "the 180-day refresh-token lifetime". A fallback in the token model names the same 180. 2 readers of the code, months apart, took the number at face value.
+On paper, a Readplace sign-in holds through 180 days of neglect. A comment in the OAuth client store promises a client record that outlives "the 180-day refresh-token lifetime". A fallback in the token model names the same 180. 2 readers of the code, months apart, took the number at face value.
 
 The tokens in production expired a fortnight after their last use. Every row I sampled said so, 40 of 40.
 
@@ -62,4 +62,4 @@ One boundary worth naming: this change covers what runs on tokens, which is the 
 
 A read-it-later product makes a strange promise: leave, and your reading will still be here. The sign-in was the one part of Readplace not keeping it. That promise now includes the sign-in.
 
-A sign-in made today in [the browser extension](https://readplace.com/install) or [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store) now outlasts any break in your reading shorter than 6 months. Whatever you save tonight opens without a password when its evening finally comes. [Your readlist](/?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=home) will be exactly where you left it.
+Whichever door you sign in through, [the browser extension](https://readplace.com/install) or [the iPhone app](/blog/readplace-iphone-app-on-the-app-store?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=post-readplace-iphone-app-on-the-app-store), that sign-in now outlasts any break in your reading shorter than 6 months. Whatever you save tonight opens without a password when its evening finally comes. [Your readlist](/?utm_source=blog-still-signed-in-after-a-month-away&utm_medium=internal&utm_content=home) will be exactly where you left it.
