@@ -67,7 +67,6 @@
 
   .readlist-article__title,
   .readlist-article__excerpt,
-  .readlist-article__site,
   .readlist-article__stale {
     overflow-wrap: anywhere;
   }
@@ -729,6 +728,7 @@
   gap: 14px;
   min-width: 0;
   font-size: 0.8125rem;
+  line-height: 1.6;
   color: var(--muted-foreground);
 }
 
@@ -739,7 +739,9 @@
 .readlist-article__status {
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
   flex: 0 0 auto;
+  height: calc(0.8125rem * 1.6);
 }
 
 .readlist-article__status--unread {
@@ -774,6 +776,24 @@
   text-decoration: none;
 }
 
+.readlist-article__site {
+  flex: 1 1 12ch;
+  min-width: 0;
+  max-width: max-content;
+}
+
+.readlist-article__site-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.readlist-article__saved,
+.readlist-article__read-time {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .readlist-article__site:hover {
   color: var(--foreground);
 }
@@ -782,6 +802,7 @@
 .readlist-article__saved svg,
 .readlist-article__read-time svg,
 .readlist-article__processing svg {
+  flex: 0 0 auto;
   width: 0.9375rem;
   height: 0.9375rem;
 }

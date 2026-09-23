@@ -346,6 +346,20 @@ describe("renderReadlistCard", () => {
 		expect(link.classList.contains("readlist-article__site--empty")).toBe(false);
 	});
 
+	it("carries the full site name in the link title so a truncated name stays readable", () => {
+		const fullName = "Andi Roberts - Executive Coach | Leadership Trainer | Facilitator";
+		const doc = parse(
+			renderReadlistCard(display(makeViewModel({ siteName: fullName }), { isFirst: false })),
+		);
+
+		const link = doc.querySelector("[data-test-article-url]");
+		assert(link, "the site link must always be rendered");
+		expect(link.getAttribute("title")).toBe(fullName);
+		const name = link.querySelector(".readlist-article__site-name");
+		assert(name, "the site name span must be rendered");
+		expect(name.textContent).toBe(fullName);
+	});
+
 	it("marks the read time empty when the crawl has not landed", () => {
 		const doc = parse(
 			renderReadlistCard(display(makeViewModel({ readTime: undefined }), { isFirst: false })),
