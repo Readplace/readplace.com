@@ -6,7 +6,7 @@ date: "2026-09-19"
 author: "Fayner Brack"
 keywords: "have i read this before, remember what you read, reading history recall, previously read articles, resurface old reads, read it later with memory, connect articles you read, personal reading memory, readplace"
 tags: ["changelog"]
-banner: "I made the reader remind you of what you've already read"
+banner: "The reader reminds you of what you've already read"
 ---
 
 <details class="blog-tldr">
