@@ -934,6 +934,9 @@ importers:
       serverless-http:
         specifier: 4.0.0
         version: 4.0.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@packages/check-unused-css':
         specifier: workspace:*

@@ -7,7 +7,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import express from "express";
 import { initEmbedRoutes } from "./embed.page";
-import { renderCanonicalSnippet } from "./snippet.component";
+import { PAGE_URL_PLACEHOLDER, SNIPPET_VARIANTS, byteLength, renderCanonicalSnippet } from "./snippet.component";
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -61,6 +61,8 @@ describe("GET /embed", () => {
 		const server = makeServer();
 		const iconResponse = await request(server).get("/embed/icon.svg");
 		expect(iconResponse.headers["content-signal"]).toBeUndefined();
+		const smallIconResponse = await request(server).get("/embed/icon-small.svg");
+		expect(smallIconResponse.headers["content-signal"]).toBeUndefined();
 		const scriptResponse = await request(server).get("/embed/embed.client.js");
 		expect(scriptResponse.headers["content-signal"]).toBeUndefined();
 	});
@@ -72,7 +74,7 @@ describe("GET /embed", () => {
 		assert(page, "embed page container must be rendered");
 		const title = page.querySelector(".embed-page__title");
 		assert(title, "hero title must be rendered");
-		expect(title.textContent).toBe("A save button for your readers.");
+		expect(title.textContent).toBe("A save button for your readers");
 	});
 
 	it("should render all three variants with numeric byte counts", async () => {
@@ -84,7 +86,7 @@ describe("GET /embed", () => {
 		for (const id of ["bytes-a", "bytes-b", "bytes-c"] as const) {
 			const bytes = doc.querySelector(`[data-test="${id}"]`);
 			assert(bytes, `${id} byte count must be rendered`);
-			expect(bytes.textContent).toMatch(/^\d+ bytes$/);
+			expect(bytes.textContent).toMatch(/^[\d,]+ bytes$/);
 		}
 	});
 
@@ -112,15 +114,14 @@ describe("GET /embed", () => {
 		}
 	});
 
-	it("should render every snippet source with the canonical save URL and PAGE_URL placeholder", async () => {
+	it("should render every snippet source as the canonical snippet with the PAGE_URL placeholder", async () => {
 		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 
-		for (const id of ["source-a", "source-b", "source-c"] as const) {
-			const source = doc.querySelector(`[data-test="${id}"]`);
-			assert(source, `${id} source block must be rendered`);
-			expect(source.textContent).toContain("https://readplace.com/save?url=PAGE_URL");
-			expect(source.textContent).toContain("https://readplace.com/embed/icon.svg");
+		for (const variant of SNIPPET_VARIANTS) {
+			const source = doc.querySelector(`[data-test="source-${variant}"]`);
+			assert(source, `source-${variant} block must be rendered`);
+			expect(source.textContent).toBe(renderCanonicalSnippet({ variant, pageUrl: PAGE_URL_PLACEHOLDER }));
 		}
 	});
 
@@ -131,7 +132,9 @@ describe("GET /embed", () => {
 		assert(demo, "hero demo container must be rendered");
 		const anchor = demo.querySelector("a");
 		assert(anchor, "hero demo must contain an anchor");
-		expect(anchor.getAttribute("href")).toBe("https://readplace.com/save?url=https://readplace.com/embed/&save_surface=embed");
+		expect(anchor.getAttribute("href")).toBe(
+			"/save?url=https%3A%2F%2Freadplace.com%2Fembed%2F&save_surface=embed&utm_source=embed-hero&utm_medium=internal&utm_content=save-demo",
+		);
 	});
 
 	it("should render the quotable privacy statement", async () => {
@@ -149,11 +152,19 @@ describe("GET /embed", () => {
 		expect(doc.querySelectorAll("button[data-copy]")).toHaveLength(4);
 	});
 
+	it("should render every copy button hidden, so a reader without the clipboard API sees only the selectable source", async () => {
+		const response = await request(makeServer()).get("/embed");
+		const doc = new JSDOM(response.text).window.document;
+		const buttons = Array.from(doc.querySelectorAll("button[data-copy]"));
+		expect(buttons.map((button) => button.hasAttribute("hidden"))).toEqual([true, true, true, true]);
+	});
+
 	it("should reference the copy-to-clipboard script same-origin, not inline", async () => {
 		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const script = doc.querySelector('script[src$="/embed/embed.client.js"]');
-		expect(script).not.toBeNull();
+		assert(script, "the client script must be referenced");
+		expect(script.getAttribute("src")).toBe("/embed/embed.client.js");
 		expect(response.text).not.toContain("navigator.clipboard");
 	});
 
@@ -177,12 +188,20 @@ describe("GET /embed", () => {
 		expect(robots.getAttribute("content")).toBe("index, follow");
 	});
 
-	it("should substitute the Readplace app origin in live preview save links when appOrigin differs from the canonical value", async () => {
+	it("should point every live variant preview at the root-relative save endpoint, tagged per variant", async () => {
 		const response = await request(makeServer({ appOrigin: "http://127.0.0.1:9999" })).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
-		const previewAnchor = doc.querySelector('[data-test="preview-b"] a');
-		assert(previewAnchor, "preview-b anchor must be rendered");
-		expect(previewAnchor.getAttribute("href")).toContain("http://127.0.0.1:9999/save?url=");
+		const hrefs = SNIPPET_VARIANTS.map((variant) => {
+			const previewAnchor = doc.querySelector(`[data-test="preview-${variant}"] a`);
+			assert(previewAnchor, `preview-${variant} anchor must be rendered`);
+			return previewAnchor.getAttribute("href");
+		});
+		expect(hrefs).toEqual(
+			SNIPPET_VARIANTS.map(
+				(variant) =>
+					`/save?url=http%3A%2F%2F127.0.0.1%3A9999%2Fembed%2F&save_surface=embed&utm_source=embed-variants&utm_medium=internal&utm_content=save-variant-${variant}`,
+			),
+		);
 	});
 
 	it("should substitute the embed origin in live preview icon URLs so the dev server can serve them", async () => {
@@ -198,7 +217,7 @@ describe("GET /embed", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const source = doc.querySelector('[data-test="source-b"]');
 		assert(source, "source-b must be rendered");
-		expect(source.textContent).toBe(renderCanonicalSnippet("b"));
+		expect(source.textContent).toBe(renderCanonicalSnippet({ variant: "b", pageUrl: PAGE_URL_PLACEHOLDER }));
 	});
 
 	it("should link the footer back to the Readplace app origin, tagged so the click is attributable", async () => {
@@ -206,9 +225,7 @@ describe("GET /embed", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const link = doc.querySelector('[data-test="link-app"]');
 		assert(link, "app link must be rendered");
-		expect(link.getAttribute("href")).toBe(
-			"https://readplace.com/?utm_source=embed-footer&utm_medium=internal&utm_content=home",
-		);
+		expect(link.getAttribute("href")).toBe("/?utm_source=embed-footer&utm_medium=internal&utm_content=home");
 	});
 
 	it("should render the shared guest header nav when no session cookie resolves to a user", async () => {
@@ -231,6 +248,144 @@ describe("GET /embed", () => {
 			el.getAttribute("data-test-nav-item"),
 		);
 		expect(items).toEqual(expect.arrayContaining(["queue", "import", "inbox", "account", "logout"]));
+	});
+
+	it("should pin a guest's page to the light theme", async () => {
+		const response = await request(makeServer()).get("/embed");
+		const doc = new JSDOM(response.text).window.document;
+		expect(Array.from(doc.body.classList)).toEqual(["page-embed", "theme-light"]);
+	});
+
+	it("should let a signed-in reader's page follow the system theme", async () => {
+		const response = await request(makeServer({ resolveLogin: authedResolver }))
+			.get("/embed")
+			.set("Cookie", "hutch_sid=valid");
+		const doc = new JSDOM(response.text).window.document;
+		expect(Array.from(doc.body.classList)).toEqual(["page-embed"]);
+	});
+
+	it("should tie each snippet body to its canonical PAGE_URL template and its byte chip, for live substitution", async () => {
+		const response = await request(makeServer()).get("/embed?url=https://example.com/a");
+		const doc = new JSDOM(response.text).window.document;
+
+		for (const variant of SNIPPET_VARIANTS) {
+			const source = doc.querySelector(`[data-test="source-${variant}"]`);
+			assert(source, `source-${variant} block must be rendered`);
+			expect(source.getAttribute("data-snippet-template")).toBe(
+				renderCanonicalSnippet({ variant, pageUrl: PAGE_URL_PLACEHOLDER }),
+			);
+			const bytes = doc.querySelector(`[data-test="bytes-${variant}"]`);
+			assert(bytes, `bytes-${variant} chip must be rendered`);
+			expect(bytes.getAttribute("data-snippet-bytes")).toBe(source.id);
+		}
+	});
+});
+
+describe("GET /embed article link form", () => {
+	function urlField(doc: Document): Element {
+		const field = doc.querySelector('#variants form [name="url"]');
+		assert(field, "the article link field must be rendered inside the variants section");
+		return field;
+	}
+
+	function errorText(doc: Document): string | null {
+		const error = doc.querySelector('[data-test="url-error"]');
+		assert(error, "the field error slot must be rendered");
+		return error.textContent;
+	}
+
+	function sources(doc: Document): (string | null)[] {
+		return SNIPPET_VARIANTS.map((variant) => {
+			const source = doc.querySelector(`[data-test="source-${variant}"]`);
+			assert(source, `source-${variant} block must be rendered`);
+			return source.textContent;
+		});
+	}
+
+	function byteCounts(doc: Document): (string | null)[] {
+		return SNIPPET_VARIANTS.map((variant) => {
+			const bytes = doc.querySelector(`[data-test="bytes-${variant}"]`);
+			assert(bytes, `bytes-${variant} chip must be rendered`);
+			return bytes.textContent;
+		});
+	}
+
+	function placeholderSources(): string[] {
+		return SNIPPET_VARIANTS.map((variant) => renderCanonicalSnippet({ variant, pageUrl: PAGE_URL_PLACEHOLDER }));
+	}
+
+	it("submits a GET back to the variants band of /embed, carrying its UTM tags in hidden inputs and the link as a url field", async () => {
+		const response = await request(makeServer()).get("/embed");
+		const doc = new JSDOM(response.text).window.document;
+		const field = urlField(doc);
+		const form = field.closest("form");
+		assert(form, "the article link field must sit inside a form");
+		expect(form.getAttribute("method")).toBe("GET");
+		expect(form.getAttribute("action")).toBe("/embed#variants");
+		const hidden = Array.from(form.querySelectorAll('input[type="hidden"]')).map((input) => [
+			input.getAttribute("name"),
+			input.getAttribute("value"),
+		]);
+		expect(hidden).toEqual([
+			["utm_source", "embed-variants"],
+			["utm_medium", "internal"],
+			["utm_content", "customise-snippets"],
+		]);
+		expect(field.getAttribute("type")).toBe("url");
+	});
+
+	it("renders every snippet with the reader's link, and counts the bytes of exactly that source", async () => {
+		const response = await request(makeServer()).get(
+			"/embed?utm_source=embed-variants&utm_medium=internal&utm_content=customise-snippets&url=https%3A%2F%2Fexample.com%2Fa",
+		);
+		const doc = new JSDOM(response.text).window.document;
+		const expected = SNIPPET_VARIANTS.map((variant) =>
+			renderCanonicalSnippet({ variant, pageUrl: "https://example.com/a" }),
+		);
+		expect(sources(doc)).toEqual(expected);
+		expect(byteCounts(doc)).toEqual(expected.map((source) => `${byteLength(source).toLocaleString("en-US")} bytes`));
+		expect(urlField(doc).getAttribute("value")).toBe("https://example.com/a");
+		expect(urlField(doc).getAttribute("aria-invalid")).toBe("false");
+		expect(errorText(doc)).toBe("");
+	});
+
+	it("keeps the PAGE_URL placeholder and no error when the link is left empty", async () => {
+		const response = await request(makeServer()).get("/embed?url=");
+		const doc = new JSDOM(response.text).window.document;
+		expect(sources(doc)).toEqual(placeholderSources());
+		expect(urlField(doc).getAttribute("value")).toBe("");
+		expect(urlField(doc).getAttribute("aria-invalid")).toBe("false");
+		expect(errorText(doc)).toBe("");
+	});
+
+	it("puts an invalid link back in the field with an error, and keeps the snippets on the PAGE_URL placeholder", async () => {
+		const response = await request(makeServer()).get("/embed?url=nope");
+		const doc = new JSDOM(response.text).window.document;
+		const field = urlField(doc);
+		expect(sources(doc)).toEqual(placeholderSources());
+		expect(field.getAttribute("value")).toBe("nope");
+		expect(field.getAttribute("aria-invalid")).toBe("true");
+		expect(field.getAttribute("aria-describedby")).toBe("article-url-error");
+		expect(field.classList.contains("embed-url-input__field--invalid")).toBe(true);
+		expect(errorText(doc)).toBe("Enter a full link, including https://.");
+	});
+
+	it("treats a repeated url parameter as an invalid link", async () => {
+		const response = await request(makeServer()).get("/embed?url=https://example.com/a&url=https://example.com/b");
+		const doc = new JSDOM(response.text).window.document;
+		expect(sources(doc)).toEqual(placeholderSources());
+		expect(urlField(doc).getAttribute("value")).toBe("");
+		expect(urlField(doc).getAttribute("aria-invalid")).toBe("true");
+		expect(errorText(doc)).toBe("Enter a full link, including https://.");
+	});
+
+	it("serves each snippet source as a fenced code block to a markdown reader", async () => {
+		const response = await request(makeServer()).get("/embed").set("Accept", "text/markdown");
+		expect(response.headers["content-type"]).toMatch(/text\/markdown/);
+		for (const variant of SNIPPET_VARIANTS) {
+			const source = renderCanonicalSnippet({ variant, pageUrl: PAGE_URL_PLACEHOLDER });
+			expect(response.text).toContain(`\`\`\`\n${source}\n\`\`\``);
+		}
 	});
 });
 
@@ -258,6 +413,19 @@ describe("GET /embed/preview", () => {
 		}
 	});
 
+	it("should tag every stage's save links with that stage and the variant", async () => {
+		const response = await request(makeServer()).get("/embed/preview");
+		const doc = new JSDOM(response.text).window.document;
+		const hrefs = Array.from(doc.querySelectorAll(".embed-preview__stage a")).map((anchor) => anchor.getAttribute("href"));
+		const expected = ["white", "surface", "dark"].flatMap((stage) =>
+			SNIPPET_VARIANTS.map(
+				(variant) =>
+					`/save?url=https%3A%2F%2Freadplace.com%2Fembed%2Fpreview&save_surface=embed&utm_source=embed-preview-${stage}&utm_medium=internal&utm_content=save-variant-${variant}`,
+			),
+		);
+		expect(hrefs).toEqual(expected);
+	});
+
 	it("should render each variant once inside every background stage", async () => {
 		const response = await request(makeServer()).get("/embed/preview");
 		const doc = new JSDOM(response.text).window.document;
@@ -266,6 +434,37 @@ describe("GET /embed/preview", () => {
 		for (const stage of Array.from(stages)) {
 			expect(stage.querySelectorAll("a")).toHaveLength(3);
 		}
+	});
+});
+
+describe("GET /embed/icon-small.svg", () => {
+	it("should return the dotless small mark with the SVG content type and immutable cache header", async () => {
+		const response = await request(makeServer())
+			.get("/embed/icon-small.svg")
+			.buffer(true)
+			.parse((res, cb) => {
+				let data = "";
+				res.setEncoding("utf8");
+				res.on("data", (chunk) => {
+					data += chunk;
+				});
+				res.on("end", () => cb(null, data));
+			});
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/image\/svg\+xml/);
+		expect(response.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+		const doc = new JSDOM(response.body).window.document;
+		const svg = doc.querySelector("svg");
+		assert(svg, "the small mark must be an svg");
+		expect(svg.getAttribute("viewBox")).toBe("0 0 512 512");
+		const tile = doc.querySelector("rect");
+		assert(tile, "the small mark must carry its navy tile");
+		expect(tile.getAttribute("fill")).toBe("#2B3A55");
+		expect(tile.getAttribute("stroke-opacity")).toBe("0.4");
+		const glyph = doc.querySelector("path");
+		assert(glyph, "the small mark must carry its ampersand");
+		expect(glyph.getAttribute("d")).toMatch(/^M207\.77 405\.2Q/);
+		expect(doc.querySelectorAll("circle")).toHaveLength(0);
 	});
 });
 

@@ -8,11 +8,24 @@ import {
 	sendComponent,
 } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
+import { z } from "zod";
 import { contentSignalMiddleware } from "./content-signal.middleware";
-import { EmbedPage } from "./embed.component";
+import { EmbedPage, type EmbedPageUrl } from "./embed.component";
 import { PreviewPage } from "./preview.component";
-import { EMBED_ICON_SVG } from "./icon";
+import { EMBED_ICON_SMALL_SVG, EMBED_ICON_SVG } from "./icon";
 import { EMBED_CLIENT_JS } from "./embed-client-script";
+
+const EmbedQuerySchema = z.object({ url: z.string().trim().optional() });
+const PageUrlSchema = z.url();
+
+function parseEmbedQuery(query: unknown): EmbedPageUrl {
+	const parsed = EmbedQuerySchema.safeParse(query);
+	if (!parsed.success) return { kind: "invalid", raw: "" };
+	const raw = parsed.data.url;
+	if (!raw) return { kind: "empty" };
+	const url = PageUrlSchema.safeParse(raw);
+	return url.success ? { kind: "valid", url: url.data } : { kind: "invalid", raw };
+}
 
 export function initEmbedRoutes(deps: {
 	appOrigin: string;
@@ -48,12 +61,13 @@ export function initEmbedRoutes(deps: {
 
 	router.get("/", async (req, res) => {
 		const state = await bannerStateFor(req);
-		sendComponent(req, res, deps.base(EmbedPage({ appOrigin: deps.appOrigin, embedOrigin }), state));
+		const pageUrl = parseEmbedQuery(req.query);
+		sendComponent(req, res, deps.base(EmbedPage({ embedOrigin, pageUrl }), state));
 	});
 
 	router.get("/preview", async (req, res) => {
 		const state = await bannerStateFor(req);
-		sendComponent(req, res, deps.base(PreviewPage({ appOrigin: deps.appOrigin, embedOrigin }), state));
+		sendComponent(req, res, deps.base(PreviewPage({ embedOrigin }), state));
 	});
 
 	router.get("/icon.svg", (_req, res) => {
@@ -63,12 +77,19 @@ export function initEmbedRoutes(deps: {
 			.send(EMBED_ICON_SVG);
 	});
 
+	router.get("/icon-small.svg", (_req, res) => {
+		res
+			.type("image/svg+xml")
+			.set("Cache-Control", "public, max-age=31536000, immutable")
+			.send(EMBED_ICON_SMALL_SVG);
+	});
+
 	router.get("/embed.client.js", (_req, res) => {
 		/** Revalidate, don't cache immutably: the page HTML is rendered fresh per
-		 * request and the script depends on its IDs/classes, so a stale-but-valid
-		 * copy would desync from the markup. The weak ETag res.send() emits keeps
-		 * returning visitors on cheap 304s. icon.svg stays immutable because it is
-		 * a canonical, content-stable URL embedded across the web. */
+		 * request, so a stale-but-valid copy would desync from the markup. The
+		 * weak ETag res.send() emits keeps returning visitors on cheap 304s.
+		 * icon.svg stays immutable because it is a canonical, content-stable URL
+		 * embedded across the web. */
 		res
 			.type("text/javascript")
 			.set("Cache-Control", "public, max-age=0, must-revalidate")

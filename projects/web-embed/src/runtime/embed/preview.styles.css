@@ -1,26 +1,27 @@
 .embed-preview {
-  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace;
-  padding: 48px 24px 96px;
+  padding: 48px 16px 64px;
 }
 
 .embed-preview__container {
-  max-width: 840px;
+  max-width: var(--reader-max-width);
   margin: 0 auto;
 }
 
 .embed-preview__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--color-secondary);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--foreground);
+  text-wrap: balance;
   margin: 0 0 8px;
 }
 
 .embed-preview__intro {
   font-size: 0.9375rem;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
   margin: 0 0 40px;
-  max-width: 640px;
 }
 
 .embed-preview__group {
@@ -28,55 +29,67 @@
 }
 
 .embed-preview__group-title {
-  font-family: var(--font-serif);
-  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--color-text-muted);
+  line-height: 1.3;
+  color: var(--foreground);
+  text-wrap: balance;
   margin: 0 0 12px;
 }
 
+/**
+ * 1. A stage stands in for a publisher's page, so its colours don't follow the theme.
+ */
 .embed-preview__stage {
-  padding: 32px;
-  border-radius: var(--radius);
-  border: 1px solid var(--color-border);
+  --stage-rule: color-mix(in srgb, var(--stage-label) 30%, transparent);
+  padding: 24px;
+  background: var(--stage-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .embed-preview__stage--white {
-  background: var(--color-background);
-  color: var(--color-text-primary);
+  --stage-bg: #FFFFFF; /* 1 */
+  --stage-label: #5A6170; /* 1 */
 }
 
 .embed-preview__stage--surface {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
+  --stage-bg: #F7F8FA; /* 1 */
+  --stage-label: #5A6170; /* 1 */
 }
 
 .embed-preview__stage--dark {
-  background: var(--color-text-primary);
-  color: var(--color-background);
+  --stage-bg: #1A202C; /* 1 */
+  --stage-label: #9BA1AE; /* 1 */
 }
 
 .embed-preview__row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 0;
   flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 0;
 }
 
 .embed-preview__row + .embed-preview__row {
-  border-top: 1px dashed rgba(128, 128, 128, 0.25);
+  border-top: 1px dashed var(--stage-rule);
 }
 
 .embed-preview__row-label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.75rem;
-  color: inherit;
-  opacity: 0.6;
-  min-width: 90px;
+  color: var(--stage-label);
+  min-width: 6rem;
 }
 
 .embed-preview__row-slot {
-  flex: 1;
+  flex: 1 1 20rem;
   min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .embed-preview {
+    padding: 64px 24px 96px;
+  }
 }

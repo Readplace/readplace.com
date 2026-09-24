@@ -1,33 +1,22 @@
-  <main class="embed-preview" data-test-page="embed-preview">
-    <div class="embed-preview__container">
-      <h1 class="embed-preview__title">Embed preview</h1>
-      <p class="embed-preview__intro">Developer tool. Every variant rendered against each background so I can check contrast, borders, and image-fallback behaviour before shipping. Not indexed.</p>
+<main class="embed-preview" data-test-page="embed-preview">
+  <div class="embed-preview__container">
+    <h1 class="embed-preview__title">Embed preview</h1>
+    <p class="embed-preview__intro">Each variant is rendered on 3 fixed publisher backgrounds to check contrast, borders and image fallback before a change ships. Search engines don't index this page.</p>
 
-      <section class="embed-preview__group" data-test-bg="white">
-        <h2 class="embed-preview__group-title">White (#FFFFFF)</h2>
-        <div class="embed-preview__stage embed-preview__stage--white">
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant A</span><span class="embed-preview__row-slot">{{{previewA}}}</span></div>
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant B</span><span class="embed-preview__row-slot">{{{previewB}}}</span></div>
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant C</span><span class="embed-preview__row-slot">{{{previewC}}}</span></div>
+    {{#each stages}}
+    <section class="embed-preview__group" data-test-bg="{{key}}">
+      <h2 class="embed-preview__group-title">{{title}}</h2>
+      <div class="embed-preview__stage {{stageClass}}">
+        {{#each rows}}
+        <div class="embed-preview__row">
+          <span class="embed-preview__row-label">{{label}}</span>
+          <span class="embed-preview__row-slot">
+            {{{preview}}}
+          </span>
         </div>
-      </section>
-
-      <section class="embed-preview__group" data-test-bg="surface">
-        <h2 class="embed-preview__group-title">Surface (#F7F8FA)</h2>
-        <div class="embed-preview__stage embed-preview__stage--surface">
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant A</span><span class="embed-preview__row-slot">{{{previewA}}}</span></div>
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant B</span><span class="embed-preview__row-slot">{{{previewB}}}</span></div>
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant C</span><span class="embed-preview__row-slot">{{{previewC}}}</span></div>
-        </div>
-      </section>
-
-      <section class="embed-preview__group" data-test-bg="dark">
-        <h2 class="embed-preview__group-title">Dark (#1A202C)</h2>
-        <div class="embed-preview__stage embed-preview__stage--dark">
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant A</span><span class="embed-preview__row-slot">{{{previewA}}}</span></div>
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant B</span><span class="embed-preview__row-slot">{{{previewB}}}</span></div>
-          <div class="embed-preview__row"><span class="embed-preview__row-label">Variant C</span><span class="embed-preview__row-slot">{{{previewC}}}</span></div>
-        </div>
-      </section>
-    </div>
-  </main>
+        {{/each}}
+      </div>
+    </section>
+    {{/each}}
+  </div>
+</main>

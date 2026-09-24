@@ -58,7 +58,7 @@ describe("contentSignalMiddleware", () => {
 		expect(next).toHaveBeenCalled();
 	});
 
-	it.each(["/icon.svg", "/embed.client.js"])(
+	it.each(["/icon.svg", "/icon-small.svg", "/embed.client.js"])(
 		"skips Content-Signal and Vary on the %s asset",
 		(path) => {
 			const { headers, varied, res } = createFakeRes();

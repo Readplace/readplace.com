@@ -1,63 +1,63 @@
-  <main class="embed-page" data-test-page="embed">
+<main class="embed-page" data-test-page="embed">
+  <section class="embed-band">
     <div class="embed-page__container">
-      <section class="embed-page__hero">
-        <h1 class="embed-page__title">A save button for your readers.</h1>
-        <p class="embed-page__subtitle">Under 1 KB, no JavaScript, no tracking. Paste the snippet, replace <code>PAGE_URL</code> with your article link, and readers can save it to Readplace in one click.</p>
-        <div class="embed-page__demo" data-test="hero-demo">{{{heroDemo}}}
-          <p class="embed-page__demo-hint">Try it — clicking the button saves this page to your Readplace queue.</p>
+      <h1 class="embed-page__title">A save button for your readers</h1>
+      <p class="embed-page__lede">Under {{sizeLimit}} before your link goes in, no JavaScript, no tracking. Paste the snippet, replace <code>PAGE_URL</code> with your article link, and readers can save it to Readplace in one click.</p>
+      <div class="embed-page__demo" data-test="hero-demo">
+        {{{heroDemo}}}
+        <p class="embed-page__demo-hint">Try it — the button saves this page to Readplace.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="embed-band embed-band--muted" id="variants">
+    <div class="embed-page__container">
+      <h2 class="embed-page__section-title">The 3 variants</h2>
+      <form class="embed-url-input" method="GET" action="/embed#variants">
+        {{#each customiseInputs}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        <label class="embed-url-input__label" for="article-url">Your article link</label>
+        <div class="embed-url-input__row">
+          <input class="{{field.className}}" id="article-url" name="url" type="url" value="{{field.value}}" placeholder="https://example.com/my-article" aria-invalid="{{field.ariaInvalid}}" aria-describedby="article-url-error">
+          <button type="submit" class="btn btn--primary btn--field embed-url-input__submit">Update snippets</button>
         </div>
-      </section>
+        <p class="embed-url-input__error" id="article-url-error" data-test="url-error">{{field.error}}</p>
+      </form>
 
-      <section class="embed-page__section" id="variants">
-        <h2 class="embed-page__section-title">The three variants</h2>
-        <div class="embed-url-input">
-          <label class="embed-url-input__label" for="article-url">Your article URL</label>
-          <input type="url" id="article-url" class="embed-url-input__field" placeholder="https://example.com/my-article">
-        </div>
-
-        <article class="embed-variant" data-test-variant="a">
+      <div class="embed-variants">
+        {{#each variants}}
+        <article class="embed-card embed-variant" data-test-variant="{{id}}">
           <div class="embed-variant__header">
-            <h3 class="embed-variant__name">Variant A — Icon only</h3>
-            <span class="embed-variant__bytes" data-test="bytes-a">{{bytesA}} bytes</span>
+            <h3 class="embed-variant__name">{{name}}</h3>
+            <span class="embed-variant__bytes" data-snippet-bytes="{{codeId}}" data-test="bytes-{{id}}">{{bytes}}</span>
           </div>
-          <p class="embed-variant__note">Inline next to article titles in link lists, sidebars, comment footers.</p>
-          <div class="embed-variant__preview" data-test="preview-a">{{{previewA}}}</div>
-          {{{copyableA}}}
-        </article>
-
-        <article class="embed-variant" data-test-variant="b">
-          <div class="embed-variant__header">
-            <h3 class="embed-variant__name">Variant B — Icon and label</h3>
-            <span class="embed-variant__bytes" data-test="bytes-b">{{bytesB}} bytes</span>
+          <p class="embed-variant__note">{{note}}</p>
+          <div class="embed-variant__preview" data-test="preview-{{id}}">
+            {{{preview}}}
           </div>
-          <p class="embed-variant__note">Top or bottom of an individual article, or inside a navigation bar.</p>
-          <div class="embed-variant__preview" data-test="preview-b">{{{previewB}}}</div>
-          {{{copyableB}}}
+          {{{copyable}}}
         </article>
+        {{/each}}
+      </div>
+    </div>
+  </section>
 
-        <article class="embed-variant" data-test-variant="c">
-          <div class="embed-variant__header">
-            <h3 class="embed-variant__name">Variant C — End-of-post card</h3>
-            <span class="embed-variant__bytes" data-test="bytes-c">{{bytesC}} bytes</span>
-          </div>
-          <p class="embed-variant__note">End of a long-form post, as a reading-continuity prompt.</p>
-          <div class="embed-variant__preview" data-test="preview-c">{{{previewC}}}</div>
-          {{{copyableC}}}
-        </article>
-      </section>
-
-      <section class="embed-page__section" id="privacy">
-        <h2 class="embed-page__section-title">Privacy — quote this in your policy</h2>
+  <section class="embed-band" id="privacy">
+    <div class="embed-page__container">
+      <h2 class="embed-page__section-title">Privacy — quote this in your policy</h2>
+      <div class="embed-card">
         {{{privacyCopyable}}}
-      </section>
+      </div>
 
       <footer class="embed-footer">
         <ul class="embed-footer__links" aria-label="Related">
-          <li><a href="{{appHomeHref}}" data-test="link-app">readplace.com</a></li>
-          <li><a href="mailto:readplace+embed@readplace.com">Email me</a></li>
-          <li><a href="{{appPrivacyHref}}">Privacy policy</a></li>
-          <li><a href="{{track '/embed/preview' source='embed-footer' content='developer-preview'}}" data-test="link-preview">Developer preview</a></li>
+          <li><a class="embed-footer__link" href="{{track '/' source='embed-footer' content='home'}}" data-test="link-app">readplace.com</a></li>
+          <li><a class="embed-footer__link" href="mailto:readplace+embed@readplace.com">Contact</a></li>
+          <li><a class="embed-footer__link" href="{{track '/privacy' source='embed-footer' content='privacy'}}">Privacy policy</a></li>
+          <li><a class="embed-footer__link" href="{{track '/embed/preview' source='embed-footer' content='developer-preview'}}" data-test="link-preview">Developer preview</a></li>
         </ul>
       </footer>
     </div>
-  </main>
+  </section>
+</main>
