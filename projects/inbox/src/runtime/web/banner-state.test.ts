@@ -294,3 +294,24 @@ describe("initBuildBannerState (signed-in email)", () => {
 		expect(result.userEmail).toBe("james.davis@example.com");
 	});
 });
+
+describe("initBuildBannerState (signed-in appearance)", () => {
+	it("carries the signed-in user's appearance onto the banner state so the page renders in their chosen theme", async () => {
+		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
+		const buildBannerState = initBuildBannerState({
+			getEffectiveAccess: async () => access,
+			getChangelogBanner: noChangelogBanner,
+			findUserById: async () => ({
+				userId: USER_ID,
+				email: "james.davis@example.com",
+				emailVerified: true,
+				appearance: "dark",
+			}),
+			now: () => FIXED_NOW,
+		});
+
+		const result = await buildBannerState({ userId: USER_ID, cspNonce: CSP_NONCE });
+
+		expect(result.appearance).toBe("dark");
+	});
+});

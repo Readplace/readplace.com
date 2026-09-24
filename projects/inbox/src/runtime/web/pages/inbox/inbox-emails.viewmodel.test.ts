@@ -59,8 +59,11 @@ describe("toInboxEmailsViewModel", () => {
 		const { empty } = build([]);
 
 		expect(empty?.key).toBe("no-mail");
-		expect(empty?.text).toContain("forward a newsletter to one of your addresses");
-		expect(empty?.cta).toBeUndefined();
+		expect(empty?.title).toBe("No forwarded emails yet");
+		expect(empty?.body).toBe(
+			"Forward a newsletter to one of your addresses and it'll appear here.",
+		);
+		expect(empty?.actions).toEqual([]);
 		expect(empty?.addresses).toEqual([ADDRESS]);
 	});
 
@@ -76,11 +79,15 @@ describe("toInboxEmailsViewModel", () => {
 		const { empty } = build([], []);
 
 		expect(empty?.key).toBe("no-address");
-		expect(empty?.text).toContain("don't have an inbox email address");
-		expect(empty?.cta).toEqual({
-			href: "/inbox/addresses?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
-			label: "Create my first inbox address",
-		});
+		expect(empty?.title).toBe("No forwarded emails yet");
+		expect(empty?.body).toBe("You don't have an inbox email address to send them to.");
+		expect(empty?.actions).toEqual([
+			{
+				key: "create-first-address",
+				href: "/inbox/addresses?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
+				label: "Create my first inbox address",
+			},
+		]);
 		expect(empty?.addresses).toEqual([]);
 	});
 
@@ -160,42 +167,68 @@ describe("toInboxEmailsViewModel", () => {
 		const vm = buildNav({ hasNewer: false, hasOlder: false });
 
 		expect(vm.showPagination).toBe(false);
-		expect(vm.paginationLinks).toEqual([]);
+		expect(vm.paginationLinks.map((link) => link.href)).toEqual([undefined, undefined]);
 	});
 
-	it("links older from the page's oldest row", () => {
+	it("links older from the page's oldest row, keeping newer as an unlinked end", () => {
 		const vm = buildNav({ hasNewer: false, hasOlder: true });
 
 		expect(vm.showPagination).toBe(true);
 		expect(vm.paginationLinks).toEqual([
 			{
+				key: "newer",
+				label: "Newer",
+				iconName: "arrow-left",
+				href: undefined,
+			},
+			{
 				key: "older",
 				label: "Older",
 				iconName: "arrow-right",
-				iconLeading: false,
 				href: `/inbox?older=${encodeURIComponent("2026-06-24T09:00:00.000Z#<old@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=older`,
 			},
 		]);
 	});
 
-	it("links newer from the page's newest row", () => {
+	it("links newer from the page's newest row, keeping older as an unlinked end", () => {
 		const vm = buildNav({ hasNewer: true, hasOlder: false });
 
+		expect(vm.showPagination).toBe(true);
 		expect(vm.paginationLinks).toEqual([
 			{
 				key: "newer",
 				label: "Newer",
 				iconName: "arrow-left",
-				iconLeading: true,
 				href: `/inbox?newer=${encodeURIComponent("2026-06-24T10:00:00.000Z#<new@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=newer`,
+			},
+			{
+				key: "older",
+				label: "Older",
+				iconName: "arrow-right",
+				href: undefined,
 			},
 		]);
 	});
 
-	it("orders newer before older when both neighbours exist", () => {
+	it("links both directions, newer before older, when both neighbours exist", () => {
 		const vm = buildNav({ hasNewer: true, hasOlder: true });
 
 		expect(vm.paginationLinks.map((link) => link.key)).toEqual(["newer", "older"]);
+		expect(vm.paginationLinks.map((link) => link.href === undefined)).toEqual([false, false]);
+	});
+
+	it("counts every email when the whole inbox fits on one page", () => {
+		expect(build([entry(), entry()]).countLabel).toBe("2 Emails");
+		expect(build([entry()]).countLabel).toBe("1 Email");
+	});
+
+	it("reads zero on an empty inbox", () => {
+		expect(build([]).countLabel).toBe("0 Emails");
+	});
+
+	it("leaves the total off a page with neighbours, since the page cannot see it", () => {
+		expect(buildNav({ hasNewer: false, hasOlder: true }).countLabel).toBe("Emails");
+		expect(buildNav({ hasNewer: true, hasOlder: false }).countLabel).toBe("Emails");
 	});
 
 	it("falls back to a UTC-baselined absolute date past the 30-day cutoff", () => {

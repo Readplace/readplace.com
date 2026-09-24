@@ -35,6 +35,22 @@ function rowLinkCount(row: Element): string | undefined {
 	return row.querySelector("[data-test-inbox-email-link-count]")?.textContent ?? undefined;
 }
 
+function rowLinkCountRemoved(row: Element): boolean | undefined {
+	return row
+		.querySelector("[data-test-inbox-email-link-count]")
+		?.classList.contains("inbox-emails__link-count--empty");
+}
+
+function listCount(doc: Document): string | null | undefined {
+	return doc.querySelector("[data-test-inbox-emails-count]")?.textContent;
+}
+
+function disabledPaginationKeys(pagination: Element): (string | null)[] {
+	return Array.from(pagination.querySelectorAll("[data-test-pagination-disabled]")).map((el) =>
+		el.getAttribute("data-test-pagination-disabled"),
+	);
+}
+
 function navItemKeys(html: string): (string | null)[] {
 	const doc = new JSDOM(html).window.document;
 	return Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) =>
@@ -94,8 +110,11 @@ describe("Inbox emails list route", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-inbox-emails-empty]")).not.toBeNull();
+		const listing = doc.querySelector("[data-test-inbox-emails-listing]");
+		assert(listing, "the listing card must stay when the inbox is empty");
+		expect(listing.querySelector("[data-test-inbox-emails-empty]")).not.toBeNull();
 		expect(doc.querySelector("[data-test-inbox-emails-list]")).toBeNull();
+		expect(listCount(doc)).toBe("0 Emails");
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 			"noindex, nofollow",
 		);
@@ -111,12 +130,20 @@ describe("Inbox emails list route", () => {
 		const empty = doc.querySelector("[data-test-inbox-emails-empty]");
 		assert(empty, "empty state must render");
 		expect(empty.getAttribute("data-test-inbox-empty-state")).toBe("no-address");
-		const cta = empty.querySelector("[data-test-inbox-emails-empty-cta]");
-		assert(cta, "setup CTA must render while the reader has no address");
-		expect(cta.getAttribute("href")).toBe(
+		expect(empty.querySelector("[data-test-inbox-emails-empty-title]")?.textContent).toBe(
+			"No forwarded emails yet",
+		);
+		expect(empty.querySelector("[data-test-inbox-emails-empty-body]")?.textContent).toBe(
+			"You don't have an inbox email address to send them to.",
+		);
+		const ctas = Array.from(empty.querySelectorAll("[data-test-inbox-emails-empty-cta]"));
+		expect(ctas.map((cta) => cta.getAttribute("data-test-inbox-emails-empty-cta"))).toEqual([
+			"create-first-address",
+		]);
+		expect(ctas[0].getAttribute("href")).toBe(
 			"/inbox/addresses?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
 		);
-		expect(cta.textContent).toBe("Create my first inbox address");
+		expect(ctas[0].textContent).toBe("Create my first inbox address");
 	});
 
 	it("tells a reader who already has an address to forward mail instead, offering it to copy in place", async () => {
@@ -138,7 +165,17 @@ describe("Inbox emails list route", () => {
 		const empty = doc.querySelector("[data-test-inbox-emails-empty]");
 		assert(empty, "empty state must render");
 		expect(empty.getAttribute("data-test-inbox-empty-state")).toBe("no-mail");
-		expect(empty.textContent).toContain("forward a newsletter to one of your addresses");
+		expect(empty.querySelector("[data-test-inbox-emails-empty-title]")?.textContent).toBe(
+			"No forwarded emails yet",
+		);
+		expect(empty.querySelector("[data-test-inbox-emails-empty-body]")?.textContent).toBe(
+			"Forward a newsletter to one of your addresses and it'll appear here.",
+		);
+		expect(
+			Array.from(empty.querySelectorAll("[data-test-inbox-emails-empty-cta]")).map((cta) =>
+				cta.getAttribute("data-test-inbox-emails-empty-cta"),
+			),
+		).toEqual([]);
 
 		const rows = Array.from(empty.querySelectorAll("[data-test-inbox-empty-address]"));
 		expect(rows).toHaveLength(1);
@@ -259,12 +296,21 @@ describe("Inbox emails list route", () => {
 		const rows = Array.from(doc.querySelectorAll("[data-test-inbox-emails-row]"));
 		expect(rows).toHaveLength(3);
 
+		expect(listCount(doc)).toBe("3 Emails");
+
 		const senders = rows.map(
 			(row) => row.querySelector("[data-test-inbox-email-sender]")?.textContent,
 		);
 		expect(senders).toEqual(["c@example.com", "b@example.com", "a@example.com"]);
+		const senderTitles = rows.map((row) =>
+			row.querySelector("[data-test-inbox-email-sender]")?.getAttribute("title"),
+		);
+		expect(senderTitles).toEqual(["c@example.com", "b@example.com", "a@example.com"]);
 
-		const newestHref = rows[0].querySelector("a")?.getAttribute("href");
+		expect(rows.map((row) => row.querySelectorAll("a").length)).toEqual([1, 1, 1]);
+		const newestHref = rows[0]
+			.querySelector("[data-test-inbox-email-subject]")
+			?.getAttribute("href");
 		expect(newestHref).toBe(
 			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<r3@x>")}?utm_source=inbox-emails&utm_medium=internal&utm_content=open-email`,
 		);
@@ -311,6 +357,7 @@ describe("Inbox emails list route", () => {
 		// The count element rides every row and collapses when it has nothing to
 		// say, so the assertion is over the labels rather than over an absence.
 		expect(rows.map(rowLinkCount)).toEqual(["2 links", ""]);
+		expect(rows.map(rowLinkCountRemoved)).toEqual([false, true]);
 	});
 
 	describe("Pagination", () => {
@@ -349,6 +396,13 @@ describe("Inbox emails list route", () => {
 			expect(links[0].getAttribute("href")).toBe(
 				`/inbox?older=${encodeURIComponent("2026-06-24T00:01:00.000Z#<m-1@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=older`,
 			);
+			expect(disabledPaginationKeys(pagination)).toEqual(["newer"]);
+			const newerEnd = pagination.querySelector("[data-test-pagination-disabled]");
+			assert(newerEnd, "the unavailable newer end must still render");
+			expect(newerEnd.tagName).toBe("SPAN");
+			expect(newerEnd.getAttribute("aria-disabled")).toBe("true");
+			expect(newerEnd.textContent?.trim()).toBe("Newer");
+			expect(listCount(doc)).toBe("Emails");
 		});
 
 		it("shows the oldest email alone beyond the older link, linking back newer", async () => {
@@ -378,6 +432,8 @@ describe("Inbox emails list route", () => {
 				"newer",
 			]);
 			expect(links[0].textContent?.trim()).toBe("Newer");
+			expect(disabledPaginationKeys(pagination)).toEqual(["older"]);
+			expect(listCount(doc)).toBe("Emails");
 
 			const newerHref = links[0].getAttribute("href");
 			assert(newerHref, "newer link must carry an href");
@@ -420,6 +476,7 @@ describe("Inbox emails list route", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
 			expect(doc.querySelector("[data-test-pagination]")).toBeNull();
+			expect(listCount(doc)).toBe("10 Emails");
 		});
 
 		it("redirects a cursor on an empty inbox back to the empty state", async () => {

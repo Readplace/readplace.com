@@ -25,7 +25,7 @@ const INBOX_EMAIL_VIEW_PANEL_TEMPLATE = readFileSync(
 function renderViewPanel(vm: InboxEmailDetailViewModel): string {
 	return render(INBOX_EMAIL_VIEW_PANEL_TEMPLATE, {
 		canRenderBody: vm.canRenderBody,
-		unavailableMessage: vm.unavailableMessage,
+		unavailableAlert: vm.unavailableAlert,
 		viewSrcdoc: vm.canRenderBody
 			? buildInboxEmailIframeSrcdoc({
 					bodyHtml: vm.bodyHtml,

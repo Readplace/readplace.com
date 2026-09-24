@@ -1,3 +1,4 @@
+import { EMAIL_FRAME_CANVAS } from "@packages/web-shell";
 import { buildInboxEmailIframeSrcdoc } from "./inbox-email-iframe-srcdoc";
 
 const CDN = "https://cdn.test.readplace.com";
@@ -32,7 +33,7 @@ describe("buildInboxEmailIframeSrcdoc", () => {
 		// long unbroken tracking URLs rendered as bare text; `font-family` lifts
 		// near-plaintext forwards out of the iframe UA default (Times).
 		expect(srcdoc).toContain(
-			"body{margin:0;padding:12px;overflow-wrap:anywhere;font-family:system-ui,-apple-system,sans-serif}",
+			`body{margin:0;padding:12px;overflow-wrap:anywhere;font-family:${EMAIL_FRAME_CANVAS.fontFamily}}`,
 		);
 		// An explicit table width never survives the sanitizer, but auto table
 		// layout is content-driven: side-by-side cells of wide rehosted images
@@ -43,6 +44,18 @@ describe("buildInboxEmailIframeSrcdoc", () => {
 		expect(srcdoc).toContain("pre{white-space:pre-wrap}");
 		// The reset must live in the head, never inside the sanitized body.
 		expect(srcdoc.indexOf("<style>")).toBeLessThan(srcdoc.indexOf("<body>"));
+	});
+
+	it("paints the frame's own light canvas from the palette, since page tokens cannot reach a srcdoc", () => {
+		const srcdoc = buildInboxEmailIframeSrcdoc({
+			bodyHtml: "<p>Plain forward with no colours of its own</p>",
+			imagesCdnBaseUrl: CDN,
+		});
+
+		expect(srcdoc).toContain(
+			`html{color-scheme:light;background:${EMAIL_FRAME_CANVAS.background};color:${EMAIL_FRAME_CANVAS.text}}`,
+		);
+		expect(srcdoc).not.toContain("var(");
 	});
 
 	it("refuses a CDN base URL that is not a bare https origin", () => {

@@ -22,6 +22,10 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("copy")).toBe(iconSvg("copy"));
 	});
 
+	it("resolves the link icon an email row marks its link count with", () => {
+		expect(findIconSvg("link")).toBe(iconSvg("link"));
+	});
+
 	it("reports an unknown name rather than drawing nothing, so a caller can fail a typo", () => {
 		expect(findIconSvg("fa-solid fa-inbox")).toBeUndefined();
 	});

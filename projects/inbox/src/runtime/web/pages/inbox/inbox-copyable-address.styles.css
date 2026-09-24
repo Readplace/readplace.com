@@ -2,12 +2,12 @@
   display: flex;
   align-items: stretch;
   min-height: var(--input-height);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
   background: var(--background);
 }
 
-.inbox-copyable:focus-within {
+.inbox-copyable:has(.inbox-copyable__value:focus) {
   border-color: var(--ring);
   box-shadow: 0 0 0 3px var(--ring-shadow);
 }
@@ -16,6 +16,7 @@
   flex: 1 1 auto;
   min-width: 0;
   padding: var(--input-padding);
+  font-family: inherit;
   font-size: var(--input-font-size);
   color: var(--foreground);
   background: transparent;

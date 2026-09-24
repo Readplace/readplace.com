@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, renderInFlightDots } from "@packages/web-shell";
 import type { ExcludedLinkViewModel } from "./inbox-excluded-link.viewmodel";
-import type { SaveButtonState } from "./inbox-save-button.viewmodel";
+import type { InboxCardSaveAction } from "./inbox-link-card.viewmodel";
+import {
+	type SaveButtonLabelReserves,
+	type SaveButtonState,
+	saveButtonLabelReserves,
+} from "./inbox-save-button.viewmodel";
 
 const INBOX_EXCLUDED_LINK_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-excluded-link.template.html"),
@@ -10,19 +15,31 @@ const INBOX_EXCLUDED_LINK_TEMPLATE = readFileSync(
 );
 
 const SAVE_BUTTON_CLASSES: Record<SaveButtonState, string> = {
-	unsaved: "btn btn--primary btn--compact",
-	saving: "btn btn--primary btn--compact inbox-excluded-link__save-button--saving",
-	saved: "btn btn--secondary btn--compact inbox-excluded-link__save-button--saved",
+	unsaved: "btn btn--toggle btn--compact",
+	saving: "btn btn--toggle btn--compact inbox-excluded-link__save-button--saving",
+	saved: "btn btn--toggle btn--compact inbox-excluded-link__save-button--saved",
 };
 
-interface InboxExcludedLinkDisplayModel extends ExcludedLinkViewModel {
+const SAVE_LOADER_HTML = renderInFlightDots("inbox-excluded-link__save-loader in-flight-dots");
+
+interface InboxExcludedLinkActionDisplayModel extends InboxCardSaveAction, SaveButtonLabelReserves {
 	buttonClass: string;
+	loaderHtml: string;
+}
+
+interface InboxExcludedLinkDisplayModel extends Omit<ExcludedLinkViewModel, "actions"> {
+	actions: InboxExcludedLinkActionDisplayModel[];
 }
 
 function toDisplayModel(vm: ExcludedLinkViewModel): InboxExcludedLinkDisplayModel {
 	return {
 		...vm,
-		buttonClass: `${SAVE_BUTTON_CLASSES[vm.saveButton.saveState]} inbox-excluded-link__save-button`,
+		actions: vm.actions.map((action) => ({
+			...action,
+			...saveButtonLabelReserves(action.saveState),
+			buttonClass: `${SAVE_BUTTON_CLASSES[action.saveState]} inbox-excluded-link__save-button`,
+			loaderHtml: SAVE_LOADER_HTML,
+		})),
 	};
 }
 

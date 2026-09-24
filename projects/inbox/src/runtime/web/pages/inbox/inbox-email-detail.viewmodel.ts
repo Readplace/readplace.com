@@ -16,22 +16,74 @@ import {
 import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
 import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
+import { type InboxPanelStatus, panelStatusFor } from "./inbox-panel-status";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
 
 /** Initial poll count for a card on first page render: the first htmx tick then
  * requests `?poll=1` and the poll route increments from there. */
 const INITIAL_POLL_COUNT = 1;
 
-const NO_LINKS_MESSAGE = "No links found in this email.";
-const ALL_SKIPPED_MESSAGE = "Every link in this email was skipped — see the Skipped tab.";
-const NOTHING_SKIPPED_MESSAGE = "Nothing was skipped in this email.";
+export interface AlertCopy {
+	title: string;
+	body: string;
+}
+
+export interface PanelAlert extends AlertCopy {
+	key: "failed" | "stale";
+}
+
+export interface PanelNotice {
+	key: "extracting" | "truncated" | "skipped-note";
+	text: string;
+	iconName: "loader" | undefined;
+}
+
+export interface PanelEmptyState {
+	title: string;
+	body: string | undefined;
+}
+
+export interface PanelListing {
+	countLabel: string;
+	emptyStates: PanelEmptyState[];
+}
+
+const NO_LINKS_EMPTY_STATE: PanelEmptyState = {
+	title: "No links found in this email",
+	body: undefined,
+};
+const ALL_SKIPPED_EMPTY_STATE: PanelEmptyState = {
+	title: "Every link in this email was skipped",
+	body: "See the Skipped tab.",
+};
+const NOTHING_SKIPPED_EMPTY_STATE: PanelEmptyState = {
+	title: "Nothing was skipped in this email",
+	body: undefined,
+};
 
 // Both panels report the same extractor run, so they say these in one voice from
 // one place — two copies would drift, and each is a claim about the run rather
 // than about the panel showing it.
-const EXTRACTING_MESSAGE = "Looking for links…";
-const STALE_MESSAGE =
-	"I couldn't scan this email for links. The original message is still on the View tab.";
+const EXTRACTING_NOTICE: PanelNotice = {
+	key: "extracting",
+	text: "Looking for links…",
+	iconName: "loader",
+};
+const STALE_ALERT: AlertCopy = {
+	title: "Couldn't scan this email for links",
+	body: "The original message is still on the View tab.",
+};
+
+const SKIPPED_NOTE_NOTICE: PanelNotice = {
+	key: "skipped-note",
+	text: "These looked like unsubscribe, ad, or menu links — not articles — so they weren't fetched or added.",
+	iconName: undefined,
+};
+
+const UNAVAILABLE_ALERT: AlertCopy = {
+	title: "Couldn't display this email",
+	body: "The original email is preserved.",
+};
 
 // Present tense on purpose: the save route only publishes SubmitLinkCommand, and
 // the queue write happens in a downstream subscriber. Claiming "Saved" would
@@ -55,16 +107,9 @@ export interface ArticleCardsPage {
  * written its meta barrier. */
 interface ExtractionPanelViewModel {
 	isEmpty: boolean;
-	/** Terminal copy for an empty panel. Each panel picks it from what the *other*
-	 * panel holds: "No links found" is a lie for an email whose every link was
-	 * skipped, and "Nothing was skipped" is a lie for an email with no links at all. */
-	emptyMessage: string;
-	extractingMessage: string;
-	staleMessage: string;
-	/** The per-email extraction cap, so it belongs to every panel and shows even
-	 * when this one is empty: an email capped at N links whose every link was
-	 * skipped would otherwise disclose the cap on no tab at all. */
-	truncatedNotice: string | undefined;
+	alerts: PanelAlert[];
+	notices: PanelNotice[];
+	listing: PanelListing | undefined;
 	/** True while extraction has not yet written its meta barrier (a just-received
 	 * email) and the poll budget is unspent: the panel shows a polling "Looking for
 	 * links…" state instead of a terminal answer, so a non-terminal state is never
@@ -124,7 +169,7 @@ export interface InboxEmailDetailViewModel {
 	/** The CDN origin rehosted email images are served from — pinned into the
 	 * iframe's per-document CSP so only our copies (never a sender host) load. */
 	imagesCdnBaseUrl: string;
-	unavailableMessage: string;
+	unavailableAlert: AlertCopy;
 	articles: ArticlesPanelViewModel;
 	excluded: ExcludedPanelViewModel;
 }
@@ -163,9 +208,31 @@ function buildArticleCardsPage(input: {
 				}),
 				{ source: "inbox-email-detail", content: "show-more-articles" },
 			),
-			moreUrl: buildInboxArticlesMoreUrl({ emailId: input.emailId, shown: next }),
+			moreUrl: withInternalTracking(
+				buildInboxArticlesMoreUrl({ emailId: input.emailId, shown: next }),
+				{ source: "inbox-email-detail", content: "show-more-articles" },
+			),
 			count: Math.min(ARTICLES_PAGE_SIZE, remaining),
 		},
+	};
+}
+
+function buildPanelRegions(input: {
+	status: InboxPanelStatus;
+	terminalNotices: PanelNotice[];
+	countLabel: string;
+	emptyStates: PanelEmptyState[];
+}): Pick<ExtractionPanelViewModel, "alerts" | "notices" | "listing"> {
+	if (input.status === "extracting") {
+		return { alerts: [], notices: [EXTRACTING_NOTICE], listing: undefined };
+	}
+	if (input.status !== "terminal") {
+		return { alerts: [{ key: input.status, ...STALE_ALERT }], notices: [], listing: undefined };
+	}
+	return {
+		alerts: [],
+		notices: input.terminalNotices,
+		listing: { countLabel: input.countLabel, emptyStates: input.emptyStates },
 	};
 }
 
@@ -268,15 +335,20 @@ export function toInboxEmailDetailViewModel(input: {
 			: input.feedbackConfirmed === true
 				? FEEDBACK_TOAST_MESSAGE
 				: undefined;
+	const panelStatus = panelStatusFor({ isExtracting, isExtractionFailed, isStalePending });
+	const truncatedNotices: PanelNotice[] = truncated
+		? [
+				{
+					key: "truncated",
+					text: `Showing the first ${links.length} links found in this email.`,
+					iconName: undefined,
+				},
+			]
+		: [];
 	const shared = {
-		extractingMessage: EXTRACTING_MESSAGE,
-		staleMessage: STALE_MESSAGE,
 		isExtracting,
 		isStalePending,
 		isExtractionFailed,
-		truncatedNotice: truncated
-			? `Showing the first ${links.length} links found in this email.`
-			: undefined,
 	};
 	return {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
@@ -304,8 +376,7 @@ export function toInboxEmailDetailViewModel(input: {
 		canRenderBody,
 		bodyHtml: input.bodyHtml ?? "",
 		imagesCdnBaseUrl: input.imagesCdnBaseUrl,
-		unavailableMessage:
-			"This message couldn't be displayed here; the original email is preserved.",
+		unavailableAlert: UNAVAILABLE_ALERT,
 		articles: {
 			...shared,
 			cards: cardsPage.cards,
@@ -313,7 +384,15 @@ export function toInboxEmailDetailViewModel(input: {
 			// Every kept link, not the page of them on screen: a first page that is
 			// merely unfilled is not an empty panel.
 			isEmpty: totalCards === 0,
-			emptyMessage: excludedLinks.length === 0 ? NO_LINKS_MESSAGE : ALL_SKIPPED_MESSAGE,
+			...buildPanelRegions({
+				status: panelStatus,
+				terminalNotices: truncatedNotices,
+				countLabel: `${totalCards} Extracted ${totalCards === 1 ? "Article" : "Articles"}`,
+				emptyStates:
+					totalCards > 0
+						? []
+						: [excludedLinks.length === 0 ? NO_LINKS_EMPTY_STATE : ALL_SKIPPED_EMPTY_STATE],
+			}),
 			panelPollUrl: isExtracting
 				? buildInboxArticlesPollUrl({ emailId, pollCount: panelPollCount })
 				: undefined,
@@ -322,7 +401,18 @@ export function toInboxEmailDetailViewModel(input: {
 			...shared,
 			links: excludedLinks,
 			isEmpty: excludedLinks.length === 0,
-			emptyMessage: totalCards === 0 ? NO_LINKS_MESSAGE : NOTHING_SKIPPED_MESSAGE,
+			...buildPanelRegions({
+				status: panelStatus,
+				terminalNotices:
+					excludedLinks.length === 0
+						? truncatedNotices
+						: [...truncatedNotices, SKIPPED_NOTE_NOTICE],
+				countLabel: `${excludedLinks.length} Skipped`,
+				emptyStates:
+					excludedLinks.length > 0
+						? []
+						: [totalCards === 0 ? NO_LINKS_EMPTY_STATE : NOTHING_SKIPPED_EMPTY_STATE],
+			}),
 			panelPollUrl: isExtracting
 				? buildInboxExcludedPollUrl({ emailId, pollCount: panelPollCount })
 				: undefined,

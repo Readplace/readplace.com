@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, renderIllustration } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { panelStatusFor } from "./inbox-panel-status";
 import { renderInboxShowMore } from "./inbox-articles-show-more.component";
@@ -10,6 +10,8 @@ const INBOX_ARTICLES_PANEL_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-articles-panel.template.html"),
 	"utf-8",
 );
+
+const EMPTY_ILLUSTRATION_HTML = renderIllustration("book-lightbulb");
 
 /**
  * Renders the Articles panel as a standalone `<section>` so the same markup
@@ -23,5 +25,6 @@ export function renderInboxArticlesPanel(vm: ArticlesPanelViewModel): string {
 		articleHtmls: vm.cards.map(renderInboxArticleCard),
 		showMoreHtml: vm.showMore === undefined ? "" : renderInboxShowMore(vm.showMore),
 		panelStatus: panelStatusFor(vm),
+		emptyIllustrationHtml: EMPTY_ILLUSTRATION_HTML,
 	});
 }

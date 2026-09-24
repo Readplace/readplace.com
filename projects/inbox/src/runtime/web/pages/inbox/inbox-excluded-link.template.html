@@ -1,16 +1,12 @@
-<div
-  class="inbox-excluded-link"
-  id="{{domId}}"
-  data-test-inbox-excluded-link="{{ordinal}}"
-  {{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}
->
-  <div class="inbox-excluded-link__info">
-    <span class="inbox-excluded-link__url" data-test-inbox-excluded-url>{{url}}</span>
-    <span class="inbox-excluded-link__reason" data-test-inbox-excluded-reason>{{reasonLabel}}</span>
-  </div>
-  <div class="inbox-excluded-link__actions">
-    {{#if saveAction}}<form class="inbox-excluded-link__save" method="POST" action="{{saveAction}}" hx-post="{{saveAction}}" hx-target="#{{domId}}" hx-swap="outerHTML" hx-disabled-elt="find button">
-      <button type="submit" id="{{saveButtonId}}" class="{{buttonClass}}" aria-label="{{saveButton.ariaLabel}}" data-test-save-state="{{saveButton.saveState}}" data-test-inbox-excluded-save>{{#if saveButton.iconName}}{{icon saveButton.iconName}}{{/if}}{{saveButton.label}}</button>
-    </form>{{/if}}
-  </div>
-</div>
+<div class="inbox-excluded-link" id="{{domId}}" data-test-inbox-excluded-link="{{ordinal}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
+            <div class="inbox-excluded-link__info">
+              <span class="inbox-excluded-link__url" data-test-inbox-excluded-url>{{url}}</span>
+              <span class="inbox-excluded-link__reason" data-test-inbox-excluded-reason>{{reasonLabel}}</span>
+            </div>
+            {{#each actions}}
+            <form class="inbox-excluded-link__save" method="{{method}}" action="{{href}}" hx-post="{{href}}" hx-target="#{{inPlaceTargetId}}" hx-swap="outerHTML" hx-disabled-elt="find button">
+              {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
+              <button type="submit" id="{{buttonId}}" class="{{buttonClass}}" aria-label="{{ariaLabel}}" data-test-save-state="{{saveState}}" data-test-inbox-excluded-save><span class="btn__label-stack" data-reserve-1="{{reserve1}}" data-reserve-2="{{reserve2}}"><span class="inbox-excluded-link__save-label">{{#if iconName}}{{icon iconName}}{{/if}}{{label}}</span></span>{{{loaderHtml}}}</button>
+            </form>
+            {{/each}}
+          </div>

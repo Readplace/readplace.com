@@ -4,27 +4,25 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import { AppearancePreferenceSchema, UserIdSchema } from "@packages/domain/user";
 import { SessionRow } from "@packages/web-session";
 import type {
 	FindUserById,
 	MarkSessionEmailVerified,
 } from "@packages/provider-contracts/auth";
 
-/** The slice of hutch's users-table row this deployable reads: just enough to
- * resolve verification standing. The projection below keeps the read to these
- * attributes, so the row schema deliberately omits everything else. */
+/** The slice of hutch's users-table row this deployable reads. The projection
+ * below keeps the read to these attributes, so the row schema deliberately
+ * omits everything else. */
 const UserStandingRow = z.object({
 	userId: UserIdSchema,
 	email: z.string(),
 	emailVerified: dynamoField(z.boolean()),
 	registeredAt: dynamoField(z.string()),
+	appearance: dynamoField(AppearancePreferenceSchema),
 });
 
-/** Read/heal access to the user and session rows hutch owns, scoped to what
- * resolveVerificationStatus needs: the verification standing anchored on
- * `registeredAt`, and the session self-heal write once the record says
- * verified. */
+/** Read/heal access to the user and session rows hutch owns. */
 export function initDynamoDbUserStanding(deps: {
 	client: DynamoDBDocumentClient;
 	tableNames: { users: string; sessions: string };
@@ -45,7 +43,7 @@ export function initDynamoDbUserStanding(deps: {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
 			ExpressionAttributeValues: { ":userId": userId },
-			ProjectionExpression: "userId, email, emailVerified, registeredAt",
+			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance",
 			Limit: 1,
 		});
 		const row = items[0];
@@ -55,6 +53,7 @@ export function initDynamoDbUserStanding(deps: {
 			email: row.email,
 			emailVerified: row.emailVerified === true,
 			registeredAt: row.registeredAt,
+			appearance: row.appearance,
 		};
 	};
 

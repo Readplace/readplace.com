@@ -1,10 +1,14 @@
 import { formatTabCountLabel, withInternalTracking } from "@packages/web-shell";
 import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 
-const MAIL_TAB_DEFINITIONS: readonly { readonly key: MailTabKey; readonly label: string }[] = [
-	{ key: "view", label: "View" },
-	{ key: "articles", label: "Extracted Articles" },
-	{ key: "excluded", label: "Skipped" },
+const MAIL_TAB_DEFINITIONS: readonly {
+	readonly key: MailTabKey;
+	readonly label: string;
+	readonly counted: boolean;
+}[] = [
+	{ key: "view", label: "View", counted: false },
+	{ key: "articles", label: "Extracted Articles", counted: true },
+	{ key: "excluded", label: "Skipped", counted: true },
 ];
 
 /** How many items each list tab holds, for the `(N)` suffix. A key is absent
@@ -16,6 +20,7 @@ export type MailTabCounts = { readonly [K in MailTabKey]?: number };
 export interface MailTab {
 	key: MailTabKey;
 	label: string;
+	widestLabel: string;
 	href: string;
 	ariaCurrent: "page" | undefined;
 }
@@ -25,11 +30,14 @@ export function buildMailTabs(input: {
 	active: MailTabKey;
 	counts: MailTabCounts;
 }): MailTab[] {
-	return MAIL_TAB_DEFINITIONS.map(({ key, label }) => {
+	return MAIL_TAB_DEFINITIONS.map(({ key, label, counted }) => {
 		const count = input.counts[key];
 		return {
 			key,
 			label: count === undefined ? label : formatTabCountLabel({ label, count }),
+			widestLabel: counted
+				? formatTabCountLabel({ label, count: Number.MAX_SAFE_INTEGER })
+				: label,
 			href: withInternalTracking(
 				buildInboxEmailDetailUrl({ emailId: input.emailId, tab: key }),
 				{ source: "inbox-mail-tabs", content: key },

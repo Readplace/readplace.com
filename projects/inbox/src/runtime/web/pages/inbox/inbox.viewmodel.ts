@@ -13,15 +13,19 @@ export interface InboxAddressRowViewModel {
 	disableAriaLabel: string;
 }
 
-export type InboxAlertKey = "create-failed" | "name-invalid" | "name-taken" | "limit";
+export type InboxAlertKey = "create-failed" | "limit";
 
 export interface InboxAlertViewModel {
 	key: InboxAlertKey;
+	title: string;
+	body: string;
+}
+
+export type InboxNameErrorKey = "name-invalid" | "name-taken";
+
+export interface InboxNameErrorViewModel {
+	key: InboxNameErrorKey;
 	message: string;
-	/** The stable id the name input's aria-describedby points at. Only the two
-	 * field-level complaints about the typed value carry it, and the route derives
-	 * them from a single `error` query value, so at most one alert renders it. */
-	id: "inbox-name-error" | undefined;
 }
 
 export interface InboxAddressesViewModel {
@@ -29,18 +33,28 @@ export interface InboxAddressesViewModel {
 	/** Both the list and the empty line always render; this says which one the
 	 * reader is looking at, so a test asserts the state rather than an absence. */
 	addressesState: "list" | "empty";
+	showsListing: boolean;
 	activeAddresses: InboxAddressRowViewModel[];
 	disabledAddresses: InboxAddressRowViewModel[];
 	hasDisabled: boolean;
 	disabledCount: number;
 }
 
-const ALERT_MESSAGES: Record<InboxAlertKey, string> = {
-	"create-failed": "I couldn't create an inbox email just now — try again in a moment.",
+const ALERTS: Record<InboxAlertKey, Omit<InboxAlertViewModel, "key">> = {
+	"create-failed": {
+		title: "Couldn't create an inbox email",
+		body: "Try again in a moment.",
+	},
+	limit: {
+		title: "Inbox email limit reached",
+		body: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before enabling or creating more.`,
+	},
+};
+
+const NAME_ERROR_MESSAGES: Record<InboxNameErrorKey, string> = {
 	"name-invalid":
 		"Give the inbox email a name using letters, numbers, and hyphens — for example, my-newsletter.",
 	"name-taken": "You already have an active inbox email with that name. Pick a different one.",
-	limit: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before enabling or creating more.`,
 };
 
 /** The alerts the page is showing, in the order they render. Built here rather
@@ -48,20 +62,22 @@ const ALERT_MESSAGES: Record<InboxAlertKey, string> = {
  * a test can assert the whole set a reader sees rather than probing for each. */
 export function toInboxAlerts(input: {
 	createFailed: boolean;
-	nameInvalid: boolean;
-	nameTaken: boolean;
 	limitReached: boolean;
 }): InboxAlertViewModel[] {
 	const keys: InboxAlertKey[] = [];
 	if (input.createFailed) keys.push("create-failed");
+	if (input.limitReached) keys.push("limit");
+	return keys.map((key) => ({ key, ...ALERTS[key] }));
+}
+
+export function toInboxNameErrors(input: {
+	nameInvalid: boolean;
+	nameTaken: boolean;
+}): InboxNameErrorViewModel[] {
+	const keys: InboxNameErrorKey[] = [];
 	if (input.nameInvalid) keys.push("name-invalid");
 	if (input.nameTaken) keys.push("name-taken");
-	if (input.limitReached) keys.push("limit");
-	return keys.map((key) => ({
-		key,
-		message: ALERT_MESSAGES[key],
-		id: key === "name-invalid" || key === "name-taken" ? "inbox-name-error" : undefined,
-	}));
+	return keys.map((key) => ({ key, message: NAME_ERROR_MESSAGES[key] }));
 }
 
 export function toInboxAddressAriaLabels(name: string): {
@@ -90,6 +106,7 @@ export function toInboxAddressesViewModel(entries: InboxAddressEntry[]): InboxAd
 	return {
 		hasAddresses: aliases.length > 0,
 		addressesState: aliases.length > 0 ? "list" : "empty",
+		showsListing: activeAddresses.length > 0 || aliases.length === 0,
 		activeAddresses,
 		disabledAddresses,
 		hasDisabled: disabledAddresses.length > 0,

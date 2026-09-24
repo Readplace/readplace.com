@@ -3,6 +3,7 @@ import {
 	INBOX_ADDRESSES_PATH,
 	type InboxEmailEntry,
 	type InboxEmailStatus,
+	type InboxEmailsCursor,
 	type ListInboxEmailsResult,
 } from "@packages/domain/inbox";
 import { buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
@@ -43,25 +44,25 @@ export interface InboxEmptyAddressViewModel {
 
 export interface InboxEmailsEmptyViewModel {
 	key: InboxEmptyStateKey;
-	text: string;
-	cta: { href: string; label: string } | undefined;
+	title: string;
+	body: string;
+	actions: { key: "create-first-address"; href: string; label: string }[];
 	addresses: InboxEmptyAddressViewModel[];
 }
 
 /** One step through the list. The direction glyph is an icon `name` resolved by
  * the template's `{{icon}}`, never markup and never part of `label` — the label
  * is the whole accessible name, so a reader that drops SVG (the markdown
- * representation) still reads "Newer"/"Older". `iconLeading` places the arrow on
- * the side it points to. */
+ * representation) still reads "Newer"/"Older". */
 export interface InboxEmailsPaginationLink {
-	key: "newer" | "older";
+	key: InboxEmailsCursor["direction"];
 	label: string;
 	iconName: "arrow-left" | "arrow-right";
-	iconLeading: boolean;
-	href: string;
+	href: string | undefined;
 }
 
 export interface InboxEmailsViewModel {
+	countLabel: string;
 	empty: InboxEmailsEmptyViewModel | undefined;
 	rows: InboxEmailRowViewModel[];
 	showPagination: boolean;
@@ -71,20 +72,25 @@ export interface InboxEmailsViewModel {
 const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-address": {
 		key: "no-address",
-		text: "No forwarded emails yet — you don't have an inbox email address to send them to.",
-		cta: {
-			href: withInternalTracking(INBOX_ADDRESSES_PATH, {
-				source: INBOX_EMPTY_SOURCE,
-				content: "create-first-address",
-			}),
-			label: "Create my first inbox address",
-		},
+		title: "No forwarded emails yet",
+		body: "You don't have an inbox email address to send them to.",
+		actions: [
+			{
+				key: "create-first-address",
+				href: withInternalTracking(INBOX_ADDRESSES_PATH, {
+					source: INBOX_EMPTY_SOURCE,
+					content: "create-first-address",
+				}),
+				label: "Create my first inbox address",
+			},
+		],
 		addresses: [],
 	},
 	"no-mail": {
 		key: "no-mail",
-		text: "No forwarded emails yet — forward a newsletter to one of your addresses and it'll appear here.",
-		cta: undefined,
+		title: "No forwarded emails yet",
+		body: "Forward a newsletter to one of your addresses and it'll appear here.",
+		actions: [],
 		addresses: [],
 	},
 };
@@ -96,8 +102,8 @@ const STATUS_LABEL: Record<InboxEmailStatus, string> = {
 };
 
 /** Empty rather than absent for a row with nothing to count — the element always
- * renders and collapses on `:empty`, so a test asserts the label a row carries
- * instead of probing for a missing element. */
+ * renders, so a test asserts the label a row carries instead of probing for a
+ * missing element. */
 function rowLinkCountLabel(entry: InboxEmailEntry): string {
 	if (entry.status !== "received" || entry.linkCounts === undefined) return "";
 	return (
@@ -108,45 +114,46 @@ function rowLinkCountLabel(entry: InboxEmailEntry): string {
 	);
 }
 
+function paginationHref(cursor: InboxEmailsCursor): string {
+	return withInternalTracking(buildInboxEmailsUrl({ cursor }), {
+		source: INBOX_PAGINATION_SOURCE,
+		content: cursor.direction,
+	});
+}
+
 function buildPaginationLinks(
 	result: ListInboxEmailsResult,
 ): InboxEmailsPaginationLink[] {
-	const links: InboxEmailsPaginationLink[] = [];
-	if (result.hasNewer) {
-		links.push({
+	return [
+		{
 			key: "newer",
 			label: "Newer",
 			iconName: "arrow-left",
-			iconLeading: true,
-			href: withInternalTracking(
-				buildInboxEmailsUrl({
-					cursor: {
+			href: result.hasNewer
+				? paginationHref({
 						direction: "newer",
 						receivedAtMessageId: result.emails[0].receivedAtMessageId,
-					},
-				}),
-				{ source: INBOX_PAGINATION_SOURCE, content: "newer" },
-			),
-		});
-	}
-	if (result.hasOlder) {
-		links.push({
+					})
+				: undefined,
+		},
+		{
 			key: "older",
 			label: "Older",
 			iconName: "arrow-right",
-			iconLeading: false,
-			href: withInternalTracking(
-				buildInboxEmailsUrl({
-					cursor: {
+			href: result.hasOlder
+				? paginationHref({
 						direction: "older",
 						receivedAtMessageId: result.emails[result.emails.length - 1].receivedAtMessageId,
-					},
-				}),
-				{ source: INBOX_PAGINATION_SOURCE, content: "older" },
-			),
-		});
-	}
-	return links;
+					})
+				: undefined,
+		},
+	];
+}
+
+function buildCountLabel(result: ListInboxEmailsResult): string {
+	if (result.hasNewer || result.hasOlder) return "Emails";
+	const count = result.emails.length;
+	return `${count} ${count === 1 ? "Email" : "Emails"}`;
 }
 
 function buildEmptyState(
@@ -165,12 +172,12 @@ export function toInboxEmailsViewModel(
 		highlight?: string;
 	},
 ): InboxEmailsViewModel {
-	const paginationLinks = buildPaginationLinks(result);
 	return {
+		countLabel: buildCountLabel(result),
 		empty:
 			result.emails.length === 0 ? buildEmptyState(options.activeAddresses) : undefined,
-		showPagination: paginationLinks.length > 0,
-		paginationLinks,
+		showPagination: result.hasNewer || result.hasOlder,
+		paginationLinks: buildPaginationLinks(result),
 		rows: result.emails.map((entry) => ({
 			href: withInternalTracking(
 				buildInboxEmailDetailUrl({ emailId: entry.receivedAtMessageId, tab: "view" }),

@@ -30,6 +30,21 @@ const SAVE_BUTTON_COPY: Record<
 	},
 };
 
+export interface SaveButtonLabelReserves {
+	reserve1: string;
+	reserve2: string;
+}
+
+const SAVE_BUTTON_LABEL_RESERVES: Record<SaveButtonState, SaveButtonLabelReserves> = {
+	saved: { reserve1: SAVE_BUTTON_COPY.saving.label, reserve2: SAVE_BUTTON_COPY.unsaved.label },
+	saving: { reserve1: SAVE_BUTTON_COPY.saved.label, reserve2: SAVE_BUTTON_COPY.unsaved.label },
+	unsaved: { reserve1: SAVE_BUTTON_COPY.saved.label, reserve2: SAVE_BUTTON_COPY.saving.label },
+};
+
+export function saveButtonLabelReserves(saveState: SaveButtonState): SaveButtonLabelReserves {
+	return SAVE_BUTTON_LABEL_RESERVES[saveState];
+}
+
 /** The save button never stops being a save button. A saved link keeps its
  * action, its URL and its method, so re-saving from here is the same POST the
  * unsaved state makes — and lands on the same queue-side upsert the website and

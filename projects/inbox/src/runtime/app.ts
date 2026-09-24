@@ -23,7 +23,7 @@ import { initBuildBannerState } from "./web/banner-state";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { changelogDismissMiddleware } from "./web/changelog-dismiss.middleware";
 import { requireAuth } from "./web/middleware/require-auth";
-import { requireNotLocked } from "./web/middleware/require-not-locked.middleware";
+import { initRequireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { initInboxRoutes } from "./web/pages/inbox/inbox.page";
@@ -107,6 +107,7 @@ export function createInboxApp(
 		findUserById: deps.findUserById,
 		now: deps.now,
 	});
+	const requireNotLocked = initRequireNotLocked({ buildBannerState });
 	const inboxRouter = initInboxRoutes({
 		inboxAddressStore: deps.inboxAddressStore,
 		inboxEmailStore: deps.inboxEmailStore,

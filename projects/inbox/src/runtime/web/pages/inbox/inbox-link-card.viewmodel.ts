@@ -21,10 +21,16 @@ export interface InboxCardAction {
 	href: string;
 	method: "POST";
 	hiddenParams?: Record<string, string>;
-	/** Set on the save action only. */
-	saveState?: SaveButtonState;
 	iconName?: string;
-	inPlaceTargetId?: string;
+}
+
+export interface InboxCardSaveAction extends InboxCardAction {
+	saveState: SaveButtonState;
+	inPlaceTargetId: string;
+}
+
+export interface InboxCardMenuAction extends InboxCardAction {
+	iconName: string;
 }
 
 export interface InboxLinkCardViewModel {
@@ -39,12 +45,13 @@ export interface InboxLinkCardViewModel {
 	statusState: CardStatusState;
 	/** Empty for `crawled`, where the title the crawl produced is the signal. */
 	statusLabel: string;
-	actions: InboxCardAction[];
+	actions: InboxCardSaveAction[];
+	menuActions: InboxCardMenuAction[];
 }
 
 /** `none` still renders, hidden by its modifier, so a test asserts which state a
  * card is in rather than that an element is absent. */
-type CardStatusState = "working" | "stalled" | "failed" | "none";
+export type CardStatusState = "working" | "stalled" | "failed" | "none";
 
 const CARD_STATUS_LABELS: Record<CardStatusState, string> = {
 	working: "Fetching preview…",
@@ -100,14 +107,14 @@ function buildCardActions(input: {
 	shown: number;
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	whenNotSaved: "saving" | "unsaved";
-}): InboxCardAction[] {
+}): Pick<InboxLinkCardViewModel, "actions" | "menuActions"> {
 	const { link, emailId, displayUrl, shown, linkSaveStates, whenNotSaved } = input;
 	const buttonId = (key: string) => `${cardDomId(link.ordinal)}-${key}`;
 	// Posted back so the redirect can rebuild the same page of cards. Without it
 	// a save from an expanded list returns a first page that no longer holds the
 	// card just acted on, which reads as the page discarding the reader's place.
 	const shownParam = { shown: String(shown) };
-	const actions: InboxCardAction[] = [];
+	const actions: InboxCardSaveAction[] = [];
 	// Crawl state does not gate saving: the queue save runs its own crawl, so a
 	// link whose preview is still pending or failed is still worth saving.
 	if (validateSaveableUrl(link.url).status === "SUCCESS") {
@@ -129,19 +136,24 @@ function buildCardActions(input: {
 			inPlaceTargetId: cardDomId(link.ordinal),
 		});
 	}
-	actions.push({
-		key: "feedback-exclude",
-		label: "Not an article (report)",
-		ariaLabel: `Not an article (report): ${displayUrl}`,
-		buttonId: buttonId("feedback-exclude"),
-		href: withInternalTracking(buildInboxLinkFeedbackUrl({ emailId, ordinal: link.ordinal }), {
-			source: INBOX_LINK_CARD_SOURCE,
-			content: "feedback-exclude",
-		}),
-		method: "POST",
-		hiddenParams: { ...shownParam, verdict: "should-be-excluded" },
-	});
-	return actions;
+	return {
+		actions,
+		menuActions: [
+			{
+				key: "feedback-exclude",
+				label: "Not an article (report)",
+				ariaLabel: `Not an article (report): ${displayUrl}`,
+				buttonId: buttonId("feedback-exclude"),
+				href: withInternalTracking(buildInboxLinkFeedbackUrl({ emailId, ordinal: link.ordinal }), {
+					source: INBOX_LINK_CARD_SOURCE,
+					content: "feedback-exclude",
+				}),
+				method: "POST",
+				hiddenParams: { ...shownParam, verdict: "should-be-excluded" },
+				iconName: "x",
+			},
+		],
+	};
 }
 
 export function toInboxLinkCardViewModel(input: {
@@ -188,7 +200,7 @@ export function toInboxLinkCardViewModel(input: {
 		domId: cardDomId(link.ordinal),
 		statusState,
 		statusLabel: CARD_STATUS_LABELS[statusState],
-		actions: buildCardActions({
+		...buildCardActions({
 			link,
 			emailId,
 			displayUrl: url,

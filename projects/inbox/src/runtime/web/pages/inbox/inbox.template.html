@@ -1,69 +1,86 @@
-    <main class="inbox">
-      <div class="inbox__header">
-        <a class="inbox__back" href="{{track '/inbox' source='inbox-addresses' content='back-to-inbox'}}" data-test-inbox-back>{{icon "arrow-left"}} Inbox</a>
-        <h1 class="inbox__title">Your inbox emails</h1>
-        <p class="inbox__subtitle">Sign up for any newsletter with one of these inbox emails (or use them to email links to yourself) and it lands in your Readplace inbox. I'll pull out the links and list them under the email for you to read later.</p>
+<main class="inbox">
+  <div class="inbox__layout">
+    <div class="inbox__header">
+      <a class="inbox__back" href="{{track '/inbox' source='inbox-addresses' content='back-to-inbox'}}" data-test-inbox-back>{{icon "arrow-left"}} Inbox</a>
+      <h1 class="inbox__title">Your inbox emails</h1>
+      <p class="inbox__subtitle">Sign up for any newsletter with one of these inbox emails (or use them to email links to yourself) and it lands in your Readplace inbox. I'll pull out the links and list them under the email for you to read later.</p>
+    </div>
+
+    {{{statusToastHtml}}}
+
+    {{#each alerts}}
+    <div class="inbox__alert" role="alert" data-test-inbox-alert="{{key}}">
+      <span class="inbox__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
+      <div class="inbox__alert-text">
+        <p class="inbox__alert-title">{{title}}</p>
+        <p class="inbox__alert-body">{{body}}</p>
       </div>
+    </div>
+    {{/each}}
 
-      <section class="inbox__create-section" data-test-inbox-section="create">
-        <section class="inbox__instructions">
-          <h2 class="inbox__instructions-title">How it works</h2>
-          <ol class="inbox__steps">
-            <li>Create an inbox email and copy it.</li>
-            <li>In your email app, forward a newsletter (or set up forwarding) to it.</li>
-            <li>New issues show up in your <a class="inbox__steps-link" href="{{track '/inbox' source='inbox-addresses' content='steps-inbox'}}">Inbox</a> automatically.</li>
-          </ol>
-        </section>
-
-        {{#each alerts}}
-        <p class="inbox__error" role="alert" {{#if id}}id="{{id}}" {{/if}}data-test-inbox-alert="{{key}}">{{message}}</p>
-        {{/each}}
-
-        <p class="inbox__success {{#if created}}inbox__success--visible{{else}}inbox__success--hidden{{/if}}" role="status" data-test-inbox-created>{{#if created}}Created the inbox email "{{createdName}}" — it's live in the list below.{{/if}}</p>
-
-        <form action="{{createAction}}" method="POST" class="inbox__create">
-          <label class="inbox__create-label" for="inbox-name">Name this inbox email</label>
-          <div class="inbox__create-row">
-            <input class="inbox__name-input" id="inbox-name" name="name" type="text" value="{{submittedName}}" required maxlength="24" pattern="[A-Za-z0-9 -]+" placeholder="e.g. my-newsletter" autocomplete="off" aria-invalid="{{#if nameError}}true{{else}}false{{/if}}" {{#if nameError}}aria-describedby="inbox-name-error" autofocus {{/if}}data-test-inbox-name-input />
-            <button type="submit" class="btn btn--primary btn--field" data-test-inbox-create>Create inbox email</button>
-          </div>
-        </form>
+    <section class="inbox__create-section" data-test-inbox-section="create">
+      <section class="inbox__instructions">
+        <h2 class="inbox__instructions-title">How it works</h2>
+        <ol class="inbox__steps">
+          <li>Create an inbox email and copy it.</li>
+          <li>In your email app, forward a newsletter (or set up forwarding) to it.</li>
+          <li>New issues show up in your <a class="inbox__steps-link" href="{{track '/inbox' source='inbox-addresses' content='steps-inbox'}}">Inbox</a> automatically.</li>
+        </ol>
       </section>
 
-      <div class="inbox__addresses {{#if hasAddresses}}inbox__addresses--visible{{else}}inbox__addresses--hidden{{/if}}" data-test-inbox-list data-test-inbox-addresses-state="{{addressesState}}">
+      <form action="{{createAction}}" method="POST" class="inbox__create">
+        <label class="inbox__create-label" for="inbox-name">Name this inbox email</label>
+        <div class="inbox__create-row">
+          <input class="inbox__name-input" id="inbox-name" name="name" type="text" value="{{submittedName}}" required maxlength="24" pattern="[A-Za-z0-9 -]+" placeholder="e.g. my-newsletter" autocomplete="off" aria-invalid="{{#if nameError}}true{{else}}false{{/if}}" {{#if nameError}}aria-describedby="inbox-name-error" autofocus {{/if}}data-test-inbox-name-input />
+          <button type="submit" class="btn btn--primary btn--field" data-test-inbox-create>Create inbox email</button>
+        </div>
+        {{#each nameErrors}}
+        <p class="inbox__field-error" id="inbox-name-error" role="alert" data-test-inbox-field-error="{{key}}">{{message}}</p>
+        {{/each}}
+      </form>
+    </section>
+
+    <div class="inbox__addresses" data-test-inbox-list data-test-inbox-addresses-state="{{addressesState}}">
+      <div class="inbox__listing {{#if showsListing}}inbox__listing--visible{{else}}inbox__listing--hidden{{/if}}">
+        <div class="inbox__empty {{#if hasAddresses}}inbox__empty--hidden{{else}}inbox__empty--visible{{/if}}" data-test-inbox-empty>
+          <div class="inbox__empty-illustration">{{{emptyIllustrationHtml}}}</div>
+          <h2 class="inbox__empty-title">You don't have an inbox email yet</h2>
+          <p class="inbox__empty-text">Create one to get started.</p>
+        </div>
         <ul class="inbox__list" data-test-inbox-section="active">
           {{#each activeAddresses}}
           <li class="inbox__item" data-test-inbox-item>
-            <span class="inbox__name" data-test-inbox-name>{{this.name}}</span>
-            {{{this.copyableHtml}}}
-            <div class="inbox__controls">
+            <div class="inbox__item-head">
+              <span class="inbox__name" data-test-inbox-name>{{this.name}}</span>
               <span class="inbox__status inbox__status--enabled" data-test-inbox-status="enabled">Active</span>
-              <form action="{{../disableAction}}" method="POST" class="inbox__disable">
-                <input type="hidden" name="address" value="{{this.address}}" />
-                <button type="submit" class="btn btn--secondary btn--compact" data-test-inbox-disable aria-label="{{this.disableAriaLabel}}">Disable</button>
-              </form>
             </div>
+            {{{this.copyableHtml}}}
+            <form action="{{../disableAction}}" method="POST" class="inbox__disable">
+              <input type="hidden" name="address" value="{{this.address}}" />
+              <button type="submit" class="btn btn--toggle btn--compact" data-test-inbox-disable aria-label="{{this.disableAriaLabel}}">Disable</button>
+            </form>
           </li>
           {{/each}}
         </ul>
-        <details class="inbox__disabled-group {{#if hasDisabled}}inbox__disabled-group--visible{{else}}inbox__disabled-group--hidden{{/if}}" data-test-inbox-section="disabled" data-test-inbox-disabled-group>
-          <summary class="inbox__disabled-summary">Disabled inbox emails ({{disabledCount}})<span class="inbox__disabled-caret">{{icon "chevron-down"}}</span></summary>
-          <ul class="inbox__list inbox__list--nested">
-            {{#each disabledAddresses}}
-            <li class="inbox__item" data-test-inbox-item>
-              <span class="inbox__name" data-test-inbox-name>{{this.name}}</span>
-              <input class="inbox__address-field inbox__address-field--disabled" type="text" value="{{this.address}}" disabled aria-label="{{this.addressAriaLabel}}" />
-              <div class="inbox__controls">
-                <span class="inbox__status inbox__status--disabled" data-test-inbox-status="disabled">Disabled</span>
-                <form action="{{../enableAction}}" method="POST" class="inbox__enable">
-                  <input type="hidden" name="address" value="{{this.address}}" />
-                  <button type="submit" class="btn btn--secondary btn--compact" data-test-inbox-enable>Enable</button>
-                </form>
-              </div>
-            </li>
-            {{/each}}
-          </ul>
-        </details>
       </div>
-      <p class="inbox__empty {{#if hasAddresses}}inbox__empty--hidden{{else}}inbox__empty--visible{{/if}}" data-test-inbox-empty>You don't have an inbox email yet. Create one to get started.</p>
-    </main>
+      <details class="inbox__disabled-group {{#if hasDisabled}}inbox__disabled-group--visible{{else}}inbox__disabled-group--hidden{{/if}}" data-test-inbox-section="disabled" data-test-inbox-disabled-group>
+        <summary class="inbox__disabled-summary">Disabled inbox emails ({{disabledCount}})<span class="inbox__disabled-caret">{{icon "chevron-down"}}</span></summary>
+        <ul class="inbox__list inbox__list--nested">
+          {{#each disabledAddresses}}
+          <li class="inbox__item" data-test-inbox-item>
+            <div class="inbox__item-head">
+              <span class="inbox__name" data-test-inbox-name>{{this.name}}</span>
+              <span class="inbox__status inbox__status--disabled" data-test-inbox-status="disabled">Disabled</span>
+            </div>
+            <input class="inbox__address-field" type="text" value="{{this.address}}" disabled aria-label="{{this.addressAriaLabel}}" />
+            <form action="{{../enableAction}}" method="POST" class="inbox__enable">
+              <input type="hidden" name="address" value="{{this.address}}" />
+              <button type="submit" class="btn btn--toggle btn--compact" data-test-inbox-enable>Enable</button>
+            </form>
+          </li>
+          {{/each}}
+        </ul>
+      </details>
+    </div>
+  </div>
+</main>

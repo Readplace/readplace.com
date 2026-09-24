@@ -1,3 +1,5 @@
+import assert from "node:assert";
+
 const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--font-sans":
 		"Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
@@ -201,6 +203,18 @@ ${generateCssVariables(DARK_THEME_VARIABLES)}
 ${LIGHT_ONLY_STYLES}
 ${DARK_ONLY_STYLES}
 `;
+
+function lightThemeValue(variable: string): string {
+	const value = LIGHT_THEME_VARIABLES[variable];
+	assert(value, `${variable} must be defined in the light theme`);
+	return value;
+}
+
+export const EMAIL_FRAME_CANVAS = {
+	background: lightThemeValue("--color-background"),
+	text: lightThemeValue("--color-text-primary"),
+	fontFamily: lightThemeValue("--font-sans"),
+};
 
 export const BASE_RESET_STYLES = `
 	* {

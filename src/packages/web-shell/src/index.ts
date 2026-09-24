@@ -88,7 +88,12 @@ export type {
 	RenderChromelessPage,
 } from "./chromeless-page";
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";
-export { renderInFlightDots } from "./shared/in-flight-dots/in-flight-dots.component";
+export {
+	IN_FLIGHT_DOTS_STYLES,
+	renderInFlightDots,
+} from "./shared/in-flight-dots/in-flight-dots.component";
+export { renderIllustration } from "./shared/illustrations/illustrations";
+export type { IllustrationName } from "./shared/illustrations/illustrations";
 export { renderToast } from "./shared/toast/toast.component";
 export type { ToastAction, ToastViewModel } from "./shared/toast/toast.component";
 export { renderExtensionSuggestionBannerOob } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
@@ -100,7 +105,7 @@ export type {
 	ConfirmPopover,
 	ConfirmPopoverLead,
 } from "./shared/confirm-popover/confirm-popover.component";
-export { BASE_CSS_VARIABLES, LIGHT_ONLY_BODY_CLASS } from "./base.styles";
+export { BASE_CSS_VARIABLES, EMAIL_FRAME_CANVAS, LIGHT_ONLY_BODY_CLASS } from "./base.styles";
 export { etagMatches } from "./etag";
 export {
 	MAX_CAPTURE_POLLS,

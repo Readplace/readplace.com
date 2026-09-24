@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { EMAIL_FRAME_CANVAS } from "@packages/web-shell";
 
 /**
  * Build the HTML document embedded in the View-tab iframe's `srcdoc`. This is
@@ -36,7 +37,7 @@ export function buildInboxEmailIframeSrcdoc(input: {
 		"<!doctype html><html><head>",
 		'<meta charset="utf-8">',
 		`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${input.imagesCdnBaseUrl}; style-src 'unsafe-inline';">`,
-		"<style>img{max-width:100%;height:auto}table{max-width:100%}body{margin:0;padding:12px;overflow-wrap:anywhere;font-family:system-ui,-apple-system,sans-serif}pre{white-space:pre-wrap}</style>",
+		`<style>html{color-scheme:light;background:${EMAIL_FRAME_CANVAS.background};color:${EMAIL_FRAME_CANVAS.text}}img{max-width:100%;height:auto}table{max-width:100%}body{margin:0;padding:12px;overflow-wrap:anywhere;font-family:${EMAIL_FRAME_CANVAS.fontFamily}}pre{white-space:pre-wrap}</style>`,
 		'<base target="_top">',
 		"</head><body>",
 		input.bodyHtml,

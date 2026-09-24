@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
 	EmailLinkOrdinalSchema,
 	type InboxEmailLinkEntry,
@@ -44,6 +45,13 @@ function build(input: {
 	});
 }
 
+function saveActionOf(vm: ReturnType<typeof build>) {
+	const [action, ...rest] = vm.actions;
+	assert(action, "a saveable skipped row must offer its save action");
+	assert.equal(rest.length, 0, "a skipped row offers its save and nothing else");
+	return action;
+}
+
 const savePoll = (pollCount: number): ExcludedLinkPollContext => ({
 	mode: "save-poll",
 	pollCount,
@@ -55,7 +63,8 @@ describe("toInboxExcludedLinkViewModel", () => {
 		const vm = build({ link: link({ ordinal: EmailLinkOrdinalSchema.parse("0007") }) });
 
 		expect(vm.domId).toBe("inbox-skipped-0007");
-		expect(vm.saveButtonId).toBe("inbox-skipped-0007-save");
+		expect(saveActionOf(vm).buttonId).toBe("inbox-skipped-0007-save");
+		expect(saveActionOf(vm).inPlaceTargetId).toBe("inbox-skipped-0007");
 	});
 
 	it("labels the row with the reason the classifier recorded", () => {
@@ -69,63 +78,67 @@ describe("toInboxExcludedLinkViewModel", () => {
 	});
 
 	it("offers the save action for a saveable url", () => {
-		expect(build({}).saveAction).toBe(
+		const action = saveActionOf(build({}));
+		expect(action.href).toBe(
 			`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 		);
+		expect(action.method).toBe("POST");
 	});
 
 	it("withholds the save action from a url the save pipeline would reject", () => {
-		expect(build({ link: link({ url: "https://localhost/private" }) }).saveAction).toBeUndefined();
+		expect(build({ link: link({ url: "https://localhost/private" }) }).actions).toEqual([]);
 	});
 
 	it("never polls on a page render, where no recorded save means nobody clicked", () => {
 		const vm = build({ pollContext: { mode: "static" } });
 
 		expect(vm.pollUrl).toBeUndefined();
-		expect(vm.saveButton.saveState).toBe("unsaved");
-		expect(vm.saveButton.label).toBe("Save to queue");
+		expect(saveActionOf(vm).saveState).toBe("unsaved");
+		expect(saveActionOf(vm).label).toBe("Save to queue");
 	});
 
 	it("renders a page render of an already-saved row as saved, still without polling", () => {
 		const vm = build({ saveState: "saved", pollContext: { mode: "static" } });
 
 		expect(vm.pollUrl).toBeUndefined();
-		expect(vm.saveButton.saveState).toBe("saved");
-		expect(vm.saveButton.label).toBe("Save again");
+		expect(saveActionOf(vm).saveState).toBe("saved");
+		expect(saveActionOf(vm).label).toBe("Save again");
 	});
 
 	it("reads as saving and polls on while an accepted save has not reached the read model", () => {
 		const vm = build({ pollContext: savePoll(4) });
 
 		expect(vm.pollUrl).toBe(`/inbox/${encodeURIComponent(SK)}/links/0000/excluded?poll=4`);
-		expect(vm.saveButton).toEqual({
-			label: "Saving…",
-			ariaLabel: `Saving to queue: ${URL}`,
-			saveState: "saving",
-			iconName: undefined,
-		});
+		expect(saveActionOf(vm)).toEqual(
+			expect.objectContaining({
+				label: "Saving…",
+				ariaLabel: `Saving to queue: ${URL}`,
+				saveState: "saving",
+				iconName: undefined,
+			}),
+		);
 	});
 
 	it("stops polling the moment the save is recorded", () => {
 		const vm = build({ saveState: "saved", pollContext: savePoll(4) });
 
 		expect(vm.pollUrl).toBeUndefined();
-		expect(vm.saveButton.saveState).toBe("saved");
+		expect(saveActionOf(vm).saveState).toBe("saved");
 	});
 
 	it("stops polling on a recorded failure and offers the save again", () => {
 		const vm = build({ saveState: "failed", pollContext: savePoll(4) });
 
 		expect(vm.pollUrl).toBeUndefined();
-		expect(vm.saveButton.saveState).toBe("unsaved");
-		expect(vm.saveButton.label).toBe("Save to queue");
+		expect(saveActionOf(vm).saveState).toBe("unsaved");
+		expect(saveActionOf(vm).label).toBe("Save to queue");
 	});
 
 	it("gives up rather than claim Saving… forever once the settle budget is spent", () => {
 		const vm = build({ pollContext: savePoll(21) });
 
 		expect(vm.pollUrl).toBeUndefined();
-		expect(vm.saveButton.saveState).toBe("unsaved");
+		expect(saveActionOf(vm).saveState).toBe("unsaved");
 	});
 
 	it("keeps polling on the last tick the budget allows", () => {

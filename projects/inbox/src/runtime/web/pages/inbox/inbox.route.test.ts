@@ -20,6 +20,20 @@ function alertKeys(doc: Document): (string | null)[] {
 	);
 }
 
+function fieldErrorKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-inbox-field-error]")).map((el) =>
+		el.getAttribute("data-test-inbox-field-error"),
+	);
+}
+
+function toastMessages(doc: Document): (string | undefined)[] {
+	return Array.from(doc.querySelectorAll("[data-test-toast-message]")).map((el) =>
+		el.textContent?.trim(),
+	);
+}
+
+const CREATED_MY_NEWSLETTER = `Created the inbox email "my-newsletter" — it's live in the list below.`;
+
 /** A fixture whose server clock runs `days` ahead of real time, so a freshly
  * created user lands past the 7-day verification window — i.e. locked — with no
  * way to backdate `registeredAt` directly. */
@@ -71,7 +85,7 @@ describe("Inbox address routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const list = doc.querySelector("[data-test-inbox-list]");
-			assert(list, "the address list must always render, hidden when empty");
+			assert(list, "the address list must always render");
 			expect(list.getAttribute("data-test-inbox-addresses-state")).toBe("empty");
 			assert(doc.querySelector("[data-test-inbox-empty]"), "the empty line must render");
 			assert(doc.querySelector("[data-test-inbox-create]"), "the create form must render");
@@ -118,6 +132,7 @@ describe("Inbox address routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(alertKeys(doc)).toEqual(["limit"]);
+			expect(fieldErrorKeys(doc)).toEqual([]);
 			const input = doc.querySelector("[data-test-inbox-name-input]");
 			expect(input?.getAttribute("value")).toBe("my-newsletter");
 			expect(input?.getAttribute("aria-invalid")).toBe("false");
@@ -143,11 +158,7 @@ describe("Inbox address routes", () => {
 			expect(addressFieldValue(listed.text)).toMatch(/^my-newsletter-[0-9a-z]{6}@read\.place$/);
 			const doc = new JSDOM(listed.text).window.document;
 			expect(doc.querySelector("[data-test-inbox-name]")?.textContent).toBe("my-newsletter");
-			const confirmation = doc.querySelector("[data-test-inbox-created]");
-			assert(confirmation, "the create confirmation must render on the redirect target");
-			expect(confirmation.classList.contains("inbox__success--visible")).toBe(true);
-			expect(confirmation.getAttribute("role")).toBe("status");
-			expect(confirmation.textContent).toContain("my-newsletter");
+			expect(toastMessages(doc)).toEqual([CREATED_MY_NEWSLETTER]);
 		});
 
 		it("redirects with error=name when the submitted name has no valid characters", async () => {
@@ -182,13 +193,14 @@ describe("Inbox address routes", () => {
 			const landing = await agent.get("/inbox/addresses?error=name");
 
 			const doc = new JSDOM(landing.text).window.document;
-			expect(alertKeys(doc)).toEqual(["name-invalid"]);
+			expect(alertKeys(doc)).toEqual([]);
+			expect(fieldErrorKeys(doc)).toEqual(["name-invalid"]);
 			const input = doc.querySelector("[data-test-inbox-name-input]");
 			expect(input?.getAttribute("aria-invalid")).toBe("true");
 			expect(input?.getAttribute("aria-describedby")).toBe("inbox-name-error");
 			expect(input?.hasAttribute("autofocus")).toBe(true);
 			expect(doc.getElementById("inbox-name-error")).toBe(
-				doc.querySelector('[data-test-inbox-alert="name-invalid"]'),
+				doc.querySelector('[data-test-inbox-field-error="name-invalid"]'),
 			);
 			expect(input?.getAttribute("value")).toBe("");
 		});
@@ -206,7 +218,8 @@ describe("Inbox address routes", () => {
 			expect(dup.status).toBe(303);
 			expect(dup.headers.location).toBe("/inbox/addresses?error=name-taken&name=my-newsletter");
 			const doc = new JSDOM((await agent.get(dup.headers.location)).text).window.document;
-			expect(alertKeys(doc)).toEqual(["name-taken"]);
+			expect(alertKeys(doc)).toEqual([]);
+			expect(fieldErrorKeys(doc)).toEqual(["name-taken"]);
 			const input = doc.querySelector("[data-test-inbox-name-input]");
 			expect(input?.getAttribute("value")).toBe("my-newsletter");
 			expect(input?.getAttribute("aria-invalid")).toBe("true");
@@ -358,7 +371,8 @@ describe("Inbox address routes", () => {
 
 			expect(dup.headers.location).toBe(`/inbox/addresses?error=name-taken&name=${SEED_NAME}`);
 			const doc = new JSDOM((await agent.get(dup.headers.location)).text).window.document;
-			expect(alertKeys(doc)).toEqual(["name-taken", "limit"]);
+			expect(alertKeys(doc)).toEqual(["limit"]);
+			expect(fieldErrorKeys(doc)).toEqual(["name-taken"]);
 			expect(doc.querySelectorAll("#inbox-name-error")).toHaveLength(1);
 			expect(
 				doc.querySelector("[data-test-inbox-name-input]")?.getAttribute("aria-describedby"),
@@ -442,52 +456,40 @@ describe("Inbox address routes", () => {
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(alertKeys(doc)).toEqual([]);
+			expect(fieldErrorKeys(doc)).toEqual([]);
 			const input = doc.querySelector("[data-test-inbox-name-input]");
 			expect(input?.getAttribute("value")).toBe("");
 			expect(input?.getAttribute("aria-invalid")).toBe("false");
 			expect(input?.hasAttribute("aria-describedby")).toBe(false);
 			expect(input?.hasAttribute("autofocus")).toBe(false);
 		});
-		it("renders the visible create confirmation on the redirect target", async () => {
+		it("confirms the create with the shared self-dismissing toast on the redirect target", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/inbox/addresses?created=my-newsletter");
 
-			const confirmation = new JSDOM(response.text).window.document.querySelector(
-				"[data-test-inbox-created]",
-			);
-			assert(confirmation, "the create confirmation element must render");
-			expect(confirmation.classList.contains("inbox__success--visible")).toBe(true);
-			expect(confirmation.getAttribute("role")).toBe("status");
-			expect(confirmation.textContent).toContain("my-newsletter");
+			const doc = new JSDOM(response.text).window.document;
+			expect(toastMessages(doc)).toEqual([CREATED_MY_NEWSLETTER]);
+			expect(doc.querySelector("[data-test-toast]")?.getAttribute("data-dismiss")).toBe("6000");
 		});
 
-		it("keeps the create confirmation hidden and empty on a normal visit", async () => {
+		it("shows no create confirmation on a normal visit", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/inbox/addresses");
 
-			const confirmation = new JSDOM(response.text).window.document.querySelector(
-				"[data-test-inbox-created]",
-			);
-			assert(confirmation, "the create confirmation element must render");
-			expect(confirmation.classList.contains("inbox__success--hidden")).toBe(true);
-			expect(confirmation.textContent).toBe("");
+			expect(toastMessages(new JSDOM(response.text).window.document)).toEqual([]);
 		});
 
-		it("keeps the create confirmation hidden when the created param is not a valid name", async () => {
+		it("shows no create confirmation when the created param is not a valid name", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/inbox/addresses?created=NOT%20a%20name!");
 
-			const confirmation = new JSDOM(response.text).window.document.querySelector(
-				"[data-test-inbox-created]",
-			);
-			assert(confirmation, "the create confirmation element must render");
-			expect(confirmation.classList.contains("inbox__success--hidden")).toBe(true);
+			expect(toastMessages(new JSDOM(response.text).window.document)).toEqual([]);
 		});
 	});
 

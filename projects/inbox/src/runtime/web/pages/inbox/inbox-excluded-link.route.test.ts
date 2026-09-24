@@ -110,6 +110,14 @@ describe("Inbox skipped row fragment route", () => {
 		const button = saveButton(row);
 		expect(button.getAttribute("data-test-save-state")).toBe("saving");
 		expect(button.textContent?.trim()).toBe("Saving…");
+		expect(button.classList.contains("btn--toggle")).toBe(true);
+		const labelStack = button.querySelector("[data-reserve-1]");
+		assert(labelStack, "the save label must reserve its alternate labels");
+		expect([
+			labelStack.getAttribute("data-reserve-1"),
+			labelStack.getAttribute("data-reserve-2"),
+		]).toEqual(["Save again", "Save to queue"]);
+		expect(button.querySelector(".in-flight-dots")?.getAttribute("aria-hidden")).toBe("true");
 	});
 
 	it("treats a junk poll cursor as the start of the budget instead of polling unbounded", async () => {

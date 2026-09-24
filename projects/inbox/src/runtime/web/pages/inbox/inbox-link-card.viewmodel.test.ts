@@ -49,6 +49,8 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.hasTitle).toBe(false);
 		expect(vm.actions.map((action) => [action.key, action.href])).toEqual([
 			["save", `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save?utm_source=inbox-link-card&utm_medium=internal&utm_content=save-link`],
+		]);
+		expect(vm.menuActions.map((action) => [action.key, action.href])).toEqual([
 			[
 				"feedback-exclude",
 				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?utm_source=inbox-link-card&utm_medium=internal&utm_content=feedback-exclude`,
@@ -64,7 +66,9 @@ describe("toInboxLinkCardViewModel", () => {
 			maxPolls: 300,
 			shown: 40, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
-		expect(vm.actions.map((action) => [action.key, action.hiddenParams])).toEqual([
+		expect(
+			[...vm.actions, ...vm.menuActions].map((action) => [action.key, action.hiddenParams]),
+		).toEqual([
 			["save", { shown: "40" }],
 			["feedback-exclude", { shown: "40", verdict: "should-be-excluded" }],
 		]);
@@ -78,7 +82,8 @@ describe("toInboxLinkCardViewModel", () => {
 			maxPolls: 300,
 			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
-		expect(vm.actions.map((action) => action.key)).toEqual(["feedback-exclude"]);
+		expect(vm.actions).toEqual([]);
+		expect(vm.menuActions.map((action) => action.key)).toEqual(["feedback-exclude"]);
 	});
 
 	it("labels the save action with the destination the card shows, not the tracking link", () => {
@@ -157,7 +162,9 @@ describe("toInboxLinkCardViewModel", () => {
 			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.url).toBe("https://destination.test/article?ref=nodeweekly");
-		expect(crawled.actions.map((action) => action.ariaLabel)).toEqual([
+		expect(
+			[...crawled.actions, ...crawled.menuActions].map((action) => action.ariaLabel),
+		).toEqual([
 			"Save to queue: https://destination.test/article?ref=nodeweekly",
 			"Not an article (report): https://destination.test/article?ref=nodeweekly",
 		]);
@@ -285,8 +292,8 @@ describe("toInboxLinkCardViewModel", () => {
 			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.domId).toBe(pending.domId);
-		expect(crawled.actions.map((a) => a.buttonId)).toEqual(
-			pending.actions.map((a) => a.buttonId),
+		expect([...crawled.actions, ...crawled.menuActions].map((a) => a.buttonId)).toEqual(
+			[...pending.actions, ...pending.menuActions].map((a) => a.buttonId),
 		);
 	});
 
@@ -306,7 +313,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 		expect(first.domId).toBe("inbox-card-0002");
 		expect(second.domId).toBe("inbox-card-0003");
-		expect(first.actions.map((a) => a.buttonId)).toEqual([
+		expect([...first.actions, ...first.menuActions].map((a) => a.buttonId)).toEqual([
 			"inbox-card-0002-save",
 			"inbox-card-0002-feedback-exclude",
 		]);
@@ -426,6 +433,8 @@ describe("toInboxLinkCardViewModel", () => {
 					hiddenParams: { shown: "20" },
 					inPlaceTargetId: "inbox-card-0002",
 				},
+			]);
+			expect(vm.menuActions).toEqual([
 				{
 					key: "feedback-exclude",
 					label: "Not an article (report)",
@@ -434,6 +443,7 @@ describe("toInboxLinkCardViewModel", () => {
 					href: `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?utm_source=inbox-link-card&utm_medium=internal&utm_content=feedback-exclude`,
 					method: "POST",
 					hiddenParams: { shown: "20", verdict: "should-be-excluded" },
+					iconName: "x",
 				},
 			]);
 		});

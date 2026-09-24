@@ -82,6 +82,22 @@ describe("buildMailTabs", () => {
 		expect(tabs[2].label).toBe("Skipped (1)");
 	});
 
+	it("reserves each list tab's widest count, so a late count does not move the strip", () => {
+		const unknown = buildMailTabs({ emailId: EMAIL_ID, active: "articles", counts: NO_COUNTS });
+		const known = buildMailTabs({
+			emailId: EMAIL_ID,
+			active: "articles",
+			counts: { articles: 2, excluded: 0 },
+		});
+
+		expect(unknown.map((tab) => tab.widestLabel)).toEqual([
+			"View",
+			"Extracted Articles (99+)",
+			"Skipped (99+)",
+		]);
+		expect(known.map((tab) => tab.widestLabel)).toEqual(unknown.map((tab) => tab.widestLabel));
+	});
+
 	it("omits the count while extraction has not reported, so no tab claims a total yet", () => {
 		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "articles", counts: NO_COUNTS });
 

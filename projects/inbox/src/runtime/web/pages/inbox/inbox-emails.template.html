@@ -1,77 +1,80 @@
 <main class="inbox-emails" data-test-inbox-emails>
-  <header class="inbox-emails__header">
-    <h1 class="inbox-emails__title">Inbox</h1>
-    <a
-      class="btn btn--secondary"
-      href="{{track '/inbox/addresses' source='inbox-emails' content='manage-addresses'}}"
-      data-test-inbox-manage-addresses
-      >My Emails</a
-    >
-  </header>
+  <div class="inbox-emails__layout">
+    <header class="inbox-emails__header">
+      <h1 class="inbox-emails__title">Inbox</h1>
+      <a
+        class="btn btn--neutral"
+        href="{{track '/inbox/addresses' source='inbox-emails' content='manage-addresses'}}"
+        data-test-inbox-manage-addresses
+        >My Emails</a
+      >
+    </header>
 
-  {{#if empty}}
-  <div
-    class="inbox-emails__empty"
-    data-test-inbox-emails-empty
-    data-test-inbox-empty-state="{{empty.key}}"
-  >
-    <p class="inbox-emails__empty-text">{{empty.text}}</p>
-    {{#if empty.cta}}
-    <a
-      class="btn btn--primary inbox-emails__empty-cta"
-      href="{{empty.cta.href}}"
-      data-test-inbox-emails-empty-cta
-      >{{empty.cta.label}}</a
-    >
-    {{/if}}
-    {{#if empty.addresses}}
-    <ul class="inbox-emails__address-list" data-test-inbox-empty-addresses>
-      {{#each empty.addresses}}
-      <li class="inbox-emails__address" data-test-inbox-empty-address>
-        <span class="inbox-emails__address-name" data-test-inbox-empty-address-name>{{this.name}}</span>
-        {{{this.copyableHtml}}}
-      </li>
+    <section class="inbox-emails__listing" data-test-inbox-emails-listing>
+      <header class="inbox-emails__list-header">
+        <span class="inbox-emails__count" data-test-inbox-emails-count>{{countLabel}}</span>
+      </header>
+      {{#if empty}}
+      <div
+        class="inbox-emails__empty"
+        data-test-inbox-emails-empty
+        data-test-inbox-empty-state="{{empty.key}}"
+      >
+        <div class="inbox-emails__empty-illustration">{{{empty.illustrationHtml}}}</div>
+        <h2 class="inbox-emails__empty-title" data-test-inbox-emails-empty-title>{{empty.title}}</h2>
+        <p class="inbox-emails__empty-text" data-test-inbox-emails-empty-body>{{empty.body}}</p>
+        {{#each empty.actions}}
+        <a class="btn btn--primary inbox-emails__empty-cta" href="{{href}}" data-test-inbox-emails-empty-cta="{{key}}">{{label}}</a>
+        {{/each}}
+        {{#if empty.addresses}}
+        <ul class="inbox-emails__address-list" data-test-inbox-empty-addresses>
+          {{#each empty.addresses}}
+          <li class="inbox-emails__address" data-test-inbox-empty-address>
+            <span class="inbox-emails__address-name" data-test-inbox-empty-address-name>{{this.name}}</span>
+            {{{this.copyableHtml}}}
+          </li>
+          {{/each}}
+        </ul>
+        {{/if}}
+      </div>
+      {{else}}
+      <ul class="inbox-emails__list" data-test-inbox-emails-list>
+        {{#each rows}}
+        <li
+          class="inbox-emails__row {{#if highlighted}}inbox-emails__row--highlighted{{else}}inbox-emails__row--plain{{/if}}"
+          data-test-inbox-emails-row
+          data-test-inbox-email-highlighted="{{highlighted}}">
+          <a class="inbox-emails__subject" href="{{href}}" data-test-inbox-email-subject>{{subject}}</a>
+          <div class="inbox-emails__meta">
+            <span
+              class="inbox-emails__badge {{#if needsBadge}}inbox-emails__badge--visible{{else}}inbox-emails__badge--hidden{{/if}}"
+              data-test-inbox-email-status="{{status}}"
+              >{{statusLabel}}</span
+            >
+            <span class="inbox-emails__sender" title="{{sender}}" data-test-inbox-email-sender>{{icon "mail"}}<span class="inbox-emails__sender-name">{{sender}}</span></span>
+            <span class="inbox-emails__received">{{icon "clock"}}<time class="inbox-emails__time" data-test-inbox-email-time datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time></span>
+            <span
+              class="inbox-emails__link-count{{#unless linkCountLabel}} inbox-emails__link-count--empty{{/unless}}"
+              data-test-inbox-email-link-count
+              >{{icon "link"}}<span>{{linkCountLabel}}</span></span
+            >
+          </div>
+        </li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </section>
+
+    {{#if showPagination}}
+    <nav class="inbox-emails__pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
+      {{#each paginationLinks}}
+      {{#if href}}
+      <a class="inbox-emails__pagination-link inbox-emails__pagination-link--enabled {{directionClass}}" href="{{href}}" data-test-pagination-link="{{key}}"><span class="inbox-emails__pagination-icon">{{icon iconName}}</span>{{label}}</a>
+      {{else}}
+      <span class="inbox-emails__pagination-link inbox-emails__pagination-link--disabled {{directionClass}}" aria-disabled="true" data-test-pagination-disabled="{{key}}"><span class="inbox-emails__pagination-icon">{{icon iconName}}</span>{{label}}</span>
+      {{/if}}
       {{/each}}
-    </ul>
+    </nav>
     {{/if}}
   </div>
-  {{else}}
-  <ul class="inbox-emails__list" data-test-inbox-emails-list>
-    {{#each rows}}
-    <li
-      class="inbox-emails__row {{#if highlighted}}inbox-emails__row--highlighted{{else}}inbox-emails__row--plain{{/if}}"
-      data-test-inbox-emails-row
-      data-test-inbox-email-highlighted="{{highlighted}}">
-      <a class="inbox-emails__link" href="{{href}}">
-        <span class="inbox-emails__sender" data-test-inbox-email-sender>{{sender}}</span>
-        <time class="inbox-emails__time" data-test-inbox-email-time datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
-        <span class="inbox-emails__meta-line">
-          <span class="inbox-emails__subject" data-test-inbox-email-subject>{{subject}}</span>
-          <span
-            class="inbox-emails__badge {{#if needsBadge}}inbox-emails__badge--visible{{else}}inbox-emails__badge--hidden{{/if}}"
-            data-test-inbox-email-status="{{status}}"
-            >{{statusLabel}}</span
-          >
-          <span
-            class="inbox-emails__link-count"
-            data-test-inbox-email-link-count
-            >{{linkCountLabel}}</span
-          >
-        </span>
-      </a>
-    </li>
-    {{/each}}
-  </ul>
-  {{#if showPagination}}
-  <nav class="inbox-emails__pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
-    {{#each paginationLinks}}
-    <a class="btn btn--secondary btn--compact inbox-emails__pagination-link" href="{{href}}" data-test-pagination-link="{{key}}">
-      {{#if iconLeading}}<span class="inbox-emails__pagination-icon">{{icon iconName}}</span>{{/if}}
-      {{label}}
-      {{#unless iconLeading}}<span class="inbox-emails__pagination-icon">{{icon iconName}}</span>{{/unless}}
-    </a>
-    {{/each}}
-  </nav>
-  {{/if}}
-  {{/if}}
 </main>

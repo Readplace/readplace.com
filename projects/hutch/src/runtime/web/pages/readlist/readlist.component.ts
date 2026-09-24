@@ -1,13 +1,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { IconName } from "@packages/ui-icons";
-import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
+import {
+	CONFIRM_POPOVER_STYLES,
+	render,
+	renderIllustration,
+	withInternalTracking,
+} from "@packages/web-shell";
 import type { CspNonce, PageBody } from "@packages/web-shell";
 import type { DeviceClass } from "@packages/web-analytics";
 
 import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
-import { renderIllustration } from "../../shared/illustrations/illustrations";
 import {
 	ONBOARDING_STYLES,
 	OnboardingChecklist,

@@ -52,7 +52,10 @@ function expectBareUrlRow(card: Element): void {
 	assert(bare, "the bare URL anchor must render");
 	expect(bare.getAttribute("href")).toBe("https://example.com/post");
 	expect(bare.textContent).toBe("https://example.com/post");
-	expect(cardActions(card)).toEqual(["save", "feedback-exclude"]);
+	expect(cardActions(card)).toEqual(["feedback-exclude", "save"]);
+	expect(card.querySelector("[data-test-inbox-article-menu-label]")?.textContent).toBe(
+		"More options for https://example.com/post",
+	);
 	const save = card.querySelector('[data-test-card-action="save"]');
 	assert(save, "the save button must render for a saveable link");
 	const saveForm = save.closest("form");
@@ -72,6 +75,10 @@ function expectBareUrlRow(card: Element): void {
 	expect(reportForm.getAttribute("hx-select")).toBe("main");
 	expect(reportForm.getAttribute("hx-swap")).toBe("outerHTML show:none");
 	expect(reportForm.getAttribute("hx-disabled-elt")).toBe("find button");
+	const menu = card.querySelector("[data-test-inbox-article-menu]");
+	assert(menu, "the report must sit in the row's overflow menu");
+	expect(menu.contains(report)).toBe(true);
+	expect(report.textContent).toBe("Not an article (report)");
 }
 
 describe("Inbox link card route", () => {
@@ -123,6 +130,9 @@ describe("Inbox link card route", () => {
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("pending");
 		expect(card.getAttribute("hx-get")).toContain("/links/0000/card");
+		expect(card.querySelector('[data-test-card-status="working"]')?.textContent).toBe(
+			"Fetching preview…",
+		);
 		expectBareUrlRow(card);
 	});
 
@@ -180,7 +190,10 @@ describe("Inbox link card route", () => {
 		);
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
-		expect(cardActions(card)).toEqual(["save", "feedback-exclude"]);
+		expect(cardActions(card)).toEqual(["feedback-exclude", "save"]);
+		expect(card.querySelector("[data-test-inbox-article-menu-label]")?.textContent).toBe(
+			"More options for Crawled title",
+		);
 		const title = card.querySelector("[data-test-inbox-article-title]");
 		assert(title, "the crawled row must render its title as a link");
 		expect(title.tagName).toBe("A");
@@ -191,6 +204,7 @@ describe("Inbox link card route", () => {
 		assert(url, "the crawled row must show its URL beneath the title");
 		expect(url.tagName).toBe("SPAN");
 		expect(url.textContent).toBe("https://example.com/post");
+		expect(url.getAttribute("title")).toBe("https://example.com/post");
 	});
 
 	it("renders the post-redirect destination, not the newsletter tracking link, once the crawl resolved it", async () => {
@@ -333,8 +347,8 @@ describe("Inbox link card route", () => {
 		expect(onceCrawled.card).toBe(whilePending.card);
 		expect(onceCrawled.buttons).toEqual(whilePending.buttons);
 		expect(whilePending.buttons).toEqual([
-			"inbox-card-0000-save",
 			"inbox-card-0000-feedback-exclude",
+			"inbox-card-0000-save",
 		]);
 	});
 	describe("the saved-to-queue button state", () => {
@@ -359,6 +373,16 @@ describe("Inbox link card route", () => {
 			const save = saveButton(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
 			expect(save.textContent?.trim()).toBe("Save to queue");
+			expect(Array.from(save.classList)).toEqual(
+				expect.arrayContaining(["btn", "btn--toggle", "btn--compact"]),
+			);
+			const labelStack = save.querySelector("[data-reserve-1]");
+			assert(labelStack, "the save label must reserve its alternate labels");
+			expect([
+				labelStack.getAttribute("data-reserve-1"),
+				labelStack.getAttribute("data-reserve-2"),
+			]).toEqual(["Save again", "Saving…"]);
+			expect(save.querySelector(".in-flight-dots")?.getAttribute("aria-hidden")).toBe("true");
 		});
 
 		it("renders the saved state once a save has been accepted for the link", async () => {
@@ -378,6 +402,13 @@ describe("Inbox link card route", () => {
 			const save = saveButton(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("saved");
 			expect(save.textContent?.trim()).toBe("Save again");
+			expect(save.classList.contains("btn--toggle")).toBe(true);
+			const labelStack = save.querySelector("[data-reserve-1]");
+			assert(labelStack, "the save label must reserve its alternate labels");
+			expect([
+				labelStack.getAttribute("data-reserve-1"),
+				labelStack.getAttribute("data-reserve-2"),
+			]).toEqual(["Saving…", "Save to queue"]);
 		});
 
 		it("returns to unsaved once the reader deletes the article from their queue", async () => {
@@ -515,6 +546,13 @@ describe("Inbox link card route", () => {
 			const save = saveButtonOf(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("saving");
 			expect(save.textContent?.trim()).toBe("Saving…");
+			expect(save.classList.contains("btn--toggle")).toBe(true);
+			const labelStack = save.querySelector("[data-reserve-1]");
+			assert(labelStack, "the save label must reserve its alternate labels");
+			expect([
+				labelStack.getAttribute("data-reserve-1"),
+				labelStack.getAttribute("data-reserve-2"),
+			]).toEqual(["Save again", "Save to queue"]);
 		});
 
 		it("treats a junk cursor as the start of the settle budget instead of polling unbounded", async () => {
