@@ -394,4 +394,46 @@ class UrlDetectionTest {
 			UrlDetection.firstWebUrl("the file report.pdf is attached"),
 		)
 	}
+
+	@Test
+	fun `finds no scheme-less domain when only an empty query follows the host`() {
+		assertNull(
+			"a dangling ? carries no query, so the host is bare and stays undetected",
+			UrlDetection.firstWebUrl("example.com?"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when only an empty fragment follows the host`() {
+		assertNull(
+			"a dangling # carries no fragment, so the host is bare and stays undetected",
+			UrlDetection.firstWebUrl("example.com#"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when a sentence ends in a bare host and question mark`() {
+		assertNull(
+			"the trailing ? is sentence punctuation, not a query, so the host stays bare",
+			UrlDetection.firstWebUrl("Have you tried notion.so?"),
+		)
+	}
+
+	@Test
+	fun `keeps a scheme-less domain that carries a non-empty query`() {
+		assertEquals("http://example.com?q=1", UrlDetection.firstWebUrl("example.com?q=1"))
+	}
+
+	@Test
+	fun `keeps a scheme-less domain that carries a non-empty fragment`() {
+		assertEquals("http://example.com#part", UrlDetection.firstWebUrl("example.com#part"))
+	}
+
+	@Test
+	fun `keeps a scheme-less domain path when an empty query trails it`() {
+		assertEquals(
+			"http://example.com/a",
+			UrlDetection.firstWebUrl("example.com/a?"),
+		)
+	}
 }

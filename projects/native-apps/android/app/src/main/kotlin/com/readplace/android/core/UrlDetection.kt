@@ -13,7 +13,7 @@ import java.net.URI
 object UrlDetection {
 	private val CANDIDATE = Regex("""[A-Za-z][A-Za-z0-9+.\-]*://[^\s<>"']+""")
 	private val BARE_DOMAIN =
-		Regex("""(?<![A-Za-z0-9@:/._+-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}[/?#][^\s<>"']*""")
+		Regex("""(?<![A-Za-z0-9@:/._+-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?:/[^\s<>"']*|[?#][^\s<>"']+)""")
 
 	fun firstWebUrl(text: String): String? {
 		val explicit = CANDIDATE.findAll(text).map { it.range.first to trimTrailingPunctuation(it.value) }
