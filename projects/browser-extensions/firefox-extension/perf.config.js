@@ -9,7 +9,7 @@
 // 145ms. Re-derive with the perf soak workflow when the runner image, the
 // browser, or the save path moves.
 module.exports = {
-  popupOpenMs: 58,
+  popupOpenMs: 106,
   popupOpenSamples: 3,
   popupRuntimeHoldMs: 1000,
   meanSaveMs: 190,

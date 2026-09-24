@@ -295,26 +295,55 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			});
 		});
 
-		test("swaps the real list in at the skeleton's geometry", async ({ page }) => {
+		test("swaps the real list in at the skeleton's geometry", async ({
+			page,
+		}) => {
 			await openSkeleton(page);
-			await page.waitForFunction(() => typeof window.__popupReleaseItems === "function");
-			const before = await heightsOf(page, [
+			await page.waitForFunction(
+				() => typeof window.__popupReleaseItems === "function",
+			);
+			const skeletonSelectors = [
 				".list-skeleton__header",
 				".list-skeleton__search",
 				".list-skeleton__rows",
 				".list-skeleton__row",
-			]);
-			await page.evaluate(() => window.__popupReleaseItems?.());
-			await page.waitForSelector(LIST_VIEW);
-			await listSettled(page);
-			const after = await heightsOf(page, [
+			];
+			const listSelectors = [
 				".list-view__header",
 				".list-view__search",
 				"#link-list",
 				".list-view__row",
-			]);
-			for (let index = 0; index < before.length; index += 1) {
-				expect(Math.abs(before[index] - after[index])).toBeLessThanOrEqual(1);
+			];
+			await page.evaluate(() => {
+				document.body.style.fontFamily =
+					'"Source Sans Pro", system-ui, -apple-system, sans-serif';
+			});
+			const skeletonFallback = await heightsOf(page, skeletonSelectors);
+			await page.evaluate(async () => {
+				await document.fonts.load("13px Inter");
+			});
+			await waitForBrandFonts(page, ["Inter"]);
+			await page.evaluate(() => {
+				document.body.style.removeProperty("font-family");
+			});
+			const skeletonLoaded = await heightsOf(page, skeletonSelectors);
+			await page.evaluate(() => {
+				document.body.style.fontFamily =
+					'"Source Sans Pro", system-ui, -apple-system, sans-serif';
+			});
+			await page.evaluate(() => window.__popupReleaseItems?.());
+			await page.waitForSelector(LIST_VIEW);
+			await listSettled(page);
+			const listFallback = await heightsOf(page, listSelectors);
+			await page.evaluate(() => {
+				document.body.style.removeProperty("font-family");
+			});
+			const listLoaded = await heightsOf(page, listSelectors);
+			for (let index = 0; index < skeletonFallback.length; index += 1) {
+				const heights = [skeletonFallback, skeletonLoaded, listFallback, listLoaded].map(
+					(phase) => phase[index],
+				);
+				expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
 			}
 		});
 

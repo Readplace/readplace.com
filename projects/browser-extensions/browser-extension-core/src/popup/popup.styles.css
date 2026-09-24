@@ -417,6 +417,7 @@ body {
   border: 1px solid var(--popup-border);
   border-radius: 6px;
   font-size: 13px;
+  line-height: 16px;
   font-family: inherit;
   color: var(--popup-text);
   background: var(--popup-surface);
@@ -851,7 +852,7 @@ body {
   background: var(--popup-surface);
   color: var(--popup-placeholder);
   font-size: 13px;
-  line-height: normal;
+  line-height: 16px;
 }
 
 .list-skeleton__rows {
