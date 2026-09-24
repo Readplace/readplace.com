@@ -1,21 +1,28 @@
 import assert from "node:assert";
 import type { CreateAiMessage, DocumentBlock } from "./create-ai-message.types";
-import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "./deepseek-model";
+import {
+	DEEPSEEK_MODEL,
+	DEEPSEEK_NON_THINKING,
+	DEEPSEEK_THINKING,
+	DEEPSEEK_THINKING_MAX_OUTPUT_TOKENS,
+	DEEPSEEK_THINKING_MODEL,
+} from "./deepseek-model";
 
 type ChatCompletionResponse = {
-	choices: Array<{ message?: { content?: string | null } }>;
+	choices: Array<{ message?: { content?: string | null; reasoning_content?: string | null } }>;
 	usage?: {
 		prompt_tokens: number;
 		completion_tokens: number;
 		prompt_cache_hit_tokens?: number;
 		prompt_cache_miss_tokens?: number;
+		completion_tokens_details?: { reasoning_tokens?: number };
 	} | null;
 };
 
 type CreateChatCompletion = (params: {
 	model: string;
 	max_tokens: number;
-	thinking: { type: "disabled" };
+	thinking: { type: "enabled" } | { type: "disabled" };
 	response_format?: { type: "json_object" };
 	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
 }) => Promise<ChatCompletionResponse>;
@@ -33,8 +40,11 @@ function extractTextContent(content: string | Array<DocumentBlock>): string {
 // content blocks, so the adapter extracts plain text from document blocks and
 // asks DeepSeek to emit a JSON object via response_format. The raw JSON string
 // is passed through to the caller, which validates it against its own schema.
-export function initCreateDeepseekMessage(deps: {
+function initCreateDeepseekChatMessage(deps: {
 	createChatCompletion: CreateChatCompletion;
+	model: string;
+	thinking: { type: "enabled" } | { type: "disabled" };
+	maxOutputTokens: number;
 }): CreateAiMessage {
 	return async (params) => {
 		const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
@@ -42,9 +52,9 @@ export function initCreateDeepseekMessage(deps: {
 			...params.messages.map((msg) => ({ ...msg, content: extractTextContent(msg.content) })),
 		];
 		const response = await deps.createChatCompletion({
-			model: DEEPSEEK_MODEL,
-			thinking: DEEPSEEK_NON_THINKING,
-			max_tokens: Math.min(params.max_tokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
+			model: deps.model,
+			thinking: deps.thinking,
+			max_tokens: Math.min(params.max_tokens, deps.maxOutputTokens),
 			response_format: { type: "json_object" },
 			messages,
 		});
@@ -58,7 +68,30 @@ export function initCreateDeepseekMessage(deps: {
 				output_tokens: response.usage.completion_tokens,
 				cache_hit_input_tokens: response.usage.prompt_cache_hit_tokens,
 				cache_miss_input_tokens: response.usage.prompt_cache_miss_tokens,
+				reasoning_tokens: response.usage.completion_tokens_details?.reasoning_tokens,
 			},
 		};
 	};
+}
+
+export function initCreateDeepseekMessage(deps: {
+	createChatCompletion: CreateChatCompletion;
+}): CreateAiMessage {
+	return initCreateDeepseekChatMessage({
+		createChatCompletion: deps.createChatCompletion,
+		model: DEEPSEEK_MODEL,
+		thinking: DEEPSEEK_NON_THINKING,
+		maxOutputTokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
+	});
+}
+
+export function initCreateDeepseekThinkingMessage(deps: {
+	createChatCompletion: CreateChatCompletion;
+}): CreateAiMessage {
+	return initCreateDeepseekChatMessage({
+		createChatCompletion: deps.createChatCompletion,
+		model: DEEPSEEK_THINKING_MODEL,
+		thinking: DEEPSEEK_THINKING,
+		maxOutputTokens: DEEPSEEK_THINKING_MAX_OUTPUT_TOKENS,
+	});
 }

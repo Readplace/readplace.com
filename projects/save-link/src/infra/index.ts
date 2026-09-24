@@ -30,6 +30,7 @@ import {
 	CanonicalContentChangedEvent,
 	QueueEntryCreatedEvent,
 	ComputeRelatedPastReadsCommand,
+	EmailLinksTriagedEvent,
 	StaleCheckRequestedEvent,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
@@ -48,6 +49,7 @@ import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "../runtime/domain/generate-summary/max-receive-count";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
+import { FILTER_EMAIL_LINKS_TIMEOUTS } from "../runtime/domain/filter-email-links/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
 import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "../runtime/domain/pdf-document-diff-review/timeouts";
@@ -437,7 +439,7 @@ const submitLinkUserArticlesDynamodb = new HutchDynamoDBAccess(
 	"submit-link-user-articles-dynamodb",
 	{
 		tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
-		actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+		actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
 	},
 );
 
@@ -1395,6 +1397,42 @@ eventBus.subscribeAll(
 	computeRelatedArticlesLambdaWithSQS,
 	{ name: "compute-related-articles" },
 );
+
+const filterEmailLinksQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.filterEmailLinks, {
+	visibilityTimeoutSeconds: FILTER_EMAIL_LINKS_TIMEOUTS.sqsVisibilitySeconds,
+	dlqMaxReceiveCount: 2,
+	sharedDlq: failuresDlq,
+});
+
+const filterEmailLinksUserArticlesDynamodb = new HutchDynamoDBAccess("filter-email-links-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:Query"],
+});
+
+const filterEmailLinksLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.filterEmailLinks, {
+	entryPoint: "./src/runtime/filter-email-links.main.ts",
+	outputDir: ".lib/filter-email-links",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: FILTER_EMAIL_LINKS_TIMEOUTS.lambdaSeconds,
+	environment: {
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [...filterEmailLinksUserArticlesDynamodb.policies],
+});
+
+eventBus.grantPublish(filterEmailLinksLambda);
+
+const filterEmailLinksLambdaWithSQS = new HutchSQSBackedLambda("filter-email-links", {
+	lambda: filterEmailLinksLambda,
+	queue: filterEmailLinksQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(EmailLinksTriagedEvent, filterEmailLinksLambdaWithSQS);
 
 // --- RecrawlLinkInitiated handler ---
 

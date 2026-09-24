@@ -14,7 +14,7 @@ import {
 	initResolveCanonicalIdentity,
 } from "@packages/article-store";
 import { initSubmitLinkCommandHandler } from "./domain/submit-link/submit-link-command-handler";
-import { initSubmitFreshness } from "@packages/save-article";
+import { initFileArticleIntoReadlist, initSubmitFreshness } from "@packages/save-article";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -111,6 +111,11 @@ export const handler = initSubmitLinkCommandHandler({
 	validateSaveableUrl,
 	saveArticle: savedArticleStore.saveArticle,
 	allocateSavedAt: savedArticleStore.allocateSavedAt,
+	fileArticleIntoReadlist: initFileArticleIntoReadlist({
+		allocateSavedAt: savedArticleStore.allocateSavedAt,
+		saveReadlistArticle: savedArticleStore.saveReadlistArticle,
+		updateArticleStatusAcrossReadlists: savedArticleStore.updateArticleStatusAcrossReadlists,
+	}),
 	recordInboxArticleQueued: onboardingSignals.recordInboxArticleQueued,
 	updateArticleStatus: savedArticleStore.updateArticleStatus,
 	markCrawlPending: crawlStore.markCrawlPending,

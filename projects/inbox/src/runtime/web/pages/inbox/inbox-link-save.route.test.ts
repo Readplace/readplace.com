@@ -7,6 +7,7 @@ import {
 	InboxAddressSchema,
 	MessageIdSchema,
 } from "@packages/domain/inbox";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -14,6 +15,7 @@ import { loginAgent, useTestServer } from "../../../test-app";
 const useApp = useTestServer();
 const SK = "2026-06-24T09:00:00.000Z#<save@x>";
 const EMAIL_PROVENANCE = { kind: "email", senderEmail: "news@example.com" };
+const WORK = ReadlistSlugSchema.parse("work");
 
 function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry {
 	return {
@@ -29,6 +31,7 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		droppedFor: undefined,
 		...overrides,
 	};
 }
@@ -82,7 +85,7 @@ describe("Inbox link save route", () => {
 		expect(response.headers.location).toBe(
 			`/inbox/${encodeURIComponent(SK)}?tab=articles&saved=1`,
 		);
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
 		// A kept card carries no misclassification verdict, so its save logs no
 		// classifier-audit line — only a skipped row's save reports one.
 		expect(errors).toHaveLength(0);
@@ -146,7 +149,7 @@ describe("Inbox link save route", () => {
 
 		await agent.post(savePath);
 
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
 	});
 
 	it("strips the newsletter's utm tags from a crawled link before submitting it", async () => {
@@ -159,7 +162,7 @@ describe("Inbox link save route", () => {
 
 		await agent.post(savePath);
 
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post?id=7", provenance: EMAIL_PROVENANCE }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post?id=7", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
 	});
 
 	it("submits a pending wrapper byte-exact, so a signed query survives the redirect chain", async () => {
@@ -175,7 +178,7 @@ describe("Inbox link save route", () => {
 		await agent.post(savePath);
 
 		expect(harness.submittedLinks).toEqual([
-			{ userId, url: "https://link.mail.example.com/ss/c/token?utm_source=nl", provenance: EMAIL_PROVENANCE },
+			{ userId, url: "https://link.mail.example.com/ss/c/token?utm_source=nl", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
 		]);
 	});
 
@@ -211,7 +214,7 @@ describe("Inbox link save route", () => {
 			`/inbox/${encodeURIComponent(SK)}?tab=excluded&saved=1`,
 		);
 		expect(harness.submittedLinks).toEqual([
-			{ userId, url: "https://example.com/story?utm_source=nl&sig=abc", provenance: EMAIL_PROVENANCE },
+			{ userId, url: "https://example.com/story?utm_source=nl&sig=abc", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
 		]);
 		// Saving a skipped row IS the report now that the report button is gone: the
 		// save emits the same classifier-audit line the button used to, so a
@@ -271,6 +274,31 @@ describe("Inbox link save route", () => {
 
 		expect(response.status).toBe(404);
 		expect(harness.submittedLinks).toEqual([]);
+	});
+
+	it("files a link the readlist dropped into that readlist, back on the Skipped tab, reporting nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errors: string[] = [];
+		fixture.shared.logError = (message) => {
+			errors.push(message);
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture, {
+			url: "https://example.com/launch?utm_source=nl",
+			droppedFor: { readlist: WORK, readlistLabel: "Work", reason: "A product launch" },
+		});
+
+		const response = await agent.post(savePath);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`/inbox/${encodeURIComponent(SK)}?tab=excluded&saved=1`,
+		);
+		expect(harness.submittedLinks).toEqual([
+			{ userId, url: "https://example.com/launch", provenance: EMAIL_PROVENANCE, readlist: WORK },
+		]);
+		expect(errors).toHaveLength(0);
 	});
 });
 
@@ -342,9 +370,34 @@ describe("Inbox link save route answering htmx in place", () => {
 		const button = saveButton(row);
 		expect(button.getAttribute("data-test-save-state")).toBe("saving");
 		expect(button.textContent?.trim()).toBe("Saving…");
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
 		expect(errors).toHaveLength(1);
 		assert(errors[0].startsWith("[inbox-link-feedback] "));
+	});
+
+	it("answers an in-place save of a link the readlist dropped with its skipped row, saving and polling", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture, {
+			droppedFor: { readlist: WORK, readlistLabel: "Work", reason: "A product launch" },
+		});
+
+		const response = await agent.post(savePath).set("HX-Request", "true");
+
+		expect(response.status).toBe(200);
+		const row = excludedRow(response.text);
+		expect(row.getAttribute("id")).toBe("inbox-skipped-0000");
+		expect(row.getAttribute("hx-get")).toBe(
+			`/inbox/${encodeURIComponent(SK)}/links/0000/excluded?poll=1`,
+		);
+		expect(row.querySelector("[data-test-inbox-excluded-reason]")?.textContent).toBe(
+			"Not for Work — A product launch",
+		);
+		expect(saveButton(row).getAttribute("data-test-save-state")).toBe("saving");
+		expect(harness.submittedLinks).toEqual([
+			{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: WORK },
+		]);
 	});
 
 	it("posts the row form to itself rather than boosting the whole page", async () => {
@@ -404,7 +457,7 @@ describe("Inbox link save route answering htmx in place", () => {
 		const button = cardSaveButton(card);
 		expect(button.getAttribute("data-test-save-state")).toBe("saving");
 		expect(button.textContent?.trim()).toBe("Saving…");
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
 		expect(errors).toHaveLength(0);
 	});
 
@@ -660,7 +713,7 @@ describe("Inbox link save route with a relayed publisher", () => {
 		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 			userId,
 			receivedAtMessageId: SK,
-			meta: { truncated: false, extractionFailed: false },
+			meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
 		});
 
 		const beforeSave = new JSDOM(
@@ -695,7 +748,7 @@ describe("Inbox link save route with a relayed publisher", () => {
 		const response = await agent.post(savePath);
 
 		expect(response.status).toBe(303);
-		expect(relayed).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
+		expect(relayed).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
 	});
 });

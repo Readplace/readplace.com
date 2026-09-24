@@ -7,7 +7,14 @@ export function computeInboxExcludedRowEtag(input: {
 }): string {
 	const { link, saveState } = input;
 	const hash = createHash("sha256");
-	for (const part of [link.status, link.skipReason ?? "", saveState ?? "none"]) {
+	for (const part of [
+		link.status,
+		link.skipReason ?? "",
+		link.droppedFor?.readlist ?? "",
+		link.droppedFor?.readlistLabel ?? "",
+		link.droppedFor?.reason ?? "",
+		saveState ?? "none",
+	]) {
 		hash.update(part);
 		hash.update("|");
 	}

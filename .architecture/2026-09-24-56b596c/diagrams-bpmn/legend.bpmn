@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_legend" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_legend" name="legend" isExecutable="false">
+    <bpmn:sendTask id="n_C" name="Command (a request that may be refused)"></bpmn:sendTask>
+    <bpmn:serviceTask id="n_S" name="System / aggregate (the handler that decides)"></bpmn:serviceTask>
+    <bpmn:endEvent id="n_E" name="Event (an irreversible fact)">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_P" name="Policy / reaction (what an event triggers)"></bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_R" name="Read model / store"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_Q" name="Queue">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="n_D" name="Dead-letter queue">
+
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_X1" name="Existing step">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_X2" name="New or changed in this snapshot">
+      <bpmn:incoming>f_0</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="amber edge: new or re-wired" sourceRef="n_X1" targetRef="n_X2" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_legend">
+    <bpmndi:BPMNPlane id="Plane_legend" bpmnElement="Process_legend">
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="38.38" y="28" width="173.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_S_di" bpmnElement="n_S">
+        <dc:Bounds x="28" y="216" width="194.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_E_di" bpmnElement="n_E">
+        <dc:Bounds x="105.13" y="304" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="105.13" y="412" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R_di" bpmnElement="n_R">
+        <dc:Bounds x="60.89" y="520" width="128.48" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="105.13" y="621.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="105.13" y="716" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_X1_di" bpmnElement="n_X1">
+        <dc:Bounds x="70" y="132" width="110.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_X2_di" bpmnElement="n_X2">
+        <dc:Bounds x="280.25" y="375.25" width="169.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="180.25" y="156" />
+        <di:waypoint x="230.25" y="156" />
+        <di:waypoint x="230.25" y="401.25" />
+        <di:waypoint x="280.25" y="401.25" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

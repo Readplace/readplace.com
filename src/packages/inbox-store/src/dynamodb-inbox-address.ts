@@ -5,6 +5,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	aliasNameFromAddress,
@@ -36,6 +37,7 @@ const InboxAddressRow = z.object({
 	createdAt: z.string(),
 	disabledAt: dynamoField(z.string()),
 	purpose: dynamoField(InboxAddressPurposeSchema),
+	readlist: dynamoField(ReadlistSlugSchema),
 });
 
 /** The one seam that turns a stored row into a fully-populated entry. */
@@ -48,6 +50,7 @@ function toEntry(row: z.infer<typeof InboxAddressRow>): InboxAddressEntry {
 		createdAt: row.createdAt,
 		disabledAt: row.disabledAt,
 		purpose: row.purpose ?? DEFAULT_INBOX_ADDRESS_PURPOSE,
+		readlist: row.readlist,
 	};
 }
 
@@ -86,7 +89,7 @@ export function initDynamoDbInboxAddress(deps: {
 				table.update({
 					Key: { address: entry.address },
 					UpdateExpression:
-						"SET userId = :tomb, disabledAt = if_not_exists(disabledAt, :now) REMOVE #name",
+						"SET userId = :tomb, disabledAt = if_not_exists(disabledAt, :now) REMOVE #name, readlist",
 					ConditionExpression: "userId = :uid",
 					ExpressionAttributeNames: { "#name": "name" },
 					ExpressionAttributeValues: {
@@ -127,6 +130,7 @@ export function initDynamoDbInboxAddress(deps: {
 						createdAt,
 						disabledAt: undefined,
 						purpose,
+						readlist: undefined,
 					};
 				} catch (error) {
 					if (error instanceof ConditionalCheckFailedException) continue;
@@ -153,6 +157,43 @@ export function initDynamoDbInboxAddress(deps: {
 				UpdateExpression: "REMOVE disabledAt",
 				ExpressionAttributeValues: { ":uid": userId },
 			});
+		},
+		setAddressReadlist: async ({ userId, address, readlist }) => {
+			await table.update(
+				readlist === undefined
+					? {
+							Key: { address },
+							ConditionExpression: "userId = :uid",
+							UpdateExpression: "REMOVE readlist",
+							ExpressionAttributeValues: { ":uid": userId },
+						}
+					: {
+							Key: { address },
+							ConditionExpression: "userId = :uid",
+							UpdateExpression: "SET readlist = :readlist",
+							ExpressionAttributeValues: { ":uid": userId, ":readlist": readlist },
+						},
+			);
+		},
+		clearReadlistFromAddresses: async ({ userId, readlist }) => {
+			const addresses = await listAddressesByUserId(userId);
+			await Promise.all(
+				addresses
+					.filter((entry) => entry.readlist === readlist)
+					.map(async (entry) => {
+						try {
+							await table.update({
+								Key: { address: entry.address },
+								ConditionExpression: "userId = :uid AND readlist = :readlist",
+								UpdateExpression: "REMOVE readlist",
+								ExpressionAttributeValues: { ":uid": userId, ":readlist": readlist },
+							});
+						} catch (error) {
+							if (error instanceof ConditionalCheckFailedException) return;
+							throw error;
+						}
+					}),
+			);
 		},
 		findByAddress: async (address) => {
 			const row = await table.get({ address }, { consistentRead: true });

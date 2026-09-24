@@ -15,6 +15,8 @@ import {
 import {
 	ConfirmGmailForwardingCommand,
 	CrawlEmailLinkPreview,
+	EmailLinksFilteredEvent,
+	EmailLinksFilterFailedEvent,
 	EmailReceivedEvent,
 	INBOX_DLQ_SOURCES,
 	LinkDequeuedEvent,
@@ -335,7 +337,7 @@ const extractEmailLinksDynamodb = new HutchDynamoDBAccess("inbox-extract-email-l
 		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
 		{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false },
 	],
-	// getEmail (GetItem); putLink/putLinksMeta (PutItem); setEmailLinkCounts
+	// getEmail (GetItem); putLink (PutItem); setEmailLinkCounts
 	// (UpdateItem); the conditional put needs no Query, and listing is the web
 	// layer's job.
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
@@ -412,6 +414,14 @@ const extractEmailLinksSubscriptionProvidersRead = new HutchDynamoDBAccess(
 	},
 );
 
+const extractEmailLinksAddressesRead = new HutchDynamoDBAccess(
+	"inbox-extract-email-links-addresses-read",
+	{
+		tables: [{ arn: inboxStorage.addressesTable.arn, includeIndexes: false }],
+		actions: ["dynamodb:GetItem"],
+	},
+);
+
 const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 	entryPoint: "./src/runtime/extract-email-links.main.ts",
 	outputDir: ".lib/inbox-extract-email-links",
@@ -421,6 +431,7 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 	// per-link write fan-out.
 	timeout: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS,
 	environment: {
+		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
@@ -435,6 +446,7 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 	policies: [
 		...extractEmailLinksDynamodb.policies,
 		...extractEmailLinksSubscriptionProvidersRead.policies,
+		...extractEmailLinksAddressesRead.policies,
 		// Reads the raw .eml to re-derive the body; never writes any bucket.
 		...HutchS3ReadWrite.readPoliciesForBucket(
 			"inbox-extract-email-links-raw-read",
@@ -661,6 +673,64 @@ const recordLinkDequeuedWithSQS = new HutchSQSBackedLambda("inbox-record-link-de
 eventBus.subscribe(LinkDequeuedEvent, recordLinkDequeuedWithSQS, {
 	name: "inbox-record-link-dequeued",
 });
+
+const recordEmailLinksFilteredDynamodb = new HutchDynamoDBAccess(
+	"inbox-record-email-links-filtered-dynamodb",
+	{
+		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
+		actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+	},
+);
+
+const recordEmailLinksFilteredEmailsDynamodb = new HutchDynamoDBAccess(
+	"inbox-record-email-links-filtered-emails-dynamodb",
+	{
+		tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: false }],
+		actions: ["dynamodb:UpdateItem"],
+	},
+);
+
+const RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS = 30;
+
+const recordEmailLinksFilteredLambda = new HutchLambda("inbox-record-email-links-filtered", {
+	entryPoint: "./src/runtime/record-email-links-filtered.main.ts",
+	outputDir: ".lib/inbox-record-email-links-filtered",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS,
+	environment: {
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
+	},
+	policies: [
+		...recordEmailLinksFilteredDynamodb.policies,
+		...recordEmailLinksFilteredEmailsDynamodb.policies,
+	],
+});
+
+const recordEmailLinksFilteredQueue = new HutchSQS("inbox-record-email-links-filtered", {
+	visibilityTimeoutSeconds:
+		RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
+});
+
+const recordEmailLinksFilteredWithSQS = new HutchSQSBackedLambda(
+	"inbox-record-email-links-filtered",
+	{
+		lambda: recordEmailLinksFilteredLambda,
+		queue: recordEmailLinksFilteredQueue,
+		alertEmailDLQEntry: alertEmail,
+		batchSize: 1,
+	},
+);
+
+eventBus.subscribeAll(
+	[
+		{ ...EmailLinksFilteredEvent, name: "inbox-record-email-links-filtered" },
+		{ ...EmailLinksFilterFailedEvent, name: "inbox-record-email-links-filter-failed" },
+	],
+	recordEmailLinksFilteredWithSQS,
+	{ name: "inbox-record-email-links-filtered" },
+);
 
 export const routeKeys = inboxRoutes.routes.map((route) => route.routeKey);
 

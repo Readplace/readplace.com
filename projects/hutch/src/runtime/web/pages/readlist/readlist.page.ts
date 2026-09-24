@@ -9,6 +9,7 @@ import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
+import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
@@ -367,6 +368,8 @@ interface ReadlistDependencies {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
+	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
+	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	publishLinkSaved: PublishLinkSaved;
@@ -1215,6 +1218,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		initReadlistPreferencesRoutes({
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+			listInboxAddresses: deps.listInboxAddresses,
+			setInboxAddressReadlist: deps.setInboxAddressReadlist,
 			getEffectiveAccess: deps.getEffectiveAccess,
 			buildBannerState: deps.buildBannerState,
 			requireWriteAccess: deps.requireWriteAccess,

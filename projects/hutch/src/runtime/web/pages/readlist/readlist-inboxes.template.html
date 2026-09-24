@@ -1,0 +1,24 @@
+<section class="readlist-listing readlist-inboxes {{sectionClass}}" aria-labelledby="readlist-inboxes-title" data-test-readlist-inboxes data-test-inboxes-state="{{state}}">
+  <header class="readlist-inboxes__header">
+    <h2 class="readlist-inboxes__title" id="readlist-inboxes-title">Inboxes</h2>
+    <p class="readlist-inboxes__lede" data-test-inboxes-description>{{description}}</p>
+  </header>
+  <ul class="readlist-inboxes__list">
+    {{#each rows}}
+    <li class="readlist-inboxes__row" data-test-preferences-inbox="{{address}}" data-test-inbox-routing="{{routing}}">
+      <p class="readlist-inboxes__name" id="{{nameId}}" data-test-inbox-name>{{name}}</p>
+      <p class="readlist-inboxes__address" data-test-inbox-address>{{address}}</p>
+      <p class="readlist-inboxes__destination" data-test-inbox-destination>{{destinationText}}</p>
+      <form class="readlist-inboxes__form" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+        <input type="hidden" name="address" value="{{address}}">
+        <input type="hidden" name="destination" value="{{destination}}">
+        <button class="btn btn--toggle btn--compact" type="submit" aria-describedby="{{nameId}}" data-test-action="{{testAction}}">{{submitLabel}}</button>
+      </form>
+    </li>
+    {{/each}}
+  </ul>
+  <div class="readlist-inboxes__empty" data-test-inboxes-empty>
+    <h3 class="readlist-inboxes__empty-title">No inboxes yet</h3>
+    <a class="btn btn--neutral" href="{{createInboxHref}}" data-test-action="create-inbox">Create an inbox</a>
+  </div>
+</section>
