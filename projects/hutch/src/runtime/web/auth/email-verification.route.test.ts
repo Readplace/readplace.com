@@ -59,13 +59,25 @@ describe("Email verification", () => {
 			await errorLogged;
 		});
 
-		it("should not send a verification email when signup fails (duplicate email)", async () => {
+		it("sends no verification email when the signup form signs a visitor in to an existing account", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, email } = harness;
 			await auth.createUser({ email: "existing@example.com", password: "password123" });
 
-			await signup(harness.server, "existing@example.com");
+			const response = await signup(harness.server, "existing@example.com");
 
+			expect(response.status).toBe(303);
+			expect(email.getSentEmails()).toHaveLength(0);
+		});
+
+		it("should not send a verification email when signup fails (duplicate email)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
+			await auth.createUser({ email: "existing@example.com", password: "a-different-password" });
+
+			const response = await signup(harness.server, "existing@example.com");
+
+			expect(response.status).toBe(422);
 			expect(email.getSentEmails()).toHaveLength(0);
 		});
 	});

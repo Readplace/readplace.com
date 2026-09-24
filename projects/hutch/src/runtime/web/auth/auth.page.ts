@@ -44,7 +44,6 @@ import type {
 	RateLimitRules,
 } from "@packages/provider-contracts/rate-limit";
 import { createRateLimitMiddleware, sendRateLimited } from "../middleware/rate-limit";
-import { normalizeEmail } from "@packages/domain/user";
 import { chargeReminderFiresAt } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
@@ -66,6 +65,7 @@ import { initFetchUserCount } from "./fetch-user-count";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { createBotDefenseEvent } from "./bot-defense-event";
 import { initValidateSignup } from "./validate-signup";
+import { initSignInWithPassword } from "./sign-in-with-password";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { readClickAttribution } from "@packages/web-analytics";
 import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
@@ -150,6 +150,13 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 	const validateSignup = initValidateSignup({ findUserByEmail: deps.findUserByEmail });
 
+	const signInWithPassword = initSignInWithPassword({
+		consumeRateLimit: deps.consumeRateLimit,
+		loginAccountRule: deps.rateLimitRules.loginAccount,
+		verifyCredentials: deps.verifyCredentials,
+		createSession: deps.createSession,
+	});
+
 	const sendWelcomeEmail = initSendWelcomeEmail({
 		sendEmail: deps.sendEmail,
 		baseUrl: deps.baseUrl,
@@ -221,19 +228,13 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 		const { email, password } = parsed.data;
 
-		const accountDecision = await deps.consumeRateLimit({
-			bucket: "login-account",
-			key: normalizeEmail(email),
-			rule: deps.rateLimitRules.loginAccount,
-		});
-		if (!accountDecision.allowed) {
-			sendRateLimited(res, accountDecision.retryAfterSeconds);
+		const signIn = await signInWithPassword({ email, password });
+		if (!signIn.ok && signIn.reason === "rate-limited") {
+			sendRateLimited(res, signIn.retryAfterSeconds);
 			return;
 		}
 
-		const credentials = await deps.verifyCredentials({ email, password });
-
-		if (!credentials.ok) {
+		if (!signIn.ok) {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
@@ -253,8 +254,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		const sessionId = await deps.createSession({ userId: credentials.userId, emailVerified: credentials.emailVerified });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		res.cookie(SESSION_COOKIE_NAME, signIn.sessionId, sessionCookieOptions);
 		res.redirect(303, parseReturnUrl(req.query));
 	});
 
@@ -306,6 +306,24 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			);
 		};
 
+		const signInExistingAccount = async (credentials: { email: string; password: string }) => {
+			const signIn = await signInWithPassword(credentials);
+			if (!signIn.ok) {
+				if (signIn.reason === "rate-limited") {
+					sendRateLimited(res, signIn.retryAfterSeconds);
+					return;
+				}
+				logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
+				await renderFailure(credentials.email, [
+					{ message: "This email is already registered. Check the password, or sign in the way you signed up." },
+				]);
+				return;
+			}
+			res.cookie(SESSION_COOKIE_NAME, signIn.sessionId, sessionCookieOptions);
+			logSignupAttempt(SIGNUP_OUTCOMES.signedIn);
+			res.redirect(303, parseReturnUrl(req.query));
+		};
+
 		const result = await validateSignup({ body, nowMs: deps.now().getTime() });
 
 		if (!result.ok) {
@@ -338,8 +356,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					await renderFailure(result.email, result.errors);
 					break;
 				case "duplicate-email":
-					logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
-					await renderFailure(result.email, [{ message: "An account with this email already exists" }]);
+					await signInExistingAccount({ email: result.email, password: result.password });
 					break;
 			}
 			return;
@@ -355,8 +372,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
 			const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution });
 			if (!created.ok) {
-				logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
-				await renderFailure(email, [{ message: "An account with this email already exists" }]);
+				await signInExistingAccount({ email, password });
 				return;
 			}
 
@@ -392,8 +408,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 		const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution });
 		if (!created.ok) {
-			logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
-			await renderFailure(email, [{ message: "An account with this email already exists" }]);
+			await signInExistingAccount({ email, password });
 			return;
 		}
 
