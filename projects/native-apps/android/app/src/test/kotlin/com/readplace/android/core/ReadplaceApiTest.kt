@@ -230,10 +230,6 @@ class ReadplaceApiTest {
 
 	@Test
 	fun `rediscoverReadlist bypasses the discovery cache an ordinary load reuses`() = runTest {
-		// A real disk cache warmed with the collection behind the 303 entry redirect.
-		// An ordinary load reuses the cached collection; a rediscovery forces a network
-		// read through every hop so a moved action is read fresh rather than from the
-		// hour-long grant the server gave native clients.
 		val cache = Cache(folder.newFolder(), 10L * 1024 * 1024)
 		val queueGets = AtomicInteger()
 		server.handle { record ->
@@ -265,13 +261,10 @@ class ReadplaceApiTest {
 		val warmed = api.loadReadlist()
 		assertEquals("/queue/save-v1", warmed.action("save-article")?.href)
 
-		// An ordinary second discovery serves /queue from the disk cache: only the entry
-		// redirect is re-followed, and a 303 is never cached even carrying max-age.
 		val reused = api.loadReadlist()
 		assertEquals("the collection is served from the cache, so its stale action stands", "/queue/save-v1", reused.action("save-article")?.href)
 		assertEquals("an ordinary discovery does not re-read the collection over the network", 1, server.records("/queue").count { it.method == "GET" })
 
-		// A forced rediscovery bypasses the cache on every hop, so the moved action is read.
 		val rediscovered = api.rediscoverReadlist()
 		assertEquals("the fresh network read carries the moved action", "/queue/save-v2", rediscovered.action("save-article")?.href)
 		assertEquals("the rediscovery re-reads the collection over the network", 2, server.records("/queue").count { it.method == "GET" })
@@ -809,9 +802,6 @@ class ReadplaceApiTest {
 
 	@Test
 	fun `an all-unrenderable refusal stays a refusal with no messages`() = runTest {
-		// Every message is in a media type the client can't render, so all are dropped —
-		// but the refusal still stands as a Refused, not a generic server error, so the
-		// share journey never re-discovers and retries a mutation the server refused.
 		server.handle { Stub.json(403, Fixtures.messageRefusal(listOf(Triple("warning", "text/markdown", "**locked**")))) }
 
 		val error = failsWith<ApiError.Refused> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
@@ -822,8 +812,6 @@ class ReadplaceApiTest {
 
 	@Test
 	fun `a refusal whose messages array is present but empty is still a refusal`() = runTest {
-		// messages: [] is a refusal that carried no copy. Present-but-empty is still a
-		// refusal — only an absent or null messages array is a generic server error.
 		server.handle { Stub.json(402, """{ "class": ["error"], "properties": { "messages": [] } }""") }
 
 		val error = failsWith<ApiError.Refused> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }

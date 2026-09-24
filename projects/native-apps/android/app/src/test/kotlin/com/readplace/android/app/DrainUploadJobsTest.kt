@@ -361,10 +361,6 @@ class DrainUploadJobsTest {
 
 	@Test
 	fun `drops a job an all-unrenderable refusal terminates even at a retryable status`() = runTest {
-		// The only message is in a media type the client can't render, carried on a 503
-		// — a status the drainer would otherwise reschedule as a transient failure. The
-		// shared decoder still classifies it as a refusal, so the refusal branch drops
-		// the job on the server's verdict rather than retrying the bytes it refused.
 		val jobs = makeStore()
 		val admitted = job()
 		jobs.admit(admitted)

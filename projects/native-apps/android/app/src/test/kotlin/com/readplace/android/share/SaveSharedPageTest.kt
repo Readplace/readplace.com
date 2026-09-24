@@ -176,9 +176,6 @@ class SaveSharedPageTest {
 	private fun saveArticleActionJson(href: String): String =
 		"""{ "name": "save-article", "href": "$href", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }"""
 
-	/** A collection advertising a `save-article` at [saveArticleHref], optionally with
-	 * the `save-content` action, so a test can move the URL-only save between reads and
-	 * choose whether the rediscovered page still offers a home for the capture. */
 	private fun movableCollection(saveArticleHref: String, withSaveContent: Boolean = true): String {
 		val saveContent =
 			if (withSaveContent) {
@@ -805,9 +802,6 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `re-discovers past the cache and retries once when the save action has moved`() = runTest {
-		// A real disk cache warms with the collection behind the 303 entry redirect. The
-		// first save is posted to the stale (v1) action and fails; the rediscovery must
-		// bypass that warm cache to read the moved (v2) action and retry the same URL.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		val cache = Cache(temporaryFolder.newFolder("cache"), 10L * 1024 * 1024)
@@ -858,8 +852,6 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `retries the save only once`() = runTest {
-		// The moved action fails too: one re-discovery and one retry, then the second
-		// failure surfaces rather than looping.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		server.handle { record ->
@@ -890,8 +882,6 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `does not re-discover after a forbidden save`() = runTest {
-		// A 403 is the server's answer to this exact request, not a stale address, so
-		// the save is not re-discovered and retried.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		server.handle { record ->
@@ -917,10 +907,6 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `does not re-discover after a non-403 refusal`() = runTest {
-		// A 402 whose only message is in a media type the client can't render still
-		// classifies as a refusal — refusal identity, not the 403 exclusion, is what
-		// stops the retry — so it is never re-discovered, and it falls back to the
-		// client's own words with no article to enrich.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		server.handle { record ->
@@ -951,9 +937,6 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `saves without admission when the re-discovered page dropped save-content`() = runTest {
-		// The moved collection no longer advertises save-content. The URL save still
-		// lands on its fresh action; there is just nowhere to send a capture, so no job
-		// is admitted from the obsolete page.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		val queueGets = AtomicInteger()
@@ -984,8 +967,6 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `gives up when the re-discovered collection offers no save action`() = runTest {
-		// The fresh discovery is the truth: with no save action advertised there is
-		// nothing left to retry.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		val queueGets = AtomicInteger()
@@ -1017,10 +998,6 @@ class SaveSharedPageTest {
 
 	@Test
 	fun `a cancellation while an eligible save failure is in flight adds no re-discovery`() = runTest {
-		// The first save is parked in flight, then the journey is cancelled and the save
-		// released. Cancellation propagates rather than being treated as an eligible
-		// failure, so no replacement save is discovered — even though the parked save
-		// may already have reached the server.
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		val gate = RecordingServer.Gate()
@@ -1402,8 +1379,6 @@ class SaveSharedPageTest {
 		fun accountLockedError(): String =
 			"""{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/html", "body": "Your account is locked because your email was never verified. Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access." } }] } }"""
 
-		/** A message-only refusal carrying one message in an arbitrary media type — lets
-		 * a test model a refusal whose copy the client can't render. */
 		fun messageRefusal(mediaType: String, body: String, type: String = "warning"): String =
 			"""{ "class": ["error"], "properties": { "messages": [{ "type": "$type", "content": { "type": "$mediaType", "body": "$body" } }] } }"""
 	}
