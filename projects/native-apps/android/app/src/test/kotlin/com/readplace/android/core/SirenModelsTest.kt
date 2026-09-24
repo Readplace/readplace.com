@@ -43,8 +43,6 @@ class SirenModelsTest {
 
 	private fun decodedPage(source: String): ReadlistPage = ReadlistPage(decodedCollection(source))
 
-	/** A collection carrying [tabsJson] in its properties, so a test exercises the tab
-	 * strip through the same decode + projection the reading list runs. */
 	private fun collectionWithTabs(tabsJson: String, entitiesJson: String = ""): String =
 		"""
 		{
@@ -55,8 +53,6 @@ class SirenModelsTest {
 		}
 		"""
 
-	/** The two-tab strip the server ships, with [current] (a status token) marked
-	 * `current` and the other left a plain `tab`. */
 	private fun tabsJson(current: String): String {
 		fun rel(status: String): String = if (status == current) "current" else "tab"
 		return """
@@ -359,9 +355,6 @@ class SirenModelsTest {
 
 	@Test
 	fun `renamed labels, wire order, unknown relations and opaque hrefs all survive the decode`() {
-		// The client keys nothing on the label or href text and reads only
-		// rel == "current": a renamed label, a reordered strip, an unknown relation,
-		// and an opaque query all decode as the server sent them.
 		val tabs = """
 			{ "label": "Later", "rel": "tab", "href": "/q?f=x%20y&s=later" },
 			{ "label": "Done", "rel": "current", "href": "/q?f=x%20y&s=done" },

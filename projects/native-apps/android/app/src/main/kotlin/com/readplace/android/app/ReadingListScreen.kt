@@ -379,15 +379,6 @@ private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 	}
 }
 
-/**
- * The reading list's server-driven filter strip, rendered as a native segmented
- * control above the list. Each segment shows the server's label verbatim and, when
- * tapped, follows that tab's opaque href via [onSelect]; the highlighted segment is
- * the one whose href matches [selectedHref]. The client keys nothing on the label or
- * href text and renders every advertised tab in wire order, so a renamed label or a
- * third tab needs no change here. A "Filter" group label is exposed to accessibility;
- * each segment announces its own selected state.
- */
 @Composable
 private fun TabStrip(
 	tabs: List<ReadlistTab>,

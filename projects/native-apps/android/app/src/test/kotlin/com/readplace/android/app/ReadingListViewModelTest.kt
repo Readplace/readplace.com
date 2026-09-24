@@ -2250,16 +2250,9 @@ class ReadingListViewModelTest {
 
 	// endregion
 
-	// region Server-driven tabs
-
 	private val readTabLanding = "/queue?landing=after-toggle"
 	private val readTabLandingQuery = "landing=after-toggle"
 
-	/** A two-tab (To Read / Read) readlist. The entry point and `/queue?status=unread`
-	 * serve the To Read collection; `/queue?status=read` (and the post-toggle landing)
-	 * serve the Read one. A `/status` POST redirects to the Read landing when its href
-	 * carries `status=read` (a Read-tab toggle) and to the entry otherwise, so the
-	 * followed collection names the tab the action was invoked from as current. */
 	private fun tabbedReadlistHandler(
 		readTabExtraLinks: String = "",
 		readTabAfterStatusPost: List<String>? = null,
@@ -2441,8 +2434,6 @@ class ReadingListViewModelTest {
 		assertNull(viewModel.state.value.errorText)
 	}
 
-	/** Selects the Read tab, runs [reconcile], and returns the single re-read it
-	 * issued — asserting the reconciliation was exactly one request and kept the tab. */
 	private suspend fun TestScope.reReadAfterSelectingTheReadTab(
 		reconcile: suspend (ReadingListViewModel) -> Unit,
 	): Record {
@@ -2803,9 +2794,6 @@ class ReadingListViewModelTest {
 		assertFalse(viewModel.state.value.hasMore)
 	}
 
-	/** Loads two To Read pages, then holds the mutation's adoption re-follow hop while
-	 * the user switches to Read, releasing it with [hopAnswer]. Returns the view model
-	 * so the caller asserts nothing from the abandoned old-tab hop landed under Read. */
 	private suspend fun TestScope.adoptionReFollowInterruptedByATabChange(hopAnswer: Stub): ReadingListViewModel {
 		val gate = Gate()
 		val statusPosted = AtomicBoolean(false)
@@ -2930,8 +2918,6 @@ class ReadingListViewModelTest {
 		assertEquals("/queue?status=read", viewModel.selectedTabHref)
 	}
 
-	// endregion
-
 	private object Fixtures {
 		const val LOCKED_MESSAGE = "Your account is locked because your email was never verified. " +
 			"Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access."
@@ -2995,8 +2981,6 @@ class ReadingListViewModelTest {
 			"""
 		}
 
-		/** The two-tab strip the server ships, with the tab for [current] (a status
-		 * token) marked `current` and the other left a plain `tab`. */
 		fun tabs(current: String): String {
 			fun rel(status: String): String = if (status == current) "current" else "tab"
 			return """
@@ -3005,9 +2989,6 @@ class ReadingListViewModelTest {
 			"""
 		}
 
-		/** A read article whose `update-status` toggles it back to unread. Its status
-		 * href carries `?status=read` so a Read-tab toggle is distinguishable from an
-		 * entry-tab one at the fake boundary, mirroring the server's own hrefs. */
 		fun readArticle(id: String): String =
 			"""
 				{
