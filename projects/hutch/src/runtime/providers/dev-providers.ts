@@ -37,7 +37,7 @@ import {
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
-import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, restoreRetaggedTables, theInformationSiteRules } from "@packages/article-parser";
+import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, readabilityAdditions, theInformationSiteRules } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
 	createOAuthModel,
@@ -327,7 +327,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		siteRules,
-		restoreRetaggedTables,
+		readabilityAdditions,
 		logError,
 	});
 	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
+import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { NEXT_READ_SNOOZE_MS, ReaderArticleHashIdSchema } from "@packages/domain/article";
 import {
 	TEST_APP_ORIGIN,
@@ -52,7 +52,7 @@ async function buildHarness() {
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
 		siteRules: [],
-		restoreRetaggedTables,
+		readabilityAdditions,
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({
@@ -306,7 +306,7 @@ describe("Reader related-articles slot", () => {
 		const { parseArticle } = initReadabilityParser({
 			crawlArticle,
 			siteRules: [],
-			restoreRetaggedTables,
+			readabilityAdditions,
 			logError: createNoopLogError(),
 		});
 		const applyParseResult = createFakeApplyParseResult({

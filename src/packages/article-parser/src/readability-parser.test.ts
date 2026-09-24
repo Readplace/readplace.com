@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
 import { join } from "node:path";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
+import type { ReadabilityAdditions } from "./article-parser.types";
+import { readabilityAdditions } from "./readability-additions";
 import { initReadabilityParser } from "./readability-parser";
-import { restoreRetaggedTables } from "./restore-retagged-tables";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 
@@ -42,14 +44,14 @@ const ARTICLE_HTML = `
 function initParser(overrides: {
 	crawlArticle?: Parameters<typeof initReadabilityParser>[0]["crawlArticle"];
 	siteRules?: readonly TestSite[];
-	restoreRetaggedTables?: (html: string) => string;
+	readabilityAdditions?: Partial<ReadabilityAdditions>;
 	logError?: (message: string, error?: Error) => void;
 } = {}) {
 	return initReadabilityParser({
 		crawlArticle:
 			overrides.crawlArticle ?? (async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) })),
 		siteRules: (overrides.siteRules ?? []).map(toSiteRules),
-		restoreRetaggedTables: overrides.restoreRetaggedTables ?? restoreRetaggedTables,
+		readabilityAdditions: { ...readabilityAdditions, ...overrides.readabilityAdditions },
 		logError: overrides.logError ?? (() => {}),
 	});
 }
@@ -303,7 +305,9 @@ describe("initReadabilityParser", () => {
 
 	it("persists what the injected restoreRetaggedTables returns for Readability's content, with its relative URLs resolved", () => {
 		const { parseHtml } = initParser({
-			restoreRetaggedTables: () => '<table><tr><td><img src="/restored.png"></td></tr></table>',
+			readabilityAdditions: {
+				restoreRetaggedTables: () => '<table><tr><td><img src="/restored.png"></td></tr></table>',
+			},
 		});
 
 		const result = parseHtml({
@@ -319,6 +323,127 @@ describe("initReadabilityParser", () => {
 				'<table><tr><td><img src="https://blog.example.com/restored.png"></td></tr></table>',
 			);
 		}
+	});
+
+	describe("the steps it adds around Readability", () => {
+		function appendSentence(params: { document: Document; sentence: string }): void {
+			const article = params.document.querySelector("article");
+			assert(article, "the article fixture renders an <article>");
+			const paragraph = params.document.createElement("p");
+			paragraph.textContent = params.sentence;
+			article.appendChild(paragraph);
+		}
+
+		it("hands Readability the document the injected normalizeImplicitBody prepared", () => {
+			const sentence = "The injected body normalizer appended this sentence before Readability scored the page.";
+			const { parseHtml } = initParser({
+				readabilityAdditions: { normalizeImplicitBody: (document) => appendSentence({ document, sentence }) },
+			});
+
+			const result = parseHtml({
+				url: "https://wrapper.example/links/1",
+				documentUrl: "https://dest.example/post",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).toContain(sentence);
+			}
+		});
+
+		it("hands the injected replaceVideosWithPlaceholder the saved url, not the url the save landed on", () => {
+			const sentence = "The injected video replacer appended this sentence before Readability scored the page.";
+			const receivedOriginalUrls: string[] = [];
+			const { parseHtml } = initParser({
+				readabilityAdditions: {
+					replaceVideosWithPlaceholder: (params) => {
+						receivedOriginalUrls.push(params.originalUrl);
+						appendSentence({ document: params.document, sentence });
+					},
+				},
+			});
+
+			const result = parseHtml({
+				url: "https://wrapper.example/links/1",
+				documentUrl: "https://dest.example/post",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(receivedOriginalUrls).toEqual(["https://wrapper.example/links/1"]);
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).toContain(sentence);
+			}
+		});
+
+		it("hands Readability the document the injected replaceEmbedsWithFacade rewrote", () => {
+			const sentence = "The injected embed replacer appended this sentence before Readability scored the page.";
+			const { parseHtml } = initParser({
+				readabilityAdditions: {
+					replaceEmbedsWithFacade: (params) => appendSentence({ document: params.document, sentence }),
+				},
+			});
+
+			const result = parseHtml({
+				url: "https://wrapper.example/links/1",
+				documentUrl: "https://dest.example/post",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).toContain(sentence);
+			}
+		});
+
+		it("hands Readability the document the injected promoteBrParagraphHosts rewrote", () => {
+			const sentence = "The injected paragraph promoter appended this sentence before Readability scored the page.";
+			const { parseHtml } = initParser({
+				readabilityAdditions: { promoteBrParagraphHosts: (document) => appendSentence({ document, sentence }) },
+			});
+
+			const result = parseHtml({
+				url: "https://wrapper.example/links/1",
+				documentUrl: "https://dest.example/post",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).toContain(sentence);
+			}
+		});
+
+		it("persists what the injected resolveRelativeUrls returns for the restored content and the url the save landed on", () => {
+			const receivedParams: { html: string; baseUrl: string }[] = [];
+			const { parseHtml } = initParser({
+				readabilityAdditions: {
+					restoreRetaggedTables: () => "<p>restored</p>",
+					resolveRelativeUrls: (params) => {
+						receivedParams.push(params);
+						return "<p>resolved</p>";
+					},
+				},
+			});
+
+			const result = parseHtml({
+				url: "https://wrapper.example/links/1",
+				documentUrl: "https://dest.example/post",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(receivedParams).toEqual([{ html: "<p>restored</p>", baseUrl: "https://dest.example/post" }]);
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).toBe("<p>resolved</p>");
+			}
+		});
 	});
 
 	it("resolves relative link hrefs against the document url", () => {

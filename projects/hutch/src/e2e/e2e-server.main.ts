@@ -30,7 +30,7 @@ import { initSubmitFreshness } from '@packages/save-article'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initAppleNewsSiteRules, initCrawlArticle, initCrawlFetch, initStackOverflowSiteRules, initXTwitterSiteRules } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
-import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, restoreRetaggedTables, theInformationSiteRules } from '@packages/article-parser'
+import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, readabilityAdditions, theInformationSiteRules } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
 import { initInMemoryLinkSaved } from '@packages/test-fixtures/providers/events'
@@ -92,7 +92,7 @@ const extractPdf: ExtractPdf = async () => ({
 })
 const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, initXTwitterSiteRules({ crawlFetch, logError }), initAppleNewsSiteRules({ crawlFetch, logError }), initStackOverflowSiteRules({ crawlFetch, logError })]
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo })
-const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, restoreRetaggedTables, logError })
+const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
 
 /** E2E tests use localhost URLs because the test server IS localhost.
  * Skip private-network rejection so test articles can be saved and viewed. */

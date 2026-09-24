@@ -1,3 +1,4 @@
+import { readabilityAdditions } from "./readability-additions";
 import { initReadabilityParser } from "./readability-parser";
 import { restoreRetaggedTables } from "./restore-retagged-tables";
 
@@ -90,7 +91,7 @@ describe("restoreRetaggedTables end-to-end through parseHtml", () => {
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle: async () => ({ status: "fetched" as const, html: "", bodyHash: "a".repeat(64) }),
 		siteRules: [],
-		restoreRetaggedTables,
+		readabilityAdditions,
 		logError: () => {},
 	});
 

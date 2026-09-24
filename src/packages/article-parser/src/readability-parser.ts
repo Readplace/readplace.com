@@ -3,18 +3,14 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { articleFromHostTitle, contentSavedFromHostExcerpt } from "@packages/domain/article";
 import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
-import type { ParseArticle, ParseHtml } from "./article-parser.types";
+import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
 import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
 import type { YouTubeEmbed } from "./parse-embed-url";
-import { promoteBrParagraphHosts } from "./promote-br-paragraph-hosts";
-import { replaceEmbedsWithFacade } from "./replace-embeds-with-facade";
-import { replaceVideosWithPlaceholder } from "./replace-videos-with-placeholder";
-import { resolveRelativeUrls } from "./resolve-relative-urls";
 
 export function initReadabilityParser(deps: {
 	crawlArticle: CrawlArticle;
 	siteRules: readonly SiteRules[];
-	restoreRetaggedTables: (html: string) => string;
+	readabilityAdditions: ReadabilityAdditions;
 	logError: (message: string, error?: Error) => void;
 }): { parseArticle: ParseArticle; parseHtml: ParseHtml } {
 	const parseHtml: ParseHtml = (params) => {
@@ -47,13 +43,13 @@ export function initReadabilityParser(deps: {
 		let parsed: ReturnType<Readability["parse"]>;
 		let phase: "Article normalization" | "Readability parse" = "Article normalization";
 		try {
-			normalizeImplicitBody(document);
-			replaceVideosWithPlaceholder({
+			deps.readabilityAdditions.normalizeImplicitBody(document);
+			deps.readabilityAdditions.replaceVideosWithPlaceholder({
 				document,
 				originalUrl: params.url,
 				renderPlaceholder: renderVideoPlaceholder,
 			});
-			replaceEmbedsWithFacade({ document, renderFacade: renderEmbedFacade });
+			deps.readabilityAdditions.replaceEmbedsWithFacade({ document, renderFacade: renderEmbedFacade });
 			/* Site rules may mutate the document in place (e.g. LinkedIn
 			 * rebuilding `\n\n` `white-space: pre-wrap` paragraphs) before
 			 * Readability scores it. */
@@ -68,9 +64,8 @@ export function initReadabilityParser(deps: {
 			 * Readability runs, so its `_replaceBrs` + DIV phrasing-recovery
 			 * rebuild the paragraphs instead of orphaning the leading line and
 			 * nesting `<p>`s inside a phrasing `<span>` (the LinkedIn / Substack
-			 * inline-post shape). In place, so a false match can't drop the
-			 * article — Readability still scores the whole document. */
-			promoteBrParagraphHosts(document);
+			 * inline-post shape). */
+			deps.readabilityAdditions.promoteBrParagraphHosts(document);
 			phase = "Readability parse";
 			/* `reader-video-placeholder` and `reader-embed-facade` join
 			 * Readability's default `CLASSES_TO_PRESERVE` (concat'd internally) so
@@ -112,7 +107,7 @@ export function initReadabilityParser(deps: {
 				siteName: parsed.siteName || hostname,
 				excerpt: parsed.excerpt || contentSavedFromHostExcerpt(hostname),
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-				content: resolveRelativeUrls({ html: deps.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
+				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,
 			},
 		};
@@ -202,38 +197,6 @@ function buildSyntheticHtml(extracted: SiteArticleContent): string {
 	const titleTag = extracted.title ? `<title>${escapedTitle}</title>` : "";
 	const h1 = extracted.title ? `<h1>${escapedTitle}</h1>` : "";
 	return `<!DOCTYPE html><html><head>${titleTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
-}
-
-/* Re-home misplaced elements so the DOM matches what a spec-compliant
- * HTML5 parser would produce. linkedom doesn't implement the HTML5 tree
- * construction algorithm, so when the source HTML omits structural tags
- * it parks content in the wrong subtree:
- *   1. No <body> at all (hex.ooo shape) — flow content lands as a
- *      sibling of the synthetic empty <body>, under <html>.
- *   2. <head> opened but never closed (unplannedobsolescence.com shape)
- *      — flow content gets stuck inside <head>, with <body> empty.
- * Either way, Readability's _grabArticle walks parent chains expecting
- * to reach <body>, overshoots into the document node, and crashes with
- * "Cannot read properties of null (reading 'tagName')". */
-function normalizeImplicitBody(document: Document): void {
-	const head = document.head;
-	const body = document.body;
-	const METADATA_TAGS = new Set([
-		"META",
-		"LINK",
-		"TITLE",
-		"STYLE",
-		"SCRIPT",
-		"BASE",
-	]);
-	for (const child of Array.from(head.children)) {
-		if (!METADATA_TAGS.has(child.tagName)) body.appendChild(child);
-	}
-	for (const child of Array.from(document.documentElement.children)) {
-		if (child === head || child === body) continue;
-		if (METADATA_TAGS.has(child.tagName)) head.appendChild(child);
-		else body.appendChild(child);
-	}
 }
 
 function escapeHtmlText(text: string): string {

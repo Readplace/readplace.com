@@ -10,7 +10,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
 } from "@packages/test-fixtures";
-import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
+import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MAX_POLLS } from "@packages/web-shell";
 
 const useApp = useTestServer();
@@ -20,7 +20,7 @@ describe("Readlist routes", () => {
 		it("should show no-content fallback when article has no extracted content", async () => {
 			const crawlArticle = async () => ({ status: "fetched" as const, html: "<html><body></body></html>", bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -86,7 +86,7 @@ describe("Readlist routes", () => {
 				summary: "Ready summary.",
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -150,7 +150,7 @@ describe("Readlist routes", () => {
 				summary: "Poll ready summary.",
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -211,7 +211,7 @@ describe("Readlist routes", () => {
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -276,7 +276,7 @@ describe("Readlist routes", () => {
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -516,7 +516,7 @@ describe("Readlist routes", () => {
 
 				const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-				const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+				const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 				const applyParseResult = createFakeApplyParseResult({
 					articleStore: fixture.articleStore,
 					articleCrawl: fixture.articleCrawl,
@@ -594,7 +594,7 @@ describe("Readlist routes", () => {
 
 				const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-				const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+				const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 				const applyParseResult = createFakeApplyParseResult({
 					articleStore: fixture.articleStore,
 					articleCrawl: fixture.articleCrawl,
@@ -654,7 +654,7 @@ describe("Readlist routes", () => {
 
 				const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-				const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+				const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 				const applyParseResult = createFakeApplyParseResult({
 					articleStore: fixture.articleStore,
 					articleCrawl: fixture.articleCrawl,
@@ -707,7 +707,7 @@ describe("Readlist routes", () => {
 		it("should save article without content when fetch fails", async () => {
 			const crawlArticle = async () => ({ status: "failed" as const });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -750,7 +750,7 @@ describe("Readlist routes", () => {
 		it("should show fallback title from hostname when fetch fails", async () => {
 			const crawlArticle = async () => ({ status: "failed" as const });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -794,7 +794,7 @@ describe("Readlist routes", () => {
 		it("should show the reader-failed slot on read page when fetch fails", async () => {
 			const crawlArticle = async () => ({ status: "failed" as const });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -846,7 +846,7 @@ describe("Readlist routes", () => {
 		it("should link article title to reader view when article has no content", async () => {
 			const crawlArticle = async () => ({ status: "failed" as const });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
