@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { brandMarkSvg } from "@packages/web-shell";
 
 const template = readFileSync(
-	join(__dirname, "..", "..", "..", "src", "runtime", "popup", "popup.template.html"),
+	join(__dirname, "..", "..", "..", "src", "runtime", "popup", "popup-views.template.html"),
 	"utf-8",
 );
 

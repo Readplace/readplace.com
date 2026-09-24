@@ -11,6 +11,7 @@ interface EsbuildOptions {
 	entryPoints: string[];
 	bundle: boolean;
 	format: "iife";
+	loader: { ".html": "text" };
 	outdir: string;
 	outbase: string;
 	target: string;
@@ -63,10 +64,12 @@ function createPlanData(input: { config: ExtensionBuildConfig; projectDir: strin
 		entryPoints: [
 			join(srcDir, "runtime", "background", "background.browser.ts"),
 			join(srcDir, "runtime", "popup", "popup.browser.ts"),
+			join(srcDir, "runtime", "popup", "popup-entry.browser.ts"),
 			join(srcDir, "runtime", "content", "shortcut.browser.ts"),
 		],
 		bundle: true,
 		format: "iife",
+		loader: { ".html": "text" },
 		outdir: outDir,
 		outbase: join(srcDir, "runtime"),
 		target: input.config.target,

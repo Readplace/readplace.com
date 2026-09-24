@@ -9,6 +9,9 @@
 // 145ms. Re-derive with the perf soak workflow when the runner image, the
 // browser, or the save path moves.
 module.exports = {
+  popupOpenMs: 58,
+  popupOpenSamples: 3,
+  popupRuntimeHoldMs: 1000,
   meanSaveMs: 190,
 
   // The gate is the mean of this many warm saves. Twenty keeps the standard

@@ -1,5 +1,6 @@
 /* c8 ignore start -- popup entry point, all DOM + browser API glue, tested via Selenium E2E */
 import browser from "webextension-polyfill";
+import popupViews from "./popup-views.template.html";
 import type {
 	CollectionPage,
 	LoadPageResult,
@@ -14,7 +15,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { initPaintAfterDelay, LIST_SKELETON_DELAY_MS, filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, classifyTabs, saveAllTabsLabel, summarizeBulkSave, buildSaveAllDetailLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, POPUP_FIRST_FRAME_MARK, type ContentShortcuts } from "browser-extension-core";
+import { initPaintAfterDelay, LIST_SKELETON_DELAY_MS, filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, classifyTabs, saveAllTabsLabel, summarizeBulkSave, buildSaveAllDetailLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -33,6 +34,9 @@ declare global {
 		userAgentData?: { platform: string };
 	}
 }
+
+document.body.innerHTML = popupViews;
+document.body.classList.remove("popup-shell");
 
 const logger = HutchLogger.from(consoleLogger);
 
@@ -792,8 +796,6 @@ async function renderShortcutHints() {
 	suppressed.save = resolveShortcut({ stored: bindings.save, fallback: DEFAULT_SAVE_SHORTCUT });
 	suppressed.saveAll = resolveShortcut({ stored: bindings.saveAll, fallback: DEFAULT_SAVE_ALL_SHORTCUT });
 }
-
-requestAnimationFrame(() => setTimeout(() => performance.mark(POPUP_FIRST_FRAME_MARK)));
 
 renderShortcutHints().catch((error) =>
 	logger.error("Failed to read command shortcuts:", error),

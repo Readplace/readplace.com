@@ -2,6 +2,9 @@
 const { spawnSync } = require('node:child_process');
 const { getFreePort } = require('@packages/test-phase-runner');
 const {
+  popupOpenMs,
+  popupOpenSamples,
+  popupRuntimeHoldMs,
   meanSaveMs,
   gatedSaves,
   warmupSaves,
@@ -23,6 +26,17 @@ function run(command, args, env) {
 }
 
 async function main() {
+  const popupPort = String(await getFreePort());
+  run('node', ['scripts/build-extension.js'], {
+    HUTCH_SERVER_URL: `http://127.0.0.1:${popupPort}`,
+  });
+  run('node', ['--test', '--test-timeout=300000', 'dist/e2e/popup-open-perf-flow/run.perf-local.main.js'], {
+    E2E_PORT: popupPort,
+    PERF_POPUP_OPEN_BUDGET_MS: String(popupOpenMs),
+    PERF_POPUP_OPEN_SAMPLES: String(popupOpenSamples),
+    PERF_POPUP_RUNTIME_HOLD_MS: String(popupRuntimeHoldMs),
+  });
+
   const savePort = String(await getFreePort());
   run('node', ['scripts/build-extension.js'], {
     HUTCH_SERVER_URL: `http://127.0.0.1:${savePort}`,

@@ -154,7 +154,9 @@ jobs:
         if: always()
         with:
           name: save-latency-${{ github.run_id }}
-          path: projects/browser-extensions/*/test-results/perf/*.json
+          path: |
+            projects/browser-extensions/*/test-results/perf/*.json
+            projects/browser-extensions/*/test-results/perf/*.png
           if-no-files-found: warn
 
   # Only detect and deploy on pushes to main (not on PRs)

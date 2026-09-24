@@ -33,7 +33,7 @@ describe("createBuildPlan", () => {
 		expect(plan.esbuildOptions.target).toBe("chrome109");
 	});
 
-	it("bundles three entry points from src/runtime", () => {
+	it("bundles four entry points from src/runtime", () => {
 		const plan = createBuildPlan({
 			config: { target: "firefox91" },
 			projectDir,
@@ -43,6 +43,7 @@ describe("createBuildPlan", () => {
 		expect(plan.esbuildOptions.entryPoints).toEqual([
 			join(projectDir, "src", "runtime", "background", "background.browser.ts"),
 			join(projectDir, "src", "runtime", "popup", "popup.browser.ts"),
+			join(projectDir, "src", "runtime", "popup", "popup-entry.browser.ts"),
 			join(projectDir, "src", "runtime", "content", "shortcut.browser.ts"),
 		]);
 	});
@@ -66,6 +67,7 @@ describe("createBuildPlan", () => {
 
 		expect(plan.esbuildOptions.format).toBe("iife");
 		expect(plan.esbuildOptions.bundle).toBe(true);
+		expect(plan.esbuildOptions.loader).toEqual({ ".html": "text" });
 	});
 
 	it("aliases browser-extension-core to source for bundling", () => {

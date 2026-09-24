@@ -30,4 +30,7 @@ module.exports = {
   tabsPerSaveAll: 100,
   gatedSaveAlls: 5,
   warmupSaveAlls: 1,
+  popupOpenMs: 57,
+  popupOpenSamples: 3,
+  popupRuntimeHoldMs: 1000,
 };

@@ -47,6 +47,9 @@ export function createSeleniumNavigation(): DriverNavigation<WebDriver> {
 	return {
 		navigateTo: async (driver, url) => {
 			await driver.get(url);
+			await waitForUi(driver, async () => !await driver.executeScript<boolean>(
+				"return document.body.classList.contains('popup-shell') || Boolean(document.querySelector('#saving-view[aria-busy=\"true\"]:not([hidden]), #list-skeleton-view:not([hidden])'));",
+			));
 		},
 		waitForStateChange: async (driver, previous, detectCurrentState) => {
 			await waitForUi(driver, async () => {

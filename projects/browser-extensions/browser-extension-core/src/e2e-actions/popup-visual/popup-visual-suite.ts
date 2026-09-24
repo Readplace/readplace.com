@@ -1,4 +1,4 @@
-import { captureCheckpoint, expect, test } from "@packages/e2e-harness";
+import { captureCheckpoint, expect, test, waitForBrandFonts } from "@packages/e2e-harness";
 import type { Page } from "@playwright/test";
 import { FIXED_NOW, popupListUrl, popupRuntimeStub, popupSaveUrl } from "./popup-visual-fixture";
 
@@ -37,6 +37,7 @@ async function listSettled(page: Page): Promise<void> {
 
 async function savingSettled(page: Page): Promise<void> {
 	await expect(page.locator("#saving-progress")).toBeVisible();
+	await expect(page.locator("#save-failure")).toHaveCount(1);
 	await expect(page.locator("#save-failure")).toBeHidden();
 	await expect(page.locator("#saving-view")).toHaveAttribute("aria-busy", "true");
 }
@@ -180,15 +181,29 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 		test("swaps the saved card in without resizing the popup", async ({ page }) => {
 			await openSaving(page);
 			await page.waitForFunction(() => typeof window.__popupReleaseSave === "function");
+			await page.evaluate(() => { document.body.style.fontFamily = '"Source Sans Pro", system-ui, -apple-system, sans-serif'; });
 			const skeletonHeight = await page
 				.locator("#saving-view")
 				.evaluate((el) => el.getBoundingClientRect().height);
+			await page.evaluate(async () => { await document.fonts.load("16px Inter"); });
+			await waitForBrandFonts(page, ["Inter"]);
+			await page.evaluate(() => { document.body.style.removeProperty("font-family"); });
+			const loadedSkeletonHeight = await page
+				.locator("#saving-view")
+				.evaluate((el) => el.getBoundingClientRect().height);
+			expect(Math.abs(skeletonHeight - loadedSkeletonHeight)).toBeLessThanOrEqual(1);
+			await page.evaluate(() => { document.body.style.fontFamily = '"Source Sans Pro", system-ui, -apple-system, sans-serif'; });
 			await page.evaluate(() => window.__popupReleaseSave?.());
 			await page.waitForSelector("#saved-view:not([hidden])");
 			const cardHeight = await page
 				.locator("#saved-view")
 				.evaluate((el) => el.getBoundingClientRect().height);
 			expect(Math.abs(skeletonHeight - cardHeight)).toBeLessThanOrEqual(1);
+			await page.evaluate(() => { document.body.style.removeProperty("font-family"); });
+			const loadedCardHeight = await page
+				.locator("#saved-view")
+				.evaluate((el) => el.getBoundingClientRect().height);
+			expect(Math.abs(cardHeight - loadedCardHeight)).toBeLessThanOrEqual(1);
 		});
 
 		test.describe("in dark mode", () => {

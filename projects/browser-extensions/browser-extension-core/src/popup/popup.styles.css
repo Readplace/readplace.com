@@ -154,6 +154,7 @@ body {
 .saved-view {
   align-items: center;
   text-align: center;
+  line-height: 20px;
   padding: 16px 24px 8px;
   gap: 4px;
 }
@@ -172,6 +173,7 @@ body {
 
 .saved-view__title {
   font-size: 16px;
+  line-height: 20px;
   font-weight: 600;
   color: var(--popup-text);
   margin: 0;
@@ -180,6 +182,7 @@ body {
 .saved-view__subtitle {
   overflow-wrap: anywhere;
   font-size: 13px;
+  line-height: 16px;
   color: var(--popup-label);
   margin: 0 0 8px;
 }
@@ -191,6 +194,7 @@ body {
   background: transparent;
   color: var(--popup-brand);
   font-size: 14px;
+  line-height: 17px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -208,6 +212,7 @@ body {
 .saving-view {
   align-items: center;
   text-align: center;
+  line-height: 20px;
   padding: 16px 24px 8px;
   gap: 4px;
 }
@@ -238,6 +243,7 @@ body {
   border: 2px solid var(--popup-border);
   border-radius: 6px;
   font-size: 14px;
+  line-height: 17px;
   font-weight: 600;
   margin-top: 4px;
 }
@@ -282,6 +288,7 @@ body {
 
 .shortcut-hint {
   font-size: 11px;
+  line-height: 14px;
   color: var(--popup-label);
   margin: 8px 0 0;
 }
