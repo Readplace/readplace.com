@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
-import { JSDOM } from "jsdom";
-import { deriveChangelogBanner, initBlogPosts, parseBlogFrontmatter, renderPostBody } from "./blog.posts";
+import { drawFigure } from "./blog-figure";
+import { labelTableCells } from "./blog-table-labels";
+import { withTldrCaret } from "./blog-tldr-caret";
+import { deriveChangelogBanner, initBlogPosts, parseBlogFrontmatter } from "./blog.posts";
 
-const blogPosts = initBlogPosts();
+const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret });
 
 const VALID_FRONTMATTER = {
 	title: "A Post",
@@ -91,35 +93,6 @@ describe("getAllSlugs", () => {
 		const slugs = blogPosts.getAllSlugs();
 		const posts = blogPosts.getAllPosts();
 		expect(slugs).toEqual(posts.map((p) => p.slug));
-	});
-});
-
-describe("renderPostBody table labels", () => {
-	const TABLE_FIXTURE = `Intro paragraph.
-
-| | **Readplace** | Readwise |
-| --- | --- | --- |
-| Price | Free | Paid |
-| Trial | Yes |
-`;
-
-	it("labels each body cell with its column header, leaving the empty corner and first cell unlabelled", () => {
-		const doc = new JSDOM(renderPostBody(TABLE_FIXTURE)).window.document;
-		const rows = doc.querySelectorAll("tbody tr");
-		const labelsOf = (row: Element) =>
-			Array.from(row.querySelectorAll("td")).map((td) => td.getAttribute("data-label"));
-		// The bold header renders as plain text, and the empty corner leaves the row label unlabelled.
-		expect(labelsOf(rows[0])).toEqual([null, "Readplace", "Readwise"]);
-		// A short row still labels the empty cell markdown-it pads it with.
-		expect(labelsOf(rows[1])).toEqual([null, "Readplace", "Readwise"]);
-	});
-});
-
-describe("renderPostBody fences", () => {
-	it("renders a fence that is not rp-figure as a code block with its content", () => {
-		expect(renderPostBody('```json\n{ "event": "pageview" }\n```\n\nAfter the block.\n')).toBe(
-			'<pre><code class="language-json">{ &quot;event&quot;: &quot;pageview&quot; }\n</code></pre>\n<p>After the block.</p>\n',
-		);
 	});
 });
 

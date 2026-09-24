@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { z } from "zod";
-import { iconSvg } from "@packages/ui-icons";
 import {
 	CHANGELOG_VERSION_LENGTH,
 	type ChangelogBanner,
@@ -12,81 +11,7 @@ import {
 	withInternalTracking,
 } from "@packages/web-shell";
 import matter from "gray-matter";
-import MarkdownIt from "markdown-it";
-import { FIGURE_FENCE, parseFigure } from "./blog-figure.parse";
-import { renderFigure } from "./blog-figure.render";
-
-/** Expands an ```rp-figure fence into a drawn figure, leaving every other fence
- * as ordinary code. The data stays in the post as a dozen lines of `key: value`,
- * for the same reason `withTldrCaret` keeps the caret out of the content files:
- * a drawing does not belong in 67 markdown files. It also decides what the
- * `text/markdown` representation carries, since that is built from the raw
- * source — a fence reaches an AI client as labelled numbers, where the expanded
- * HTML would reach it as markup. */
-interface FigureEnv {
-	figureCount: number;
-}
-
-function headingText(state: MarkdownIt.StateCore, inlineIndex: number): string {
-	const { children } = state.tokens[inlineIndex];
-	assert(children, "markdown-it pushes an inline token with children after every th_open");
-	return state.md.renderer.renderInlineAsText(children, state.md.options, state.env).trim();
-}
-
-function labelTableCells(state: MarkdownIt.StateCore): void {
-	let headings: string[] = [];
-	let column = 0;
-	state.tokens.forEach((token, index) => {
-		if (token.type === "thead_open") headings = [];
-		if (token.type === "tr_open") column = 0;
-		if (token.type === "th_open") headings.push(headingText(state, index + 1));
-		if (token.type !== "td_open") return;
-		const label = headings[column];
-		column += 1;
-		if (label !== "") token.attrSet("data-label", label);
-	});
-}
-
-function initMarkdown(): MarkdownIt {
-	const renderer = new MarkdownIt({ html: true });
-	const renderCodeFence = renderer.renderer.rules.fence;
-	assert(renderCodeFence, "markdown-it ships a default fence rule");
-	renderer.renderer.rules.fence = (tokens, index, options, env: FigureEnv, self) => {
-		const token = tokens[index];
-		if (token.info.trim() !== FIGURE_FENCE) return renderCodeFence(tokens, index, options, env, self);
-		env.figureCount += 1;
-		return `${renderFigure(parseFigure(token.content), env.figureCount)}\n`;
-	};
-	renderer.core.ruler.push("table_cell_labels", labelTableCells);
-	return renderer;
-}
-
-const md = initMarkdown();
-
-/** Renders one post's body. The figure counter lives in markdown-it's per-render
- * `env` so a figure's input ids depend only on its position within its own post
- * — a counter shared across the directory would renumber every later post's
- * inputs whenever an earlier one gained a figure. */
-export function renderPostBody(content: string): string {
-	const env: FigureEnv = { figureCount: 0 };
-	return withTldrCaret(md.render(content, env));
-}
-
-const TLDR_SUMMARY = /(<summary class="blog-tldr__toggle">[^<]*)<\/summary>/g;
-
-/** Draws the TL;DR disclosure's caret into every post at render time.
- *
- * The `<summary>` is hand-written HTML inside each post's markdown, so authoring
- * the caret beside it would paste the same icon geometry into 58 content files
- * and put a drawing where prose belongs. Injecting it once here keeps the icon
- * in the shared set and leaves the posts as text; the markdown representation is
- * the untouched source, which never carried the caret either. */
-function withTldrCaret(html: string): string {
-	return html.replace(
-		TLDR_SUMMARY,
-		`$1<span class="blog-tldr__caret">${iconSvg("chevron-down")}</span></summary>`,
-	);
-}
+import { initRenderPostBody, type RenderPostBodyDeps } from "./blog-post-body";
 
 /** The tag that opts a post into the site-wide changelog banner. The newest
  * post carrying it drives the banner; the schema below requires such a post to
@@ -186,7 +111,8 @@ export interface BlogPosts {
 	getLatestChangelogBanner: () => ChangelogBanner | undefined;
 }
 
-export function initBlogPosts(): BlogPosts {
+export function initBlogPosts(deps: RenderPostBodyDeps): BlogPosts {
+	const renderPostBody = initRenderPostBody(deps);
 	const postsDir = join(__dirname, "posts");
 	const files = readdirSync(postsDir).filter((f) => f.endsWith(".md"));
 

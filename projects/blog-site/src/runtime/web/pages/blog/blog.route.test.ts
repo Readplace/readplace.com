@@ -14,6 +14,9 @@ import type { ResolveLogin } from "@packages/web-session";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { createBlogApp } from "../../../app";
+import { drawFigure } from "./blog-figure";
+import { labelTableCells } from "./blog-table-labels";
+import { withTldrCaret } from "./blog-tldr-caret";
 import { initBlogRoutes } from "./blog.page";
 import { type BlogPosts, initBlogPosts } from "./blog.posts";
 
@@ -42,7 +45,7 @@ const app = createBlogApp(
 		edgeSecret: "",
 	},
 );
-const blogPosts = initBlogPosts();
+const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret });
 const firstPost = blogPosts.getAllPosts()[0];
 
 const FAKE_VERSION = "a1b2c3d4";

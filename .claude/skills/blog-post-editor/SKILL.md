@@ -73,7 +73,7 @@ One paragraph summarising the post.
 </details>
 ```
 
-The blank lines inside the `div` are required, or markdown will not render the paragraph. The `blog-tldr__toggle` class is load-bearing: the post loader's render step matches on it to inject the disclosure caret at render time (grep for the class in the blog's TypeScript — the one hit outside the stylesheet and the posts), so a `<summary>` without that exact class silently loses its chevron. The `blog-tldr` class names are a content contract rather than code identifiers: every published post carries this block verbatim, so renaming one means editing every post, and this skill names them on purpose.
+The blank lines inside the `div` are required, or markdown will not render the paragraph. The `blog-tldr__toggle` class is load-bearing: the render step that draws the disclosure caret matches on it at render time (grep the blog's non-test TypeScript for the class — the one hit outside the stylesheet and the posts), so a `<summary>` without that exact class silently loses its chevron. The `blog-tldr` class names are a content contract rather than code identifiers: every published post carries this block verbatim, so renaming one means editing every post, and this skill names them on purpose.
 
 **Citing an external article.** Link through the reader rather than off the site. Drop the `https://` scheme and append the rest to `/view/`, as a root-relative link:
 

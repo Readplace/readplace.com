@@ -1,8 +1,8 @@
+import { drawFigure } from "./blog-figure";
 import { parseFigure } from "./blog-figure.parse";
-import { renderFigure } from "./blog-figure.render";
 
 function draw(body: string, index = 1): string {
-	return renderFigure(parseFigure(body), index);
+	return drawFigure(body, index);
 }
 
 const BARS = `

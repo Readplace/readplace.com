@@ -7,6 +7,9 @@ import type { ResolveLogin } from "@packages/web-session";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsClick, AnalyticsEvent, AnalyticsPageview } from "@packages/web-analytics";
 import { createBlogApp } from "./app";
+import { drawFigure } from "./web/pages/blog/blog-figure";
+import { labelTableCells } from "./web/pages/blog/blog-table-labels";
+import { withTldrCaret } from "./web/pages/blog/blog-tldr-caret";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
 
 const events: AnalyticsEvent[] = [];
@@ -24,7 +27,7 @@ const authedResolver: ResolveLogin = async (cookieHeader) =>
 		: { isAuthenticated: false };
 
 const VISITOR_ID = "00000000-0000-4000-8000-000000000000";
-const firstSlug = initBlogPosts().getAllPosts()[0].slug;
+const firstSlug = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret }).getAllPosts()[0].slug;
 
 const OWN_HOST = "readplace.test";
 
