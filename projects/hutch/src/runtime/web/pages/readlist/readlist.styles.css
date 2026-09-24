@@ -658,7 +658,8 @@
 .readlist-article__thumbnail-link {
   flex: 0 0 auto;
   align-self: stretch;
-  display: block;
+  display: flex;
+  align-items: center;
   padding-left: clamp(12px, 3vw, 16px);
 }
 
