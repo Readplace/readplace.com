@@ -115,6 +115,14 @@ describe("renderPostBody table labels", () => {
 	});
 });
 
+describe("renderPostBody fences", () => {
+	it("renders a fence that is not rp-figure as a code block with its content", () => {
+		expect(renderPostBody('```json\n{ "event": "pageview" }\n```\n\nAfter the block.\n')).toBe(
+			'<pre><code class="language-json">{ &quot;event&quot;: &quot;pageview&quot; }\n</code></pre>\n<p>After the block.</p>\n',
+		);
+	});
+});
+
 describe("parseBlogFrontmatter", () => {
 	it("defaults tags to an empty array when omitted", () => {
 		const parsed = parseBlogFrontmatter(VALID_FRONTMATTER, "a-post.md");

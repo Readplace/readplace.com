@@ -49,9 +49,11 @@ function labelTableCells(state: MarkdownIt.StateCore): void {
 
 function initMarkdown(): MarkdownIt {
 	const renderer = new MarkdownIt({ html: true });
+	const renderCodeFence = renderer.renderer.rules.fence;
+	assert(renderCodeFence, "markdown-it ships a default fence rule");
 	renderer.renderer.rules.fence = (tokens, index, options, env: FigureEnv, self) => {
 		const token = tokens[index];
-		if (token.info.trim() !== FIGURE_FENCE) return self.renderToken(tokens, index, options);
+		if (token.info.trim() !== FIGURE_FENCE) return renderCodeFence(tokens, index, options, env, self);
 		env.figureCount += 1;
 		return `${renderFigure(parseFigure(token.content), env.figureCount)}\n`;
 	};
