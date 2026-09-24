@@ -18,11 +18,11 @@ const useApp = useTestServer();
 
 function setup() {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const published = {
-		linkSaved: [] as string[],
-		linkQueued: [] as string[],
-		rawHtml: [] as string[],
-		rawPdf: [] as string[],
+	const published: { linkSaved: string[]; linkQueued: string[]; rawHtml: string[]; rawPdf: string[] } = {
+		linkSaved: [],
+		linkQueued: [],
+		rawHtml: [],
+		rawPdf: [],
 	};
 	const testApp = useApp({
 		...fixture,

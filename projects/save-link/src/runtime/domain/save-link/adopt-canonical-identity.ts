@@ -35,6 +35,10 @@ export type AdoptCanonicalIdentity = (params: {
 	recrawl?: boolean;
 }) => Promise<void>;
 
+function identityOf(url: string): string {
+	return ArticleResourceUniqueId.parse(toCanonicalHostUrl(url)).value;
+}
+
 /**
  * The redirect terminal to adopt, or `undefined` when a gate rejects it. Pure so
  * every gate is unit-testable in isolation. Gates:
@@ -53,10 +57,6 @@ export type AdoptCanonicalIdentity = (params: {
  * attacker who redirects their origin to a victim article and later flips it to
  * malware can neither poison the shared article nor launder their URL behind it.
  */
-function identityOf(url: string): string {
-	return ArticleResourceUniqueId.parse(toCanonicalHostUrl(url)).value;
-}
-
 export function adoptableTerminal(params: {
 	url: string;
 	finalUrl?: string;
