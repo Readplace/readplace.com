@@ -13,6 +13,7 @@ import { getEnv, requireEnv } from "@packages/require-env";
 import { obtainAccessToken } from "browser-extension-core/e2e";
 import {
 	assertGeckodriverSupportsSystemAccess,
+	createFirefoxBrowser,
 	runPerfSuite,
 	SUITE_FAILSAFE_MS,
 } from "browser-extension-core/e2e-actions";
@@ -22,12 +23,7 @@ import {
 	summarizeLatency,
 } from "browser-extension-core/perf";
 import { Builder } from "selenium-webdriver";
-import {
-	Context,
-	Driver,
-	Options,
-	ServiceBuilder,
-} from "selenium-webdriver/firefox";
+import { Context, Driver } from "selenium-webdriver/firefox";
 
 const EXTENSION_DIR = path.resolve(
 	__dirname,
@@ -59,13 +55,17 @@ type SkeletonDimensions = {
 };
 type PopupState = {
 	visible: boolean;
+	shellVisible: boolean;
 	skeletonVisible: boolean;
 	skeletonDimensions?: SkeletonDimensions;
 	terminalView?: string;
 	documentLoadMs: number;
+	applicationLoadStartedAt?: number;
+	runtimeLoadStartedAt?: number;
 };
 type Probe = {
 	firstPaintAt?: number;
+	firstPaintState?: PopupState;
 	heldAssets: string[];
 	state?: PopupState;
 	panelVisible: boolean;
@@ -74,6 +74,11 @@ type Probe = {
 type Sample = {
 	browserVersion: string;
 	firstPaintMs: number;
+	applicationLoadStartedMs?: number;
+	runtimeLoadStartedMs?: number;
+	firstPaintShellVisible: boolean;
+	firstPaintSkeletonVisible: boolean;
+	firstPaintSkeletonDimensions?: SkeletonDimensions;
 	documentLoadMs: number;
 	skeletonVisible?: boolean;
 	skeletonDimensions?: SkeletonDimensions;
@@ -83,6 +88,18 @@ type Sample = {
 	screenshot?: string;
 	terminalView: string;
 };
+
+function assertSkeletonDimensions(
+	dimensions: SkeletonDimensions | undefined,
+): void {
+	assert(dimensions);
+	assert.equal(dimensions.width, 350);
+	assert(dimensions.height > 100);
+	assert.equal(dimensions.iconWidth, 48);
+	assert.equal(dimensions.iconHeight, 48);
+	assert.equal(dimensions.bars.length, 4);
+	assert(dimensions.bars.every((bar) => bar.width > 0 && bar.height > 0));
+}
 
 async function until<T>(
 	read: () => Promise<T | undefined>,
@@ -124,7 +141,10 @@ async function obtainTokens(): Promise<Tokens> {
 }
 
 async function launch(profile: string): Promise<Driver> {
-	const options = new Options().addArguments("-profile", profile);
+	const { options, service } = createFirefoxBrowser({
+		ci: getEnv("CI") === "true",
+	});
+	options.addArguments("-profile", profile);
 	if (getEnv("HEADLESS") !== "false") options.addArguments("--headless");
 	options.setPreference(
 		"extensions.webextensions.uuids",
@@ -134,9 +154,7 @@ async function launch(profile: string): Promise<Driver> {
 	const driver = await new Builder()
 		.forBrowser("firefox")
 		.setFirefoxOptions(options)
-		.setFirefoxService(
-			new ServiceBuilder().addArguments("--allow-system-access"),
-		)
+		.setFirefoxService(service)
 		.build();
 	assert(driver instanceof Driver);
 	await driver.installAddon(EXTENSION_DIR, true);
@@ -209,7 +227,9 @@ function popupFrameScript(holdApplicationAssets: boolean): string {
 				skeletonDimensions = { width: rect.width, height: rect.height, iconWidth: iconRect.width, iconHeight: iconRect.height, bars: bars.map(bar => { const { width, height } = bar.getBoundingClientRect(); return { width, height }; }) };
 			}
 			const terminalView = ['login-view', 'list-view'].find(id => { const element = document.getElementById(id); return element && !element.hidden; });
-			return { visible, skeletonVisible, skeletonDimensions, terminalView, documentLoadMs: content.performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 0 };
+			const applicationLoadStarted = content.performance.getEntriesByName('popup-first-frame')[0];
+			const runtimeLoadStarted = content.performance.getEntriesByName('popup-runtime-load-started')[0];
+			return { visible, shellVisible: document.body?.classList.contains('popup-shell') ?? false, skeletonVisible, skeletonDimensions, terminalView, documentLoadMs: content.performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 0, applicationLoadStartedAt: applicationLoadStarted === undefined ? undefined : content.performance.timeOrigin + applicationLoadStarted.startTime, runtimeLoadStartedAt: runtimeLoadStarted === undefined ? undefined : content.performance.timeOrigin + runtimeLoadStarted.startTime };
 		};
 		const listener = {
 			QueryInterface: ChromeUtils.generateQI(['nsIWebProgressListener', 'nsISupportsWeakReference']),
@@ -266,7 +286,10 @@ async function installProbe(
 			const rect = panel.getBoundingClientRect();
 			const style = getComputedStyle(panel);
 			probe.panelVisible = ['showing', 'open'].includes(panel.state) && rect.width > 0 && rect.height > 0 && style.visibility === 'visible' && Number(style.opacity) > 0;
-			if (data.type === 'paint' && data.state.visible && probe.panelVisible && data.firstPaintAt >= window.__readplacePanelShowingAt && probe.firstPaintAt === undefined) probe.firstPaintAt = data.firstPaintAt;
+			if (data.type === 'paint' && data.state.visible && probe.panelVisible && data.firstPaintAt >= window.__readplacePanelShowingAt && probe.firstPaintAt === undefined) {
+				probe.firstPaintAt = data.firstPaintAt;
+				probe.firstPaintState = data.state;
+			}
 		});
 		Services.mm.loadFrameScript(arguments[0], true);
 	`,
@@ -381,6 +404,18 @@ async function measure(input: {
 		return {
 			browserVersion,
 			firstPaintMs,
+			applicationLoadStartedMs:
+				settled.state.applicationLoadStartedAt === undefined
+					? undefined
+					: settled.state.applicationLoadStartedAt - requestedAt,
+			runtimeLoadStartedMs:
+				settled.state.runtimeLoadStartedAt === undefined
+					? undefined
+					: settled.state.runtimeLoadStartedAt - requestedAt,
+			firstPaintShellVisible: probe.firstPaintState?.shellVisible ?? false,
+			firstPaintSkeletonVisible:
+				probe.firstPaintState?.skeletonVisible ?? false,
+			firstPaintSkeletonDimensions: probe.firstPaintState?.skeletonDimensions,
 			documentLoadMs: settled.state.documentLoadMs,
 			skeletonVisible,
 			skeletonDimensions,
@@ -399,7 +434,7 @@ async function measure(input: {
 	}
 }
 
-test("the first native popup paints feedback before its application assets load", async (t) => {
+test("the first native popup paints its shell before loading the full application runtime", async (t) => {
 	const records: Record<string, { held?: Sample; cold: Sample[] }> = {};
 	await runPerfSuite({
 		server: {
@@ -437,17 +472,16 @@ test("the first native popup paints feedback before its application assets load"
 							record.held.skeletonVisible,
 							`${auth}: the native popup must contain the skeleton before its application assets are available`,
 						);
-						assert(record.held.skeletonDimensions);
-						assert.equal(record.held.skeletonDimensions.width, 350);
-						assert(record.held.skeletonDimensions.height > 100);
-						assert.equal(record.held.skeletonDimensions.iconWidth, 48);
-						assert.equal(record.held.skeletonDimensions.iconHeight, 48);
-						assert.equal(record.held.skeletonDimensions.bars.length, 4);
+						assertSkeletonDimensions(record.held.skeletonDimensions);
 						assert(
-							record.held.skeletonDimensions.bars.every(
-								(bar) => bar.width > 0 && bar.height > 0,
-							),
+							record.held.firstPaintShellVisible,
+							`${auth}: the first visible compositor paint must contain the initial popup shell while application assets are held`,
 						);
+						assert(
+							record.held.firstPaintSkeletonVisible,
+							`${auth}: the first visible compositor paint must contain the skeleton while application assets are held`,
+						);
+						assertSkeletonDimensions(record.held.firstPaintSkeletonDimensions);
 					},
 				);
 				await t.test(
@@ -462,6 +496,24 @@ test("the first native popup paints feedback before its application assets load"
 						);
 						t.diagnostic(
 							`${auth}: first popup paint ${record.cold.map((sample) => Math.round(sample.firstPaintMs)).join(", ")}ms; mean ${Math.round(stats.meanMs)}ms`,
+						);
+						assert(
+							record.cold.every((sample) => sample.firstPaintShellVisible),
+							`${auth}: the first visible compositor paint must contain the initial popup shell`,
+						);
+						assert(
+							record.cold.every((sample) => sample.firstPaintSkeletonVisible),
+							`${auth}: the first visible compositor paint must contain the skeleton`,
+						);
+						for (const sample of record.cold)
+							assertSkeletonDimensions(sample.firstPaintSkeletonDimensions);
+						assert(
+							record.cold.every(
+								(sample) =>
+									sample.runtimeLoadStartedMs !== undefined &&
+									sample.runtimeLoadStartedMs >= sample.firstPaintMs,
+							),
+							`${auth}: the browser must paint the skeleton before loading the full application runtime`,
 						);
 						assert(
 							stats.maxMs < BUDGET_MS,
@@ -481,7 +533,7 @@ test("the first native popup paints feedback before its application assets load"
 		path.join(directory, "firefox-popup-open-latency.json"),
 		JSON.stringify(
 			{
-				schema: "popup-open-latency/firefox-v1",
+				schema: "popup-open-latency/firefox-v3",
 				browser: "firefox",
 				trigger: "native-toolbar-button.click",
 				paintSignal: "MozAfterPaint.paintTimeStamp",

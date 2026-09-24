@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { Builder, type WebDriver } from "selenium-webdriver";
-import { Options, Driver, ServiceBuilder } from "selenium-webdriver/firefox";
+import { Driver } from "selenium-webdriver/firefox";
 import {
 	waitForSaveAllUi,
 	SAVE_ALL_SUITE_FAILSAFE_MS,
@@ -21,6 +21,7 @@ import {
 	runPerfSuite,
 	logInToPopup,
 	assertGeckodriverSupportsSystemAccess,
+	createFirefoxBrowser,
 } from "browser-extension-core/e2e-actions";
 import { SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
 import {
@@ -189,7 +190,7 @@ test(`saving ${TABS_PER_SAVE_ALL} tabs paints the outcome in under ${BUDGET_MS}m
 async function runTest(t: { diagnostic: (message: string) => void }) {
 	const tabServer = await startTabPageServer();
 	try {
-		const options = new Options();
+		const { options, service } = createFirefoxBrowser({ ci: getEnv("CI") === "true" });
 		if (getEnv("HEADLESS") !== "false") {
 			options.addArguments("--headless");
 		}
@@ -206,7 +207,7 @@ async function runTest(t: { diagnostic: (message: string) => void }) {
 		const driver = await new Builder()
 			.forBrowser("firefox")
 			.setFirefoxOptions(options)
-			.setFirefoxService(new ServiceBuilder().addArguments("--allow-system-access")) // Firefox 153 refuses WebDriver navigation to moz-extension:// without it
+			.setFirefoxService(service)
 			.build();
 
 		try {

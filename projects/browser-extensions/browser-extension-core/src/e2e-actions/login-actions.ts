@@ -14,7 +14,7 @@ export function createLoginActions(config: {
 		async isAvailable(driver: WebDriver): Promise<boolean> {
 			try {
 				const button = await driver.findElement(By.id(ELEMENT_IDS.loginButton));
-				return button.isDisplayed();
+				return await button.isDisplayed();
 			} catch {
 				return false;
 			}
@@ -51,7 +51,7 @@ export function createLoginActions(config: {
 		async isAvailable(driver: WebDriver): Promise<boolean> {
 			try {
 				const emailInput = await driver.findElement(By.id(ELEMENT_IDS.emailInput));
-				return emailInput.isDisplayed();
+				return await emailInput.isDisplayed();
 			} catch {
 				return false;
 			}
@@ -76,7 +76,7 @@ export function createLoginActions(config: {
 				const button = await driver.findElement(
 					By.css(CSS_SELECTORS.approveButton),
 				);
-				return button.isDisplayed();
+				return await button.isDisplayed();
 			} catch {
 				return false;
 			}

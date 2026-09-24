@@ -128,6 +128,7 @@ type SkeletonDimensions = { width: number; height: number; iconWidth: number; ic
 
 type Sample = {
 	firstPaintMs: number;
+	applicationLoadStartedMs?: number;
 	documentLoadMs: number;
 	skeletonVisible?: boolean;
 	skeletonDimensions?: SkeletonDimensions;
@@ -198,11 +199,12 @@ async function measure(input: { tokens?: Tokens; holdApplicationAssets: boolean 
 		};
 		connection.listen(event => { attachments(event).catch(failed.reject); });
 		await driver.get(ORIGIN);
-		const { targetInfos } = await connection.send<{ targetInfos: Target[] }>("Target.getTargets", { filter: [{ type: "tab" }, { type: "page" }, { exclude: true }] });
-		const tab = targetInfos.find(target => target.type === "tab" && target.url.startsWith(ORIGIN));
-		const page = targetInfos.find(target => target.type === "page" && target.url.startsWith(ORIGIN));
-		assert(tab, "The active browser tab must have a toolbar action target");
-		assert(page, "The active browser tab must have a page timing context");
+		const { tab, page } = await until(async () => {
+			const { targetInfos } = await connection.send<{ targetInfos: Target[] }>("Target.getTargets", { filter: [{ type: "tab" }, { type: "page" }, { exclude: true }] });
+			const tab = targetInfos.find(target => target.type === "tab" && target.url.startsWith(ORIGIN));
+			const page = targetInfos.find(target => target.type === "page" && target.url.startsWith(ORIGIN));
+			return tab && page ? { tab, page } : undefined;
+		}, "the active browser tab and page timing targets");
 		const { sessionId: pageSession } = await connection.send<{ sessionId: string }>("Target.attachToTarget", { targetId: page.targetId, flatten: true });
 		await connection.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: input.holdApplicationAssets, flatten: true, filter: [{ type: "other", exclude: false }, { exclude: true }] });
 		const requestedAt = await evaluate<number>(connection, { sessionId: pageSession, expression: "performance.timeOrigin + performance.now()" });
@@ -266,7 +268,9 @@ async function measure(input: { tokens?: Tokens; holdApplicationAssets: boolean 
 		const terminalView = input.tokens ? "list-view" : "login-view";
 		await until(async () => await evaluate<boolean>(connection, { sessionId: popupSession, expression: `(() => { const view = document.getElementById(${JSON.stringify(terminalView)}); return Boolean(view && !view.hidden); })()` }) ? true : undefined, terminalView);
 		const documentLoadMs = await evaluate<number>(connection, { sessionId: popupSession, expression: "performance.getEntriesByType('navigation')[0].loadEventEnd" });
-		return { firstPaintMs, documentLoadMs, skeletonVisible, skeletonDimensions, heldAssets, openedWhileApplicationAssetsHeld, paintedWhileApplicationAssetsHeld, screenshot, terminalView };
+		const applicationLoadStartedAt = await evaluate<number | undefined>(connection, { sessionId: popupSession, expression: "(() => { const entry = performance.getEntriesByName('popup-first-frame')[0]; return entry === undefined ? undefined : performance.timeOrigin + entry.startTime; })()" });
+		const applicationLoadStartedMs = applicationLoadStartedAt === undefined ? undefined : applicationLoadStartedAt - requestedAt;
+		return { firstPaintMs, applicationLoadStartedMs, documentLoadMs, skeletonVisible, skeletonDimensions, heldAssets, openedWhileApplicationAssetsHeld, paintedWhileApplicationAssetsHeld, screenshot, terminalView };
 	} finally {
 		cdp?.close();
 		await driver?.quit();
@@ -303,6 +307,7 @@ test("the first native popup paints feedback before its application assets load"
 					for (let sample = 0; sample < SAMPLES; sample++) record.cold.push(await measure({ tokens, holdApplicationAssets: false }));
 					const stats = summarizeLatency(record.cold.map(sample => sample.firstPaintMs));
 					t.diagnostic(`${auth}: first popup paint ${record.cold.map(sample => Math.round(sample.firstPaintMs)).join(", ")}ms; mean ${Math.round(stats.meanMs)}ms`);
+					assert(record.cold.every(sample => sample.applicationLoadStartedMs !== undefined && sample.applicationLoadStartedMs >= sample.firstPaintMs), `${auth}: the browser must paint the skeleton before starting application loading`);
 					assert(stats.maxMs < BUDGET_MS, `${auth}: slowest cold first popup paint took ${stats.maxMs.toFixed(1)}ms, exceeding the ${BUDGET_MS}ms visible feedback budget`);
 				});
 			}
@@ -310,5 +315,5 @@ test("the first native popup paints feedback before its application assets load"
 	});
 	const directory = perfArtifactDirectory({ root: getEnv("CI_ARTIFACT_ROOT"), runId: getEnv("GITHUB_RUN_ID") });
 	mkdirSync(directory, { recursive: true });
-	writeFileSync(path.join(directory, "chrome-popup-open-latency.json"), JSON.stringify({ schema: "popup-open-latency/v4", trigger: "Extensions.triggerAction", startTimestamp: "active-tab-performance-before-command", budgetMetric: "firstPaintMs", budgetMs: BUDGET_MS, applicationAssetWaitDeadlineMs: HOLD_MS, samplesPerAuthState: SAMPLES, records }, null, "\t"));
+	writeFileSync(path.join(directory, "chrome-popup-open-latency.json"), JSON.stringify({ schema: "popup-open-latency/v5", trigger: "Extensions.triggerAction", startTimestamp: "active-tab-performance-before-command", budgetMetric: "firstPaintMs", budgetMs: BUDGET_MS, applicationAssetWaitDeadlineMs: HOLD_MS, samplesPerAuthState: SAMPLES, records }, null, "\t"));
 });

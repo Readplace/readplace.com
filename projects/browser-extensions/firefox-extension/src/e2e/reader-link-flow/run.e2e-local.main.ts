@@ -1,10 +1,11 @@
+import { getEnv } from "@packages/require-env";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { Builder, By } from "selenium-webdriver";
-import { Options, Driver, ServiceBuilder } from "selenium-webdriver/firefox";
+import { Driver } from "selenium-webdriver/firefox";
 import { FlowRunner, ExtensionStateHandler } from "browser-extension-core/e2e";
 import {
 	waitForServer,
@@ -17,6 +18,7 @@ import {
 	type SaveLinkProgress,
 	waitForUi,
 	assertGeckodriverSupportsSystemAccess,
+	createFirefoxBrowser,
 } from "browser-extension-core/e2e-actions";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
@@ -132,7 +134,7 @@ test("saved-article link in the popup opens the private reader, not the public v
 	const server = await startTestServer();
 	armSuiteFailsafe(server);
 	try {
-		const options = new Options();
+		const { options, service } = createFirefoxBrowser({ ci: getEnv("CI") === "true" });
 		if (process.env.HEADLESS !== "false") {
 			options.addArguments("--headless");
 		}
@@ -145,7 +147,7 @@ test("saved-article link in the popup opens the private reader, not the public v
 		const driver = await new Builder()
 			.forBrowser("firefox")
 			.setFirefoxOptions(options)
-			.setFirefoxService(new ServiceBuilder().addArguments("--allow-system-access")) // Firefox 153 refuses WebDriver navigation to moz-extension:// without it
+			.setFirefoxService(service)
 			.build();
 
 		try {
