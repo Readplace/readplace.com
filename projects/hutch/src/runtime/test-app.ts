@@ -28,7 +28,6 @@ import { createApp } from "./server";
 import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
-import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
@@ -76,7 +75,6 @@ export { loginAgent } from "@packages/web-test-harness";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 
 interface TestAppOverrides {
-	getChangelogBanner?: GetChangelogBanner;
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
 }
@@ -260,7 +258,6 @@ function flattenFixtureToAppDependencies(
 					purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 				})
 				.then(() => undefined),
-		getChangelogBanner: async () => undefined,
 		now: fixture.shared.now,
 		retrieveCheckoutSession: fixture.hostedCheckout.retrieveCheckoutSession,
 		createCheckoutSession: fixture.hostedCheckout.createCheckoutSession,
@@ -319,8 +316,7 @@ export const BROWSER_REQUEST_HEADERS: Record<string, string> = {
 };
 
 /** `overrides` lets a test swap a single dependency without rebuilding the whole
- * fixture — `getChangelogBanner` (defaults to "no banner" so it stays hidden in
- * every other route test), `getSessionUserId` (so a test can make the session
+ * fixture — `getSessionUserId` (so a test can make the session
  * lookup throw and assert the request still degrades to guest),
  * and `resolveCanonicalIdentity` (which defaults to identity, so a test that
  * needs a real alias fold has to say so). */

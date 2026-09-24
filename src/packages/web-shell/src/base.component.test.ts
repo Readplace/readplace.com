@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { initBase } from "./base.component";
 import { type HtmxDelivery, HtmxLoaded, HtmxOmitted } from "./htmx-script";
 import { GlobalNav, GlobalEmptyNav } from "./nav.component";
-import { CHANGELOG_SEEN_SCRIPT, isChangelogVersion } from "./changelog-banner";
+import { CHANGELOG_SEEN_SCRIPT, FETCH_CHANGELOG_BANNER_IN_BROWSER, isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
 import { generateCspNonce } from "./csp-nonce.middleware";
 import type { PageBody } from "./page-body.types";
@@ -570,6 +570,24 @@ describe("Base component", () => {
 		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
 		assert(returnTo, "the dismiss form must carry the return path");
 		expect(returnTo.getAttribute("value")).toBe("/blog/keyboard-shortcuts");
+	});
+
+	it("leaves the changelog banner for the browser to fetch inside the banner area, carrying the page's path and click surface", () => {
+		const page = createTestPageBody({ clickSurface: "reader-public" });
+		const result = Base(page, {
+			...GUEST_STATE,
+			currentPath: "/view?url=https%3A%2F%2Fexample.com",
+			changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector(".banner-area [data-test-changelog-banner]");
+		assert(banner, "the banner placeholder must render inside the banner area");
+		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
+		const url = new URL(String(banner.getAttribute("hx-get")), "https://readplace.com");
+		expect(url.pathname).toBe("/blog/changelog-banner");
+		expect(url.searchParams.get("returnTo")).toBe("/view?url=https%3A%2F%2Fexample.com");
+		expect(url.searchParams.get("surface")).toBe("reader-public");
 	});
 
 	it("should set meta description from seo", () => {

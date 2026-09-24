@@ -23,6 +23,7 @@ import {
 	summarizeScreenResponse,
 } from "./screen-response-latency";
 import {
+	CHANGELOG_BANNER,
 	READLISTS_TRIGGER,
 	READLIST_COUNTS,
 	READLIST_NAV,
@@ -52,7 +53,7 @@ import {
 const PROBE_KEYS = {
 	armKey: "readplace.screen-response.arm",
 	pendingKey: "readplace.screen-response.pending",
-	offClockSelector: READLIST_COUNTS,
+	offClockSelector: `${READLIST_COUNTS}, ${CHANGELOG_BANNER}`,
 };
 
 const SAMPLE_TIMEOUT_MS = 60_000;

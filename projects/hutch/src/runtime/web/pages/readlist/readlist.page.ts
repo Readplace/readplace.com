@@ -115,9 +115,7 @@ import type {
 import { Base, ChromelessPage } from "../../base.component";
 import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
-import { selectChangelogBanner } from "../../banner-state";
-import type { GetChangelogBanner } from "../../changelog-banner-source";
-import { requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
+import { FETCH_CHANGELOG_BANNER_IN_BROWSER, requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
@@ -441,11 +439,6 @@ interface ReadlistDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
 	findUserById: FindUserById;
 	buildBannerState: BuildBannerState;
-	/** The site-wide announcement, for the chromeless reader only. The full shell
-	 * reaches it through `buildBannerState`; the chromeless branch takes it directly
-	 * so an in-app article open doesn't pay for the trial/access lookup that
-	 * `buildBannerState` also performs and this shell has nowhere to render. */
-	getChangelogBanner: GetChangelogBanner;
 	logError: (message: string, error?: Error) => void;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
@@ -1128,10 +1121,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 								(state.notice === undefined ? readerCaptureBridgeScript(cspNonce) : ""),
 						},
 						{
-							changelogBanner: selectChangelogBanner(
-								await deps.getChangelogBanner(),
-								req.dismissedChangelogVersion,
-							),
+							changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
 							// The dismiss form posts this back so the 303 lands on the same
 							// article, still carrying `platform=ios` — so the reader returns to
 							// the chromeless shell rather than the full web one.

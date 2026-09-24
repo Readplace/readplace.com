@@ -1,9 +1,7 @@
-import assert from "node:assert/strict";
 import { generateCspNonce } from "@packages/web-shell";
-import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
+import { FETCH_CHANGELOG_BANNER_IN_BROWSER } from "@packages/web-shell";
 import { UserIdSchema } from "@packages/domain/user";
 import { initBuildBannerState } from "./banner-state";
-import type { GetChangelogBanner } from "./changelog-banner-source";
 import type { EffectiveAccess } from "@packages/subscription-access";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 
@@ -13,24 +11,13 @@ const CSP_NONCE = generateCspNonce();
 const ONE_DAY_MS = 86_400_000;
 const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 
-const noChangelogBanner: GetChangelogBanner = async () => undefined;
-
 const noUser: FindUserById = async () => null;
-
-const CHANGELOG_VERSION = "a1b2c3d4";
-assert(isChangelogVersion(CHANGELOG_VERSION));
-const CHANGELOG: ChangelogBanner = {
-	hook: "I added keyboard shortcuts to the reader",
-	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
-	version: CHANGELOG_VERSION,
-};
 
 describe("initBuildBannerState", () => {
 	it("returns isAuthenticated=false with no trial for an unauthenticated request and never fetches access", async () => {
 		const getEffectiveAccess = jest.fn();
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess,
-			getChangelogBanner: noChangelogBanner,
 			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
@@ -40,6 +27,7 @@ describe("initBuildBannerState", () => {
 		expect(result).toEqual({
 			isAuthenticated: false,
 			emailVerified: undefined,
+			changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
 			gmailFeatureEnabled: false,
 			cspNonce: CSP_NONCE,
 		});
@@ -56,7 +44,6 @@ describe("initBuildBannerState", () => {
 		};
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			getChangelogBanner: noChangelogBanner,
 			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
@@ -88,13 +75,11 @@ describe("initBuildBannerState", () => {
 
 		const buildExpired = initBuildBannerState({
 			getEffectiveAccess: async () => trialExpired,
-			getChangelogBanner: noChangelogBanner,
 			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
 		const buildCancelled = initBuildBannerState({
 			getEffectiveAccess: async () => cancelled,
-			getChangelogBanner: noChangelogBanner,
 			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
@@ -122,7 +107,6 @@ describe("initBuildBannerState", () => {
 		for (const access of [founding, paid]) {
 			const build = initBuildBannerState({
 				getEffectiveAccess: async () => access,
-				getChangelogBanner: noChangelogBanner,
 				findUserById: noUser,
 				now: () => FIXED_NOW,
 			});
@@ -141,7 +125,6 @@ describe("initBuildBannerState", () => {
 		const getEffectiveAccess = jest.fn();
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess,
-			getChangelogBanner: noChangelogBanner,
 			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
@@ -167,7 +150,6 @@ describe("initBuildBannerState", () => {
 		};
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			getChangelogBanner: noChangelogBanner,
 			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
@@ -182,93 +164,29 @@ describe("initBuildBannerState", () => {
 		expect(result.accessIsReadOnly).toBe(false);
 	});
 
-	describe("changelog banner", () => {
-		it("includes the changelog banner for a guest, folded in before the unauthenticated early-return", async () => {
-			const getEffectiveAccess = jest.fn();
-			const build = initBuildBannerState({
-				getEffectiveAccess,
-				getChangelogBanner: async () => CHANGELOG,
-				findUserById: noUser,
-				now: () => FIXED_NOW,
-			});
-
-			const result = await build({ cspNonce: CSP_NONCE });
-
-			expect(result).toEqual({
-				isAuthenticated: false,
-				emailVerified: undefined,
-				changelogBanner: CHANGELOG,
-				gmailFeatureEnabled: false,
-				cspNonce: CSP_NONCE,
-			});
-			expect(getEffectiveAccess).not.toHaveBeenCalled();
+	it("leaves the changelog banner for the browser to fetch for an authenticated user alongside their trial state", async () => {
+		const trialEndsAt = new Date(FIXED_NOW.getTime() + 3 * ONE_DAY_MS).toISOString();
+		const access: EffectiveAccess = {
+			tier: "trial",
+			access: "full",
+			banner: "trial-countdown",
+			trialEndsAt,
+		};
+		const build = initBuildBannerState({
+			getEffectiveAccess: async () => access,
+			findUserById: noUser,
+			now: () => FIXED_NOW,
 		});
 
-		it("drops the changelog banner when the reader has dismissed that exact version", async () => {
-			const build = initBuildBannerState({
-				getEffectiveAccess: jest.fn(),
-				getChangelogBanner: async () => CHANGELOG,
-				findUserById: noUser,
-				now: () => FIXED_NOW,
-			});
+		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
 
-			const result = await build({ dismissedChangelogVersion: CHANGELOG.version, cspNonce: CSP_NONCE });
-
-			expect(result.changelogBanner).toBeUndefined();
-		});
-
-		it("keeps the changelog banner when the dismissed version is for a different (older) announcement", async () => {
-			const build = initBuildBannerState({
-				getEffectiveAccess: jest.fn(),
-				getChangelogBanner: async () => CHANGELOG,
-				findUserById: noUser,
-				now: () => FIXED_NOW,
-			});
-
-			const result = await build({ dismissedChangelogVersion: "ffffffff", cspNonce: CSP_NONCE });
-
-			expect(result.changelogBanner).toEqual(CHANGELOG);
-		});
-
-		it("includes the changelog banner for an authenticated user alongside their trial state", async () => {
-			const trialEndsAt = new Date(FIXED_NOW.getTime() + 3 * ONE_DAY_MS).toISOString();
-			const access: EffectiveAccess = {
-				tier: "trial",
-				access: "full",
-				banner: "trial-countdown",
-				trialEndsAt,
-			};
-			const build = initBuildBannerState({
-				getEffectiveAccess: async () => access,
-				getChangelogBanner: async () => CHANGELOG,
-				findUserById: noUser,
-				now: () => FIXED_NOW,
-			});
-
-			const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
-
-			expect(result.changelogBanner).toEqual(CHANGELOG);
-			expect(result.trial?.state).toBe("active");
-		});
-
-		it("leaves the state unchanged when there is nothing to announce", async () => {
-			const build = initBuildBannerState({
-				getEffectiveAccess: jest.fn(),
-				getChangelogBanner: noChangelogBanner,
-				findUserById: noUser,
-				now: () => FIXED_NOW,
-			});
-
-			const result = await build({ cspNonce: CSP_NONCE });
-
-			expect(result.changelogBanner).toBeUndefined();
-		});
+		expect(result.changelogBanner).toBe(FETCH_CHANGELOG_BANNER_IN_BROWSER);
+		expect(result.trial?.state).toBe("active");
 	});
 
 	it("threads the request's originalUrl onto currentPath so the changelog dismiss form returns the reader to where they were", async () => {
 		const build = initBuildBannerState({
 			getEffectiveAccess: jest.fn(),
-			getChangelogBanner: noChangelogBanner,
 			findUserById: noUser,
 			now: () => FIXED_NOW,
 		});
@@ -284,7 +202,6 @@ describe("initBuildBannerState (signed-in email)", () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			getChangelogBanner: noChangelogBanner,
 			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true }),
 			now: () => FIXED_NOW,
 		});
@@ -300,7 +217,6 @@ describe("initBuildBannerState (signed-in appearance)", () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			getChangelogBanner: noChangelogBanner,
 			findUserById: async () => ({
 				userId: USER_ID,
 				email: "james.davis@example.com",

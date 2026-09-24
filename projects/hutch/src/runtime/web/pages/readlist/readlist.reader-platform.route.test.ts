@@ -11,7 +11,6 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
-import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { MARKED_READ_EVENT } from "../reader/reader-exit-confirm.client";
@@ -20,16 +19,6 @@ import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 import request from "supertest";
 
 const useApp = useTestServer();
-
-const CHANGELOG_VERSION = "a1b2c3d4";
-assert(isChangelogVersion(CHANGELOG_VERSION));
-const CHANGELOG: ChangelogBanner = {
-	hook: "I added keyboard shortcuts to the reader",
-	href: "/blog/keyboard-shortcuts",
-	version: CHANGELOG_VERSION,
-};
-
-const useAppWithChangelog = useTestServer({ getChangelogBanner: async () => CHANGELOG });
 
 const ARTICLE_HTML = `
 <html><head><title>App Reader Post</title><meta property="og:site_name" content="Example Blog"></head>
@@ -583,84 +572,21 @@ describe("Siren read-href is client-independent (GET /queue)", () => {
 });
 
 describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?platform=ios)", () => {
-	it("stays hidden when there is nothing to announce", async () => {
+	it("leaves the announcement for the browser to fetch, returning to the same in-app article", async () => {
 		const harness = buildHarness();
-		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-quiet");
-
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
-
-		const banner = doc.querySelector("[data-test-changelog-banner]");
-		assert(banner, "the shell always emits the banner element, so visibility is a class not a presence check");
-		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
-	});
-
-	it("announces in the reader, with the dismiss form pointing back at the same in-app article", async () => {
-		const harness = buildHarness(useAppWithChangelog);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-announced");
 
 		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 
 		const banner = doc.querySelector("[data-test-changelog-banner]");
-		assert(banner, "the announcement must render in the chromeless reader");
-		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
-		expect(banner.querySelector(".changelog-banner__hook")?.textContent).toBe(CHANGELOG.hook);
-
+		assert(banner, "the shell always emits the banner element, so visibility is a class not a presence check");
+		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
 		// returnTo keeps `platform=ios`, so the dismiss 303 re-renders the chromeless
 		// shell rather than dropping the reader into the full web shell mid-sheet.
-		const form = banner.querySelector("form.changelog-banner__dismiss");
-		assert(form, "the close control must be a real form so it works with no JS and stays inside the app sheet");
-		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss");
-		expect(form.querySelector('input[name="version"]')?.getAttribute("value")).toBe(CHANGELOG_VERSION);
-		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
-			`/queue/${articleId}/view?platform=ios`,
-		);
-	});
-
-	it("does not come back on the next article once dismissed", async () => {
-		const harness = buildHarness(useAppWithChangelog);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const firstArticle = await saveAndGetArticleId(agent, "https://example.com/app-first");
-
-		const dismiss = await agent
-			.post("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss")
-			.type("form")
-			.send({ version: CHANGELOG_VERSION, returnTo: `/queue/${firstArticle}/view?platform=ios` });
-
-		expect(dismiss.status).toBe(303);
-		expect(dismiss.headers.location).toBe(`/queue/${firstArticle}/view?platform=ios`);
-
-		// The requirement: a second article, opened later in the app, must not
-		// re-announce what the reader already waved away. The agent carries the
-		// dismissal cookie exactly as the app's persistent WKWebView store does.
-		const secondArticle = await saveAndGetArticleId(agent, "https://example.com/app-second");
-		expect(secondArticle).not.toBe(firstArticle);
-
-		const doc = new JSDOM((await agent.get(`/queue/${secondArticle}/view?platform=ios`)).text).window.document;
-		const banner = doc.querySelector("[data-test-changelog-banner]");
-		assert(banner, "the banner element is always emitted");
-		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
-	});
-
-	it("re-announces a newer changelog the reader has not dismissed", async () => {
-		const harness = buildHarness(useAppWithChangelog);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-newer");
-
-		// Dismissing some *earlier* announcement records that version, not a blanket
-		// "never show me a banner again" — so the current one still shows.
-		const stalerVersion = "00000000";
-		assert(isChangelogVersion(stalerVersion));
-		await agent
-			.post("/banner/changelog/dismiss?utm_source=changelog-banner&utm_medium=internal&utm_content=dismiss")
-			.type("form")
-			.send({ version: stalerVersion, returnTo: `/queue/${articleId}/view?platform=ios` });
-
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
-		const banner = doc.querySelector("[data-test-changelog-banner]");
-		assert(banner, "the banner element is always emitted");
-		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
+		const url = new URL(String(banner.getAttribute("hx-get")), TEST_APP_ORIGIN);
+		expect(url.pathname).toBe("/blog/changelog-banner");
+		expect(url.searchParams.get("returnTo")).toBe(`/queue/${articleId}/view?platform=ios`);
 	});
 	describe("a saved link whose host can never hold an article", () => {
 		const GATED_URL = "https://mail.google.com/mail/u/0/";

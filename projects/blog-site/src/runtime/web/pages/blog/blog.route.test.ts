@@ -386,15 +386,45 @@ describe("GET /blog/:slug with Accept: text/markdown", () => {
 });
 
 describe("GET /blog/changelog-banner", () => {
-	it("returns 200 with a parseable fragment when a changelog banner exists", async () => {
-		const response = await request(appWithChangelogBanner(FAKE_BANNER)).get(
-			"/blog/changelog-banner",
-		);
+	async function fetchBanner(query = "", cookie?: string) {
+		const pending = request(appWithChangelogBanner(FAKE_BANNER)).get(`/blog/changelog-banner${query}`);
+		const response = await (cookie === undefined ? pending : pending.set("Cookie", cookie));
+		return { response, doc: new JSDOM(response.text).window.document };
+	}
+
+	it("returns the visible banner, ready to swap into the page, when a changelog banner exists", async () => {
+		const { response, doc } = await fetchBanner();
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
-		const root = new JSDOM(response.text).window.document.querySelector("[data-changelog-version]");
-		expect(root?.getAttribute("data-changelog-version")).toBe(FAKE_BANNER.version);
-		expect(root?.querySelector("a")?.getAttribute("href")).toBe(FAKE_BANNER.href);
+		const banner = doc.querySelector("[data-test-changelog-banner]");
+		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
+		expect(banner?.getAttribute("data-changelog-version")).toBe(FAKE_BANNER.version);
+		expect(banner?.querySelector(".changelog-banner__hook")?.textContent).toBe(FAKE_BANNER.hook);
+		expect(banner?.querySelector(".changelog-banner__link")?.getAttribute("href")).toBe(FAKE_BANNER.href);
+		expect(banner?.querySelector('form.changelog-banner__dismiss input[name="version"]')?.getAttribute("value")).toBe(
+			FAKE_BANNER.version,
+		);
+	});
+
+	it("carries the page's return path and click surface so the fetched banner dismisses and tracks like one rendered in place", async () => {
+		const { doc } = await fetchBanner("?returnTo=%2Fview%3Furl%3Dx&surface=reader-public");
+		expect(doc.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe("/view?url=x");
+		const readMore = new URL(String(doc.querySelector(".changelog-banner__link")?.getAttribute("href")), "https://readplace.com");
+		expect(readMore.searchParams.get("utm_term")).toBe("reader-public");
+	});
+
+	it("ignores a surface it does not know and a repeated return path rather than failing the banner", async () => {
+		const { response, doc } = await fetchBanner("?returnTo=%2Fa&returnTo=%2Fb&surface=header");
+		expect(response.status).toBe(200);
+		expect(doc.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe("");
+		const readMore = new URL(String(doc.querySelector(".changelog-banner__link")?.getAttribute("href")), "https://readplace.com");
+		expect(readMore.searchParams.get("utm_term")).toBeNull();
+	});
+
+	it("returns 204 when the reader has dismissed this version", async () => {
+		const { response } = await fetchBanner("", `rp_changelog_dismissed=${FAKE_BANNER.version}`);
+		expect(response.status).toBe(204);
+		expect(response.text).toBe("");
 	});
 
 	it("returns 204 with no body when there is nothing to announce", async () => {
@@ -405,10 +435,8 @@ describe("GET /blog/changelog-banner", () => {
 		expect(response.text).toBe("");
 	});
 
-	it("is matched as the fragment endpoint, not as a post slug", async () => {
-		const response = await request(appWithChangelogBanner(FAKE_BANNER)).get(
-			"/blog/changelog-banner",
-		);
+	it("is matched as the banner endpoint, not as a post slug", async () => {
+		const { response } = await fetchBanner();
 		// A 404 would mean it fell through to the /:slug handler (NotFoundPage).
 		expect(response.status).toBe(200);
 	});

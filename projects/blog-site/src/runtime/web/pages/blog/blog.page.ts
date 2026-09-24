@@ -1,11 +1,15 @@
 import express, { type Request, type Response, type Router } from "express";
+import { z } from "zod";
 import {
 	bannerStateFromRequest,
 	CHANGELOG_DISMISS_COOKIE_NAME,
 	type ChangelogBanner,
+	type ClickSurface,
+	isClickSurface,
 	readCookie,
 	type RenderBase,
-	renderChangelogBannerFragment,
+	renderChangelogBannerShell,
+	requireCspNonce,
 	sendComponent,
 } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
@@ -47,6 +51,11 @@ function hideIfDismissed(
 	const dismissed = readCookie(req.headers.cookie, CHANGELOG_DISMISS_COOKIE_NAME);
 	return dismissed === banner.version ? undefined : banner;
 }
+
+const ChangelogBannerQuery = z.object({
+	returnTo: z.string().optional().catch(undefined),
+	surface: z.custom<ClickSurface>(isClickSurface).optional().catch(undefined),
+});
 
 const SLUG_REDIRECTS: Record<string, string> = {
 	"hutch-vs-readwise-reader": "readplace-vs-readwise-reader",
@@ -101,17 +110,23 @@ export function initBlogRoutes(deps: {
 		res.type("application/xml").send(renderSitemap(blogPosts));
 	});
 
-	/** The HTML contract hutch fetches to render the site-wide banner on its own
-	 * pages. 200 carries the parseable fragment (with the version blog-site
-	 * computed); 204 means there is nothing to announce. Registered before
+	/** 204 means there is nothing to announce. Registered before
 	 * `/:slug` so "changelog-banner" is never matched as a post slug. */
-	router.get("/changelog-banner", (_req: Request, res: Response) => {
-		const banner = blogPosts.getLatestChangelogBanner();
+	router.get("/changelog-banner", (req: Request, res: Response) => {
+		const banner = hideIfDismissed(blogPosts.getLatestChangelogBanner(), req);
 		if (!banner) {
 			res.status(204).end();
 			return;
 		}
-		res.type("html").send(renderChangelogBannerFragment(banner));
+		const { returnTo, surface } = ChangelogBannerQuery.parse(req.query);
+		res.type("html").send(
+			renderChangelogBannerShell({
+				banner,
+				returnTo,
+				cspNonce: requireCspNonce(req),
+				clickSurface: surface,
+			}),
+		);
 	});
 
 	router.get("/", async (req: Request, res: Response) => {

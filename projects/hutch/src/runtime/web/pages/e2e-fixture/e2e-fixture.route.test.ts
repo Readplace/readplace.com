@@ -24,11 +24,13 @@ describe("GET /e2e/article/:id", () => {
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
-	it("returns the same body regardless of :id (uniqueness lives in the URL, not the content)", async () => {
+	it("returns the same page content regardless of :id (uniqueness lives in the URL, not the content)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const a = await request(harness.server).get("/e2e/article/run-a-slot-1");
 		const b = await request(harness.server).get("/e2e/article/run-b-slot-99");
-		expect(withoutCspNonces(a.text)).toBe(withoutCspNonces(b.text));
+		const mainOf = (html: string) => new JSDOM(withoutCspNonces(html)).window.document.querySelector("main")?.outerHTML;
+		expect(mainOf(a.text)).toBeDefined();
+		expect(mainOf(a.text)).toBe(mainOf(b.text));
 	});
 
 	it("renders an <article> with an <h1> so Mozilla Readability can extract the body cleanly", async () => {

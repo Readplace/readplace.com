@@ -191,10 +191,6 @@ const webLambda = new HutchLambda("inbox-web", {
 		// Pinned into the email iframe's CSP so only rehosted image copies load.
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		/** Same-origin fragment endpoint served by blog-site behind this same API
-		 * Gateway (/blog/{proxy+} routes there). The banner source is cached and
-		 * fail-open, so the extra gateway hop is fine for a decorative banner. */
-		CHANGELOG_BANNER_URL: pulumi.interpolate`${hutchApiUrl}/blog/changelog-banner`,
 	},
 	policies: [
 		...webInboxTables.policies,

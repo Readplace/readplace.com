@@ -21,7 +21,6 @@ import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { createInboxApp, PORT } from "./app";
 import { initDynamoDbUserStanding } from "./providers/user-standing/dynamodb-user-standing";
-import { initChangelogBannerSource } from "./web/changelog-banner-source";
 
 const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
 
@@ -58,15 +57,6 @@ const readEmailContent = initS3ReadContent({
 	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
 });
 
-const getChangelogBanner = initChangelogBannerSource({
-	fetch: globalThis.fetch,
-	sourceUrl: requireEnv("CHANGELOG_BANNER_URL"),
-	now: () => Date.now(),
-	ttlMs: 300_000,
-	timeoutMs: 800,
-	logger,
-});
-
 const application = express()
 	.disable("x-powered-by")
 	.use(helmet({ contentSecurityPolicy: false }))
@@ -87,7 +77,6 @@ const application = express()
 				findUserById: userStanding.findUserById,
 				markSessionEmailVerified: userStanding.markSessionEmailVerified,
 				findSubscriptionByUserId: subscriptionRead.findByUserId,
-				getChangelogBanner,
 				inboxAddressStore: initDynamoDbInboxAddress({
 					client,
 					tableName: requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE"),

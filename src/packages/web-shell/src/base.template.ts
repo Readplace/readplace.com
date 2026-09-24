@@ -99,8 +99,8 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		(function() {
 			var ba = document.querySelector('.banner-area');
 			if (!ba) return;
-			var changelog = ba.querySelector('.changelog-banner');
 			function setBannerAreaHeight() {
+				var changelog = ba.querySelector('.changelog-banner');
 				document.documentElement.style.setProperty('--banner-area-height', ba.offsetHeight + 'px');
 				document.documentElement.style.setProperty('--changelog-banner-height', (changelog ? changelog.offsetHeight : 0) + 'px');
 			}

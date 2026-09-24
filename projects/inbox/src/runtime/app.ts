@@ -20,8 +20,6 @@ import type { SaveProvenance } from "@packages/domain/article";
 import type { ResolveLogin } from "@packages/web-session";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initBuildBannerState } from "./web/banner-state";
-import type { GetChangelogBanner } from "./web/changelog-banner-source";
-import { changelogDismissMiddleware } from "./web/changelog-dismiss.middleware";
 import { requireAuth } from "./web/middleware/require-auth";
 import { initRequireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
@@ -37,7 +35,7 @@ export const PORT = 3300;
  * API Gateway. Env-free — the entry points read the environment and pass
  * everything in — so the whole app composes against in-memory fixtures in
  * tests. Login state is resolved from hutch's session cookie exactly as hutch
- * resolves it (same middleware order: cookies → changelog dismissal → login →
+ * resolves it (same middleware order: cookies → login →
  * verification standing → the auth-gated router), so a reader moving between
  * hutch pages and these pages never sees a different standing. */
 export function createInboxApp(
@@ -47,7 +45,6 @@ export function createInboxApp(
 		findUserById: FindUserById;
 		markSessionEmailVerified: MarkSessionEmailVerified;
 		findSubscriptionByUserId: FindSubscriptionByUserId;
-		getChangelogBanner: GetChangelogBanner;
 		inboxAddressStore: InboxAddressStore;
 		inboxEmailStore: InboxEmailStore;
 		inboxEmailLinkStore: InboxEmailLinkStore;
@@ -68,7 +65,6 @@ export function createInboxApp(
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
-	app.use(changelogDismissMiddleware);
 
 	app.use("/client-dist", express.static(resolve(__dirname, "web", "client-dist")));
 
@@ -99,7 +95,6 @@ export function createInboxApp(
 	});
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
-		getChangelogBanner: deps.getChangelogBanner,
 		findUserById: deps.findUserById,
 		now: deps.now,
 	});

@@ -12,7 +12,6 @@ import type {
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { initResolveLogin, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createInboxApp } from "./app";
-import type { GetChangelogBanner } from "./web/changelog-banner-source";
 
 export interface TestAppResult {
 	app: Express;
@@ -26,12 +25,10 @@ export interface TestAppResult {
 export const TEST_IMAGES_CDN_BASE_URL = "https://cdn.test.readplace.com";
 
 /** `overrides` lets a test swap a single dependency without rebuilding the whole
- * fixture — `getChangelogBanner` defaults to "no banner" so it stays hidden in
- * every other route test. */
+ * fixture. */
 export function createInboxTestApp(
 	fixture: TestAppFixture,
 	overrides?: {
-		getChangelogBanner?: GetChangelogBanner;
 		publishSubmitLink?: (input: { userId: string; url: string }) => Promise<void>;
 	},
 ): TestAppResult {
@@ -53,7 +50,6 @@ export function createInboxTestApp(
 			findUserById: fixture.auth.findUserById,
 			markSessionEmailVerified: fixture.auth.markSessionEmailVerified,
 			findSubscriptionByUserId: fixture.subscriptionProviders.findByUserId,
-			getChangelogBanner: overrides?.getChangelogBanner ?? (async () => undefined),
 			inboxAddressStore: fixture.inboxAddress.inboxAddressStore,
 			inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
 			inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
@@ -80,7 +76,6 @@ export function createInboxTestApp(
 export interface TestAppHarness extends TestAppResult, RunningServer {}
 
 export function useTestServer(overrides?: {
-	getChangelogBanner?: GetChangelogBanner;
 	publishSubmitLink?: (input: { userId: string; url: string }) => Promise<void>;
 }): (fixture: TestAppFixture) => TestAppHarness {
 	return useServerForFixture((fixture) => createInboxTestApp(fixture, overrides));

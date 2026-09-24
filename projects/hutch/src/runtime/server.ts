@@ -244,8 +244,6 @@ import { initOAuthRoutes } from "./web/oauth/oauth.routes";
 import { initSeedFirstArticleOnConsent } from "./web/oauth/consent-seed-save";
 import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
-import type { GetChangelogBanner } from "./web/changelog-banner-source";
-import { changelogDismissMiddleware } from "./web/changelog-dismiss.middleware";
 import { initChangelogDismissRoute } from "./web/pages/banner/changelog-dismiss.route";
 import {
 	createCspNonceMiddleware,
@@ -434,7 +432,6 @@ interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
-	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
@@ -635,7 +632,6 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
-	app.use(changelogDismissMiddleware);
 	app.use(
 		createVisitorIdMiddleware({
 			generateVisitorId: randomUUID,
@@ -715,7 +711,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
-		getChangelogBanner: deps.getChangelogBanner,
 		findUserById: deps.findUserById,
 		now: deps.now,
 	});
@@ -1314,7 +1309,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		requireWriteAccess,
 		getEffectiveAccess,
 		buildBannerState,
-		getChangelogBanner: deps.getChangelogBanner,
 		logError: deps.logError,
 		recordAnalyticsEvent,
 		recordUngatedAnalyticsEvent,

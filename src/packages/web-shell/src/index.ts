@@ -6,7 +6,7 @@ export {
 	SUBSCRIBE_CTA_LABEL,
 } from "./pricing";
 export type { PricingPanel, PricingPlan } from "./pricing";
-export { CLICK_SURFACES, withClickSurface, withInternalTracking } from "./internal-link-tracking";
+export { CLICK_SURFACES, isClickSurface, withClickSurface, withInternalTracking } from "./internal-link-tracking";
 export type { ClickSurface } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
 export type { PageBody, SeoMetadata } from "./page-body.types";
@@ -64,9 +64,8 @@ export {
 	CHANGELOG_SEEN_SCRIPT,
 	CHANGELOG_SEEN_STORAGE_KEY,
 	CHANGELOG_VERSION_LENGTH,
+	FETCH_CHANGELOG_BANNER_IN_BROWSER,
 	isChangelogVersion,
-	parseChangelogBannerFragment,
-	renderChangelogBannerFragment,
 	renderChangelogBannerShell,
 } from "./changelog-banner";
 /** Cookie parsing is owned by the session package and re-exported here so view-shell

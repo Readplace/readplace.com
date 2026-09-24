@@ -1,13 +1,11 @@
-import assert from "node:assert";
-import { parseHTML } from "linkedom";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { type ClickSurface, withClickSurface } from "./internal-link-tracking";
 import { render } from "./render";
 
 /** An opaque lowercase-hex fingerprint of the announcing post (`CHANGELOG_VERSION_LENGTH`
  * chars), branded so its shape is single-sourced across the deploy boundary. The
- * only way to obtain one is `isChangelogVersion`, so the producer (blog-site), the
- * fragment parser here, and hutch's dismiss route cannot drift to different notions
+ * only way to obtain one is `isChangelogVersion`, so the producer (blog-site) and
+ * hutch's dismiss route cannot drift to different notions
  * of a valid version without a type error — they share this contract by name, never
  * a re-declared regex (connascence of name, compiler-enforced). */
 export type ChangelogVersion = string & { readonly __brand: "ChangelogVersion" };
@@ -23,7 +21,7 @@ export const CHANGELOG_VERSION_LENGTH = 8;
 const VERSION_PATTERN = new RegExp(`^[0-9a-f]{${CHANGELOG_VERSION_LENGTH}}$`);
 
 /** The sole validator and narrowing gate for a ChangelogVersion. A value that
- * crossed a boundary — a fetched fragment's attribute, a posted form field, a
+ * crossed a boundary — a posted form field, a
  * freshly hashed slug — is checked here once; callers narrow to the brand through
  * this predicate instead of re-testing the shape, so the version contract has a
  * single definition the compiler keeps every call site honest about. */
@@ -34,9 +32,9 @@ export function isChangelogVersion(value: unknown): value is ChangelogVersion {
 /** A single site-wide feature announcement. `hook` is the human-facing
  * one-liner, `href` the root-relative link to the announcing blog post (already
  * UTM-tagged by the producer), and `version` an opaque fingerprint of the post
- * that drives dismissal: the close button posts it back, the cookie stores it,
- * and both deployables compare it byte-for-byte. The version is produced only by
- * blog-site and echoed through the fragment — no other code re-hashes it, so a
+ * that drives dismissal: the close button posts it back, the cookie stores it.
+ * The version is produced only by
+ * blog-site — no other code re-hashes it, so a
  * reader's dismissal always matches the banner they saw. */
 export interface ChangelogBanner {
 	hook: string;
@@ -44,49 +42,9 @@ export interface ChangelogBanner {
 	version: ChangelogVersion;
 }
 
-/** Shared by both deployables: hutch reads it via cookie-parser, blog-site via
- * the raw header. path:"/" + the readplace.com origin make it readable by both
+/** path:"/" + the readplace.com origin make it readable by both
  * Lambdas, so dismissing on /blog also dismisses on the app and vice versa. */
 export const CHANGELOG_DISMISS_COOKIE_NAME = "rp_changelog_dismissed";
-
-/** The transport contract between blog-site (producer) and hutch (consumer):
- * minimal HTML that survives a fetch + parse round-trip. Handlebars escapes the
- * hook and href; linkedom decodes them back, so the values reconstruct exactly.
- * Data attributes mark the version and hook (BEM classes are for the styled
- * shell, never this); the link is the fragment's only `<a>`, so the parser finds
- * it by tag. This fragment is never styled — it exists only to be parsed. */
-const CHANGELOG_FRAGMENT_TEMPLATE = `<div data-changelog-version="{{version}}"><span data-changelog-hook>{{hook}}</span><a href="{{href}}">Read more</a></div>`;
-
-export function renderChangelogBannerFragment(banner: ChangelogBanner): string {
-	return render(CHANGELOG_FRAGMENT_TEMPLATE, banner);
-}
-
-/** Reconstructs a ChangelogBanner from a fetched fragment. linkedom (not a
- * regex) so malformed input degrades to undefined rather than mis-parsing. Every
- * field is re-validated against the contract — version shape and root-relative
- * href — because the bytes crossed a network boundary; any miss yields undefined
- * so the caller simply renders no banner. */
-export function parseChangelogBannerFragment(html: string): ChangelogBanner | undefined {
-	const { document } = parseHTML(`<!DOCTYPE html><html><body>${html}</body></html>`);
-	const root = document.querySelector("body > *");
-	if (!root) return undefined;
-
-	const version = root.getAttribute("data-changelog-version");
-	if (!isChangelogVersion(version)) return undefined;
-
-	const hookEl = root.querySelector("[data-changelog-hook]");
-	if (!hookEl) return undefined;
-	const hook = hookEl.textContent;
-	assert(hook !== null, "an element's textContent is never null");
-
-	const link = root.querySelector("a");
-	if (!link) return undefined;
-	const href = link.getAttribute("href");
-	if (href === null) return undefined;
-	if (!href.startsWith("/") || href.startsWith("//")) return undefined;
-
-	return { hook, href, version };
-}
 
 /** The single localStorage key recording the last banner version this browser
  * has seen. One key (not one-per-version) so a newer post overwrites the
@@ -103,7 +61,7 @@ export const CHANGELOG_SEEN_SCRIPT = `(function(){var banner=document.querySelec
 /** The visible banner, rendered identically by both deployables through the
  * shell. Always emits the `.changelog-banner` element — `--visible` with content
  * when a banner is present, `--hidden` and empty otherwise — so the markup is
- * stable for tests and SSR (no client JS decides visibility). The close control
+ * stable for tests and SSR. The close control
  * is a no-JS POST form carrying the rendered version (so the dismissal records
  * exactly the announcement the reader saw) and the page's own path as `returnTo`
  * (so the dismiss route sends the reader back where they were rather than the
@@ -127,4 +85,35 @@ export function renderChangelogBannerShell(input: {
 		seenScript: Boolean(input.banner),
 		clickSurface: input.clickSurface,
 	});
+}
+
+export const FETCH_CHANGELOG_BANNER_IN_BROWSER = "fetch-in-browser";
+
+const CHANGELOG_BANNER_ENDPOINT = "/blog/changelog-banner";
+
+const CHANGELOG_LOADER_TEMPLATE = `<div class="changelog-banner changelog-banner--hidden" role="status" aria-live="polite" data-test-changelog-banner hx-get="{{url}}" hx-trigger="load" hx-swap="outerHTML"></div>`;
+
+function renderChangelogBannerLoader(input: {
+	returnTo?: string;
+	clickSurface?: ClickSurface;
+}): string {
+	const query = new URLSearchParams();
+	if (input.returnTo) query.set("returnTo", input.returnTo);
+	if (input.clickSurface) query.set("surface", input.clickSurface);
+	const search = query.toString();
+	return render(CHANGELOG_LOADER_TEMPLATE, {
+		url: search ? `${CHANGELOG_BANNER_ENDPOINT}?${search}` : CHANGELOG_BANNER_ENDPOINT,
+	});
+}
+
+export function renderChangelogBannerSlot(input: {
+	banner?: ChangelogBanner | typeof FETCH_CHANGELOG_BANNER_IN_BROWSER;
+	returnTo?: string;
+	cspNonce: CspNonce;
+	clickSurface?: ClickSurface;
+}): string {
+	if (input.banner === FETCH_CHANGELOG_BANNER_IN_BROWSER) {
+		return renderChangelogBannerLoader({ returnTo: input.returnTo, clickSurface: input.clickSurface });
+	}
+	return renderChangelogBannerShell({ ...input, banner: input.banner });
 }

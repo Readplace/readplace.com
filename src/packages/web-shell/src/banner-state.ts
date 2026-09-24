@@ -1,6 +1,6 @@
 import type { IconName } from "@packages/ui-icons";
 import type { AppearanceSetting } from "./base.styles";
-import type { ChangelogBanner } from "./changelog-banner";
+import type { ChangelogBanner, FETCH_CHANGELOG_BANNER_IN_BROWSER } from "./changelog-banner";
 import { type CspNonce, requireCspNonce } from "./csp-nonce.middleware";
 import { QuerystringFeatureToggle } from "./feature-toggle";
 import { type ClickSurface, withInternalTracking } from "./internal-link-tracking";
@@ -27,11 +27,6 @@ export interface BannerStateSource {
 	userId?: string;
 	emailVerified?: boolean;
 	verificationStatus?: VerificationStatus;
-	/** The changelog version the reader has dismissed, lifted from the dismissal
-	 * cookie by the consuming site (hutch via cookie-parser middleware). When it
-	 * equals the live banner's version the banner is suppressed; a newer post
-	 * carries a different version and reappears. */
-	dismissedChangelogVersion?: string;
 	/** The request's `originalUrl` (path + query). Express populates it on every
 	 * request, so a consuming site that passes the request as the source supplies
 	 * it structurally; `bannerStateFromRequest` copies it to
@@ -170,11 +165,8 @@ export interface BannerState {
 	 * access. */
 	accessIsReadOnly?: boolean;
 	userEmail?: string;
-	/** The latest feature announcement to surface site-wide, already filtered
-	 * for the reader's dismissal. Undefined when there is nothing to announce or
-	 * the reader has dismissed the current one; the shell then renders the
-	 * hidden, empty banner shell. */
-	changelogBanner?: ChangelogBanner;
+	/** The latest feature announcement to surface site-wide. */
+	changelogBanner?: ChangelogBanner | typeof FETCH_CHANGELOG_BANNER_IN_BROWSER;
 	/** Path (+ query) of the page this banner is rendered on, echoed into the
 	 * changelog dismiss form's hidden `returnTo` field so dismissing returns the
 	 * reader to where they were rather than the homepage. Undefined when the

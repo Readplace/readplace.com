@@ -6,7 +6,6 @@ import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import { initProdProviders } from "./providers/prod-providers";
-import { initChangelogBannerSource } from "./web/changelog-banner-source";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
@@ -29,7 +28,6 @@ type AssemblyProvidedKeys =
 	| "baseUrl"
 	| "logError"
 	| "httpErrorMessageMapping"
-	| "getChangelogBanner"
 	| "now"
 	| "botDefenseLogger"
 	| "conversionLogger"
@@ -63,18 +61,6 @@ export function assembleReadplaceApp(input: {
 	const salt = requireEnv("ANALYTICS_SALT");
 	const analyticsLogger = HutchLogger.fromJSON<AnalyticsEvent>();
 
-	// Decorative, cached, fail-open source for the site-wide changelog banner.
-	// Points at blog-site's fragment endpoint via hutch's own API Gateway (set in
-	// infra).
-	const getChangelogBanner = initChangelogBannerSource({
-		fetch: globalThis.fetch,
-		sourceUrl: requireEnv("CHANGELOG_BANNER_URL"),
-		now: () => Date.now(),
-		ttlMs: 300_000,
-		timeoutMs: 800,
-		logger: HutchLogger.from(consoleLogger),
-	});
-
 	const app = createApp({
 		validateSaveableUrl: withUnwrapPreprocessing(
 			validateSaveableUrl,
@@ -94,7 +80,6 @@ export function assembleReadplaceApp(input: {
 				formatErrorLogLine({ message, error, now: () => new Date() }),
 			),
 		httpErrorMessageMapping,
-		getChangelogBanner,
 		now: () => new Date(),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),

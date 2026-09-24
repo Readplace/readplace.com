@@ -241,7 +241,7 @@ describe("createAnalyticsMiddleware", () => {
 		expect(runMiddleware(createReq({ path: "/blog/sitemap.xml" }), createRes(200))).toEqual([]);
 	});
 
-	it("skips logging /blog/changelog-banner so hutch's own 5-min server-side banner fetch does not pollute blog pageviews", () => {
+	it("skips logging /blog/changelog-banner so the banner request every page makes after load does not pollute blog pageviews", () => {
 		expect(runMiddleware(createReq({ path: "/blog/changelog-banner" }), createRes(200))).toEqual([]);
 	});
 

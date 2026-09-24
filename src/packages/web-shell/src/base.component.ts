@@ -18,7 +18,7 @@ import {
 import { BASE_TEMPLATE } from "./base.template";
 import { FOOTER_TEMPLATE } from "./footer.template";
 import type { BannerState } from "./banner-state";
-import { renderChangelogBannerShell } from "./changelog-banner";
+import { renderChangelogBannerSlot } from "./changelog-banner";
 import type { Component, ParsedComponent } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
@@ -288,7 +288,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
 			trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
-			changelogBanner: renderChangelogBannerShell({
+			changelogBanner: renderChangelogBannerSlot({
 				banner: state.changelogBanner,
 				returnTo: state.currentPath,
 				cspNonce: state.cspNonce,

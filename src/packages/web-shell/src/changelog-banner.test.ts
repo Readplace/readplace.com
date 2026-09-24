@@ -4,11 +4,12 @@ import {
 	CHANGELOG_SEEN_SCRIPT,
 	CHANGELOG_SEEN_STORAGE_KEY,
 	type ChangelogBanner,
+	FETCH_CHANGELOG_BANNER_IN_BROWSER,
 	isChangelogVersion,
-	parseChangelogBannerFragment,
-	renderChangelogBannerFragment,
 	renderChangelogBannerShell,
+	renderChangelogBannerSlot,
 } from "./changelog-banner";
+import { CLICK_SURFACES } from "./internal-link-tracking";
 import { generateCspNonce } from "./csp-nonce.middleware";
 
 function parse(html: string): Document {
@@ -23,102 +24,6 @@ const BANNER: ChangelogBanner = {
 	version: VERSION,
 };
 const CSP_NONCE = generateCspNonce();
-
-describe("renderChangelogBannerFragment", () => {
-	it("carries the version on the root data attribute", () => {
-		const doc = parse(renderChangelogBannerFragment(BANNER));
-		const root = doc.querySelector("[data-changelog-version]");
-		assert(root, "fragment must have a versioned root");
-		expect(root.getAttribute("data-changelog-version")).toBe("a1b2c3d4");
-	});
-
-	it("escapes the hook as text so markup in the copy cannot break out", () => {
-		const doc = parse(
-			renderChangelogBannerFragment({ ...BANNER, hook: "a <b> & \"c\"" }),
-		);
-		const hook = doc.querySelector("[data-changelog-hook]");
-		assert(hook, "fragment must carry the hook");
-		expect(hook.textContent).toBe('a <b> & "c"');
-	});
-
-	it("renders the href on the link, preserving the query string", () => {
-		const doc = parse(renderChangelogBannerFragment(BANNER));
-		const link = doc.querySelector("a");
-		assert(link, "fragment must carry a link");
-		expect(link.getAttribute("href")).toBe(BANNER.href);
-	});
-
-	it("round-trips through parseChangelogBannerFragment unchanged", () => {
-		expect(parseChangelogBannerFragment(renderChangelogBannerFragment(BANNER))).toEqual(BANNER);
-	});
-});
-
-describe("parseChangelogBannerFragment", () => {
-	it("parses a well-formed fragment", () => {
-		const html = renderChangelogBannerFragment(BANNER);
-		expect(parseChangelogBannerFragment(html)).toEqual(BANNER);
-	});
-
-	it("returns undefined for garbage with no root element", () => {
-		expect(parseChangelogBannerFragment("just text, no element")).toBeUndefined();
-	});
-
-	it("returns undefined when the version attribute is missing", () => {
-		expect(
-			parseChangelogBannerFragment(
-				`<div><span data-changelog-hook>hi</span><a href="/blog/x">Read more</a></div>`,
-			),
-		).toBeUndefined();
-	});
-
-	it("returns undefined when the version fails the 8-hex-char shape", () => {
-		expect(
-			parseChangelogBannerFragment(
-				`<div data-changelog-version="not-hex!"><span data-changelog-hook>hi</span><a href="/blog/x">Read more</a></div>`,
-			),
-		).toBeUndefined();
-	});
-
-	it("returns undefined when the hook element is missing", () => {
-		expect(
-			parseChangelogBannerFragment(
-				`<div data-changelog-version="a1b2c3d4"><a href="/blog/x">Read more</a></div>`,
-			),
-		).toBeUndefined();
-	});
-
-	it("returns undefined when the link is missing", () => {
-		expect(
-			parseChangelogBannerFragment(
-				`<div data-changelog-version="a1b2c3d4"><span data-changelog-hook>hi</span></div>`,
-			),
-		).toBeUndefined();
-	});
-
-	it("returns undefined when the link has no href", () => {
-		expect(
-			parseChangelogBannerFragment(
-				`<div data-changelog-version="a1b2c3d4"><span data-changelog-hook>hi</span><a>Read more</a></div>`,
-			),
-		).toBeUndefined();
-	});
-
-	it("returns undefined for an absolute (non-root-relative) href", () => {
-		expect(
-			parseChangelogBannerFragment(
-				`<div data-changelog-version="a1b2c3d4"><span data-changelog-hook>hi</span><a href="https://evil.example/x">Read more</a></div>`,
-			),
-		).toBeUndefined();
-	});
-
-	it("returns undefined for a protocol-relative href", () => {
-		expect(
-			parseChangelogBannerFragment(
-				`<div data-changelog-version="a1b2c3d4"><span data-changelog-hook>hi</span><a href="//evil.example/x">Read more</a></div>`,
-			),
-		).toBeUndefined();
-	});
-});
 
 describe("isChangelogVersion", () => {
 	it("accepts exactly eight lowercase hex characters", () => {
@@ -264,6 +169,52 @@ describe("renderChangelogBannerShell", () => {
 		expect(new URL(form.getAttribute("action") ?? "", "https://internal.invalid").searchParams.get("utm_term")).toBe(
 			"reader-public",
 		);
+	});
+});
+
+describe("renderChangelogBannerSlot", () => {
+	function loader(html: string): Element {
+		const el = parse(html).querySelector("[data-test-changelog-banner]");
+		assert(el, "the slot always renders the banner element");
+		return el;
+	}
+
+	it("renders the visible banner in place when the page already holds one", () => {
+		const el = loader(renderChangelogBannerSlot({ banner: BANNER, cspNonce: CSP_NONCE }));
+		expect(el.classList.contains("changelog-banner--visible")).toBe(true);
+		expect(el.getAttribute("data-changelog-version")).toBe(VERSION);
+	});
+
+	it("renders the hidden banner in place when there is nothing to announce", () => {
+		const el = loader(renderChangelogBannerSlot({ cspNonce: CSP_NONCE }));
+		expect(el.classList.contains("changelog-banner--hidden")).toBe(true);
+		expect(el.getAttribute("hx-get")).toBeNull();
+	});
+
+	it("renders an empty hidden banner that the browser replaces from the blog's banner endpoint on load", () => {
+		const el = loader(
+			renderChangelogBannerSlot({ banner: FETCH_CHANGELOG_BANNER_IN_BROWSER, cspNonce: CSP_NONCE }),
+		);
+		expect(el.classList.contains("changelog-banner--hidden")).toBe(true);
+		expect(el.innerHTML).toBe("");
+		expect(el.getAttribute("hx-get")).toBe("/blog/changelog-banner");
+		expect(el.getAttribute("hx-trigger")).toBe("load");
+		expect(el.getAttribute("hx-swap")).toBe("outerHTML");
+	});
+
+	it("passes the page's return path and click surface to the endpoint so the fetched banner dismisses and tracks like one rendered in place", () => {
+		const el = loader(
+			renderChangelogBannerSlot({
+				banner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
+				returnTo: "/queue/abc/view?platform=ios",
+				clickSurface: CLICK_SURFACES.readerPublic,
+				cspNonce: CSP_NONCE,
+			}),
+		);
+		const url = new URL(String(el.getAttribute("hx-get")), "https://readplace.com");
+		expect(url.pathname).toBe("/blog/changelog-banner");
+		expect(url.searchParams.get("returnTo")).toBe("/queue/abc/view?platform=ios");
+		expect(url.searchParams.get("surface")).toBe("reader-public");
 	});
 });
 

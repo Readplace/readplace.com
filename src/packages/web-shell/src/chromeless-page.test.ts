@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initChromelessPage } from "./chromeless-page";
 import type { ChromelessBannerState } from "./chromeless-page";
-import { isChangelogVersion } from "./changelog-banner";
+import { FETCH_CHANGELOG_BANNER_IN_BROWSER, isChangelogVersion } from "./changelog-banner";
 import { generateCspNonce } from "./csp-nonce.middleware";
 import type { PageBody } from "./page-body.types";
 
@@ -213,6 +213,24 @@ describe("ChromelessPage", () => {
 		expect(banner.querySelector(".changelog-banner__link")?.getAttribute("href")).toBe("/blog/highlights");
 
 		expect(doc.querySelector(".banner-area")).toBeNull();
+		const main = doc.querySelector("main.reader");
+		assert(main, "the article must render");
+		expect(banner.compareDocumentPosition(main) & banner.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
+	it("leaves the announcement for the browser to fetch above <main>, returning to the article it is shown on", () => {
+		const doc = new JSDOM(
+			ChromelessPage(createTestPageBody(), {
+				changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
+				currentPath: "/queue/abc/view?platform=ios",
+				cspNonce: CSP_NONCE,
+			}).to("text/html").body,
+		).window.document;
+
+		const banner = doc.querySelector(".changelog-banner");
+		assert(banner, "the banner placeholder must render");
+		const url = new URL(String(banner.getAttribute("hx-get")), "https://readplace.com");
+		expect(url.searchParams.get("returnTo")).toBe("/queue/abc/view?platform=ios");
 		const main = doc.querySelector("main.reader");
 		assert(main, "the article must render");
 		expect(banner.compareDocumentPosition(main) & banner.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

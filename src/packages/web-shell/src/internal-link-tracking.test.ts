@@ -1,4 +1,4 @@
-import { CLICK_SURFACES, withClickSurface, withInternalTracking } from "./internal-link-tracking";
+import { CLICK_SURFACES, isClickSurface, withClickSurface, withInternalTracking } from "./internal-link-tracking";
 
 describe("withInternalTracking", () => {
 	it("stamps a root-relative href with the section (utm_source), the element (utm_content), and utm_medium=internal so the click middleware can count it", () => {
@@ -88,5 +88,16 @@ describe("withClickSurface", () => {
 	it("leaves a protocol-relative URL untouched — it resolves to another origin", () => {
 		const external = "//cdn.example.com/x?a=1";
 		expect(withClickSurface(external, CLICK_SURFACES.readerPublic)).toBe(external);
+	});
+});
+
+describe("isClickSurface", () => {
+	it("accepts every declared click surface", () => {
+		expect(Object.values(CLICK_SURFACES).every(isClickSurface)).toBe(true);
+	});
+
+	it("rejects an undeclared surface and a non-string value", () => {
+		expect(isClickSurface("header")).toBe(false);
+		expect(isClickSurface(["reader-public"])).toBe(false);
 	});
 });

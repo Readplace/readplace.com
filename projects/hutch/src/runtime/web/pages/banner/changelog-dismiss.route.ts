@@ -11,10 +11,10 @@ const TWENTY_THREE_MONTHS_MS = 23 * 30 * 24 * 60 * 60 * 1000;
 /** POST /banner/changelog/dismiss — target of the banner's no-JS close button.
  * Served by hutch's $default even when the button is clicked on a /blog page,
  * since both share the readplace.com origin. Records the dismissed version in a
- * long-lived, path:"/" cookie (so both deployables read it) and 303-redirects the
+ * long-lived, path:"/" cookie and 303-redirects the
  * reader back to the page they dismissed on (the posted `returnTo`). The posted
  * version is the one actually rendered to the reader, so the cookie matches what
- * they saw regardless of hutch's cache freshness. An invalid or missing version
+ * they saw. An invalid or missing version
  * is ignored (no cookie), still redirecting back so the button never dead-ends. */
 export function initChangelogDismissRoute(deps: {
 	secureCookies: boolean;
