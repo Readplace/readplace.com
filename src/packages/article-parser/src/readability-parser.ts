@@ -4,7 +4,7 @@ import { parseHTML } from "linkedom";
 import { articleFromHostTitle, contentSavedFromHostExcerpt } from "@packages/domain/article";
 import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
-import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
+import { matchingSiteRuleUrl, type SiteArticleContent, type SiteRules } from "@packages/site-rules";
 import type { YouTubeEmbed } from "./parse-embed-url";
 
 export function initReadabilityParser(deps: {
@@ -23,7 +23,6 @@ export function initReadabilityParser(deps: {
 
 		const extracted = tryExtractFromSiteRules({
 			siteRules: deps.siteRules,
-			hostname,
 			html: params.html,
 			url: params.url,
 			logError: deps.logError,
@@ -55,7 +54,6 @@ export function initReadabilityParser(deps: {
 			 * Readability scores it. */
 			applyTransforms({
 				siteRules: deps.siteRules,
-				hostname,
 				document,
 				url: params.url,
 				logError: deps.logError,
@@ -138,14 +136,13 @@ export function initReadabilityParser(deps: {
 
 function tryExtractFromSiteRules(params: {
 	siteRules: readonly SiteRules[];
-	hostname: string;
 	html: string;
 	url: string;
 	logError: (message: string, error?: Error) => void;
 }): SiteArticleContent | undefined {
 	for (const site of params.siteRules) {
 		try {
-			if (!site.matches({ url: params.url, hostname: params.hostname })) continue;
+			if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
 			const extracted = site.extract({ html: params.html });
 			if (extracted) return extracted;
 		} catch (error) {
@@ -164,13 +161,12 @@ function tryExtractFromSiteRules(params: {
  * article — the document is left as it was and Readability still scores it. */
 function applyTransforms(params: {
 	siteRules: readonly SiteRules[];
-	hostname: string;
 	document: Document;
 	url: string;
 	logError: (message: string, error?: Error) => void;
 }): void {
 	for (const site of params.siteRules) {
-		if (!site.matches({ url: params.url, hostname: params.hostname })) continue;
+		if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
 		try {
 			site.transform({ document: params.document });
 		} catch (error) {

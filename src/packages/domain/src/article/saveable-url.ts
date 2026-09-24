@@ -1,4 +1,5 @@
 import { isIP, isIPv6 } from "node:net";
+import { toCanonicalHostUrl } from "@packages/article-resource-unique-id";
 import { z } from "zod";
 import { isPrivateIPv4, isPrivateIPv6, unwrapIpv6 } from "./blocked-address";
 
@@ -108,6 +109,18 @@ export function validateSaveableUrl(value: unknown): SaveableUrlResult {
 	if (isPrivateHostname(hostname)) return errorResult("private_network");
 	if (!isWellFormedHostname(hostname)) return errorResult("malformed_url");
 	return { status: "SUCCESS", url: SaveableUrlBrand.parse(parsed.toString()) };
+}
+
+export function prepareNewSaveUrl(url: SaveableUrl): SaveableUrl {
+	return SaveableUrlBrand.parse(toCanonicalHostUrl(url));
+}
+
+export function withNewSavePreparation(validate: ValidateSaveableUrl): ValidateSaveableUrl {
+	return (value) => {
+		const result = validate(value);
+		if (result.status === "ERROR") return result;
+		return { status: "SUCCESS", url: prepareNewSaveUrl(result.url) };
+	};
 }
 
 function errorResult(code: SaveableUrlErrorCode): SaveableUrlResult {

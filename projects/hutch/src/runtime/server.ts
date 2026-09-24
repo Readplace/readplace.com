@@ -217,7 +217,7 @@ import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
-import type { ValidateSaveableUrl } from "@packages/domain/article";
+import { type ValidateSaveableUrl, withNewSavePreparation } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
@@ -521,6 +521,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 	});
 
+	const validateNewSaveUrl = withNewSavePreparation(deps.validateSaveableUrl);
+
 	const resolveSaveAccess = initResolveSaveAccess({
 		findUserById: deps.findUserById,
 		now: deps.now,
@@ -537,7 +539,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		countArticlesByUser: deps.countArticlesByUser,
 		resolveSaveAccess,
 		getEffectiveAccess,
-		validateSaveableUrl: deps.validateSaveableUrl,
+		validateNewSaveUrl,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		saveArticleAtReadlistTop,
 		recordAnalyticsEvent,
@@ -581,7 +583,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			if (!access.allowed) {
 				return { ok: false, message: access.message };
 			}
-			const validation = deps.validateSaveableUrl(url);
+			const validation = validateNewSaveUrl(url);
 			if (validation.status === "ERROR") {
 				return { ok: false, message: validation.error.message };
 			}
@@ -1240,6 +1242,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const queueRouter = initReadlistRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
+		validateNewSaveUrl,
 		appOrigin,
 		secureCookies,
 		findUserById: deps.findUserById,
@@ -1333,7 +1336,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(READLIST_PATH, extensionCors, queueRouter);
 
 	const importRouter = initImportSessionRoutes({
-		validateSaveableUrl: deps.validateSaveableUrl,
+		validateNewSaveUrl,
 		secureCookies,
 		importSessionStore: deps.importSessionStore,
 		extractLinksFromPageUrl: deps.extractLinksFromPageUrl,

@@ -1209,6 +1209,9 @@ importers:
 
   src/packages/crawl-article:
     dependencies:
+      '@packages/article-resource-unique-id':
+        specifier: workspace:*
+        version: link:../article-resource-unique-id
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
@@ -1696,6 +1699,10 @@ importers:
         version: 6.0.3
 
   src/packages/site-rules:
+    dependencies:
+      '@packages/article-resource-unique-id':
+        specifier: workspace:*
+        version: link:../article-resource-unique-id
     devDependencies:
       '@types/jest':
         specifier: 30.0.0

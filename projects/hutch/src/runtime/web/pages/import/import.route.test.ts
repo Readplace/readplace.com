@@ -630,6 +630,27 @@ describe("Import routes", () => {
 			]);
 		});
 
+		it("imports a twitter.com link as its x.com article, once, even when the file also lists the x.com spelling", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://twitter.com/jack/status/20 https://x.com/jack/status/20 https://twitter.com/jack/status/21"),
+			);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+
+			const commit = await agent.post(`${create.headers.location}/commit`);
+
+			expect(commit.headers.location).toContain("import_imported=2&");
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const result = await harness.articleStore.findArticlesByUser({ userId });
+			expect(result.articles.map((article) => article.url).sort()).toEqual([
+				"https://x.com/jack/status/20",
+				"https://x.com/jack/status/21",
+			]);
+		});
+
 		it("asks to resurface nothing, so a thousands-of-links commit costs no per-link selection", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);

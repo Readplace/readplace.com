@@ -30,14 +30,11 @@ import {
 	initFetchPinnedCrawl,
 	initCrawlFetch,
 	initFetchThumbnailImage,
-	initXTwitterSiteRules,
-	initAppleNewsSiteRules,
-	initStackOverflowSiteRules,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
-import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, readabilityAdditions, theInformationSiteRules } from "@packages/article-parser";
+import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
 	createOAuthModel,
@@ -310,15 +307,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-	const siteRules = [
-		theInformationSiteRules,
-		mediumSiteRules,
-		linkedinSiteRules,
-		mediaWikiSiteRules,
-		initXTwitterSiteRules({ crawlFetch, logError }),
-		initAppleNewsSiteRules({ crawlFetch, logError }),
-		initStackOverflowSiteRules({ crawlFetch, logError }),
-	];
+	const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
 		findAdoptedFetchUrl: async () => undefined,

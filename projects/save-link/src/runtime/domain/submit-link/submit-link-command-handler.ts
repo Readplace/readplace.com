@@ -5,7 +5,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
-import { SaveProvenanceSchema } from "@packages/domain/article";
+import { prepareNewSaveUrl, SaveProvenanceSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
@@ -116,6 +116,7 @@ export function initSubmitLinkCommandHandler(deps: {
 					validation.status === "SUCCESS",
 					`${logPrefix} url is not saveable: ${detail.url}`,
 				);
+				const url = prepareNewSaveUrl(validation.url);
 
 				const enrichment: Array<{ url: string; userId: UserId }> = [];
 				const saveArticleFromUrl = initSaveArticleFromUrl({
@@ -138,15 +139,15 @@ export function initSubmitLinkCommandHandler(deps: {
 					allocateSavedAt: deps.allocateSavedAt,
 					saveArticleFromUrl,
 				});
-				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				await saveArticleAtReadlistTop({ userId, url: validation.url, freshness, provenance });
+				const freshness = await deps.refreshArticleIfStale({ url });
+				await saveArticleAtReadlistTop({ userId, url, freshness, provenance });
 
 				if (provenance.kind === "email") {
 					try {
 						await deps.recordInboxArticleQueued({ userId });
 					} catch (error) {
 						logger.warn(`${logPrefix} inbox onboarding stamp failed — continuing`, {
-							url: validation.url,
+							url,
 							error: String(error),
 						});
 					}

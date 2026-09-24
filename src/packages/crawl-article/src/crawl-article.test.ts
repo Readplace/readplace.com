@@ -1856,3 +1856,160 @@ describe("initCrawlArticle — a redirecting site recovers a refused terminal", 
 		expect(result.status).toBe("blocked");
 	});
 });
+
+describe("initCrawlArticle — site rules recognise twitter.com and x.com alike", () => {
+	const ORIGIN_HTML =
+		"<html><body><article><p>Body the origin served for the URL no site rule claimed, with enough words for readability.</p></article></body></html>";
+
+	function recordingFetch(requested: string[]): typeof fetch {
+		return async (input) => {
+			requested.push(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+			return new Response(ORIGIN_HTML, { status: 200, headers: { "content-type": "text/html" } });
+		};
+	}
+
+	function claimingSite(params: { matches: SiteRules["matches"]; onCrawlUrls: string[]; html: string }): SiteRules {
+		return {
+			matches: params.matches,
+			onCrawl: async ({ url }) => {
+				params.onCrawlUrls.push(url);
+				return { kind: "content", html: params.html };
+			},
+			recoverContent: noRecovery,
+			extract: noExtract,
+			transform: noTransform,
+		};
+	}
+
+	const onXStatus: SiteRules["matches"] = ({ url }) => /^https:\/\/x\.com\/[^/]+\/status\/\d+/.test(url);
+	const onTwitter: SiteRules["matches"] = ({ hostname }) => hostname === "twitter.com";
+
+	it("hands an x.com-only rule the x.com spelling of a twitter.com URL", async () => {
+		const onCrawlUrls: string[] = [];
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: recordingFetch(requested),
+			siteRules: [claimingSite({ matches: onXStatus, onCrawlUrls, html: "<p>x</p>" })],
+		});
+
+		const result = await crawlArticle({ url: "https://twitter.com/jack/status/20?s=20" });
+
+		assertFetched(result);
+		expect(result.html).toBe("<p>x</p>");
+		expect(onCrawlUrls).toEqual(["https://x.com/jack/status/20?s=20"]);
+		expect(requested).toEqual([]);
+	});
+
+	it("hands a twitter.com-only rule the twitter.com spelling of an x.com URL", async () => {
+		const onCrawlUrls: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: recordingFetch([]),
+			siteRules: [claimingSite({ matches: onTwitter, onCrawlUrls, html: "<p>t</p>" })],
+		});
+
+		const result = await crawlArticle({ url: "https://x.com/jack/status/20" });
+
+		assertFetched(result);
+		expect(onCrawlUrls).toEqual(["https://twitter.com/jack/status/20"]);
+	});
+
+	it("runs a rule that recognises both hosts once, with the x.com spelling", async () => {
+		const onCrawlUrls: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: recordingFetch([]),
+			siteRules: [
+				claimingSite({
+					matches: ({ hostname }) => hostname === "x.com" || hostname === "twitter.com",
+					onCrawlUrls,
+					html: "<p>both</p>",
+				}),
+			],
+		});
+
+		await crawlArticle({ url: "https://twitter.com/jack/status/20" });
+
+		expect(onCrawlUrls).toEqual(["https://x.com/jack/status/20"]);
+	});
+
+	it("keeps the rule's path restriction, fetching the URL as given when the rule declines it", async () => {
+		const onCrawlUrls: string[] = [];
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: recordingFetch(requested),
+			siteRules: [claimingSite({ matches: onXStatus, onCrawlUrls, html: "<p>x</p>" })],
+		});
+
+		const result = await crawlArticle({ url: "https://twitter.com/jack" });
+
+		assertFetched(result);
+		expect(onCrawlUrls).toEqual([]);
+		expect(requested).toEqual(["https://twitter.com/jack"]);
+	});
+
+	it("keeps registration order: the first registered rule claims on either host", async () => {
+		const twitterRuleUrls: string[] = [];
+		const xRuleUrls: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: recordingFetch([]),
+			siteRules: [
+				claimingSite({ matches: onTwitter, onCrawlUrls: twitterRuleUrls, html: "<p>twitter rule</p>" }),
+				claimingSite({ matches: onXStatus, onCrawlUrls: xRuleUrls, html: "<p>x rule</p>" }),
+			],
+		});
+
+		const result = await crawlArticle({ url: "https://x.com/jack/status/20" });
+
+		assertFetched(result);
+		expect(result.html).toBe("<p>twitter rule</p>");
+		expect(twitterRuleUrls).toEqual(["https://twitter.com/jack/status/20"]);
+		expect(xRuleUrls).toEqual([]);
+	});
+
+	it("gives a redirecting rule's recovery the same spelling its crawl hook matched", async () => {
+		const onCrawlUrls: string[] = [];
+		const recoverUrls: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: async () => new Response(null, { status: 451 }),
+			siteRules: [
+				{
+					matches: onTwitter,
+					onCrawl: async ({ url }) => {
+						onCrawlUrls.push(url);
+						return { kind: "redirect", url: "https://paywalled.example/a" };
+					},
+					recoverContent: async ({ url }) => {
+						recoverUrls.push(url);
+						return "<html><body><p>recovered</p></body></html>";
+					},
+					extract: noExtract,
+					transform: noTransform,
+				},
+			],
+		});
+
+		const result = await crawlArticle({ url: "https://x.com/jack/status/20" });
+
+		assertFetched(result);
+		expect(onCrawlUrls).toEqual(["https://twitter.com/jack/status/20"]);
+		expect(recoverUrls).toEqual(["https://twitter.com/jack/status/20"]);
+	});
+
+	it("asks X's oembed about the x.com spelling of a twitter.com tweet", async () => {
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				requested.push(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+				return new Response(JSON.stringify({ author_name: "Jack", html: "<blockquote>just setting up</blockquote>" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			},
+		});
+
+		const result = await crawlArticle({ url: "https://twitter.com/jack/status/20" });
+
+		assertFetched(result);
+		expect(result.html).toContain("just setting up");
+		expect(requested).toEqual(["https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2Fjack%2Fstatus%2F20"]);
+	});
+});
