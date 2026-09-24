@@ -6,7 +6,7 @@ date: "2026-09-20"
 author: "Fayner Brack"
 keywords: "app keeps signing me out, stay signed in, read it later app signs me out, refresh token lifetime, oauth2-server default, session expired after two weeks, signed out for no reason, readplace"
 tags: ["changelog"]
-banner: "I fixed the sign-out that followed 2 weeks away"
+banner: "2 weeks away no longer ends in a sign-out"
 ---
 
 <details class="blog-tldr">
@@ -18,9 +18,9 @@ Nothing had ever told Readplace's sign-in system how long a sign-in should last,
 </div>
 </details>
 
-On paper, a Readplace sign-in holds through 180 days of neglect. A comment in the OAuth client store promises a client record that outlives "the 180-day refresh-token lifetime". A fallback in the token model names the same 180. 2 readers of the code, months apart, took the number at face value.
+On paper, a Readplace sign-in holds through 180 days of neglect. A comment in the OAuth client store promises a client record that outlives "the 180-day refresh-token lifetime". A fallback in the token model names the same 180. 2 passes over the code, months apart, took the number at face value.
 
-The tokens in production expired a fortnight after their last use. Every row I sampled said so, 40 of 40.
+The tokens in production expired a fortnight after their last use. Every sampled row said so, 40 of 40.
 
 Those rows covered the iPhone app, the Chrome and Firefox extensions, and the assistants readers had connected through. A sign-in on any of them, left untouched for 14 days, was gone.
 
@@ -36,15 +36,15 @@ The proof sat in the arithmetic. Every sampled row carried a refresh expiry sitt
 
 ## The comment that kept it hidden
 
-How does a 2-week expiry go unnoticed for months in a product whose author believes the number is 180? The code answered questions faster than production could. The client store justifies its 1-year record lifetime as sitting comfortably past "the 180-day refresh-token lifetime", and the token model carries a 180-day fallback on a branch the live paths can't reach. Read either one and you stop looking.
+How does a 2-week expiry go unnoticed for months when the code itself says the number is 180? The code answered questions faster than production could. The client store justifies its 1-year record lifetime as sitting comfortably past "the 180-day refresh-token lifetime", and the token model carries a 180-day fallback on a branch the live paths can't reach. Read either one and you stop looking.
 
 > **A number a comment explains with confidence is a number that stops getting checked.**
 
-That is how both readers of this code reached the same wrong number. Neither looked at a stored token, because the comments made looking feel unnecessary.
+That is how both passes over this code reached the same wrong number. Neither pass checked a stored token, because the comments made looking feel unnecessary.
 
 ## 1 line, and why 180
 
-The fix I shipped is 1 configuration line: a refresh-token lifetime of 180 days, stated where the OAuth server is built instead of inherited from a package.
+The fix is 1 configuration line: a refresh-token lifetime of 180 days, stated where the OAuth server is built instead of inherited from a package.
 
 180 rather than a year is a bound, not a taste. A connected assistant's client record lives 365 days, and a sign-in must not outlive the record it resolves through, so 180 leaves comfortable room inside the record's own lifetime.
 
