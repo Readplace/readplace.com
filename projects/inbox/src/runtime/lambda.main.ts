@@ -58,7 +58,7 @@ const readEmailContent = initS3ReadContent({
 	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
 });
 
-const { getChangelogBanner, refreshChangelogBanner } = initChangelogBannerSource({
+const getChangelogBanner = initChangelogBannerSource({
 	fetch: globalThis.fetch,
 	sourceUrl: requireEnv("CHANGELOG_BANNER_URL"),
 	now: () => Date.now(),
@@ -66,7 +66,6 @@ const { getChangelogBanner, refreshChangelogBanner } = initChangelogBannerSource
 	timeoutMs: 800,
 	logger,
 });
-void refreshChangelogBanner();
 
 const application = express()
 	.disable("x-powered-by")

@@ -50,7 +50,7 @@ const lambda = new HutchLambda(BLOG_SITE_LAMBDA_NAME, {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/blog-site",
 	assetDir: "./src/runtime",
-	memorySize: 256,
+	memorySize: 1769,
 	timeout: 10,
 	environment: {
 		NODE_ENV: nodeEnv,

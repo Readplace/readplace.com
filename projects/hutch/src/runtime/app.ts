@@ -65,8 +65,8 @@ export function assembleReadplaceApp(input: {
 
 	// Decorative, cached, fail-open source for the site-wide changelog banner.
 	// Points at blog-site's fragment endpoint via hutch's own API Gateway (set in
-	// infra); a slow or down source never blocks a page render.
-	const { getChangelogBanner, refreshChangelogBanner } = initChangelogBannerSource({
+	// infra).
+	const getChangelogBanner = initChangelogBannerSource({
 		fetch: globalThis.fetch,
 		sourceUrl: requireEnv("CHANGELOG_BANNER_URL"),
 		now: () => Date.now(),
@@ -74,7 +74,6 @@ export function assembleReadplaceApp(input: {
 		timeoutMs: 800,
 		logger: HutchLogger.from(consoleLogger),
 	});
-	void refreshChangelogBanner();
 
 	const app = createApp({
 		validateSaveableUrl: withUnwrapPreprocessing(

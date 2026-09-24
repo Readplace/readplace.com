@@ -23,10 +23,13 @@ type ChangelogFetch = (
  *   - !ok / unparseable / timeout / throw (transient failure) → keep the last
  *     good value (undefined only until the first success).
  *
- * Results are cached for `ttlMs` so most renders pay nothing, and concurrent
- * misses share one in-flight fetch. Failures log at warn (no alarm — a missing
- * promo banner is not an incident). Caching is added because every page consults
- * it. */
+ * Results are cached for `ttlMs` and concurrent misses share one in-flight
+ * fetch. The first render after the TTL lapses awaits the refetch, bounded by
+ * `timeoutMs`: on Lambda a fetch left running after the response is sent is
+ * frozen with the environment and its timer fires on the next thaw, so a
+ * background refresh never completes — the block, once per TTL per instance, is
+ * the price of a banner that actually shows. Failures log at warn (no alarm — a
+ * missing promo banner is not an incident). */
 export function initChangelogBannerSource(deps: {
 	fetch: ChangelogFetch;
 	sourceUrl: string;
@@ -34,16 +37,13 @@ export function initChangelogBannerSource(deps: {
 	ttlMs: number;
 	timeoutMs: number;
 	logger: HutchLogger;
-}): {
-	getChangelogBanner: GetChangelogBanner;
-	refreshChangelogBanner: () => Promise<void>;
-} {
+}): GetChangelogBanner {
 	const { fetch, sourceUrl, now, ttlMs, timeoutMs, logger } = deps;
 
 	let lastGood: ChangelogBanner | undefined;
 	let cachedAt: number | undefined;
 	let cachedValue: ChangelogBanner | undefined;
-	let inFlight: Promise<void> | undefined;
+	let inFlight: Promise<ChangelogBanner | undefined> | undefined;
 
 	async function fetchFresh(): Promise<ChangelogBanner | undefined> {
 		try {
@@ -71,15 +71,14 @@ export function initChangelogBannerSource(deps: {
 		}
 	}
 
-	function isFresh(): boolean {
-		return cachedAt !== undefined && now() - cachedAt < ttlMs;
-	}
-
-	function startRefresh(): Promise<void> {
+	async function getChangelogBanner(): Promise<ChangelogBanner | undefined> {
+		if (cachedAt !== undefined && now() - cachedAt < ttlMs) return cachedValue;
+		if (inFlight) return inFlight;
 		inFlight = fetchFresh()
 			.then((value) => {
 				cachedValue = value;
 				cachedAt = now();
+				return value;
 			})
 			.finally(() => {
 				inFlight = undefined;
@@ -87,15 +86,5 @@ export function initChangelogBannerSource(deps: {
 		return inFlight;
 	}
 
-	async function getChangelogBanner(): Promise<ChangelogBanner | undefined> {
-		if (!isFresh() && !inFlight) void startRefresh();
-		return cachedValue;
-	}
-
-	function refreshChangelogBanner(): Promise<void> {
-		if (isFresh()) return Promise.resolve();
-		return inFlight ?? startRefresh();
-	}
-
-	return { getChangelogBanner, refreshChangelogBanner };
+	return getChangelogBanner;
 }
