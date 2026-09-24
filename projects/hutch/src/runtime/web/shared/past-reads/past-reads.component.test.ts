@@ -151,6 +151,7 @@ describe("renderPastReadsSection", () => {
 		expect(card.querySelector(".past-reads__eyebrow")?.textContent).toBe(
 			"You've already seen this before",
 		);
+		expect(card.querySelector("summary [data-test-past-reads-beta]")?.textContent).toBe("Beta");
 		const rows = Array.from(card.querySelectorAll("[data-test-topic-read-item]"));
 		expect(rows.map((row) => row.getAttribute("data-test-topic-read-item"))).toEqual([
 			IN_WORK.value,
