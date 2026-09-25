@@ -10,7 +10,7 @@ class SignInErrorTest {
 	fun `a failure without a message shows a plain fallback rather than nothing`() {
 		assertEquals(
 			"a null-message throwable must not leave the sign-in screen silent",
-			"Could not sign in. Please try again.",
+			"Couldn't sign in. Try again.",
 			signInErrorText(Result.failure(Exception())),
 		)
 	}
