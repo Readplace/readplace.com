@@ -268,6 +268,8 @@ class ReadingListViewModel(
 			val page = api.loadReadlist(path = href)
 			if (!tabUnchanged(generation)) return
 			replace(firstPage = page, deeperPages = emptyList(), read = read)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
 			if (!tabUnchanged(generation)) return
 			when (error) {

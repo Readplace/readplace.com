@@ -2901,6 +2901,61 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `cancelling a remembered-readlist reopen unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/queue" && record.request.url.query == "queue=work" ->
+					gate.holding(
+						Stub.json(
+							200,
+							Fixtures.collection(
+								listOf(Fixtures.article("w1")),
+								tabsJson = Fixtures.tabs(queue = "/queue?queue=work"),
+								readlistsJson = Fixtures.readlists(current = "/queue?queue=work"),
+							),
+						),
+					)
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" -> Stub.json(
+					200,
+					Fixtures.collection(
+						listOf(Fixtures.article("a1")),
+						tabsJson = Fixtures.tabs(queue = "/queue"),
+						readlistsJson = Fixtures.readlists(current = "/queue"),
+					),
+				)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(
+			lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=work") },
+			ioDispatcher = Dispatchers.IO,
+		)
+
+		val screenScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = screenScope.launch { viewModel.loadIfNeeded() }
+		awaitArrival(gate)
+		assertTrue("precondition: the remembered-readlist reopen is on the wire", viewModel.state.value.isLoading)
+
+		screenScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's remembered-readlist reopen is cancelled", job.isCancelled)
+		assertNull("a cancelled reopen is unwound, never turned into a banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the read's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		assertEquals(
+			"a cancelled reopen keeps the remembered selection rather than clearing it to chase the entry point",
+			"/queue?queue=work",
+			viewModel.state.value.selectedReadlistHref,
+		)
+		assertTrue("a cancelled reopen never falls back to entry-point discovery", server.records("/").isEmpty())
+		assertEquals("a cancelled reopen applies nothing", emptyList<String>(), viewModel.articleIds)
+	}
+
+	@Test
 	fun `a fresh load without current metadata does not fabricate a remembered readlist`() = runTest {
 		server.handle { record ->
 			when (record.path) {
