@@ -460,6 +460,16 @@ private fun ArticleItem(
 	val controls = article.rowControls
 	val collapse: () -> Unit = { scope.launch { swipe.reset() } }
 
+	if (controls.isEmpty()) {
+		ArticleRow(
+			article = article,
+			clock = clock,
+			onOpen = onOpen,
+			modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+		)
+		return
+	}
+
 	SwipeToDismissBox(
 		state = swipe,
 		enableDismissFromStartToEnd = false,
