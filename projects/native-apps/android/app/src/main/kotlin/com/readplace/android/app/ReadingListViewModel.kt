@@ -159,6 +159,8 @@ class ReadingListViewModel(
 		try {
 			val firstPage = api.loadReadlist(path = currentTabHref)
 			if (tabUnchanged(generation)) replace(firstPage = firstPage, deeperPages = emptyList(), read = read)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
 			if (tabUnchanged(generation)) handle(error)
 		} finally {
@@ -179,6 +181,8 @@ class ReadingListViewModel(
 		try {
 			val page = api.loadReadlist(path = next)
 			if (tabUnchanged(generation) && listVersion == readApplied) apply(page, replacing = false)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
 			if (tabUnchanged(generation)) handle(error)
 		} finally {
@@ -205,6 +209,8 @@ class ReadingListViewModel(
 		try {
 			val page = api.invoke(action)
 			if (tabUnchanged(generation)) adopt(page, read)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
 			handle(error)
 		} finally {
@@ -298,6 +304,8 @@ class ReadingListViewModel(
 				val page = api.loadReadlist(path = next)
 				if (!tabUnchanged(generation)) return
 				deeperPages.add(page)
+			} catch (cancellation: CancellationException) {
+				throw cancellation
 			} catch (error: Exception) {
 				if (!tabUnchanged(generation)) return
 				hopFailure = error

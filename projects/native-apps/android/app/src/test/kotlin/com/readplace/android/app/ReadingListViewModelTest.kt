@@ -2429,6 +2429,141 @@ class ReadingListViewModelTest {
 		assertNull("the superseded older adoption's deferred hop error is not surfaced", viewModel.state.value.errorText)
 	}
 
+	@Test
+	fun `cancelling a first-page load unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" -> gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+
+		val screenScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = screenScope.launch { viewModel.refresh() }
+		awaitArrival(gate)
+		assertTrue("precondition: the first-page load is on the wire", viewModel.state.value.isLoading)
+
+		screenScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's first-page load is cancelled", job.isCancelled)
+		assertNull("a cancelled first-page load is unwound, never turned into a banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the read's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		assertEquals("a cancelled first-page load applies nothing", emptyList<String>(), viewModel.articleIds)
+	}
+
+	@Test
+	fun `cancelling loadMore while its page is on the wire unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2)))
+				record.path == "/queue" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		assertEquals("precondition: the first page loaded and advertises a next page", listOf("a1", "a2"), viewModel.articleIds)
+
+		val loadMoreScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = loadMoreScope.launch { viewModel.loadMore() }
+		awaitArrival(gate)
+
+		loadMoreScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the torn-down load-more effect's page load is cancelled", job.isCancelled)
+		assertNull(
+			"the LaunchedEffect(articles.size) driving loadMore is torn down when a concurrent replacing read changes the " +
+				"list; that cancellation unwinds instead of painting a banner a later append would never clear",
+			viewModel.state.value.errorText,
+		)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertEquals("a cancelled page load appends nothing", listOf("a1", "a2"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `cancelling an action invoke while it is on the wire unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue/purge" -> gate.holding(Stub.json(200, Fixtures.collection(emptyList())))
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+
+		val screenScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = screenScope.launch { viewModel.invoke(purgeAction) }
+		awaitArrival(gate)
+		assertTrue("precondition: the invoke is on the wire", viewModel.state.value.isLoading)
+
+		screenScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's invoke is cancelled", job.isCancelled)
+		assertNull("a cancelled invoke is unwound, never turned into a banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the read's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		assertEquals("a cancelled invoke leaves the list in place", listOf("a1"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `cancelling a deeper adoption hop unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		val page2Gets = AtomicInteger()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					if (page2Gets.incrementAndGet() > 1) {
+						gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2)))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2))
+					}
+				record.path == "/queue" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: a two-page list is held", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+
+		val screenScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = screenScope.launch { viewModel.readerStatusChanged() }
+		awaitArrival(gate)
+
+		screenScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's deeper-hop reload is cancelled", job.isCancelled)
+		assertNull(
+			"a cancellation during a deeper adoption hop is rethrown ahead of the hop-failure handler, so a disposed " +
+				"deep-scrolled screen never paints a banner",
+			viewModel.state.value.errorText,
+		)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the reload's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		assertEquals("a cancelled reload applies nothing over the held list", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+	}
+
 	// endregion
 
 	private val readTabLanding = "/queue?landing=after-toggle"
