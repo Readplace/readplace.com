@@ -569,6 +569,7 @@
   gap: 12px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--border);
+  container: readlist-listing-header / inline-size;
 }
 
 .readlist__count {
@@ -577,6 +578,13 @@
   font-weight: 600;
   color: var(--foreground);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@container readlist-listing-header (max-width: calc(15.75rem + 16px)) {
+  .readlist__count {
+    display: none;
+  }
 }
 
 .readlist__count-number {
@@ -611,9 +619,11 @@
   gap: 4px;
   min-height: 36px;
   margin-block: -6px;
+  margin-inline-start: auto;
   font-size: 0.875rem;
   color: var(--muted-foreground);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .readlist-listing__sort:hover {
