@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { GMAIL_METADATA_SCOPE, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
+import { readGoogleTokenError } from "./google-token-error";
 
 const GmailTokenResponse = z.object({
 	access_token: z.string(),
@@ -28,8 +29,11 @@ export function initExchangeGmailCode(deps: {
 			}).toString(),
 		});
 
-		const parsed = GmailTokenResponse.safeParse(await response.json());
-		if (!parsed.success) return { ok: false, reason: "exchange-failed" };
+		const body = await response.json();
+		const parsed = GmailTokenResponse.safeParse(body);
+		if (!parsed.success) {
+			return { ok: false, reason: "exchange-failed", status: response.status, ...readGoogleTokenError(body) };
+		}
 		const scopes = parsed.data.scope.split(/\s+/);
 		if (!scopes.includes(GMAIL_SETTINGS_SCOPE)) return { ok: false, reason: "scope-not-granted" };
 		if (!scopes.includes(GMAIL_METADATA_SCOPE)) return { ok: false, reason: "metadata-scope-not-granted" };

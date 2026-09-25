@@ -21,7 +21,7 @@ const credentials = initDynamoDbGmailCredentials({ client, tableName: requireEnv
 const discovery = initDynamoDbGmailDiscovery({ client, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now });
 const connections = initDynamoDbGmailConnection({ client, tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"), now });
 const mailbox = initGmailMailbox({
-	accessToken: initGmailAccessToken({ clientId: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"), clientSecret: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"), credentials, fetch: globalThis.fetch, now }),
+	accessToken: initGmailAccessToken({ clientId: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"), clientSecret: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"), credentials, fetch: globalThis.fetch, now, logger }),
 	fetch: globalThis.fetch,
 });
 
