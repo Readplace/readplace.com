@@ -126,8 +126,6 @@ class ShareActivity : ComponentActivity() {
 				onStillSaving = { sheet.status = "Still saving…" },
 			)
 			sheet.outcome = outcome
-			// Every terminal outcome is dismissable, including the sign-out, no-link and
-			// failure paths that never reach onSaved.
 			sheet.canDismiss = true
 		}
 		hold.untilSettledAndRead(settled)
