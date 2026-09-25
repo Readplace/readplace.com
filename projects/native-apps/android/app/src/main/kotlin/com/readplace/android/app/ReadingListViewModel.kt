@@ -526,7 +526,12 @@ class ReadingListViewModel(
 	private fun handle(error: Exception) {
 		when (error) {
 			is ApiError.Unauthorized, is ApiError.NoToken -> onSessionExpired()
-			is ApiError.Refused -> mutate { it.copy(messages = error.messages) }
+			is ApiError.Refused ->
+				if (error.messages.isEmpty()) {
+					mutate { it.copy(errorText = error.message) }
+				} else {
+					mutate { it.copy(messages = error.messages) }
+				}
 			else -> mutate { it.copy(errorText = error.message ?: error.toString()) }
 		}
 	}

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.CacheControl
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.FormBody
@@ -38,7 +39,7 @@ sealed class ApiError(message: String) : Exception(message) {
 	 * Carries the server-authored messages; the refusal models no action — there
 	 * is nothing for the client to invoke, only something for the user to read. */
 	class Refused(val messages: List<ServerMessage>) :
-		ApiError(messages.joinToString("\n") { it.plainText })
+		ApiError(messages.joinToString("\n") { it.plainText }.ifEmpty { "Couldn't complete that." })
 
 	/** The response carried a body in a media type the client doesn't speak (not
 	 * the negotiated Siren type). Surfaced honestly rather than blind-decoded — a
@@ -48,6 +49,14 @@ sealed class ApiError(message: String) : Exception(message) {
 		ApiError("The server replied in a format this app doesn't understand.")
 
 	class Decoding : ApiError("Could not read the server response.")
+
+	companion object {
+		fun isRefusalOrAuthFailure(error: Throwable): Boolean = when (error) {
+			is Refused, is Unauthorized, is NoToken -> true
+			is Server -> error.status == 403
+			else -> false
+		}
+	}
 }
 
 /**
@@ -176,9 +185,17 @@ class ReadplaceApi(
 	 * one URL the client knows — and follows wherever the server redirects;
 	 * otherwise it follows a link href the server already handed back (e.g. the
 	 * `next` link). */
-	suspend fun loadReadlist(path: String? = null): ReadlistPage {
+	suspend fun loadReadlist(path: String? = null): ReadlistPage =
+		loadReadlist(path = path, cacheControl = null)
+
+	suspend fun rediscoverReadlist(path: String? = null): ReadlistPage =
+		loadReadlist(path = path, cacheControl = CacheControl.FORCE_NETWORK)
+
+	private suspend fun loadReadlist(path: String?, cacheControl: CacheControl?): ReadlistPage {
 		val url = if (path != null) absoluteUrl(path) else entryPoint("/")
-		val answer = send(Request.Builder().url(url).get().build())
+		val request = Request.Builder().url(url).get()
+		if (cacheControl != null) request.cacheControl(cacheControl)
+		val answer = send(request.build())
 		if (answer.status != 200) throw apiError(answer)
 		return ReadlistPage(decodeSiren(answer, SirenDecoding::collection))
 	}
@@ -455,11 +472,12 @@ class ReadplaceApi(
 			from = first.headers.toMap(),
 			onto = if (replays) sent.headers.toMap() else emptyMap(),
 		)
-		return Request.Builder()
+		val followed = Request.Builder()
 			.url(target)
 			.method(if (replays) sent.method else "GET", if (replays) sent.body else null)
 			.headers(headers.toHeaders())
-			.build()
+		first.header("Cache-Control")?.let { followed.header("Cache-Control", it) }
+		return followed.build()
 	}
 
 	private fun jsonRequest(
@@ -572,13 +590,10 @@ class ReadplaceApi(
 	 * to follow.
 	 *
 	 * Messages whose media type the client can't render are dropped (be liberal in
-	 * what you accept, conservative in what you render); a refusal left with no
-	 * renderable message is treated as not-a-refusal so it never shows blank. */
+	 * what you accept, conservative in what you render). */
 	private fun refusalError(sirenError: SirenErrorBody?): ApiError? {
 		val messages = sirenError?.properties?.messages ?: return null
-		val renderable = messages.filter { it.isRenderable }
-		if (renderable.isEmpty()) return null
-		return ApiError.Refused(renderable)
+		return ApiError.Refused(messages.filter { it.isRenderable })
 	}
 
 	// endregion

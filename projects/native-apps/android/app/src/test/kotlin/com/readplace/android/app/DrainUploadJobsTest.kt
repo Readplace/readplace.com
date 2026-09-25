@@ -360,6 +360,26 @@ class DrainUploadJobsTest {
 	}
 
 	@Test
+	fun `drops a job an all-unrenderable refusal terminates even at a retryable status`() = runTest {
+		val jobs = makeStore()
+		val admitted = job()
+		jobs.admit(admitted)
+		val ready = jobs.stageReady(admitted, multipartForm())
+		serveReadlist(saveContent = {
+			Stub.json(503, """{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/markdown", "body": "**locked**" } }] } }""")
+		})
+
+		makeDrain(jobs, emptyCaptor()).run()
+
+		assertEquals(
+			"an all-filtered refusal is the server's verdict on these bytes, so the job is dropped, not rescheduled as a 5xx retry",
+			emptyList<UploadJob>(),
+			jobs.loadAll(now = epoch.plusSeconds(60)),
+		)
+		assertFalse(jobs.bytesFile(ready).exists())
+	}
+
+	@Test
 	fun `drops a job the server rejects with a 4xx`() = runTest {
 		val jobs = makeStore()
 		val admitted = job()

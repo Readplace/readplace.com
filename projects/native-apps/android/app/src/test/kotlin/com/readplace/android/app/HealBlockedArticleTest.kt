@@ -175,4 +175,17 @@ class HealBlockedArticleTest {
 			error.messages.first().content.body.contains("readplace+verification@readplace.com"),
 		)
 	}
+
+	@Test
+	fun `surfaces an all-unrenderable refusal as a refusal, not a generic error`() = runTest {
+		serveReadlistAndSaveContent(saveContentStub = {
+			Stub.json(403, """{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/markdown", "body": "**locked**" } }] } }""")
+		})
+
+		val error = failsWith<ApiError.Refused> {
+			makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl)
+		}
+
+		assertTrue("a media type the client can't render is dropped, and the refusal still stands", error.messages.isEmpty())
+	}
 }
