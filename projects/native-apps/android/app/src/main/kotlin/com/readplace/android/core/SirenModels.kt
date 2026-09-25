@@ -104,9 +104,16 @@ data class SirenWarning(
 	val message: String,
 )
 
+data class CollectionTab(
+	val label: String,
+	val rel: String,
+	val href: String,
+)
+
 data class CollectionProperties(
 	val warning: SirenWarning?,
 	val messages: List<ServerMessage>?,
+	val tabs: List<CollectionTab>?,
 	val appearance: String?,
 )
 
@@ -300,8 +307,17 @@ object SirenDecoding {
 		return CollectionProperties(
 			warning = warning(obj["warning"]),
 			messages = lossyList(obj["messages"], ::serverMessage),
+			tabs = lossyList(obj["tabs"], ::collectionTab),
 			appearance = string(obj["appearance"]),
 		)
+	}
+
+	private fun collectionTab(element: JsonElement): CollectionTab? {
+		val obj = element as? JsonObject ?: return null
+		val label = string(obj["label"]) ?: return null
+		val rel = string(obj["rel"]) ?: return null
+		val href = string(obj["href"]) ?: return null
+		return CollectionTab(label = label, rel = rel, href = href)
 	}
 
 	private fun warning(element: JsonElement?): SirenWarning? {
@@ -428,6 +444,19 @@ data class Article(
 				readHref = links.firstOrNull { it.rel.contains("read") }?.href,
 			)
 		}
+	}
+}
+
+data class ReadlistTab(
+	val label: String,
+	val href: String,
+	val isCurrent: Boolean,
+) {
+	val id: String get() = href
+
+	companion object {
+		fun of(tab: CollectionTab): ReadlistTab =
+			ReadlistTab(label = tab.label, href = tab.href, isCurrent = tab.rel == "current")
 	}
 }
 

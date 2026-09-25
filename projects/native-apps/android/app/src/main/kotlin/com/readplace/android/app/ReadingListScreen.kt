@@ -36,6 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,6 +64,7 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -68,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import com.readplace.android.core.Affordance
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
+import com.readplace.android.core.ReadlistTab
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.SirenAction
 import kotlinx.coroutines.launch
@@ -184,68 +189,77 @@ fun ReadingListScreen(
 			)
 		},
 	) { insets ->
-		Box(
+		Column(
 			modifier = Modifier
 				.fillMaxSize()
 				.padding(insets),
 		) {
-			PullToRefreshBox(
-				isRefreshing = isRefreshing,
-				onRefresh = {
-					scope.launch {
-						isRefreshing = true
-						try {
-							viewModel.refresh()
-						} finally {
-							isRefreshing = false
+			if (state.tabs.isNotEmpty()) {
+				TabStrip(
+					tabs = state.tabs,
+					selectedHref = state.selectedTabHref,
+					onSelect = { href -> scope.launch { viewModel.selectTab(href) } },
+				)
+			}
+			Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+				PullToRefreshBox(
+					isRefreshing = isRefreshing,
+					onRefresh = {
+						scope.launch {
+							isRefreshing = true
+							try {
+								viewModel.refresh()
+							} finally {
+								isRefreshing = false
+							}
 						}
+					},
+					modifier = Modifier.fillMaxSize(),
+				) {
+					when {
+						state.isLoading && state.articles.isEmpty() ->
+							CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+						state.articles.isEmpty() -> EmptyState(modifier = Modifier.align(Alignment.Center))
+						else -> ArticleList(
+							state = state,
+							clock = clock,
+							onOpen = viewModel::openReader,
+							onActivate = ::activate,
+							onLoadMore = viewModel::loadMore,
+						)
 					}
-				},
-				modifier = Modifier.fillMaxSize(),
-			) {
-				when {
-					state.isLoading && state.articles.isEmpty() ->
-						CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-					state.articles.isEmpty() -> EmptyState(modifier = Modifier.align(Alignment.Center))
-					else -> ArticleList(
-						state = state,
-						clock = clock,
-						onOpen = viewModel::openReader,
-						onActivate = ::activate,
-						onLoadMore = viewModel::loadMore,
+				}
+
+				val messages = state.messages
+				val errorText = state.errorText
+				val warningText = state.warningText
+				val bottom = Modifier.align(Alignment.BottomCenter)
+				if (messages.isNotEmpty()) {
+					Banner(
+						text = messages.joinToString(separator = "\n") { it.plainText },
+						color = if (messages.any { it.kind == ServerMessage.Kind.ERROR }) {
+							LocalBrandColors.current.error
+						} else {
+							LocalBrandColors.current.warning
+						},
+						onDismiss = viewModel::dismissMessages,
+						modifier = bottom,
+					)
+				} else if (errorText != null) {
+					Banner(
+						text = errorText,
+						color = LocalBrandColors.current.error,
+						onDismiss = viewModel::dismissError,
+						modifier = bottom,
+					)
+				} else if (warningText != null) {
+					Banner(
+						text = warningText,
+						color = LocalBrandColors.current.warning,
+						onDismiss = viewModel::dismissWarning,
+						modifier = bottom,
 					)
 				}
-			}
-
-			val messages = state.messages
-			val errorText = state.errorText
-			val warningText = state.warningText
-			val bottom = Modifier.align(Alignment.BottomCenter)
-			if (messages.isNotEmpty()) {
-				Banner(
-					text = messages.joinToString(separator = "\n") { it.plainText },
-					color = if (messages.any { it.kind == ServerMessage.Kind.ERROR }) {
-						LocalBrandColors.current.error
-					} else {
-						LocalBrandColors.current.warning
-					},
-					onDismiss = viewModel::dismissMessages,
-					modifier = bottom,
-				)
-			} else if (errorText != null) {
-				Banner(
-					text = errorText,
-					color = LocalBrandColors.current.error,
-					onDismiss = viewModel::dismissError,
-					modifier = bottom,
-				)
-			} else if (warningText != null) {
-				Banner(
-					text = warningText,
-					color = LocalBrandColors.current.warning,
-					onDismiss = viewModel::dismissWarning,
-					modifier = bottom,
-				)
 			}
 		}
 	}
@@ -361,6 +375,30 @@ private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 				contentDescription = affordance.label,
 				tint = tint ?: LocalContentColor.current,
 			)
+		}
+	}
+}
+
+@Composable
+private fun TabStrip(
+	tabs: List<ReadlistTab>,
+	selectedHref: String?,
+	onSelect: (String) -> Unit,
+) {
+	SingleChoiceSegmentedButtonRow(
+		modifier = Modifier
+			.fillMaxWidth()
+			.padding(horizontal = 16.dp, vertical = 8.dp)
+			.semantics { contentDescription = "Filter" },
+	) {
+		tabs.forEachIndexed { index, tab ->
+			SegmentedButton(
+				selected = tab.href == selectedHref,
+				onClick = { onSelect(tab.href) },
+				shape = SegmentedButtonDefaults.itemShape(index = index, count = tabs.size),
+			) {
+				Text(text = tab.label)
+			}
 		}
 	}
 }

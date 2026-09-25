@@ -41,6 +41,26 @@ class SirenModelsTest {
 			content = ServerMessage.Content(type = ServerMessage.RENDERABLE_MEDIA_TYPE, body = body),
 		)
 
+	private fun decodedPage(source: String): ReadlistPage = ReadlistPage(decodedCollection(source))
+
+	private fun collectionWithTabs(tabsJson: String, entitiesJson: String = ""): String =
+		"""
+		{
+			"class": ["collection", "articles"],
+			"properties": { "total": 1, "page": 1, "pageSize": 20, "tabs": [$tabsJson] },
+			"entities": [$entitiesJson],
+			"links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }]
+		}
+		"""
+
+	private fun tabsJson(current: String): String {
+		fun rel(status: String): String = if (status == current) "current" else "tab"
+		return """
+			{ "label": "To Read", "rel": "${rel("unread")}", "href": "/queue?status=unread" },
+			{ "label": "Read", "rel": "${rel("read")}", "href": "/queue?status=read" }
+		"""
+	}
+
 	@Test
 	fun `decodes every field the server declares on an article entity`() {
 		val entity = decodedEntity(
@@ -300,6 +320,126 @@ class SirenModelsTest {
 				"the collection properties",
 			).appearance,
 		)
+	}
+
+	@Test
+	fun `decodes the collection tabs with the current one marked`() {
+		val page = decodedPage(collectionWithTabs(tabsJson(current = "unread")))
+
+		assertEquals(
+			"labels are the server's, in wire order",
+			listOf("To Read", "Read"),
+			page.tabs.map { it.label },
+		)
+		assertEquals(listOf("/queue?status=unread", "/queue?status=read"), page.tabs.map { it.href })
+		assertEquals(listOf(true, false), page.tabs.map { it.isCurrent })
+		assertEquals(
+			"a tab's identity is its href — the value a selection control's tag must equal",
+			page.tabs.map { it.href },
+			page.tabs.map { it.id },
+		)
+		assertEquals(
+			"the current tab is the one whose rel is current",
+			"/queue?status=unread",
+			page.currentTabHref,
+		)
+	}
+
+	@Test
+	fun `the current tab href follows whichever tab the server marks current`() {
+		assertEquals(
+			"/queue?status=read",
+			decodedPage(collectionWithTabs(tabsJson(current = "read"))).currentTabHref,
+		)
+	}
+
+	@Test
+	fun `renamed labels, wire order, unknown relations and opaque hrefs all survive the decode`() {
+		val tabs = """
+			{ "label": "Later", "rel": "tab", "href": "/q?f=x%20y&s=later" },
+			{ "label": "Done", "rel": "current", "href": "/q?f=x%20y&s=done" },
+			{ "label": "Someday", "rel": "future-relation", "href": "/q?s=someday" }
+		"""
+		val page = decodedPage(collectionWithTabs(tabs))
+
+		assertEquals(listOf("Later", "Done", "Someday"), page.tabs.map { it.label })
+		assertEquals(
+			listOf("/q?f=x%20y&s=later", "/q?f=x%20y&s=done", "/q?s=someday"),
+			page.tabs.map { it.href },
+		)
+		assertEquals(
+			"only rel == current is current; any other relation is kept as a noncurrent tab",
+			listOf(false, true, false),
+			page.tabs.map { it.isCurrent },
+		)
+		assertEquals("/q?f=x%20y&s=done", page.currentTabHref)
+	}
+
+	@Test
+	fun `a malformed tab is dropped and the valid one survives`() {
+		val hrefless = """{ "label": "To Read", "rel": "tab" }"""
+		val valid = """{ "label": "Read", "rel": "current", "href": "/queue?status=read" }"""
+		val page = decodedPage(
+			collectionWithTabs(
+				"$hrefless, $valid",
+				entitiesJson = """{ "properties": { "id": "a1", "url": "https://example.com/a1" } }""",
+			),
+		)
+
+		assertEquals("the hrefless tab is dropped; the valid one survives", listOf("Read"), page.tabs.map { it.label })
+		assertEquals("/queue?status=read", page.currentTabHref)
+		assertEquals("and the rest of the collection still decodes", listOf("a1"), page.articles.map { it.id })
+	}
+
+	@Test
+	fun `a tab missing any required field, or not an object, is dropped`() {
+		val tabs = """
+			{ "rel": "tab", "href": "/queue?status=unread" },
+			{ "label": "No Rel", "href": "/queue?status=later" },
+			{ "label": "No Href", "rel": "tab" },
+			"not-an-object",
+			{ "label": "Read", "rel": "current", "href": "/queue?status=read" }
+		"""
+		val page = decodedPage(collectionWithTabs(tabs))
+
+		assertEquals(
+			"each entry missing label, rel or href — and a non-object entry — is dropped individually",
+			listOf("Read"),
+			page.tabs.map { it.label },
+		)
+		assertEquals("/queue?status=read", page.currentTabHref)
+	}
+
+	@Test
+	fun `a collection without tabs exposes an empty set and no current tab`() {
+		val page = decodedPage("""{ "class": ["collection"], "properties": { "total": 0 } }""")
+
+		assertEquals(
+			"a server that advertises no tabs yields an empty set, not a failed decode",
+			emptyList<ReadlistTab>(),
+			page.tabs,
+		)
+		assertNull(page.currentTabHref)
+	}
+
+	@Test
+	fun `the current tab href is absent when no tab is current`() {
+		val none = """
+			{ "label": "To Read", "rel": "tab", "href": "/queue?status=unread" },
+			{ "label": "Read", "rel": "tab", "href": "/queue?status=read" }
+		"""
+		val page = decodedPage(collectionWithTabs(none))
+
+		assertEquals(listOf(false, false), page.tabs.map { it.isCurrent })
+		assertNull(page.currentTabHref)
+	}
+
+	@Test
+	fun `a tabs value that is not an array carries no tabs`() {
+		val page = decodedPage("""{ "class": ["collection"], "properties": { "tabs": "unread" } }""")
+
+		assertEquals(emptyList<ReadlistTab>(), page.tabs)
+		assertNull(page.currentTabHref)
 	}
 
 	@Test

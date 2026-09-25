@@ -76,6 +76,7 @@ class ReadlistPage(collection: SirenCollection) {
 	 * what you render), so the caller renders whatever survives without
 	 * re-checking. Empty when the server offered none. */
 	val noticeMessages: List<ServerMessage>
+	val tabs: List<ReadlistTab>
 	val appearance: String?
 
 	init {
@@ -87,8 +88,11 @@ class ReadlistPage(collection: SirenCollection) {
 		affordances = actionAffordances + linkAffordances
 		warning = collection.properties?.warning
 		noticeMessages = collection.properties?.messages.orEmpty().filter { it.isRenderable }
+		tabs = collection.properties?.tabs.orEmpty().map { ReadlistTab.of(it) }
 		appearance = collection.properties?.appearance
 	}
+
+	val currentTabHref: String? get() = tabs.firstOrNull { it.isCurrent }?.href
 
 	/** The advertised action with this name, when present and invokable. The
 	 * share-sheet save journey needs a specific action to build its bespoke body
