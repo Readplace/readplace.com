@@ -245,18 +245,6 @@ private val Affordance.hasServerTitle: Boolean
 		is Affordance.Invocation.OfLink -> !source.link.title.isNullOrEmpty()
 	}
 
-/**
- * The advertised item affordances a row surfaces as swipe and accessibility
- * controls: every action a bare control can actually invoke, plus every semantic
- * link that is neither structural plumbing nor the `read` tap target — so a future
- * item link (e.g. `share`) renders instead of being discarded. Like the toolbar,
- * the row drops a field-requiring action with no server value so a future such
- * item action is never rendered as a swipe that errors on tap. The selection lives
- * here, beside the symmetric toolbar rule (`Affordance.isToolbarControl`) and the
- * shared predicates it reuses (`isInvokableByBareControl`,
- * `isSemanticControlLink`), so the row's choice of controls is unit-testable
- * without standing up a view.
- */
 val Article.rowControls: List<Affordance>
 	get() = affordances.filter { it.isInvokableByBareControl && it.isUserControl } +
 		links.mapNotNull { Affordance.of(it) }.filter { it.isSemanticControlLink && it.isUserControl }
