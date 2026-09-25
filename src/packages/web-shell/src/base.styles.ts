@@ -182,7 +182,7 @@ ${generateCssVariables(DARK_PINNED_VARIABLES)}
 	}
 `;
 
-export const BASE_CSS_VARIABLES = `
+export const SYSTEM_THEME_VARIABLES = `
 	:root {
 		color-scheme: light;
 ${generateCssVariables(LIGHT_THEME_VARIABLES)}
@@ -194,7 +194,9 @@ ${generateCssVariables(LIGHT_THEME_VARIABLES)}
 ${generateCssVariables(DARK_THEME_VARIABLES)}
 		}
 	}
+`;
 
+export const BASE_CSS_VARIABLES = `${SYSTEM_THEME_VARIABLES}
 	@media (min-width: 768px) {
 		:root {
 			--form-gap: 24px;

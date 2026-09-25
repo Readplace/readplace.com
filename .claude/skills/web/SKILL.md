@@ -259,7 +259,7 @@ Alternatively use the POST - Redirect - GET pattern.
 | Use BEM for scoping | Prevent class collisions (`.flight-segment__label`) |
 | Orphan/widow control lives on the prose container, not on `body` | A global `text-wrap` forces a full-page reflow |
 | Fonts come from `var(--font-serif)` / `var(--font-sans)` | One source of truth: the shared base-styles module that declares the `--font-serif` token (grep for the quoted `"--font-serif"` key — a TypeScript object, not a stylesheet). Never inline the stack. See [Typography](../../../BRAND_GUIDELINES.md#typefaces-in-use) |
-| Buttons come from the shared button system | From the button stylesheet the shared base-styles module injects into every `<head>`; a page stylesheet adds layout only. See [Buttons](../../../BRAND_GUIDELINES.md#buttons) |
+| Buttons come from the shared button system | From the button stylesheet the shared base-styles module injects into every `<head>`, and that the extension build compiles into the popup's own stylesheet; a page stylesheet adds layout only. See [Buttons](../../../BRAND_GUIDELINES.md#buttons) |
 | Icons are inline same-origin SVG, drawn by the icon Handlebars helper (the `registerHelper` call in the shared renderer that resolves a name against the shared icon set and returns a SafeString — the other registration is the UTM tracking helper) | See [Icon Style](../../../BRAND_GUIDELINES.md#icon-style) |
 
 ```css

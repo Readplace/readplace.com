@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { DESIGN_SYSTEM_STYLES } from "@packages/web-shell/design-system.styles";
 
 const stylesheet = readFileSync(
 	join(__dirname, "..", "..", "src", "popup", "popup.styles.css"),
@@ -34,5 +35,22 @@ describe("popup gutters", () => {
 
 	it("wraps the bulk-save detail line, whose text is a raw URL long enough to overflow", () => {
 		expect(declarationsOf(".saved-view__subtitle")).toMatch(/overflow-wrap:\s*anywhere/);
+	});
+});
+
+function declaredProperties(css: string): Set<string> {
+	return new Set(Array.from(css.matchAll(/(--[a-z0-9-]+)\s*:/g), (match) => match[1]));
+}
+
+describe("popup tokens", () => {
+	it("names only tokens the build's design system or the stylesheet itself declares", () => {
+		const declared = new Set([...declaredProperties(DESIGN_SYSTEM_STYLES), ...declaredProperties(stylesheet)]);
+		const referenced = Array.from(stylesheet.matchAll(/var\((--[a-z0-9-]+)/g), (match) => match[1]);
+
+		expect(referenced.filter((name) => !declared.has(name))).toEqual([]);
+	});
+
+	it("carries no rule that must come first, so the build can put the design system ahead of it", () => {
+		expect(stylesheet).not.toMatch(/@import|@charset/);
 	});
 });

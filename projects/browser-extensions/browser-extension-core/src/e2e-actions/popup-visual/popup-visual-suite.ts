@@ -37,6 +37,7 @@ async function listSettled(page: Page): Promise<void> {
 
 async function savingSettled(page: Page): Promise<void> {
 	await expect(page.locator("#saving-progress")).toBeVisible();
+	await expect(page.locator("#saving-status")).toBeVisible();
 	await expect(page.locator("#save-failure")).toHaveCount(1);
 	await expect(page.locator("#save-failure")).toBeHidden();
 	await expect(page.locator("#saving-view")).toHaveAttribute("aria-busy", "true");
@@ -45,7 +46,33 @@ async function savingSettled(page: Page): Promise<void> {
 async function failureSettled(page: Page): Promise<void> {
 	await expect(page.locator("#save-failure")).toBeVisible();
 	await expect(page.locator("#save-retry-button")).toBeVisible();
+	await expect(page.locator("#saving-status")).toBeHidden();
 	await expect(page.locator("#saving-view")).toHaveAttribute("aria-busy", "false");
+}
+
+async function loginSettled(page: Page): Promise<void> {
+	await expect(page.locator("#login-view")).toBeVisible();
+	await expect(page.locator("#login-button")).toBeVisible();
+}
+
+async function savedSettled(page: Page): Promise<void> {
+	await expect(page.locator("#saved-view")).toBeVisible();
+	await expect(page.locator("#saved-affordances button")).toBeVisible();
+}
+
+async function saveAllSettled(page: Page): Promise<void> {
+	await expect(page.locator("#save-all-view-readlist")).toBeVisible();
+	await expect(page.locator("#save-all-failed > li")).toHaveCount(3);
+}
+
+async function emptySettled(page: Page): Promise<void> {
+	await expect(page.locator("#empty-list")).toBeVisible();
+	await expect(page.locator("#pagination")).toBeHidden();
+}
+
+async function listErrorSettled(page: Page): Promise<void> {
+	await expect(page.locator('#list-error[role="alert"]')).toBeVisible();
+	await expect(page.locator("#list-error-title")).toHaveText("Couldn't load your articles");
 }
 
 async function listSkeletonSettled(page: Page): Promise<void> {
@@ -70,11 +97,9 @@ async function skeletonRowsEqual(page: Page): Promise<void> {
 	expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
 }
 
-/** The pager's widest form is what makes this capture worth taking: first page,
- * gap, the five-page window, gap, last page, between both step controls. */
 async function pagerShowsEveryControl(page: Page): Promise<void> {
-	await expect(page.locator("#pagination > *")).toHaveCount(11);
-	await expect(page.locator(".pagination__page--active")).toHaveText("5");
+	await expect(page.locator("#pagination > *")).toHaveCount(9);
+	await expect(page.locator(".pagination__page--current")).toHaveText("5");
 }
 
 async function headerFitsOneRow(page: Page): Promise<void> {
@@ -365,18 +390,95 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 	});
 
 	test.describe("popup pagination feedback", () => {
-		test("shows the busy overlay while a page loads", async ({ page }) => {
+		test("dims the list while a page loads", async ({ page }) => {
 			await open(page, {
 				url: popupListUrl(input.packagedPopup),
 				stub: popupRuntimeStub({ holdLoadPage: true }),
 				wait: LIST_VIEW,
 			});
 			await listSettled(page);
-			await page.locator(".pagination__page:not(.pagination__page--active)").first().click();
-			await expect(page.locator("#spinner-overlay")).toBeVisible();
+			await page.locator("button.pagination__page").first().click();
+			await expect(page.locator("#link-list")).toHaveAttribute("aria-busy", "true");
+			await expect(page.locator("#link-list")).toHaveClass(/list-view__links--pending/);
 			await page.waitForFunction(() => typeof window.__popupReleaseLoadPage === "function");
 			await page.evaluate(() => window.__popupReleaseLoadPage?.());
-			await expect(page.locator("#spinner-overlay")).toBeHidden();
+			await expect(page.locator("#link-list")).toHaveAttribute("aria-busy", "false");
+			await expect(page.locator("#link-list")).not.toHaveClass(/list-view__links--pending/);
 		});
 	});
+
+	const STATES = [
+		{
+			name: "popup-login",
+			describe: "popup sign in",
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ listReply: "logged-out" }),
+			wait: "#login-view:not([hidden])",
+			settled: loginSettled,
+		},
+		{
+			name: "popup-saved",
+			describe: "popup saved",
+			url: popupSaveUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ saveReplies: ["saved"] }),
+			wait: "#saved-view:not([hidden])",
+			settled: savedSettled,
+		},
+		{
+			name: "popup-save-all",
+			describe: "popup save all tabs",
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ pendingBulkSave: true }),
+			wait: "#save-all-view-readlist:not([hidden])",
+			settled: saveAllSettled,
+		},
+		{
+			name: "popup-empty",
+			describe: "popup empty list",
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ listReply: "empty" }),
+			wait: "#empty-list:not([hidden])",
+			settled: emptySettled,
+		},
+		{
+			name: "popup-list-error",
+			describe: "popup list error",
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ listReply: "error" }),
+			wait: "#list-error:not([hidden])",
+			settled: listErrorSettled,
+		},
+	];
+
+	for (const state of STATES) {
+		test.describe(state.describe, () => {
+			test("renders against the light palette", async ({ page }) => {
+				await open(page, { url: state.url, stub: state.stub, wait: state.wait });
+				await captureCheckpoint(page, {
+					name: `${state.name}-light`,
+					settled: state.settled,
+					geometry: noOverflow,
+					target: "body",
+					capture: "element",
+					pinnedText: [],
+				});
+			});
+
+			test.describe("in dark mode", () => {
+				test.use({ colorScheme: "dark" });
+
+				test("renders against the dark palette", async ({ page }) => {
+					await open(page, { url: state.url, stub: state.stub, wait: state.wait });
+					await captureCheckpoint(page, {
+						name: `${state.name}-dark`,
+						settled: state.settled,
+						geometry: noOverflow,
+						target: "body",
+						capture: "element",
+						pinnedText: [],
+					});
+				});
+			});
+		});
+	}
 }

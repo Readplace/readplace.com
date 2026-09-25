@@ -266,22 +266,25 @@ describe("buildSaveAllDetailLines", () => {
 				skippedUrls: [],
 				clientSkipReasons: [],
 			}),
-		).toEqual(["Couldn't save https://example.com/a", "Couldn't save https://example.com/b"]);
+		).toEqual([
+			{ kind: "failed", text: "Couldn't save https://example.com/a" },
+			{ kind: "failed", text: "Couldn't save https://example.com/b" },
+		]);
 	});
 
 	it("caps the failed list and counts the rest", () => {
 		const failedUrls = Array.from({ length: 7 }, (_v, i) => ({ url: `https://example.com/tab-${i}` }));
 		expect(buildSaveAllDetailLines({ failedUrls, skippedUrls: [], clientSkipReasons: [] })).toEqual([
-			"Couldn't save https://example.com/tab-0",
-			"Couldn't save https://example.com/tab-1",
-			"Couldn't save https://example.com/tab-2",
-			"Couldn't save https://example.com/tab-3",
-			"Couldn't save https://example.com/tab-4",
-			"And 2 more failed.",
+			{ kind: "failed", text: "Couldn't save https://example.com/tab-0" },
+			{ kind: "failed", text: "Couldn't save https://example.com/tab-1" },
+			{ kind: "failed", text: "Couldn't save https://example.com/tab-2" },
+			{ kind: "failed", text: "Couldn't save https://example.com/tab-3" },
+			{ kind: "failed", text: "Couldn't save https://example.com/tab-4" },
+			{ kind: "more", text: "And 2 more failed." },
 		]);
 	});
 
-	it("bullets each distinct skip reason once, merging the window's own drops with the server's", () => {
+	it("lists each distinct skip reason once, merging the window's own drops with the server's", () => {
 		expect(
 			buildSaveAllDetailLines({
 				failedUrls: [],
@@ -293,13 +296,13 @@ describe("buildSaveAllDetailLines", () => {
 				clientSkipReasons: ["Only http and https URLs can be saved", "Already open in another tab"],
 			}),
 		).toEqual([
-			"• Only http and https URLs can be saved",
-			"• Already open in another tab",
-			"• Private-network and loopback addresses can't be saved",
+			{ kind: "skipped", text: "Only http and https URLs can be saved" },
+			{ kind: "skipped", text: "Already open in another tab" },
+			{ kind: "skipped", text: "Private-network and loopback addresses can't be saved" },
 		]);
 	});
 
-	it("leaves a skip without a server message out of the bullets rather than inventing a reason", () => {
+	it("leaves a skip without a server message out of the reasons rather than inventing one", () => {
 		expect(
 			buildSaveAllDetailLines({
 				failedUrls: [],
@@ -309,29 +312,32 @@ describe("buildSaveAllDetailLines", () => {
 		).toEqual([]);
 	});
 
-	it("caps the bullets at five distinct reasons and waves at the rest", () => {
+	it("caps the reasons at five and waves at the rest", () => {
 		const skippedUrls = Array.from({ length: 7 }, (_v, i) => ({
 			url: `https://example.com/tab-${i}`,
 			code: "malformed_url",
 			message: `Reason ${i}`,
 		}));
 		expect(buildSaveAllDetailLines({ failedUrls: [], skippedUrls, clientSkipReasons: [] })).toEqual([
-			"• Reason 0",
-			"• Reason 1",
-			"• Reason 2",
-			"• Reason 3",
-			"• Reason 4",
-			"… and others",
+			{ kind: "skipped", text: "Reason 0" },
+			{ kind: "skipped", text: "Reason 1" },
+			{ kind: "skipped", text: "Reason 2" },
+			{ kind: "skipped", text: "Reason 3" },
+			{ kind: "skipped", text: "Reason 4" },
+			{ kind: "more", text: "… and others" },
 		]);
 	});
 
-	it("lists the failures above the reason bullets", () => {
+	it("lists the failures above the skip reasons", () => {
 		expect(
 			buildSaveAllDetailLines({
 				failedUrls: [{ url: "https://example.com/a" }],
 				skippedUrls: [],
 				clientSkipReasons: ["Already open in another tab"],
 			}),
-		).toEqual(["Couldn't save https://example.com/a", "• Already open in another tab"]);
+		).toEqual([
+			{ kind: "failed", text: "Couldn't save https://example.com/a" },
+			{ kind: "skipped", text: "Already open in another tab" },
+		]);
 	});
 });

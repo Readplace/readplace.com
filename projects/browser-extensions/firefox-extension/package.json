@@ -34,7 +34,6 @@
     "@packages/e2e-harness": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
-    "@packages/web-shell": "workspace:*",
     "@playwright/test": "1.60.0",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
