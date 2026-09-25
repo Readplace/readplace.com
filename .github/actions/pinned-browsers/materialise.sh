@@ -9,7 +9,7 @@
 # Materialise rather than run the job inside the image: perf-tests is a
 # wall-clock gate whose budgets were derived on a bare hosted VM, and a
 # container job would move /dev/shm, the filesystem and the user underneath it.
-# Copying only the browser bytes leaves the measured environment alone.
+# Copying the browser bytes leaves the measured environment alone.
 #
 # The destinations are the image's own absolute paths because
 # /opt/cft/binary-path and driver-path record absolute paths at build time, and
@@ -32,7 +32,14 @@ for path in /opt/cft /opt/firefox /opt/geckodriver /ms-playwright; do
   # docker cp lands the tree root-owned; the job is not root.
   sudo chown --recursive "$(id --user):$(id --group)" "$path"
 done
+for path in /etc/fonts /usr/share/fonts /usr/share/fontconfig; do
+  sudo rm --recursive --force "$path"
+  sudo docker cp "${container}:${path}" "$path"
+done
 docker rm "$container" > /dev/null
+sudo rm --recursive --force /usr/local/share/fonts /var/cache/fontconfig
+rm --recursive --force "$HOME/.cache/fontconfig" "$HOME/.fonts" "$HOME/.local/share/fonts"
+sudo fc-cache --force
 
 {
   echo "PLAYWRIGHT_BROWSERS_PATH=/ms-playwright"
