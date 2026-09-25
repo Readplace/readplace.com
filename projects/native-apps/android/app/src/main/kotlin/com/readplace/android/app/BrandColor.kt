@@ -65,4 +65,20 @@ object BrandColor {
 		light = Rgb(red = 168, green = 90, blue = 30),
 		dark = Rgb(red = 232, green = 154, blue = 85),
 	)
+	val card = BrandColorPair(
+		light = Rgb(red = 255, green = 255, blue = 255),
+		dark = Rgb(red = 34, green = 34, blue = 34),
+	)
+	val secondary = BrandColorPair(
+		light = Rgb(red = 246, green = 242, blue = 238),
+		dark = Rgb(red = 53, green = 45, blue = 39),
+	)
+	val primaryText = BrandColorPair(
+		light = Rgb(red = 168, green = 90, blue = 30),
+		dark = Rgb(red = 218, green = 141, blue = 78),
+	)
+	val successText = BrandColorPair(
+		light = Rgb(red = 54, green = 124, blue = 99),
+		dark = Rgb(red = 74, green = 159, blue = 127),
+	)
 }

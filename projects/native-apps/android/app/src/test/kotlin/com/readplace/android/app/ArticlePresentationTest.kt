@@ -13,7 +13,19 @@ import java.time.ZoneOffset
 
 class ArticlePresentationTest {
 	@Test
-	fun `subtitle joins site, read time and saved-at with a middle dot`() {
+	fun `meta text joins read time and saved-at with a middle dot`() {
+		val row = ArticlePresentation.of(
+			article(
+				readTimeLabel = "~5 min read",
+				savedAt = Instant.parse("2026-08-25T07:00:00Z"),
+			),
+			clockAt("2026-08-25T10:00:00Z"),
+		)
+		assertEquals("~5 min read · 3h ago", row.metaText)
+	}
+
+	@Test
+	fun `the site name is left out of the meta line`() {
 		val row = ArticlePresentation.of(
 			article(
 				siteName = "example.com",
@@ -22,45 +34,61 @@ class ArticlePresentationTest {
 			),
 			clockAt("2026-08-25T10:00:00Z"),
 		)
-		assertEquals("example.com · ~5 min read · 3h ago", row.subtitle)
+		assertEquals("~5 min read · 3h ago", row.metaText)
 	}
 
 	@Test
-	fun `subtitle is null when no part carries a value`() {
+	fun `a site-only article has no meta text`() {
 		val row = ArticlePresentation.of(
-			article(siteName = null, readTimeLabel = null, savedAt = null),
+			article(siteName = "example.com", readTimeLabel = null, savedAt = null),
 			clockAt("2026-08-25T10:00:00Z"),
 		)
-		assertNull(row.subtitle)
+		assertNull(row.metaText)
 	}
 
 	@Test
-	fun `an empty site name and a read time the server withheld are left out`() {
+	fun `meta text is null when neither read time nor saved-at carries a value`() {
 		val row = ArticlePresentation.of(
-			article(siteName = "", readTimeLabel = null, savedAt = Instant.parse("2026-08-24T10:00:00Z")),
+			article(readTimeLabel = null, savedAt = null),
 			clockAt("2026-08-25T10:00:00Z"),
 		)
-		assertEquals("1d ago", row.subtitle)
+		assertNull(row.metaText)
 	}
 
 	@Test
-	fun `a blank read time label is left out`() {
+	fun `meta text is only the read time when the saved-at is missing`() {
 		val row = ArticlePresentation.of(
+			article(readTimeLabel = "~5 min read", savedAt = null),
+			clockAt("2026-08-25T10:00:00Z"),
+		)
+		assertEquals("~5 min read", row.metaText)
+	}
+
+	@Test
+	fun `meta text is only the saved-at when the read time is missing or blank`() {
+		val missing = ArticlePresentation.of(
+			article(readTimeLabel = null, savedAt = Instant.parse("2026-08-24T10:00:00Z")),
+			clockAt("2026-08-25T10:00:00Z"),
+		)
+		val blank = ArticlePresentation.of(
 			article(readTimeLabel = "   ", savedAt = Instant.parse("2026-08-24T10:00:00Z")),
 			clockAt("2026-08-25T10:00:00Z"),
 		)
-		assertEquals("1d ago", row.subtitle)
+		assertEquals("1d ago", missing.metaText)
+		assertEquals("1d ago", blank.metaText)
 	}
 
 	@Test
-	fun `title and read state pass through`() {
+	fun `title, read state and status label pass through`() {
 		val clock = clockAt("2026-08-25T10:00:00Z")
 		val read = ArticlePresentation.of(article(title = "A read article", isRead = true), clock)
 		assertEquals("A read article", read.title)
 		assertTrue(read.isRead)
+		assertEquals("Read", read.statusLabel)
 		val unread = ArticlePresentation.of(article(title = "An unread article", isRead = false), clock)
 		assertEquals("An unread article", unread.title)
 		assertFalse(unread.isRead)
+		assertEquals("Unread", unread.statusLabel)
 	}
 
 	@Test
@@ -162,7 +190,7 @@ class ArticlePresentationTest {
 	// endregion
 
 	private fun savedAtWording(savedAt: String, now: String, zone: ZoneId = ZoneOffset.UTC): String? =
-		ArticlePresentation.of(article(savedAt = Instant.parse(savedAt)), clockAt(now, zone)).subtitle
+		ArticlePresentation.of(article(savedAt = Instant.parse(savedAt)), clockAt(now, zone)).metaText
 
 	private fun clockAt(iso: String, zone: ZoneId = ZoneOffset.UTC): Clock = Clock.fixed(Instant.parse(iso), zone)
 

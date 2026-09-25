@@ -81,6 +81,26 @@ class BrandColorTest {
 		assertHex(BrandColor.onAmberContainer, light = "#A85A1E", dark = "#E89A55")
 	}
 
+	@Test
+	fun `card mirrors the card surface token`() {
+		assertHex(BrandColor.card, light = "#FFFFFF", dark = "#222222")
+	}
+
+	@Test
+	fun `secondary mirrors the secondary surface token`() {
+		assertHex(BrandColor.secondary, light = "#F6F2EE", dark = "#352D27")
+	}
+
+	@Test
+	fun `primary text mirrors the primary-text token`() {
+		assertHex(BrandColor.primaryText, light = "#A85A1E", dark = "#DA8D4E")
+	}
+
+	@Test
+	fun `success text mirrors the success-text token`() {
+		assertHex(BrandColor.successText, light = "#367C63", dark = "#4A9F7F")
+	}
+
 	private fun assertHex(pair: BrandColorPair, light: String, dark: String) {
 		assertEquals("light", light, hex(pair.resolve(isDark = false)))
 		assertEquals("dark", dark, hex(pair.resolve(isDark = true)))

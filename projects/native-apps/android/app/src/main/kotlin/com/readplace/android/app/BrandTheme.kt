@@ -29,6 +29,10 @@ data class BrandColors(
 	val border: Color,
 	val amberContainer: Color,
 	val onAmberContainer: Color,
+	val card: Color,
+	val secondary: Color,
+	val primaryText: Color,
+	val successText: Color,
 )
 
 private fun Rgb.toColor(): Color = Color(red = red, green = green, blue = blue)
@@ -49,6 +53,10 @@ fun brandColors(isDark: Boolean): BrandColors =
 		border = BrandColor.border.resolve(isDark).toColor(),
 		amberContainer = BrandColor.amberContainer.resolve(isDark).toColor(),
 		onAmberContainer = BrandColor.onAmberContainer.resolve(isDark).toColor(),
+		card = BrandColor.card.resolve(isDark).toColor(),
+		secondary = BrandColor.secondary.resolve(isDark).toColor(),
+		primaryText = BrandColor.primaryText.resolve(isDark).toColor(),
+		successText = BrandColor.successText.resolve(isDark).toColor(),
 	)
 
 private fun brandScheme(brand: BrandColors, isDark: Boolean): ColorScheme =
