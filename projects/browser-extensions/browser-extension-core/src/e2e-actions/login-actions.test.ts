@@ -30,3 +30,42 @@ describe("login action availability during navigation", () => {
 		},
 	);
 });
+
+describe("returning from OAuth", () => {
+	it.each(["saved-view", "list-view"])(
+		"waits for a visible %s before returning control to the flow",
+		async (terminalView) => {
+			const states = ["popup-shell", "login-view", "saving-view", "list-skeleton-view", "hidden-terminal", terminalView];
+			const observed: string[] = [];
+			let current = "";
+			const driver = new WebDriver(new Session("oauth-return", {}), {
+				async execute(command: Command) {
+					if (command.getName() === Name.SWITCH_TO_WINDOW) {
+						expect(command.getParameters().handle).toBe("popup");
+						return;
+					}
+					if (command.getName() === Name.FIND_ELEMENTS) {
+						expect(command.getParameters().value).toBe("#saved-view:not([hidden]), #list-view:not([hidden])");
+						current = states[observed.length];
+						observed.push(current);
+						return current === terminalView || current === "hidden-terminal"
+							? [WebElement.buildId(terminalView)]
+							: [];
+					}
+					if (command.getName() === Name.IS_ELEMENT_DISPLAYED) return current === terminalView;
+					throw new Error(`Unexpected command: ${command.getName()}`);
+				},
+			});
+			const action = createLoginActions({
+				testEmail: "reader@example.com",
+				testPassword: "password",
+				popupWindowHandle: "popup",
+			}).get("switch-to-popup");
+			assert(action);
+
+			await action.execute(driver);
+
+			expect(observed).toEqual(states);
+		},
+	);
+});

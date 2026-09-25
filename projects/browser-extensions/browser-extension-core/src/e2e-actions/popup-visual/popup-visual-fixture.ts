@@ -23,11 +23,12 @@ const ROWS = [
 	{ title: "The Rise of Worse Is Better", host: "dreamsongs.com", agoMs: 400 * 24 * 60 * 60 * 1000 },
 ];
 
-/** The only shape that renders both gaps, so the pager reaches its widest
- * form — first, gap, a five-page window, gap, last — plus the two step
- * controls. */
 const TOTAL_PAGES = 9;
 const CURRENT_PAGE_INDEX = 4;
+
+const MARK_AS_READ = { name: "update-status", title: "Mark as read" };
+
+const DELETE = { name: "delete", title: "Delete" };
 
 function items(): unknown[] {
 	return ROWS.map((row, index) => ({
@@ -35,7 +36,7 @@ function items(): unknown[] {
 		url: `https://${row.host}/article`,
 		title: row.title,
 		savedAt: new Date(FIXED_NOW - row.agoMs).toISOString(),
-		actions: [{ name: "delete", title: "Delete" }],
+		actions: index === 1 ? [MARK_AS_READ, DELETE] : [MARK_AS_READ],
 		links: [{ rel: "read", title: "Read", href: `https://${row.host}/article` }],
 		needsBrowserCapture: false,
 	}));
@@ -91,6 +92,32 @@ function savedReply(): unknown {
 
 export type SaveReply = "hold" | "error" | "saved";
 
+export type ListReply = "items" | "empty" | "error" | "logged-out";
+
+function bulkSaveReply(): unknown {
+	return {
+		ok: true,
+		value: {
+			saved: 7,
+			alreadySaved: 1,
+			skipped: 0,
+			failed: 1,
+			pendingRetry: 0,
+			tooBig: [],
+			unauthorized: false,
+			failedUrls: [{ url: "https://example.com/open-tab-6" }],
+			skippedUrls: [],
+		},
+	};
+}
+
+function listReplyScript(listReply: ListReply, itemsReply: string): string {
+	if (listReply === "empty") return JSON.stringify({ ok: true, value: { items: [], pages: [] } });
+	if (listReply === "error") return JSON.stringify({ ok: false, reason: "error" });
+	if (listReply === "logged-out") return JSON.stringify({ ok: false, reason: "not-logged-in" });
+	return itemsReply;
+}
+
 /** Installs the extension runtime the popup expects, answering only what the
  * list state reads. Both globals are defined so `webextension-polyfill` takes
  * its passthrough branch — given only `chrome` it wraps every method in
@@ -99,11 +126,17 @@ export function popupRuntimeStub(options?: {
 	holdItems?: boolean;
 	holdLoadPage?: boolean;
 	saveReplies?: SaveReply[];
+	listReply?: ListReply;
+	pendingBulkSave?: boolean;
 }): string {
 	const holdItems = options?.holdItems === true;
 	const holdLoadPage = options?.holdLoadPage === true;
 	const saveReplies = JSON.stringify(options?.saveReplies ?? []);
-	const itemsReply = `{ ok: true, value: { items: ${JSON.stringify(items())}, pages: ${JSON.stringify(pages())} } }`;
+	const itemsReply = listReplyScript(
+		options?.listReply ?? "items",
+		`{ ok: true, value: { items: ${JSON.stringify(items())}, pages: ${JSON.stringify(pages())} } }`,
+	);
+	const pendingBulkSave = options?.pendingBulkSave === true;
 	return `
 		globalThis.__popupSaveMessages = [];
 		const __saveReplies = ${saveReplies};
@@ -147,13 +180,14 @@ export function popupRuntimeStub(options?: {
 						if (reply === "error") { return Promise.resolve({ ok: false, reason: "error" }); }
 						if (reply === "saved") { return Promise.resolve(__savedReply); }
 					}
+					if (message && message.type === "save-all-tabs") { return Promise.resolve(${JSON.stringify(bulkSaveReply())}); }
 					if (message && message.type === "logout") { return Promise.resolve({ ok: true }); }
 					return Promise.resolve({ ok: true, value: null });
 				},
 			},
 			storage: {
 				session: {
-					get: function () { return Promise.resolve({}); },
+					get: function (key) { return Promise.resolve(${pendingBulkSave} && key === "pendingBulkSave" ? { pendingBulkSave: true } : {}); },
 					remove: function () { return Promise.resolve(); },
 				},
 				local: {

@@ -100,6 +100,12 @@ export function createLoginActions(config: {
 		},
 		async execute(driver: WebDriver): Promise<void> {
 			await driver.switchTo().window(config.popupWindowHandle);
+			await waitForUi(driver, async () => {
+				const views = await driver.findElements(
+					By.css("#saved-view:not([hidden]), #list-view:not([hidden])"),
+				);
+				return views.length > 0 && await views[0].isDisplayed();
+			});
 		},
 	});
 

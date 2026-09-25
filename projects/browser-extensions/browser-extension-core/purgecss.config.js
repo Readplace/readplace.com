@@ -5,6 +5,6 @@ module.exports = {
   ...base,
   content: [
     ...base.content,
-    '../*-extension/src/**/*.template.html',
+    'src/popup/popup.browser.ts',
   ],
 };

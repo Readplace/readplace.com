@@ -1,0 +1,202 @@
+  <div id="login-view" class="view" hidden>
+    <div class="login">
+      <div class="login__brand">
+        <a href="{{brandHomeHref}}" class="login__logo-link" target="_blank" rel="noopener">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="login__icon" aria-hidden="true" focusable="false"><rect x="15" y="15" width="482" height="482" rx="102" fill="#2B3A55" stroke="#FFFFFF" stroke-opacity="0.4" stroke-width="20"/><path d="M204.28 400Q159.02 400 134.54 383.62Q110.07 363.57 110.07 326.4Q110.07 304.69 119.27 290.89Q128.47 277.09 143.19 268.26Q157.91 259.42 174.84 252.8Q160.12 235.87 153.5 221.89Q146.87 207.9 146.87 190.98Q146.87 164.11 165.09 148.84Q183.3 133.57 220.84 133.57Q245.86 133.57 261.32 140.74Q276.78 147.92 283.95 159.7Q291.13 171.47 291.13 185.82Q291.13 208.27 277.51 222.62Q263.9 236.98 235.56 250.22L290.39 308.74Q293.34 298.43 294.62 285Q295.91 271.57 295.91 259.42V243.23H314C325 243.23 337 230.15 344 230.15C348 230.15 350 231.2 353 231.2C356 231.2 359 229.95 362.5 229.95C369.2 229.95 374.6 235.4 374.6 242C374.6 246.6 371.9 250.6 367.6 251.8C356.85 254.8 344.24 265.44 338.78 269.91Q332.71 274.88 329.77 286.29Q326.82 296.59 322.78 308Q318.73 319.41 313.21 331.55L350.01 369.82Q355.9 376.45 363.81 378.47Q371.72 380.5 381.29 380.5H384.6V400H311.74L284.14 371.3Q271.62 384.54 251.75 394.11Q231.88 400 204.28 400ZM220.1 233.66Q235.19 224.83 242.18 213.98Q249.18 203.12 249.18 186.19Q249.18 172.21 242.55 163.93Q235.93 155.65 222.68 155.65Q209.8 155.65 202.81 163.74Q195.82 171.84 195.82 186.56Q195.82 199.07 202.07 209.93Q208.33 220.78 220.1 233.66ZM214.95 378.29Q232.62 378.29 246.05 370.93Q259.48 363.57 267.94 353.26L190.66 270.83Q177.78 280.03 171.9 293.46Q166.01 306.9 166.01 325.66Q166.01 350.69 179.44 364.49Q192.87 378.29 214.95 378.29Z" fill="#FFFFFF"/><circle cx="353" cy="182" r="44" fill="#C8923C"/></svg>
+          <span class="sr-only">Visit Readplace</span>
+        </a>
+      </div>
+      <button id="login-button" class="btn btn--primary login__submit" type="button">Sign in to Readplace</button>
+      <div id="login-error" class="popup-alert" role="alert" hidden>
+        <span class="popup-alert__icon">{{errorIcon}}</span>
+        <div class="popup-alert__text">
+          <p class="popup-alert__title">Couldn&rsquo;t sign in</p>
+          <p class="popup-alert__body">You&rsquo;re still signed out. Try again.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="saved-view" class="view saved-view" hidden>
+    <div class="saved-view__icon" aria-hidden="true">{{checkIcon}}</div>
+    <div id="saved-messages" role="status"></div>
+    <div id="saved-affordances" class="saved-view__affordances"></div>
+    <p id="save-shortcut-hint" class="shortcut-hint">Save any page with <kbd class="shortcut-hint__key">Ctrl</kbd>+<kbd class="shortcut-hint__key">D</kbd>.</p>
+  </div>
+
+  <div id="save-all-view" class="view saved-view" hidden>
+    <div id="save-all-progress" class="save-all-view__progress" role="status">
+      <p id="save-all-title" class="saved-view__title" data-test-save-all-title>Saving tabs&hellip;</p>
+      <p id="save-all-hint" class="saved-view__subtitle" data-test-save-all-hint>Saving continues if you close this popup. You&rsquo;ll get a notification when it&rsquo;s done.</p>
+      <p id="save-all-summary" class="saved-view__subtitle" data-test-save-all-summary></p>
+      <p id="save-all-too-big" class="saved-view__subtitle" data-test-save-all-too-big hidden></p>
+    </div>
+    <div id="save-all-failure" class="popup-alert" role="alert" hidden>
+      <span class="popup-alert__icon">{{errorIcon}}</span>
+      <div class="popup-alert__text">
+        <p id="save-all-failure-title" class="popup-alert__title"></p>
+        <p class="popup-alert__body">Some tabs may have saved. Check your readlist before trying again.</p>
+      </div>
+    </div>
+    <ul id="save-all-failed" class="save-all-view__failed" data-test-save-all-failed hidden></ul>
+    <button id="save-all-view-readlist" class="btn btn--neutral" type="button" hidden>View readlist</button>
+    <p id="save-all-shortcut-hint" class="shortcut-hint" hidden>Save all tabs with <kbd class="shortcut-hint__key">Ctrl</kbd>+<kbd class="shortcut-hint__key">Shift</kbd>+<kbd class="shortcut-hint__key">D</kbd>.</p>
+  </div>
+
+  <div id="list-view" class="view" hidden>
+    <div class="list-view__header">
+      <a href="{{openReadlistHref}}" class="list-view__brand" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="list-view__brand-icon" aria-hidden="true" focusable="false"><rect x="15" y="15" width="482" height="482" rx="102" fill="#2B3A55" stroke="#FFFFFF" stroke-opacity="0.4" stroke-width="20"/><path d="M204.28 400Q159.02 400 134.54 383.62Q110.07 363.57 110.07 326.4Q110.07 304.69 119.27 290.89Q128.47 277.09 143.19 268.26Q157.91 259.42 174.84 252.8Q160.12 235.87 153.5 221.89Q146.87 207.9 146.87 190.98Q146.87 164.11 165.09 148.84Q183.3 133.57 220.84 133.57Q245.86 133.57 261.32 140.74Q276.78 147.92 283.95 159.7Q291.13 171.47 291.13 185.82Q291.13 208.27 277.51 222.62Q263.9 236.98 235.56 250.22L290.39 308.74Q293.34 298.43 294.62 285Q295.91 271.57 295.91 259.42V243.23H314C325 243.23 337 230.15 344 230.15C348 230.15 350 231.2 353 231.2C356 231.2 359 229.95 362.5 229.95C369.2 229.95 374.6 235.4 374.6 242C374.6 246.6 371.9 250.6 367.6 251.8C356.85 254.8 344.24 265.44 338.78 269.91Q332.71 274.88 329.77 286.29Q326.82 296.59 322.78 308Q318.73 319.41 313.21 331.55L350.01 369.82Q355.9 376.45 363.81 378.47Q371.72 380.5 381.29 380.5H384.6V400H311.74L284.14 371.3Q271.62 384.54 251.75 394.11Q231.88 400 204.28 400ZM220.1 233.66Q235.19 224.83 242.18 213.98Q249.18 203.12 249.18 186.19Q249.18 172.21 242.55 163.93Q235.93 155.65 222.68 155.65Q209.8 155.65 202.81 163.74Q195.82 171.84 195.82 186.56Q195.82 199.07 202.07 209.93Q208.33 220.78 220.1 233.66ZM214.95 378.29Q232.62 378.29 246.05 370.93Q259.48 363.57 267.94 353.26L190.66 270.83Q177.78 280.03 171.9 293.46Q166.01 306.9 166.01 325.66Q166.01 350.69 179.44 364.49Q192.87 378.29 214.95 378.29Z" fill="#FFFFFF"/><circle cx="353" cy="182" r="44" fill="#C8923C"/></svg>
+        <span class="list-view__brand-name">Read<span class="list-view__brand-tail">place</span></span>
+      </a>
+      <div class="list-view__actions">
+        <button id="save-all-tabs-button" class="btn btn--neutral btn--compact list-view__save-all" type="button" title="Save all tabs in this window" data-test-save-all-tabs hidden>
+          <span class="list-view__save-all-count" data-test-save-all-count>Save tabs</span><span class="sr-only"> in this window</span>
+        </button>
+        <button id="logout-button" class="list-view__signout" type="button" title="Sign out">{{signOutIcon}}<span class="sr-only">Sign out</span></button>
+      </div>
+    </div>
+    <div class="list-view__search">
+      <label for="filter-input" class="sr-only">Filter this page by web address</label>
+      <input
+        type="text"
+        id="filter-input"
+        class="list-view__filter"
+        placeholder="Filter by web address&hellip;"
+      >
+    </div>
+    <div id="messages" class="messages" role="status" hidden></div>
+    <p id="list-warning" class="list-view__warning" role="status" hidden></p>
+    <div id="link-list" class="list-view__links"></div>
+    <nav id="pagination" class="pagination" aria-label="Pagination" hidden></nav>
+    <div id="empty-list" class="list-empty" hidden>
+      <p class="list-empty__title">You&rsquo;re all caught up</p>
+      <p class="list-empty__body">Save a link and it appears here.</p>
+    </div>
+    <div id="no-matches" class="list-empty" hidden>
+      <p class="list-empty__title">No matching articles</p>
+      <p class="list-empty__body">The filter searches this page of your readlist only.</p>
+    </div>
+    <div id="list-error" class="popup-alert list-view__alert" role="alert" hidden>
+      <span class="popup-alert__icon">{{errorIcon}}</span>
+      <div class="popup-alert__text">
+        <p id="list-error-title" class="popup-alert__title"></p>
+        <p id="list-error-body" class="popup-alert__body"></p>
+        <button id="list-error-retry" class="btn btn--neutral btn--compact popup-alert__action" type="button" hidden>Try again</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="list-skeleton-view" class="view list-skeleton" hidden>
+    <div class="list-skeleton__header" aria-hidden="true">
+      <span class="list-skeleton__brand">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="list-skeleton__brand-icon" aria-hidden="true" focusable="false"><rect x="15" y="15" width="482" height="482" rx="102" fill="#2B3A55" stroke="#FFFFFF" stroke-opacity="0.4" stroke-width="20"/><path d="M204.28 400Q159.02 400 134.54 383.62Q110.07 363.57 110.07 326.4Q110.07 304.69 119.27 290.89Q128.47 277.09 143.19 268.26Q157.91 259.42 174.84 252.8Q160.12 235.87 153.5 221.89Q146.87 207.9 146.87 190.98Q146.87 164.11 165.09 148.84Q183.3 133.57 220.84 133.57Q245.86 133.57 261.32 140.74Q276.78 147.92 283.95 159.7Q291.13 171.47 291.13 185.82Q291.13 208.27 277.51 222.62Q263.9 236.98 235.56 250.22L290.39 308.74Q293.34 298.43 294.62 285Q295.91 271.57 295.91 259.42V243.23H314C325 243.23 337 230.15 344 230.15C348 230.15 350 231.2 353 231.2C356 231.2 359 229.95 362.5 229.95C369.2 229.95 374.6 235.4 374.6 242C374.6 246.6 371.9 250.6 367.6 251.8C356.85 254.8 344.24 265.44 338.78 269.91Q332.71 274.88 329.77 286.29Q326.82 296.59 322.78 308Q318.73 319.41 313.21 331.55L350.01 369.82Q355.9 376.45 363.81 378.47Q371.72 380.5 381.29 380.5H384.6V400H311.74L284.14 371.3Q271.62 384.54 251.75 394.11Q231.88 400 204.28 400ZM220.1 233.66Q235.19 224.83 242.18 213.98Q249.18 203.12 249.18 186.19Q249.18 172.21 242.55 163.93Q235.93 155.65 222.68 155.65Q209.8 155.65 202.81 163.74Q195.82 171.84 195.82 186.56Q195.82 199.07 202.07 209.93Q208.33 220.78 220.1 233.66ZM214.95 378.29Q232.62 378.29 246.05 370.93Q259.48 363.57 267.94 353.26L190.66 270.83Q177.78 280.03 171.9 293.46Q166.01 306.9 166.01 325.66Q166.01 350.69 179.44 364.49Q192.87 378.29 214.95 378.29Z" fill="#FFFFFF"/><circle cx="353" cy="182" r="44" fill="#C8923C"/></svg>
+        <span class="list-skeleton__brand-name">Read<span class="list-skeleton__brand-tail">place</span></span>
+      </span>
+      <span class="list-skeleton__actions">
+        <span class="list-skeleton__control list-skeleton__control--save-all"><span class="list-skeleton__bar list-skeleton__bar--save-all"></span></span>
+        <span class="list-skeleton__control list-skeleton__control--signout"><span class="list-skeleton__bar list-skeleton__bar--signout"></span></span>
+      </span>
+    </div>
+    <div class="list-skeleton__search">
+      <p class="list-skeleton__status" role="status">Loading your articles&hellip;</p>
+    </div>
+    <div class="list-skeleton__rows" aria-busy="true">
+      <div class="list-skeleton__row" aria-hidden="true">
+        <span class="list-skeleton__item">
+          <span class="list-skeleton__avatar"></span>
+          <span class="list-skeleton__text">
+            <span class="list-skeleton__line list-skeleton__line--title"><span class="list-skeleton__bar list-skeleton__bar--title"></span></span>
+            <span class="list-skeleton__line list-skeleton__line--meta"><span class="list-skeleton__bar list-skeleton__bar--meta"></span></span>
+          </span>
+        </span>
+        <span class="list-skeleton__controls">
+          <span class="list-skeleton__toggle"><span class="list-skeleton__bar list-skeleton__bar--toggle"></span></span>
+        </span>
+      </div>
+      <div class="list-skeleton__row" aria-hidden="true">
+        <span class="list-skeleton__item">
+          <span class="list-skeleton__avatar"></span>
+          <span class="list-skeleton__text">
+            <span class="list-skeleton__line list-skeleton__line--title"><span class="list-skeleton__bar list-skeleton__bar--title"></span></span>
+            <span class="list-skeleton__line list-skeleton__line--meta"><span class="list-skeleton__bar list-skeleton__bar--meta"></span></span>
+          </span>
+        </span>
+        <span class="list-skeleton__controls">
+          <span class="list-skeleton__toggle"><span class="list-skeleton__bar list-skeleton__bar--toggle"></span></span>
+        </span>
+      </div>
+      <div class="list-skeleton__row" aria-hidden="true">
+        <span class="list-skeleton__item">
+          <span class="list-skeleton__avatar"></span>
+          <span class="list-skeleton__text">
+            <span class="list-skeleton__line list-skeleton__line--title"><span class="list-skeleton__bar list-skeleton__bar--title"></span></span>
+            <span class="list-skeleton__line list-skeleton__line--meta"><span class="list-skeleton__bar list-skeleton__bar--meta"></span></span>
+          </span>
+        </span>
+        <span class="list-skeleton__controls">
+          <span class="list-skeleton__toggle"><span class="list-skeleton__bar list-skeleton__bar--toggle"></span></span>
+        </span>
+      </div>
+      <div class="list-skeleton__row" aria-hidden="true">
+        <span class="list-skeleton__item">
+          <span class="list-skeleton__avatar"></span>
+          <span class="list-skeleton__text">
+            <span class="list-skeleton__line list-skeleton__line--title"><span class="list-skeleton__bar list-skeleton__bar--title"></span></span>
+            <span class="list-skeleton__line list-skeleton__line--meta"><span class="list-skeleton__bar list-skeleton__bar--meta"></span></span>
+          </span>
+        </span>
+        <span class="list-skeleton__controls">
+          <span class="list-skeleton__toggle"><span class="list-skeleton__bar list-skeleton__bar--toggle"></span></span>
+        </span>
+      </div>
+      <div class="list-skeleton__row" aria-hidden="true">
+        <span class="list-skeleton__item">
+          <span class="list-skeleton__avatar"></span>
+          <span class="list-skeleton__text">
+            <span class="list-skeleton__line list-skeleton__line--title"><span class="list-skeleton__bar list-skeleton__bar--title"></span></span>
+            <span class="list-skeleton__line list-skeleton__line--meta"><span class="list-skeleton__bar list-skeleton__bar--meta"></span></span>
+          </span>
+        </span>
+        <span class="list-skeleton__controls">
+          <span class="list-skeleton__toggle"><span class="list-skeleton__bar list-skeleton__bar--toggle"></span></span>
+        </span>
+      </div>
+      <div class="list-skeleton__row" aria-hidden="true">
+        <span class="list-skeleton__item">
+          <span class="list-skeleton__avatar"></span>
+          <span class="list-skeleton__text">
+            <span class="list-skeleton__line list-skeleton__line--title"><span class="list-skeleton__bar list-skeleton__bar--title"></span></span>
+            <span class="list-skeleton__line list-skeleton__line--meta"><span class="list-skeleton__bar list-skeleton__bar--meta"></span></span>
+          </span>
+        </span>
+        <span class="list-skeleton__controls">
+          <span class="list-skeleton__toggle"><span class="list-skeleton__bar list-skeleton__bar--toggle"></span></span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div id="saving-view" class="view saving-view" aria-busy="true">
+    <div id="saving-progress" class="saving-view__skeleton" aria-hidden="true">
+      <span class="saving-view__icon"></span>
+      <div>
+        <p class="saved-view__title"><span class="saving-view__bar saving-view__bar--title"></span></p>
+        <p class="saved-view__subtitle"><span class="saving-view__bar saving-view__bar--subtitle"></span></p>
+      </div>
+      <div class="saved-view__affordances">
+        <span class="saving-view__action"><span class="saving-view__bar saving-view__bar--action"></span></span>
+      </div>
+    </div>
+    <p id="saving-status" class="shortcut-hint" role="status"><span class="saving-view__pulse" aria-hidden="true"></span>Saving&hellip;</p>
+    <div id="save-failure" class="saving-view__failure" hidden>
+      <div class="popup-alert" role="alert">
+        <span class="popup-alert__icon">{{errorIcon}}</span>
+        <div class="popup-alert__text">
+          <p class="popup-alert__title">Couldn&rsquo;t save this page</p>
+          <p class="popup-alert__body">Nothing was saved.</p>
+        </div>
+      </div>
+      <button id="save-retry-button" class="btn btn--primary" type="button">Try again</button>
+    </div>
+  </div>

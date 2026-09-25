@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { BASE_CSS_VARIABLES, EMAIL_FRAME_CANVAS } from "./base.styles";
+import { BASE_CSS_VARIABLES, EMAIL_FRAME_CANVAS, SYSTEM_THEME_VARIABLES } from "./base.styles";
 
 function lightRootDeclarations(): string {
 	const lightRoot = /:root \{\s*color-scheme: light;([^}]*)\}/.exec(BASE_CSS_VARIABLES);
@@ -19,5 +19,11 @@ describe("EMAIL_FRAME_CANVAS", () => {
 		for (const value of Object.values(EMAIL_FRAME_CANVAS)) {
 			expect(value).not.toContain("var(");
 		}
+	});
+});
+
+describe("BASE_CSS_VARIABLES", () => {
+	it("opens with the system theme tokens every surface shares", () => {
+		expect(BASE_CSS_VARIABLES.startsWith(SYSTEM_THEME_VARIABLES)).toBe(true);
 	});
 });

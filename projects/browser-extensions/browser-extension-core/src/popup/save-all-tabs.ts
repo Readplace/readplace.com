@@ -83,6 +83,8 @@ export function summarizeBulkSave(params: {
 const MAX_LISTED_FAILED_URLS = 5;
 const MAX_LISTED_SKIP_REASONS = 5;
 
+export type SaveAllDetailLine = { kind: "failed" | "skipped" | "more"; text: string };
+
 /** Failures stay per-URL so the reader knows which tabs to retry; skips
  * collapse to their distinct reasons, because a skipped tab isn't coming back
  * and the only actionable fact is why its kind was left behind. */
@@ -90,18 +92,18 @@ export function buildSaveAllDetailLines(result: {
 	failedUrls: readonly { url: string }[];
 	skippedUrls: readonly { url: string; code: string; message?: string }[];
 	clientSkipReasons: readonly string[];
-}): string[] {
-	const failedLines = result.failedUrls.map((entry) => `Couldn't save ${entry.url}`);
+}): SaveAllDetailLine[] {
+	const failedLines = result.failedUrls.map((entry): SaveAllDetailLine => ({ kind: "failed", text: `Couldn't save ${entry.url}` }));
 	const lines = failedLines.slice(0, MAX_LISTED_FAILED_URLS);
 	const moreFailed = failedLines.length - lines.length;
-	if (moreFailed > 0) lines.push(`And ${moreFailed} more failed.`);
+	if (moreFailed > 0) lines.push({ kind: "more", text: `And ${moreFailed} more failed.` });
 
 	const reasons = new Set<string>(result.clientSkipReasons);
 	for (const entry of result.skippedUrls) {
 		if (entry.message !== undefined) reasons.add(entry.message);
 	}
-	lines.push(...[...reasons].slice(0, MAX_LISTED_SKIP_REASONS).map((reason) => `• ${reason}`));
-	if (reasons.size > MAX_LISTED_SKIP_REASONS) lines.push("… and others");
+	lines.push(...[...reasons].slice(0, MAX_LISTED_SKIP_REASONS).map((reason): SaveAllDetailLine => ({ kind: "skipped", text: reason })));
+	if (reasons.size > MAX_LISTED_SKIP_REASONS) lines.push({ kind: "more", text: "… and others" });
 	return lines;
 }
 

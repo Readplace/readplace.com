@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Readplace</title>
+  <style>
+{{themeTokens}}
+    html{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--card)}
+    body{width:350px;margin:0;padding:0;background:var(--card);color:var(--foreground)}
+    .view[hidden]{display:none}
+    .popup-shell .saving-view{width:350px;height:218.390625px;padding:0;gap:0}
+    .popup-shell .saving-view__skeleton{position:relative;width:350px;height:218.390625px;color:var(--muted-foreground)}
+    .popup-shell p{margin:0}
+    .popup-shell .saving-view__icon,.popup-shell .saving-view__bar{position:absolute;display:block;background:currentColor;opacity:.25}
+    .popup-shell .saving-view__icon{left:151px;top:16px;width:48px;height:48px;border-radius:50%}
+    .popup-shell .saving-view__bar{border-radius:var(--radius-sm)}
+    .popup-shell .saving-view__bar--title{left:115.5px;top:82.40625px;width:119px;height:11.8984375px}
+    .popup-shell .saving-view__bar--subtitle{left:97px;top:104.5px;width:156px;height:9.09375px}
+    .popup-shell .saving-view__action{position:absolute;left:95px;top:133.59375px;width:160px;height:44px;box-sizing:border-box;margin:0;padding:0;border-radius:var(--radius-sm);box-shadow:inset 0 0 0 1px var(--border)}
+    .popup-shell .saving-view__bar--action{left:24px;top:16.3984375px;width:112px;height:11.1953125px}
+    .popup-shell .saving-view__bar--hint{left:141.6015625px;top:195.29375px;width:66.796875px;height:9.1px}
+  </style>
+</head>
+<body class="popup-shell">
+  <div id="saving-view" class="view saving-view" aria-busy="true">
+    <div id="saving-progress" class="saving-view__skeleton" aria-hidden="true">
+      <span class="saving-view__icon"></span>
+      <div>
+        <p class="saved-view__title"><span class="saving-view__bar saving-view__bar--title"></span></p>
+        <p class="saved-view__subtitle"><span class="saving-view__bar saving-view__bar--subtitle"></span></p>
+      </div>
+      <div>
+        <span class="saving-view__action"><span class="saving-view__bar saving-view__bar--action"></span></span>
+      </div>
+      <p class="shortcut-hint"><span class="saving-view__bar saving-view__bar--hint"></span></p>
+    </div>
+  </div>
+  <script src="popup-entry.browser.js"></script>
+</body>
+</html>

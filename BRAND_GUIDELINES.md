@@ -131,16 +131,7 @@ Red words (`--error-text`) on `--error-bg` clear 4.5:1 only over a `--card` (4.6
 - **Reading surfaces stay neutral.** Amber appears in chrome and UI — never behind article text. Article content sits on `--background` (light) or dark grey (dark).
 - **Hero gradient:** `linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%)` — a deep navy gradient mirroring the logo tile. Warm amber highlights (`--color-highlight`) sit directly on it.
 - **Contrast floors.** Words clear 4.5:1, or 3:1 at 24px, or 3:1 at 18.66px/700. Non-text marks clear 3:1 (icons, dots, the fill of an icon-only control). A control labelled by words is judged by its label against its fill. Measure in both themes, and again in greyscale — e-ink panels drop hue, and sRGB greyscale and WCAG luminance disagree by up to 0.7:1. A new surface joins the colour-contrast sweep.
-- **A signed-in page renders in the reader's theme.** Every signed-in surface follows the account's Appearance setting (System, Light or Dark), resolved server-side so there is no flash. Never pin a signed-in page to one theme (a light-pinned page flips mid-navigation when the reader opens a dark reader). Logged-out pages are designed art and are pinned light (`LIGHT_ONLY_BODY_CLASS`); the public reader view is the one logged-out page that follows the system theme.
-
-### Browser Extension Palette
-
-Both extensions compile one shared popup stylesheet (`projects/browser-extensions/browser-extension-core/src/popup/popup.styles.css`), which never sees the tokens, so it carries a small palette tuned for popup contexts:
-
-| Role | Light | Dark | CSS variable |
-|---|---|---|---|
-| Brand | `#c8923c` | `#d4a04a` | `--popup-brand` |
-| Active background | `#2b3a55` | `#3d4f6f` | `--popup-active-bg` |
+- **A signed-in page renders in the reader's theme.** Every signed-in surface follows the account's Appearance setting (System, Light or Dark), resolved server-side so there is no flash. Never pin a signed-in page to one theme (a light-pinned page flips mid-navigation when the reader opens a dark reader). Logged-out pages are designed art and are pinned light (`LIGHT_ONLY_BODY_CLASS`); the public reader view is the one logged-out page that follows the system theme. The extension popup is the one signed-in exception (see [Browser Extension](#browser-extension)).
 
 ---
 
@@ -153,7 +144,7 @@ Both extensions compile one shared popup stylesheet (`projects/browser-extension
 | Role | Typeface | Weight | Where defined |
 |---|---|---|---|
 | **Body, UI and product headings** | `--font-sans` → `Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` (Inter from Google Fonts, 400–700) | 400, 500, 600, 700 (see [Typography Rules](#typography-rules)) | `base.styles.ts` → `LIGHT_THEME_VARIABLES`, applied on `body` in `BASE_RESET_STYLES`; `base.template.ts` preload |
-| **Brand serif** | `--font-serif` → `Georgia, "Times New Roman", serif` | 700 (Georgia ships regular and bold only, so 600+ renders its bold) | The header wordmark (`.header__brand`), the reader view's article title, and display headings on editorial and marketing pages (home, landing pages, blog). The extension popup brand text uses the literal, for the same reason it ships its own palette |
+| **Brand serif** | `--font-serif` → `Georgia, "Times New Roman", serif` | 700 (Georgia ships regular and bold only, so 600+ renders its bold) | The header wordmark (`.header__brand`), the reader view's article title, and display headings on editorial and marketing pages (home, landing pages, blog). The extension popup's wordmark takes it too |
 | **Reader view** | User-configurable (default: high-legibility serif or sans) | Regular | Article body text in reading mode — this is the user's space |
 
 ### Type Scale (product UI)
@@ -249,7 +240,7 @@ List markers carry polarity. An included / positive item takes the `check` icon 
 
 ### Buttons
 
-> **Source of truth:** `BUTTON_STYLES` in `src/packages/web-shell/src/base.styles.ts`, injected into every page's `<head>`.
+> **Source of truth:** `BUTTON_STYLES` in `src/packages/web-shell/src/base.styles.ts`, injected into every page's `<head>` and compiled into the extension popup's stylesheet by its build.
 
 There is **one** button in the product. Every call to action is `.btn` plus exactly one variant, plus — only where its surroundings demand it — one tier modifier. A page stylesheet may add layout (`width`, `margin`, grid/flex placement, `white-space`) and nothing else. A page never defines its own button class or repaints a `.btn` variant's padding, radius, fill or hover — that is how those values drift apart from page to page. **Every variant this section names belongs in `BUTTON_STYLES`.** `.btn` sets no fill or colour of its own, so a variant the module doesn't define renders as an unstyled button: add it there before its first use.
 
@@ -587,8 +578,22 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the footer with n
 
 - The toolbar icon is the standalone ampersand mark at 16×16 / 32×32px (dotless at those sizes, per the size cutover), themed light/dark per toolbar.
 - The popup should feel like a utility — fast, minimal, single-purpose. Open → save → close. Width: `350px`.
-- Respect the user's browser theme via `prefers-color-scheme`.
+- Respect the user's browser theme via `prefers-color-scheme`. The popup paints its first view before it has read anything from the account, so it is the one signed-in surface that follows the system theme rather than the Appearance setting.
 - No marketing or upsells inside the popup. It's a tool, not a billboard.
+- **The popup uses the same tokens and buttons as every other surface.** Its stylesheet never ships a palette of its own: the extension build puts the theme tokens, `BUTTON_STYLES`, `.sr-only` and the in-flight dots (`DESIGN_SYSTEM_STYLES` in `@packages/web-shell`) ahead of the popup's own rules, which name role tokens and add layout to `.btn` like any page stylesheet. The first-paint skeleton, drawn before that stylesheet loads, carries the same theme tokens inline.
+
+**Compact adaptation.** At 350px the popup keeps one dense line per article. Every other rule in this document applies; these departures hold only in the popup:
+
+- **The popup is the card.** Its body is `--card`, and the list runs edge to edge in it, split by 1px `--border` dividers. There is no list header, count or sort: the collection the popup reads carries no counts.
+- **One-line rows.** 8px vertical padding. The title is 14px/600 on one line with an ellipsis and the full title in `title` — the 17px list-title step does not fit beside a row action at this width. A 32px neutral letter disc (`--muted` fill, 1px `--border` ring, `--muted-foreground` initial, `aria-hidden`) marks the site, so the metadata line carries no per-fact glyphs: the site name (truncating, full text in `title`), then the saved time. There is no status marker: the popup lists only unread articles.
+- **Row actions sit on the row's trailing edge,** always visible: the state toggle (`toggle` + `compact`) and, only when the server advertises it, an icon-only `trash` delete in a 36px box (`--muted-foreground`, `--error-bg`/`--error-text` on hover, `.sr-only` name). With no overflow menu, this is the one place a delete sits on a row.
+- **Saved times stay relative past 30 days** ("3mo ago", "2y ago") rather than switching to a calendar date, so the time never wraps the line.
+- **Focus inside the scrolling list** draws `--ring` inset (`outline-offset: -2px`) so the scroller doesn't clip it.
+- **Pagination** is centred inside the panel under a `--border` rule, with no "Showing N of M" range. Previous/Next are 36px icon-only arrows with `.sr-only` labels, and the window shows one page either side of the current.
+- **Header.** The wordmark is 1.1875rem (19px, still large text for the light tail's 3.62:1) beside a 26px mark, so it shares one row with Save tabs (`neutral` + `compact` — the amber CTA is the toolbar save) and Sign out, an icon-only 44px utility.
+- **The filter** is named by an `.sr-only` label rather than a visible one.
+- **An empty list always reads "You're all caught up"** — the collection carries no counts to tell never-saved from all-read — and a filter that matches nothing reads "No matching articles". Neither has an illustration or button: the toolbar save is the next step.
+- **Full-view skeletons** (the saving card, the list) stay untinted: the `--secondary` tint marks one row being created among settled ones.
 
 ### Web App
 

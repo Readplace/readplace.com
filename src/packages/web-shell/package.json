@@ -17,6 +17,10 @@
       "types": "./dist/local-time.format.d.ts",
       "default": "./dist/local-time.format.js"
     },
+    "./design-system.styles": {
+      "types": "./dist/design-system.styles.d.ts",
+      "default": "./dist/design-system.styles.js"
+    },
     "./client-bundles": "./client-bundles.js"
   },
   "typesVersions": {
@@ -26,6 +30,9 @@
       ],
       "local-time.format": [
         "./dist/local-time.format.d.ts"
+      ],
+      "design-system.styles": [
+        "./dist/design-system.styles.d.ts"
       ]
     }
   },
