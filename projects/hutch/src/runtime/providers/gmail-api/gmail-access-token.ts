@@ -46,7 +46,7 @@ export function initGmailAccessToken(deps: {
 		});
 
 		if (response.status === 400 || response.status === 401) {
-			const { error, errorDescription } = readGoogleTokenError(await response.json());
+			const { error, errorDescription } = readGoogleTokenError(await response.json().catch(() => undefined));
 			if (error === "invalid_grant") {
 				deps.logger.info("[gmail-access-token] refresh token rejected", {
 					userId,
@@ -65,7 +65,7 @@ export function initGmailAccessToken(deps: {
 					errorDescription,
 				}),
 			);
-			return { ok: false, reason: "unavailable", status: response.status };
+			return { ok: false, reason: "reauth-required" };
 		}
 		if (!response.ok) return { ok: false, reason: "unavailable", status: response.status };
 

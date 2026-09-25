@@ -33,7 +33,10 @@ function makeHarness(responses: FakeResponse[]) {
 		return {
 			ok: next.status >= 200 && next.status < 300,
 			status: next.status,
-			json: async () => next.body,
+			json: async () => {
+				if (next.body instanceof Error) throw next.body;
+				return next.body;
+			},
 		};
 	}) as unknown as typeof globalThis.fetch;
 
@@ -162,7 +165,7 @@ describe("initGmailAccessToken", () => {
 		assert.deepEqual(harness.errorLines, []);
 	});
 
-	it("returns retryable and logs our client's error when Google refuses on invalid_client", async () => {
+	it("asks the user to reconnect and logs our client's error when Google refuses on invalid_client", async () => {
 		const harness = makeHarness([
 			{ status: 401, body: { error: "invalid_client", error_description: "The OAuth client was not found." } },
 		]);
@@ -174,7 +177,7 @@ describe("initGmailAccessToken", () => {
 
 		const result = await harness.accessToken({ userId: USER, forceRefresh: false });
 
-		assert.deepEqual(result, { ok: false, reason: "unavailable", status: 401 });
+		assert.deepEqual(result, { ok: false, reason: "reauth-required" });
 		assert.equal(harness.errorLines.length, 1);
 		assert.equal(harness.errorLines[0].length, 1);
 		assert.deepEqual(JSON.parse(String(harness.errorLines[0][0])), {
@@ -188,7 +191,7 @@ describe("initGmailAccessToken", () => {
 		assert.deepEqual(harness.infoLines, []);
 	});
 
-	it("returns retryable and logs our client's error when a 400 carries no error body", async () => {
+	it("asks the user to reconnect and logs the refusal when a 400 carries no error body", async () => {
 		const harness = makeHarness([{ status: 400, body: {} }]);
 		await harness.credentials.saveCredentials({
 			userId: USER,
@@ -198,12 +201,31 @@ describe("initGmailAccessToken", () => {
 
 		const result = await harness.accessToken({ userId: USER, forceRefresh: false });
 
-		assert.deepEqual(result, { ok: false, reason: "unavailable", status: 400 });
+		assert.deepEqual(result, { ok: false, reason: "reauth-required" });
 		assert.deepEqual(JSON.parse(String(harness.errorLines[0][0])), {
 			level: "ERROR",
 			message: "[gmail-access-token] token endpoint refused our client",
 			userId: USER,
 			status: 400,
+		});
+	});
+
+	it("asks the user to reconnect and logs the refusal when a 401 body is not JSON", async () => {
+		const harness = makeHarness([{ status: 401, body: new SyntaxError("Unexpected token <") }]);
+		await harness.credentials.saveCredentials({
+			userId: USER,
+			refreshToken: "refresh-1",
+			grantedScope: SCOPE,
+		});
+
+		const result = await harness.accessToken({ userId: USER, forceRefresh: false });
+
+		assert.deepEqual(result, { ok: false, reason: "reauth-required" });
+		assert.deepEqual(JSON.parse(String(harness.errorLines[0][0])), {
+			level: "ERROR",
+			message: "[gmail-access-token] token endpoint refused our client",
+			userId: USER,
+			status: 401,
 		});
 	});
 
