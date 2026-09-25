@@ -7,28 +7,23 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
 /**
- * The text and read state a reading-list row renders for an article, derived once
- * from the model so the wording decisions stay pure and unit-tested while the
- * Compose layout that paints them is the untested OS boundary — the same split as
- * `ReaderLoad`.
+ * The text a reading-list row renders for an article, derived once from the model
+ * so the wording decisions stay pure and unit-tested while the Compose layout that
+ * paints them is the untested OS boundary — the same split as `ReaderLoad`.
  */
 data class ArticlePresentation(
 	val title: String,
-	/** `read-time · saved-at`, where the read time is the server's own label rendered
-	 * verbatim. Each part is present only when it carries a value; null when none
-	 * does, so the row omits the line rather than painting an empty one. The site
-	 * name is deliberately absent: the row leads with the read-state marker, matching
-	 * the web and iOS card. */
+	/** `read-time · saved-at`, where the read time is the server's own label
+	 * rendered verbatim. Each part is present only when it carries a value; null when
+	 * none does, so the row omits the line rather than painting an empty one. */
 	val metaText: String?,
-	/** The excerpt shown under the title, or null when the server sent none or an
+	/** The excerpt, or null when the server sent none or an
 	 * empty one. */
 	val excerpt: String?,
 	val isRead: Boolean,
-	/** The read-state marker's accessibility label, so the state is spoken rather than
-	 * carried by the marker's colour alone. */
 	val statusLabel: String,
 	/** The image to load for the thumbnail, or null when the article carries no
-	 * loadable URL — the row then paints no thumbnail without attempting a load. */
+	 * loadable URL. */
 	val thumbnailUrl: String?,
 ) {
 	companion object {

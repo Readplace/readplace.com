@@ -451,11 +451,6 @@ private fun ArticleList(
  * confirmation before invoking; both guard the irreversible `delete`. Every
  * rendered control resolves to an effect in `activate` — an action invokes, a
  * link opens — so none silently no-ops.
- *
- * The row is one cell of the joined listing panel: an unread row sits on the
- * secondary fill, a read row on the card fill, and [PanelEdge] paints the shared
- * border, internal seams and rounded outer corners. The swipe tray is clipped to
- * the same panel shape so the revealed controls follow the rounded edges.
  */
 @Composable
 private fun ArticleItem(
@@ -560,15 +555,6 @@ private fun ArticleItem(
 	}
 }
 
-/**
- * Where a row sits in the joined listing panel, and the geometry that makes
- * adjacent rows read as one bordered panel rather than separate cards. Every row
- * draws the top and side hairline; only the last also draws the bottom, so the gap
- * between two rows is a single seam. Only the first and last round their outer
- * corners, and only they carry the outer gutter, so the rows butt together with no
- * space between. Mirrors the iOS `ListingPanelEdge`; the fill shape sits one border
- * width inside the border shape so the fill never overpaints the hairline.
- */
 private data class PanelEdge(val isFirst: Boolean, val isLast: Boolean) {
 	val rowInsets: PaddingValues
 		get() = PaddingValues(

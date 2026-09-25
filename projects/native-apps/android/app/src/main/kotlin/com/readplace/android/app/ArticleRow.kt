@@ -76,8 +76,6 @@ fun ArticleRow(
 				Text(
 					text = presentation.title,
 					style = MaterialTheme.typography.titleMedium,
-					// A read title is dimmed to the secondary text colour, the same signal
-					// the read-state marker and card fill carry, so a read row recedes.
 					color = if (presentation.isRead) brand.textSecondary else brand.textPrimary,
 					maxLines = 2,
 					overflow = TextOverflow.Ellipsis,
@@ -99,12 +97,6 @@ fun ArticleRow(
 	}
 }
 
-/**
- * The read-state marker that opens the metadata line: an amber dot while unread, a
- * green check once read. The shape — not colour alone — carries the state, and the
- * accessibility label speaks it, so the row reads under TalkBack and for colour-blind
- * readers.
- */
 @Composable
 private fun ReadMarker(isRead: Boolean, statusLabel: String) {
 	val brand = LocalBrandColors.current
@@ -126,14 +118,6 @@ private fun ReadMarker(isRead: Boolean, statusLabel: String) {
 	}
 }
 
-/**
- * A 4:3 thumbnail on the row's trailing edge, at the 72×54 frame the iOS row uses.
- * A missing image URL paints no thumbnail (the caller omits this composable); a
- * pending load reserves the clear frame so a successful load doesn't shift the row,
- * and a failed load collapses the frame so the text reclaims the width — matching
- * iOS. The leading gap lives on the reserved/loaded frames alone, so a collapsed
- * frame leaves no gap behind.
- */
 @Composable
 private fun Thumbnail(url: String) {
 	val frame = Modifier
