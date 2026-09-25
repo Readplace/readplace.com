@@ -1,3 +1,4 @@
+import type { GmailForwardingConfirmFailedLine } from "@packages/hutch-infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { requireEnv } from "@packages/require-env";
@@ -18,5 +19,6 @@ export const handler = initConfirmGmailForwardingHandler({
 		timeoutMs: 10_000,
 	}),
 	publishEvent,
+	metricLog: HutchLogger.fromJSON<GmailForwardingConfirmFailedLine>(),
 	logger,
 });

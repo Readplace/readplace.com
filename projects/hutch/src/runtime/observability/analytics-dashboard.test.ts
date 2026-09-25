@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import {
 	BLOG_SITE_LOG_GROUP,
+	GMAIL_FILTER_REWRITE_FAILED_EVENT,
+	GMAIL_FILTER_REWRITE_FAILED_METRIC,
+	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
+	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
+	GMAIL_METRIC_NAMESPACE,
 	SAVE_LINK_LOG_GROUPS,
 } from "@packages/hutch-infra-components";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
@@ -79,9 +84,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 52 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 3 key-event-counters) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 55 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(52);
+		expect(body.widgets).toHaveLength(55);
 	});
 
 	it("carries oauth_client_id on the recent-conversions table so a consent-screen signup names the client that sent it", () => {
@@ -412,6 +417,8 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			...Object.values(ANALYTICS_EVENTS),
 			...Object.values(CONVERSION_EVENTS),
 			...Object.values(SUBSCRIPTION_EVENTS),
+			GMAIL_FILTER_REWRITE_FAILED_EVENT,
+			GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 		]);
 		const unknown = [...referenced].filter((e) => !declared.has(e));
 		expect(unknown).toEqual([]);
@@ -432,6 +439,23 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(metricWidgets[0]?.properties.metrics).toEqual([
 			[METRICS.importsCompleted.namespace, METRICS.importsCompleted.name, { stat: "Sum" }],
 		]);
+	});
+
+	it("wires a singleValue counter to each Readplace/Gmail terminal-failure metric (one produced by hutch, one by inbox), so a filter that stops matching reads as a flat zero rather than vanishing", () => {
+		const metricWidgets = metricWidgetsIn(buildBody().widgets, GMAIL_METRIC_NAMESPACE);
+		expect(metricWidgets.map((w) => w.properties.metrics)).toEqual([
+			[[GMAIL_METRIC_NAMESPACE, GMAIL_FILTER_REWRITE_FAILED_METRIC, { stat: "Sum" }]],
+			[[GMAIL_METRIC_NAMESPACE, GMAIL_FORWARDING_CONFIRM_FAILED_METRIC, { stat: "Sum" }]],
+		]);
+	});
+
+	it("breaks Gmail terminal failures down by event and reason off the errors funnel, so the reason behind an alarm is readable the moment it pages", () => {
+		const breakdown = widgetQueries().find((q) => q.includes("as failures by event, reason"));
+		assert(breakdown, "the Gmail terminal-failure breakdown widget must exist");
+		expect(breakdown.startsWith(`SOURCE '${ERRORS_LOG_GROUP}' | `)).toBe(true);
+		expect(breakdown).toContain(`event = "${GMAIL_FILTER_REWRITE_FAILED_EVENT}"`);
+		expect(breakdown).toContain(`event = "${GMAIL_FORWARDING_CONFIRM_FAILED_EVENT}"`);
+		expect(breakdown).toContain("stats count(*) as failures by event, reason");
 	});
 
 	it("gives every analytics metric filter its own counter widget, so a filter whose pattern stops matching reads as a visible flat zero instead of silently going missing from the dashboard", () => {
@@ -463,16 +487,17 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		]);
 	});
 
-	it("every log widget except the cross-group errors table reads only the never-expire analytics group — the scan-only-analytics-bytes invariant", () => {
-		const prefix = `SOURCE '${ANALYTICS_LOG_GROUP}' | `;
+	it("every log widget except the cross-group errors widgets reads only the never-expire analytics group — the scan-only-analytics-bytes invariant", () => {
+		const analyticsPrefix = `SOURCE '${ANALYTICS_LOG_GROUP}' | `;
+		const errorsPrefix = `SOURCE '${ERRORS_LOG_GROUP}' | `;
 		const nonErrorQueries = buildBody()
 			.widgets.filter((w) => w.type === "log")
 			.map((w) => w.properties.query)
 			.filter((q): q is string => typeof q === "string")
-			.filter((q) => !q.includes("coalesce(message, reason) as detail"));
+			.filter((q) => !q.startsWith(errorsPrefix));
 		expect(nonErrorQueries.length).toBeGreaterThan(0);
 		for (const q of nonErrorQueries) {
-			expect(q.startsWith(prefix)).toBe(true);
+			expect(q.startsWith(analyticsPrefix)).toBe(true);
 		}
 	});
 

@@ -62,6 +62,21 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 		reason:
 			"An operational view of why a save was refused, keyed on the refusal code and client rather than a reader identity: an internal-account refusal is still a real refusal worth seeing, and the event carries no visitor_id/user_id to filter on.",
 	},
+	{
+		title: "Gmail filter rewrites that failed",
+		reason:
+			"Renders a CloudWatch metric filled by a LogMetricFilter, and a datapoint has no field a Logs Insights clause could filter on. The gmail_filter_rewrite_failed line the filter counts carries a userId but no visitor_id, and an internal account's failed filter rewrite is still a real operational failure worth paging on — the counter includes it and no dashboard-layer change can alter that.",
+	},
+	{
+		title: "Gmail forwarding confirmations that failed",
+		reason:
+			"Renders a CloudWatch metric filled by a LogMetricFilter in the inbox stack, and a datapoint has no field a Logs Insights clause could filter on. The gmail_forwarding_confirm_failed line the filter counts carries a userId but no visitor_id, and an internal account's failed confirmation is still a real operational failure worth paging on.",
+	},
+	{
+		title: "Gmail terminal failures by reason",
+		reason:
+			"Reads the errors funnel, not the analytics group — the same operational view as the fleet errors table, subset to the two Gmail terminal-failure events. Those lines carry a userId but no visitor_id, and an internal account's failure is still a real failure worth seeing, so this is an operational breakdown, not an audience count.",
+	},
 ];
 
 const DASHBOARDS: {

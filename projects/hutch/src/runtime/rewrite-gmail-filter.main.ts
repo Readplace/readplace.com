@@ -5,6 +5,7 @@ import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDb
 import { requireEnv } from "@packages/require-env";
 import {
 	DisconnectGmailCommand,
+	type GmailFilterRewriteFailedLine,
 	GmailForwardingConfirmFailedEvent,
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
@@ -74,6 +75,7 @@ const rewriteGmailFilter = initRewriteGmailFilter({
 const rewriteHandler = initRewriteGmailFilterHandler({
 	rewriteGmailFilter,
 	publishEvent,
+	metricLog: HutchLogger.fromJSON<GmailFilterRewriteFailedLine>(),
 	logger,
 });
 

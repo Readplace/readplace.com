@@ -1,5 +1,12 @@
 import assert from "node:assert";
-import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
+import {
+	BLOG_SITE_LOG_GROUP,
+	GMAIL_FILTER_REWRITE_FAILED_EVENT,
+	GMAIL_FILTER_REWRITE_FAILED_METRIC,
+	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
+	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
+	GMAIL_METRIC_NAMESPACE,
+} from "@packages/hutch-infra-components";
 import { CLICK_SURFACES } from "@packages/web-shell";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
@@ -987,7 +994,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort oauth_client_id asc, users desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 214, width: 24, height: 8,
+			x: 0, y: 222, width: 24, height: 8,
 			view: "table",
 		}),
 	);
@@ -1038,7 +1045,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 222, width: 8, height: 4,
+			x: index * 8, y: 230, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1122,6 +1129,56 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort visitors desc",
 			].join(" "),
 			x: 12, y: 206, width: 12, height: 8,
+			view: "table",
+		}),
+	);
+
+	widgets.push(
+		{
+			type: "metric",
+			x: 0, y: 214, width: 6, height: 4,
+			properties: {
+				region,
+				title: "Gmail filter rewrites that failed",
+				metrics: [[GMAIL_METRIC_NAMESPACE, GMAIL_FILTER_REWRITE_FAILED_METRIC, { stat: "Sum" }]],
+				period: 86400,
+				stat: "Sum",
+				view: "singleValue",
+				sparkline: true,
+				setPeriodToTimeRange: true,
+			},
+		},
+		{
+			type: "metric",
+			x: 6, y: 214, width: 6, height: 4,
+			properties: {
+				region,
+				title: "Gmail forwarding confirmations that failed",
+				metrics: [
+					[GMAIL_METRIC_NAMESPACE, GMAIL_FORWARDING_CONFIRM_FAILED_METRIC, { stat: "Sum" }],
+				],
+				period: 86400,
+				stat: "Sum",
+				view: "singleValue",
+				sparkline: true,
+				setPeriodToTimeRange: true,
+			},
+		},
+	);
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Gmail terminal failures by reason",
+			logGroupNames: [errorsLogGroupName],
+			query: [
+				"fields @timestamp, event, reason",
+				`| filter event = "${GMAIL_FILTER_REWRITE_FAILED_EVENT}" or event = "${GMAIL_FORWARDING_CONFIRM_FAILED_EVENT}"`,
+				"| stats count(*) as failures by event, reason",
+				"| sort failures desc",
+				"| limit 20",
+			].join(" "),
+			x: 12, y: 214, width: 12, height: 8,
 			view: "table",
 		}),
 	);
