@@ -1,11 +1,11 @@
-import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { ArticleResourceUniqueId, toCanonicalHostUrl } from "@packages/article-resource-unique-id";
 import type {
 	ClaimCanonicalAlias,
 	ReconcileStubMetadata,
 	SetArticleDisplayUrl,
 } from "@packages/article-store";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { SiteRules } from "@packages/site-rules";
+import { matchingSiteRuleUrl, type SiteRules } from "@packages/site-rules";
 
 /** A crawl that never produced content has no word count to judge, which is why
  * this is a union rather than a number with a sentinel. */
@@ -34,6 +34,10 @@ export type AdoptCanonicalIdentity = (params: {
 	/** Admin recrawls re-fetch an existing article and must not (re-)adopt. */
 	recrawl?: boolean;
 }) => Promise<void>;
+
+function identityOf(url: string): string {
+	return ArticleResourceUniqueId.parse(toCanonicalHostUrl(url)).value;
+}
 
 /**
  * The redirect terminal to adopt, or `undefined` when a gate rejects it. Pure so
@@ -64,7 +68,7 @@ export function adoptableTerminal(params: {
 	if (recrawl) return undefined;
 	if (outcome.kind === "finalized" && outcome.wordCount <= 0) return undefined;
 	if (finalUrl === undefined) return undefined;
-	if (ArticleResourceUniqueId.parse(finalUrl).value === ArticleResourceUniqueId.parse(url).value) return undefined;
+	if (identityOf(finalUrl) === identityOf(url)) return undefined;
 	if (isSiteRuleUrl(finalUrl)) return undefined;
 	return finalUrl;
 }
@@ -106,19 +110,12 @@ export function initAdoptCanonicalIdentity(deps: {
  * throwing `matches` is treated as "no" so adoption fails open, never closed.
  */
 export function initIsSiteRuleUrl(siteRules: readonly SiteRules[]): (url: string) => boolean {
-	return (url) => {
-		let hostname: string;
-		try {
-			hostname = new URL(url).hostname;
-		} catch {
-			return false;
-		}
-		return siteRules.some((rule) => {
+	return (url) =>
+		siteRules.some((site) => {
 			try {
-				return rule.matches({ url, hostname });
+				return matchingSiteRuleUrl({ site, url }) !== undefined;
 			} catch {
 				return false;
 			}
 		});
-	};
 }

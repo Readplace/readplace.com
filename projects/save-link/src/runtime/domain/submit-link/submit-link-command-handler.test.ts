@@ -555,3 +555,41 @@ describe("initSubmitLinkCommandHandler", () => {
 		]);
 	});
 });
+
+describe("initSubmitLinkCommandHandler — a twitter.com link from an email", () => {
+	const TWEET_ON_TWITTER = "https://twitter.com/jack/status/20";
+	const TWEET_ON_X = "https://x.com/jack/status/20";
+
+	it("checks freshness, saves, crawls and announces the x.com article", async () => {
+		const refreshArticleIfStale = jest.fn().mockResolvedValue({ action: "new" });
+		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
+		const crawled: string[] = [];
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async (params) => {
+			crawled.push(params.url);
+			return fetchedResult;
+		};
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ refreshArticleIfStale, saveArticle, crawlAndFinalizeArticle, publishEvent });
+
+		const response = await run(handler, createSqsEvent([{ url: TWEET_ON_TWITTER, userId, provenance: { kind: "email", senderEmail: "news@example.com" } }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(refreshArticleIfStale).toHaveBeenCalledWith({ url: TWEET_ON_X });
+		expect(saveArticle).toHaveBeenCalledWith(expect.objectContaining({ url: TWEET_ON_X }));
+		expect(crawled).toEqual([TWEET_ON_X]);
+		expect(publishEvent.mock.calls.map((call) => [call[0].detailType, call[1].url])).toEqual([
+			["LinkQueued", TWEET_ON_X],
+			["QueueEntryCreated", TWEET_ON_X],
+			["TierContentExtracted", TWEET_ON_X],
+		]);
+	});
+
+	it("leaves a twitter.com subdomain link as it was emailed", async () => {
+		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
+		const handler = createHandler({ saveArticle });
+
+		await run(handler, createSqsEvent([{ url: "https://mobile.twitter.com/jack/status/20", userId }]));
+
+		expect(saveArticle).toHaveBeenCalledWith(expect.objectContaining({ url: "https://mobile.twitter.com/jack/status/20" }));
+	});
+});

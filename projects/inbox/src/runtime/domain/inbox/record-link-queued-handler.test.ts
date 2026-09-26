@@ -179,3 +179,57 @@ describe("recordLinkQueuedHandler retraction", () => {
 		expect(states.get(POST_URL)).toBe("saved");
 	});
 });
+
+describe("recordLinkQueuedHandler — a tweet linked on twitter.com and saved as x.com", () => {
+	const TWEET_ON_TWITTER = "https://twitter.com/jack/status/20";
+	const TWEET_ON_X = "https://x.com/jack/status/20";
+
+	it("reads the emailed twitter.com link as saved once its x.com save is queued", async () => {
+		const { store, run } = createHandler();
+
+		await run([queuedBody(TWEET_ON_X)]);
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER] });
+		expect(states.get(TWEET_ON_TWITTER)).toBe("saved");
+	});
+
+	it("keeps the link saved when the emailed twitter.com command dead-letters after its x.com save was queued", async () => {
+		const { store, run } = createHandler();
+
+		await run([queuedBody(TWEET_ON_X)]);
+		await run([failedBody(TWEET_ON_TWITTER)]);
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER] });
+		expect(states.get(TWEET_ON_TWITTER)).toBe("saved");
+	});
+
+	it("reads a twitter.com link whose save failed before anything was queued as failed", async () => {
+		const { store, run } = createHandler();
+
+		await run([failedBody(TWEET_ON_TWITTER)]);
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER] });
+		expect(states.get(TWEET_ON_TWITTER)).toBe("failed");
+	});
+
+	it("keeps a legacy twitter.com save standing when the new x.com article is deleted", async () => {
+		const { store, run } = createHandler();
+
+		await run([queuedBody(TWEET_ON_TWITTER), queuedBody(TWEET_ON_X)]);
+		await run([dequeuedBody(TWEET_ON_X)]);
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER, TWEET_ON_X] });
+		expect(states.get(TWEET_ON_TWITTER)).toBe("saved");
+		expect(states.get(TWEET_ON_X)).toBe("saved");
+	});
+
+	it("reads the tweet as unsaved once both its articles are deleted", async () => {
+		const { store, run } = createHandler();
+
+		await run([queuedBody(TWEET_ON_TWITTER), queuedBody(TWEET_ON_X)]);
+		await run([dequeuedBody(TWEET_ON_X), dequeuedBody(TWEET_ON_TWITTER)]);
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER, TWEET_ON_X] });
+		expect(states.size).toBe(0);
+	});
+});

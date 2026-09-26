@@ -64,6 +64,7 @@ import {
 	initBuildArticleEpub,
 } from "../../shared/epub/article-epub";
 import { articleEpubHref } from "../../shared/epub/epub-link";
+import { initResolveStoredArticle } from "../../shared/resolve-stored-article";
 import {
 	ViewPage,
 	renderViewDownloadsOob,
@@ -226,6 +227,7 @@ function handleViewArticle(
 	reader: ReturnType<typeof initArticleReader>,
 	buildArticleEpub: BuildArticleEpub,
 ) {
+	const resolveStoredArticle = initResolveStoredArticle(deps);
 	return async (
 		req: Request<{ splat: string[] }>,
 		res: Response,
@@ -246,15 +248,13 @@ function handleViewArticle(
 		}
 		// Collapse an adopted terminal URL onto the article it aliases before any
 		// read/write, so viewing the terminal shows the deduped article and never
-		// mints a real row on top of the inert alias marker. The poll links below
-		// are built from this resolved URL, so the poll handlers need no resolve.
-		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
+		// mints a real row on top of the inert alias marker.
+		const { articleUrl, existing } = await resolveStoredArticle(validation.url);
 
 		// Freshness/conditional-GET is delegated to the stale-check Lambda so
 		// /view never blocks on a remote crawl (Medium-hosted articles can take
 		// 5-30s). On first visit we still write a stub synchronously so the page
 		// has metadata to render and the existing summary/reader pollers see a row.
-		const existing = await deps.findArticleByUrl(articleUrl);
 		// A purged (tombstoned) URL is gone: 404 above the first-visit save cascade
 		// (so a visit can't re-stub it) and above the wantsMarkdown branch (so the
 		// markdown surface 404s too). Metadata/OG never render because we return here.
@@ -446,21 +446,17 @@ function handleViewArticle(
 	};
 }
 
-async function isPurged(deps: ViewDependencies, articleUrl: string): Promise<boolean> {
-	const article = await deps.findArticleByUrl(articleUrl);
-	return article?.purgedAt !== undefined;
-}
-
 function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
+	const resolveStoredArticle = initResolveStoredArticle(deps);
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
 		if (validation.status === "ERROR") {
 			res.status(400).type("html").send("");
 			return;
 		}
-		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
+		const { articleUrl, existing } = await resolveStoredArticle(validation.url);
 		// Stop the htmx summary poll chain once the URL is purged.
-		if (await isPurged(deps, articleUrl)) {
+		if (existing?.purgedAt !== undefined) {
 			res.status(404).type("html").send("");
 			return;
 		}
@@ -483,15 +479,16 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 }
 
 function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
+	const resolveStoredArticle = initResolveStoredArticle(deps);
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
 		if (validation.status === "ERROR") {
 			res.status(400).type("html").send("");
 			return;
 		}
-		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
+		const { articleUrl, existing } = await resolveStoredArticle(validation.url);
 		// Stop the htmx reader poll chain once the URL is purged.
-		if (await isPurged(deps, articleUrl)) {
+		if (existing?.purgedAt !== undefined) {
 			res.status(404).type("html").send("");
 			return;
 		}

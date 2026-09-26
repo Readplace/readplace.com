@@ -10,7 +10,7 @@ import express from "express";
 import { z } from "zod";
 import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
+import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, prepareNewSaveUrl, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
@@ -22,6 +22,7 @@ import {
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
 import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
+import { articlesSavedAt } from "./articles-saved-at";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	AllocateSavedAt,
@@ -337,6 +338,7 @@ const SaveArticleQueuesSchema = z.array(z.string()).optional().catch(undefined);
 
 interface ReadlistDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
+	validateNewSaveUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
@@ -1548,7 +1550,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		if (siren) {
 			const filteredArticles = filterUrl
-				? result.articles.filter(a => a.url === filterUrl)
+				? articlesSavedAt({ articles: result.articles, url: filterUrl })
 				: result.articles;
 			const filtered = filterUrl
 				? { ...result, articles: filteredArticles, total: filteredArticles.length }
@@ -1674,7 +1676,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const userId = req.userId;
 		const context = await resolveReadlistContext(req, userId);
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
-		const validation = deps.validateSaveableUrl(submittedUrl);
+		const validation = deps.validateNewSaveUrl(submittedUrl);
 
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
@@ -1836,7 +1838,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const entryOutcomes: { outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode }[] = [];
 
 		manifest.data.forEach((entry, index) => {
-			const validation = deps.validateSaveableUrl(entry.url);
+			const validation = deps.validateNewSaveUrl(entry.url);
 			if (validation.status !== "SUCCESS") {
 				skipped.push({ url: entry.url, code: validation.error.code, message: validation.error.message });
 				entryOutcomes[index] = { outcome: "skipped", code: validation.error.code };
@@ -2022,12 +2024,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				);
 			};
 
-			const resolveTarget = (): { articleUrl: SaveableUrl; normalized: string; media: SaveContentMedia } | undefined => {
+			const resolveTarget = (validate: ValidateSaveableUrl): { articleUrl: SaveableUrl; normalized: string; media: SaveContentMedia } | undefined => {
 				if (!mediaType) {
 					refuse("save-content requires a mediaType field");
 					return undefined;
 				}
-				const validation = deps.validateSaveableUrl(submittedUrl);
+				const validation = validate(submittedUrl);
 				if (validation.status === "ERROR") {
 					refuse(validation.error.message);
 					return undefined;
@@ -2046,6 +2048,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					return undefined;
 				}
 				return { articleUrl: validation.url, normalized, media };
+			};
+
+			const findPendingUpload = async (target: { articleUrl: SaveableUrl; normalized: string }) => {
+				for (const url of new Set([target.articleUrl, prepareNewSaveUrl(target.articleUrl)])) {
+					const stat = await deps.statPendingUpload({ url, mediaType: target.normalized });
+					if (stat) return { url, stat };
+				}
+				return undefined;
 			};
 
 			const finishSave = async (articleUrl: SaveableUrl): Promise<void> => {
@@ -2076,7 +2086,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						refuse("save-content requires a mediaType field");
 						return;
 					}
-					const validation = deps.validateSaveableUrl(submittedUrl);
+					const validation = deps.validateNewSaveUrl(submittedUrl);
 					if (validation.status === "ERROR") {
 						refuse(validation.error.message);
 						return;
@@ -2090,13 +2100,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				}
 
 				if (uploaded === "true") {
-					const target = resolveTarget();
+					const target = resolveTarget(deps.validateSaveableUrl);
 					if (!target) return;
-					const stat = await deps.statPendingUpload({ url: target.articleUrl, mediaType: target.normalized });
-					if (!stat) {
+					const pending = await findPendingUpload(target);
+					if (!pending) {
 						refuse("No uploaded content found for this URL", "upload-not-found");
 						return;
 					}
+					const { stat } = pending;
 					if (stat.byteLength > target.media.uploadCeilingBytes) {
 						refuse(`Content upload exceeded ${bytesToMb(target.media.uploadCeilingBytes)} MB`, "content-too-large");
 						return;
@@ -2107,7 +2118,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						return;
 					}
 					const admitted = await target.media.admitUploadedBytes({
-						url: target.articleUrl,
+						url: pending.url,
 						mediaType: target.normalized,
 						title,
 						userId,
@@ -2116,12 +2127,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						refuse(admitted.message, admitted.code);
 						return;
 					}
-					await finishSave(target.articleUrl);
+					await finishSave(pending.url);
 					return;
 				}
 
 				if (Number.isInteger(size) && size > 0) {
-					const target = resolveTarget();
+					const target = resolveTarget(deps.validateNewSaveUrl);
 					if (!target) return;
 					if (size > target.media.uploadCeilingBytes) {
 						refuse(`Content upload exceeded ${bytesToMb(target.media.uploadCeilingBytes)} MB`, "content-too-large");
@@ -2144,7 +2155,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				refuse("save-content requires a content field, a size to request an upload slot, or uploaded=true to complete an upload");
 			} catch (error) {
 				deps.logError("Failed to save article from content", error instanceof Error ? error : undefined);
-				const intent = deps.validateSaveableUrl(submittedUrl);
+				const intent = deps.validateNewSaveUrl(submittedUrl);
 				if (intent.status === "SUCCESS") {
 					emitSaveIntent({ req, url: intent.url, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				}
@@ -2160,7 +2171,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const userId = req.userId;
 		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
-		const validation = deps.validateSaveableUrl(submittedUrl);
+		const validation = deps.validateNewSaveUrl(submittedUrl);
 		const saveState = parseReadlistUrl({});
 
 		if (validation.status === "ERROR") {

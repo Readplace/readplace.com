@@ -1,3 +1,4 @@
+import { toCanonicalHostUrl } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "./crawl-article.types";
 
 /**
@@ -16,7 +17,7 @@ export function initFetchPinnedCrawl(deps: {
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 }): CrawlArticle {
 	return async (params) => {
-		const fetchUrl = (await deps.findAdoptedFetchUrl(params.url)) ?? params.url;
+		const fetchUrl = toCanonicalHostUrl((await deps.findAdoptedFetchUrl(params.url)) ?? params.url);
 		return deps.crawlArticle({ ...params, url: fetchUrl });
 	};
 }

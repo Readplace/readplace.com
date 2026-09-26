@@ -1,7 +1,10 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { initSaveLinkWork } from "./save-link-work";
-import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
+import { type CrawlAndFinalizeArticle, type FinalizeArticle, initCrawlAndFinalizeArticle } from "@packages/finalize-article";
+import { type CrawlArticle, initFetchPinnedCrawl } from "@packages/crawl-article";
+import type { ClaimCanonicalAlias } from "@packages/article-store";
+import { initAdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 
@@ -452,5 +455,50 @@ describe("initSaveLinkWork", () => {
 			outcome: { kind: "crawl-failed" },
 			recrawl: undefined,
 		});
+	});
+});
+
+describe("initSaveLinkWork — a queued twitter.com identity", () => {
+	it("fetches x.com but keeps writing under twitter.com, claiming no alias for the moved fetch", async () => {
+		const fetched: string[] = [];
+		const finalized: { url: string; documentUrl: string }[] = [];
+		const crawlArticle: CrawlArticle = async (params) => {
+			fetched.push(params.url);
+			return { status: "fetched", html: "<p>just setting up my twttr</p>", bodyHash: "b".repeat(64), finalUrl: params.url };
+		};
+		const finalizeArticle: FinalizeArticle = async (input) => {
+			finalized.push({ url: input.url, documentUrl: input.documentUrl });
+			return {
+				ok: true,
+				article: {
+					html: input.html,
+					metadata: { title: "jack", siteName: "x.com", excerpt: "", wordCount: 5, estimatedReadTime: 1 },
+				},
+			};
+		};
+		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
+		const putTierSource = jest.fn<ReturnType<PutTierSource>, Parameters<PutTierSource>>(async () => {});
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({
+				crawlArticle: initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined }),
+				finalizeArticle,
+			}),
+			putTierSource,
+			adoptCanonicalIdentity: initAdoptCanonicalIdentity({
+				claimAlias,
+				setDisplayUrl: async () => {},
+				reconcileStubMetadata: async () => {},
+				isSiteRuleUrl: () => false,
+				now: fixedNow,
+				logger: noopLogger,
+			}),
+		});
+
+		await saveLinkWork("https://twitter.com/jack/status/20");
+
+		expect(fetched).toEqual(["https://x.com/jack/status/20"]);
+		expect(finalized).toEqual([{ url: "https://twitter.com/jack/status/20", documentUrl: "https://x.com/jack/status/20" }]);
+		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: "https://twitter.com/jack/status/20", tier: "tier-1" }));
+		expect(claimAlias).not.toHaveBeenCalled();
 	});
 });
