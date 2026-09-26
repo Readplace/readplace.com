@@ -15,8 +15,6 @@ afterEach(async () => {
 
 const guestResolver: ResolveLogin = async () => ({ isAuthenticated: false });
 
-const SNIPPET_REGIONS = ["[data-test-embed-copyable]", "pre", "code"];
-
 function makeServer(): Server {
 	const app = express();
 	const base = initBase({
@@ -45,7 +43,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const untracked: string[] = [];
 		for (const path of ["/embed", "/embed/preview"]) {
 			const response = await request(server).get(path);
-			const found = findUntrackedCtas(response.text, { skipSelectors: SNIPPET_REGIONS });
+			const found = findUntrackedCtas(response.text, { skipSelectors: [] });
 			for (const line of describeUntrackedCtas(found)) untracked.push(`${path}  ${line}`);
 		}
 
