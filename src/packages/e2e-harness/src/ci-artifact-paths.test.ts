@@ -17,7 +17,11 @@ describe("ciArtifactPaths", () => {
 	it("separates each project's playwright output under the run directory", () => {
 		const paths = ciArtifactPaths({ root: "/frames", runId: "456", project: "inbox" });
 		assert.equal(paths.outputDir, "/frames/456/playwright/inbox");
-		assert.equal(paths.transitionFramesDir, "/frames/456/frames");
+	});
+
+	it("keeps transition frames inside the project even when a shared root is mounted", () => {
+		const paths = ciArtifactPaths({ root: "/frames", runId: "456", project: "hutch" });
+		assert.equal(paths.transitionFramesDir, path.resolve("test-results", "transition-frames"));
 	});
 
 	it("falls back to a local run directory when no run id is set", () => {

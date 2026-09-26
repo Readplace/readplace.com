@@ -11,18 +11,11 @@ interface CiArtifactPaths {
 	transitionFramesDir: string;
 }
 
-/** Keyed by run id so a review reports on the frames its own run captured: the
- * reviewer consumes a directory, and reviews for concurrent runs overlap. */
 export function ciArtifactPaths(input: CiArtifactPathsInput): CiArtifactPaths {
+	const transitionFramesDir = path.resolve("test-results", "transition-frames");
 	if (input.root === undefined || input.root === "") {
-		return {
-			outputDir: "./test-results",
-			transitionFramesDir: path.resolve("test-results", "transition-frames"),
-		};
+		return { outputDir: "./test-results", transitionFramesDir };
 	}
 	const runDir = path.join(input.root, input.runId === undefined || input.runId === "" ? "local" : input.runId);
-	return {
-		outputDir: path.join(runDir, "playwright", input.project),
-		transitionFramesDir: path.join(runDir, "frames"),
-	};
+	return { outputDir: path.join(runDir, "playwright", input.project), transitionFramesDir };
 }
