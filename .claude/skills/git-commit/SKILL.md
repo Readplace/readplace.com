@@ -80,9 +80,10 @@ Only ask to bypass with `--no-verify` after completing the diagnostic steps abov
 
 When a commit is pushed directly to the `main` branch, watch the GitHub Actions CI run to ensure it passes:
 
-1. After pushing, check the CI status using `gh run list --branch main --limit 1` and `gh run watch`
-2. If CI fails, read the logs with `gh run view <run-id> --log-failed`, diagnose the failure, fix it, and push a new commit
-3. Repeat until CI passes
+1. After pushing, check the CI status using `gh run list --workflow ci.yml --branch main --limit 1` and `gh run watch` — an unfiltered list returns whichever workflow ran last, not necessarily CI
+2. Once CI completes, watch the Visual Review it triggers (`gh run list --workflow visual-review.yml --limit 1`); it also posts a `Visual Review` commit status on the commit it reviewed
+3. If either fails, read the logs with `gh run view <run-id> --log-failed`, diagnose the failure, fix it, and push a new commit
+4. Repeat until both pass
 
 This only applies to commits pushed directly to `main`. For commits on feature branches, the existing PR workflows (CI fixer, code review) handle failures automatically.
 

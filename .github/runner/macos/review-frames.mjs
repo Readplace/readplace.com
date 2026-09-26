@@ -58,14 +58,7 @@ function extractFindings(stdout) {
 }
 
 async function listFlows(framesDir) {
-  // A cache-replayed `pnpm check` runs no e2e, so the directory is absent
-  // rather than empty. That is the ordinary outcome, not a fault.
-  const entries = await readdir(framesDir, { withFileTypes: true }).catch((error) => {
-    if (error.code === "ENOENT") {
-      return [];
-    }
-    throw error;
-  });
+  const entries = await readdir(framesDir, { withFileTypes: true });
   const flows = [];
   for (const entry of entries.filter((candidate) => candidate.isDirectory())) {
     const flowDir = path.join(framesDir, entry.name);
@@ -81,6 +74,7 @@ async function listFlows(framesDir) {
 }
 
 async function generate({ python, model, prompt, images, maxTokens }) {
+  const startedAt = performance.now();
   const { stdout } = await runCommand(
     python,
     [
@@ -101,7 +95,10 @@ async function generate({ python, model, prompt, images, maxTokens }) {
       timeout: GENERATE_TIMEOUT_MS,
       env: { ...process.env, HF_HUB_OFFLINE: "1" },
     },
-  );
+  ).catch((error) => {
+    error.elapsedMs = Math.round(performance.now() - startedAt);
+    throw error;
+  });
   return stdout;
 }
 
@@ -156,7 +153,7 @@ function fencedBlock(text) {
 }
 
 function formatSummary(reviews) {
-  const lines = ["## Visual review (advisory)", ""];
+  const lines = ["## Visual review", ""];
   for (const review of reviews) {
     lines.push(`### ${review.flow} (${review.frameCount} frames)`, "");
     if (review.parseFailed) {
@@ -190,8 +187,7 @@ async function main() {
   const python = requireEnv("VLM_PYTHON");
   const flows = await listFlows(framesDir);
   if (flows.length === 0) {
-    await publishSummary("## Visual review (advisory)\n\nNo transition frames were captured for this run.");
-    return;
+    throw new Error(`No transition frames reached ${framesDir}`);
   }
   const reviews = [];
   for (const flow of flows) {
@@ -211,8 +207,20 @@ async function main() {
     await cp(framesDir, "flagged-frames", { recursive: true });
   }
   await rm(framesDir, { recursive: true, force: true });
+  const unparsedFlows = reviews.filter((review) => review.parseFailed).map((review) => review.flow);
+  if (unparsedFlows.length > 0) {
+    throw new Error(`The model reply was not parseable JSON for: ${unparsedFlows.join(", ")}`);
+  }
+  if (defectCount > 0) {
+    throw new Error(`The model confirmed ${defectCount} defect(s) in the transition frames`);
+  }
 }
 
 main().catch((error) => {
-  console.error("Visual review skipped:", error instanceof Error ? error.message : error);
+  console.error(
+    "::error::Visual review failed:",
+    error instanceof Error ? error.message : error,
+    JSON.stringify({ killed: error?.killed, signal: error?.signal, code: error?.code, elapsedMs: error?.elapsedMs }),
+  );
+  process.exitCode = 1;
 });
