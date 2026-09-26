@@ -116,6 +116,21 @@ describe("renderReadlistCard", () => {
 		expect(status.closest(".readlist-article__meta")).toBeNull();
 	});
 
+	it("leads a processing card's Processing line with its read-status marker in one facts group", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1" }), { isFirst: false }),
+			),
+		);
+
+		const status = doc.querySelector("[data-test-read-status]");
+		assert(status, "a processing card must still show whether it is unread");
+		const processing = doc.querySelector("[data-test-processing]");
+		assert(processing, "a processing card must render its Processing line");
+		expect(processing.parentElement?.classList.contains("readlist-article__facts")).toBe(true);
+		expect(status.nextElementSibling).toBe(processing);
+	});
+
 	it("marks a read article with a read-status indicator carrying its screen-reader label", () => {
 		const doc = parse(
 			renderReadlistCard(
