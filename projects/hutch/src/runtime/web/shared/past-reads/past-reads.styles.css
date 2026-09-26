@@ -28,9 +28,30 @@
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.past-reads__eyebrow {
+.past-reads__heading {
   grid-column: 1;
   grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.past-reads__beta {
+  padding: 2px 8px;
+  border: 1px solid var(--color-brand);
+  border-radius: 999px;
+  background: var(--color-brand-light);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.past-reads__eyebrow {
   font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
