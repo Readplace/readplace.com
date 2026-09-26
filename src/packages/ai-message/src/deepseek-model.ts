@@ -6,3 +6,9 @@ export const DEEPSEEK_MODEL = "deepseek-flash";
 // adapters set. Disable it explicitly on every call.
 // https://api-docs.deepseek.com/guides/thinking_mode/
 export const DEEPSEEK_NON_THINKING: { type: "disabled" } = { type: "disabled" };
+
+export const DEEPSEEK_THINKING_MODEL = "deepseek-v4-pro";
+
+export const DEEPSEEK_THINKING: { type: "enabled" } = { type: "enabled" };
+
+export const DEEPSEEK_THINKING_MAX_OUTPUT_TOKENS = 65_536;

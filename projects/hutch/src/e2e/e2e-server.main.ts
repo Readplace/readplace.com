@@ -11,6 +11,7 @@ import {
 import { type UserId, UserIdSchema } from '@packages/domain/user'
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from '@packages/domain/gmail'
 import { AliasNameSchema } from '@packages/domain/inbox'
+import { ReadlistSlugSchema } from '@packages/domain/readlist'
 import { GMAIL_SCOPES } from '@packages/provider-contracts/gmail-oauth'
 import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
 import { createTestApp } from '../runtime/test-app'
@@ -437,6 +438,34 @@ server.post('/e2e/seed-inbox-article-queued', async (req, res) => {
 	}
 	await fixture.onboardingSignals.recordInboxArticleQueued({ userId: parsed.data.userId })
 	res.status(201).json({ ok: true })
+})
+
+const SeedInboxAddressesBody = z.object({
+	userId: UserIdSchema,
+	inboxes: z.array(z.object({ name: AliasNameSchema, readlist: ReadlistSlugSchema.optional() })).min(1),
+})
+server.post('/e2e/seed-inbox-addresses', async (req, res) => {
+	const parsed = SeedInboxAddressesBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const { userId, inboxes } = parsed.data
+	const { inboxAddressStore, inboxAddressDomain } = fixture.inboxAddress
+	const addresses: string[] = []
+	for (const inbox of inboxes) {
+		const entry = await inboxAddressStore.createAddress({
+			userId,
+			domain: inboxAddressDomain,
+			name: inbox.name,
+			purpose: 'user-alias',
+		})
+		if (inbox.readlist !== undefined) {
+			await inboxAddressStore.setAddressReadlist({ userId, address: entry.address, readlist: inbox.readlist })
+		}
+		addresses.push(entry.address)
+	}
+	res.status(201).json({ ok: true, addresses })
 })
 
 const SeedGmailStateBody = z.object({

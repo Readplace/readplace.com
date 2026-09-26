@@ -13,6 +13,7 @@ export const SAVE_LINK_DLQ_SOURCES = {
 	generateSummary: "generate-summary",
 	recrawlLinkInitiated: SAVE_LINK_LAMBDA_NAMES.recrawlLinkInitiated,
 	recrawlContentExtracted: "recrawl-content-extracted",
+	filterEmailLinks: SAVE_LINK_LAMBDA_NAMES.filterEmailLinks,
 } as const;
 
 export const INBOX_DLQ_SOURCES = {
@@ -40,6 +41,7 @@ export const SAVE_LINK_DLQ_SOURCE_QUEUES = {
 	generateSummary: `${SAVE_LINK_DLQ_SOURCES.generateSummary}-q`,
 	recrawlLinkInitiated: `${SAVE_LINK_DLQ_SOURCES.recrawlLinkInitiated}-q`,
 	recrawlContentExtracted: `${SAVE_LINK_DLQ_SOURCES.recrawlContentExtracted}-q`,
+	filterEmailLinks: `${SAVE_LINK_DLQ_SOURCES.filterEmailLinks}-q`,
 } as const satisfies QueueNamesFor<typeof SAVE_LINK_DLQ_SOURCES>;
 
 export const INBOX_DLQ_SOURCE_QUEUES = {

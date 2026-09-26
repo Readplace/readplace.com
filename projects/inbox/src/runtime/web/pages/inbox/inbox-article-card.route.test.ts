@@ -4,6 +4,7 @@ import {
 	EmailLinkOrdinalSchema,
 	type InboxEmailLinkEntry,
 } from "@packages/domain/inbox";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -25,6 +26,7 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		droppedFor: undefined,
 		...overrides,
 	};
 }
@@ -96,6 +98,25 @@ describe("Inbox link card route", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, { status: "skipped", skipReason: "list-unsubscribe" });
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("returns 404 for a link the readlist dropped, which renders only as an excluded row", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, {
+			status: "crawled",
+			title: "A product launch",
+			droppedFor: {
+				readlist: ReadlistSlugSchema.parse("work"),
+				readlistLabel: "Work",
+				reason: "Not engineering",
+			},
+		});
 
 		const response = await agent.get(cardPath);
 

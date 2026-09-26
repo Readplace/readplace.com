@@ -31,6 +31,12 @@ const ALERTS: Record<string, Omit<ReadlistAlert, "code">> = {
 	),
 };
 
+export const INBOX_UNAVAILABLE_ALERT: ReadlistAlert = {
+	code: "unknown-inbox",
+	title: "That inbox isn't available",
+	body: "It may have been turned off. Pick another inbox.",
+};
+
 export function readlistAlertFor(query: Record<string, unknown>): ReadlistAlert | undefined {
 	const code = typeof query.queue_error === "string" ? query.queue_error : undefined;
 	if (code === undefined) return undefined;

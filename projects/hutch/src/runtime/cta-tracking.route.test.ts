@@ -1,5 +1,7 @@
+import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { AliasNameSchema } from "@packages/domain/inbox";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-harness";
 import { BROWSER_REQUEST_HEADERS, loginAgent, useTestServer } from "./test-app";
@@ -81,8 +83,17 @@ describe("every same-origin CTA carries its own utm_source", () => {
 	});
 
 	it("holds across the signed-in surfaces, including the reader", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
+		const reader = await harness.auth.findUserByEmail("test@example.com");
+		assert(reader, "the logged-in reader must exist");
+		await fixture.inboxAddress.inboxAddressStore.createAddress({
+			userId: reader.userId,
+			domain: fixture.inboxAddress.inboxAddressDomain,
+			name: AliasNameSchema.parse("news"),
+			purpose: "user-alias",
+		});
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
 		const queue = await agent.get("/queue").set(BROWSER_REQUEST_HEADERS);
 		const readerHref = new JSDOM(queue.text).window.document

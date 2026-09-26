@@ -258,6 +258,9 @@ function flattenFixtureToAppDependencies(
 					purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 				})
 				.then(() => undefined),
+		listInboxAddresses: fixture.inboxAddress.inboxAddressStore.listAddressesByUserId,
+		setInboxAddressReadlist: fixture.inboxAddress.inboxAddressStore.setAddressReadlist,
+		clearReadlistFromAddresses: fixture.inboxAddress.inboxAddressStore.clearReadlistFromAddresses,
 		now: fixture.shared.now,
 		retrieveCheckoutSession: fixture.hostedCheckout.retrieveCheckoutSession,
 		createCheckoutSession: fixture.hostedCheckout.createCheckoutSession,

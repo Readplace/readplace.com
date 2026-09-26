@@ -57,7 +57,7 @@ describe("extractEmailLinksDlqHandler", () => {
 		await store.putLinksMeta({
 			userId: USER_ID,
 			receivedAtMessageId: RECEIVED_AT_MESSAGE_ID,
-			meta: { truncated: true, extractionFailed: false },
+			meta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
 		});
 
 		const result = await run([validEvent()]);

@@ -81,10 +81,7 @@ export type SaveAnonymousLinkDetail = z.infer<
 
 /** Unified entry-point command for the redesigned save flow.
  *
- * Issued by the inbox extract-email-links Lambda (one per kept saveable
- * newsletter link) and — dormant, no runtime caller yet — by save-link's
- * effect dispatcher when the aggregate's `submitLink` or `requestRecrawl`
- * transitions fire. Consumed by save-link's `submit-link` Lambda, which
+ * Consumed by save-link's `submit-link` Lambda, which
  * today handles only the authenticated URL shape (`userId` present,
  * `rawHtml` absent); the `rawHtml` tier-0 and anonymous /view shapes are
  * reserved for the hutch caller migration. Routes via EventBridge — no
@@ -103,6 +100,7 @@ export const SubmitLinkCommand = defineEvent({
 			url: z.string(),
 			userId: z.string(),
 			provenance: z.looseObject({ kind: z.string() }), /* 1 */
+			readlist: z.string(),
 			rawHtml: z.string().optional(),
 		}),
 		z.strictObject({ url: z.string(), rawHtml: z.string().optional() }), /* 2 */
@@ -951,6 +949,58 @@ export const CrawlEmailLinkPreview = defineEvent({
 	}),
 });
 export type CrawlEmailLinkPreviewDetail = z.infer<typeof CrawlEmailLinkPreview.detailSchema>;
+
+export const EmailLinksTriagedEvent = defineEvent({
+	name: "email-links-triaged",
+	source: "hutch.inbox",
+	detailType: "EmailLinksTriaged",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		readlist: z.string(),
+		senderEmail: z.string(),
+		subject: z.string(),
+		links: z
+			.array(z.object({ ordinal: z.string(), url: z.string(), anchorText: z.string() }))
+			.min(1),
+	}),
+});
+export type EmailLinksTriagedDetail = z.infer<typeof EmailLinksTriagedEvent.detailSchema>;
+
+export const EmailLinksFilteredEvent = defineEvent({
+	name: "email-links-filtered",
+	source: "hutch.save-link",
+	detailType: "EmailLinksFiltered",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		readlist: z.string(),
+		savedTo: z.string(),
+		readlistLabel: z.string(),
+		decision: z.enum(["filtered", "no-purpose", "readlist-missing"]),
+		dropped: z.array(z.object({ ordinal: z.string(), reason: z.string() })),
+		inputTokens: z.number(),
+		outputTokens: z.number(),
+		reasoningTokens: z.number(),
+	}),
+});
+export type EmailLinksFilteredDetail = z.infer<typeof EmailLinksFilteredEvent.detailSchema>;
+
+export const EmailLinksFilterFailedEvent = defineEvent({
+	name: "email-links-filter-failed",
+	source: "hutch.save-link",
+	detailType: "EmailLinksFilterFailed",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		readlist: z.string(),
+		reason: z.string(),
+		receiveCount: z.number(),
+	}),
+});
+export type EmailLinksFilterFailedDetail = z.infer<
+	typeof EmailLinksFilterFailedEvent.detailSchema
+>;
 
 export const ConfirmGmailForwardingCommand = defineEvent({
 	name: "confirm-gmail-forwarding",

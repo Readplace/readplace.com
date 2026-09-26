@@ -80,13 +80,37 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 			return "failed";
 		},
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {
-			metas.set(groupKey({ userId, receivedAtMessageId }), meta);
+			const group = groupKey({ userId, receivedAtMessageId });
+			const existing = metas.get(group)?.readlistDecision;
+			metas.set(group, {
+				truncated: meta.truncated,
+				extractionFailed: meta.extractionFailed,
+				readlistDecision:
+					meta.readlistDecision === undefined
+						? existing
+						: (existing ?? { state: "deciding", readlist: meta.readlistDecision.readlist }),
+			});
 		},
 		markLinksExtractionFailed: async ({ userId, receivedAtMessageId }) => {
 			const group = groupKey({ userId, receivedAtMessageId });
 			if (metas.has(group)) return "superseded";
-			metas.set(group, { truncated: false, extractionFailed: true });
+			metas.set(group, { truncated: false, extractionFailed: true, readlistDecision: undefined });
 			return "stored";
+		},
+		markLinkDropped: async ({ userId, receivedAtMessageId, ordinal, droppedFor }) => {
+			const key = linkKey(groupKey({ userId, receivedAtMessageId }), ordinal);
+			const existing = links.get(key);
+			if (existing === undefined || existing.status === "skipped") return "not-a-candidate";
+			links.set(key, { ...existing, droppedFor });
+			return "marked";
+		},
+		settleReadlistDecision: async ({ userId, receivedAtMessageId, decision }) => {
+			const group = groupKey({ userId, receivedAtMessageId });
+			const meta = metas.get(group);
+			assert(meta, "readlist decision arrived before the extraction barrier");
+			if (meta.readlistDecision?.state !== "deciding") return "already-settled";
+			metas.set(group, { ...meta, readlistDecision: decision });
+			return "settled";
 		},
 		listLinksByEmail: async ({ userId, receivedAtMessageId }) => {
 			const group = groupKey({ userId, receivedAtMessageId });

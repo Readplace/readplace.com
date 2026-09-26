@@ -90,6 +90,7 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		droppedFor: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
 		userId,
@@ -104,6 +105,7 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		droppedFor: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
 		userId,
@@ -118,6 +120,7 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: "list-unsubscribe",
+		droppedFor: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
 		userId,
@@ -127,7 +130,7 @@ async function main(): Promise<void> {
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId,
 		receivedAtMessageId: withLinks.receivedAtMessageId,
-		meta: { truncated: false, extractionFailed: false },
+		meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
 	});
 
 	// The fixed dev login rides the real session boundary: a session minted at

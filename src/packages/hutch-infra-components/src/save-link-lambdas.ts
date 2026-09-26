@@ -28,6 +28,7 @@ export const SAVE_LINK_LAMBDA_NAMES = {
 	selectMostCompleteContent: "select-most-complete-content",
 	removeMyContentCommand: "remove-my-content-command",
 	reselectAfterRemoval: "reselect-after-removal",
+	filterEmailLinks: "filter-email-links",
 } as const;
 
 type LogGroupName<T extends string> = `/aws/lambda/${T}-handler`;
@@ -45,6 +46,7 @@ export const SAVE_LINK_LOG_GROUPS = {
 	selectMostCompleteContent: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-handler`,
 	removeMyContentCommand: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.removeMyContentCommand}-handler`,
 	reselectAfterRemoval: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.reselectAfterRemoval}-handler`,
+	filterEmailLinks: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.filterEmailLinks}-handler`,
 } as const satisfies {
 	readonly [K in keyof typeof SAVE_LINK_LAMBDA_NAMES]: LogGroupName<(typeof SAVE_LINK_LAMBDA_NAMES)[K]>;
 };

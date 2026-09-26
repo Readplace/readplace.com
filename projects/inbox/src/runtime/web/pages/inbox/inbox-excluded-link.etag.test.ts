@@ -1,6 +1,9 @@
 import { EmailLinkOrdinalSchema, type InboxEmailLinkEntry } from "@packages/domain/inbox";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { computeInboxExcludedRowEtag } from "./inbox-excluded-link.etag";
+
+const WORK = ReadlistSlugSchema.parse("work");
 
 function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry {
 	return {
@@ -16,6 +19,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: "llm-ad",
+		droppedFor: undefined,
 		...overrides,
 	};
 }
@@ -65,5 +69,40 @@ describe("computeInboxExcludedRowEtag", () => {
 		});
 
 		expect(skipped).not.toBe(crawled);
+	});
+
+	it("changes when the readlist filter drops the row, so the row revalidates into its new reason", () => {
+		const kept = computeInboxExcludedRowEtag({
+			link: link({ status: "crawled", skipReason: undefined }),
+			saveState: undefined,
+		});
+		const dropped = computeInboxExcludedRowEtag({
+			link: link({
+				status: "crawled",
+				skipReason: undefined,
+				droppedFor: { readlist: WORK, readlistLabel: "Work", reason: "Off topic" },
+			}),
+			saveState: undefined,
+		});
+
+		expect(kept).not.toBe(dropped);
+	});
+
+	it("changes with each part of the drop the row renders", () => {
+		const etagFor = (droppedFor: InboxEmailLinkEntry["droppedFor"]) =>
+			computeInboxExcludedRowEtag({
+				link: link({ status: "crawled", skipReason: undefined, droppedFor }),
+				saveState: undefined,
+			});
+		const offTopicForWork = etagFor({ readlist: WORK, readlistLabel: "Work", reason: "Off topic" });
+
+		expect(
+			new Set([
+				offTopicForWork,
+				etagFor({ readlist: WORK, readlistLabel: "Work", reason: "An advert" }),
+				etagFor({ readlist: WORK, readlistLabel: "Day job", reason: "Off topic" }),
+				etagFor({ readlist: ReadlistSlugSchema.parse("home"), readlistLabel: "Work", reason: "Off topic" }),
+			]).size,
+		).toBe(4);
 	});
 });

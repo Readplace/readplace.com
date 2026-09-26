@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ReadlistSlugSchema } from "../readlist/readlist-name.schema";
 
 const EMAIL_LINK_ORDINAL_DIGITS = 4;
 
@@ -34,3 +35,22 @@ export const EmailLinkSkipReasonSchema = z.enum([
 	"llm-subscription",
 ]);
 export type EmailLinkSkipReason = z.infer<typeof EmailLinkSkipReasonSchema>;
+
+export const InboxEmailLinkDropSchema = z.object({
+	readlist: ReadlistSlugSchema,
+	readlistLabel: z.string().min(1),
+	reason: z.string(),
+});
+export type InboxEmailLinkDrop = z.infer<typeof InboxEmailLinkDropSchema>;
+
+export const InboxReadlistDecisionSchema = z.discriminatedUnion("state", [
+	z.object({ state: z.literal("deciding"), readlist: ReadlistSlugSchema }),
+	z.object({
+		state: z.literal("decided"),
+		readlist: ReadlistSlugSchema,
+		readlistLabel: z.string().min(1),
+	}),
+	z.object({ state: z.literal("failed"), readlist: ReadlistSlugSchema }),
+]);
+export type InboxReadlistDecision = z.infer<typeof InboxReadlistDecisionSchema>;
+export type SettledInboxReadlistDecision = Exclude<InboxReadlistDecision, { state: "deciding" }>;

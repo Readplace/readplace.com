@@ -206,6 +206,7 @@ import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
+import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
 import {
 	ChromelessReader,
 	StickyReader,
@@ -213,6 +214,7 @@ import {
 import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
@@ -432,6 +434,9 @@ interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
+	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
+	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
+	clearReadlistFromAddresses: InboxAddressStore["clearReadlistFromAddresses"];
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
@@ -1262,7 +1267,12 @@ export function createApp(dependencies: AppDependencies): Express {
 		renameReadlistDefinition: deps.renameReadlistDefinition,
 		setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 		createReadlistDefinition: deps.createReadlistDefinition,
-		deleteReadlistDefinition: deps.deleteReadlistDefinition,
+		deleteReadlistDefinition: initUnrouteInboxesOnReadlistDelete({
+			deleteReadlistDefinition: deps.deleteReadlistDefinition,
+			clearReadlistFromAddresses: deps.clearReadlistFromAddresses,
+		}),
+		listInboxAddresses: deps.listInboxAddresses,
+		setInboxAddressReadlist: deps.setInboxAddressReadlist,
 		markSummaryToggled: deps.markSummaryToggled,
 		markRelatedDismissed: deps.markRelatedDismissed,
 		publishLinkSaved: deps.publishLinkSaved,

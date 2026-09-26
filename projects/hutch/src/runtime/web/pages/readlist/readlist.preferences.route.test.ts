@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { READLIST_PURPOSE_MAX_LENGTH } from "@packages/domain/readlist";
+import {
+	AliasNameSchema,
+	type InboxAddress,
+	type InboxAddressPurpose,
+} from "@packages/domain/inbox";
+import { READLIST_PURPOSE_MAX_LENGTH, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -9,6 +15,7 @@ const useApp = useTestServer();
 
 type TestAgent = Awaited<ReturnType<typeof loginAgent>>;
 type TestHarness = ReturnType<typeof useApp>;
+type TestFixture = ReturnType<typeof createDefaultTestAppFixture>;
 
 const PURPOSE = "Essays on how teams actually ship.";
 
@@ -64,6 +71,71 @@ async function makeReadOnly(harness: TestHarness): Promise<void> {
 		customerId: "cus_ro",
 	});
 	await harness.subscriptionProviders.markCancelledByUserId({ userId: user.userId });
+}
+
+async function readerId(harness: TestHarness): Promise<UserId> {
+	const user = await harness.auth.findUserByEmail("test@example.com");
+	assert(user, "the logged-in test user must exist");
+	return user.userId;
+}
+
+async function mintInbox(
+	fixture: TestFixture,
+	input: { userId: UserId; name: string; purpose?: InboxAddressPurpose; readlist?: string },
+): Promise<InboxAddress> {
+	const { inboxAddressStore, inboxAddressDomain } = fixture.inboxAddress;
+	const inbox = await inboxAddressStore.createAddress({
+		userId: input.userId,
+		domain: inboxAddressDomain,
+		name: AliasNameSchema.parse(input.name),
+		purpose: input.purpose ?? "user-alias",
+	});
+	if (input.readlist !== undefined) {
+		await inboxAddressStore.setAddressReadlist({
+			userId: input.userId,
+			address: inbox.address,
+			readlist: ReadlistSlugSchema.parse(input.readlist),
+		});
+	}
+	return inbox.address;
+}
+
+async function routingOf(fixture: TestFixture, address: InboxAddress): Promise<string | undefined> {
+	const inbox = await fixture.inboxAddress.inboxAddressStore.findByAddress(address);
+	assert(inbox, `${address} must have been minted by the test`);
+	return inbox.readlist;
+}
+
+function inboxesPath(slug: string): string {
+	return `${preferencesPath(slug)}/inboxes`;
+}
+
+function routeInbox(agent: TestAgent, slug: string, body: { address?: string; destination?: string }) {
+	return agent.post(inboxesPath(slug)).type("form").send(body);
+}
+
+function inboxesSection(doc: Document): Element {
+	const section = doc.querySelector("[data-test-readlist-inboxes]");
+	assert(section, "the preferences tab must render its inboxes section");
+	return section;
+}
+
+function inboxRows(doc: Document) {
+	return Array.from(doc.querySelectorAll("[data-test-preferences-inbox]"), (row) => ({
+		name: row.querySelector("[data-test-inbox-name]")?.textContent,
+		destination: row.querySelector("[data-test-inbox-destination]")?.textContent,
+		button: row.querySelector("button")?.textContent,
+	}));
+}
+
+function alertOf(doc: Document): { visible: boolean; title: string | undefined; body: string | undefined } {
+	const alert = doc.querySelector("[data-test-readlist-error]");
+	assert(alert, "the alert must render in every state");
+	return {
+		visible: alert.classList.contains("readlist__alert--visible"),
+		title: alert.querySelector("[data-test-readlist-error-title]")?.textContent ?? undefined,
+		body: alert.querySelector(".readlist__alert-body")?.textContent ?? undefined,
+	};
 }
 
 describe("GET /queue/queues/:slug/preferences", () => {
@@ -399,6 +471,360 @@ describe("POST /queue/queues/:slug/preferences", () => {
 			.post(preferencesPath("a1b2c3d4"))
 			.type("form")
 			.send({ purpose: PURPOSE });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toContain("/login");
+	});
+});
+
+describe("GET /queue/queues/:slug/preferences inboxes", () => {
+	it("lists the reader's inboxes under the purpose panel, saying where each one goes", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const other = await createReadlist(agent);
+		const userId = await readerId(harness);
+		await mintInbox(fixture, { userId, name: "news", readlist: slug });
+		await mintInbox(fixture, { userId, name: "tech", readlist: other });
+		await mintInbox(fixture, { userId, name: "deals" });
+		await mintInbox(fixture, { userId, name: "old", readlist: "c9d0e1f2" });
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(inboxRows(doc)).toEqual([
+			{ name: "deals", destination: "Goes to All", button: "Send here" },
+			{ name: "news", destination: "Goes to New Readlist", button: "Send to All" },
+			{ name: "old", destination: "Goes to All", button: "Send here" },
+			{ name: "tech", destination: "Goes to New Readlist 2", button: "Send here" },
+		]);
+	});
+
+	it("leaves out the Gmail gateway, turned-off inboxes and other readers' inboxes", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const userId = await readerId(harness);
+		await mintInbox(fixture, { userId, name: "gmail", purpose: "gmail-forwarding" });
+		const paused = await mintInbox(fixture, { userId, name: "paused" });
+		await fixture.inboxAddress.inboxAddressStore.disableAddress({ userId, address: paused });
+		await mintInbox(fixture, { userId: UserIdSchema.parse("someone-else"), name: "theirs" });
+		await mintInbox(fixture, { userId, name: "tldr", purpose: "gmail-mapped" });
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(inboxRows(doc).map((row) => row.name)).toEqual(["tldr"]);
+	});
+
+	it("offers to create an inbox when the reader has none to route", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(inboxesSection(doc).getAttribute("data-test-inboxes-state")).toBe("empty");
+		expect(doc.querySelector('[data-test-action="create-inbox"]')?.getAttribute("href")).toBe(
+			"/inbox/addresses?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
+		);
+	});
+
+	it("tells the reader only the links that fit are kept once the readlist has a purpose", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		await savePurpose(agent, slug, PURPOSE);
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
+			"Newsletters sent to these inboxes are saved to New Readlist instead of All, keeping only the links that fit its purpose.",
+		);
+	});
+
+	it("keeps the purpose wizard closed while an inbox refusal shows", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+
+		const doc = parse(
+			(await agent.get(`${preferencesPath(slug)}?preferences_error=unknown-inbox`)).text,
+		);
+
+		expect(panel(doc).className).toBe(
+			"readlist-listing readlist-preferences readlist-preferences--unset",
+		);
+		expect(alertOf(doc).visible).toBe(true);
+	});
+});
+
+describe("POST /queue/queues/:slug/preferences/inboxes", () => {
+	it("routes an inbox to the readlist and lands back on the tab showing it goes there", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
+
+		const response = await routeInbox(agent, slug, { address, destination: slug });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(await routingOf(fixture, address)).toBe(slug);
+		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
+			{ name: "news", destination: "Goes to New Readlist", button: "Send to All" },
+		]);
+	});
+
+	it("brings an inbox over from another readlist", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const other = await createReadlist(agent);
+		const address = await mintInbox(fixture, {
+			userId: await readerId(harness),
+			name: "news",
+			readlist: other,
+		});
+
+		await routeInbox(agent, slug, { address, destination: slug });
+
+		expect(await routingOf(fixture, address)).toBe(slug);
+	});
+
+	it("sends an inbox back to All", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const address = await mintInbox(fixture, {
+			userId: await readerId(harness),
+			name: "news",
+			readlist: slug,
+		});
+
+		const response = await routeInbox(agent, slug, { address, destination: "default" });
+
+		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(await routingOf(fixture, address)).toBeUndefined();
+		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
+			{ name: "news", destination: "Goes to All", button: "Send here" },
+		]);
+	});
+
+	it("routes an inbox through the form its row renders", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
+		const doc = parse((await agent.get(withPreferencesFeature(preferencesPath(slug)))).text);
+		const form = doc.querySelector(`[data-test-preferences-inbox="${address}"] form`);
+		assert(form, "the inbox's row must carry its routing form");
+		const action = form.getAttribute("action");
+		assert(action, "the routing form must post somewhere");
+
+		const response = await agent
+			.post(action)
+			.type("form")
+			.send(
+				Object.fromEntries(
+					Array.from(form.querySelectorAll("input"), (input) => [
+						input.getAttribute("name"),
+						input.getAttribute("value"),
+					]),
+				),
+			);
+
+		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(await routingOf(fixture, address)).toBe(slug);
+	});
+
+	const UNAVAILABLE_INBOXES: [
+		string,
+		(fixture: TestFixture, userId: UserId) => Promise<string>,
+	][] = [
+		["an inbox no reader has", async () => "ghost-a1b2c3@read.place"],
+		[
+			"another reader's inbox",
+			(fixture) => mintInbox(fixture, { userId: UserIdSchema.parse("someone-else"), name: "theirs" }),
+		],
+		[
+			"a turned-off inbox",
+			async (fixture, userId) => {
+				const address = await mintInbox(fixture, { userId, name: "paused" });
+				await fixture.inboxAddress.inboxAddressStore.disableAddress({ userId, address });
+				return address;
+			},
+		],
+		[
+			"the Gmail gateway",
+			(fixture, userId) => mintInbox(fixture, { userId, name: "gmail", purpose: "gmail-forwarding" }),
+		],
+		["something that is not an inbox address", async () => "not an address"],
+	];
+
+	it.each(UNAVAILABLE_INBOXES)("refuses %s, saying the inbox isn't available", async (_case, unavailable) => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const address = await unavailable(fixture, await readerId(harness));
+
+		const response = await routeInbox(agent, slug, { address, destination: slug });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`${preferencesPath(slug)}?preferences_error=unknown-inbox`,
+		);
+		expect(alertOf(parse((await agent.get(response.headers.location)).text))).toEqual({
+			visible: true,
+			title: "That inbox isn't available",
+			body: "It may have been turned off. Pick another inbox.",
+		});
+	});
+
+	it("leaves another reader's inbox where it goes", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const theirs = await mintInbox(fixture, {
+			userId: UserIdSchema.parse("someone-else"),
+			name: "theirs",
+		});
+
+		await routeInbox(agent, slug, { address: theirs, destination: slug });
+
+		expect(await routingOf(fixture, theirs)).toBeUndefined();
+	});
+
+	it("refuses to send an inbox anywhere but this readlist or All", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const other = await createReadlist(agent);
+		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
+
+		const response = await routeInbox(agent, slug, { address, destination: other });
+
+		expect(response.headers.location).toBe(
+			`${preferencesPath(slug)}?preferences_error=unknown-inbox`,
+		);
+		expect(await routingOf(fixture, address)).toBeUndefined();
+	});
+
+	it("refuses a submit that names no inbox at all", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+
+		const response = await agent.post(inboxesPath(slug));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`${preferencesPath(slug)}?preferences_error=unknown-inbox`,
+		);
+	});
+
+	it("keeps the feature on the redirect, so the routed inbox lands on a page that still has the tab", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
+
+		const response = await agent
+			.post(withPreferencesFeature(inboxesPath(slug)))
+			.type("form")
+			.send({ address, destination: slug });
+
+		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(filterTabs(parse((await agent.get(response.headers.location)).text))).toEqual([
+			"unread",
+			"read",
+			"preferences",
+		]);
+	});
+
+	it("keeps the feature on a refusal", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+
+		const response = await agent
+			.post(withPreferencesFeature(inboxesPath(slug)))
+			.type("form")
+			.send({ address: "ghost-a1b2c3@read.place", destination: slug });
+
+		expect(response.headers.location).toBe(
+			`${preferencesPath(slug)}?preferences_error=unknown-inbox&feature=pref`,
+		);
+	});
+
+	it("refuses to route an inbox to the built-in readlist, which every newsletter already reaches", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
+
+		const response = await routeInbox(agent, "default", { address, destination: "default" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+	});
+
+	it("refuses a readlist the reader does not have", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
+
+		const response = await routeInbox(agent, "a1b2c3d4", { address, destination: "a1b2c3d4" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+		expect(await routingOf(fixture, address)).toBeUndefined();
+	});
+
+	it("refuses a malformed readlist id", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await routeInbox(agent, "Not A Slug", {
+			address: "news-a1b2c3@read.place",
+			destination: "default",
+		});
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+	});
+
+	it("turns a read-only reader away from routing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
+		await makeReadOnly(harness);
+
+		const response = await routeInbox(agent, slug, { address, destination: slug });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(await routingOf(fixture, address)).toBeUndefined();
+	});
+
+	it("asks a signed-out visitor to log in rather than routing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server)
+			.post(inboxesPath("a1b2c3d4"))
+			.type("form")
+			.send({ address: "news-a1b2c3@read.place", destination: "a1b2c3d4" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toContain("/login");
