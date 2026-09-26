@@ -27,7 +27,7 @@ A fully nx-cache-replayed `pnpm check` runs no e2e, so it has to deliver the fra
 
 ## Cost
 
-Each model call is a fresh `mlx_vlm.generate` process, so every call reloads the 18 GB of weights: ~10 s for a single-image verification, ~25–40 s for a multi-frame review pass. Every reported finding costs one verification call, because the 4-bit model invents cross-frame defects when handed a sequence and only holds up under single-frame questioning. If latency becomes the bottleneck, the fix is a resident `mlx_vlm.server` the script talks to over HTTP instead of spawning per call.
+The review starts one resident `mlx_vlm.server` per job and sends every call to it over HTTP, so the 18 GB of weights load once per job instead of once per call — the per-call reload is where the intermittent `Command failed` kills of a fresh `mlx_vlm.generate` process died on a contended host. Once loaded, a multi-frame review pass takes ~9 s and a single-image verification ~1–2 s. Every reported finding costs one verification call, because the 4-bit model invents cross-frame defects when handed a sequence and only holds up under single-frame questioning.
 
 ## Rollout
 
