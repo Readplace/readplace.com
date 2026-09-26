@@ -5,10 +5,14 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
 import com.readplace.android.core.Href
+import com.readplace.android.core.LastViewedReadlist
+import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadlistPage
 import com.readplace.android.core.ReadlistTab
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
+import com.readplace.android.core.ShareTarget
+import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.SirenAction
 import com.readplace.android.core.SirenLink
 import com.readplace.android.core.UnseenSave
@@ -44,9 +48,52 @@ data class ReadingListState(
 	 * injected by the client and kept canonical, so any add-links-help the server
 	 * also advertises is deduped rather than rendered as a second +. */
 	val collectionAffordances: List<Affordance>,
+	/** The reader's sibling readlists, in server order. More than one earns the
+	 * switcher. */
+	val readlists: List<Readlist> = emptyList(),
+	/** The readlist the list is showing — the server's confirmed current one, or the
+	 * one the reader just tapped while its load is pending. */
+	val selectedReadlistHref: String? = null,
+	/** The status tabs the current collection advertised. Tracked for the drop-row
+	 * gate and reload target; no tab control is rendered today. */
 	val tabs: List<ReadlistTab> = emptyList(),
 	val selectedTabHref: String? = null,
-)
+	/** The mainline readlist's href (the collection's `root` link). Null when the
+	 * server advertised none, in which case no readlist is treated as mainline. */
+	val rootHref: String? = null,
+	/** The extra readlists the reader chose as share destinations, mirrored from the
+	 * persisted choice so the menu badges and drop row reflect it without a fetch. */
+	val shareTargetHrefs: Set<String> = emptySet(),
+) {
+	/** A switcher is offered only when the reader has more than one readlist. */
+	val offersReadlistSwitching: Boolean get() = readlists.size > 1
+
+	/** The label of the readlist on screen, for the subtitle, or null before one has
+	 * loaded. */
+	val currentReadlistLabel: String? get() = readlists.firstOrNull { it.href == selectedReadlistHref }?.label
+
+	/** The switcher menu, built only from advertised readlists — a stale stored share
+	 * destination the server no longer lists produces no item. */
+	val readlistMenu: List<ReadlistMenuItem> get() =
+		ReadlistMenuItem.items(
+			readlists = readlists,
+			selectedHref = selectedReadlistHref,
+			mainlineHref = rootHref,
+			shareTargetHrefs = shareTargetHrefs,
+		)
+
+	/** The shared-articles-drop row, shown above the list only when switching is
+	 * offered, the collection landed on its first advertised tab (where a shared
+	 * article would arrive), and a current readlist exists. Null otherwise, including
+	 * before any collection has loaded and on a readlist with no advertised tabs. */
+	val sharedArticlesDrop: SharedArticlesDrop? get() {
+		if (!offersReadlistSwitching) return null
+		val landing = tabs.firstOrNull()?.href ?: return null
+		if (landing != selectedTabHref) return null
+		val readlist = readlists.firstOrNull { it.href == selectedReadlistHref } ?: return null
+		return SharedArticlesDrop.of(readlist, mainlineHref = rootHref, tickedHrefs = shareTargetHrefs)
+	}
+}
 
 /**
  * What the in-app web sheet needs to present a server URL: the resolved URL and,
@@ -69,6 +116,8 @@ data class ReaderPresentation(
 class ReadingListViewModel(
 	private val api: ReadplaceApi,
 	private val unseenSave: UnseenSave,
+	private val lastViewed: LastViewedReadlist,
+	private val shareTarget: ShareTarget,
 	private val healBlockedArticle: suspend (url: String) -> HealBlockedOutcome,
 	private val drainUploadJobs: suspend () -> Unit,
 	private val onSessionExpired: () -> Unit,
@@ -95,8 +144,21 @@ class ReadingListViewModel(
 
 	private var nextHref: String? = null
 
+	/** The href the list reloads (refresh, reader-status, foreground, sheet
+	 * dismissal): the current tab of the selected readlist, or null for the entry
+	 * point. The server's advertised current tab updates it; a readlist switch resets
+	 * it to the tapped href until the response names its own. */
 	private var currentTabHref: String? = null
 
+	/**
+	 * A generation stamped on every readlist/tab context. [restart] bumps it on a
+	 * switch; a list load, pagination, or a mutation's collection result captures it
+	 * and applies its outcome only while it still matches ([tabUnchanged]). This is
+	 * distinct from the [readsStarted]/[readApplied] read-ordering below, which orders
+	 * overlapping reads *within one context*: the generation is what stops a read
+	 * begun for the old readlist from landing its rows, metadata, remembered choice,
+	 * loading completion, or error into the readlist the reader switched to.
+	 */
 	private var tabGeneration = 0
 
 	/** The server-advertised `create-session` action from the loaded collection,
@@ -125,19 +187,60 @@ class ReadingListViewModel(
 	 * it never races the launch-time load with a second fetch. */
 	private var hasLoadedOnce = false
 
-	suspend fun loadIfNeeded() = if (states.value.articles.isEmpty()) fetchFirstPage() else Unit
+	suspend fun loadIfNeeded() = if (states.value.articles.isEmpty()) openRememberedReadlist() else Unit
 
 	suspend fun refresh() {
 		fetchFirstPage()
 	}
 
+	/**
+	 * Switches the status tab within the current readlist (To Read / Read) by its
+	 * advertised href. A no-op when it is already the current tab. Otherwise a fresh
+	 * load starts under a new context ([restart]) so a slower load from the tab just
+	 * left can never land in the one switched to.
+	 */
 	suspend fun selectTab(href: String) {
-		if (href == currentTabHref) return
-		restart(href)
-		mutate { it.copy(selectedTabHref = href) }
-		fetchFirstPage()
+		// A positive condition, not an early return, so the already-current no-op path
+		// falls through synchronously rather than only via a tail-call resume the
+		// coverage tool can't see (as in [handleForeground]).
+		if (href != currentTabHref) {
+			restart(href = href)
+			mutate { it.copy(selectedTabHref = href) }
+			fetchFirstPage()
+		}
 	}
 
+	/**
+	 * Switches to another readlist by its advertised href. A no-op when it is already
+	 * the selected (or pending) readlist. Otherwise the selection flips immediately,
+	 * the old tab metadata and rows clear, and a fresh load starts under a new
+	 * context ([restart]) so a slower load from the readlist just left can never land
+	 * in the new one.
+	 */
+	suspend fun select(readlistHref: String) {
+		if (readlistHref != states.value.selectedReadlistHref) {
+			mutate { it.copy(selectedReadlistHref = readlistHref, tabs = emptyList(), selectedTabHref = null) }
+			restart(href = readlistHref)
+			fetchFirstPage()
+		}
+	}
+
+	/** Toggles a readlist's membership in the shared-articles-drop set, then mirrors
+	 * the persisted choice back into visible state so the row and menu badges update
+	 * without a fetch. Removing the last extra leaves a chosen-empty answer, not an
+	 * unasked one. */
+	fun toggleSharedArticlesDrop(readlist: Readlist) {
+		if (shareTarget.hrefs.contains(readlist.href)) {
+			shareTarget.remove(readlist.href)
+		} else {
+			shareTarget.add(readlist.href)
+		}
+		syncShareTargetHrefs()
+	}
+
+	/** Begins a fresh readlist/tab context: bumps the generation so in-flight loads
+	 * from the previous context are ignored, aims the reload target at [href], and
+	 * clears the rows and pagination the previous context held. */
 	private fun restart(href: String) {
 		tabGeneration += 1
 		currentTabHref = href
@@ -147,7 +250,49 @@ class ReadingListViewModel(
 		mutate { it.copy(articles = emptyList(), hasMore = false) }
 	}
 
+	/**
+	 * Opens the readlist the reader last viewed, requested directly so a cold launch
+	 * shows it without flashing the entry point. With nothing remembered, loads the
+	 * entry point. On a non-auth failure of the remembered read, falls back to
+	 * entry-point discovery once; an auth failure uses the existing session handling
+	 * with no fallback. The stored href is left intact on any failure — a later
+	 * successful load that names a current readlist is what supersedes it.
+	 */
+	private suspend fun openRememberedReadlist() {
+		val href = lastViewed.href ?: return fetchFirstPage()
+		mutate { it.copy(selectedReadlistHref = href) }
+		restart(href = href)
+		val generation = tabGeneration
+		val read = beginRead()
+		try {
+			val page = api.loadReadlist(path = href)
+			if (!tabUnchanged(generation)) return
+			replace(firstPage = page, deeperPages = emptyList(), read = read)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (error: Exception) {
+			if (!tabUnchanged(generation)) return
+			when (error) {
+				is ApiError.Unauthorized, is ApiError.NoToken -> handle(error)
+				else -> {
+					currentTabHref = null
+					mutate { it.copy(selectedReadlistHref = null) }
+					fetchFirstPage()
+				}
+			}
+		} finally {
+			endRead()
+		}
+	}
+
 	private fun tabUnchanged(generation: Int): Boolean = generation == tabGeneration
+
+	/** Mirrors the persisted share-destination choice into visible state, so the drop
+	 * row and menu badges reflect a choice made here or in the share target without a
+	 * network read. */
+	private fun syncShareTargetHrefs() {
+		mutate { it.copy(shareTargetHrefs = shareTarget.hrefs) }
+	}
 
 	private suspend fun fetchFirstPage() {
 		val generation = tabGeneration
@@ -157,8 +302,8 @@ class ReadingListViewModel(
 		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
 		mutate { it.copy(errorText = null, messages = emptyList()) }
 		try {
-			val firstPage = api.loadReadlist(path = currentTabHref)
-			if (tabUnchanged(generation)) replace(firstPage = firstPage, deeperPages = emptyList(), read = read)
+			val page = api.loadReadlist(path = currentTabHref)
+			if (tabUnchanged(generation)) replace(firstPage = page, deeperPages = emptyList(), read = read)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
@@ -171,11 +316,13 @@ class ReadingListViewModel(
 	suspend fun loadMore() {
 		val next = nextHref ?: return
 		if (isLoadingMore) return
+		// The context this append belongs to, and the list version it extends. A
+		// readlist switch abandons it wholesale ([tabGeneration]); within the context,
+		// if a replacement lands first the fetched page belongs to a superseded cursor
+		// and is dropped rather than stitched onto the fresh list. A replacement merely
+		// pending (not yet applied) does not invalidate it — only one that has actually
+		// replaced the collection.
 		val generation = tabGeneration
-		// The list this append extends: if a replacement lands first, the fetched
-		// page belongs to a superseded cursor and is dropped rather than stitched
-		// onto the fresh list. A replacement merely pending (not yet applied) does
-		// not invalidate it — only one that has actually replaced the collection.
 		val listVersion = readApplied
 		isLoadingMore = true
 		try {
@@ -186,6 +333,8 @@ class ReadingListViewModel(
 		} catch (error: Exception) {
 			if (tabUnchanged(generation)) handle(error)
 		} finally {
+			// Only this context resets its own paging guard: a switch already reset it
+			// for the new context, and a late completion must not stomp that.
 			if (tabUnchanged(generation)) isLoadingMore = false
 		}
 	}
@@ -208,6 +357,9 @@ class ReadingListViewModel(
 		val read = beginRead()
 		try {
 			val page = api.invoke(action)
+			// A switch mid-mutation abandons the result rather than adopting it into
+			// the new readlist; the error path keeps its existing behaviour (this owns
+			// no new mutation-error policy).
 			if (tabUnchanged(generation)) adopt(page, read)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
@@ -241,6 +393,10 @@ class ReadingListViewModel(
 	 * position.
 	 */
 	suspend fun handleForeground() {
+		// The reader may have answered the share question in the share target while
+		// away, so re-read the choice into visible state on every return — even the
+		// zero-network paths below where no collection is re-fetched.
+		syncShareTargetHrefs()
 		// Gated on a completed first load and no replacing read in flight; expressed
 		// as positive conditions (not early returns) so the no-op paths fall through
 		// this body synchronously rather than only via a tail-call resume.
@@ -326,8 +482,8 @@ class ReadingListViewModel(
 		val generation = tabGeneration
 		val read = beginRead()
 		try {
-			val firstPage = api.loadReadlist(path = currentTabHref)
-			if (tabUnchanged(generation)) adoptFirstPage(firstPage = firstPage, read = read)
+			val page = api.loadReadlist(path = currentTabHref)
+			if (tabUnchanged(generation)) adoptFirstPage(firstPage = page, read = read)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
@@ -451,11 +607,18 @@ class ReadingListViewModel(
 		val current = states.value
 		val reconciled: ReadingListState
 		if (replacing) {
-			var selectedTabHref = current.selectedTabHref
-			page.currentTabHref?.let {
-				currentTabHref = it
-				selectedTabHref = it
-			}
+			pagesHeld = 1
+			sessionAction = page.action(named = "create-session")
+			// The list now holds first-page server truth, so any share-sheet save
+			// recorded up to this point has been shown — including one saved before
+			// a cold launch, which the launch load itself surfaces.
+			unseenSave.clear()
+			// The advertised current tab becomes the reload target; a collection that
+			// names none keeps the target the switch or launch aimed at.
+			page.currentTabHref?.let { currentTabHref = it }
+			// Remember a readlist only when the server confirms it as current — never a
+			// mere menu tap, and never fabricated when the collection names none.
+			page.currentReadlistHref?.let { lastViewed.remember(it) }
 			reconciled = current.copy(
 				articles = page.articles,
 				// A fresh successful collection reconciles transient banners: a stale
@@ -469,15 +632,13 @@ class ReadingListViewModel(
 				// the toolbar for the whole scroll.
 				collectionAffordances = toolbarOf(page),
 				appearance = page.appearance,
+				rootHref = page.rootHref,
 				tabs = page.tabs,
-				selectedTabHref = selectedTabHref,
+				readlists = page.readlists,
+				selectedTabHref = page.currentTabHref ?: current.selectedTabHref,
+				selectedReadlistHref = page.currentReadlistHref ?: current.selectedReadlistHref,
+				shareTargetHrefs = shareTarget.hrefs,
 			)
-			pagesHeld = 1
-			sessionAction = page.action(named = "create-session")
-			// The list now holds first-page server truth, so any share-sheet save
-			// recorded up to this point has been shown — including one saved before
-			// a cold launch, which the launch load itself surfaces.
-			unseenSave.clear()
 		} else {
 			val existing = current.articles.map { it.id }.toSet()
 			reconciled = current.copy(articles = current.articles + page.articles.filter { it.id !in existing })

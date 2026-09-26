@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
@@ -658,6 +659,71 @@ class ReadplaceApiTest {
 		assertEquals("return=representation", record.header("Prefer"))
 		assertEquals("application/json", record.header("Content-Type"))
 		assertEquals("https://example.com/x", string(jsonObject(record.body), "url"))
+	}
+
+	@Test
+	fun `loadReadlist projects the root, tabs and readlists the server advertised`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(
+					200,
+					"""
+					{
+						"class": ["collection", "articles"],
+						"properties": {
+							"tabs": [
+								{ "label": "To Read", "rel": "current", "href": "/queue?queue=work" },
+								{ "label": "Read", "rel": "tab", "href": "/queue?queue=work&status=read" }
+							],
+							"readlists": [
+								{ "label": "All", "rel": "readlist", "href": "/queue" },
+								{ "label": "Work", "rel": "current", "href": "/queue?queue=work" }
+							]
+						},
+						"entities": [],
+						"links": [{ "rel": ["root"], "href": "/queue" }]
+					}
+					""",
+				)
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val page = api().loadReadlist()
+
+		assertEquals("/queue", page.rootHref)
+		assertEquals(listOf("To Read", "Read"), page.tabs.map { it.label })
+		assertEquals(listOf("All", "Work"), page.readlists.map { it.label })
+		assertEquals("/queue?queue=work", page.currentTabHref)
+		assertEquals("/queue?queue=work", page.currentReadlistHref)
+	}
+
+	@Test
+	fun `saveArticle sends the extra readlists as a sorted queues array`() = runTest {
+		server.handle { Stub.json(201, Fixtures.article("url-saved")) }
+
+		api().saveArticle(
+			saveArticleAction(),
+			url = "https://example.com/x",
+			queues = setOf("/queue?queue=work", "/queue?queue=later"),
+		)
+
+		val body = jsonObject(server.records("/queue").single().body)
+		assertEquals("https://example.com/x", string(body, "url"))
+		assertEquals(
+			listOf("/queue?queue=later", "/queue?queue=work"),
+			body["queues"]?.jsonArray?.map { it.jsonPrimitive.content },
+		)
+	}
+
+	@Test
+	fun `saveArticle omits the queues field entirely when there are no extra readlists`() = runTest {
+		server.handle { Stub.json(201, Fixtures.article("url-saved")) }
+
+		api().saveArticle(saveArticleAction(), url = "https://example.com/x", queues = emptySet())
+
+		assertNull("an empty set sends no queues field", jsonObject(server.records("/queue").single().body)["queues"])
 	}
 
 	@Test

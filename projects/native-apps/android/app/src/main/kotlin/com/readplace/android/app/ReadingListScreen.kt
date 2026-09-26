@@ -4,6 +4,7 @@ package com.readplace.android.app
 
 import android.animation.ValueAnimator
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -67,6 +69,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -74,8 +77,11 @@ import androidx.compose.ui.unit.dp
 import com.readplace.android.core.Affordance
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
+import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadlistTab
 import com.readplace.android.core.ServerMessage
+import com.readplace.android.core.SharedArticlesDrop
+import com.readplace.android.core.SharedArticlesDropPresentation
 import com.readplace.android.core.SirenAction
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
@@ -98,6 +104,7 @@ fun ReadingListScreen(
 	viewModel: ReadingListViewModel,
 	now: Instant,
 	onSignOut: () -> Unit,
+	onForcedLogout: () -> Unit,
 	onOpenExternally: (String) -> Unit,
 	isForeground: Boolean,
 ) {
@@ -109,6 +116,7 @@ fun ReadingListScreen(
 	var showingAddInstructions by remember { mutableStateOf(false) }
 	var pendingDestructive by remember { mutableStateOf<PendingDestructive?>(null) }
 	var isRefreshing by remember { mutableStateOf(false) }
+	var dropExplanation by remember { mutableStateOf<String?>(null) }
 
 	LaunchedEffect(Unit) {
 		viewModel.loadIfNeeded()
@@ -180,11 +188,28 @@ fun ReadingListScreen(
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = { Text(text = "Reading List") },
+				title = {
+					Column {
+						Text(text = "Reading List")
+						state.currentReadlistLabel?.let { label ->
+							Text(
+								text = label,
+								style = MaterialTheme.typography.labelMedium,
+								color = LocalBrandColors.current.textSecondary,
+							)
+						}
+					}
+				},
 				navigationIcon = {
 					TextButton(onClick = onSignOut) { Text(text = "Sign out") }
 				},
 				actions = {
+					if (state.offersReadlistSwitching) {
+						ReadlistSwitcher(
+							menu = state.readlistMenu,
+							onSelect = { href -> scope.launch { viewModel.select(href) } },
+						)
+					}
 					for (affordance in state.collectionAffordances) {
 						ToolbarControl(affordance = affordance, onTap = { dispatch(affordance) })
 					}
@@ -192,19 +217,31 @@ fun ReadingListScreen(
 			)
 		},
 	) { insets ->
-		Column(
+		Box(
 			modifier = Modifier
 				.fillMaxSize()
 				.padding(insets),
 		) {
-			if (state.tabs.isNotEmpty()) {
-				TabStrip(
-					tabs = state.tabs,
-					selectedHref = state.selectedTabHref,
-					onSelect = { href -> scope.launch { viewModel.selectTab(href) } },
-				)
-			}
-			Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+			Column(modifier = Modifier.fillMaxSize()) {
+				if (state.tabs.isNotEmpty()) {
+					TabStrip(
+						tabs = state.tabs,
+						selectedHref = state.selectedTabHref,
+						onSelect = { href -> scope.launch { viewModel.selectTab(href) } },
+					)
+				}
+				// Above the list (empty or not): the drop row shows only on the landing
+				// tab of a switchable, current readlist, so a shared article's destination
+				// is offered where it would actually arrive.
+				state.sharedArticlesDrop?.let { drop ->
+					SharedArticlesDropRow(
+						drop = drop,
+						onToggle = viewModel::toggleSharedArticlesDrop,
+						onExplain = { explained ->
+							SharedArticlesDropPresentation.explanation(explained)?.let { dropExplanation = it }
+						},
+					)
+				}
 				PullToRefreshBox(
 					isRefreshing = isRefreshing,
 					onRefresh = {
@@ -217,7 +254,9 @@ fun ReadingListScreen(
 							}
 						}
 					},
-					modifier = Modifier.fillMaxSize(),
+					modifier = Modifier
+						.fillMaxWidth()
+						.weight(1f),
 				) {
 					when {
 						state.isLoading && state.articles.isEmpty() ->
@@ -232,37 +271,37 @@ fun ReadingListScreen(
 						)
 					}
 				}
+			}
 
-				val messages = state.messages
-				val errorText = state.errorText
-				val warningText = state.warningText
-				val bottom = Modifier.align(Alignment.BottomCenter)
-				if (messages.isNotEmpty()) {
-					Banner(
-						text = messages.joinToString(separator = "\n") { it.plainText },
-						color = if (messages.any { it.kind == ServerMessage.Kind.ERROR }) {
-							LocalBrandColors.current.error
-						} else {
-							LocalBrandColors.current.warning
-						},
-						onDismiss = viewModel::dismissMessages,
-						modifier = bottom,
-					)
-				} else if (errorText != null) {
-					Banner(
-						text = errorText,
-						color = LocalBrandColors.current.error,
-						onDismiss = viewModel::dismissError,
-						modifier = bottom,
-					)
-				} else if (warningText != null) {
-					Banner(
-						text = warningText,
-						color = LocalBrandColors.current.warning,
-						onDismiss = viewModel::dismissWarning,
-						modifier = bottom,
-					)
-				}
+			val messages = state.messages
+			val errorText = state.errorText
+			val warningText = state.warningText
+			val bottom = Modifier.align(Alignment.BottomCenter)
+			if (messages.isNotEmpty()) {
+				Banner(
+					text = messages.joinToString(separator = "\n") { it.plainText },
+					color = if (messages.any { it.kind == ServerMessage.Kind.ERROR }) {
+						LocalBrandColors.current.error
+					} else {
+						LocalBrandColors.current.warning
+					},
+					onDismiss = viewModel::dismissMessages,
+					modifier = bottom,
+				)
+			} else if (errorText != null) {
+				Banner(
+					text = errorText,
+					color = LocalBrandColors.current.error,
+					onDismiss = viewModel::dismissError,
+					modifier = bottom,
+				)
+			} else if (warningText != null) {
+				Banner(
+					text = warningText,
+					color = LocalBrandColors.current.warning,
+					onDismiss = viewModel::dismissWarning,
+					modifier = bottom,
+				)
 			}
 		}
 	}
@@ -291,13 +330,14 @@ fun ReadingListScreen(
 					viewModel.closeReader()
 					scope.launch { viewModel.handleWebSheetDismissal() }
 				},
-				// The account is gone, so a server-side revoke would only 401: the sign-out
-				// the root wires here must drop the local credentials instead. The
-				// dismissal probe may still fire and is idempotent — it 401s on the dead
-				// session and funnels into this same sign-out.
+				// The account is gone, so a server-side revoke would only 401: drop the
+				// local credentials instead (a forced logout), which — unlike a deliberate
+				// Sign out — keeps the reader's readlist/share choices. The dismissal probe
+				// may still fire and is idempotent — it 401s on the dead session and funnels
+				// into this same local sign-out.
 				onLogout = {
 					viewModel.closeReader()
-					onSignOut()
+					onForcedLogout()
 				},
 				onOpenExternally = onOpenExternally,
 			)
@@ -325,6 +365,109 @@ fun ReadingListScreen(
 				TextButton(onClick = { pendingDestructive = null }) { Text(text = "Cancel") }
 			},
 		)
+	}
+
+	dropExplanation?.let { explanation ->
+		AlertDialog(
+			onDismissRequest = { dropExplanation = null },
+			text = { Text(text = explanation) },
+			confirmButton = {
+				TextButton(onClick = { dropExplanation = null }) { Text(text = "OK") }
+			},
+		)
+	}
+}
+
+/**
+ * The shared-articles-drop row above the list: a locked, checked mainline the
+ * reader taps to read why it is fixed, or a toggleable extra readlist. Viewing the
+ * list or reading the explanation does not itself answer the share question — only
+ * ticking an extra does.
+ */
+@Composable
+private fun SharedArticlesDropRow(
+	drop: SharedArticlesDrop,
+	onToggle: (Readlist) -> Unit,
+	onExplain: (SharedArticlesDrop) -> Unit,
+) {
+	val brand = LocalBrandColors.current
+	val boxTint = if (drop.showsTick) brand.success else brand.textSecondary
+	val titleTint = if (drop.showsTick) brand.textPrimary else brand.textSecondary
+	Row(
+		modifier = Modifier
+			.padding(horizontal = 16.dp, vertical = 8.dp)
+			.fillMaxWidth()
+			.clip(RoundedCornerShape(10.dp))
+			.background(brand.surfaceSubtle)
+			.border(1.dp, boxTint.copy(alpha = if (drop.showsTick) 1f else 0.35f), RoundedCornerShape(10.dp))
+			.clickable {
+				val choice = drop.choice
+				if (choice != null) onToggle(choice) else onExplain(drop)
+			}
+			.heightIn(min = 44.dp)
+			.padding(horizontal = 12.dp, vertical = 10.dp)
+			.semantics { selected = drop.showsTick },
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(10.dp),
+	) {
+		Icon(
+			imageVector = if (drop.showsTick) Glyph.CHECK_BOX else Glyph.CHECK_BOX_BLANK,
+			contentDescription = null,
+			tint = boxTint,
+			modifier = Modifier.size(18.dp),
+		)
+		Text(
+			text = SharedArticlesDropPresentation.title(drop),
+			style = MaterialTheme.typography.bodySmall,
+			color = titleTint,
+			modifier = Modifier.weight(1f),
+		)
+		if (drop.choice == null) {
+			Icon(
+				imageVector = Glyph.LOCK,
+				contentDescription = null,
+				tint = titleTint,
+				modifier = Modifier.size(14.dp),
+			)
+		}
+	}
+}
+
+/**
+ * The readlist switcher: an icon that opens a menu of the reader's readlists in
+ * server order, each badged for its role (a share destination or a plain list) and
+ * checked when it is the one on screen. Selecting one switches to it.
+ */
+@Composable
+private fun ReadlistSwitcher(
+	menu: List<ReadlistMenuItem>,
+	onSelect: (String) -> Unit,
+) {
+	var open by remember { mutableStateOf(false) }
+	IconButton(onClick = { open = true }) {
+		Icon(imageVector = Glyph.LIST, contentDescription = "Readlists")
+	}
+	DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+		for (item in menu) {
+			DropdownMenuItem(
+				text = { Text(text = item.label) },
+				onClick = {
+					open = false
+					onSelect(item.href)
+				},
+				leadingIcon = {
+					Icon(
+						imageVector = if (item.isShareTarget) Glyph.SHARE else Glyph.LIST,
+						contentDescription = null,
+					)
+				},
+				trailingIcon = if (item.isSelected) {
+					{ Icon(imageVector = Glyph.CHECK, contentDescription = null) }
+				} else {
+					null
+				},
+			)
+		}
 	}
 }
 
@@ -761,6 +904,33 @@ private object Glyph {
 		name = "CloseCircle",
 		pathData = "M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 " +
 			"17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z",
+	)
+	val LIST: ImageVector = materialGlyph(
+		name = "List",
+		pathData = "M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z",
+	)
+	val SHARE: ImageVector = materialGlyph(
+		name = "Share",
+		pathData = "M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z",
+	)
+	val CHECK: ImageVector = materialGlyph(
+		name = "Check",
+		pathData = "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+	)
+	val CHECK_BOX: ImageVector = materialGlyph(
+		name = "CheckBox",
+		pathData = "M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 " +
+			"14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
+	)
+	val CHECK_BOX_BLANK: ImageVector = materialGlyph(
+		name = "CheckBoxBlank",
+		pathData = "M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z",
+	)
+	val LOCK: ImageVector = materialGlyph(
+		name = "Lock",
+		pathData = "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 " +
+			"0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 " +
+			"1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z",
 	)
 }
 
