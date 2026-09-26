@@ -90,6 +90,8 @@ export interface AnalyticsClick {
 	utm_medium: typeof INTERNAL_CLICK_MEDIUM;
 	utm_content?: string;
 	utm_term?: string;
+	device_class: DeviceClass;
+	browser: BrowserFamily;
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
@@ -887,6 +889,7 @@ export function createAnalyticsMiddleware(deps: {
 		 * misclassify the pageview (and defeat the `/blog/...` SKIP_PATHS). */
 		const path = req.path;
 		res.on("finish", () => {
+			const userAgent = req.get("user-agent");
 			if (isInternalClick(req) && shouldCountClick({ req, res, ownHost: deps.ownHost })) {
 				deps.logger.info({
 					stream: STREAMS.analytics,
@@ -897,6 +900,8 @@ export function createAnalyticsMiddleware(deps: {
 					utm_medium: INTERNAL_CLICK_MEDIUM,
 					utm_content: extractQueryString(req, "utm_content"),
 					utm_term: extractQueryString(req, "utm_term"),
+					device_class: classifyDeviceClass(userAgent),
+					browser: classifyBrowser(userAgent),
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					visitor_id: req.visitorId ?? null,
 					is_authenticated: req.userId ? 1 : 0,
@@ -912,7 +917,6 @@ export function createAnalyticsMiddleware(deps: {
 				})
 			)
 				return;
-			const userAgent = req.get("user-agent");
 			const exposure = pageviewExperiments.get(res);
 			deps.logger.info({
 				stream: STREAMS.analytics,

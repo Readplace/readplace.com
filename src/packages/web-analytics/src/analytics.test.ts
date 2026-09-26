@@ -412,10 +412,19 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 			utm_source: "queue",
 			utm_medium: "internal",
 			utm_content: "subscribe",
+			device_class: "desktop",
+			browser: "chrome",
 			visitor_hash: expect.any(String),
 			visitor_id: "550e8400-e29b-41d4-a716-446655440000",
 			is_authenticated: 0,
 		});
+	});
+
+	it("stamps device_class and browser derived from the User-Agent on the click so a control's clicks are sliceable by platform (e.g. who downloads EPUBs on which device)", () => {
+		const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+		const req = createReq({ query: { ...internalQuery, utm_content: "download-epub" }, headers: { "user-agent": iphone } });
+		const [click] = runMiddlewareClicks(req, createRes(200));
+		expect(click).toMatchObject({ utm_content: "download-epub", device_class: "mobile_ios", browser: "safari" });
 	});
 
 	it("never carries utm_campaign on a click — only the section and element dimensions are tracked", () => {
