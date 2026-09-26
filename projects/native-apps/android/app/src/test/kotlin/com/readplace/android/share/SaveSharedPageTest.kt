@@ -314,6 +314,43 @@ class SaveSharedPageTest {
 	}
 
 	@Test
+	fun `saves a scheme-less shared link as the normalised http url the extractor produced`() = runTest {
+		val store = loggedInStore()
+		val captor = FakeHtmlCaptor(page = html(html = "<html><body>hi</body></html>"))
+		val container = temporaryFolder.newFolder("files")
+		serveReadlistAndSave()
+
+		val shared = ShareExtractor.extract(
+			SharedItems(
+				listOf(
+					SharedItem(
+						contentText = null,
+						urls = emptyList(),
+						texts = listOf("read example.com/post today"),
+						pdfs = emptyList(),
+					),
+				),
+			),
+		)
+		assertEquals("the extractor normalises a scheme-less link to an absolute http URL", "http://example.com/post", shared?.url)
+
+		val saver = makeSaver(store = store, captor = captor, container = container)
+		val outcome = saver.run(url = shared?.url, fallbackTitle = shared?.title, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.SavedAwaitingUpload(emptyList()), outcome)
+		assertEquals(
+			"the scheme-less link is captured as the normalised absolute URL",
+			listOf("http://example.com/post"),
+			captor.capturedUrls,
+		)
+		assertEquals("the link is saved with the normalised absolute URL", "http://example.com/post", postedUrl(urlOnlyPosts().single()))
+		val job = queuedJobs(container).single()
+		assertEquals("the upload is keyed on the normalised absolute URL", "http://example.com/post", job.url)
+		assertEquals("http://example.com/post", part(stagedParts(job, container), "url")?.text)
+		assertUploadedNothing()
+	}
+
+	@Test
 	fun `readlists the job before it reports the link saved`() = runTest {
 		val store = loggedInStore()
 		val captor = FakeHtmlCaptor(page = html(), renderTakes = 200.milliseconds)
