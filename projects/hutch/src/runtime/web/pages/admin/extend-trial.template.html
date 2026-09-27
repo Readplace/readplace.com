@@ -22,7 +22,7 @@
             placeholder="user@example.com"
             {{#if emailError}}aria-invalid="true" aria-describedby="extend-trial-email-error"{{/if}}
             data-test-extend-trial-email>
-          <button type="submit" class="btn {{lookupButtonVariant}} btn--field admin-extend-trial__row-btn" data-test-extend-trial-lookup>Look up</button>
+          <button type="submit" class="btn {{lookupButtonVariant}} admin-extend-trial__row-btn" data-test-extend-trial-lookup>Look up</button>
         </div>
         {{#if emailError}}
         <p class="form-field__error" id="extend-trial-email-error" data-test-error="email">{{emailError}}</p>

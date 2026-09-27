@@ -77,7 +77,7 @@
           <p class="account-appearance__body">Choose how Readplace looks. System follows your device's light or dark setting.</p>
           <form class="account-appearance__form" method="POST" action="{{appearance.formAction}}">
             {{#each appearance.options}}
-            <button type="submit" name="appearance" value="{{value}}" aria-pressed="{{ariaPressed}}" class="btn btn--compact btn--{{variant}} account-appearance__option" data-test-appearance-option="{{value}}">{{label}}</button>
+            <button type="submit" name="appearance" value="{{value}}" aria-pressed="{{ariaPressed}}" class="btn btn--s btn--{{variant}} account-appearance__option" data-test-appearance-option="{{value}}">{{label}}</button>
             {{/each}}
           </form>
         </section>

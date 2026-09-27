@@ -13,9 +13,9 @@ const SCROLL_STEPS = 8;
 const SCROLL_SETTLE_MS = 250;
 
 /** Chrome driven by host state rather than by the page: the offline banner
- * follows `navigator.onLine`, the trial countdown follows the clock. A Wi-Fi
- * drop mid-run would otherwise read as the page moving on its own. */
-const VOLATILE_CHROME = [".trial-countdown", ".offline-banner"];
+ * follows `navigator.onLine`. A Wi-Fi drop mid-run would otherwise read as the
+ * page moving on its own. */
+const VOLATILE_CHROME = [".offline-banner"];
 
 const VIEWPORT = { width: 390, height: 844 };
 

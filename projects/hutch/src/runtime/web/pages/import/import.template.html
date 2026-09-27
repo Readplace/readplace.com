@@ -30,7 +30,7 @@
                   <span class="import__summary-label">of {{totalUrls}} selected</span>
                 </span>
               </label>
-              <noscript><button type="submit" class="btn btn--secondary btn--compact">Toggle all</button></noscript>
+              <noscript><button type="submit" class="btn btn--secondary btn--s">Toggle all</button></noscript>
             </form>
 
             <form class="import__commit-form" method="POST" action="{{commitUrl}}"
@@ -57,7 +57,7 @@
                     data-test-import-checkbox="{{index}}">
                   <span class="import__row-url" data-test-import-url>{{url}}</span>
                 </label>
-                <noscript><button type="submit" class="btn btn--toggle btn--compact import__row-toggle">Toggle</button></noscript>
+                <noscript><button type="submit" class="btn btn--secondary btn--m import__row-toggle">Toggle</button></noscript>
               </form>
             </li>
             {{/each}}

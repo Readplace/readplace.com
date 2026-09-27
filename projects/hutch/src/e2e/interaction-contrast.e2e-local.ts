@@ -276,6 +276,24 @@ test.describe("Light-pinned interaction states hold their WCAG contrast", () => 
 		}
 	});
 
+	test("the import dropzone's link stays legible on the tint it takes under hover and focus", async ({ page }) => {
+		await page.goto(`${BASE_URL}/import?mode=upload`, { waitUntil: "domcontentloaded" });
+		const client = await auditContext(page);
+		await stamp(page, { selector: "[data-import-dropzone]", auditId: "dropzone" });
+		await stamp(page, { selector: "[data-import-dropzone] .import__dropzone-link", auditId: "dropzone-link" });
+
+		for (const state of ["hover", "focus-within"]) {
+			await measure(page, client, "dropzone", [state]);
+			const ink = await measure(page, client, "dropzone-link", []);
+			for (const lens of Object.values(LENSES)) {
+				assert.ok(
+					labelContrast(ink, lens) >= textMinimum(ink),
+					labelShortfall(ink, lens, `import/dropzone-link:${state}`),
+				);
+			}
+		}
+	});
+
 	test("the import upload error reads in body ink, not the surface red", async ({ page }) => {
 		await page.goto(`${BASE_URL}/import?mode=upload&error_code=import_too_large`, {
 			waitUntil: "domcontentloaded",

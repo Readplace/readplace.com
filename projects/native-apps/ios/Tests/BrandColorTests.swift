@@ -12,6 +12,10 @@ final class BrandColorTests: XCTestCase {
 		assertHex(BrandColor.amber, light: "#C8702A", dark: "#D4833A")
 	}
 
+	func testPrimaryFillMirrorsThePinnedPrimaryToken() {
+		assertHex(BrandColor.primaryFill, light: "#AD6225", dark: "#AD6225")
+	}
+
 	func testHighlightMirrorsHighlightToken() {
 		assertHex(BrandColor.highlight, light: "#C8923C", dark: "#D4A04A")
 	}
@@ -61,7 +65,7 @@ final class BrandColorTests: XCTestCase {
 	}
 
 	func testSecondaryMirrorsSecondaryToken() {
-		assertHex(BrandColor.secondary, light: "#F6F2EE", dark: "#352D27")
+		assertHex(BrandColor.secondary, light: "#F5E6D3", dark: "#3D2A18")
 	}
 
 	func testPrimaryTextMirrorsPrimaryTextToken() {

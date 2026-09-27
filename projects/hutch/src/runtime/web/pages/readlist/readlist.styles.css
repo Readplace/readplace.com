@@ -40,7 +40,7 @@
 
   .readlist__rail {
     position: sticky;
-    top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px) + 28px);
+    top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px) + 28px);
   }
 }
 
@@ -122,11 +122,11 @@
 .readlist-nav__link--active,
 .readlist-nav__link--active:hover {
   background: transparent;
-  color: var(--primary-text);
+  color: var(--primary-text-on-tint);
 }
 
 .readlist-nav__link--active svg {
-  color: var(--primary-text);
+  color: var(--primary-text-on-tint);
 }
 
 .readlist-nav__label {

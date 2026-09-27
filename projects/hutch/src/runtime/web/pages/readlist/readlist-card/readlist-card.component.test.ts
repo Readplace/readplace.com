@@ -18,7 +18,7 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		url: "https://example.com/article",
 		status: "unread",
 		isUnread: true,
-		readTime: { value: "3", label: "~3 min read" },
+		readTime: { value: "3", label: "3 min read" },
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
 		readerHref: "/queue/abc123/view",
@@ -389,13 +389,13 @@ describe("renderReadlistCard", () => {
 	it("shows the crawler's read time once it has landed", () => {
 		const doc = parse(
 			renderReadlistCard(
-				display(makeViewModel({ readTime: { value: "3", label: "~3 min read" } }), { isFirst: false }),
+				display(makeViewModel({ readTime: { value: "3", label: "3 min read" } }), { isFirst: false }),
 			),
 		);
 
 		const readTime = doc.querySelector("[data-test-read-time]");
 		assert(readTime, "the read-time part must always be rendered");
-		expect(readTime.textContent).toBe("~3 min read");
+		expect(readTime.textContent).toBe("3 min read");
 		expect(readTime.classList.contains("readlist-article__read-time--empty")).toBe(false);
 	});
 

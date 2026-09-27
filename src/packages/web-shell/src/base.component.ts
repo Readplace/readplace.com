@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import {
 	BANNER_AREA_STYLES,
+	BANNER_BAR_STYLES,
 	BASE_CSS_VARIABLES,
 	BASE_RESET_STYLES,
 	BUTTON_STYLES,
@@ -10,7 +11,6 @@ import {
 	HEADER_STYLES,
 	NAV_STYLES,
 	OFFLINE_BANNER_STYLES,
-	TRIAL_COUNTDOWN_STYLES,
 	VERIFY_BANNER_STYLES,
 	UTILITY_STYLES,
 	appearanceBodyClass,
@@ -30,7 +30,6 @@ import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
 import type { ClickSurface } from "./internal-link-tracking";
 import type { NavProps } from "./nav.component";
-import type { TrialDisplay } from "./trial-countdown.format";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
 import {
@@ -84,12 +83,6 @@ function externalCanonicalUrl(canonicalUrl: string): string {
 		`canonicalIsExternal requires an absolute http(s) URL, received: ${canonicalUrl}`,
 	);
 	return new URL(canonicalUrl).href;
-}
-
-const TRIAL_COUNTDOWN_SCRIPT = `<script src="/client-dist/trial-countdown.client.js" defer></script>`;
-
-function trialChipCarriesInstant(trial: TrialDisplay | undefined): boolean {
-	return trial !== undefined && trial.state !== "expired";
 }
 
 /** Global so any page's toast auto-dismisses — including one that arrives
@@ -281,6 +274,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			formControlStyles: FORM_CONTROL_STYLES,
 			utilityStyles: UTILITY_STYLES,
 			bannerAreaStyles: BANNER_AREA_STYLES,
+			bannerBarStyles: BANNER_BAR_STYLES,
 			changelogBannerStyles: CHANGELOG_BANNER_STYLES,
 			headerStyles: HEADER_STYLES,
 			navStyles: NAV_STYLES,
@@ -288,12 +282,10 @@ export function initBase(config: BaseConfig): RenderBase {
 			offlineBannerStyles: OFFLINE_BANNER_STYLES,
 			toastStyles: TOAST_STYLES,
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
-			trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
 			changelogBanner: renderChangelogBannerSlot({
 				banner: state.changelogBanner,
 				returnTo: state.currentPath,
-				cspNonce: state.cspNonce,
 				clickSurface: body.clickSurface,
 			}),
 			verifyBanner: renderVerifyBanner(state),
@@ -308,7 +300,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				isAuthenticated: state.isAuthenticated,
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
 				gmailFeatureEnabled: state.gmailFeatureEnabled ?? false,
-				trialCounter: state.trial,
+				currentPath: state.currentPath,
 				clickSurface: body.clickSurface,
 				userEmail: state.userEmail,
 			}),
@@ -317,14 +309,13 @@ export function initBase(config: BaseConfig): RenderBase {
 				styles: body.styles,
 				cspNonce: state.cspNonce,
 			}),
-			footer: renderFooter(body.clickSurface),
+			footer: state.isAuthenticated ? "" : renderFooter(body.clickSurface),
 			navScript: navScript(state.cspNonce),
 			offlineScript: offlineIndicatorScript(state.cspNonce),
 			scripts:
 				config.htmx.script +
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
-				(trialChipCarriesInstant(state.trial) ? TRIAL_COUNTDOWN_SCRIPT : "") +
 				(body.scripts ?? "") +
 				(state.requestScripts ?? "") +
 				siteScripts +

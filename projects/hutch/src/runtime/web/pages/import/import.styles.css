@@ -255,6 +255,15 @@
   font-weight: 600;
 }
 
+.import__dropzone:hover .import__dropzone-icon,
+.import__dropzone:hover .import__dropzone-link,
+.import__dropzone:focus-within .import__dropzone-icon,
+.import__dropzone:focus-within .import__dropzone-link,
+.import__dropzone--dragover .import__dropzone-icon,
+.import__dropzone--dragover .import__dropzone-link {
+  color: var(--primary-text-on-tint);
+}
+
 .import__dropzone-or {
   color: var(--muted-foreground);
 }
@@ -390,7 +399,7 @@
   border-bottom: 1px solid var(--border);
   padding: 14px 20px;
   position: sticky;
-  top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
+  top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px));
   z-index: 10;
 }
 

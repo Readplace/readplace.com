@@ -72,7 +72,6 @@ async function noticeSettled(page: Page): Promise<void> {
 	await page.waitForSelector(NOTICE);
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
-		document.querySelector(".trial-countdown")?.remove();
 	});
 }
 

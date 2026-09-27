@@ -1,12 +1,12 @@
 .install-page {
   flex: 1 1 auto;
-  padding: 24px 16px 64px;
+  padding: var(--page-top) var(--page-gutter) 64px;
   background: var(--muted);
 }
 
 @media (min-width: 1024px) {
   .install-page {
-    padding: 28px 24px 80px;
+    padding-bottom: 80px;
   }
 }
 
@@ -25,7 +25,7 @@
 }
 
 .install-page__subtitle {
-  font-size: 1.125rem;
+  font-size: var(--text-lg);
   line-height: 1.6;
   color: var(--muted-foreground);
   margin-bottom: 40px;
@@ -85,7 +85,7 @@
   padding: 10px 12px;
   margin-bottom: -1px;
   border-bottom: 2px solid transparent;
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
@@ -117,7 +117,7 @@
 
 .install-page__panel-title {
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: var(--text-md);
   font-weight: 600;
   margin-bottom: 8px;
   color: var(--foreground);
@@ -125,7 +125,7 @@
 }
 
 .install-page__lead {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--muted-foreground);
   margin: 0 0 28px;
@@ -139,7 +139,7 @@
 
 .install-page__unavailable {
   color: var(--muted-foreground);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   margin-bottom: 36px;
   text-wrap: pretty;
@@ -147,7 +147,7 @@
 
 .install-page__steps-outro {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--muted-foreground);
   text-wrap: pretty;
@@ -167,7 +167,7 @@
 
 .install-page__copy-label {
   flex: 0 0 100%;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted-foreground);
@@ -178,7 +178,7 @@
   min-width: 0;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   line-height: 1.5;
   color: var(--foreground);
   overflow-wrap: anywhere;
@@ -200,7 +200,7 @@
 .install-page__ai-req,
 .install-page__ai-after,
 .install-page__ai-note {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--muted-foreground);
   text-wrap: pretty;
@@ -232,7 +232,7 @@
   margin: 0;
   padding-top: 20px;
   border-top: 1px solid var(--border);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--muted-foreground);
   text-wrap: pretty;
@@ -268,7 +268,7 @@
 
 .install-page__video-caption {
   padding-top: 10px;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--muted-foreground);
   text-wrap: pretty;

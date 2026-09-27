@@ -299,7 +299,7 @@ private fun ReaderUnavailable(onClose: () -> Unit) {
 		)
 		Button(
 			onClick = onClose,
-			colors = ButtonDefaults.buttonColors(containerColor = LocalBrandColors.current.amber),
+			colors = ButtonDefaults.buttonColors(containerColor = LocalBrandColors.current.primaryFill),
 			modifier = Modifier.padding(top = 4.dp),
 		) {
 			Text(text = "Close")

@@ -18,7 +18,7 @@
             <input class="form-input" type="password" id="password" name="password" required autocomplete="current-password"{{#if passwordField.error}} aria-invalid="true" aria-describedby="password-error"{{/if}}>
             {{#if passwordField.error}}<p class="form-field__error" id="password-error" data-test-error="password">{{passwordField.error}}</p>{{/if}}
           </div>
-          <button class="btn btn--primary btn--field auth-form__submit" type="submit">Sign in</button>
+          <button class="btn btn--primary auth-form__submit" type="submit">Sign in</button>
         </form>
         <p class="auth-card__footer auth-card__footer--forgot">
           <a class="auth-card__link" href="{{track '/forgot-password' source='auth-login' content='forgot-password'}}">Forgot your password?</a>

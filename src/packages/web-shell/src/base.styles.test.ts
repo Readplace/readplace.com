@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import {
 	BASE_CSS_VARIABLES,
+	BUTTON_STYLES,
 	DARK_ONLY_BODY_CLASS,
 	EMAIL_FRAME_CANVAS,
 	FORM_CONTROL_STYLES,
 	LIGHT_ONLY_BODY_CLASS,
+	SCRIM_BLUR,
+	SCRIM_DARK,
+	SCRIM_LIGHT,
 	SYSTEM_THEME_VARIABLES,
 } from "./base.styles";
 
@@ -50,6 +54,19 @@ function formControlRule(selector: string): string {
 	return formControlRules()[formControlRuleIndex(selector)].body;
 }
 
+function ruleBody(css: string, selector: string): string {
+	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const rule = new RegExp(`\\n\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css);
+	assert(rule, `${selector} must be declared`);
+	return rule[1];
+}
+
+function declaredValue(body: string, property: string): string {
+	const declaration = new RegExp(`(?:^|\\s)${property}:\\s*([^;]+);`).exec(body);
+	assert(declaration, `${property} must be declared`);
+	return declaration[1];
+}
+
 describe("EMAIL_FRAME_CANVAS", () => {
 	it("carries the light theme's canvas, text colour and sans stack as literal values an email frame's srcdoc can use", () => {
 		const declarations = lightRootDeclarations();
@@ -60,6 +77,14 @@ describe("EMAIL_FRAME_CANVAS", () => {
 
 	it("holds no var() reference, since a srcdoc document cannot read the page's custom properties", () => {
 		for (const value of Object.values(EMAIL_FRAME_CANVAS)) {
+			expect(value).not.toContain("var(");
+		}
+	});
+});
+
+describe("scrim constants", () => {
+	it("hold literal values, since ::backdrop cannot read the page's custom properties", () => {
+		for (const value of [SCRIM_LIGHT, SCRIM_DARK, SCRIM_BLUR]) {
 			expect(value).not.toContain("var(");
 		}
 	});
@@ -107,6 +132,14 @@ describe("BASE_CSS_VARIABLES", () => {
 
 	it("leaves the dark system theme to inherit the placeholder token rather than redeclaring it", () => {
 		expect(darkRootDeclarations()).not.toContain("--input-placeholder");
+	});
+
+	it("steps the layout tokens on :root only, so a theme-pinned page still widens them at each breakpoint", () => {
+		for (const token of ["--page-gutter", "--page-top", "--stack-gap", "--column-gap", "--header-inset"]) {
+			expect(BASE_CSS_VARIABLES).toContain(`${token}:`);
+			expect(pinnedThemeDeclarations(LIGHT_ONLY_BODY_CLASS)).not.toContain(`${token}:`);
+			expect(pinnedThemeDeclarations(DARK_ONLY_BODY_CLASS)).not.toContain(`${token}:`);
+		}
 	});
 });
 
@@ -245,5 +278,20 @@ describe("FORM_CONTROL_STYLES", () => {
 		const rule = formControlRule(".form-choice:focus-visible");
 		expect(rule).toContain("outline: 2px solid var(--ring);");
 		expect(rule).toContain("outline-offset: 2px;");
+	});
+});
+
+describe("BUTTON_STYLES", () => {
+	it.each([".btn--m", ".btn--s"])("extends the %s tier's hit area to the 44px tap-target floor", (tier) => {
+		const height = Number.parseFloat(declaredValue(ruleBody(BUTTON_STYLES, tier), "min-height"));
+		const [blockInset] = declaredValue(ruleBody(BUTTON_STYLES, `${tier}::before`), "inset").split(" ");
+		expect(height - 2 * Number.parseFloat(blockInset)).toBeGreaterThanOrEqual(44);
+	});
+
+	it.each(["primary", "secondary", "neutral"])("gives the %s variant distinct rest, hover and pressed fills", (variant) => {
+		const fills = [`.btn--${variant}`, `.btn--${variant}:hover`, `.btn--${variant}:active`].map((selector) =>
+			declaredValue(ruleBody(BUTTON_STYLES, selector), "background"),
+		);
+		expect(new Set(fills).size).toBe(3);
 	});
 });

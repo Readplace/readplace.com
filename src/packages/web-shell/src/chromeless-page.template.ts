@@ -24,6 +24,7 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 		{{{formControlStyles}}}
 		{{{utilityStyles}}}
 		{{{bannerAreaStyles}}}
+		{{{bannerBarStyles}}}
 		{{{changelogBannerStyles}}}
 	</style>
 </head>

@@ -29,7 +29,7 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	url: "https://example.com/article",
 	status: "unread",
 	isUnread: true,
-	readTime: { value: "3", label: "~3 min read" },
+	readTime: { value: "3", label: "3 min read" },
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
 	deleteConfirm: {

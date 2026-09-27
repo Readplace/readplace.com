@@ -20,21 +20,33 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--color-success": "#3D8B6E",
 	"--color-warning": "#C8923C",
 	"--color-error": "#C45C5C",
+	"--color-info": "#4A7FB5",
 	"--shadow-sm": "0 1px 2px rgba(0,0,0,0.05)",
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.07)",
+	"--shadow-menu": "0 0 12px rgba(0,0,0,0.10)",
+	"--shadow-toast": "0 4px 16px rgba(0,0,0,0.12)",
+	"--text-xs": "0.75rem",
+	"--text-sm": "0.875rem",
+	"--text-md": "1rem",
+	"--text-lg": "1.125rem",
 	/** Amber dark enough to carry --primary-foreground at 4.61:1 — the lightest
 	* step of hsl(27 65% L%) that clears 4.5:1, so the CTA stays as warm as the
 	* label allows. Pinned across both themes for the same reason --primary-fill
 	* is: a fill and a text colour need opposite lightness as the page darkens,
 	* and --primary-text is the one that follows the page. */
 	"--primary": "hsl(27 65% 41%)",
+	"--primary-hover": "hsl(27 65% 37%)",
 	"--primary-text": "var(--color-brand-dark)",
+	"--primary-text-on-tint": "hsl(27 65% 30%)",
 	"--color-secondary-text": "var(--color-secondary)",
-	/** The hover/active step below --primary, at 6.49:1, pinned the same way. */
+	/** The active step below --primary, at 6.49:1, pinned the same way. */
 	"--primary-fill": "hsl(27 65% 33%)",
 	"--primary-foreground": "hsl(0 0% 100%)",
-	"--secondary": "hsl(27 30% 95%)",
+	"--secondary": "var(--color-brand-light)",
+	"--secondary-hover": "#EED7BA",
+	"--secondary-pressed": "#E6C9A3",
 	"--secondary-foreground": "hsl(27 65% 35%)",
+	"--neutral-pressed": "#EDEFF2",
 	"--background": "var(--color-background)",
 	"--foreground": "var(--color-text-primary)",
 	"--muted": "var(--color-surface)",
@@ -44,28 +56,45 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	 * saturation, darkened to 4.98:1, for success wording rather than surfaces. */
 	"--success-text": "hsl(158 39% 35%)",
 	"--success-foreground": "hsl(0 0% 100%)",
+	"--success-bg": "#E8F2EE",
+	"--info-bg": "#E8EFF7",
 	"--border": "var(--color-border)",
 	"--card": "var(--color-surface-elevated)",
 	"--card-foreground": "var(--color-text-primary)",
 	"--radius-sm": "6px",
 	"--radius": "8px",
-	"--radius-lg": "12px",
+	"--radius-md": "12px",
+	"--radius-lg": "16px",
+	"--radius-pill": "999px",
 	"--reader-max-width": "680px",
 	"--input": "var(--color-border)",
 	"--ring": "hsl(27 65% 47%)",
 	"--ring-shadow": "hsl(27 65% 47% / 0.15)",
 	"--error": "hsl(0 43% 56%)",
-	/** --error is 4.17:1 on white, short of 1.4.3. Same hue, darkened to 5.2:1,
+	/** --error is 4.17:1 on white, short of 1.4.3. Same hue, darkened,
 	* for error wording rather than error surfaces. */
-	"--error-text": "hsl(0 43% 50%)",
+	"--error-text": "hsl(0 43% 48%)",
 	/** Red dark enough to carry --error-foreground at 4.85:1, so it is pinned
 	* across both themes: a fill and a text colour need opposite lightness as the
 	* page darkens, and --error-text follows the page. */
 	"--error-fill": "hsl(0 43% 52%)",
 	"--error-fill-hover": "hsl(0 43% 44%)",
 	"--error-foreground": "hsl(0 0% 100%)",
-	"--error-bg": "hsl(0 43% 56% / 0.1)",
-	"--warning-bg": "hsl(37 56% 51% / 0.12)",
+	"--error-bg": "#F6E7E7",
+	"--warning-bg": "var(--color-brand-light)",
+	"--announcement-bg": "#1A202C",
+	"--announcement-link": "#D4833A",
+	"--progress-track": "var(--border)",
+	"--progress-fill": "var(--success)",
+	"--fact-site": "var(--color-secondary-text)",
+	"--fact-saved": "var(--color-error)",
+	"--fact-read-time": "var(--color-success)",
+	"--ink-nav-current": "var(--foreground)",
+	"--ink-nav-inactive": "var(--muted-foreground)",
+	"--ink-meta": "var(--foreground)",
+	"--ink-tab-inactive": "var(--foreground)",
+	"--ink-rail-heading": "var(--muted-foreground)",
+	"--ink-pagination": "var(--muted-foreground)",
 	"--input-height": "48px",
 	"--input-padding": "12px",
 	"--input-placeholder": "var(--muted-foreground)",
@@ -100,18 +129,25 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--color-success": "#4A9F7F",
 	"--color-warning": "#D4A04A",
 	"--color-error": "#D46B6B",
+	"--color-info": "#6B9BD1",
 	"--shadow-sm": "0 1px 2px rgba(0,0,0,0.3)",
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.4)",
+	"--shadow-menu": "0 0 12px rgba(0,0,0,0.5)",
+	"--shadow-toast": "0 4px 16px rgba(0,0,0,0.5)",
 	"--primary-text": "hsl(27 65% 58%)",
+	"--primary-text-on-tint": "#EAA162",
 	"--color-secondary-text": "#8FA3C8",
-	"--secondary": "hsl(27 15% 18%)",
+	"--secondary-hover": "#4A3320",
+	"--secondary-pressed": "#5A3E26",
 	"--secondary-foreground": "hsl(27, 65%, 35%)",
+	"--neutral-pressed": "#2E2E2E",
 	"--ring": "hsl(27 65% 52%)",
 	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
 	"--success-text": "var(--color-success)",
+	"--success-bg": "#17302A",
+	"--info-bg": "#1B2836",
 	"--error-text": "hsl(0 43% 68%)",
-	"--error-bg": "hsl(0 43% 56% / 0.15)",
-	"--warning-bg": "hsl(37 62% 56% / 0.18)",
+	"--error-bg": "#3A2020",
 	"--color-avatar": "#8F7AF0",
 	"--header-brand-stem": "var(--color-text-primary)",
 	"--header-brand-tail": "var(--color-highlight)",
@@ -202,9 +238,31 @@ ${generateCssVariables(DARK_THEME_VARIABLES)}
 `;
 
 export const BASE_CSS_VARIABLES = `${SYSTEM_THEME_VARIABLES}
+	:root {
+		--frame-max-width: 1200px;
+		--page-gutter: 20px;
+		--page-top: 20px;
+		--stack-gap: 24px;
+		--column-gap: 24px;
+		--header-inset: 20px;
+	}
+
 	@media (min-width: 768px) {
 		:root {
 			--form-gap: 24px;
+			--page-gutter: 24px;
+			--page-top: 24px;
+			--header-inset: 24px;
+		}
+	}
+
+	@media (min-width: 1200px) {
+		:root {
+			--page-gutter: 48px;
+			--page-top: 32px;
+			--stack-gap: 32px;
+			--column-gap: 48px;
+			--header-inset: 48px;
 		}
 	}
 
@@ -229,6 +287,12 @@ export const EMAIL_FRAME_CANVAS = {
 	fontFamily: lightThemeValue("--font-sans"),
 };
 
+export const SCRIM_LIGHT = "rgb(0 0 0 / 0.5)";
+
+export const SCRIM_DARK = "rgb(13 13 13 / 0.72)";
+
+export const SCRIM_BLUR = "2px";
+
 export const BASE_RESET_STYLES = `
 	* {
 		box-sizing: border-box;
@@ -236,7 +300,7 @@ export const BASE_RESET_STYLES = `
 		padding: 0;
 	}
 	html {
-		scroll-padding-top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
+		scroll-padding-top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px));
 	}
 	body {
 		font-family: var(--font-sans);
@@ -246,7 +310,7 @@ export const BASE_RESET_STYLES = `
 		min-height: 100vh;
 		display: flex;
 		flex-direction: column;
-		padding-top: var(--banner-area-height, 38px);
+		padding-top: var(--banner-area-height, 52px);
 	}
 	body > main {
 		width: 100%;
@@ -260,21 +324,60 @@ export const BASE_RESET_STYLES = `
 
 export const BUTTON_STYLES = `
 	.btn {
+		position: relative;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		min-height: 44px;
-		padding: var(--button-padding);
+		gap: 8px;
+		min-height: 48px;
+		padding: 12px 16px;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius);
 		font-family: inherit;
-		font-size: 1rem;
+		font-size: var(--text-md);
 		font-weight: 600;
-		line-height: 1.25;
+		line-height: 1.5;
 		text-align: center;
 		text-decoration: none;
 		cursor: pointer;
 		transition: background-color 0.15s ease;
+	}
+
+	.btn > svg {
+		width: 1.25rem;
+		height: 1.25rem;
+		flex: none;
+	}
+
+	.btn--m {
+		min-height: 40px;
+		padding: 8px 14px;
+	}
+
+	.btn--m::before {
+		content: "";
+		position: absolute;
+		inset: -2px 0;
+	}
+
+	.btn--s {
+		gap: 6px;
+		min-height: 32px;
+		padding: 6px 12px;
+		border-radius: var(--radius-sm);
+		font-size: var(--text-sm);
+		line-height: 1.25rem;
+	}
+
+	.btn--s > svg {
+		width: 1rem;
+		height: 1rem;
+	}
+
+	.btn--s::before {
+		content: "";
+		position: absolute;
+		inset: -6px 0;
 	}
 
 	.btn--primary {
@@ -282,20 +385,26 @@ export const BUTTON_STYLES = `
 		color: var(--primary-foreground);
 	}
 
-	.btn--primary:hover,
+	.btn--primary:hover {
+		background: var(--primary-hover);
+	}
+
 	.btn--primary:active {
 		background: var(--primary-fill);
 	}
 
 	.btn--secondary {
 		background: var(--secondary);
-		color: var(--primary-text);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-text) 30%, transparent);
+		color: var(--primary-text-on-tint);
+		box-shadow: inset 0 0 0 1px var(--color-brand);
 	}
 
-	.btn--secondary:hover,
+	.btn--secondary:hover {
+		background: var(--secondary-hover);
+	}
+
 	.btn--secondary:active {
-		background: color-mix(in srgb, var(--primary) 12%, var(--secondary));
+		background: var(--secondary-pressed);
 	}
 
 	.btn--destructive {
@@ -314,22 +423,12 @@ export const BUTTON_STYLES = `
 		box-shadow: inset 0 0 0 1px var(--border);
 	}
 
-	.btn--neutral:hover,
-	.btn--neutral:active {
+	.btn--neutral:hover {
 		background: var(--muted);
 	}
 
-	.btn--toggle {
-		background: var(--secondary);
-		color: var(--primary-text);
-		box-shadow: inset 0 0 0 1px var(--color-brand);
-		transition: background-color 0.15s ease, color 0.15s ease;
-	}
-
-	.btn--toggle:hover,
-	.btn--toggle:active {
-		background: var(--primary);
-		color: var(--primary-foreground);
+	.btn--neutral:active {
+		background: var(--neutral-pressed);
 	}
 
 	.btn--on-dark {
@@ -351,20 +450,6 @@ export const BUTTON_STYLES = `
 	.btn--on-dark-ghost:hover,
 	.btn--on-dark-ghost:active {
 		background: rgba(255, 255, 255, 0.28);
-	}
-
-	.btn--field {
-		min-height: var(--input-height);
-		padding: 0 var(--button-padding-x);
-	}
-
-	.btn--compact {
-		padding: var(--button-padding-sm);
-		font-size: 0.8125rem;
-	}
-
-	.btn--toggle.btn--compact {
-		min-height: 40px;
 	}
 
 	.btn:disabled,
@@ -562,11 +647,14 @@ export const FORM_CONTROL_STYLES = `
 
 export const HEADER_STYLES = `
 	.header {
+		display: flex;
+		align-items: center;
+		min-height: 72px;
 		background: var(--background);
 		border-bottom: 1px solid var(--border);
-		padding: 16px 20px;
+		padding: 0 var(--header-inset);
 		position: sticky;
-		top: var(--banner-area-height, 38px);
+		top: var(--banner-area-height, 52px);
 		z-index: 100;
 		transition: transform 0.25s ease;
 	}
@@ -586,13 +674,13 @@ export const HEADER_STYLES = `
 		background: transparent;
 		border-bottom: none;
 		position: absolute;
-		top: var(--banner-area-height, 38px);
+		top: var(--banner-area-height, 52px);
 		left: 0;
 		right: 0;
 	}
 	.header__content {
-		max-width: 1200px;
-		margin: 0 auto;
+		flex: 1 1 auto;
+		min-width: 0;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
@@ -602,7 +690,6 @@ export const HEADER_STYLES = `
 	.header__start {
 		display: flex;
 		align-items: center;
-		gap: 12px;
 		min-width: 0;
 		flex: 1 1 auto;
 	}
@@ -622,18 +709,17 @@ export const HEADER_STYLES = `
 	}
 	.header__brand {
 		font-family: var(--font-serif);
-		font-size: 1.5rem;
+		font-size: var(--text-md);
 		font-weight: 700;
 		color: var(--header-brand-stem);
 		text-decoration: none;
-		letter-spacing: -0.02em;
 		display: inline-flex;
 		align-items: center;
-		gap: 8px;
+		gap: 4px;
 	}
 	.header__brand-icon {
-		width: 26px;
-		height: 26px;
+		width: 30px;
+		height: 30px;
 		flex-shrink: 0;
 	}
 	.header__brand-mark {
@@ -673,7 +759,7 @@ export const FOOTER_STYLES = `
 	.footer__link {
 		color: var(--footer-link);
 		text-decoration: none;
-		font-size: 0.875rem;
+		font-size: var(--text-sm);
 	}
 
 	.footer__link:hover {
@@ -689,11 +775,8 @@ export const FOOTER_STYLES = `
 
 export const OFFLINE_BANNER_STYLES = `
 	.offline-banner {
-		background: var(--color-warning);
+		background: var(--warning-bg);
 		color: var(--foreground);
-		text-align: center;
-		font-size: 14px;
-		font-weight: 500;
 		max-height: 0;
 		overflow: hidden;
 		transition: max-height 0.3s ease, padding 0.3s ease;
@@ -701,8 +784,8 @@ export const OFFLINE_BANNER_STYLES = `
 	}
 
 	.offline-banner--visible {
-		max-height: 50px;
-		padding: 8px 16px;
+		max-height: 120px;
+		padding: 14px 16px;
 	}
 `;
 
@@ -713,11 +796,10 @@ export const NAV_STYLES = `
 
 	.nav__toggle {
 		position: relative;
-		display: flex;
-		flex-direction: column;
-		justify-content: space-between;
-		width: 24px;
-		height: 20px;
+		display: block;
+		width: 44px;
+		height: 44px;
+		margin-right: calc((24px - 44px) / 2);
 		background: transparent;
 		border: none;
 		cursor: pointer;
@@ -730,45 +812,40 @@ export const NAV_STYLES = `
 		display: none;
 	}
 
-	.nav__toggle-bar {
-		width: 100%;
-		height: 2px;
-		background: var(--foreground);
-		border-radius: 1px;
-		transition: opacity 0.2s ease;
-	}
-
-	.nav__toggle-x {
+	.nav__toggle-icon {
 		position: absolute;
 		inset: 0;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 24px;
-		opacity: 0;
 		transition: opacity 0.2s ease;
+	}
+
+	.nav__toggle-icon svg {
+		width: 24px;
+		height: 24px;
+	}
+
+	.nav__toggle-icon--close {
+		opacity: 0;
 	}
 
 	.header--transparent .nav__toggle {
 		color: var(--color-on-brand);
 	}
 
-	.header--transparent .nav__toggle-bar {
-		background: var(--color-on-brand);
-	}
-
-	.nav__disclosure[open] .nav__toggle-bar {
+	.nav__disclosure[open] .nav__toggle-icon--open {
 		opacity: 0;
 	}
 
-	.nav__disclosure[open] .nav__toggle-x {
+	.nav__disclosure[open] .nav__toggle-icon--close {
 		opacity: 1;
 	}
 
 	.nav__menu {
 		display: block;
 		position: fixed;
-		top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
+		top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px));
 		right: 0;
 		bottom: 0;
 		width: min(80vw, 320px);
@@ -825,47 +902,64 @@ export const NAV_STYLES = `
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		font-size: 14px; /* 1 */
+		font-size: var(--text-sm); /* 1 */
 	}
 
 	.nav__link {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		padding: 12px 16px;
-		color: var(--foreground);
+		gap: 8px;
 		text-decoration: none;
+	}
+
+	.nav__link:not(.btn) {
+		width: 100%;
+		padding: 12px 16px;
+		background: none;
+		border: none;
+		font: inherit;
+		font-weight: 500;
+		color: var(--foreground);
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.nav__link:not(.btn):hover {
+		background: var(--muted);
+	}
+
+	.nav__group--library .nav__link {
+		color: var(--ink-nav-inactive);
+	}
+
+	.nav__link[aria-current="page"] {
+		color: var(--ink-nav-current);
 	}
 
 	.nav__icon-wrap {
 		flex-shrink: 0;
 		display: inline-flex;
 		justify-content: center;
-		width: 1.1em;
+		width: 24px;
 	}
 
 	.nav__icon {
 		flex-shrink: 0;
 		display: inline-flex;
-		color: var(--foreground);
 	}
 
 	.nav__icon svg {
-		width: 1.1em;
-		height: 1.1em;
+		width: 24px;
+		height: 24px;
 	}
 
-	.nav__link:hover {
-		background: var(--muted);
+	.nav__link.btn .nav__icon-wrap {
+		width: 20px;
 	}
 
-	button.nav__link {
-		background: none;
-		border: none;
-		cursor: pointer;
-		font: inherit;
-		width: 100%;
-		text-align: left;
+	.nav__link.btn .nav__icon svg {
+		width: 20px;
+		height: 20px;
 	}
 
 	.nav__user {
@@ -891,8 +985,8 @@ export const NAV_STYLES = `
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 28px;
-		height: 28px;
+		width: 24px;
+		height: 24px;
 		border-radius: 50%;
 		background: var(--color-avatar);
 		color: var(--color-on-brand);
@@ -901,25 +995,29 @@ export const NAV_STYLES = `
 		letter-spacing: 0.02em;
 	}
 
+	.nav__avatar:empty {
+		display: none;
+	}
+
 	.nav__user-name {
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 0.875rem;
+		font-size: var(--text-sm);
 		font-weight: 500;
 	}
 
 	.nav__user-chevron {
 		flex: 0 0 auto;
 		display: inline-flex;
-		color: var(--muted-foreground);
+		color: var(--foreground);
 		transition: transform 0.15s ease;
 	}
 
 	.nav__user-chevron svg {
-		width: 1em;
-		height: 1em;
+		width: 24px;
+		height: 24px;
 	}
 
 	.nav__user[open] .nav__user-chevron {
@@ -941,11 +1039,9 @@ export const NAV_STYLES = `
 		.nav-hidden .header:has(.nav__disclosure[open]) {
 			transform: none;
 		}
-		.header--transparent .nav__link {
-			color: var(--foreground);
-		}
-		.header--transparent .nav__icon {
-			color: var(--foreground);
+		.nav__link.btn {
+			width: calc(100% - 32px);
+			margin: 8px 16px;
 		}
 		@supports selector(::details-content) {
 			.nav__user {
@@ -1002,8 +1098,7 @@ export const NAV_STYLES = `
 			white-space: nowrap;
 		}
 
-		.nav__group--account,
-		.nav__list--guest {
+		.nav__group--account {
 			margin-left: auto;
 		}
 
@@ -1030,17 +1125,17 @@ export const NAV_STYLES = `
 
 		.nav__list {
 			display: flex;
-			gap: 8px;
+			gap: 4px;
 		}
 
-		.nav__link {
-			padding: 8px 12px;
+		.nav__link:not(.btn) {
+			padding: 10px 12px;
 			border-radius: var(--radius);
-			font-weight: 500;
 		}
 
 		.nav__user-summary {
-			padding: 6px 8px;
+			padding: 10px 8px;
+			margin-right: -8px;
 			border-radius: var(--radius);
 		}
 
@@ -1073,18 +1168,16 @@ export const NAV_STYLES = `
 		}
 
 		.header--transparent .nav__link,
-		.header--transparent .nav__icon,
 		.header--transparent .nav__user-summary {
 			color: var(--color-on-brand);
 		}
 
-		.header--transparent .nav__link:hover,
+		.header--transparent .nav__link:not(.btn):hover,
 		.header--transparent .nav__user-summary:hover {
 			background: rgba(255, 255, 255, 0.1);
 		}
 
-		.header--transparent .nav__user-menu .nav__link,
-		.header--transparent .nav__user-menu .nav__icon {
+		.header--transparent .nav__user-menu .nav__link {
 			color: var(--foreground);
 		}
 
@@ -1103,178 +1196,17 @@ export const NAV_STYLES = `
 			grid-column: 3;
 			justify-self: end;
 		}
-
-		.nav__list--guest {
-			grid-column: 2 / 4;
-			justify-self: end;
-			margin-left: 0;
-		}
-	}
-`;
-
-export const TRIAL_COUNTDOWN_STYLES = `
-	.trial-countdown {
-		margin: 0;
-		padding: 0 12px;
-		color: var(--error-text);
-		font-weight: 600;
-		font-size: 0.875rem;
-		font-variant-numeric: tabular-nums;
-		letter-spacing: 0.01em;
-		text-decoration: none;
-		transition: color 0.3s ease, background 0.3s ease, font-weight 0.3s ease;
-	}
-
-	.trial-countdown:hover {
-		text-decoration: underline;
-		text-decoration-thickness: 1px;
-		text-underline-offset: 3px;
-	}
-
-	/* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation, the cancellation branch of escalationClassFor in nav.component.ts, and the visibility state in nav.template.ts */
-	.trial-countdown--visible {
-		display: inline-block;
-	}
-
-	.trial-countdown--hidden {
-		display: none;
-	}
-
-	.trial-countdown--soft {
-		font-weight: 500;
-		opacity: 0.85;
-	}
-
-	.trial-countdown--moderate {
-		font-weight: 600;
-	}
-
-	.trial-countdown--urgent {
-		font-weight: 700;
-		padding: 2px 10px;
-		background: var(--error-bg);
-		border-radius: var(--radius-sm);
-	}
-
-	.trial-countdown--critical {
-		font-weight: 700;
-		padding: 2px 10px;
-		background: var(--error-fill);
-		color: var(--error-foreground);
-		border-radius: var(--radius-sm);
-		animation: trial-countdown-pulse 1.5s ease-in-out infinite;
-	}
-
-	.trial-countdown--expired {
-		font-weight: 700;
-		padding: 2px 10px;
-		background: var(--error-fill);
-		color: var(--error-foreground);
-		border-radius: var(--radius-sm);
-		animation: trial-countdown-shake 0.5s ease-in-out 1;
-	}
-
-	.trial-countdown--cancellation-scheduled,
-	.trial-countdown--cancellation-imminent {
-		font-weight: 500;
-		padding: 2px 10px;
-		background: var(--warning-bg);
-		color: var(--foreground);
-		border-radius: var(--radius-sm);
-		white-space: nowrap;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.trial-countdown--cancellation-imminent {
-		font-weight: 700;
-		background: var(--error-bg);
-		color: var(--error-text);
-	}
-	/* purgecss-ignore-end */
-
-	@keyframes trial-countdown-pulse {
-		0%, 100% { transform: scale(1); }
-		50% { transform: scale(1.04); }
-	}
-
-	@keyframes trial-countdown-shake {
-		0%, 100% { transform: translateX(0); }
-		25% { transform: translateX(-2px); }
-		75% { transform: translateX(2px); }
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.trial-countdown {
-			transition: none;
-			animation: none !important;
-		}
-	}
-
-	/** Below 960px the inline header row (brand + horizontal nav) leaves the chip
-	* less than its ~150px minimum, so it moves to its own full-width row. The
-	* wrap is scoped with :has() to the cancellation state so every other trial
-	* state keeps today's single-row layout; browsers without :has() fall back
-	* to the ellipsized inline chip, whose title still carries the full text. */
-	@media (max-width: 959px) {
-		.header__start:has(.trial-countdown--cancellation-scheduled),
-		.header__start:has(.trial-countdown--cancellation-imminent) {
-			flex-wrap: wrap;
-		}
-
-		.trial-countdown--cancellation-scheduled,
-		.trial-countdown--cancellation-imminent {
-			flex-basis: 100%;
-			order: 99;
-			padding: 4px 10px;
-		}
-	}
-
-	@media (max-width: 480px) {
-		.header__start {
-			flex-wrap: wrap;
-		}
-
-		.trial-countdown {
-			flex-basis: 100%;
-			padding: 4px 0 0;
-			order: 99;
-		}
-
-		.trial-countdown--cancellation-scheduled,
-		.trial-countdown--cancellation-imminent {
-			padding: 4px 10px;
-		}
-
-		.trial-countdown--urgent,
-		.trial-countdown--critical,
-		.trial-countdown--expired {
-			padding: 4px 10px;
-		}
 	}
 `;
 
 export const VERIFY_BANNER_STYLES = `
-	.verify-banner {
-		background: var(--color-secondary);
-		color: var(--color-on-brand);
-		text-align: center;
-		font-size: 14px;
-		font-weight: 500;
-		padding: 10px 16px;
-	}
-
 	.verify-banner--visible { display: block; }
 	.verify-banner--hidden { display: none; }
 
 	.verify-banner--locked {
-		background: var(--color-error);
+		background: var(--error-fill);
 		color: var(--error-foreground);
-		font-weight: 600;
 	}
-
-	.verify-banner__count { font-weight: 700; }
 
 	.verify-banner__contact {
 		color: inherit;
@@ -1302,11 +1234,63 @@ export const BANNER_AREA_STYLES = `
 	}
 `;
 
+export const BANNER_BAR_STYLES = `
+	.banner-bar {
+		position: relative;
+		background: var(--announcement-bg);
+		color: var(--color-on-brand);
+		font-size: var(--text-md);
+		font-weight: 600;
+		line-height: 1.5rem;
+		text-align: center;
+		padding: 14px 72px;
+	}
+
+	.banner-bar__close {
+		position: absolute;
+		top: 50%;
+		right: 12px;
+		transform: translateY(-50%);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		padding: 0;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--color-on-brand);
+		cursor: pointer;
+		transition: background 0.15s ease;
+	}
+
+	.banner-bar__close svg {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	.banner-bar__close:hover,
+	.banner-bar__close:focus-visible {
+		background: rgba(255, 255, 255, 0.15);
+	}
+
+	@media (max-width: 767px) {
+		.banner-bar {
+			padding-inline: var(--page-gutter);
+		}
+
+		.banner-bar:has(.banner-bar__close) {
+			padding-right: 72px;
+		}
+	}
+`;
+
 /**
  * `--banner-area-height` reserves vertical space for the *fixed* `.banner-area`
  * — `body` pads by it so content clears the bar. The chromeless shell has no
  * fixed bar (its announcement rides in normal flow), so nothing needs reserving
- * and the correct height is zero. Without this the 38px fallback strands a dead
+ * and the correct height is zero. Without this the fallback strands a dead
  * strip above the announcement, and above the article when there is none.
  */
 export const CHROMELESS_BANNER_AREA_STYLES = `
@@ -1316,47 +1300,15 @@ export const CHROMELESS_BANNER_AREA_STYLES = `
 `;
 
 export const CHANGELOG_BANNER_STYLES = `
-	.changelog-banner {
-		background: var(--color-secondary);
-		color: var(--color-on-brand);
-		font-size: 14px;
-		line-height: 1.5;
-	}
-
 	.changelog-banner--visible { display: block; }
 	.changelog-banner--hidden { display: none; }
 
 	.changelog-banner__inner {
-		position: relative;
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 10px 56px 10px 16px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 12px;
+		gap: 20px;
 	}
-
-	/**
-	* 1. A label, not a pill — 6px radius (var(--radius-sm)) keeps it inside the
-	*    brand's "never fully rounded" rule. The inline seen-script adds
-	*    --seen on a version this browser has already seen, dropping the chip so
-	*    NEW signals novelty rather than merely "not yet dismissed".
-	*/
-	.changelog-banner__chip {
-		flex: 0 0 auto;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		font-size: 11px;
-		font-weight: 700;
-		line-height: 1;
-		padding: 4px 7px;
-		background: var(--color-on-brand);
-		color: var(--color-secondary);
-		border-radius: var(--radius-sm); /* 1 */
-	}
-
-	.changelog-banner--seen .changelog-banner__chip { display: none; }
 
 	.changelog-banner__hook {
 		flex: 0 1 auto;
@@ -1364,23 +1316,21 @@ export const CHANGELOG_BANNER_STYLES = `
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-weight: 500;
 	}
 
 	.changelog-banner__link {
 		flex: 0 0 auto;
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
-		color: var(--color-on-brand);
-		font-weight: 600;
+		gap: 8px;
+		color: var(--announcement-link);
 		text-decoration: none;
 		white-space: nowrap;
 	}
 
 	.changelog-banner__link svg {
-		width: 1em;
-		height: 1em;
+		width: 1.25rem;
+		height: 1.25rem;
 	}
 
 	.changelog-banner__link:hover,
@@ -1388,33 +1338,6 @@ export const CHANGELOG_BANNER_STYLES = `
 		text-decoration: underline;
 		text-decoration-thickness: 1px;
 		text-underline-offset: 3px;
-	}
-
-	.changelog-banner__dismiss {
-		position: absolute;
-		right: 16px;
-		top: 50%;
-		transform: translateY(-50%);
-		margin: 0;
-		line-height: 1;
-	}
-
-	.changelog-banner__close {
-		display: inline-flex;
-		background: transparent;
-		border: none;
-		color: var(--color-on-brand);
-		font-size: 18px;
-		line-height: 1;
-		cursor: pointer;
-		padding: var(--button-padding-xs);
-		border-radius: var(--radius-sm);
-		transition: color 0.15s ease, background 0.15s ease;
-	}
-
-	.changelog-banner__close:hover,
-	.changelog-banner__close:focus-visible {
-		background: rgba(255, 255, 255, 0.15);
 	}
 
 	@media (max-width: 480px) {

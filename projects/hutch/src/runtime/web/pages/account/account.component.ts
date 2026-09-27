@@ -29,9 +29,8 @@ const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.templat
  * present, so the list/manage views pay nothing for it. */
 const ACCOUNT_CARDS_SCRIPT = `<script src="/client-dist/account-cards.client.js" defer></script>`;
 
-/** Export left the header nav so the trial countdown keeps its room; the account
- * page is where it lives now, reachable by read-only users too — they lose the
- * Account nav entry but still reach /account from the countdown chip. */
+/** Export left the header nav; the account page is where it lives now,
+ * reachable by read-only users too. */
 const EXPORT_HREF = withInternalTracking(ACCOUNT_EXPORT_URL, {
 	source: "account",
 	content: "export",

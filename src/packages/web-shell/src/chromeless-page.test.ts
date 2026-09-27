@@ -252,6 +252,7 @@ describe("ChromelessPage", () => {
 	it("styles the announcement without pulling in the full shell's fixed banner-area positioning", () => {
 		const css = shellCss(WITH_BANNER);
 
+		expect(css).toContain(".banner-bar {");
 		expect(css).toContain(".changelog-banner--hidden");
 		expect(css).not.toContain(".banner-area {");
 	});
@@ -295,7 +296,7 @@ describe("ChromelessPage", () => {
 			),
 			style: Array.from(doc.querySelectorAll("style")).map((el) => el.getAttribute("nonce")),
 		}).toEqual({
-			script: [CSP_NONCE],
+			script: [],
 			style: [CSP_NONCE, CSP_NONCE],
 		});
 	});

@@ -84,7 +84,6 @@ const ONBOARDING_CHIP = "[data-test-onboarding-chip]";
 const PAGE_READLIST = "body.page-readlist";
 
 const VOLATILE_CHROME = [
-	".trial-countdown",
 	".offline-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",

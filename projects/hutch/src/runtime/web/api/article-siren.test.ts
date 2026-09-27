@@ -51,7 +51,7 @@ describe("toArticleSubEntity", () => {
 				excerpt: "First paragraph...",
 				imageUrl: "https://example.com/image.jpg",
 				estimatedReadTimeMinutes: 5,
-				readTime: { value: "5", label: "~5 min read" },
+				readTime: { value: "5", label: "5 min read" },
 				status: "unread",
 				savedAt: "2026-03-04T10:00:00.000Z",
 				readAt: null,
@@ -109,7 +109,7 @@ describe("toArticleSubEntity", () => {
 		expect([
 			subEntity.properties?.estimatedReadTimeMinutes,
 			subEntity.properties?.readTime,
-		]).toEqual([3, { value: "3", label: "~3 min read" }]);
+		]).toEqual([3, { value: "3", label: "3 min read" }]);
 	});
 
 	it("does not advertise a delete action — deletion is website-only", () => {

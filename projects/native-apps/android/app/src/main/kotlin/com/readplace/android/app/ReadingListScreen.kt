@@ -182,7 +182,7 @@ fun ReadingListScreen(
 			TopAppBar(
 				title = { Text(text = "Reading List") },
 				navigationIcon = {
-					TextButton(onClick = onSignOut) { Text(text = "Sign out") }
+					TextButton(onClick = onSignOut, colors = brandTextButtonColors()) { Text(text = "Sign out") }
 				},
 				actions = {
 					for (affordance in state.collectionAffordances) {
@@ -322,7 +322,9 @@ fun ReadingListScreen(
 				}
 			},
 			dismissButton = {
-				TextButton(onClick = { pendingDestructive = null }) { Text(text = "Cancel") }
+				TextButton(onClick = { pendingDestructive = null }, colors = brandTextButtonColors()) {
+					Text(text = "Cancel")
+				}
 			},
 		)
 	}
@@ -360,7 +362,7 @@ private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 		TextButton(
 			onClick = onTap,
 			colors = if (tint == null) {
-				ButtonDefaults.textButtonColors()
+				brandTextButtonColors()
 			} else {
 				ButtonDefaults.textButtonColors(contentColor = tint)
 			},

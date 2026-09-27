@@ -4,11 +4,10 @@ import type { ChangelogBanner, FETCH_CHANGELOG_BANNER_IN_BROWSER } from "./chang
 import { type CspNonce, requireCspNonce } from "./csp-nonce.middleware";
 import { QuerystringFeatureToggle } from "./feature-toggle";
 import { type ClickSurface, withInternalTracking } from "./internal-link-tracking";
-import type { TrialDisplay } from "./trial-countdown.format";
 
-/** Presentational standing of an *unverified* account, mirroring TrialDisplay:
- * the consuming site computes it from its own domain and hands it to the shell,
- * which only renders copy. Inlined (rather than imported from the domain) so the
+/** Presentational standing of an *unverified* account: the consuming site
+ * computes it from its own domain and hands it to the shell, which only
+ * renders copy. Inlined (rather than imported from the domain) so the
  * shell stays dependency-free — any structurally identical status from elsewhere
  * assigns without a cast. Verified users and guests carry none; `pending` is the
  * legacy fallback (no anchor, so no countdown and no lockout). File-private: the
@@ -57,6 +56,8 @@ export type NavItemKey =
 	| "inbox"
 	| "integrations"
 	| "account"
+	| "privacy"
+	| "terms"
 	| "logout"
 	| "install"
 	| "features"
@@ -73,9 +74,8 @@ export type NavGroupKey = "library" | "account";
  * regardless of method — the template never branches on link-vs-form. A
  * `method="GET"` form with no inputs navigates to the action URL on submit,
  * so it behaves exactly like a link; using forms everywhere keeps a single
- * template shape and a single styling target (`.nav__link` already styles
- * `button.nav__link`). Excessive markup is not a performance concern at this
- * scale. The `iconName` is a name from the shared set, not markup: the template
+ * template shape and a single styling target. Excessive markup is not a
+ * performance concern at this scale. The `iconName` is a name from the shared set, not markup: the template
  * resolves it through `{{icon}}`, so this module stays free of drawing detail
  * and a redraw of an icon never touches nav data. The glyph is decoration beside
  * the visible label, so it adds nothing to the accessible name.
@@ -93,12 +93,15 @@ export interface NavItem {
 	href: string;
 	method: "GET" | "POST";
 	iconName: IconName;
+	linkClass: string;
 	trackSource: string;
 	trackContent: string;
 	trackTerm?: ClickSurface;
 }
 
 const NAV_SOURCE = "header-nav";
+
+const NAV_LINK_CLASS = "nav__link";
 
 const GMAIL_FEATURE = "gmail";
 
@@ -120,6 +123,7 @@ function navItem(input: {
 		href: withInternalTracking(input.path, { source: NAV_SOURCE, content: input.key }),
 		method: input.method,
 		iconName: input.iconName,
+		linkClass: NAV_LINK_CLASS,
 		trackSource: NAV_SOURCE,
 		trackContent: input.key,
 	};
@@ -150,19 +154,10 @@ export interface BannerState {
 	 * the article with their already-installed extension; when false (or unset) it
 	 * pitches the install. Sourced from the extension liveness cookie. */
 	extensionInstalled?: boolean;
-	/** Drives the global header pill below the brand. Undefined for guests,
-	 * founding members, and paid users; "active" for trialing users;
-	 * "cancellation-scheduled" for users inside the cancellation window
-	 * (paid + trial); "expired" for users whose trial has lapsed or whose
-	 * subscription has finished cancelling. */
-	trial?: TrialDisplay;
 	/** True when the user's effective access is read-only (trial-expired or
-	 * subscription-cancelled). Drives nav-item visibility: import (save flow
-	 * is gated server-side) and account (the trial-countdown link in the
-	 * header already routes there) are hidden for read-only users. Undefined
-	 * for guests and for pages that build the banner state synchronously
-	 * (without an access lookup); `buildNavGroups` treats undefined as full
-	 * access. */
+	 * subscription-cancelled). Undefined for guests and for pages that build
+	 * the banner state synchronously (without an access lookup);
+	 * `buildNavGroups` treats undefined as full access. */
 	accessIsReadOnly?: boolean;
 	userEmail?: string;
 	/** The latest feature announcement to surface site-wide. */
@@ -192,27 +187,31 @@ const NAV_INTEGRATIONS = navItem({
 });
 
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", iconName: "user" });
+const NAV_PRIVACY = navItem({ key: "privacy", label: "Privacy", path: "/privacy", method: "GET", iconName: "file" });
+const NAV_TERMS = navItem({ key: "terms", label: "Terms", path: "/terms", method: "GET", iconName: "file" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", iconName: "log-out" });
 const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", iconName: "download" });
 const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#ways-to-save", method: "GET", iconName: "sparkles" });
-const NAV_LOGIN = navItem({ key: "login", label: "Log in", path: "/login", method: "GET", iconName: "log-in" });
+const NAV_LOGIN: NavItem = {
+	...navItem({ key: "login", label: "Log in", path: "/login", method: "GET", iconName: "log-in" }),
+	linkClass: `${NAV_LINK_CLASS} btn btn--primary btn--m`,
+};
 
-/** Guest nav items rendered as a flat list without group structure. Import sits
- * before the login entry so a logged-out visitor can start a migration from the
- * menu; the import flow defers account creation until they commit their selection. */
-export function buildGuestNavItems(): NavItem[] {
-	return [NAV_INSTALL, NAV_FEATURES, NAV_IMPORT, NAV_LOGIN];
+/** Import sits before the login entry so a logged-out visitor can start a
+ * migration from the menu; the import flow defers account creation until they
+ * commit their selection. */
+export function buildGuestNavGroups(): NavGroup[] {
+	return [
+		{ key: "library", label: "Library", items: [NAV_INSTALL, NAV_IMPORT, NAV_FEATURES] },
+		{ key: "account", label: "Account", items: [NAV_LOGIN] },
+	];
 }
 
 /** Builds the grouped header nav for authenticated users. The template
  * iterates the returned groups (then their items) — no inline conditionals.
  * Adding a destination means pushing a NavItem into the right group here, not
- * editing the template. Item order within a group is preserved so the flat
- * rendered order stays readlist → import → inbox → account → logout.
- * Export is deliberately absent: it lives on the account page instead. The
- * header only fits so many entries beside the trial countdown before the
- * countdown is squeezed, so a destination reachable from a page it already
- * belongs to does not also spend a nav slot. */
+ * editing the template.
+ * Export is deliberately absent: it lives on the account page instead. */
 export function buildNavGroups(input: {
 	accessIsReadOnly: boolean;
 	gmailFeatureEnabled: boolean;
@@ -225,14 +224,9 @@ export function buildNavGroups(input: {
 		library.push(NAV_IMPORT, NAV_INBOX);
 	}
 	if (input.gmailFeatureEnabled) library.push(NAV_INTEGRATIONS);
-	const account: NavItem[] = [];
-	if (!input.accessIsReadOnly) {
-		account.push(NAV_ACCOUNT);
-	}
-	account.push(NAV_LOGOUT);
 	return [
 		{ key: "library", label: "Library", items: library },
-		{ key: "account", label: "Account", items: account },
+		{ key: "account", label: "Account", items: [NAV_ACCOUNT, NAV_PRIVACY, NAV_TERMS, NAV_LOGOUT] },
 	];
 }
 

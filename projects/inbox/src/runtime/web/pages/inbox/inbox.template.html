@@ -32,7 +32,7 @@
         <label class="form-field__label inbox__create-label" for="inbox-name">Name this inbox email</label>
         <div class="inbox__create-row">
           <input class="form-input inbox__name-input" id="inbox-name" name="name" type="text" value="{{submittedName}}" required maxlength="24" pattern="[A-Za-z0-9 -]+" placeholder="e.g. my-newsletter" autocomplete="off" aria-invalid="{{#if nameError}}true{{else}}false{{/if}}" {{#if nameError}}aria-describedby="inbox-name-error" autofocus {{/if}}data-test-inbox-name-input />
-          <button type="submit" class="btn btn--primary btn--field" data-test-inbox-create>Create inbox email</button>
+          <button type="submit" class="btn btn--primary" data-test-inbox-create>Create inbox email</button>
         </div>
         {{#each nameErrors}}
         <p class="form-field__error inbox__field-error" id="inbox-name-error" role="alert" data-test-inbox-field-error="{{key}}">{{message}}</p>
@@ -57,7 +57,7 @@
             {{{this.copyableHtml}}}
             <form action="{{../disableAction}}" method="POST" class="inbox__disable">
               <input type="hidden" name="address" value="{{this.address}}" />
-              <button type="submit" class="btn btn--toggle btn--compact" data-test-inbox-disable aria-label="{{this.disableAriaLabel}}">Disable</button>
+              <button type="submit" class="btn btn--secondary btn--m" data-test-inbox-disable aria-label="{{this.disableAriaLabel}}">Disable</button>
             </form>
           </li>
           {{/each}}
@@ -75,7 +75,7 @@
             <input class="form-input inbox__address-field" type="text" value="{{this.address}}" disabled aria-label="{{this.addressAriaLabel}}" />
             <form action="{{../enableAction}}" method="POST" class="inbox__enable">
               <input type="hidden" name="address" value="{{this.address}}" />
-              <button type="submit" class="btn btn--toggle btn--compact" data-test-inbox-enable>Enable</button>
+              <button type="submit" class="btn btn--secondary btn--m" data-test-inbox-enable>Enable</button>
             </form>
           </li>
           {{/each}}
