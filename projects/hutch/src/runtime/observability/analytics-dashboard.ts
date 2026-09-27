@@ -11,6 +11,7 @@ import { CLICK_SURFACES } from "@packages/web-shell";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
+import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
 import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
 import {
 	ANALYTICS_EVENTS,
@@ -1042,10 +1043,34 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	const epubDownload = `event = "${ANALYTICS_EVENTS.click}" and utm_content = "${EPUB_DOWNLOAD_CONTENT}" and (utm_source = "reader" or utm_source = "view-article")`;
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "EPUB downloads by device / browser (human-shaped)",
+			logGroupNames: analyticsSource,
+			query: [
+				`fields @timestamp, visitor_id, path, if(${epubDownload}, 1, 0) as is_download, if(${epubDownload} and utm_source = "reader", 1, 0) as is_owner_download`,
+				`| filter stream = "${STREAMS.analytics}" and ((${epubDownload}) or event = "${ANALYTICS_EVENTS.viewOpened}" or event = "${ANALYTICS_EVENTS.pageview}")`,
+				...exclude,
+				"| filter ispresent(visitor_id) and ispresent(path)",
+				`| fields if(is_download = 1, toMillis(@timestamp), 99999999999999) as download_ms, if(event = "${ANALYTICS_EVENTS.viewOpened}", toMillis(@timestamp), 99999999999999) as view_ms, if(is_download = 1, device_class, no_device) as click_device, if(is_download = 1, browser, no_browser) as click_browser, if(event = "${ANALYTICS_EVENTS.pageview}", device_class, no_device) as pageview_device, if(event = "${ANALYTICS_EVENTS.pageview}", browser, no_browser) as pageview_browser`,
+				"| stats min(download_ms) as first_download_ms, min(view_ms) as first_view_ms, sum(is_download) as clicks, sum(is_owner_download) as owner_clicks, latest(click_device) as click_device_class, latest(click_browser) as click_browser_label, latest(pageview_device) as pageview_device_class, latest(pageview_browser) as pageview_browser_label by visitor_id, path",
+				"| filter clicks > 0 and (owner_clicks > 0 or first_download_ms - first_view_ms > 1000)",
+				'| fields coalesce(click_device_class, pageview_device_class, "unclassified") as device, coalesce(click_browser_label, pageview_browser_label, "unclassified") as browser_label, if(owner_clicks > 0, "reader", "view-article") as source',
+				"| stats count(*) as downloads, count_distinct(visitor_id) as downloaders by device, browser_label, source",
+				"| sort downloads desc",
+			].join(" "),
+			x: 0, y: 230, width: 12, height: 8,
+			view: "table",
+		}),
+	);
+
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 230, width: 8, height: 4,
+			x: index * 8, y: 238, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
