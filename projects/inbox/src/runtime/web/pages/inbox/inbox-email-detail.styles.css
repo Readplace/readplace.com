@@ -231,14 +231,8 @@
 }
 
 .inbox-email-detail__empty-illustration {
-  width: 96px;
-  height: 80px;
+  display: flex;
   color: var(--foreground);
-}
-
-.inbox-email-detail__empty-illustration svg {
-  width: 100%;
-  height: 100%;
 }
 
 .inbox-email-detail__empty-title {

@@ -69,7 +69,7 @@ describe("InboxPage", () => {
 		assert.ok(empty, "empty state must render");
 		assert.equal(empty.closest(".inbox__listing"), listing, "the empty state sits inside the list card");
 		assert.equal(empty.classList.contains("inbox__empty--visible"), true);
-		assert.ok(empty.querySelector(".inbox__empty-illustration svg"), "the empty state leads with its illustration");
+		assert.ok(empty.querySelector('.inbox__empty-illustration [data-test-illustration="book-lightbulb"]'), "the empty state leads with its illustration");
 		assert.equal(
 			empty.querySelector(".inbox__empty-title")?.textContent,
 			"You don't have an inbox email yet",

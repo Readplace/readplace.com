@@ -82,10 +82,10 @@ Amber is one hue at several lightnesses, and each lightness has one job. Pick th
 | **Amber ink** | `#A85A1E` | `hsl(27 65% 58%)` | `--primary-text` | Every amber word or small amber mark on a surface: links, a selected navigation row, a title's hover, the unread dot, a work-in-flight mark, a secondary button's label. 5.06:1 on white, ~6:1 on the dark card |
 | **Amber tint** | `hsl(27 30% 95%)` | `hsl(27 15% 18%)` | `--secondary` | The ground for amber ink (see [Colour Rules](#colour-rules)) |
 | **On-dark amber ink** | `hsl(27 65% 35%)` | same (pinned) | `--secondary-foreground` | The label of a white `.btn--on-dark` |
-| **Brand amber** | `#C8702A` | `#D4833A` | `--color-brand` | Non-text marks only: a control's outline, an illustration's accent stroke, the light-theme wordmark tail (large text, 3.62:1). 3.62:1 on white, so never body words and never a button fill |
+| **Brand amber** | `#C8702A` | `#D4833A` | `--color-brand` | Non-text marks only: a control's outline, an illustration's amber fills, the light-theme wordmark tail (large text, 3.62:1). 3.62:1 on white, so never body words and never a button fill |
 | **Brand dark** | `#A85A1E` | `#E89A55` | `--color-brand-dark` | The palette value behind light `--primary-text`. Never referenced directly — it lightens in dark, so as a hover fill it would invert |
-| **Brand light** | `#F5E6D3` | `#3D2A18` | `--color-brand-light` | A tint behind **neutral** ink only, never a ground for amber ink (4.13:1) |
-| **Highlight** | `#C8923C` | `#D4A04A` | `--color-highlight` | Highlight words, the wordmark tail on dark and on navy, an illustration's glow |
+| **Brand light** | `#F5E6D3` | `#3D2A18` | `--color-brand-light` | A tint behind **neutral** ink only, never a ground for amber ink (4.13:1), and the cream sheet in an illustration, inside an ink outline |
+| **Highlight** | `#C8923C` | `#D4A04A` | `--color-highlight` | Highlight words, the wordmark tail on dark and on navy |
 | **Focus ring** | `hsl(27 65% 47%)` | `hsl(27 65% 52%)` | `--ring`, `--ring-shadow` (15% / 25% alpha) | Focus indication only. `--ring-shadow` is a legacy halo that `.form-input` does not draw; only fields not yet on the shared classes still use it |
 | **Navy** (Secondary) | `#2B3A55` | `#2B3A55` (pinned) | `--color-secondary`; ink twin `--color-secondary-text` (`#2B3A55` / `#8FA3C8`) | Navy *fills*: hero background, the announcement bars above the header, the manifest/tile colour, light-theme `theme-color`, the extension icon background and active states, and the light-theme wordmark stem. Navy *ink* on a surface uses `--color-secondary-text`, never `--color-secondary` (1.39:1 on the dark card) |
 | **Avatar** (identity) | `#7C5CE6` | `#8F7AF0` | `--color-avatar` | The fill of the signed-in account's initials disc, and nothing else. It marks a person, not a state or action — never a link, button, status or decoration. A deliberate exception to the no-high-saturation rule. White initials are 4.64:1 light but 3.38:1 dark, so it carries only decorative (`aria-hidden`) initials, never text a reader must read |
@@ -204,7 +204,7 @@ A single highlight word inside a phrase can be recoloured with `--color-highligh
 Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-icons.ts), which defines the one line spec: Lucide geometry on a 24×24 grid, 2px stroke, round caps and joins, no fill, `currentColor`, hidden from assistive tech. Size an icon by setting width/height on the svg (in `rem`/`em`) and colour it with `color`. Add a drawing there rather than at a call site, and add only icons a surface actually draws.
 
 - **No icon font, no icon CDN, no entity or Unicode glyph (`× ↓ ← → ✓ ✗ ● ▾`), no emoji, no CSS `content:` glyph.** A font glyph's stroke follows the system font and an SVG's does not, so mixing them puts two weights on one row — the tell that icons were picked at different times.
-- **Never override `stroke-width`, never fill a UI icon, never mix in a solid-style variant.** Filled colour is only for brand and logo marks.
+- **Never override `stroke-width`, never fill a UI icon, never mix in a solid-style variant.** Filled colour is only for brand and logo marks and spot [illustrations](#illustrations).
 - **Typographic punctuation stays text** — em dash, ellipsis, curly quotes, bullet dividers are copy. A plain shape (an unread dot, a step marker) is CSS, not an icon.
 - **Size an icon to the label it sits beside.**
 
@@ -224,7 +224,13 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
 
 ### Illustrations
 
-Spot illustrations lead an empty state and a destructive confirmation dialog. They come from the shared illustrations module, not the icon set. An illustration is line art in the icon idiom: inline SVG, 2px round-capped strokes in `currentColor` (the container sets `--foreground`), one accent element stroked in `--color-brand` (a book's cover, a bin's lid), and at most one soft `--color-highlight` wash at ~35% opacity — the only fill allowed outside brand marks. The accent stays brand amber even on a destructive dialog; the confirm button carries the danger. Illustrations are decorative (`aria-hidden`, `focusable="false"`), 72–96px, and never emoji, raster or clip art. A dialog that only edits (rename) has no illustration. Add a new drawing to that module, not at the call site.
+Spot illustrations lead an empty state and a destructive confirmation dialog. They come from the shared illustrations module, never from the icon set. There are two drawings: the **book with a lightbulb** leads anything that is not a deletion, and the **bin holding a sheet** leads a deletion.
+
+An illustration is filled art: a solid ink silhouette that shows as the outline, with flat shapes on top in at most four paints — ink (`currentColor`, which the container sets to `--foreground`), paper (`--card`), amber (`--color-brand`) and cream (`--color-brand-light`, only inside an ink outline). There are no strokes, washes, opacity, gradients or hex literals, so the art follows the reader's theme and any light pin.
+
+Each drawing carries the size it was drawn at, 64px tall (the book 80×64, the bin 46×64). A container places the art and never scales it.
+
+Illustrations are decorative (`aria-hidden`, `focusable="false"`), never emoji, raster or clip art, and carry no ids, because one page may inline the bin once per card. The accent stays amber even on a destructive dialog; the confirm button carries the danger. A dialog that only edits (rename, create) has no illustration. Add a new drawing to that module, not at the call site, and only once a design uses it.
 
 ### List Markers
 
@@ -372,7 +378,7 @@ A vertical list of content items (articles, emails, records) is **one enclosed c
 
 ### Empty States
 
-An empty list keeps its frame: the list card and header stay, the count reads zero, and the empty state fills the card body — centred, 40px above / 44px below / 8px between parts. It holds a spot [illustration](#illustrations) (~96×80), a sans title (17px/600, `--foreground`, `text-wrap: balance`), one or two sentences of 14px `--muted-foreground` body capped at ~44ch (the one place prose may take a narrower measure than its column), then the next-step action(s) 12px below. Pagination is hidden — never "Showing 0 of 0". Distinguish the reasons a list is empty (never used, all caught up, nothing in this tab, nothing in this scope), each with its own title and a body naming what to do next.
+An empty list keeps its frame: the list card and header stay, the count reads zero, and the empty state fills the card body — centred, 40px above / 44px below / 8px between parts. It holds a spot [illustration](#illustrations) (80×64, its drawn size), a sans title (17px/600, `--foreground`, `text-wrap: balance`), one or two sentences of 14px `--muted-foreground` body capped at ~44ch (the one place prose may take a narrower measure than its column), then the next-step action(s) 12px below. Pagination is hidden — never "Showing 0 of 0". Distinguish the reasons a list is empty (never used, all caught up, nothing in this tab, nothing in this scope), each with its own title and a body naming what to do next.
 
 ### Tabs
 
@@ -396,7 +402,7 @@ A dialog is the shared confirm panel, opened as a native popover, and every trig
 
 - **Title** is UI, not a section heading: sans, 17px/700, balanced. The close control is the `x` icon in the top-right corner.
 - **Body** is 15px/1.5 and stays `--foreground` — it is the message. A list of what the action will touch is a bordered list box (1px `--border`, `--radius`, hairline-split rows), not bullets.
-- **Illustration.** A confirmation of a consequential action (a delete) may carry a 72px line [illustration](#illustrations) above the title; an illustrated dialog centres its composition and pins the close control to the corner. A dialog that only edits (rename) has none and is left-aligned: label above the field, inline error below, buttons last.
+- **Illustration.** A confirmation of a consequential action (a delete) may carry a 64px-tall [illustration](#illustrations) above the title; an illustrated dialog centres its composition and pins the close control to the corner. A dialog that only edits (rename) has none and is left-aligned: label above the field, inline error below, buttons last.
 - **Buttons** follow [Pairing](#pairing).
 
 ### Alerts and Status

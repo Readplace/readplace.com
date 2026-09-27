@@ -495,8 +495,16 @@ describe("ReadlistPage", () => {
 		assert(readlistConfirm, "the readlist delete confirmation must render");
 		expect(articleConfirm.classList.contains("confirm-popover--illustrated")).toBe(true);
 		expect(readlistConfirm.classList.contains("confirm-popover--illustrated")).toBe(true);
-		expect(articleConfirm.querySelectorAll(".confirm-popover__illustration svg")).toHaveLength(1);
-		expect(readlistConfirm.querySelectorAll(".confirm-popover__illustration svg")).toHaveLength(1);
+		expect(articleConfirm.querySelectorAll('.confirm-popover__illustration [data-test-illustration="trash-can"]')).toHaveLength(1);
+		expect(readlistConfirm.querySelectorAll('.confirm-popover__illustration [data-test-illustration="trash-can"]')).toHaveLength(1);
+	});
+
+	it("leads the empty readlist with the book and lightbulb", () => {
+		const doc = pageDoc();
+
+		const empty = doc.querySelector("[data-test-empty-readlist]");
+		assert(empty, "the empty readlist must render");
+		expect(empty.querySelectorAll('.readlist-empty__illustration [data-test-illustration="book-lightbulb"]')).toHaveLength(1);
 	});
 
 	it("offers a rename popover for each readlist the reader owns", () => {
