@@ -49,7 +49,7 @@ html {
 }
 
 body {
-  width: 350px;
+  width: min(800px, 100vw);
   margin: 0;
   font-family: var(--font-sans);
   line-height: 1.6;

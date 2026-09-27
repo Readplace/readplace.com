@@ -93,7 +93,7 @@ function assertSkeletonDimensions(
 	dimensions: SkeletonDimensions | undefined,
 ): void {
 	assert(dimensions);
-	assert.equal(dimensions.width, 350);
+	assert(dimensions.width > 0 && dimensions.width <= 800);
 	assert(dimensions.height > 100);
 	assert.equal(dimensions.iconWidth, 48);
 	assert.equal(dimensions.iconHeight, 48);
