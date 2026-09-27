@@ -268,6 +268,14 @@ describe("ChromelessPage", () => {
 		expect(css).toContain(".btn--secondary {");
 	});
 
+	it("ships the shared form controls, so a page's .form-input markup is a styled field here as it is under the full shell", () => {
+		const css = shellCss(NO_BANNER);
+
+		expect(css).toContain(".form-input {");
+		expect(css).toContain(".form-field__error {");
+		expect(css).toContain(".form-choice {");
+	});
+
 	it("paints its own ground under its ink, so the page stays legible over a host surface that resolved a different scheme", () => {
 		const bodyRule = shellCss(NO_BANNER).match(/\bbody\s*\{([^}]*)\}/);
 		assert(bodyRule, "the shared reset must style the body");

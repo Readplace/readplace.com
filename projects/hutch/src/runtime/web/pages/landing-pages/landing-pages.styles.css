@@ -119,23 +119,6 @@
 .lp-action__input {
   flex: 1 1 12rem;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-size: var(--input-font-size);
-  font-family: inherit;
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-}
-
-.lp-action__input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.lp-action__input:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 /**

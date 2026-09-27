@@ -13,16 +13,16 @@
   <section class="embed-band embed-band--muted" id="variants">
     <div class="embed-page__container">
       <h2 class="embed-page__section-title">The 3 variants</h2>
-      <form class="embed-url-input" method="GET" action="/embed#variants">
+      <form class="form-field embed-url-input" method="GET" action="/embed#variants">
         {{#each customiseInputs}}
         <input type="hidden" name="{{name}}" value="{{value}}">
         {{/each}}
-        <label class="embed-url-input__label" for="article-url">Your article link</label>
+        <label class="form-field__label" for="article-url">Your article link</label>
         <div class="embed-url-input__row">
-          <input class="{{field.className}}" id="article-url" name="url" type="url" value="{{field.value}}" placeholder="https://example.com/my-article" aria-invalid="{{field.ariaInvalid}}" aria-describedby="article-url-error">
+          <input class="form-input form-input--cta-ring embed-url-input__field" id="article-url" name="url" type="url" value="{{field.value}}" placeholder="https://example.com/my-article" aria-invalid="{{field.ariaInvalid}}" aria-describedby="article-url-error">
           <button type="submit" class="btn btn--primary btn--field embed-url-input__submit">Update snippets</button>
         </div>
-        <p class="embed-url-input__error" id="article-url-error" data-test="url-error">{{field.error}}</p>
+        <p class="form-field__error" id="article-url-error" data-test="url-error">{{field.error}}</p>
       </form>
 
       <div class="embed-variants">

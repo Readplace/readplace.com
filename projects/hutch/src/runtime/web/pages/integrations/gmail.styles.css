@@ -209,33 +209,12 @@
 
 .gmail__add-label {
   display: block;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
   margin: 0 0 8px;
 }
 
 .gmail__add-input {
   flex: 1 1 200px;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-}
-
-.gmail__add-input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.gmail__add-input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
 .gmail__empty {

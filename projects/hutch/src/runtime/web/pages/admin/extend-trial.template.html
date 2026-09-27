@@ -9,11 +9,11 @@
       </p>
 
       <form class="admin-extend-trial__form" method="GET" action="/admin/extend-trial" data-test-extend-trial-lookup-form>
-        <label class="admin-extend-trial__label" for="extend-trial-email">User email (exact)</label>
+        <label class="form-field__label" for="extend-trial-email">User email (exact)</label>
         <div class="admin-extend-trial__row">
           <input
             id="extend-trial-email"
-            class="admin-extend-trial__input"
+            class="form-input admin-extend-trial__input"
             type="email"
             name="email"
             value="{{email}}"
@@ -25,7 +25,7 @@
           <button type="submit" class="btn {{lookupButtonVariant}} btn--field admin-extend-trial__row-btn" data-test-extend-trial-lookup>Look up</button>
         </div>
         {{#if emailError}}
-        <p class="admin-extend-trial__field-error" id="extend-trial-email-error" data-test-error="email">{{emailError}}</p>
+        <p class="form-field__error" id="extend-trial-email-error" data-test-error="email">{{emailError}}</p>
         {{/if}}
       </form>
     </section>
@@ -83,10 +83,10 @@
         action="/admin/extend-trial"
         data-test-extend-trial-form>
         <input type="hidden" name="email" value="{{email}}">
-        <label class="admin-extend-trial__label" for="extend-trial-ends-at">New trial end (UTC)</label>
+        <label class="form-field__label" for="extend-trial-ends-at">New trial end (UTC)</label>
         <input
           id="extend-trial-ends-at"
-          class="admin-extend-trial__input"
+          class="form-input"
           type="datetime-local"
           name="trialEndsAt"
           value="{{trialEndsAtInput}}"
@@ -94,7 +94,7 @@
           {{#if trialEndsAtError}}aria-invalid="true" aria-describedby="extend-trial-ends-at-error"{{/if}}
           data-test-extend-trial-date>
         {{#if trialEndsAtError}}
-        <p class="admin-extend-trial__field-error" id="extend-trial-ends-at-error" data-test-error="trialEndsAt">{{trialEndsAtError}}</p>
+        <p class="form-field__error" id="extend-trial-ends-at-error" data-test-error="trialEndsAt">{{trialEndsAtError}}</p>
         {{/if}}
         <button type="submit" class="btn btn--primary admin-extend-trial__submit" data-test-extend-trial-submit>Extend trial</button>
       </form>

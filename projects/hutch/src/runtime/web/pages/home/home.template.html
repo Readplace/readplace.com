@@ -15,7 +15,7 @@
             {{/each}}
             {{#if input}}
             <label class="sr-only" for="home-field-{{key}}">{{input.label}}</label>
-            <input class="home-hero__input" id="home-field-{{key}}" type="url" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-hero-input="{{key}}">
+            <input class="form-input form-input--cta-ring home-hero__input" id="home-field-{{key}}" type="url" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-hero-input="{{key}}">
             {{/if}}
             <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
           </form>

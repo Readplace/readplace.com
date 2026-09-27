@@ -132,9 +132,6 @@
 
 .inbox__create-label {
   display: block;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
   margin: 0 0 8px;
 }
 
@@ -148,35 +145,10 @@
 .inbox__name-input {
   flex: 1 1 200px;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-}
-
-.inbox__name-input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.inbox__name-input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
-}
-
-.inbox__name-input[aria-invalid="true"] {
-  border-color: var(--color-error);
 }
 
 .inbox__field-error {
   margin: 8px 0 0;
-  font-size: 0.8125rem;
-  color: var(--error-text);
-  text-wrap: pretty;
 }
 
 .inbox__addresses {
@@ -264,19 +236,6 @@
 .inbox__address-field {
   width: 100%;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-}
-
-.inbox__address-field:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .inbox__disable,

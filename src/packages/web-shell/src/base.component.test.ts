@@ -182,6 +182,18 @@ describe("Base component", () => {
 		expect(main.firstElementChild?.tagName).toBe("STYLE");
 	});
 
+	it("ships the shared form controls in the head, so a page's .form-input markup is styled without page CSS", () => {
+		const html = Base(createTestPageBody(), GUEST_STATE).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+		const css = Array.from(doc.head.querySelectorAll("style"))
+			.map((style) => style.textContent ?? "")
+			.join("");
+
+		expect(css).toContain(".form-input {");
+		expect(css).toContain(".form-field__error {");
+		expect(css).toContain(".form-choice {");
+	});
+
 	it("should apply bodyClass when provided", () => {
 		const page = createTestPageBody({ bodyClass: "page-home" });
 		const result = Base(page, GUEST_STATE).to("text/html");

@@ -115,12 +115,6 @@
   gap: 8px;
 }
 
-.import__from-url-label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
 .import__from-url-row {
   display: flex;
   flex-wrap: wrap;
@@ -130,24 +124,6 @@
 .import__from-url-input {
   flex: 1 1 12rem;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.import__from-url-input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.import__from-url-input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
 .import__from-url-btn {
@@ -432,19 +408,6 @@
   min-height: 44px;
   cursor: pointer;
   user-select: none;
-}
-
-.import__checkbox {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--primary);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.import__checkbox:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 .import__summary {

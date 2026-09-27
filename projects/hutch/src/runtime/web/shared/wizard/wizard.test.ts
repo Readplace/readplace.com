@@ -102,7 +102,7 @@ describe("renderWizard", () => {
 		const error = doc.querySelector('[data-test-wizard-surface="popover"] [data-test-wizard-error]');
 		assert(error, "the error paragraph must render whether or not there is an error");
 
-		expect(error.className).toBe("wizard__error wizard__error--hidden");
+		expect(error.className).toBe("form-field__error wizard__error--hidden");
 		expect(error.textContent).toBe("");
 	});
 
@@ -111,8 +111,8 @@ describe("renderWizard", () => {
 		const errors = Array.from(doc.querySelectorAll("[data-test-wizard-error]"));
 
 		expect(errors.map((error) => error.className)).toEqual([
-			"wizard__error wizard__error--visible",
-			"wizard__error wizard__error--visible",
+			"form-field__error wizard__error--visible",
+			"form-field__error wizard__error--visible",
 		]);
 		expect(errors.map((error) => error.textContent)).toEqual([
 			"Say something first.",

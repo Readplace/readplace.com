@@ -54,7 +54,9 @@ describe("Readlist page banner state", () => {
 		expect(banner.classList.contains("readlist-subscription--none")).toBe(true);
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access for a founding member");
-		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(false);
+		const saveInput = saveForm.querySelector<HTMLInputElement>("input[name='url']");
+		assert(saveInput, "save input must be rendered inside the save form");
+		expect(saveInput.disabled).toBe(false);
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "trial countdown element must always be in the DOM");
 		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
@@ -110,7 +112,9 @@ describe("Readlist page banner state", () => {
 		expect(countdown.textContent).toBe("Subscription not active");
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must still be rendered");
-		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(true);
+		const saveInput = saveForm.querySelector<HTMLInputElement>("input[name='url']");
+		assert(saveInput, "save input must be rendered inside the save form");
+		expect(saveInput.disabled).toBe(true);
 		const submitButton = saveForm.querySelector("button[type='submit']");
 		assert(submitButton, "save button must still be rendered");
 		expect(submitButton.hasAttribute("disabled")).toBe(true);
@@ -162,7 +166,9 @@ describe("Readlist page banner state", () => {
 		);
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access");
-		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(false);
+		const saveInput = saveForm.querySelector<HTMLInputElement>("input[name='url']");
+		assert(saveInput, "save input must be rendered inside the save form");
+		expect(saveInput.disabled).toBe(false);
 		const reactivate = banner.querySelector('[data-test-action="reactivate"]');
 		assert(reactivate, "cancellation-scheduled banner must offer Reactivate");
 		expect(reactivate.textContent).toBe("Reactivate Subscription");

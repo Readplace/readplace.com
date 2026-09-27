@@ -52,6 +52,40 @@ describe("renderReadlistRename", () => {
 		expect(input.getAttribute("name")).toBe("label");
 	});
 
+	it("draws the name field with the shared form-field look", () => {
+		const doc = panel();
+
+		const input = doc.querySelector("[data-test-readlist-rename-input]");
+		assert(input, "the rename input must render");
+		const label = doc.querySelector(`label[for="${input.id}"]`);
+		assert(label, "the rename input must be labelled");
+		expect(input.classList.contains("form-input")).toBe(true);
+		expect(label.classList.contains("form-field__label")).toBe(true);
+	});
+
+	it("describes the input by an error line that stays empty, and so hidden, until a refused rename fills it", () => {
+		const doc = panel();
+
+		const input = doc.querySelector("[data-test-readlist-rename-input]");
+		assert(input, "the rename input must render");
+		const error = doc.querySelector("[data-test-readlist-rename-error]");
+		assert(error, "the rename form must carry its error line");
+		expect(input.getAttribute("aria-describedby")).toBe(error.id);
+		expect(input.hasAttribute("aria-invalid")).toBe(false);
+		expect(error.classList.contains("form-field__error")).toBe(true);
+		expect(error.innerHTML).toBe("");
+	});
+
+	it("gives each readlist's error line its own id so two rename panels on one page never share one", () => {
+		const errorIds = [WORK, ReadlistSlugSchema.parse("home")].map((slug) => {
+			const error = panel({ slug }).querySelector("[data-test-readlist-rename-error]");
+			assert(error, "the rename form must carry its error line");
+			return error.id;
+		});
+
+		expect(new Set(errorIds).size).toBe(2);
+	});
+
 	it("hides the popover from the Cancel button without a page load", () => {
 		const doc = panel();
 

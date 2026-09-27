@@ -20,7 +20,7 @@
               <label class="import__select-all-label">
                 <input type="checkbox"
                   name="confirm"
-                  class="import__checkbox"
+                  class="form-choice"
                   {{#if allSelected}}checked{{/if}}
                   {{#if someSelected}}data-import-indeterminate{{/if}}
                   onclick="this.form.requestSubmit()"
@@ -51,7 +51,7 @@
                 <label class="import__row-label">
                   <input type="checkbox"
                     name="confirm"
-                    class="import__checkbox"
+                    class="form-choice"
                     {{#if checked}}checked{{/if}}
                     onclick="this.form.requestSubmit()"
                     data-test-import-checkbox="{{index}}">

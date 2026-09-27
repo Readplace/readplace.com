@@ -8,15 +8,15 @@
         {{{authProvidersHtml}}}
         <div class="auth-divider">or</div>
         <form class="auth-form" method="POST" action="{{formAction}}" data-test-form="login">
-          <div class="auth-form__field">
-            <label class="auth-form__label" for="email">Email</label>
-            <input class="auth-form__input{{emailField.errorClass}}" type="email" id="email" name="email" value="{{email}}" required autocomplete="email">
-            {{#if emailField.error}}<p class="auth-form__error" data-test-error="email">{{emailField.error}}</p>{{/if}}
+          <div class="form-field">
+            <label class="form-field__label" for="email">Email</label>
+            <input class="form-input" type="email" id="email" name="email" value="{{email}}" required autocomplete="email"{{#if emailField.error}} aria-invalid="true" aria-describedby="email-error"{{/if}}>
+            {{#if emailField.error}}<p class="form-field__error" id="email-error" data-test-error="email">{{emailField.error}}</p>{{/if}}
           </div>
-          <div class="auth-form__field">
-            <label class="auth-form__label" for="password">Password</label>
-            <input class="auth-form__input{{passwordField.errorClass}}" type="password" id="password" name="password" required autocomplete="current-password">
-            {{#if passwordField.error}}<p class="auth-form__error" data-test-error="password">{{passwordField.error}}</p>{{/if}}
+          <div class="form-field">
+            <label class="form-field__label" for="password">Password</label>
+            <input class="form-input" type="password" id="password" name="password" required autocomplete="current-password"{{#if passwordField.error}} aria-invalid="true" aria-describedby="password-error"{{/if}}>
+            {{#if passwordField.error}}<p class="form-field__error" id="password-error" data-test-error="password">{{passwordField.error}}</p>{{/if}}
           </div>
           <button class="btn btn--primary btn--field auth-form__submit" type="submit">Sign in</button>
         </form>

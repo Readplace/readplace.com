@@ -105,30 +105,9 @@
   justify-content: center;
 }
 
-/**
- * 1. Matches the .btn--field tier the submit button carries, so the row lines
- *    up; box-sizing is global, so the shared height is the only equaliser.
- */
 .home-hero__input {
   flex: 1 1 18rem;
   min-width: 0;
-  height: var(--input-height); /* 1 */
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.home-hero__input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.home-hero__input:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 .home-hero__save-button {

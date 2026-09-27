@@ -78,45 +78,6 @@
   gap: var(--form-gap);
 }
 
-.auth-form__field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.auth-form__label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.auth-form__input {
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.auth-form__input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
-}
-
-.auth-form__input--error {
-  border-color: var(--color-error);
-}
-
-.auth-form__error {
-  font-size: 0.8125rem;
-  color: var(--error-text);
-}
-
 .auth-form__submit {
   width: 100%;
   margin-top: 8px;

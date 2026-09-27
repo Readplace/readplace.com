@@ -19,6 +19,7 @@ import {
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import { requireEnv } from "@packages/require-env";
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { clickAndWaitForPageReload } from "./page-interactions";
 import { growRailToFitOpenFlyout } from "./readlist.browser";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
@@ -54,6 +55,8 @@ const READLIST_RENAME_POPOVER = '[data-test-confirm-popover="readlist-rename"]';
 const READLIST_DELETE_POPOVER = '[data-test-confirm-popover="readlist-delete"]';
 const SAVE_CARD = "[data-test-save-card]";
 const SAVE_ERROR = "[data-test-save-error]";
+const SAVE_INPUT = `${SAVE_CARD} input[name="url"]`;
+const SAVE_TIP_POPOVER = '[data-test-confirm-popover="save-tip"]';
 const ARTICLE = "[data-test-article]";
 const FIRST_CARD = "#latest-saved";
 const CARD_MARK_READ = '[data-test-action="mark-read"]';
@@ -405,6 +408,16 @@ async function saveErrorSettled(page: Page): Promise<void> {
 	await expect(page.locator(SAVE_ERROR)).toHaveAttribute("data-test-saveable-url-code", "malformed_url");
 }
 
+async function saveFieldFocusSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	const input = page.locator(SAVE_INPUT);
+	await input.focus();
+	await expect(input).toBeFocused();
+	await expect(input).toHaveValue("");
+	await expect(page.locator(SAVE_TIP_POPOVER)).toBeHidden();
+}
+
 async function subscriptionTrialSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
@@ -426,7 +439,7 @@ async function subscriptionInactiveSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
 	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--inactive/);
-	await expect(page.locator(`${SAVE_CARD} form`)).toHaveClass(/readlist-save__form--disabled/);
+	await expect(page.locator(SAVE_INPUT)).toBeDisabled();
 	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
 	await settledSetupGuide(page);
 }
@@ -555,6 +568,15 @@ const ALERT_LIMIT: VisualCheckpoint = {
 const SAVE_ERROR_CHECKPOINT: VisualCheckpoint = {
 	name: "readlist-save-error",
 	settled: saveErrorSettled,
+	geometry: railBesideMainBesideSide,
+	target: SAVE_CARD,
+	capture: "element",
+	pinnedText: [],
+};
+
+const SAVE_FIELD_FOCUS: VisualCheckpoint = {
+	name: "readlist-save-field-focus",
+	settled: saveFieldFocusSettled,
 	geometry: railBesideMainBesideSide,
 	target: SAVE_CARD,
 	capture: "element",
@@ -824,6 +846,22 @@ test.describe("Readlist alerts", () => {
 			await gotoReadlistQueue(page, "?error_code=malformed_url");
 
 			await captureCheckpoint(page, withTheme(SAVE_ERROR_CHECKPOINT, theme));
+		});
+	}
+});
+
+test.describe("Readlist save field", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`shows the empty save field focused (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-save-field-focus-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueueWithCookies(page, [{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN }]);
+
+			await captureCheckpoint(page, withTheme(SAVE_FIELD_FOCUS, theme));
 		});
 	}
 });

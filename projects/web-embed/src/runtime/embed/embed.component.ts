@@ -63,30 +63,25 @@ export type EmbedPageUrl = { kind: "empty" } | { kind: "valid"; url: string } | 
 
 interface PageUrlView {
 	snippetPageUrl: string;
-	field: { value: string; className: string; ariaInvalid: "true" | "false"; error: string };
+	field: { value: string; ariaInvalid: "true" | "false"; error: string };
 }
 
 function pageUrlView(pageUrl: EmbedPageUrl): PageUrlView {
 	if (pageUrl.kind === "valid") {
 		return {
 			snippetPageUrl: pageUrl.url,
-			field: { value: pageUrl.url, className: "embed-url-input__field", ariaInvalid: "false", error: "" },
+			field: { value: pageUrl.url, ariaInvalid: "false", error: "" },
 		};
 	}
 	if (pageUrl.kind === "invalid") {
 		return {
 			snippetPageUrl: PAGE_URL_PLACEHOLDER,
-			field: {
-				value: pageUrl.raw,
-				className: "embed-url-input__field embed-url-input__field--invalid",
-				ariaInvalid: "true",
-				error: INVALID_PAGE_URL_MESSAGE,
-			},
+			field: { value: pageUrl.raw, ariaInvalid: "true", error: INVALID_PAGE_URL_MESSAGE },
 		};
 	}
 	return {
 		snippetPageUrl: PAGE_URL_PLACEHOLDER,
-		field: { value: "", className: "embed-url-input__field", ariaInvalid: "false", error: "" },
+		field: { value: "", ariaInvalid: "false", error: "" },
 	};
 }
 

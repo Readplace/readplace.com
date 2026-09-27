@@ -2304,6 +2304,18 @@ describe("POST /account/cards/new", () => {
 		assert(secret.length > 0, "client secret must be embedded for Stripe.js");
 		const setupId = elements.getAttribute("data-setup-id") ?? "";
 		expect(setupId).toMatch(/^seti_inmem_/);
+
+		const mount = elements.querySelector("[data-card-element]");
+		assert(mount, "the Stripe card field must have a mount point");
+		expect(mount.classList.contains("form-input__control")).toBe(true);
+		const field = mount.parentElement;
+		assert(field, "the card mount must be wrapped in the field it draws inside");
+		expect(field.classList.contains("form-input")).toBe(true);
+		expect(field.classList.contains("form-input--within")).toBe(true);
+		const error = elements.querySelector("[data-card-error]");
+		assert(error, "the Stripe card field must have an error slot");
+		expect(error.classList.contains("form-field__error")).toBe(true);
+		expect(error.getAttribute("role")).toBe("alert");
 	});
 
 	it("redirects to the card-limit error when already at 3 cards", async () => {
@@ -2813,6 +2825,7 @@ describe("POST /account/delete", () => {
 		const notice = doc.querySelector("[data-test-danger-notice]");
 		assert(notice, "the rejected-delete notice must render");
 		expect(notice.getAttribute("role")).toBe("alert");
+		expect(notice.classList.contains("form-field__error")).toBe(true);
 		expect(notice.textContent).toBe(
 			'Your account was not deleted. Type "delete my account permanently" exactly to confirm.',
 		);
@@ -2988,12 +3001,19 @@ describe("GET /account (danger zone)", () => {
 		expect(input.hasAttribute("required")).toBe(true);
 		expect(input.getAttribute("pattern")).toBe("delete my account permanently");
 		expect(input.getAttribute("title")).toBe("Type the phrase exactly: delete my account permanently");
+		expect(input.classList.contains("form-input")).toBe(true);
+		expect(input.hasAttribute("aria-invalid")).toBe(false);
+		expect(input.hasAttribute("aria-describedby")).toBe(false);
 
 		const inputId = input.getAttribute("id");
 		assert(inputId, "the confirmation input must have an id for its label");
 		const label = danger.querySelector(`label[for="${inputId}"]`);
 		assert(label, "the confirmation input must be labelled");
 		expect(label.textContent).toContain('Type "delete my account permanently" to confirm');
+		expect(label.classList.contains("form-field__label")).toBe(true);
+		const field = input.closest(".form-field");
+		assert(field, "the confirmation input must sit in a form field");
+		assert(field.contains(label), "the label must share the confirmation input's form field");
 
 		const deleteForm = danger.querySelector('[data-test-danger-action="delete-account"]');
 		assert(deleteForm, "the delete-account form must render");

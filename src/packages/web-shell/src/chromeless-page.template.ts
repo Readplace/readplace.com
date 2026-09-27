@@ -21,6 +21,7 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 		{{{baseStyles}}}
 		{{{resetStyles}}}
 		{{{buttonStyles}}}
+		{{{formControlStyles}}}
 		{{{utilityStyles}}}
 		{{{bannerAreaStyles}}}
 		{{{changelogBannerStyles}}}

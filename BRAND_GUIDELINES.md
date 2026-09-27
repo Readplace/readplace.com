@@ -86,7 +86,7 @@ Amber is one hue at several lightnesses, and each lightness has one job. Pick th
 | **Brand dark** | `#A85A1E` | `#E89A55` | `--color-brand-dark` | The palette value behind light `--primary-text`. Never referenced directly — it lightens in dark, so as a hover fill it would invert |
 | **Brand light** | `#F5E6D3` | `#3D2A18` | `--color-brand-light` | A tint behind **neutral** ink only, never a ground for amber ink (4.13:1) |
 | **Highlight** | `#C8923C` | `#D4A04A` | `--color-highlight` | Highlight words, the wordmark tail on dark and on navy, an illustration's glow |
-| **Focus ring** | `hsl(27 65% 47%)` | `hsl(27 65% 52%)` | `--ring`, `--ring-shadow` (15% / 25% alpha) | Focus indication only |
+| **Focus ring** | `hsl(27 65% 47%)` | `hsl(27 65% 52%)` | `--ring`, `--ring-shadow` (15% / 25% alpha) | Focus indication only. `--ring-shadow` is a legacy halo that `.form-input` does not draw; only fields not yet on the shared classes still use it |
 | **Navy** (Secondary) | `#2B3A55` | `#2B3A55` (pinned) | `--color-secondary`; ink twin `--color-secondary-text` (`#2B3A55` / `#8FA3C8`) | Navy *fills*: hero background, the announcement bars above the header, the manifest/tile colour, light-theme `theme-color`, the extension icon background and active states, and the light-theme wordmark stem. Navy *ink* on a surface uses `--color-secondary-text`, never `--color-secondary` (1.39:1 on the dark card) |
 | **Avatar** (identity) | `#7C5CE6` | `#8F7AF0` | `--color-avatar` | The fill of the signed-in account's initials disc, and nothing else. It marks a person, not a state or action — never a link, button, status or decoration. A deliberate exception to the no-high-saturation rule. White initials are 4.64:1 light but 3.38:1 dark, so it carries only decorative (`aria-hidden`) initials, never text a reader must read |
 
@@ -99,8 +99,8 @@ Amber is one hue at several lightnesses, and each lightness has one job. Pick th
 | **Surface Elevated** | `#FFFFFF` | `#222222` | `--color-surface-elevated` (`--card`) | Every card and panel; dropdown menus; dialogs |
 | **Border** | `#E2E5EA` | `#2E2E2E` | `--color-border` (`--border` / `--input`) | Card edges, dividers, input borders, subtle separators |
 | **Text — Primary** | `#1A202C` | `#E4E4E4` | `--color-text-primary` (`--foreground`) | Body text, headings, titles |
-| **Text — Secondary** | `#5A6170` | `#9BA1AE` | `--color-text-secondary` (`--muted-foreground`) | Supporting copy: ledes, excerpts, metadata and timestamps, alert bodies, inactive tabs, an inactive pagination link, an already-read item's title, disabled text |
-| **Text — Muted** | `#8C919D` | `#6B6B6B` | `--color-text-muted` | **Marks only, never words.** ~3:1 in both themes, under the 4.5:1 floor. Input placeholders, and a decorative mark on a white ground (3.16:1). Never a timestamp, metadata, disabled text, or a meaning-bearing icon |
+| **Text — Secondary** | `#5A6170` | `#9BA1AE` | `--color-text-secondary` (`--muted-foreground`) | Supporting copy: ledes, excerpts, metadata and timestamps, alert bodies, inactive tabs, an inactive pagination link, an already-read item's title, disabled text, a field's placeholder (`--input-placeholder`) |
+| **Text — Muted** | `#8C919D` | `#6B6B6B` | `--color-text-muted` | **Marks only, never words.** ~3:1 in both themes, under the 4.5:1 floor. A decorative mark on a white ground (3.16:1). Never a placeholder (a placeholder is words), a timestamp, metadata, disabled text, or a meaning-bearing icon |
 | **Footer Background** | `#1A1A1A` | `#0D0D0D` | `--footer-bg` | Site footer |
 
 A card differs from the `--muted` ground by only ~1.1:1, so a card always carries `1px solid var(--border)`. The border draws the card, not the fill. In dark mode the header (`--background`), the canvas (`--muted`) and a card (`--card`) each step lighter, so elevation reads from lightness rather than a shadow.
@@ -156,9 +156,9 @@ Panels, cards, lists and dialogs have **no display type**. Their largest text is
 | Item title in a list · empty-state title · dialog title | `1.0625rem` (17px) | 600 (dialog 700) | `--foreground`; an item title hovers to `--primary-text` |
 | Panel / card heading | `1rem` (16px) | 600 | `--foreground` |
 | Rail heading · tab label · dialog body | `0.9375rem` (15px) | 600 · 500 (600 current) · 400 | `--foreground`; inactive tabs `--muted-foreground` |
-| UI text: nav and menu items, list header, excerpts, ledes, pagination | `0.875rem` (14px) | 400–600 | `--foreground` or `--muted-foreground` |
-| Supporting: metadata, card and alert body, errors, field labels | `0.8125rem` (13px) | 400 (labels 600) | `--muted-foreground`; errors `--error-text` |
-| Chip · tile label | `0.75rem` (12px) | 500–600 · 400 | per chip · `--muted-foreground` |
+| UI text: nav and menu items, list header, excerpts, ledes, pagination, field labels | `0.875rem` (14px) | 400–600 (labels 500) | `--foreground` or `--muted-foreground`; labels `--foreground` |
+| Supporting: metadata, card and alert body | `0.8125rem` (13px) | 400 | `--muted-foreground` |
+| Chip · tile label · field error | `0.75rem` (12px) | 500–600 · 400 · 500 | per chip · `--muted-foreground` · `--error-text` |
 | Figure (stat tile) | `1.125rem` (18px) | 700, tabular | `--foreground` |
 
 Buttons and inputs take their sizes from their own tokens (see [Buttons](#buttons) and [Form Inputs](#form-inputs)). Nothing a reader must read goes below 12px; 11px is left to all-caps micro-labels, avatar initials and the footer copyright.
@@ -166,7 +166,7 @@ Buttons and inputs take their sizes from their own tokens (see [Buttons](#button
 ### Typography Rules
 
 - **Product headings are sans; the serif is the display voice.** Every heading in the product's working area — panel and card titles, rail headings, list headers, empty states, alerts, dialog titles — uses `var(--font-sans)` at weight 600 (700 for a dialog title) in `--foreground`. This covers **every page a reader operates**, signed-in pages and logged-out tools (import, login) alike. `var(--font-serif)` is the display voice: the wordmark, the reader view's article title, and display headings on editorial and marketing pages (home, landing pages, blog). A saved article's title or an email subject shown in a list is sans, like the rest of the list. Declare the font on the heading's own selector so the choice is explicit, not inherited — a heading that inherits the body sans is a drift, not a choice, and the serif stack must never be inlined (one source of truth, like colours).
-- **Weight carries hierarchy.** Inter is loaded at 400–700, and each weight has one job. **400** is prose, excerpts, metadata, menu items, neutral labels. **500** is navigation a reader moves through (rail and header links, inactive tabs) and neutral chips. **600** is headings, titles, form labels, counts, status chips, button labels, and the current tab or page number. **700** is dialog titles, stand-alone figures, the wordmark and avatar initials. Never set **800** — Inter is not loaded at that weight. Where a weight step does the job, do not reach for a bigger size.
+- **Weight carries hierarchy.** Inter is loaded at 400–700, and each weight has one job. **400** is prose, excerpts, metadata, menu items, neutral labels. **500** is navigation a reader moves through (rail and header links, inactive tabs), neutral chips and form labels. **600** is headings, titles, counts, status chips, button labels, and the current tab or page number. **700** is dialog titles, stand-alone figures, the wordmark and avatar initials. Never set **800** — Inter is not loaded at that weight. Where a weight step does the job, do not reach for a bigger size.
 - **A heading brings its own lede.** A panel title (16px/600, `--foreground`) is followed 2–8px below by a lede one or two steps smaller (13–14px/400, `--muted-foreground`). Alerts use the pair one step down (14px/600 over 13px), empty states one step up (17px over 14px). The two lines differ by weight and ink, not by a large size gap. A dialog's body is the exception — it is the message, so it stays `--foreground`.
 - **A page with persistent navigation names its place through that navigation, not a display title.** Where a rail or tab selection already shows where the reader is, the page renders no visible `h1`: the document `<title>` names the place (`All — Readplace`), and each panel's own `h2` starts the outline.
 - **Legibility is non-negotiable.** This is a product about reading. If a type choice looks good but reads poorly, reject it.
@@ -306,11 +306,11 @@ Controls that navigate or tidy without committing (sort, pagination, sidebar row
 
 Amber at rest is kept for calls to action, links in prose, and the active sidebar row.
 
-- **Every focusable control paints the amber `--ring` when focused.** A **text field** shows focus on `:focus` by turning its border `--ring` and adding `0 0 0 3px var(--ring-shadow)`, with `outline: none`. On a marketing page, a field that shares a row with its CTA paints that button's `:focus-visible` outline instead, so the pair shows one ring. **Everything else** (buttons, links, selects, `summary` toggles, a focusable dialog panel) draws `outline: 2px solid var(--ring)` at 2px offset on `:focus-visible`. The base rule covers `button` and `a`, so any other element declares its own.
+- **Every focusable control paints the amber `--ring` when focused.** A **text field** shows focus on `:focus` by turning its border `--ring` and adding `0 0 0 1px var(--ring)` — a solid 2px edge with no translucent halo — with `outline: none`. On a marketing page, a field that shares a row with its CTA (`.form-input--cta-ring`) paints that button's `:focus-visible` outline instead, so the pair shows one ring. **Everything else** (buttons, links, selects, checkboxes and radios, `summary` toggles, a focusable dialog panel) draws `outline: 2px solid var(--ring)` at 2px offset on `:focus-visible`. The base rule covers `button` and `a`, so any other element declares its own.
 
 #### Disabled and in-flight
 
-- **Disabled** buttons and fields take `opacity: 0.5` and `cursor: not-allowed`. A field and the button it pairs with are disabled together.
+- **Disabled** buttons take `opacity: 0.5` and `cursor: not-allowed`; a disabled field is never faded — it takes the `--muted` fill (see [Form Inputs](#form-inputs)). A field and the button it pairs with are disabled together.
 - **A disabled link is not a faded link.** Render it as a non-link element with `aria-disabled="true"` in `--muted-foreground`. Disabled text is never `--color-text-muted` (under 3.3:1 in both themes).
 - **In flight is not disabled.** A control locked only for its round trip keeps full opacity and takes a `progress` cursor. It shows it is working in place of its label — the shared three-dot loader (label hidden by `visibility: hidden` so width holds), or a progress label ("Saving…"). A region waiting to be replaced may dim to ~55% with a `progress` cursor; it never goes blank.
 
@@ -320,14 +320,14 @@ Amber at rest is kept for calls to action, links in prose, and the active sideba
 
 | Token | Value | CSS variable | Usage |
 |---|---|---|---|
-| Small | `6px` | `--radius-sm` | Controls: buttons, inputs, selects, menu items, icon-only buttons, labels, images inside a card, progress tracks, skeleton bars, thumbnails (a non-interactive status chip is a pill, not `--radius-sm` — see the carve-out below) |
-| Default | `8px` | `--radius` | Rows and small floating layers: navigation rows (rail rows, header links), dropdown and row menus, toasts; and boxes nested inside a card or dialog (tiles, callouts, bordered lists) |
+| Small | `6px` | `--radius-sm` | Controls: buttons, selects, menu items, icon-only buttons, labels, images inside a card, progress tracks, skeleton bars, thumbnails (a non-interactive status chip is a pill, not `--radius-sm` — see the carve-out below) |
+| Default | `8px` | `--radius` | Rows and small floating layers: navigation rows (rail rows, header links), dropdown and row menus, toasts; boxes nested inside a card or dialog (tiles, callouts, bordered lists); and text fields |
 | Large | `12px` | `--radius-lg` | Page-level surfaces: cards and panels, including a standalone alert card |
 | Dialog | `16px` | — | Modal dialogs — one step above a card |
 
-**Corners step down one size per level of nesting** (dialog 16 → card 12 → nested box 8 → control 6), so an inner corner is never rounder than its container. A tile set into a card (a stat or countdown box) is enclosed by 1px `var(--border)` and fills with `--muted`, reading as recessed. An image in a card takes `--radius-sm` and `object-fit: cover`, no border. Pick the token by what the element *is*, not by how prominent it should look.
+**Corners step down one size per level of nesting** (dialog 16 → card 12 → nested box or text field 8 → control 6), so an inner corner is never rounder than its container. A tile set into a card (a stat or countdown box) is enclosed by 1px `var(--border)` and fills with `--muted`, reading as recessed. An image in a card takes `--radius-sm` and `object-fit: cover`, no border. Pick the token by what the element *is*, not by how prominent it should look.
 
-**Never fully rounded** (pill shapes) for anything you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards stay on the radius tokens. This isn't a social app. The one carve-out is a **non-interactive status chip**, which is a pill (`border-radius: 999px`) so it reads as a badge, not a control. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots and step markers.
+**Never fully rounded** (pill shapes) for anything you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards stay on the radius tokens. This isn't a social app. The one carve-out is a **non-interactive status chip**, which is a pill (`border-radius: 999px`) so it reads as a badge, not a control. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots, step markers and radio rings. A checkbox's 5px corner is glyph geometry, not a radius token.
 
 A card laid out in a grid is a fully-enclosed box — `1px solid var(--border)` plus a `--radius*` corner. A vertical divided list lives *inside* one enclosed card (see [Lists](#lists)); its hairlines never run bare on the page ground. Reserve a bottom-border-only separator for a divided list, never a grid tile, which reads as half-drawn beside its neighbours.
 
@@ -401,7 +401,7 @@ A dialog is the shared confirm panel, opened as a native popover, and every trig
 
 ### Alerts and Status
 
-An error alert is a tinted box that stays on screen (never a toast): 1px `--color-error` border, `--error-bg` fill, `--radius-lg` standalone (`--radius` nested in a card), `14px 16px` padding, `role="alert"`. It leads with `x-circle` (18px, `--error-text`, 12px from the text, aligned to the title's first line); a short title (14px/600 `--foreground`, no full stop) names what happened and a body line (13px `--muted-foreground`) says what to do next. **Red belongs to the frame and the icon; the words stay neutral ink.** A field error reddens the input's border and sets the message beneath it in `--error-text`.
+An error alert is a tinted box that stays on screen (never a toast): 1px `--color-error` border, `--error-bg` fill, `--radius-lg` standalone (`--radius` nested in a card), `14px 16px` padding, `role="alert"`. It leads with `x-circle` (18px, `--error-text`, 12px from the text, aligned to the title's first line); a short title (14px/600 `--foreground`, no full stop) names what happened and a body line (13px `--muted-foreground`) says what to do next. **Red belongs to the frame and the icon; the words stay neutral ink.** A field error reddens the input's border and sets the message beneath it in `--error-text` (values in [Form Inputs](#form-inputs)).
 
 A **status chip** carries its state's triad (e.g. `--error-bg` fill, `--error-text` label, 1px `--color-error` border) at 12px/600, as a [pill](#border-radius). `--error-text` is the red for wording, `--color-error` the red for strokes; neither is a fill.
 
@@ -443,8 +443,8 @@ A **4px base unit**. Layout spacing (page padding, gutters, gaps between cards a
 |---|---|---|
 | `xs` | 4px | Gap between the rows of a rail or menu list; tight inline gaps |
 | `sm` | 8px | Between related elements (title → lede, label → field) |
-| — | 12px | Between items sharing a row (a heading and its menu, a count and its sort) |
-| `md` | 16px | Between cards in a column; the phone page gutter; input side padding |
+| — | 12px | Between items sharing a row (a heading and its menu, a count and its sort); input padding |
+| `md` | 16px | Between cards in a column; the phone page gutter |
 | — | 20px | List-row and compact-card padding; the single-column gap |
 | `lg` | 24px | Desktop page gutter and column gap; card side padding |
 | `xl` | 32px | Between major sections of a marketing page; dialog padding from 768px |
@@ -454,18 +454,40 @@ Page-level insets (the `28px` desktop top, the `64px` / `80px` bottom) sit on th
 
 ### Form Inputs
 
-> Defined in `base.styles.ts`.
+> **Source of truth:** `FORM_CONTROL_STYLES` in `src/packages/web-shell/src/base.styles.ts`, injected into every page's `<head>`.
+
+Every text field, label, field error, checkbox and radio takes its look from the shared classes below. A page stylesheet may add layout (`width`, `margin`, grid/flex placement) and nothing else. A page never defines its own field class or repaints a field's border, corner, fill, type, placeholder, focus, invalid or disabled look — that is how those values drift apart from page to page.
 
 | Token | Value | CSS variable |
 |---|---|---|
 | Height | `48px` | `--input-height` |
-| Padding | `12px 16px` | `--input-padding` |
-| Font size | `16px` | `--input-font-size` |
+| Padding | `12px` | `--input-padding` |
+| Font size | `16px`; `14px` from 768px with a fine pointer | `--input-font-size` |
+| Placeholder | Secondary ink (`--muted-foreground`) | `--input-placeholder` |
 | Form gap | `20px` (24px from 768px) | `--form-gap` |
 
-- **A text field** has a 1px `--input` border, `--radius-sm` corners and a `--background` fill — in dark mode that fill sits one step below the `--card` around it, so the field reads as a well. Placeholder text is `--color-text-muted`. The field is named by a visible label above it (13px/600 `--foreground`, 8px gap) or by the heading of the card it sits in; a placeholder is never its only name. **Invalid:** the border turns `--color-error` and one 13px `--error-text` sentence appears directly below (announced with `role="alert"` when it appears without a page load). **Disabled/in-flight:** see [Buttons](#disabled-and-in-flight).
+A field stays at 16px under a coarse pointer because iOS zooms into a focused field set smaller than 16px.
+
+| Class | Is |
+|---|---|
+| `.form-field` | Optional column holding a label, its control and its error, 8px apart |
+| `.form-field__label` | The visible label |
+| `.form-field__error` | The error line under the control; hidden while empty |
+| `.form-input` | A text field |
+| `.form-input--multiline` | A `textarea`: at least 2.5 field-heights tall, resizing vertically |
+| `.form-input--within` with `.form-input__control` | The field box drawn around a borderless inner control and its neighbours (a read-only copyable input and its Copy button); focus on the inner control shows on the box |
+| `.form-input--cta-ring` | A marketing field paired with a CTA, focused with the button's outline (see [Quiet controls](#quiet-controls)) |
+| `.form-choice` | A checkbox or radio |
+
+- **A text field** has a 1px `--input` border, `--radius` corners and a `--background` fill — in dark mode that fill sits one step below the `--card` around it, so the field reads as a well. Placeholder text is `--input-placeholder`. The field is named by a visible label above it (14px/500 `--foreground`, 8px gap) or by the heading of the card it sits in; a placeholder is never its only name.
+- **Invalid** is `aria-invalid="true"` on the control, which turns its border `--color-error`; one 12px/500 `--error-text` sentence sits 8px below, tied to the control by `aria-describedby` (announced with `role="alert"` when it appears without a page load).
+- **Disabled** fills the field `--muted` with `--muted-foreground` ink, a `not-allowed` cursor and full opacity; inside a `.form-field` its label greys with it. **In flight:** see [Buttons](#disabled-and-in-flight).
 - **Controls use the body face.** The browser gives `input`, `select`, `textarea` and `button` a system font, so every control declares `font: inherit` (or `font-family: inherit` beside its own size, as `.btn` does), or it shows its value and placeholder in a different face from its label.
-- **An input paired with a button shares the button's height.** Set `height: var(--input-height)` on the input and give the button the `.btn--field` tier (which carries `min-height: var(--input-height)` and `padding: 0 var(--button-padding-x)`); the input keeps `padding: var(--input-padding)`. Because `box-sizing: border-box` is global, an explicit shared height is the only reliable equaliser — never fake it with padding or font-size, and never re-declare the height on the button.
+- **An input paired with a button shares the button's height.** `.form-input` carries `height: var(--input-height)`; give the button the `.btn--field` tier (which carries `min-height: var(--input-height)` and `padding: 0 var(--button-padding-x)`); the input keeps `padding: var(--input-padding)`. Because `box-sizing: border-box` is global, an explicit shared height is the only reliable equaliser — never fake it with padding or font-size, and never re-declare the height on the button.
+
+#### Checkboxes and radios
+
+`.form-choice` is an 18px box with a 1.5px `--foreground` edge — neutral ink, never amber. A checked checkbox fills `--foreground` under a `--background` check, and an indeterminate one carries a `--background` bar instead. A radio is a ring whose checked state is an 8px `--foreground` dot. Both draw the 2px `--ring` outline on `:focus-visible`.
 
 ### App Pages
 
