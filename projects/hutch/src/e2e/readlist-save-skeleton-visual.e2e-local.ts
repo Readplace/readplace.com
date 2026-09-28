@@ -69,7 +69,6 @@ const STUB_ARTICLE = {
 
 const PINNED_SAVED_TIMES = ["just now", "2 days ago", "3 days ago"];
 const VOLATILE_CHROME = [
-	".trial-countdown",
 	".offline-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",

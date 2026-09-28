@@ -1,10 +1,9 @@
-import { captureCheckpoint, expect, test } from "@packages/e2e-harness";
+import { readFileSync } from "node:fs";
+import { captureCheckpoint, expect, test, waitForBrandFonts } from "@packages/e2e-harness";
 import type { Page } from "@playwright/test";
-import { FIXED_NOW, popupListUrl, popupRuntimeStub, popupSaveUrl } from "./popup-visual-fixture";
+import { FIXED_NOW, OVERSIZED_TITLE, WIDE_TITLE, popupListUrl, popupRuntimeStub, popupSaveUrl } from "./popup-visual-fixture";
 
-/** The popup paints at its own fixed width; the viewport only has to be big
- * enough not to clip it. */
-const VIEWPORT = { width: 640, height: 900 };
+const VIEWPORT = { width: 1024, height: 900 };
 
 const LIST_VIEW = "#list-view:not([hidden])";
 const SAVING_SKELETON = "#saving-view:not([hidden]) #saving-progress:not([hidden])";
@@ -37,6 +36,8 @@ async function listSettled(page: Page): Promise<void> {
 
 async function savingSettled(page: Page): Promise<void> {
 	await expect(page.locator("#saving-progress")).toBeVisible();
+	await expect(page.locator("#saving-status")).toBeVisible();
+	await expect(page.locator("#save-failure")).toHaveCount(1);
 	await expect(page.locator("#save-failure")).toBeHidden();
 	await expect(page.locator("#saving-view")).toHaveAttribute("aria-busy", "true");
 }
@@ -44,7 +45,33 @@ async function savingSettled(page: Page): Promise<void> {
 async function failureSettled(page: Page): Promise<void> {
 	await expect(page.locator("#save-failure")).toBeVisible();
 	await expect(page.locator("#save-retry-button")).toBeVisible();
+	await expect(page.locator("#saving-status")).toBeHidden();
 	await expect(page.locator("#saving-view")).toHaveAttribute("aria-busy", "false");
+}
+
+async function loginSettled(page: Page): Promise<void> {
+	await expect(page.locator("#login-view")).toBeVisible();
+	await expect(page.locator("#login-button")).toBeVisible();
+}
+
+async function savedSettled(page: Page): Promise<void> {
+	await expect(page.locator("#saved-view")).toBeVisible();
+	await expect(page.locator("#saved-affordances button")).toBeVisible();
+}
+
+async function saveAllSettled(page: Page): Promise<void> {
+	await expect(page.locator("#save-all-view-readlist")).toBeVisible();
+	await expect(page.locator("#save-all-failed > li")).toHaveCount(3);
+}
+
+async function emptySettled(page: Page): Promise<void> {
+	await expect(page.locator("#empty-list")).toBeVisible();
+	await expect(page.locator("#pagination")).toBeHidden();
+}
+
+async function listErrorSettled(page: Page): Promise<void> {
+	await expect(page.locator('#list-error[role="alert"]')).toBeVisible();
+	await expect(page.locator("#list-error-title")).toHaveText("Couldn't load your articles");
 }
 
 async function listSkeletonSettled(page: Page): Promise<void> {
@@ -55,10 +82,14 @@ async function listSkeletonSettled(page: Page): Promise<void> {
 }
 
 async function noOverflow(page: Page): Promise<void> {
-	const overflow = await page
-		.locator("body")
-		.evaluate((body) => body.scrollWidth - body.clientWidth);
-	expect(overflow).toBeLessThanOrEqual(0);
+	const geometry = await page.evaluate(() => ({
+		bodyWidth: document.body.getBoundingClientRect().width,
+		bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
+		pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+	}));
+	expect(geometry.bodyWidth).toBe(Math.min(800, page.viewportSize()?.width ?? 0));
+	expect(geometry.bodyOverflow).toBeLessThanOrEqual(0);
+	expect(geometry.pageOverflow).toBeLessThanOrEqual(0);
 }
 
 async function skeletonRowsEqual(page: Page): Promise<void> {
@@ -69,11 +100,10 @@ async function skeletonRowsEqual(page: Page): Promise<void> {
 	expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
 }
 
-/** The pager's widest form is what makes this capture worth taking: first page,
- * gap, the five-page window, gap, last page, between both step controls. */
 async function pagerShowsEveryControl(page: Page): Promise<void> {
-	await expect(page.locator("#pagination > *")).toHaveCount(11);
-	await expect(page.locator(".pagination__page--active")).toHaveText("5");
+	await noOverflow(page);
+	await expect(page.locator("#pagination > *")).toHaveCount(9);
+	await expect(page.locator(".pagination__page--current")).toHaveText("5");
 }
 
 async function headerFitsOneRow(page: Page): Promise<void> {
@@ -102,6 +132,87 @@ async function heightsOf(page: Page, selectors: string[]): Promise<number[]> {
  * suite is declared once and each project supplies only the package to point at
  * — and owns the baselines its own engine produces. */
 export function registerPopupVisualSuite(input: { packagedPopup: string }): void {
+	const startupHtml = readFileSync(input.packagedPopup, "utf-8").replace(
+		'<script src="popup-entry.browser.js"></script>',
+		"",
+	);
+
+	async function openStartup(page: Page): Promise<void> {
+		await page.setViewportSize(VIEWPORT);
+		await page.setContent(startupHtml);
+		await expect(page.locator(".popup-shell #saving-progress")).toBeVisible();
+		await noOverflow(page);
+	}
+
+	test.describe("popup startup shell", () => {
+		test("centers the placeholder before application assets load", async ({ page }) => {
+			await openStartup(page);
+			await expect(page.locator("body")).toHaveScreenshot("popup-startup-light.png");
+		});
+
+		test.describe("in dark mode", () => {
+			test.use({ colorScheme: "dark" });
+
+			test("centers the placeholder against the dark palette", async ({ page }) => {
+				await openStartup(page);
+				await expect(page.locator("body")).toHaveScreenshot("popup-startup-dark.png");
+			});
+		});
+	});
+
+	test("fits startup, loading and loaded content at each viewport width", async ({ page }) => {
+		await page.clock.install({ time: FIXED_NOW });
+		await page.addInitScript(popupRuntimeStub({ holdItems: true }));
+
+		for (const width of [350, 640, 800, 1024]) {
+			await page.setViewportSize({ width, height: VIEWPORT.height });
+			await page.setContent(startupHtml);
+			await expect(page.locator(".popup-shell #saving-progress")).toBeVisible();
+			await noOverflow(page);
+
+			const centered = await page.locator(".popup-shell .saving-view__icon, .popup-shell .saving-view__bar--title, .popup-shell .saving-view__bar--subtitle, .popup-shell .saving-view__action, .popup-shell .saving-view__bar--hint").evaluateAll((elements) => {
+				const center = document.body.getBoundingClientRect().left + document.body.getBoundingClientRect().width / 2;
+				return elements.every((element) => Math.abs(element.getBoundingClientRect().left + element.getBoundingClientRect().width / 2 - center) <= 1);
+			});
+			expect(centered).toBe(true);
+
+			await page.goto(popupListUrl(input.packagedPopup));
+			await page.waitForSelector(LIST_SKELETON);
+			await noOverflow(page);
+			await page.waitForFunction(() => typeof window.__popupReleaseItems === "function");
+			await page.evaluate(() => window.__popupReleaseItems?.());
+			await page.waitForSelector(LIST_VIEW);
+			await listSettled(page);
+			await noOverflow(page);
+
+			const controlsFit = await page.locator("#list-view button:visible, #list-view input:visible, #list-view a:visible").evaluateAll((elements) => {
+				const body = document.body.getBoundingClientRect();
+				return elements.every((element) => {
+					const bounds = element.getBoundingClientRect();
+					return bounds.left >= body.left - 1 && bounds.right <= body.right + 1;
+				});
+			});
+			expect(controlsFit).toBe(true);
+
+			const titles = await page.locator(".list-view__item-title").evaluateAll((elements) => elements.slice(0, 2).map((element) => ({
+				text: element.textContent,
+				tooltip: element.getAttribute("title"),
+				whiteSpace: getComputedStyle(element).whiteSpace,
+				truncated: element.scrollWidth > element.clientWidth,
+			})));
+			expect(titles[0]?.text).toBe(WIDE_TITLE);
+			expect(titles[0]?.tooltip).toBe(WIDE_TITLE);
+			expect(titles[1]?.text).toBe(OVERSIZED_TITLE);
+			expect(titles[1]?.tooltip).toBe(OVERSIZED_TITLE);
+			expect(titles.every((title) => title.whiteSpace === "nowrap")).toBe(true);
+			if (width === 350) expect(titles[0]?.truncated).toBe(true);
+			if (width >= 800) {
+				expect(titles[0]?.truncated).toBe(false);
+				expect(titles[1]?.truncated).toBe(true);
+			}
+		}
+	});
+
 	async function openList(page: Page): Promise<void> {
 		await open(page, {
 			url: popupListUrl(input.packagedPopup),
@@ -180,15 +291,29 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 		test("swaps the saved card in without resizing the popup", async ({ page }) => {
 			await openSaving(page);
 			await page.waitForFunction(() => typeof window.__popupReleaseSave === "function");
+			await page.evaluate(() => { document.body.style.fontFamily = '"Source Sans Pro", system-ui, -apple-system, sans-serif'; });
 			const skeletonHeight = await page
 				.locator("#saving-view")
 				.evaluate((el) => el.getBoundingClientRect().height);
+			await page.evaluate(async () => { await document.fonts.load("16px Inter"); });
+			await waitForBrandFonts(page, ["Inter"]);
+			await page.evaluate(() => { document.body.style.removeProperty("font-family"); });
+			const loadedSkeletonHeight = await page
+				.locator("#saving-view")
+				.evaluate((el) => el.getBoundingClientRect().height);
+			expect(Math.abs(skeletonHeight - loadedSkeletonHeight)).toBeLessThanOrEqual(1);
+			await page.evaluate(() => { document.body.style.fontFamily = '"Source Sans Pro", system-ui, -apple-system, sans-serif'; });
 			await page.evaluate(() => window.__popupReleaseSave?.());
 			await page.waitForSelector("#saved-view:not([hidden])");
 			const cardHeight = await page
 				.locator("#saved-view")
 				.evaluate((el) => el.getBoundingClientRect().height);
 			expect(Math.abs(skeletonHeight - cardHeight)).toBeLessThanOrEqual(1);
+			await page.evaluate(() => { document.body.style.removeProperty("font-family"); });
+			const loadedCardHeight = await page
+				.locator("#saved-view")
+				.evaluate((el) => el.getBoundingClientRect().height);
+			expect(Math.abs(cardHeight - loadedCardHeight)).toBeLessThanOrEqual(1);
 		});
 
 		test.describe("in dark mode", () => {
@@ -280,26 +405,55 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			});
 		});
 
-		test("swaps the real list in at the skeleton's geometry", async ({ page }) => {
+		test("swaps the real list in at the skeleton's geometry", async ({
+			page,
+		}) => {
 			await openSkeleton(page);
-			await page.waitForFunction(() => typeof window.__popupReleaseItems === "function");
-			const before = await heightsOf(page, [
+			await page.waitForFunction(
+				() => typeof window.__popupReleaseItems === "function",
+			);
+			const skeletonSelectors = [
 				".list-skeleton__header",
 				".list-skeleton__search",
 				".list-skeleton__rows",
 				".list-skeleton__row",
-			]);
-			await page.evaluate(() => window.__popupReleaseItems?.());
-			await page.waitForSelector(LIST_VIEW);
-			await listSettled(page);
-			const after = await heightsOf(page, [
+			];
+			const listSelectors = [
 				".list-view__header",
 				".list-view__search",
 				"#link-list",
 				".list-view__row",
-			]);
-			for (let index = 0; index < before.length; index += 1) {
-				expect(Math.abs(before[index] - after[index])).toBeLessThanOrEqual(1);
+			];
+			await page.evaluate(() => {
+				document.body.style.fontFamily =
+					'"Source Sans Pro", system-ui, -apple-system, sans-serif';
+			});
+			const skeletonFallback = await heightsOf(page, skeletonSelectors);
+			await page.evaluate(async () => {
+				await document.fonts.load("13px Inter");
+			});
+			await waitForBrandFonts(page, ["Inter"]);
+			await page.evaluate(() => {
+				document.body.style.removeProperty("font-family");
+			});
+			const skeletonLoaded = await heightsOf(page, skeletonSelectors);
+			await page.evaluate(() => {
+				document.body.style.fontFamily =
+					'"Source Sans Pro", system-ui, -apple-system, sans-serif';
+			});
+			await page.evaluate(() => window.__popupReleaseItems?.());
+			await page.waitForSelector(LIST_VIEW);
+			await listSettled(page);
+			const listFallback = await heightsOf(page, listSelectors);
+			await page.evaluate(() => {
+				document.body.style.removeProperty("font-family");
+			});
+			const listLoaded = await heightsOf(page, listSelectors);
+			for (let index = 0; index < skeletonFallback.length; index += 1) {
+				const heights = [skeletonFallback, skeletonLoaded, listFallback, listLoaded].map(
+					(phase) => phase[index],
+				);
+				expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
 			}
 		});
 
@@ -321,18 +475,95 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 	});
 
 	test.describe("popup pagination feedback", () => {
-		test("shows the busy overlay while a page loads", async ({ page }) => {
+		test("dims the list while a page loads", async ({ page }) => {
 			await open(page, {
 				url: popupListUrl(input.packagedPopup),
 				stub: popupRuntimeStub({ holdLoadPage: true }),
 				wait: LIST_VIEW,
 			});
 			await listSettled(page);
-			await page.locator(".pagination__page:not(.pagination__page--active)").first().click();
-			await expect(page.locator("#spinner-overlay")).toBeVisible();
+			await page.locator("button.pagination__page").first().click();
+			await expect(page.locator("#link-list")).toHaveAttribute("aria-busy", "true");
+			await expect(page.locator("#link-list")).toHaveClass(/list-view__links--pending/);
 			await page.waitForFunction(() => typeof window.__popupReleaseLoadPage === "function");
 			await page.evaluate(() => window.__popupReleaseLoadPage?.());
-			await expect(page.locator("#spinner-overlay")).toBeHidden();
+			await expect(page.locator("#link-list")).toHaveAttribute("aria-busy", "false");
+			await expect(page.locator("#link-list")).not.toHaveClass(/list-view__links--pending/);
 		});
 	});
+
+	const STATES = [
+		{
+			name: "popup-login",
+			describe: "popup sign in",
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ listReply: "logged-out" }),
+			wait: "#login-view:not([hidden])",
+			settled: loginSettled,
+		},
+		{
+			name: "popup-saved",
+			describe: "popup saved",
+			url: popupSaveUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ saveReplies: ["saved"] }),
+			wait: "#saved-view:not([hidden])",
+			settled: savedSettled,
+		},
+		{
+			name: "popup-save-all",
+			describe: "popup save all tabs",
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ pendingBulkSave: true }),
+			wait: "#save-all-view-readlist:not([hidden])",
+			settled: saveAllSettled,
+		},
+		{
+			name: "popup-empty",
+			describe: "popup empty list",
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ listReply: "empty" }),
+			wait: "#empty-list:not([hidden])",
+			settled: emptySettled,
+		},
+		{
+			name: "popup-list-error",
+			describe: "popup list error",
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ listReply: "error" }),
+			wait: "#list-error:not([hidden])",
+			settled: listErrorSettled,
+		},
+	];
+
+	for (const state of STATES) {
+		test.describe(state.describe, () => {
+			test("renders against the light palette", async ({ page }) => {
+				await open(page, { url: state.url, stub: state.stub, wait: state.wait });
+				await captureCheckpoint(page, {
+					name: `${state.name}-light`,
+					settled: state.settled,
+					geometry: noOverflow,
+					target: "body",
+					capture: "element",
+					pinnedText: [],
+				});
+			});
+
+			test.describe("in dark mode", () => {
+				test.use({ colorScheme: "dark" });
+
+				test("renders against the dark palette", async ({ page }) => {
+					await open(page, { url: state.url, stub: state.stub, wait: state.wait });
+					await captureCheckpoint(page, {
+						name: `${state.name}-dark`,
+						settled: state.settled,
+						geometry: noOverflow,
+						target: "body",
+						capture: "element",
+						pinnedText: [],
+					});
+				});
+			});
+		});
+	}
 }

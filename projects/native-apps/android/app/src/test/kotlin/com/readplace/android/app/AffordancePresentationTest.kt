@@ -298,6 +298,125 @@ class AffordancePresentationTest {
 		)
 	}
 
+	@Test
+	fun `isUserControl holds only for a recognised token or a server-titled affordance`() {
+		assertTrue(affordance(action(name = "update-status", fields = listOf(statusField("read")))).isUserControl)
+		assertFalse(affordance(action(name = "mint-token", href = "/mint")).isUserControl)
+		assertFalse(affordance(action(name = "mint-token", href = "/mint", title = "")).isUserControl)
+		assertTrue(affordance(action(name = "mint-token", href = "/mint", title = "Mint")).isUserControl)
+		assertFalse(affordance(SirenLink(rel = listOf("share"), href = "/share", title = null)).isUserControl)
+		assertTrue(affordance(SirenLink(rel = listOf("share"), href = "/share", title = "Share")).isUserControl)
+	}
+
+	@Test
+	fun `an unknown action with no title or an empty title is not a row control`() {
+		val untitled = article(
+			actions = listOf(action(name = "mint-token", href = "/queue/a1/mint")),
+			links = emptyList(),
+		)
+		assertTrue(untitled.rowControls.isEmpty())
+		val blank = article(
+			actions = listOf(action(name = "mint-token", href = "/queue/a1/mint", title = "")),
+			links = emptyList(),
+		)
+		assertTrue(blank.rowControls.isEmpty())
+	}
+
+	@Test
+	fun `an unknown but titled action is a row control with its title and generic presentation`() {
+		val row = article(
+			actions = listOf(action(name = "mint-token", href = "/queue/a1/mint", title = "Mint")),
+			links = emptyList(),
+		)
+		val control = row.rowControls.single()
+		assertEquals("action:mint-token", control.id)
+		assertEquals("Mint", control.label)
+		assertEquals(AffordanceIcon.ELLIPSIS_CIRCLE, control.presentation.icon)
+	}
+
+	@Test
+	fun `an unknown title-less link is not a row control but a titled one is`() {
+		val untitled = article(
+			actions = emptyList(),
+			links = listOf(SirenLink(rel = listOf("share"), href = "/queue/a1/share", title = null)),
+		)
+		assertTrue(untitled.rowControls.isEmpty())
+		val titled = article(
+			actions = emptyList(),
+			links = listOf(SirenLink(rel = listOf("share"), href = "/queue/a1/share", title = "Share")),
+		)
+		assertEquals(listOf("link:share"), titled.rowControls.map { it.id })
+	}
+
+	@Test
+	fun `a recognised action without a server title stays a row control`() {
+		val row = article(
+			actions = listOf(action(name = "update-status", fields = listOf(statusField("read")))),
+			links = emptyList(),
+		)
+		assertEquals(listOf("action:update-status"), row.rowControls.map { it.id })
+	}
+
+	@Test
+	fun `a field-requiring action with no server value is not a row control even when titled`() {
+		val row = article(
+			actions = listOf(
+				action(
+					name = "search",
+					href = "/queue",
+					title = "Search",
+					fields = listOf(field(name = "url", value = null)),
+				),
+			),
+			links = emptyList(),
+		)
+		assertTrue(row.rowControls.isEmpty())
+	}
+
+	@Test
+	fun `a structural multi-rel link is never a row control even when another rel looks actionable`() {
+		val row = article(
+			actions = emptyList(),
+			links = listOf(SirenLink(rel = listOf("share", "next"), href = "/queue?page=2", title = "More")),
+		)
+		assertTrue(row.rowControls.isEmpty())
+	}
+
+	@Test
+	fun `a mixed row keeps only the valid controls in server order`() {
+		val row = article(
+			actions = listOf(
+				action(name = "update-status", fields = listOf(statusField("read"))),
+				action(name = "mint-token", href = "/queue/a1/mint"),
+				action(name = "delete", href = "/queue/a1/delete"),
+				action(name = "search", href = "/queue", fields = listOf(field(name = "url", value = null))),
+			),
+			links = listOf(
+				SirenLink(rel = listOf("self"), href = "/queue/a1", title = null),
+				SirenLink(rel = listOf("read"), href = "/queue/a1/read", title = null),
+				SirenLink(rel = listOf("archive"), href = "/queue/a1/archive", title = null),
+				SirenLink(rel = listOf("share"), href = "/queue/a1/share", title = "Share"),
+			),
+		)
+		assertEquals(
+			listOf("action:update-status", "action:delete", "link:share"),
+			row.rowControls.map { it.id },
+		)
+	}
+
+	@Test
+	fun `a row whose affordances are all machine or structural surfaces no controls but still opens`() {
+		val row = article(
+			actions = listOf(action(name = "mint-token", href = "/queue/a1/mint")),
+			links = listOf(
+				SirenLink(rel = listOf("self"), href = "/queue/a1", title = null),
+				SirenLink(rel = listOf("read"), href = "/queue/a1/read", title = null),
+			),
+		)
+		assertTrue(row.rowControls.isEmpty())
+		assertEquals("/queue/a1/read", row.readHref)
+	}
+
 	// endregion
 
 	@Test

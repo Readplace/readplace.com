@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertErrorAlert } from "./assert-error-alert";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../test-app";
@@ -19,6 +20,7 @@ import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { LAST_AUTH_PROVIDER_COOKIE_NAME } from "../last-auth-provider";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import { UserIdSchema } from "@packages/domain/user";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
@@ -48,6 +50,21 @@ describe("Auth routes", () => {
 			expect(doc.querySelector('[data-test-form="login"]')?.getAttribute("action")).toBe("/login?utm_source=auth-page&utm_medium=internal&utm_content=login-btn");
 			expect(doc.querySelector('input[name="email"]')?.getAttribute("type")).toBe("email");
 			expect(doc.querySelector('input[name="password"]')?.getAttribute("type")).toBe("password");
+		});
+
+		it("should render its fields with the shared form-field primitive", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
+
+			const doc = new JSDOM(response.text).window.document;
+			for (const name of ["email", "password"]) {
+				const input = doc.querySelector(`[data-test-form="login"] input[name="${name}"]`);
+				assert(input, `${name} input must be rendered`);
+				expect(input.classList.contains("form-input")).toBe(true);
+				const field = input.closest(".form-field");
+				assert(field, `${name} input must sit inside a form-field`);
+				expect(field.querySelector(`label[for="${input.id}"]`)?.classList.contains("form-field__label")).toBe(true);
+			}
 		});
 
 		it("should render the Google and Apple buttons above the login form, matching /signup", async () => {
@@ -193,7 +210,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 		});
@@ -212,7 +229,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 			const setCookie = response.headers["set-cookie"] ?? [];
@@ -231,7 +248,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 		});
@@ -289,6 +306,42 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="email"]')?.textContent).toBe("Please enter a valid email address");
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("aria-invalid")).toBe("true");
+			const emailErrorId = emailInput.getAttribute("aria-describedby");
+			assert(emailErrorId, "an invalid email input must point at its error message");
+			expect(doc.getElementById(emailErrorId)?.textContent).toBe("Please enter a valid email address");
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(passwordInput.hasAttribute("aria-describedby")).toBe(false);
+		});
+
+		it("should mark only the password field invalid for an empty password", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/login")
+				.type("form")
+				.send({ email: "test@example.com", password: "" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.getAttribute("aria-invalid")).toBe("true");
+			const passwordErrorId = passwordInput.getAttribute("aria-describedby");
+			assert(passwordErrorId, "an invalid password input must point at its error message");
+			expect(doc.getElementById(passwordErrorId)?.textContent).toBe("Password is required");
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(emailInput.hasAttribute("aria-describedby")).toBe(false);
 		});
 
 		it("should preserve return URL in form action after invalid credentials", async () => {
@@ -363,6 +416,21 @@ describe("Auth routes", () => {
 			).map((el) => el.getAttribute("name"));
 			expect(inputNames).toEqual(["website", "loadedAt", "email", "password"]);
 			expect(doc.querySelector('input[name="password"]')?.getAttribute("type")).toBe("password");
+		});
+
+		it("should render its fields with the shared form-field primitive", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
+
+			const doc = new JSDOM(response.text).window.document;
+			for (const name of ["email", "password"]) {
+				const input = doc.querySelector(`[data-test-form="signup"] input[name="${name}"]`);
+				assert(input, `${name} input must be rendered`);
+				expect(input.classList.contains("form-input")).toBe(true);
+				const field = input.closest(".form-field");
+				assert(field, `${name} input must sit inside a form-field`);
+				expect(field.querySelector(`label[for="${input.id}"]`)?.classList.contains("form-field__label")).toBe(true);
+			}
 		});
 
 		it("should hide the signup page from search engines with a robots noindex meta", async () => {
@@ -839,8 +907,71 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("already exists");
+			const error = assertErrorAlert(doc);
+			assert(error, "the already-registered error must be rendered");
+			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
 		});
+
+		it("signs the visitor in when the free-path insert races an account that has the same password", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const harness = useApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "race-match@example.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+			});
+			await fixture.auth.createUser({ email: "race-match@example.com", password: "password123" });
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "race-match@example.com",
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
+		});
+
+		it("signs the visitor in when the trial-path insert races an account that has the same password, once the founding allocation is exhausted", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const harness = useApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "race-trial-match@example.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+			});
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await fixture.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			await fixture.auth.createUser({ email: "race-trial-match@example.com", password: "password123" });
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "race-trial-match@example.com",
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
+		}, 30000);
 
 		it("sends a verification email after a trial signup so the user can confirm their address before the trial ends", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -934,22 +1065,127 @@ describe("Auth routes", () => {
 			expect(successResponse.headers.location).toBe("/queue");
 		}, 30000);
 
-		it("should show error for duplicate email", async () => {
+		it("signs in to the existing account instead of creating one when the email is registered and the password matches", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, conversions, email } = harness;
+			await auth.createUser({ email: "existing@example.com", password: "password123" });
+
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
+				email: "existing@example.com",
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
+			expect(await auth.countUsers()).toBe(1);
+			expect(email.getSentEmails()).toHaveLength(0);
+			expect(conversions.events).toEqual([]);
+		});
+
+		it("keeps the visitor on the signup form with the already-registered error when the password does not match", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			await auth.createUser({ email: "existing@example.com", password: "password123" });
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "existing@example.com",
-				password: "password123",
+				password: "not-the-password1",
 				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
-				"already exists",
-			);
+			const error = assertErrorAlert(doc);
+			assert(error, "the already-registered error must be rendered");
+			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
+			const emailInput = doc.querySelector<HTMLInputElement>('[data-test-form="signup"] input[name="email"]');
+			assert(emailInput, "the signup form must render its email input");
+			expect(emailInput.value).toBe("existing@example.com");
+		});
+
+		it("shows the same already-registered error for an account that signed up with Google and has no password", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createGoogleUser({ email: "google-user@example.com", userId: UserIdSchema.parse("user_google") });
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "google-user@example.com",
+				password: "any-password-at-all",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			const error = assertErrorAlert(doc);
+			assert(error, "the already-registered error must be rendered");
+			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
+		});
+
+		it("redirects to the return URL when the signup form signs in to an existing account", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({ email: "existing@example.com", password: "password123" });
+
+			const response = await request(harness.server)
+				.post("/signup?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest")
+				.type("form")
+				.send({
+					email: "existing@example.com",
+					password: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/oauth/authorize?client_id=test");
+		});
+
+		it("draws a signup password check from the same per-account window a failed login already spent", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, loginAccount: { limit: 1, windowSeconds: 900 } },
+			};
+			const harness = useApp(fixture);
+			await harness.auth.createUser({ email: "victim@example.com", password: "password123" });
+
+			const login = await request(harness.server)
+				.post("/login")
+				.type("form")
+				.send({ email: "victim@example.com", password: "wrongpassword" });
+			const signup = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
+				email: "victim@example.com",
+				password: "not-the-password1",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(login.status).toBe(422);
+			expect(signup.status).toBe(429);
+			expect(String(signup.headers["retry-after"])).toMatch(/^\d+$/);
+			expect(harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.signupAttempted)).toEqual([]);
+		});
+
+		it("draws a login from the same per-account window a failed signup password check already spent", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, loginAccount: { limit: 1, windowSeconds: 900 } },
+			};
+			const harness = useApp(fixture);
+			await harness.auth.createUser({ email: "victim@example.com", password: "password123" });
+
+			const signup = await request(harness.server).post("/signup").type("form").send({
+				email: "victim@example.com",
+				password: "not-the-password1",
+				loadedAt: freshLoadedAt(),
+			});
+			const login = await request(harness.server)
+				.post("/login")
+				.type("form")
+				.send({ email: "victim@example.com", password: "wrongpassword" });
+
+			expect(signup.status).toBe(422);
+			expect(login.status).toBe(429);
+			expect(String(login.headers["retry-after"])).toMatch(/^\d+$/);
 		});
 
 		it("should preserve return URL in form action after a short password", async () => {
@@ -971,7 +1207,7 @@ describe("Auth routes", () => {
 			expect(action).toContain("return=");
 		});
 
-		it("should preserve return URL in form action after duplicate email", async () => {
+		it("should preserve return URL in form action after duplicate email with a wrong password", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			await auth.createUser({ email: "existing@example.com", password: "password123" });
@@ -981,7 +1217,7 @@ describe("Auth routes", () => {
 				.type("form")
 				.send({
 					email: "existing@example.com",
-					password: "password123",
+					password: "not-the-password1",
 					loadedAt: freshLoadedAt(),
 				});
 
@@ -1039,6 +1275,18 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="password"]')?.textContent).toBe("Password must be at least 8 characters");
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.getAttribute("aria-invalid")).toBe("true");
+			const passwordErrorId = passwordInput.getAttribute("aria-describedby");
+			assert(passwordErrorId, "an invalid password input must point at its error message");
+			expect(doc.getElementById(passwordErrorId)?.textContent).toBe("Password must be at least 8 characters");
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(emailInput.hasAttribute("aria-describedby")).toBe(false);
 		});
 
 		it("rejects a disposable email domain with a 422 and the disposable message on the email field", async () => {
@@ -1053,6 +1301,18 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="email"]')?.textContent).toBe(DISPOSABLE_EMAIL_MESSAGE);
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("aria-invalid")).toBe("true");
+			const emailErrorId = emailInput.getAttribute("aria-describedby");
+			assert(emailErrorId, "an invalid email input must point at its error message");
+			expect(doc.getElementById(emailErrorId)?.textContent).toBe(DISPOSABLE_EMAIL_MESSAGE);
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(passwordInput.hasAttribute("aria-describedby")).toBe(false);
 		});
 
 		it("lets a normal email domain proceed past schema validation to /queue", async () => {
@@ -1165,18 +1425,32 @@ describe("Auth routes", () => {
 			expect(signupAttempts(harness)).toMatchObject([{ outcome: "invalid_input" }]);
 		});
 
-		it("emits outcome=duplicate_email when the address already has an account", async () => {
+		it("emits outcome=duplicate_email when the address already has an account and the password does not match", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			await harness.auth.createUser({ email: "dupe@gmail.com", password: "password123" });
 
 			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "dupe@gmail.com",
+				password: "not-the-password1",
+				confirmPassword: "not-the-password1",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
+		});
+
+		it("emits outcome=signed_in when the address already has an account and the password matches, so a returning reader is not counted as a funnel failure", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({ email: "returning@gmail.com", password: "password123" });
+
+			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
+				email: "returning@gmail.com",
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
 			});
 
-			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "signed_in" }]);
 		});
 
 		it("emits outcome=duplicate_email on the free path when the duplicate is caught at insert time (createUserWithPasswordHash race), not by validation", async () => {
@@ -1390,6 +1664,23 @@ describe("Auth routes", () => {
 			expect(
 				harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
 			).toHaveLength(0);
+		}, 30000);
+
+		it("sends a returning reader the signup form signed in to a plain /queue, not the autosave of the article they just viewed", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = request.agent(harness.server);
+			await agent.get(VIEW_PATH);
+			await harness.auth.createUser({ email: "autosave-returning@example.com", password: "password123" });
+
+			const response = await agent.post("/signup").type("form").send({
+				email: "autosave-returning@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
 		}, 30000);
 
 		it("redirects a free signup to a plain /queue when no hutch_lastview cookie is present", async () => {
@@ -1613,7 +1904,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toBe("Please try again");
+			expect(assertErrorAlert(doc)?.textContent).toBe("Please try again");
 			const emailInput = doc.querySelector('input[name="email"]');
 			assert(emailInput, "email input must be rendered");
 			expect(emailInput.getAttribute("value")).toBe("autofill@example.com");
@@ -1640,7 +1931,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toBe("Please try again");
+			expect(assertErrorAlert(doc)?.textContent).toBe("Please try again");
 			const emailInput = doc.querySelector('input[name="email"]');
 			assert(emailInput, "email input must be rendered");
 			expect(emailInput.getAttribute("value")).toBe("");
@@ -2332,7 +2623,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Invalid email or password");
+			expect(assertErrorAlert(doc)?.textContent).toContain("Invalid email or password");
 		});
 
 		it("renders the generic login subtitle when there is no return URL", async () => {

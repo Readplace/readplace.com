@@ -73,8 +73,10 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		{{{baseStyles}}}
 		{{{resetStyles}}}
 		{{{buttonStyles}}}
+		{{{formControlStyles}}}
 		{{{utilityStyles}}}
 		{{{bannerAreaStyles}}}
+		{{{bannerBarStyles}}}
 		{{{changelogBannerStyles}}}
 		{{{headerStyles}}}
 		{{{navStyles}}}
@@ -82,14 +84,13 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		{{{offlineBannerStyles}}}
 		{{{toastStyles}}}
 		{{{verifyBannerStyles}}}
-		{{{trialCountdownStyles}}}
 		{{{extensionSuggestionBannerStyles}}}
 	</style>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
 	<div class="banner-area">
 		{{{changelogBanner}}}
-		<div class="offline-banner" role="alert" aria-live="polite" aria-hidden="true">
+		<div class="banner-bar offline-banner" role="alert" aria-live="polite" aria-hidden="true">
 			You're offline. Some features may be unavailable.
 		</div>
 		{{{verifyBanner}}}
@@ -99,8 +100,8 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		(function() {
 			var ba = document.querySelector('.banner-area');
 			if (!ba) return;
-			var changelog = ba.querySelector('.changelog-banner');
 			function setBannerAreaHeight() {
+				var changelog = ba.querySelector('.changelog-banner');
 				document.documentElement.style.setProperty('--banner-area-height', ba.offsetHeight + 'px');
 				document.documentElement.style.setProperty('--changelog-banner-height', (changelog ? changelog.offsetHeight : 0) + 'px');
 			}

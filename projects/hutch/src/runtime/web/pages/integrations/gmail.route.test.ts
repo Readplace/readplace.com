@@ -36,7 +36,7 @@ function sections(doc: Document): string[] {
 }
 
 function alertKeys(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-test-gmail-alert]"), (el) => el.getAttribute("data-test-gmail-alert-key"));
+	return Array.from(doc.querySelectorAll('.gmail__container > [data-test-alert-variant="error"]'), (el) => el.getAttribute("data-test-alert"));
 }
 
 function harnessWithGmail(now?: () => Date, appNow?: () => Date) {
@@ -309,7 +309,12 @@ describe("Gmail sender mapping page", () => {
 		const filter = doc.querySelector('[data-test-gmail-filter-state="failed"]');
 		assert(filter, "the failed filter state must render");
 		expect(alertKeys(doc)).toEqual([]);
-		const message = filter.querySelector("[data-test-gmail-filter-message]");
+		const alert = filter.querySelector('[data-test-alert="gmail-filter"]');
+		assert(alert, "the failed filter state must render an error alert");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		const message = alert.querySelector("[data-test-alert-message]");
 		assert(message, "the failed filter state must explain the failure");
 		expect(message.textContent).toBe(
 			"Gmail's forwarding rule for tech ran out of room at 36 of its 40 senders. Exclude some, or move some to another inbox, then try again.",
@@ -410,7 +415,12 @@ describe("Gmail sender mapping page", () => {
 
 		const doc = load((await agent.get(GMAIL)).text);
 		expect(doc.querySelector("[data-test-gmail-state]")?.getAttribute("data-test-gmail-state")).toBe("confirm-failed");
-		expect(doc.querySelector('[data-test-gmail-alert-key="confirm_failed"]')?.textContent).toContain("already been used or had expired");
+		const confirmationAlert = doc.querySelector('[data-test-alert="confirm_failed"]');
+		assert(confirmationAlert, "the failed confirmation must render an alert");
+		expect(confirmationAlert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(confirmationAlert.getAttribute("role")).toBe("alert");
+		expect(confirmationAlert.classList.contains("alert--visible")).toBe(true);
+		expect(confirmationAlert.textContent).toContain("already been used or had expired");
 		expect(doc.querySelector("[data-test-gmail-address]")?.textContent).toBe(gatewayAddress);
 		expect(doc.querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get")).toBe(`${GMAIL}/status?poll=1&state=confirm-failed`);
 
@@ -481,8 +491,11 @@ describe("Save a sender mapping", () => {
 		const save = await agent.post(ADD).type("form").send({ sender: TLDR, destination });
 		const doc = load((await agent.get(save.headers.location)).text);
 		expect(doc.querySelector("[data-test-gmail-state]")?.getAttribute("data-test-gmail-state")).toBe("awaiting-confirmation");
-		const notice = doc.querySelector('[data-test-gmail-notice-key="sender_mapped"]');
+		const notice = doc.querySelector('[data-test-alert="sender_mapped"]');
 		assert(notice);
+		expect(notice.getAttribute("data-test-alert-variant")).toBe("success");
+		expect(notice.getAttribute("role")).toBe("status");
+		expect(notice.classList.contains("alert--visible")).toBe(true);
 		expect(notice.textContent).toBe("Mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.");
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }]);
 	});

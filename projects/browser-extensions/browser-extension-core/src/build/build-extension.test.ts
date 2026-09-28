@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { initBuildExtension } from "./build-extension";
+import { DESIGN_SYSTEM_STYLES } from "@packages/web-shell/design-system.styles";
+import { type ExtensionBuildConfig, initBuildExtension } from "./build-extension";
 
 describe("createBuildPlan", () => {
 	const projectDir = "/projects/firefox-extension";
 	const corePackageJsonPath = "/projects/browser-extensions/browser-extension-core/package.json";
 
-	function createBuildPlan(input: { config: { target: string }; projectDir: string; serverUrl: string; version?: string; appDomains?: readonly string[] }) {
+	function createBuildPlan(input: { config: ExtensionBuildConfig; projectDir: string; serverUrl: string; version?: string; appDomains?: readonly string[] }) {
 		const { createBuildPlan } = initBuildExtension({
 			resolveCorePackageJson: () => corePackageJsonPath,
 		});
@@ -15,7 +16,7 @@ describe("createBuildPlan", () => {
 
 	it("sets esbuild target from config", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -25,7 +26,7 @@ describe("createBuildPlan", () => {
 
 	it("uses a different target for chrome", () => {
 		const plan = createBuildPlan({
-			config: { target: "chrome109" },
+			config: { target: "chrome109", utmSource: "chrome-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -33,9 +34,9 @@ describe("createBuildPlan", () => {
 		expect(plan.esbuildOptions.target).toBe("chrome109");
 	});
 
-	it("bundles three entry points from src/runtime", () => {
+	it("bundles four entry points from src/runtime", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -43,13 +44,14 @@ describe("createBuildPlan", () => {
 		expect(plan.esbuildOptions.entryPoints).toEqual([
 			join(projectDir, "src", "runtime", "background", "background.browser.ts"),
 			join(projectDir, "src", "runtime", "popup", "popup.browser.ts"),
+			join(projectDir, "src", "runtime", "popup", "popup-entry.browser.ts"),
 			join(projectDir, "src", "runtime", "content", "shortcut.browser.ts"),
 		]);
 	});
 
 	it("outputs to dist-extension-compiled", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -59,7 +61,7 @@ describe("createBuildPlan", () => {
 
 	it("uses iife format for browser extension scripts", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -70,7 +72,7 @@ describe("createBuildPlan", () => {
 
 	it("aliases browser-extension-core to source for bundling", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -82,7 +84,7 @@ describe("createBuildPlan", () => {
 
 	it("defines __SERVER_URL__ as JSON string", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -92,7 +94,7 @@ describe("createBuildPlan", () => {
 
 	it("defines __APP_DOMAINS__ as a JSON array of configured domains plus localhost", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 			appDomains: ["readplace.com"],
@@ -103,7 +105,7 @@ describe("createBuildPlan", () => {
 
 	it("includes five output directories", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -118,9 +120,47 @@ describe("createBuildPlan", () => {
 		]);
 	});
 
-	it("copies manifest, popup files, and icon directories", () => {
+	it("renders the popup template from core rather than copying a per-browser one", () => {
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
+			projectDir,
+			serverUrl: "https://readplace.com",
+		});
+
+		expect(plan.popupTemplate).toEqual({
+			src: "/projects/browser-extensions/browser-extension-core/src/popup/popup.template.html",
+			dest: join(projectDir, "dist-extension-compiled", "popup", "popup.template.html"),
+		});
+	});
+
+	it("reads the popup's views from core, to be bundled into its runtime", () => {
+		const plan = createBuildPlan({
+			config: { target: "firefox91", utmSource: "firefox-extension" },
+			projectDir,
+			serverUrl: "https://readplace.com",
+		});
+
+		expect(plan.popupViews).toEqual({
+			src: "/projects/browser-extensions/browser-extension-core/src/popup/popup-views.template.html",
+		});
+	});
+
+	it("writes the popup stylesheet from core behind the shared design system", () => {
+		const plan = createBuildPlan({
+			config: { target: "firefox91", utmSource: "firefox-extension" },
+			projectDir,
+			serverUrl: "https://readplace.com",
+		});
+
+		expect(plan.popupStylesheet).toEqual({
+			src: "/projects/browser-extensions/browser-extension-core/src/popup/popup.styles.css",
+			dest: join(projectDir, "dist-extension-compiled", "popup", "popup.styles.css"),
+		});
+	});
+
+	it("copies the manifest, the popup fonts and the icon directories", () => {
+		const plan = createBuildPlan({
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir,
 			serverUrl: "https://readplace.com",
 		});
@@ -131,8 +171,6 @@ describe("createBuildPlan", () => {
 
 		expect(plan.copies).toEqual([
 			{ src: join(srcDir, "runtime", "manifest.json"), dest: join(outDir, "manifest.json"), recursive: false },
-			{ src: join(srcDir, "runtime", "popup", "popup.template.html"), dest: join(outDir, "popup", "popup.template.html"), recursive: false },
-			{ src: join(coreDir, "src", "popup", "popup.styles.css"), dest: join(outDir, "popup", "popup.styles.css"), recursive: false },
 			{ src: join(coreDir, "src", "popup", "fonts"), dest: join(outDir, "popup", "fonts"), recursive: true },
 			{ src: join(srcDir, "icons"), dest: join(outDir, "icons"), recursive: true },
 		]);
@@ -145,7 +183,7 @@ describe("createBuildPlan", () => {
 
 		expect(() =>
 			createBuildPlan({
-				config: { target: "firefox91" },
+				config: { target: "firefox91", utmSource: "firefox-extension" },
 				projectDir,
 				serverUrl: "",
 				version: "1.2.3",
@@ -161,7 +199,7 @@ describe("createBuildPlan", () => {
 
 		expect(() =>
 			createBuildPlan({
-				config: { target: "firefox91" },
+				config: { target: "firefox91", utmSource: "firefox-extension" },
 				projectDir,
 				serverUrl: undefined,
 				version: "1.2.3",
@@ -177,7 +215,7 @@ describe("createBuildPlan", () => {
 
 		expect(() =>
 			createBuildPlan({
-				config: { target: "firefox91" },
+				config: { target: "firefox91", utmSource: "firefox-extension" },
 				projectDir,
 				serverUrl: "https://readplace.com",
 				version: "",
@@ -193,7 +231,7 @@ describe("createBuildPlan", () => {
 
 		expect(() =>
 			createBuildPlan({
-				config: { target: "firefox91" },
+				config: { target: "firefox91", utmSource: "firefox-extension" },
 				projectDir,
 				serverUrl: "https://readplace.com",
 				version: undefined,
@@ -207,7 +245,7 @@ describe("initBuildExtension defaults", () => {
 	it("resolves core package.json from module location by default", () => {
 		const { createBuildPlan } = initBuildExtension();
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir: "/test",
 			serverUrl: "https://example.com",
 			version: "1.2.3",
@@ -224,11 +262,11 @@ describe("plan.buildExtension", () => {
 		const copiedFiles: Array<{ src: string; dest: string; options?: { recursive?: boolean; force?: boolean } }> = [];
 		const writtenFiles: Map<string, string> = new Map();
 		let esbuildCallCount = 0;
-		let lastEsbuildOptions: { target: string } | null = null;
+		let lastEsbuildOptions: { target: string; define: Record<string, string> } | null = null;
 		let manifestContent = JSON.stringify({ version: "0.0.0-managed-by-tag", host_permissions: ["https://readplace.com/*"], permissions: ["activeTab"] });
 
 		const deps = {
-			esbuild: async (options: { target: string }) => {
+			esbuild: async (options: { target: string; define: Record<string, string> }) => {
 				esbuildCallCount++;
 				lastEsbuildOptions = options;
 			},
@@ -238,7 +276,12 @@ describe("plan.buildExtension", () => {
 			cpSync: (src: string, dest: string, options?: { recursive?: boolean; force?: boolean }) => {
 				copiedFiles.push({ src, dest, options });
 			},
-			readFileSync: (_path: string, _encoding: "utf-8") => manifestContent,
+			readFileSync: (path: string, _encoding: "utf-8") => {
+				if (path.endsWith("popup-views.template.html")) return '<a href="{{openReadlistHref}}">Readplace</a>';
+				if (path.endsWith("popup.template.html")) return '<a href="{{brandHomeHref}}">Readplace</a>';
+				if (path.endsWith("popup.styles.css")) return ".login {}";
+				return manifestContent;
+			},
 			writeFileSync: (path: string, data: string) => {
 				writtenFiles.set(path, data);
 			},
@@ -260,7 +303,7 @@ describe("plan.buildExtension", () => {
 		const { deps, createdDirs } = createInMemoryDeps();
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",
@@ -277,7 +320,7 @@ describe("plan.buildExtension", () => {
 		const { deps, getEsbuildCallCount, getLastEsbuildOptions } = createInMemoryDeps();
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
-			config: { target: "chrome109" },
+			config: { target: "chrome109", utmSource: "chrome-extension" },
 			projectDir: "/projects/chrome-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",
@@ -294,7 +337,7 @@ describe("plan.buildExtension", () => {
 		const { deps, copiedFiles } = createInMemoryDeps();
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",
@@ -305,18 +348,70 @@ describe("plan.buildExtension", () => {
 
 		expect(copiedFiles.map((copy) => copy.dest)).toEqual([
 			expect.stringContaining("manifest.json"),
-			expect.stringContaining(join("popup", "popup.template.html")),
-			expect.stringContaining(join("popup", "popup.styles.css")),
 			expect.stringContaining(join("popup", "fonts")),
 			expect.stringContaining("icons"),
 		]);
+	});
+
+	it("writes the popup template with the browser's own tracking source", async () => {
+		const { deps, writtenFiles } = createInMemoryDeps();
+		const { createBuildPlan } = initBuildExtension(deps);
+		const plan = createBuildPlan({
+			config: { target: "firefox91", utmSource: "firefox-extension" },
+			projectDir: "/projects/firefox-extension",
+			serverUrl: "https://readplace.com",
+			version: "1.2.3",
+			appDomains: [],
+		});
+
+		await plan.buildExtension();
+
+		expect(writtenFiles.get(plan.popupTemplate.dest)).toBe(
+			'<a href="https://readplace.com/?utm_source=firefox-extension&amp;utm_medium=extension&amp;utm_content=brand-home">Readplace</a>',
+		);
+	});
+
+	it("bundles the popup's views with the browser's own tracking source", async () => {
+		const { deps, getLastEsbuildOptions } = createInMemoryDeps();
+		const { createBuildPlan } = initBuildExtension(deps);
+		const plan = createBuildPlan({
+			config: { target: "chrome109", utmSource: "chrome-extension" },
+			projectDir: "/projects/chrome-extension",
+			serverUrl: "https://readplace.com",
+			version: "1.2.3",
+			appDomains: [],
+		});
+
+		await plan.buildExtension();
+
+		expect(getLastEsbuildOptions()?.define.__POPUP_VIEWS__).toBe(
+			JSON.stringify(
+				'<a href="https://readplace.com/queue?utm_source=chrome-extension&amp;utm_medium=extension&amp;utm_content=open-readlist">Readplace</a>',
+			),
+		);
+	});
+
+	it("writes the popup stylesheet after the shared design system, so the popup's own rules win", async () => {
+		const { deps, writtenFiles } = createInMemoryDeps();
+		const { createBuildPlan } = initBuildExtension(deps);
+		const plan = createBuildPlan({
+			config: { target: "chrome109", utmSource: "chrome-extension" },
+			projectDir: "/projects/chrome-extension",
+			serverUrl: "https://readplace.com",
+			version: "1.2.3",
+			appDomains: [],
+		});
+
+		await plan.buildExtension();
+
+		expect(writtenFiles.get(plan.popupStylesheet.dest)).toBe(`${DESIGN_SYSTEM_STYLES}\n.login {}`);
 	});
 
 	it("passes recursive option for directory copies", async () => {
 		const { deps, copiedFiles } = createInMemoryDeps();
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",
@@ -337,7 +432,7 @@ describe("plan.buildExtension", () => {
 		setManifestContent(JSON.stringify({ version: "0.0.0-managed-by-tag", host_permissions: ["https://readplace.com/*"] }));
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
-			config: { target: "chrome109" },
+			config: { target: "chrome109", utmSource: "chrome-extension" },
 			projectDir: "/projects/chrome-extension",
 			serverUrl: "http://127.0.0.1:3000",
 			version: "1.2.3",
@@ -358,7 +453,7 @@ describe("plan.buildExtension", () => {
 		setManifestContent(JSON.stringify({ version: "0.0.0-managed-by-tag", permissions: ["activeTab", "tabs", "https://readplace.com/*"] }));
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "http://127.0.0.1:3000",
 			version: "1.2.3",
@@ -378,7 +473,7 @@ describe("plan.buildExtension", () => {
 		const { deps, writtenFiles } = createInMemoryDeps();
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
-			config: { target: "chrome109" },
+			config: { target: "chrome109", utmSource: "chrome-extension" },
 			projectDir: "/projects/chrome-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",
@@ -398,7 +493,7 @@ describe("plan.buildExtension", () => {
 		const { deps, writtenFiles } = createInMemoryDeps();
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
-			config: { target: "chrome109" },
+			config: { target: "chrome109", utmSource: "chrome-extension" },
 			projectDir: "/projects/chrome-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",
@@ -440,7 +535,7 @@ describe("plan.packExtension", () => {
 		let packCalledWith: { sourceDir: string; outputPath: string } | null = null;
 
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",
@@ -463,7 +558,7 @@ describe("plan.packExtension", () => {
 		const { createBuildPlan } = initBuildExtension(deps);
 
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",
@@ -483,7 +578,7 @@ describe("plan.packExtension", () => {
 		const { createBuildPlan } = initBuildExtension(deps);
 
 		const plan = createBuildPlan({
-			config: { target: "firefox91" },
+			config: { target: "firefox91", utmSource: "firefox-extension" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
 			version: "1.2.3",

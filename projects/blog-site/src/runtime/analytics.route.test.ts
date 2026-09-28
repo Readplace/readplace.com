@@ -185,7 +185,7 @@ describe("blog analytics instrumentation", () => {
 		expect(events[0]).toMatchObject({ referrer_host: "news.ycombinator.com" });
 	});
 
-	it("skips the blog sitemap and the changelog-banner fragment so machine traffic is not counted", async () => {
+	it("skips the blog sitemap and the changelog-banner endpoint so machine and background requests are not counted", async () => {
 		await request(makeApp(guestResolver)).get("/blog/sitemap.xml");
 		await request(makeApp(guestResolver)).get("/blog/changelog-banner");
 

@@ -9,6 +9,9 @@ const {
   tabsPerSaveAll,
   gatedSaveAlls,
   warmupSaveAlls,
+  popupOpenMs,
+  popupOpenSamples,
+  popupRuntimeHoldMs,
 } = require('../perf.config.js');
 
 // Deliberately not a test-phase-runner phase: `e2e: true` phases are retried
@@ -24,6 +27,17 @@ function run(command, args, env) {
 
 async function main() {
   run('node', ['scripts/install-chrome-for-testing.js'], {});
+
+  const popupPort = String(await getFreePort());
+  run('node', ['scripts/build-extension.js'], {
+    HUTCH_SERVER_URL: `http://127.0.0.1:${popupPort}`,
+  });
+  run('node', ['--test', '--test-timeout=300000', 'dist/e2e/popup-open-perf-flow/run.perf-local.main.js'], {
+    E2E_PORT: popupPort,
+    PERF_POPUP_OPEN_BUDGET_MS: String(popupOpenMs),
+    PERF_POPUP_OPEN_SAMPLES: String(popupOpenSamples),
+    PERF_POPUP_RUNTIME_HOLD_MS: String(popupRuntimeHoldMs),
+  });
 
   const savePort = String(await getFreePort());
   run('node', ['scripts/build-extension.js'], {

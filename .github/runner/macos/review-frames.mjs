@@ -1,11 +1,13 @@
-import { execFile } from "node:child_process";
+import assert from "node:assert";
+import { spawn } from "node:child_process";
 import { appendFile, cp, readdir, rm } from "node:fs/promises";
+import { createServer } from "node:net";
 import path from "node:path";
-import { promisify } from "node:util";
-
-const runCommand = promisify(execFile);
+import { setTimeout as sleep } from "node:timers/promises";
 
 const GENERATE_TIMEOUT_MS = 3 * 60 * 1000;
+const SERVER_LOAD_TIMEOUT_MS = 5 * 60 * 1000;
+const SERVER_POLL_INTERVAL_MS = 2000;
 const GENERATE_MAX_TOKENS = 800;
 const VERIFY_MAX_TOKENS = 10;
 
@@ -31,15 +33,7 @@ function verifyPrompt(finding) {
   return `Look only at this single UI screenshot. A reviewer claims this defect: "${finding.defect}" at "${finding.location}". Is the claim clearly visible in this image? Answer with ONLY the word true or false.`;
 }
 
-function responseText(stdout) {
-  const sections = stdout.split("==========");
-  const middle = sections.length >= 3 ? sections[1] : stdout;
-  const assistantMarker = middle.lastIndexOf("<|im_start|>assistant");
-  return assistantMarker === -1 ? middle : middle.slice(assistantMarker);
-}
-
-function extractFindings(stdout) {
-  const body = responseText(stdout);
+function extractFindings(body) {
   const start = body.indexOf("[");
   const end = body.lastIndexOf("]");
   if (start === -1 || end <= start) {
@@ -58,14 +52,7 @@ function extractFindings(stdout) {
 }
 
 async function listFlows(framesDir) {
-  // A cache-replayed `pnpm check` runs no e2e, so the directory is absent
-  // rather than empty. That is the ordinary outcome, not a fault.
-  const entries = await readdir(framesDir, { withFileTypes: true }).catch((error) => {
-    if (error.code === "ENOENT") {
-      return [];
-    }
-    throw error;
-  });
+  const entries = await readdir(framesDir, { withFileTypes: true });
   const flows = [];
   for (const entry of entries.filter((candidate) => candidate.isDirectory())) {
     const flowDir = path.join(framesDir, entry.name);
@@ -80,32 +67,89 @@ async function listFlows(framesDir) {
   return flows;
 }
 
-async function generate({ python, model, prompt, images, maxTokens }) {
-  const { stdout } = await runCommand(
-    python,
-    [
-      "-m",
-      "mlx_vlm.generate",
-      "--model",
-      model,
-      "--max-tokens",
-      String(maxTokens),
-      "--temperature",
-      "0.0",
-      "--prompt",
-      prompt,
-      "--image",
-      ...images,
-    ],
-    {
-      timeout: GENERATE_TIMEOUT_MS,
-      env: { ...process.env, HF_HUB_OFFLINE: "1" },
-    },
-  );
-  return stdout;
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address();
+      probe.close(() => resolve(port));
+    });
+  });
 }
 
-async function verifiedFindings({ python, model, flow, findings }) {
+async function startServer({ python, model }) {
+  const port = await freePort();
+  const child = spawn(
+    python,
+    ["-m", "mlx_vlm.server", "--host", "127.0.0.1", "--port", String(port), "--model", model],
+    { env: { ...process.env, HF_HUB_OFFLINE: "1" }, stdio: ["ignore", "inherit", "inherit"] },
+  );
+  const server = { baseUrl: `http://127.0.0.1:${port}`, child, exit: undefined };
+  child.once("exit", (code, signal) => {
+    server.exit = { code, signal };
+  });
+  const startedAt = performance.now();
+  for (;;) {
+    assert(server.exit === undefined, `mlx_vlm.server exited before loading ${model}: ${JSON.stringify(server.exit)}`);
+    assert(performance.now() - startedAt < SERVER_LOAD_TIMEOUT_MS, `mlx_vlm.server did not load ${model} in time`);
+    const health = await fetch(`${server.baseUrl}/health`)
+      .then((response) => (response.ok ? response.json() : undefined))
+      .catch(() => undefined);
+    if (health?.loaded_model === model) {
+      return server;
+    }
+    await sleep(SERVER_POLL_INTERVAL_MS);
+  }
+}
+
+async function stopServer(server) {
+  if (server.exit !== undefined) {
+    return;
+  }
+  const exited = new Promise((resolve) => server.child.once("exit", resolve));
+  server.child.kill();
+  await exited;
+}
+
+async function generate({ server, model, prompt, images, maxTokens }) {
+  const startedAt = performance.now();
+  const failure = (message, cause) =>
+    Object.assign(new Error(message, { cause }), {
+      elapsedMs: Math.round(performance.now() - startedAt),
+      serverExit: server.exit,
+    });
+  const response = await fetch(`${server.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...images.map((image) => ({ type: "image_url", image_url: { url: image } })),
+            { type: "text", text: prompt },
+          ],
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(GENERATE_TIMEOUT_MS),
+  }).catch((error) => {
+    throw failure(`mlx_vlm.server request failed: ${error.message} (${error.cause?.code ?? error.cause?.message ?? "no cause"})`, error);
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    throw failure(`mlx_vlm.server answered ${response.status}: ${body}`);
+  }
+  const content = JSON.parse(body).choices?.[0]?.message?.content;
+  assert(typeof content === "string", `mlx_vlm.server reply has no message content: ${body}`);
+  return content;
+}
+
+async function verifiedFindings({ server, model, flow, findings }) {
   const verified = [];
   for (const finding of findings) {
     const frameFile = flow.frames[Number(finding.frame)];
@@ -113,29 +157,29 @@ async function verifiedFindings({ python, model, flow, findings }) {
       continue;
     }
     const reply = await generate({
-      python,
+      server,
       model,
       prompt: verifyPrompt(finding),
       images: [frameFile],
       maxTokens: VERIFY_MAX_TOKENS,
     });
-    if (/true/i.test(responseText(reply))) {
+    if (/true/i.test(reply)) {
       verified.push(finding);
     }
   }
   return verified;
 }
 
-async function reviewFlow({ python, model, flow }) {
-  const stdout = await generate({
-    python,
+async function reviewFlow({ server, model, flow }) {
+  const reply = await generate({
+    server,
     model,
     prompt: reviewPrompt(flow.frames.length),
     images: flow.frames,
     maxTokens: GENERATE_MAX_TOKENS,
   });
-  const extracted = extractFindings(stdout);
-  const findings = await verifiedFindings({ python, model, flow, findings: extracted.findings });
+  const extracted = extractFindings(reply);
+  const findings = await verifiedFindings({ server, model, flow, findings: extracted.findings });
   return {
     flow: flow.flow,
     frameCount: flow.frames.length,
@@ -156,7 +200,7 @@ function fencedBlock(text) {
 }
 
 function formatSummary(reviews) {
-  const lines = ["## Visual review (advisory)", ""];
+  const lines = ["## Visual review", ""];
   for (const review of reviews) {
     lines.push(`### ${review.flow} (${review.frameCount} frames)`, "");
     if (review.parseFailed) {
@@ -190,12 +234,16 @@ async function main() {
   const python = requireEnv("VLM_PYTHON");
   const flows = await listFlows(framesDir);
   if (flows.length === 0) {
-    await publishSummary("## Visual review (advisory)\n\nNo transition frames were captured for this run.");
-    return;
+    throw new Error(`No transition frames reached ${framesDir}`);
   }
+  const server = await startServer({ python, model });
   const reviews = [];
-  for (const flow of flows) {
-    reviews.push(await reviewFlow({ python, model, flow }));
+  try {
+    for (const flow of flows) {
+      reviews.push(await reviewFlow({ server, model, flow }));
+    }
+  } finally {
+    await stopServer(server);
   }
   await publishSummary(formatSummary(reviews));
   const defectCount = reviews.reduce((total, review) => total + review.findings.length, 0);
@@ -211,8 +259,20 @@ async function main() {
     await cp(framesDir, "flagged-frames", { recursive: true });
   }
   await rm(framesDir, { recursive: true, force: true });
+  const unparsedFlows = reviews.filter((review) => review.parseFailed).map((review) => review.flow);
+  if (unparsedFlows.length > 0) {
+    throw new Error(`The model reply was not parseable JSON for: ${unparsedFlows.join(", ")}`);
+  }
+  if (defectCount > 0) {
+    throw new Error(`The model confirmed ${defectCount} defect(s) in the transition frames`);
+  }
 }
 
 main().catch((error) => {
-  console.error("Visual review skipped:", error instanceof Error ? error.message : error);
+  console.error(
+    "::error::Visual review failed:",
+    error instanceof Error ? error.message : error,
+    JSON.stringify({ elapsedMs: error?.elapsedMs, serverExit: error?.serverExit }),
+  );
+  process.exitCode = 1;
 });

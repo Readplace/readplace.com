@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Request } from "express";
 
 import { NATIVE_CLIENT_HEADER } from "../onboarding/native-client";
-import { saveClientOf } from "./save-client";
+import { appClientOf, saveClientOf } from "./save-client";
 
 const READPLACE_IOS_APP = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const READPLACE_SHARE_EXTENSION = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -87,5 +87,19 @@ describe("saveClientOf", () => {
 
 	it("falls back to the web client for a dynamically registered OAuth client id", () => {
 		assert.equal(saveClientOf(reqWith({ oauthClientId: "some-registered-mcp-client" })), "web");
+	});
+});
+
+describe("appClientOf", () => {
+	it("leaves a web reader download without an app client", () => {
+		assert.equal(appClientOf(reqWith({ headers: { "user-agent": IPHONE_SAFARI } })), undefined);
+	});
+
+	it.each([
+		{ query: { platform: "ios" }, appClient: "ios_app" },
+		{ query: { platform: "android" }, appClient: "android_app" },
+		{ query: { shell: "app" }, appClient: "ios_app" },
+	])("reports the app hosting the reader surface $query", ({ query, appClient }) => {
+		assert.equal(appClientOf(reqWith({ query })), appClient);
 	});
 });

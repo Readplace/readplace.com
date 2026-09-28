@@ -41,6 +41,12 @@ describe("Save routes", () => {
 			const meta = doc.querySelector('meta[http-equiv="refresh"]');
 			assert(meta, "meta refresh must be rendered");
 			expect(meta.getAttribute("content")).toBe("5;url=/?utm_source=save-error&utm_medium=internal&utm_content=home");
+			const alert = doc.querySelector('[data-test-alert="save-error"]');
+			assert(alert, "the missing URL must be announced as an error");
+			expect(alert.getAttribute("role")).toBe("alert");
+			expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(alert.classList.contains("alert--visible")).toBe(true);
+			expect(alert.querySelector("h1[data-test-alert-title]")?.textContent).toBe("No article URL provided");
 		});
 
 		it("should show a fallback link to home", async () => {

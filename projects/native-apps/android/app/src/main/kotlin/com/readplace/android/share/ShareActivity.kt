@@ -53,22 +53,18 @@ import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJobStore
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.time.Clock
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The share target's composition root.
  */
 class ShareActivity : ComponentActivity() {
 	private val sheet = ShareSheetState()
-
-	/** Called by the backdrop tap to end the sheet's wait early; null until the
-	 * wait is running. */
-	private var dismissNow: (() -> Unit)? = null
+	private val hold = ShareSheetHold(holdDuration = 3.seconds)
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -77,7 +73,7 @@ class ShareActivity : ComponentActivity() {
 			ReadplaceTheme {
 				ShareSheet(
 					sheet = sheet,
-					onBackdropTap = { dismissNow?.invoke() },
+					onDismiss = hold::end,
 					onEnded = ::finish,
 				)
 			}
@@ -117,7 +113,7 @@ class ShareActivity : ComponentActivity() {
 			suspend { pdf.bytes(maxBytes = ReadplaceApi.DEFAULT_MAX_EXTERNAL_CONTENT_BYTES) }
 		}
 		val settled = lifecycleScope.launch {
-			sheet.outcome = saver.run(
+			val outcome = saver.run(
 				url = shared?.url,
 				fallbackTitle = shared?.title,
 				sharedPdf = sharedPdf,
@@ -129,19 +125,11 @@ class ShareActivity : ComponentActivity() {
 				},
 				onStillSaving = { sheet.status = "Still saving…" },
 			)
+			sheet.outcome = outcome
+			sheet.canDismiss = true
 		}
-		endOfSheet(settled)
+		hold.untilSettledAndRead(settled)
 		sheet.ended = true
-	}
-
-	/** Returns once the journey has settled, or as soon as the reader taps outside
-	 * the card — whichever lands first. */
-	private suspend fun endOfSheet(settled: Job) {
-		val claim = FirstClaim()
-		val ended = CompletableDeferred<Unit>()
-		dismissNow = { if (claim.take()) ended.complete(Unit) }
-		settled.invokeOnCompletion { if (claim.take()) ended.complete(Unit) }
-		ended.await()
 	}
 }
 
@@ -150,8 +138,6 @@ private class ShareSheetState {
 	var notice by mutableStateOf<List<ServerMessage>>(emptyList())
 	var outcome by mutableStateOf<SaveSharedOutcome?>(null)
 
-	/** Tapping outside the card dismisses. Disabled until the server has confirmed
-	 * the save, because until then a dismissal would abandon a save in flight. */
 	var canDismiss by mutableStateOf(false)
 	var ended by mutableStateOf(false)
 }
@@ -159,14 +145,14 @@ private class ShareSheetState {
 @Composable
 private fun ShareSheet(
 	sheet: ShareSheetState,
-	onBackdropTap: () -> Unit,
+	onDismiss: () -> Unit,
 	onEnded: () -> Unit,
 ) {
 	val brand = LocalBrandColors.current
 	val haptics = LocalHapticFeedback.current
 	val status = sheet.outcome?.let { ShareStatusPresentation.of(it) }
 
-	BackHandler { if (sheet.canDismiss) onBackdropTap() }
+	BackHandler { if (sheet.canDismiss) onDismiss() }
 
 	Box(
 		modifier = Modifier
@@ -175,7 +161,7 @@ private fun ShareSheet(
 				interactionSource = remember { MutableInteractionSource() },
 				indication = null,
 				enabled = sheet.canDismiss,
-				onClick = onBackdropTap,
+				onClick = onDismiss,
 			),
 		contentAlignment = Alignment.Center,
 	) {

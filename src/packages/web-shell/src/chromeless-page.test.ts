@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initChromelessPage } from "./chromeless-page";
 import type { ChromelessBannerState } from "./chromeless-page";
-import { isChangelogVersion } from "./changelog-banner";
+import { FETCH_CHANGELOG_BANNER_IN_BROWSER, isChangelogVersion } from "./changelog-banner";
 import { generateCspNonce } from "./csp-nonce.middleware";
 import type { PageBody } from "./page-body.types";
 
@@ -218,6 +218,24 @@ describe("ChromelessPage", () => {
 		expect(banner.compareDocumentPosition(main) & banner.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 	});
 
+	it("leaves the announcement for the browser to fetch above <main>, returning to the article it is shown on", () => {
+		const doc = new JSDOM(
+			ChromelessPage(createTestPageBody(), {
+				changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
+				currentPath: "/queue/abc/view?platform=ios",
+				cspNonce: CSP_NONCE,
+			}).to("text/html").body,
+		).window.document;
+
+		const banner = doc.querySelector(".changelog-banner");
+		assert(banner, "the banner placeholder must render");
+		const url = new URL(String(banner.getAttribute("hx-get")), "https://readplace.com");
+		expect(url.searchParams.get("returnTo")).toBe("/queue/abc/view?platform=ios");
+		const main = doc.querySelector("main.reader");
+		assert(main, "the article must render");
+		expect(banner.compareDocumentPosition(main) & banner.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
 	it("dismisses through the same no-JS form the web shell uses, returning to the article it was shown on", () => {
 		const doc = new JSDOM(ChromelessPage(createTestPageBody(), WITH_BANNER).to("text/html").body).window.document;
 
@@ -234,6 +252,7 @@ describe("ChromelessPage", () => {
 	it("styles the announcement without pulling in the full shell's fixed banner-area positioning", () => {
 		const css = shellCss(WITH_BANNER);
 
+		expect(css).toContain(".banner-bar {");
 		expect(css).toContain(".changelog-banner--hidden");
 		expect(css).not.toContain(".banner-area {");
 	});
@@ -248,6 +267,14 @@ describe("ChromelessPage", () => {
 		expect(css).toContain(".btn {");
 		expect(css).toContain(".btn--primary {");
 		expect(css).toContain(".btn--secondary {");
+	});
+
+	it("ships the shared form controls, so a page's .form-input markup is a styled field here as it is under the full shell", () => {
+		const css = shellCss(NO_BANNER);
+
+		expect(css).toContain(".form-input {");
+		expect(css).toContain(".form-field__error {");
+		expect(css).toContain(".form-choice {");
 	});
 
 	it("paints its own ground under its ink, so the page stays legible over a host surface that resolved a different scheme", () => {
@@ -269,7 +296,7 @@ describe("ChromelessPage", () => {
 			),
 			style: Array.from(doc.querySelectorAll("style")).map((el) => el.getAttribute("nonce")),
 		}).toEqual({
-			script: [CSP_NONCE],
+			script: [],
 			style: [CSP_NONCE, CSP_NONCE],
 		});
 	});

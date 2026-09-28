@@ -22,9 +22,6 @@ jobs:
   # packages). The iOS suite cannot live in this job: it needs Xcode on a macOS
   # runner and is path-gated to iOS changes (see ios-tests below).
   web-tests:
-    # Fork PRs fall back to ubuntu-latest: on a public repo, untrusted PR code
-    # must never execute on the self-hosted runner (RCE + PAT-exposure risk).
-    # Own pushes and same-repo PRs use the self-hosted orbstack runner.
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && fromJSON('["self-hosted", "orbstack"]') || 'ubuntu-latest' }}
     environment: staging
     env:
@@ -93,6 +90,18 @@ jobs:
 
       - run: pnpm check --exclude=ios,android
 
+      - name: Hand the transition frames to the visual review
+        if: always() && runner.environment != 'github-hosted'
+        run: |
+          set -euo pipefail
+          destination="$CI_ARTIFACT_ROOT/$GITHUB_RUN_ID/frames"
+          mkdir -p "$destination"
+          for flow in projects/*/test-results/transition-frames/* projects/browser-extensions/*/test-results/transition-frames/*; do
+            if [ -d "$flow" ]; then
+              cp -R "$flow" "$destination/"
+            fi
+          done
+
   # Save-latency gate for both browser extensions: a save must paint the saved
   # view in under the measured budget on average.
   #
@@ -154,7 +163,9 @@ jobs:
         if: always()
         with:
           name: save-latency-${{ github.run_id }}
-          path: projects/browser-extensions/*/test-results/perf/*.json
+          path: |
+            projects/browser-extensions/*/test-results/perf/*.json
+            projects/browser-extensions/*/test-results/perf/*.png
           if-no-files-found: warn
 
   # Only detect and deploy on pushes to main (not on PRs)

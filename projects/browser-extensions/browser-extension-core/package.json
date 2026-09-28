@@ -69,6 +69,7 @@
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/ui-icons": "workspace:*",
+    "@packages/web-shell": "workspace:*",
     "esbuild": "catalog:",
     "js-base64": "3.7.8",
     "zod": "4.4.3"

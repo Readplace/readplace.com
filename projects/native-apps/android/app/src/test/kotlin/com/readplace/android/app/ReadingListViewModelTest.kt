@@ -21,19 +21,24 @@ import com.readplace.android.core.TokenStorage
 import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -109,6 +114,10 @@ class ReadingListViewModelTest {
 	private val ReadingListViewModel.articleIds: List<String> get() = state.value.articles.map { it.id }
 
 	private val ReadingListViewModel.toolbarTokens: List<String> get() = state.value.collectionAffordances.map { it.token }
+
+	private val ReadingListViewModel.tabLabels: List<String> get() = state.value.tabs.map { it.label }
+
+	private val ReadingListViewModel.selectedTabHref: String? get() = state.value.selectedTabHref
 
 	private val Record.page: String? get() = request.url.queryParameter("page")
 
@@ -349,6 +358,37 @@ class ReadingListViewModelTest {
 			emptyList<ServerMessage>(),
 			viewModel.state.value.messages,
 		)
+	}
+
+	@Test
+	fun `an invoke refused in a media type it cannot render surfaces the client's own words and leaves the row`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue/purge" ->
+					Stub.json(403, """{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/markdown", "body": "**locked**" } }] } }""")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), total = 2))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.refresh()
+		assertEquals("precondition: the two rows loaded", listOf("a1", "a2"), viewModel.articleIds)
+
+		viewModel.invoke(purgeAction)
+
+		assertEquals(
+			"a message the client can't render is dropped rather than shown",
+			emptyList<ServerMessage>(),
+			viewModel.state.value.messages,
+		)
+		assertEquals(
+			"but the refusal still reaches the user in the client's own words instead of vanishing",
+			"Couldn't complete that.",
+			viewModel.state.value.errorText,
+		)
+		assertEquals("a refused mutation changes nothing", listOf("a1", "a2"), viewModel.articleIds)
 	}
 
 	// endregion
@@ -1701,6 +1741,183 @@ class ReadingListViewModelTest {
 		assertEquals("java.io.IOException", viewModel.state.value.errorText)
 	}
 
+	@Test
+	fun `a capture keeps running on the owner scope after the reader sheet closes`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
+		val release = CompletableDeferred<Unit>()
+		val healed = mutableListOf<String>()
+		val viewModel = viewModel(
+			healBlockedArticle = { url ->
+				healed += url
+				release.await()
+				HealBlockedOutcome.HEALED
+			},
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val readerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+		val readerJoin = readerScope.launch { job.join() }
+		runCurrent()
+		assertEquals(
+			"precondition: the owner scope's capture of the open row is under way and the reader is joining it",
+			listOf("https://example.com/post"),
+			healed,
+		)
+
+		readerScope.cancel()
+		readerJoin.join()
+
+		release.complete(Unit)
+		job.join()
+
+		assertEquals(
+			"cancelling the reader's join when the sheet closes does not cancel the owner-owned capture: it captures A exactly once",
+			listOf("https://example.com/post"),
+			healed,
+		)
+		assertEquals("the owner-scope capture reconciles the list once it lands", listOf("a1", "h1"), viewModel.articleIds)
+		assertNull(viewModel.state.value.errorText)
+		ownerScope.cancel()
+	}
+
+	@Test
+	fun `a capture stays targeted on its own reader after another reader opens`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
+		val release = CompletableDeferred<Unit>()
+		val healed = mutableListOf<String>()
+		val viewModel = viewModel(
+			healBlockedArticle = { url ->
+				healed += url
+				release.await()
+				HealBlockedOutcome.HEALED
+			},
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+		assertEquals(
+			"precondition: the undispatched capture read the open row before it could be retargeted",
+			listOf("https://example.com/post"),
+			healed,
+		)
+
+		viewModel.closeReader()
+		viewModel.openReader(article(readHref = "/queue/b1/view", id = "b1"))
+
+		release.complete(Unit)
+		job.join()
+
+		assertEquals(
+			"closing A and opening B never retargets the in-flight capture — it stays on A's own url",
+			listOf("https://example.com/post"),
+			healed,
+		)
+		assertEquals(
+			"B stays open — the completing capture of A never becomes the capture target and never touches the reader",
+			"b1",
+			viewModel.state.value.readerPresentation?.articleId,
+		)
+		assertEquals("A's landed capture still reconciles the list with server truth", listOf("a1", "h1"), viewModel.articleIds)
+		ownerScope.cancel()
+	}
+
+	@Test
+	fun `a capture failing after its reader closed and another opened surfaces the failure without touching the open reader`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val release = CompletableDeferred<Unit>()
+		val healed = mutableListOf<String>()
+		val viewModel = viewModel(
+			healBlockedArticle = { url ->
+				healed += url
+				release.await()
+				throw IOException()
+			},
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+		viewModel.closeReader()
+		viewModel.openReader(article(readHref = "/queue/b1/view", id = "b1"))
+
+		release.complete(Unit)
+		job.join()
+
+		assertEquals("the capture that failed was still A's, not the reader open at completion", listOf("https://example.com/post"), healed)
+		assertEquals("A's failure surfaces on the list banner", "java.io.IOException", viewModel.state.value.errorText)
+		assertEquals("B stays open through A's failure — the outcome never touches the open reader", "b1", viewModel.state.value.readerPresentation?.articleId)
+		ownerScope.cancel()
+	}
+
+	@Test
+	fun `disposing the signed-in screen during capture cancels it without an error banner`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val release = CompletableDeferred<Unit>()
+		val viewModel = viewModel(
+			healBlockedArticle = {
+				release.await()
+				HealBlockedOutcome.HEALED
+			},
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+
+		ownerScope.cancel()
+		job.join()
+
+		assertTrue("the disposed screen's capture job is cancelled", job.isCancelled)
+		assertNull("a screen-disposal cancellation is unwound, never shown as a failure banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertEquals("a capture cancelled before it landed reconciles nothing", listOf("a1"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `disposing the signed-in screen during the post-capture reload cancels without a banner and clears loading`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		val gate = Gate()
+		val queueGets = AtomicInteger()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && queueGets.incrementAndGet() > 1 -> gate.holding(Stub.json(200, postHeal))
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(
+			healBlockedArticle = { HealBlockedOutcome.HEALED },
+			ioDispatcher = Dispatchers.IO,
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+		awaitArrival(gate)
+		assertTrue("precondition: the post-capture reconciliation reload is on the wire", viewModel.state.value.isLoading)
+
+		ownerScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's capture job is cancelled", job.isCancelled)
+		assertNull("a cancellation reaching the nested reload is unwound, not turned into a banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the reload's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		ownerScope.cancel()
+	}
+
 	// endregion
 
 	// region Draining what the share target staged
@@ -2243,7 +2460,810 @@ class ReadingListViewModelTest {
 		assertNull("the superseded older adoption's deferred hop error is not surfaced", viewModel.state.value.errorText)
 	}
 
+	@Test
+	fun `cancelling a first-page load unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" -> gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+
+		val screenScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = screenScope.launch { viewModel.refresh() }
+		awaitArrival(gate)
+		assertTrue("precondition: the first-page load is on the wire", viewModel.state.value.isLoading)
+
+		screenScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's first-page load is cancelled", job.isCancelled)
+		assertNull("a cancelled first-page load is unwound, never turned into a banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the read's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		assertEquals("a cancelled first-page load applies nothing", emptyList<String>(), viewModel.articleIds)
+	}
+
+	@Test
+	fun `cancelling loadMore while its page is on the wire unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2)))
+				record.path == "/queue" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		assertEquals("precondition: the first page loaded and advertises a next page", listOf("a1", "a2"), viewModel.articleIds)
+
+		val loadMoreScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = loadMoreScope.launch { viewModel.loadMore() }
+		awaitArrival(gate)
+
+		loadMoreScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the torn-down load-more effect's page load is cancelled", job.isCancelled)
+		assertNull(
+			"the LaunchedEffect(articles.size) driving loadMore is torn down when a concurrent replacing read changes the " +
+				"list; that cancellation unwinds instead of painting a banner a later append would never clear",
+			viewModel.state.value.errorText,
+		)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertEquals("a cancelled page load appends nothing", listOf("a1", "a2"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `cancelling an action invoke while it is on the wire unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue/purge" -> gate.holding(Stub.json(200, Fixtures.collection(emptyList())))
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+
+		val screenScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = screenScope.launch { viewModel.invoke(purgeAction) }
+		awaitArrival(gate)
+		assertTrue("precondition: the invoke is on the wire", viewModel.state.value.isLoading)
+
+		screenScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's invoke is cancelled", job.isCancelled)
+		assertNull("a cancelled invoke is unwound, never turned into a banner", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the read's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		assertEquals("a cancelled invoke leaves the list in place", listOf("a1"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `cancelling a deeper adoption hop unwinds without an error banner`() = runTest {
+		val gate = Gate()
+		val page2Gets = AtomicInteger()
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && record.page == "2" ->
+					if (page2Gets.incrementAndGet() > 1) {
+						gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2)))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a3"), Fixtures.article("a4")), page = 2))
+					}
+				record.path == "/queue" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2")), extraLinks = NEXT_LINK))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: a two-page list is held", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+
+		val screenScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = screenScope.launch { viewModel.readerStatusChanged() }
+		awaitArrival(gate)
+
+		screenScope.cancel()
+		gate.release()
+		job.join()
+
+		assertTrue("the disposed screen's deeper-hop reload is cancelled", job.isCancelled)
+		assertNull(
+			"a cancellation during a deeper adoption hop is rethrown ahead of the hop-failure handler, so a disposed " +
+				"deep-scrolled screen never paints a banner",
+			viewModel.state.value.errorText,
+		)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertFalse("the reload's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
+		assertEquals("a cancelled reload applies nothing over the held list", listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+	}
+
 	// endregion
+
+	private val readTabLanding = "/queue?landing=after-toggle"
+	private val readTabLandingQuery = "landing=after-toggle"
+
+	private fun tabbedReadlistHandler(
+		readTabExtraLinks: String = "",
+		readTabAfterStatusPost: List<String>? = null,
+	): (Record) -> Stub {
+		val unreadTab = Fixtures.collection(
+			listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+			total = 2,
+			tabsJson = Fixtures.tabs(current = "unread"),
+		)
+		val readEntities = listOf(Fixtures.readArticle("r1"))
+		var statusPosted = false
+		return { record ->
+			val query = record.request.url.query
+			when {
+				record.path.endsWith("/status") -> {
+					statusPosted = true
+					Stub.redirect(to = if (query?.contains("status=read") == true) readTabLanding else "/queue")
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" &&
+					(query?.contains("status=read") == true || query?.contains(readTabLandingQuery) == true) -> {
+					val entities = if (statusPosted) (readTabAfterStatusPost ?: readEntities) else readEntities
+					Stub.json(
+						200,
+						Fixtures.collection(
+							entities,
+							extraLinks = readTabExtraLinks,
+							total = entities.size,
+							tabsJson = Fixtures.tabs(current = "read"),
+						),
+					)
+				}
+				record.path == "/queue" -> Stub.json(200, unreadTab)
+				else -> Stub.json(404, "{}")
+			}
+		}
+	}
+
+	@Test
+	fun `refresh exposes the server's tabs and selects the current one`() = runTest {
+		server.handle(tabbedReadlistHandler())
+		val viewModel = viewModel()
+		assertEquals("no tabs before a collection has loaded", emptyList<String>(), viewModel.tabLabels)
+		assertNull(viewModel.selectedTabHref)
+
+		viewModel.refresh()
+
+		assertEquals("the tab set and labels are the server's, verbatim", listOf("To Read", "Read"), viewModel.tabLabels)
+		assertEquals(
+			"the entry point's collection decides the initial selection",
+			"/queue?status=unread",
+			viewModel.selectedTabHref,
+		)
+		assertEquals(
+			"the selection is the current tab's identity, so a strip keyed on tab ids highlights it",
+			viewModel.state.value.tabs.first { it.isCurrent }.id,
+			viewModel.selectedTabHref,
+		)
+	}
+
+	@Test
+	fun `a collection without tabs still lists its articles and shows no tab strip`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.refresh()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertEquals("a collection without tabs hides the strip", emptyList<String>(), viewModel.tabLabels)
+		assertNull(viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `selecting a tab follows its href and replaces the list and its pagination`() = runTest {
+		server.handle(tabbedReadlistHandler(readTabExtraLinks = READ_NEXT))
+		val viewModel = viewModel()
+		viewModel.refresh()
+		assertEquals(listOf("u1", "u2"), viewModel.articleIds)
+		assertFalse("precondition: the To Read tab fits on one page", viewModel.state.value.hasMore)
+
+		viewModel.selectTab("/queue?status=read")
+
+		val tabRequest = server.records.last().request.url
+		assertEquals("/queue", tabRequest.encodedPath)
+		assertEquals(
+			"the tab's server-built href is followed as-is; the client builds no status query",
+			"status=read",
+			tabRequest.query,
+		)
+		assertEquals("the tab's collection replaces the list", listOf("r1"), viewModel.articleIds)
+		assertTrue("pagination state is the new tab's: it advertises a next page", viewModel.state.value.hasMore)
+		assertEquals("the selection follows the response's current tab", "/queue?status=read", viewModel.selectedTabHref)
+
+		viewModel.loadMore()
+
+		assertEquals(
+			"load-more follows the new tab's next link, not the old tab's",
+			"status=read&page=2",
+			server.records.last().request.url.query,
+		)
+	}
+
+	@Test
+	fun `re-selecting the tab already shown issues no request`() = runTest {
+		server.handle(tabbedReadlistHandler())
+		val viewModel = viewModel()
+		viewModel.refresh()
+		val requestsAfterLoad = server.records.size
+
+		viewModel.selectTab("/queue?status=unread")
+
+		assertEquals("re-selecting the tab already shown issues no request", requestsAfterLoad, server.records.size)
+		assertEquals("and leaves the list in place", listOf("u1", "u2"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `a paginated append keeps the first-page tabs and selection`() = runTest {
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs(current = "unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		assertEquals(listOf("To Read", "Read"), viewModel.tabLabels)
+
+		viewModel.loadMore()
+
+		assertEquals(listOf("u1", "u2", "u3"), viewModel.articleIds)
+		assertEquals(
+			"a paginated page that advertises no tabs leaves the first-page strip in place",
+			listOf("To Read", "Read"),
+			viewModel.tabLabels,
+		)
+		assertEquals("and the selection is untouched by the append", "/queue?status=unread", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `invoking update-status on the Read tab stays on the Read tab`() = runTest {
+		server.handle(tabbedReadlistHandler(readTabAfterStatusPost = listOf(Fixtures.readArticle("r2"))))
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.selectTab("/queue?status=read")
+		assertEquals(listOf("r1"), viewModel.articleIds)
+
+		val target = viewModel.state.value.articles[0]
+		viewModel.invoke(advertisedAction(target, "update-status"))
+
+		assertEquals(
+			"the collection the mutation redirected to is adopted — the Read tab's, not the entry point's",
+			listOf("r2"),
+			viewModel.articleIds,
+		)
+		assertEquals(
+			"the selection follows the adopted collection's current tab, so the app stays on Read",
+			"/queue?status=read",
+			viewModel.selectedTabHref,
+		)
+		assertNull(viewModel.state.value.errorText)
+	}
+
+	private suspend fun TestScope.reReadAfterSelectingTheReadTab(
+		reconcile: suspend (ReadingListViewModel) -> Unit,
+	): Record {
+		server.handle(tabbedReadlistHandler())
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.selectTab("/queue?status=read")
+		val requestsBefore = server.records.size
+
+		reconcile(viewModel)
+
+		assertEquals("the reconciliation is exactly one re-read", requestsBefore + 1, server.records.size)
+		assertEquals("the selection survives the re-read", "/queue?status=read", viewModel.selectedTabHref)
+		return server.records.last()
+	}
+
+	@Test
+	fun `readerStatusChanged re-reads the selected tab`() = runTest {
+		val reRead = reReadAfterSelectingTheReadTab { it.readerStatusChanged() }
+		assertEquals("/queue", reRead.path)
+		assertEquals(
+			"the reader's status change re-reads the selected tab, not the entry point",
+			"status=read",
+			reRead.request.url.query,
+		)
+	}
+
+	@Test
+	fun `handleForeground re-reads the selected tab`() = runTest {
+		val reRead = reReadAfterSelectingTheReadTab { it.handleForeground() }
+		assertEquals("/queue", reRead.path)
+		assertEquals(
+			"the foreground converge re-reads the selected tab, not the entry point",
+			"status=read",
+			reRead.request.url.query,
+		)
+	}
+
+	@Test
+	fun `a web sheet dismissal re-reads the selected tab`() = runTest {
+		val reRead = reReadAfterSelectingTheReadTab { it.handleWebSheetDismissal() }
+		assertEquals("/queue", reRead.path)
+		assertEquals(
+			"the dismissal probe re-reads the selected tab, not the entry point",
+			"status=read",
+			reRead.request.url.query,
+		)
+	}
+
+	@Test
+	fun `the selection is kept when a followed collection carries no current tab`() = runTest {
+		val uncurrent = """
+			{ "label": "To Read", "rel": "tab", "href": "/queue?status=unread" },
+			{ "label": "Read", "rel": "tab", "href": "/queue?status=read" }
+		"""
+		val unfiltered = Fixtures.collection(listOf(Fixtures.article("any")), tabsJson = uncurrent)
+		val tabbed = tabbedReadlistHandler()
+		server.handle { record ->
+			when {
+				record.path == "/queue/purge" -> Stub.redirect(to = "/queue?all")
+				record.path == "/queue" && record.request.url.query == "all" -> Stub.json(200, unfiltered)
+				else -> tabbed(record)
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.selectTab("/queue?status=read")
+
+		viewModel.invoke(purgeAction)
+
+		assertEquals("the followed collection is still adopted", listOf("any"), viewModel.articleIds)
+		assertEquals(
+			"and its tabs are shown as the server sent them",
+			listOf(false, false),
+			viewModel.state.value.tabs.map { it.isCurrent },
+		)
+		assertEquals(
+			"with no current tab in the response, the selection the user made is kept",
+			"/queue?status=read",
+			viewModel.selectedTabHref,
+		)
+	}
+
+	@Test
+	fun `a tab whose load failed after a deep scroll still reconciles on the next read`() = runTest {
+		val readTabDown = AtomicBoolean(true)
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					if (readTabDown.get()) {
+						Stub.json(500, "{}")
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+					}
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages of To Read are loaded", listOf("u1", "u2", "u3"), viewModel.articleIds)
+
+		viewModel.selectTab("/queue?status=read")
+		assertNotNull("precondition: the Read tab's load failed", viewModel.state.value.errorText)
+		assertTrue("a failed tab load leaves that tab with no rows", viewModel.state.value.articles.isEmpty())
+
+		readTabDown.set(false)
+		viewModel.handleForeground()
+
+		assertEquals(
+			"an empty tab is a fresh single page, so the foreground re-read reconciles it rather than holding a scroll position it no longer has",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `invoking update-status on a deep-scrolled Read tab adopts the Read tab to the depth held`() = runTest {
+		val toggled = AtomicBoolean(false)
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path.endsWith("/status") -> {
+					toggled.set(true)
+					Stub.redirect(to = readTabLanding)
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							if (toggled.get()) {
+								listOf(Fixtures.readArticle("r4"), Fixtures.readArticle("w1"))
+							} else {
+								listOf(Fixtures.readArticle("r3"), Fixtures.readArticle("r4"))
+							},
+							page = 2,
+							tabsJson = Fixtures.tabs("read"),
+						),
+					)
+				record.path == "/queue" &&
+					(query?.contains("status=read") == true || query?.contains(readTabLandingQuery) == true) ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.readArticle("r1"), Fixtures.readArticle("r2")),
+							extraLinks = READ_NEXT,
+							total = 4,
+							tabsJson = Fixtures.tabs("read"),
+						),
+					)
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1")), tabsJson = Fixtures.tabs("unread")))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.selectTab("/queue?status=read")
+		viewModel.loadMore()
+		assertEquals("precondition: two pages of the Read tab are loaded", listOf("r1", "r2", "r3", "r4"), viewModel.articleIds)
+
+		val target = viewModel.state.value.articles[2]
+		viewModel.invoke(advertisedAction(target, "update-status"))
+
+		assertEquals(
+			"a toggle to unread leaves the Read tab: it is re-followed to the depth held, no longer lists the acted row, " +
+				"and shows a change (w1) only the fresh second page carried",
+			listOf("r1", "r2", "r4", "w1"),
+			viewModel.articleIds,
+		)
+		assertEquals("the app stays on the tab it acted from", "/queue?status=read", viewModel.selectedTabHref)
+		assertNull(viewModel.state.value.errorText)
+	}
+
+	@Test
+	fun `a loadMore in flight when the tab changes never lands under the new tab`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3"), Fixtures.article("u4")), page = 2, tabsJson = Fixtures.tabs("unread"))))
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 4,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		assertEquals(listOf("u1", "u2"), viewModel.articleIds)
+
+		val more = launch { viewModel.loadMore() }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+		assertEquals("precondition: the Read tab is shown while the To Read page is in flight", listOf("r1"), viewModel.articleIds)
+
+		gate.release()
+		more.join()
+
+		assertEquals(
+			"the To Read page that landed late is discarded, not appended under the Read tab",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertFalse("the discarded page's next link is not adopted either", viewModel.state.value.hasMore)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `a first-page read in flight when the tab changes does not snap the selection back`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" && query == "status=unread" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1"), Fixtures.article("u2")), total = 2, tabsJson = Fixtures.tabs("unread"))))
+				record.path == "/queue" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1"), Fixtures.article("u2")), total = 2, tabsJson = Fixtures.tabs("unread")))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		assertEquals(listOf("u1", "u2"), viewModel.articleIds)
+
+		val foreground = launch { viewModel.handleForeground() }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+
+		gate.release()
+		foreground.join()
+
+		assertEquals("the late To Read collection is discarded", listOf("r1"), viewModel.articleIds)
+		assertEquals(
+			"the selection the user made is not overridden by a superseded read",
+			"/queue?status=read",
+			viewModel.selectedTabHref,
+		)
+		assertFalse("the superseded read leaves the loading state to the load that replaced it", viewModel.state.value.isLoading)
+	}
+
+	@Test
+	fun `a mutation in flight when the tab changes does not adopt the old tab's collection`() = runTest {
+		val gate = Gate()
+		val statusPosted = AtomicBoolean(false)
+		val unreadTab = Fixtures.collection(
+			listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+			total = 2,
+			tabsJson = Fixtures.tabs(current = "unread"),
+		)
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path.endsWith("/status") -> {
+					statusPosted.set(true)
+					Stub.redirect(to = "/queue")
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" && query == null && statusPosted.get() -> gate.holding(Stub.json(200, unreadTab))
+				record.path == "/queue" -> Stub.json(200, unreadTab)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		val toggle = advertisedAction(viewModel.state.value.articles[0], "update-status")
+
+		val marked = launch { viewModel.invoke(toggle) }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+
+		gate.release()
+		marked.join()
+
+		assertEquals(
+			"the collection the mutation redirected to belongs to the tab the user left, so it is not adopted",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `a stale page load never blocks the new tab's own page load`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query == "status=unread&page=2" ->
+					gate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread"))))
+				record.path == "/queue" && query == "status=read&page=2" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r2")), page = 2, tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), extraLinks = READ_NEXT, total = 2, tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		assertEquals(listOf("u1", "u2"), viewModel.articleIds)
+
+		val stale = launch { viewModel.loadMore() }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+		assertEquals("precondition: the Read tab is shown while the To Read page is still in flight", listOf("r1"), viewModel.articleIds)
+		viewModel.loadMore()
+
+		gate.release()
+		stale.join()
+
+		assertEquals(
+			"the Read tab's own next page loads: a superseded page request neither blocks it nor lands under it",
+			listOf("r1", "r2"),
+			viewModel.articleIds,
+		)
+		assertFalse(viewModel.state.value.hasMore)
+	}
+
+	private suspend fun TestScope.adoptionReFollowInterruptedByATabChange(hopAnswer: Stub): ReadingListViewModel {
+		val gate = Gate()
+		val statusPosted = AtomicBoolean(false)
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path.endsWith("/status") -> {
+					statusPosted.set(true)
+					Stub.redirect(to = "/queue?status=unread")
+				}
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true && statusPosted.get() -> gate.holding(hopAnswer)
+				record.path == "/queue" && query?.contains("page=2") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read")))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages of To Read are loaded", listOf("u1", "u2", "u3"), viewModel.articleIds)
+		val toggle = advertisedAction(viewModel.state.value.articles[0], "update-status")
+
+		val marked = launch { viewModel.invoke(toggle) }
+		awaitArrival(gate)
+		viewModel.selectTab("/queue?status=read")
+
+		gate.release()
+		marked.join()
+		return viewModel
+	}
+
+	@Test
+	fun `an adoption re-follow in flight when the tab changes never lands under the new tab`() = runTest {
+		val viewModel = adoptionReFollowInterruptedByATabChange(
+			hopAnswer = Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread"))),
+		)
+
+		assertEquals(
+			"the re-followed To Read pages belong to the tab the user left, so none lands under Read",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `an adoption re-follow that fails after the tab changed lands nothing under the new tab`() = runTest {
+		val viewModel = adoptionReFollowInterruptedByATabChange(
+			hopAnswer = Stub.json(500, Fixtures.sirenError(code = "boom", message = "nope")),
+		)
+
+		assertEquals(
+			"a hop that fails after the user moved on lands neither the old tab's rows nor its error under Read",
+			listOf("r1"),
+			viewModel.articleIds,
+		)
+		assertNull(viewModel.state.value.errorText)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
+
+	@Test
+	fun `a read in flight when the tab changes leaves the loading state to the new tab's load`() = runTest {
+		val hopGate = Gate()
+		val readTabGate = Gate()
+		val page2Reads = AtomicInteger()
+		server.handle { record ->
+			val query = record.request.url.query
+			when {
+				record.path == "/" -> Stub.redirect(to = "/queue")
+				record.path == "/queue" && query?.contains("page=2") == true -> {
+					val page2 = Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u3")), page = 2, tabsJson = Fixtures.tabs("unread")))
+					if (page2Reads.incrementAndGet() == 2) hopGate.holding(page2) else page2
+				}
+				record.path == "/queue" && query?.contains("status=read") == true ->
+					readTabGate.holding(Stub.json(200, Fixtures.collection(listOf(Fixtures.readArticle("r1")), tabsJson = Fixtures.tabs("read"))))
+				record.path == "/queue" ->
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article("u1"), Fixtures.article("u2")),
+							extraLinks = UNREAD_NEXT,
+							total = 3,
+							tabsJson = Fixtures.tabs("unread"),
+						),
+					)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		viewModel.loadMore()
+		assertEquals("precondition: two pages of To Read are loaded", listOf("u1", "u2", "u3"), viewModel.articleIds)
+
+		val reload = launch { viewModel.readerStatusChanged() }
+		awaitArrival(hopGate)
+		val selecting = launch { viewModel.selectTab("/queue?status=read") }
+		awaitArrival(readTabGate)
+
+		hopGate.release()
+		reload.join()
+		assertTrue("the superseded re-read leaves loading on for the Read tab's load, still in flight", viewModel.state.value.isLoading)
+		assertEquals("the Read tab's page has not landed yet", emptyList<String>(), viewModel.articleIds)
+
+		readTabGate.release()
+		selecting.join()
+
+		assertFalse(viewModel.state.value.isLoading)
+		assertEquals(listOf("r1"), viewModel.articleIds)
+		assertEquals("/queue?status=read", viewModel.selectedTabHref)
+	}
 
 	private object Fixtures {
 		const val LOCKED_MESSAGE = "Your account is locked because your email was never verified. " +
@@ -2290,12 +3310,14 @@ class ReadingListViewModelTest {
 			total: Int = 1,
 			actionsJson: String = COLLECTION_ACTIONS,
 			appearance: String? = null,
+			tabsJson: String? = null,
 		): String {
 			val appearanceProperty = if (appearance != null) ", \"appearance\": \"$appearance\"" else ""
+			val tabsProperty = if (tabsJson != null) ", \"tabs\": [$tabsJson]" else ""
 			return """
 				{
 					"class": ["collection", "articles"],
-					"properties": { "total": $total, "page": $page, "pageSize": 20$appearanceProperty },
+					"properties": { "total": $total, "page": $page, "pageSize": 20$appearanceProperty$tabsProperty },
 					"entities": [${entitiesJson.joinToString(",\n")}],
 					"links": [
 						{ "rel": ["self"], "href": "/queue?page=$page" },
@@ -2305,6 +3327,27 @@ class ReadingListViewModelTest {
 				}
 			"""
 		}
+
+		fun tabs(current: String): String {
+			fun rel(status: String): String = if (status == current) "current" else "tab"
+			return """
+				{ "label": "To Read", "rel": "${rel("unread")}", "href": "/queue?status=unread" },
+				{ "label": "Read", "rel": "${rel("read")}", "href": "/queue?status=read" }
+			"""
+		}
+
+		fun readArticle(id: String): String =
+			"""
+				{
+					"class": ["article"],
+					"rel": ["item"],
+					"properties": { "id": "$id", "url": "https://example.com/$id", "status": "read", "isRead": true },
+					"links": [{ "rel": ["read"], "href": "/queue/$id/view" }],
+					"actions": [
+						{ "name": "update-status", "title": "Mark as unread", "href": "/queue/$id/status?status=read", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "unread" }] }
+					]
+				}
+			"""
 
 		fun sirenError(code: String, message: String): String =
 			"""{ "class": ["error"], "properties": { "code": "$code", "message": "$message" } }"""
@@ -2320,5 +3363,7 @@ class ReadingListViewModelTest {
 	private companion object {
 		const val NEXT_LINK = """, { "rel": ["next"], "href": "/queue?page=2" }"""
 		const val PAGE_3_LINK = """, { "rel": ["next"], "href": "/queue?page=3" }"""
+		const val UNREAD_NEXT = """, { "rel": ["next"], "href": "/queue?status=unread&page=2" }"""
+		const val READ_NEXT = """, { "rel": ["next"], "href": "/queue?status=read&page=2" }"""
 	}
 }

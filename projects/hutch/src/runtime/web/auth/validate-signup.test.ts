@@ -162,6 +162,7 @@ describe("initValidateSignup", () => {
 				ok: false,
 				kind: "duplicate-email",
 				email: "new@example.com",
+				password: "password123",
 			});
 		});
 	});

@@ -105,6 +105,9 @@ describe("Gmail sender mapping presentation", () => {
 		const doc = parseHTML(GmailPage(vm).content.html).document;
 		assert.equal(doc.querySelector("[data-test-gmail-sender-label]")?.textContent, "Articles From ...");
 		assert.equal(doc.querySelector("[data-test-gmail-destination-label]")?.textContent, "... are saved to ...");
+		assert.equal(doc.querySelector("[data-test-gmail-sender-label]")?.classList.contains("form-field__label"), true);
+		assert.equal(doc.querySelector("[data-test-gmail-destination-label]")?.classList.contains("form-field__label"), true);
+		assert.equal(doc.querySelector("#gmail-sender-search")?.classList.contains("form-input"), true);
 		const picker = doc.querySelector("[data-test-gmail-inbox-picker]");
 		assert(picker, "the destination picker must render for a selected sender");
 		assert.equal(picker.hasAttribute("open"), true);
@@ -124,6 +127,7 @@ describe("Gmail sender mapping presentation", () => {
 		assert.equal(name.getAttribute("name"), "inbox_name");
 		assert.equal(name.getAttribute("value"), "Science Dispatches");
 		assert.equal(name.hasAttribute("required"), true);
+		assert.equal(name.classList.contains("form-input"), true);
 		const create = createForm.querySelector("[data-test-gmail-create-inbox]");
 		assert(create, "the create row must carry its submit control");
 		assert.equal(create.getAttribute("type"), "submit");

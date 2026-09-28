@@ -183,6 +183,9 @@ importers:
       '@packages/ui-icons':
         specifier: workspace:*
         version: link:../../../src/packages/ui-icons
+      '@packages/web-shell':
+        specifier: workspace:*
+        version: link:../../../src/packages/web-shell
       esbuild:
         specifier: 'catalog:'
         version: 0.28.0
@@ -257,9 +260,6 @@ importers:
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner
-      '@packages/web-shell':
-        specifier: workspace:*
-        version: link:../../../src/packages/web-shell
       '@playwright/test':
         specifier: 1.60.0
         version: 1.60.0
@@ -315,9 +315,6 @@ importers:
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner
-      '@packages/web-shell':
-        specifier: workspace:*
-        version: link:../../../src/packages/web-shell
       '@playwright/test':
         specifier: 1.60.0
         version: 1.60.0

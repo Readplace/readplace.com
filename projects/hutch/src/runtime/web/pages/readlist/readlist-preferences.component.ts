@@ -1,11 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReadlistSlug } from "@packages/domain/readlist";
-import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render, renderAlert, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { WIZARD_STYLES, renderWizard } from "../../shared/wizard/wizard.component";
-import { renderReadlistAlert } from "./readlist-alert.component";
 import { readlistAlertFor } from "./readlist-alerts";
 import {
 	buildReadlistNav,
@@ -85,7 +84,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				canCreate: vm.rail.canCreate,
 			}),
 		),
-		alertHtml: renderReadlistAlert(readlistAlertFor(vm.query)),
+		alertHtml: renderAlert({ key: "readlist", content: readlistAlertFor(vm.query) }),
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",

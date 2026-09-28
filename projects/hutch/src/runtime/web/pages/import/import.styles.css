@@ -42,37 +42,6 @@
   padding: 20px 24px;
 }
 
-.import__alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-}
-
-.import__alert-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(0.8125rem * 1.6);
-  color: var(--error-text);
-}
-
-.import__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.import__alert-text {
-  min-width: 0;
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-  text-wrap: pretty;
-}
-
 /* ---------- Acquisition tabs ---------- */
 
 .import__tabs {
@@ -115,12 +84,6 @@
   gap: 8px;
 }
 
-.import__from-url-label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
 .import__from-url-row {
   display: flex;
   flex-wrap: wrap;
@@ -130,24 +93,6 @@
 .import__from-url-input {
   flex: 1 1 12rem;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.import__from-url-input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.import__from-url-input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
 .import__from-url-btn {
@@ -279,6 +224,15 @@
   font-weight: 600;
 }
 
+.import__dropzone:hover .import__dropzone-icon,
+.import__dropzone:hover .import__dropzone-link,
+.import__dropzone:focus-within .import__dropzone-icon,
+.import__dropzone:focus-within .import__dropzone-link,
+.import__dropzone--dragover .import__dropzone-icon,
+.import__dropzone--dragover .import__dropzone-link {
+  color: var(--primary-text-on-tint);
+}
+
 .import__dropzone-or {
   color: var(--muted-foreground);
 }
@@ -387,16 +341,6 @@
 
 /* ---------- Review page ---------- */
 
-.import__truncated-banner {
-  background: var(--warning-bg);
-  border: 1px solid var(--color-warning);
-  color: var(--foreground);
-  padding: 14px 16px;
-  border-radius: var(--radius-lg);
-  font-size: 0.8125rem;
-  text-wrap: pretty;
-}
-
 .import__listing {
   background: var(--card);
   border: 1px solid var(--border);
@@ -414,7 +358,7 @@
   border-bottom: 1px solid var(--border);
   padding: 14px 20px;
   position: sticky;
-  top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
+  top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px));
   z-index: 10;
 }
 
@@ -432,19 +376,6 @@
   min-height: 44px;
   cursor: pointer;
   user-select: none;
-}
-
-.import__checkbox {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--primary);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.import__checkbox:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 .import__summary {

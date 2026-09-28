@@ -37,7 +37,6 @@ const PICKER = "[data-test-readlists-trigger]";
 const FRAME = [TOOLBAR, HEADER, TITLE] as const;
 
 const VOLATILE_CHROME = [
-	".trial-countdown",
 	".offline-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",

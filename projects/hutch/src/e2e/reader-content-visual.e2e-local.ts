@@ -113,7 +113,6 @@ async function readerContentSettled(page: Page): Promise<void> {
 	await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
-		document.querySelector(".trial-countdown")?.remove();
 		document.querySelector(".view__share-row")?.remove();
 		document.querySelector("[data-test-view-cta]")?.remove();
 	});

@@ -14,7 +14,7 @@ import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYT
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
-import { saveClientOf } from "../../shared/save-client";
+import { appClientOf, saveClientOf } from "../../shared/save-client";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	decodeImportSkippedCookie,
@@ -116,9 +116,7 @@ import type {
 import { Base, ChromelessPage } from "../../base.component";
 import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
-import { selectChangelogBanner } from "../../banner-state";
-import type { GetChangelogBanner } from "../../changelog-banner-source";
-import { requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
+import { FETCH_CHANGELOG_BANNER_IN_BROWSER, requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
@@ -443,11 +441,6 @@ interface ReadlistDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
 	findUserById: FindUserById;
 	buildBannerState: BuildBannerState;
-	/** The site-wide announcement, for the chromeless reader only. The full shell
-	 * reaches it through `buildBannerState`; the chromeless branch takes it directly
-	 * so an in-app article open doesn't pay for the trial/access lookup that
-	 * `buildBannerState` also performs and this shell has nowhere to render. */
-	getChangelogBanner: GetChangelogBanner;
 	logError: (message: string, error?: Error) => void;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
@@ -1114,7 +1107,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				epubDownloadHref:
 					state.content === undefined
 						? undefined
-						: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
+						: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader", appClient: appClientOf(req) }),
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -1130,10 +1123,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 								(state.notice === undefined ? readerCaptureBridgeScript(cspNonce) : ""),
 						},
 						{
-							changelogBanner: selectChangelogBanner(
-								await deps.getChangelogBanner(),
-								req.dismissedChangelogVersion,
-							),
+							changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
 							// The dismiss form posts this back so the 303 lands on the same
 							// article, still carrying `platform=ios` — so the reader returns to
 							// the chromeless shell rather than the full web one.
@@ -1200,7 +1190,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					epubDownloadHref:
 						state.content === undefined
 							? undefined
-							: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
+							: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader", appClient: appClientOf(req) }),
 				}), {
 					...(await deps.buildBannerState(req)),
 					showExtensionSuggestionBanner,
@@ -2372,7 +2362,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			provenance: article.provenance,
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
-			renderDownloadsOob: renderReaderDownloadsOob,
+			renderDownloadsOob: (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) }),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -2408,7 +2398,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			provenance: article.provenance,
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
-			renderDownloadsOob: renderReaderDownloadsOob,
+			renderDownloadsOob: (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) }),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
