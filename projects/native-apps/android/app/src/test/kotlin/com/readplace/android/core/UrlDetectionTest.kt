@@ -436,4 +436,33 @@ class UrlDetectionTest {
 			UrlDetection.firstWebUrl("example.com/a?"),
 		)
 	}
+
+	@Test
+	fun `finds no scheme-less domain when a bracketed sentence ends in a bare host and question mark`() {
+		assertNull(
+			"the ? and the closing bracket are both punctuation, so the host stays bare",
+			UrlDetection.firstWebUrl("(have you tried notion.so?)"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when a bare host ends in stacked sentence punctuation`() {
+		assertNull(
+			"?! is sentence punctuation, not a query, so the host stays bare",
+			UrlDetection.firstWebUrl("Have you tried notion.so?!"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when punctuation follows an empty fragment`() {
+		assertNull(
+			"the full stop is trimmed, leaving a dangling # that carries no fragment",
+			UrlDetection.firstWebUrl("example.com#."),
+		)
+	}
+
+	@Test
+	fun `keeps a scheme-less domain path when an unopened bracket and full stop trail it`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("(see example.com/post)."))
+	}
 }

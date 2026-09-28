@@ -17,7 +17,10 @@ object UrlDetection {
 
 	fun firstWebUrl(text: String): String? {
 		val explicit = CANDIDATE.findAll(text).map { it.range.first to trimTrailingPunctuation(it.value) }
-		val bare = BARE_DOMAIN.findAll(text).map { it.range.first to "http://${trimTrailingPunctuation(it.value)}" }
+		val bare = BARE_DOMAIN.findAll(text)
+			.map { it.range.first to trimTrailingPunctuation(it.value) }
+			.filter { (_, domain) -> BARE_DOMAIN.matches(domain) }
+			.map { (position, domain) -> position to "http://$domain" }
 		return (explicit + bare)
 			.sortedBy { (position, _) -> position }
 			.firstNotNullOfOrNull { (_, candidate) -> normalizeWebUrl(candidate) }
