@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import {
 	expect,
+	measuredBox,
 	snapToWholePixels,
 	test,
 	waitForBrandFonts,
@@ -70,7 +71,7 @@ async function pinThumbnail(page: Page): Promise<void> {
 	);
 }
 
-async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email: string; readerUrl: string }> {
+async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email: string; readerUrl: string; articleId: string }> {
 	const email = `eink-greyscale-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -113,7 +114,7 @@ async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email
 	assert.equal(reader.status(), 201, "the seed endpoint must create the reader article");
 	const { articleId } = SeededArticle.parse(await reader.json());
 
-	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
+	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view`, articleId };
 }
 
 /** Omitting generatedSummary leaves the row's summary pending, which is the one
@@ -210,6 +211,34 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 			await expect(page.locator(READLIST_LIST)).toHaveScreenshot(
 				`eink-readlist-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the status toast keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, articleId } = await seedReaderAndReadlist(
+				page,
+				`status-toast-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await page.route("**/client-dist/toast.client.js", (route) => route.abort());
+			const counts = page.waitForResponse((response) => response.url().includes("/queue/counts"));
+			await page.goto(`${BASE_URL}/queue?status_changed=read&status_article=${encodeURIComponent(articleId)}`, {
+				waitUntil: "domcontentloaded",
+			});
+			await counts;
+			await expect(page.locator("[data-test-toast-message]")).toHaveText("Marked as read");
+			await settle(page, "[data-test-toast]");
+
+			const box = await measuredBox(page, "[data-test-toast]");
+			assert.equal(Math.round(box.x), 20);
+			assert.equal(Math.round(box.x + box.width), EINK_VIEWPORT.width - 20);
+			assert.equal(Math.round(box.y + box.height), EINK_VIEWPORT.height - 20);
+			assert.equal(Math.round(box.height), 58);
+
+			await expect(page.locator("[data-test-toast]")).toHaveScreenshot(
+				`eink-status-toast-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

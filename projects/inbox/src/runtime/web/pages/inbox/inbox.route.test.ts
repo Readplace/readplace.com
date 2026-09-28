@@ -35,7 +35,7 @@ function toastMessages(doc: Document): (string | undefined)[] {
 	);
 }
 
-const CREATED_MY_NEWSLETTER = `Created the inbox email "my-newsletter" — it's live in the list below.`;
+const CREATED_MY_NEWSLETTER = `Created the inbox email "my-newsletter" — it's live in the list below`;
 
 /** A fixture whose server clock runs `days` ahead of real time, so a freshly
  * created user lands past the 7-day verification window — i.e. locked — with no

@@ -7,6 +7,17 @@ function parse(html: string): Document {
 }
 
 describe("renderToast", () => {
+	it("leads with a decorative success check outside the announced message", () => {
+		const doc = parse(renderToast({ message: "Marked as read", dismissMs: 6000, actions: [] }));
+		const toast = doc.querySelector("[data-test-toast]");
+		const icon = toast?.querySelector("[data-test-toast-icon]");
+		const message = toast?.querySelector("[data-test-toast-message]");
+		assert(toast && icon && message, "the toast must render its icon and message");
+		expect(toast.firstElementChild).toBe(icon);
+		expect(icon.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+		expect(message.textContent).toBe("Marked as read");
+	});
+
 	it("renders the message and exposes the dismiss delay as data-dismiss", () => {
 		const doc = parse(
 			renderToast({ message: "Marked as read", dismissMs: 10000, actions: [] }),
@@ -49,6 +60,7 @@ describe("renderToast", () => {
 		);
 		const button = doc.querySelector("[data-test-toast-action]");
 		assert(button, "action button must render");
+		expect(button.className).toBe("btn btn--neutral btn--m toast__action");
 		expect(button.textContent).toBe("Undo");
 		const form = button.closest("form");
 		assert(form, "action must be wrapped in a form");

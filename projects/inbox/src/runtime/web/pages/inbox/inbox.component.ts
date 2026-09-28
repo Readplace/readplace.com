@@ -43,7 +43,7 @@ export function InboxPage(params: {
 		params.createdName === undefined
 			? ""
 			: renderToast({
-					message: `Created the inbox email "${params.createdName}" — it's live in the list below.`,
+					message: `Created the inbox email "${params.createdName}" — it's live in the list below`,
 					dismissMs: STATUS_TOAST_DISMISS_MS,
 					actions: [],
 				});

@@ -136,6 +136,39 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		});
 	});
 
+	test("a status toast's Undo works as a plain form submit", async ({ page }, testInfo) => {
+		await pinThumbnail(page);
+		const email = await seedArticleWithThumbnail(
+			page,
+			`${testInfo.workerIndex}-${Date.now()}-undo`,
+		);
+		await loginAs(page, email);
+
+		const readerHref = await page.locator("[data-test-article-title]").first().getAttribute("href");
+		assert(readerHref, "a saved card must link to its own reader");
+		await page.goto(new URL(readerHref, BASE_URL).toString(), { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-reader-content]")).toBeVisible({ timeout: SETTLE_MS });
+
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			page.locator('[data-test-mark-read-form] button[type="submit"]').click(),
+		]);
+		await expect(page.locator("body.page-readlist")).toBeVisible({ timeout: SETTLE_MS });
+		await expect(page.locator("[data-test-toast]")).toBeVisible();
+
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			page.locator("[data-test-toast-action]").click(),
+		]);
+		await expect(page.locator("body.page-readlist")).toBeVisible({ timeout: SETTLE_MS });
+		await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
+
+		await page.goto(`${BASE_URL}/queue?tab=done`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator('[data-test-read-status="read"]')).toHaveCount(0, {
+			timeout: SETTLE_MS,
+		});
+	});
+
 	test("the listing count names the tab and shows no bar when the total is deferred", async ({
 		page,
 	}, testInfo) => {

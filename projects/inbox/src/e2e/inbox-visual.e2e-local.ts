@@ -113,6 +113,22 @@ const addressesPage: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const createdToast: VisualCheckpoint = {
+	name: "inbox-created-toast",
+	settled: async (page) => {
+		const toast = page.locator("[data-test-toast]");
+		await expect(toast).toBeVisible();
+		await expect(toast.locator("[data-test-toast-message]")).toHaveText(
+			'Created the inbox email "e2e" — it\'s live in the list below',
+		);
+		await expect(toast.locator("[data-test-toast-action]")).toHaveCount(0);
+	},
+	geometry: NO_GEOMETRY,
+	target: "[data-test-toast]",
+	capture: "element",
+	pinnedText: [],
+};
+
 const addressAlert: VisualCheckpoint = {
 	name: "inbox-alert",
 	settled: async (page) => {
@@ -177,6 +193,14 @@ test.describe("Inbox visual checkpoints", () => {
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
 		await page.goto("/inbox/addresses");
 		await captureCheckpoint(page, addressesPage);
+	});
+
+	test("captures the created address toast", async ({ page }) => {
+		await page.request.post("/e2e/session");
+		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
+		await page.route("**/client-dist/toast.client.js", (route) => route.abort());
+		await page.goto("/inbox/addresses?created=e2e");
+		await captureCheckpoint(page, createdToast);
 	});
 
 	test("captures an inbox address limit alert", async ({ page }) => {

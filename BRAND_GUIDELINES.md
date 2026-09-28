@@ -312,7 +312,7 @@ There is **one** button in the product. Every call to action is `.btn` plus exac
 |---|---|---|---|---|---|---|
 | **`primary`** | `--primary` | `--primary-hover` | `--primary-fill` | `--primary-foreground` (white) | — | The amber CTA — the main action per screen (Save, Import, Subscribe, install, landing and pricing CTAs, the guest header's Log in) |
 | **`secondary`** (the kit's "Secondary") | `--secondary` | `--secondary-hover` | `--secondary-pressed` | `--primary-text-on-tint` | inset 1px `--color-brand` | The supporting action beside a primary (View on GitHub, Cancel, Back), and a list row's state action (Mark as read, Exclude) |
-| **`neutral`** (the kit's "Tertiary") | `--card` | `--muted` | `--neutral-pressed` | `--foreground` | inset 1px `--border` | A low-emphasis action standing alone on a screen whose amber CTA is elsewhere, such as an empty state's next step. Never pairs with a `primary` |
+| **`neutral`** (the kit's "Tertiary") | `--card` | `--muted` | `--neutral-pressed` | `--foreground` | inset 1px `--border` | A low-emphasis action standing alone on a screen whose amber CTA is elsewhere, such as an empty state's next step or a toast's Undo. Never pairs with a `primary` |
 | **`destructive`** | `--error-fill` | `--error-fill-hover` | `--error-fill-hover` | `--error-foreground` (white) | — | The commit of a destructive action: delete, remove, disconnect, cancel a subscription. Both red fills are pinned across themes; there is no outline-that-fills-on-hover destructive style |
 | **`on-dark`** | white | white, deepened | same as hover | `--secondary-foreground` | — | *Context modifier, not a priority level* — a primary sitting on the navy hero |
 | **`on-dark-ghost`** | translucent white | more opaque white | same as hover | white | translucent white inset | *Context modifier* — the secondary beside an `on-dark` primary |
@@ -338,8 +338,8 @@ Sizes come by role, not by importance:
 | Size | Class | Height | Padding | Radius | Label | Icon, gap | Hit area | Usage |
 |---|---|---|---|---|---|---|---|---|
 | **L** | `.btn` (default) | 48px | `12px 16px` | `--radius` (8) | 16px/600, 24px line | 20px, 8px | 48px | A CTA on its own line: hero, landing, install, pricing, import commit, a card's closing CTA (spanning the card), **every dialog button**, and a CTA beside a text input — L equals `--input-height`, so the row lines up with no modifier |
-| **M** | `.btn--m` | 40px | `8px 14px` | `--radius` (8) | 16px/600 | 20px, 8px | ≥44px (`::before`, `inset: -2px 0`) | A list row's state action (Mark as read, Exclude, Save on an inbox link), the guest header's Log in |
-| **S** | `.btn--s` | 32px | `6px 12px` | `--radius-sm` (6) | 14px/600, 20px line | 16px, 6px | ≥44px (`::before`, `inset: -6px 0`) | An action nested in dense secondary content: a checklist or stepper step, a toast action, a copy button, a banner CTA, the reader's action bar. Never a card's closing CTA |
+| **M** | `.btn--m` | 40px | `8px 14px` | `--radius` (8) | 16px/600 | 20px, 8px | ≥44px (`::before`, `inset: -2px 0`) | A list row's state action (Mark as read, Exclude, Save on an inbox link), a toast's Undo, the guest header's Log in |
+| **S** | `.btn--s` | 32px | `6px 12px` | `--radius-sm` (6) | 14px/600, 20px line | 16px, 6px | ≥44px (`::before`, `inset: -6px 0`) | An action nested in dense secondary content: a checklist or stepper step, a copy button, a banner CTA, the reader's action bar. Never a card's closing CTA |
 | **Icon** | — (not `.btn`) | — | `4px 8px` (`--button-padding-xs`) | `--radius-sm` | — | 16px | per the floor below | Icon-only controls (close, dismiss, kebab) |
 
 The kit's XL (56px) is not built: no screen draws it, and unused CSS fails the purge check. `.btn--field`, `.btn--compact` and `.btn--toggle` are retired.
@@ -416,10 +416,10 @@ An app screen has a canvas and at most two raised layers — never more.
 | Menu | `0 0 12px rgba(0,0,0,0.10)` | `0 0 12px rgba(0,0,0,0.5)` | `--shadow-menu` | dropdown and row menus |
 | Toast | `0 4px 16px rgba(0,0,0,0.12)` | `0 4px 16px rgba(0,0,0,0.5)` | `--shadow-toast` | the toast |
 
-The menu and toast values are estimated from the design's halos (±30%). Menus, the toast and popovers move from `--shadow-md` to their tokens in their own passes; a dialog loses its shadow and floats on its scrim alone.
+The menu and toast values are estimated from the design's halos (±30%). Menus and popovers move from `--shadow-md` to their tokens in their own passes; a dialog loses its shadow and floats on its scrim alone.
 
 - **A shadow means it floats.** A resting card is border-only — the fill step from the canvas is barely visible in either theme, so the hairline does the separating. A shadow belongs to things that sit over the page and can be dismissed. That keeps every screen at two planes.
-- A **toast** is the inverted floating layer: `--foreground` fill, `--background` ink, a 1px white edge at ~30%, `--shadow-md` until its own pass moves it to `--shadow-toast`.
+- A **toast** is the one tinted floating layer: the opaque success tint, a 1px `--success` edge and `--shadow-toast`.
 - A **modal dialog** also dims the page with a scrim. The shared values are exported constants from `base.styles.ts`, not tokens, because `var()` does not reach `::backdrop`: `SCRIM_LIGHT` `rgb(0 0 0 / 0.5)` (the design's scrim samples black at 50%), `SCRIM_DARK` `rgb(13 13 13 / 0.72)` (no dark design), and `SCRIM_BLUR` `2px` (estimated) for a backdrop blur that degrades to the plain scrim on e-ink. A dialog interpolates them rather than writing its own literal; the shared confirm panel still carries its earlier light literal `rgb(26 32 44 / 0.55)`, no blur and `--shadow-md` until it adopts them.
 - A focus halo or an inset outline built with `box-shadow` is not elevation.
 
@@ -489,7 +489,9 @@ A **status chip** carries its state's triad (e.g. `--error-bg` fill, `--error-te
 
 > **Source of truth:** the toast in `@packages/web-shell` (`renderToast`).
 
-A toast confirms a change the reader just made ("Marked as read"). The floating toast borrows the success alert's `check-circle`, `--color-success` mark and `--success-bg` tint; its position, action and dismissal belong to the toast component. **Errors are never toasts** — an error stays on screen as an [alert](#alerts-and-status) or an inline field message until it is resolved.
+A toast confirms a change the reader just made ("Marked as read"). It floats at the bottom right, inset by `--header-inset` to line up with the header (48px on wide screens), and spans the `--page-gutter`s on a phone. It shares the [success alert's](#alerts-and-status) opaque `--success-bg` tint, 1px `--success` border and 24px `check-circle` mark, with `--radius` corners and `--shadow-toast`. Its message is 14px/600 in `--foreground`, with no full stop.
+
+A toast holds at most one action, **Undo**, as a `neutral` M button inside the same 58px box. Each surface renders one toast into a stable mount; a new toast replaces the old. It dismisses after `data-dismiss`, and the shell's `#toast-live-region` announces only its message. The toast itself has no live-region role. **Errors are never toasts** — an error stays on screen as an [alert](#alerts-and-status) or an inline field message until it is resolved.
 
 ### Loading States
 

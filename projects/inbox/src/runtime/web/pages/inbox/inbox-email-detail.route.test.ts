@@ -1222,7 +1222,7 @@ describe("Inbox link feedback route", () => {
 		const confirmation = await agent.get(response.headers.location);
 		const notice = parseDoc(confirmation.text).querySelector("[data-test-toast-message]");
 		assert(notice, "the followed redirect must confirm the report");
-		expect(notice.textContent?.trim()).toBe("Thanks — your report was logged.");
+		expect(notice.textContent?.trim()).toBe("Thanks — your report was logged");
 		expect(errors).toHaveLength(1);
 		assert(errors[0].startsWith("[inbox-link-feedback] "));
 		const feedback = JSON.parse(errors[0].slice("[inbox-link-feedback] ".length));

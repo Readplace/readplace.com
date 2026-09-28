@@ -78,6 +78,7 @@ const ALERT = '[data-test-alert="readlist"]';
 const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 const SUBSCRIPTION_BANNER = "[data-test-subscription-banner]";
 const SETUP_GUIDE = "[data-test-setup-guide]";
+const TOAST = "[data-test-toast]";
 const SETUP_GUIDE_AVATAR = ".setup-guide__avatar";
 const ONBOARDING_PROGRESS = "[data-test-onboarding-progress]";
 const ONBOARDING_CHIP = "[data-test-onboarding-chip]";
@@ -94,6 +95,7 @@ function trialTile(unit: "days" | "hours" | "minutes"): string {
 }
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
+const SeededArticle = z.object({ ok: z.literal(true), articleId: z.string() });
 
 async function createVerifiedUser(page: Page, email: string): Promise<string> {
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
@@ -113,7 +115,7 @@ async function seedCrawledArticle(
 		userId: string;
 		imageUrl?: string;
 	},
-): Promise<void> {
+): Promise<string> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
 			url: input.url,
@@ -131,6 +133,7 @@ async function seedCrawledArticle(
 		},
 	});
 	assert.equal(response.status(), 201, "the seed endpoint must create the crawled article");
+	return SeededArticle.parse(await response.json()).articleId;
 }
 
 function seededArticles(
@@ -689,6 +692,63 @@ const RAIL_PHONE: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+async function statusToastSettled(page: Page): Promise<void> {
+	await expect(page.locator(TOAST)).toBeVisible();
+	await expect(page.locator(`${TOAST} [data-test-toast-message]`)).toHaveText("Marked as read");
+	await expect(page.locator(`${TOAST} [data-test-toast-action]`)).toHaveText("Undo");
+}
+
+async function desktopStatusToastGeometry(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert(viewport, "the toast needs a fixed viewport");
+	const box = await measuredBox(page, TOAST);
+	assert.equal(Math.round(box.x + box.width), viewport.width - 48);
+	assert.equal(Math.round(box.y + box.height), viewport.height - 48);
+	assert.equal(Math.round(box.height), 58);
+	const shadow = await page.locator(TOAST).evaluate((el) => getComputedStyle(el).boxShadow);
+	assert.notEqual(shadow, "none", "the floating toast must cast a shadow");
+}
+
+async function phoneStatusToastGeometry(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert(viewport, "the toast needs a fixed viewport");
+	const box = await measuredBox(page, TOAST);
+	assert.equal(Math.round(box.x), 20);
+	assert.equal(Math.round(box.x + box.width), viewport.width - 20);
+	assert.equal(Math.round(box.y + box.height), viewport.height - 20);
+	assert.equal(Math.round(box.height), 58);
+}
+
+const STATUS_TOAST: VisualCheckpoint = {
+	name: "readlist-status-toast",
+	settled: statusToastSettled,
+	geometry: desktopStatusToastGeometry,
+	target: TOAST,
+	capture: "element",
+	pinnedText: [],
+};
+
+const STATUS_TOAST_PHONE: VisualCheckpoint = {
+	...STATUS_TOAST,
+	name: "readlist-status-toast-phone",
+	geometry: phoneStatusToastGeometry,
+};
+
+async function openStatusToast(page: Page, stamp: string): Promise<void> {
+	const email = `readlist-status-toast-${stamp}@example.com`;
+	const userId = await createVerifiedUser(page, email);
+	const articleId = await seedCrawledArticle(page, {
+		url: `https://example.com/readlist-status-toast-${stamp}`,
+		title: "An article with a reversible status",
+		savedAt: "2026-07-12T09:14:00.000Z",
+		excerpt: "A saved article for the status toast visual checkpoint.",
+		userId,
+	});
+	await loginAs(page, email);
+	await page.route("**/client-dist/toast.client.js", (route) => route.abort());
+	await gotoReadlistQueue(page, `?status_changed=read&status_article=${encodeURIComponent(articleId)}`);
+}
+
 const THEMES = ["light", "dark"] as const;
 
 function withTheme(checkpoint: VisualCheckpoint, theme: (typeof THEMES)[number]): VisualCheckpoint {
@@ -777,6 +837,28 @@ test.describe("Readlist read tab", () => {
 			await captureCheckpoint(page, withTheme(PAGE_READ_TAB, theme));
 		});
 	}
+});
+
+test.describe("Readlist status toast", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`floats at the header inset with Undo (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openStatusToast(page, `${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await captureCheckpoint(page, withTheme(STATUS_TOAST, theme));
+		});
+	}
+});
+
+test.describe("Readlist status toast on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("spans the page gutters with Undo", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openStatusToast(page, `phone-${testInfo.workerIndex}-${Date.now()}`);
+		await captureCheckpoint(page, STATUS_TOAST_PHONE);
+	});
 });
 
 test.describe("Readlist rail menu", () => {

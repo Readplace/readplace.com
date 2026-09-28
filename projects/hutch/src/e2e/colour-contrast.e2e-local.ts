@@ -258,6 +258,8 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 			.getAttribute("href");
 		assert(readerHref, "a saved card must link to its own reader");
 		const readerUrl = new URL(readerHref, BASE_URL).toString();
+		const articleId = new URL(readerHref, BASE_URL).pathname.match(/^\/queue\/([^/]+)\/view$/)?.[1];
+		assert(articleId, "a saved card must link to a reader with an article id");
 
 		const viewUrls = {
 			"to-read": `${BASE_URL}/queue`,
@@ -279,6 +281,44 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 				}
 				await auditReadlistQueue(page, { theme, view });
 			}
+			await page.route("**/client-dist/toast.client.js", (route) => route.abort());
+			await page.goto(
+				`${BASE_URL}/queue?status_changed=read&status_article=${encodeURIComponent(articleId)}`,
+				{ waitUntil: "domcontentloaded" },
+			);
+			await expect(page.locator("[data-test-toast]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditReadlistQueue(page, { theme, view: "status-toast" });
+			const toastColours = await page.locator("[data-test-toast]").evaluate((toast) => {
+				function rgb(value: string) {
+					const channels = value.match(/-?[\d.]+/g);
+					if (!channels || channels.length < 3) throw new Error(`Expected an RGB colour, got ${value}`);
+					return {
+						red: Number(channels[0]),
+						green: Number(channels[1]),
+						blue: Number(channels[2]),
+						alpha: channels.length > 3 ? Number(channels[3]) : 1,
+					};
+				}
+				const border = rgb(getComputedStyle(toast).borderTopColor);
+				let ancestor = toast.parentElement;
+				while (ancestor) {
+					const canvas = rgb(getComputedStyle(ancestor).backgroundColor);
+					if (canvas.alpha === 1) return { border, canvas };
+					ancestor = ancestor.parentElement;
+				}
+				throw new Error("The toast must float over an opaque ancestor canvas");
+			});
+			for (const [lens, project] of Object.entries(LENSES)) {
+				const ratio = contrastRatio({
+					ink: project(toastColours.border),
+					surface: project(toastColours.canvas),
+				});
+				assert.ok(
+					ratio >= NON_TEXT_MINIMUM,
+					`${theme}/status-toast/${lens}: border contrast ${ratio.toFixed(2)}:1 is below ${NON_TEXT_MINIMUM}:1`,
+				);
+			}
+			await page.unroute("**/client-dist/toast.client.js");
 			await page.setExtraHTTPHeaders({ [E2E_CHANGELOG_BANNER_HEADER]: "1" });
 			await page.goto(viewUrls["to-read"], { waitUntil: "domcontentloaded" });
 			await auditAnnouncementBars(page, { theme, view: "announcement-bars" });
