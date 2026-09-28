@@ -1,6 +1,8 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import {
 	ConfirmGmailForwardingCommand,
+	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
+	type GmailForwardingConfirmFailedLine,
 	GmailForwardingConfirmedEvent,
 	GmailForwardingConfirmFailedEvent,
 } from "@packages/hutch-infra-components";
@@ -11,9 +13,10 @@ import type { ConfirmForwardingAddress } from "./confirm-forwarding-address";
 export function initConfirmGmailForwardingHandler(deps: {
 	confirmForwardingAddress: ConfirmForwardingAddress;
 	publishEvent: PublishEvent;
+	metricLog: HutchLogger.Typed<GmailForwardingConfirmFailedLine>;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { confirmForwardingAddress, publishEvent, logger } = deps;
+	const { confirmForwardingAddress, publishEvent, metricLog, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -56,9 +59,12 @@ export function initConfirmGmailForwardingHandler(deps: {
 					});
 					continue;
 				}
-				logger.error("[confirm-gmail-forwarding] confirmation did not complete", {
-					userId,
+				metricLog.error({
+					level: "ERROR",
+					message: "[confirm-gmail-forwarding] confirmation did not complete",
+					event: GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 					reason: result.reason,
+					userId,
 				});
 			} catch (error) {
 				logger.error("[confirm-gmail-forwarding] record failed", {

@@ -565,33 +565,13 @@ describe("runAllPhases execution", () => {
 
 	it("renders natively on Linux, where the pinned browsers are already the host's", () => {
 		const platform = process.platform;
-		const runnerEnvironment = process.env.RUNNER_ENVIRONMENT;
 		try {
-			delete process.env.RUNNER_ENVIRONMENT;
 			Object.defineProperty(process, "platform", { value: "linux" });
-			expect(defaultDeps.rendersNatively()).toBe(true);
-			process.env.RUNNER_ENVIRONMENT = "self-hosted";
 			expect(defaultDeps.rendersNatively()).toBe(true);
 			Object.defineProperty(process, "platform", { value: "darwin" });
 			expect(defaultDeps.rendersNatively()).toBe(false);
 		} finally {
 			Object.defineProperty(process, "platform", { value: platform });
-			if (runnerEnvironment === undefined) delete process.env.RUNNER_ENVIRONMENT;
-			else process.env.RUNNER_ENVIRONMENT = runnerEnvironment;
-		}
-	});
-
-	it("renders in the pinned container on a github-hosted Linux VM, whose own fonts shift the baselines", () => {
-		const platform = process.platform;
-		const runnerEnvironment = process.env.RUNNER_ENVIRONMENT;
-		try {
-			Object.defineProperty(process, "platform", { value: "linux" });
-			process.env.RUNNER_ENVIRONMENT = "github-hosted";
-			expect(defaultDeps.rendersNatively()).toBe(false);
-		} finally {
-			Object.defineProperty(process, "platform", { value: platform });
-			if (runnerEnvironment === undefined) delete process.env.RUNNER_ENVIRONMENT;
-			else process.env.RUNNER_ENVIRONMENT = runnerEnvironment;
 		}
 	});
 

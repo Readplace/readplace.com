@@ -176,7 +176,6 @@ async function sectionSettled(page: Page): Promise<void> {
 	await page.waitForSelector(READY_SECTION);
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
-		document.querySelector(".trial-countdown")?.remove();
 		document.querySelector("[data-test-reader-float-stack]")?.remove();
 	});
 }
@@ -314,7 +313,7 @@ async function cardCollapsed(page: Page): Promise<void> {
 	await expect(page.locator(CARD)).toHaveCSS("background-color", summaryBackground);
 	await expect(page.locator(CARD)).toHaveCSS("border-top-width", "1px");
 	await expect(page.locator(CARD)).toHaveCSS("border-top-color", summaryBorderColor);
-	await expect(page.locator(CARD)).toHaveCSS("border-top-left-radius", "12px");
+	await expect(page.locator(CARD)).toHaveCSS("border-top-left-radius", "16px");
 	await expect(page.locator(TOGGLE)).toHaveCSS("padding", summaryTogglePadding);
 
 	const previewTitle = await page.locator(PREVIEW_TITLE).evaluate((el) => ({

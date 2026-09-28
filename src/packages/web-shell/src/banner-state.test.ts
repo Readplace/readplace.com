@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { bannerStateFromRequest, buildGuestNavItems, buildNavGroups } from "./banner-state";
+import { bannerStateFromRequest, buildGuestNavGroups, buildNavGroups } from "./banner-state";
 import { generateCspNonce } from "./csp-nonce.middleware";
 
 /** The shell carries no domain dependency and reads `userId` only for
@@ -52,47 +52,86 @@ describe("bannerStateFromRequest", () => {
 	});
 });
 
-describe("buildGuestNavItems", () => {
-	it("returns install, features, import, and login as a flat list in that order", () => {
-		const items = buildGuestNavItems();
-		expect(items.map((i) => i.key)).toEqual(["install", "features", "import", "login"]);
+describe("buildGuestNavGroups", () => {
+	it("centres install, import, and features in Library and puts login alone in Account", () => {
+		const groups = buildGuestNavGroups();
+		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
+		const [library, account] = groups;
+		expect(library?.items.map((i) => i.key)).toEqual(["install", "import", "features"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["login"]);
 	});
 
 	it("points the import item at the import page so logged-out visitors can start a migration", () => {
-		const item = buildGuestNavItems().find((i) => i.key === "import");
+		const item = buildGuestNavGroups()
+			.flatMap((g) => g.items)
+			.find((i) => i.key === "import");
 		assert(item, "guest nav must include an import item");
 		expect(item.href).toBe("/import?utm_source=header-nav&utm_medium=internal&utm_content=import");
 	});
 
 	it("points the login item at the login page", () => {
-		const login = buildGuestNavItems().find((i) => i.key === "login");
+		const login = buildGuestNavGroups()
+			.flatMap((g) => g.items)
+			.find((i) => i.key === "login");
 		assert(login, "guest nav must include a login item");
 		expect(login.href).toBe("/login?utm_source=header-nav&utm_medium=internal&utm_content=login");
 	});
 
 	it("points the install item at the install page", () => {
-		const install = buildGuestNavItems().find((i) => i.key === "install");
+		const install = buildGuestNavGroups()
+			.flatMap((g) => g.items)
+			.find((i) => i.key === "install");
 		assert(install, "guest nav must include an install item");
 		expect(install.href).toBe("/install?utm_source=header-nav&utm_medium=internal&utm_content=install");
+	});
+
+	it("styles login as the primary M button and every other guest item as a plain nav link", () => {
+		const classes = buildGuestNavGroups()
+			.flatMap((g) => g.items)
+			.map((i) => [i.key, i.linkClass]);
+		expect(classes).toEqual([
+			["install", "nav__link"],
+			["import", "nav__link"],
+			["features", "nav__link"],
+			["login", "nav__link btn btn--primary btn--m"],
+		]);
 	});
 });
 
 describe("buildNavGroups", () => {
-	it("groups full-access items into Library (queue, import, inbox) and Account (account, sign out)", () => {
+	it("groups full-access items into Library (queue, import, inbox) and Account (account, privacy, terms, sign out)", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox"]);
 		expect(account?.label).toBe("Account");
-		expect(account?.items.map((i) => i.key)).toEqual(["account", "logout"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["account", "privacy", "terms", "logout"]);
 	});
 
-	it("omits import, inbox, and account for a read-only user, leaving Library (queue) and Account (sign out)", () => {
+	it("omits import and inbox for a read-only user but keeps Account, the only path to /account now the header has no trial chip", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: true, gmailFeatureEnabled: false });
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
-		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["account", "privacy", "terms", "logout"]);
+	});
+
+	it("tags the Privacy and Terms entries as header-nav clicks, since signed-in pages render no footer to reach them", () => {
+		const hrefs = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false })
+			.flatMap((g) => g.items)
+			.filter((i) => i.key === "privacy" || i.key === "terms")
+			.map((i) => [i.key, i.method, i.href]);
+		expect(hrefs).toEqual([
+			["privacy", "GET", "/privacy?utm_source=header-nav&utm_medium=internal&utm_content=privacy"],
+			["terms", "GET", "/terms?utm_source=header-nav&utm_medium=internal&utm_content=terms"],
+		]);
+	});
+
+	it("styles every signed-in item as a plain nav link", () => {
+		const classes = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true })
+			.flatMap((g) => g.items)
+			.map((i) => i.linkClass);
+		expect(new Set(classes)).toEqual(new Set(["nav__link"]));
 	});
 
 	it("keeps the Inbox entry in Library for every full-access user", () => {

@@ -148,4 +148,15 @@ export {
 	type TierName,
 	initLogCrawlOutcome,
 } from "./crawl-outcome";
+export {
+	GMAIL_FILTER_REWRITE_FAILED_EVENT,
+	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
+	GMAIL_METRIC_NAMESPACE,
+	GMAIL_FILTER_REWRITE_FAILED_METRIC,
+	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
+	METERED_GMAIL_FILTER_REWRITE_REASONS,
+	METERED_GMAIL_FORWARDING_CONFIRM_REASONS,
+	type GmailFilterRewriteFailedLine,
+	type GmailForwardingConfirmFailedLine,
+} from "./gmail-terminal-failures";
 export type { StripeEventType } from "./stripe-events";

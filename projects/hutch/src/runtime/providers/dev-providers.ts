@@ -190,7 +190,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	}): GmailIntegrationDependencies => {
 		const { clientId, clientSecret, stateSeed } = settings;
 		const gmailSenderStore = initInMemoryGmailSender({ now: () => new Date() });
-		const gmailAccessToken = initGmailAccessToken({ clientId, clientSecret, credentials: gmailCredentialsStore, fetch: globalThis.fetch, now: () => new Date() });
+		const gmailAccessToken = initGmailAccessToken({ clientId, clientSecret, credentials: gmailCredentialsStore, fetch: globalThis.fetch, now: () => new Date(), logger });
 		const rewriteGmailFilter = initRewriteGmailFilter({
 			filters: initGmailFilters({ accessToken: gmailAccessToken, fetch: globalThis.fetch }),
 			connections: gmailConnectionStore,

@@ -1,17 +1,14 @@
 {{#if errorMessage}}
-        <div class="import__alert" role="alert">
-          <span class="import__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-          <p class="import__alert-text" data-test-import-error>{{errorMessage}}</p>
-        </div>
+        {{{errorAlertHtml}}}
         {{/if}}
         <form class="import__from-url-form import__panel" method="POST" action="{{fromUrlAction}}"
           data-save-tip="{{saveTipState}}"
           data-test-form="import-from-url"
           hx-post="{{fromUrlAction}}" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-          <label class="import__from-url-label" for="import-from-url-input">Newsletter or index URL</label>
+          <label class="form-field__label" for="import-from-url-input">Newsletter or index URL</label>
           <div class="import__from-url-row">
             <input id="import-from-url-input"
-              class="import__from-url-input"
+              class="form-input import__from-url-input"
               type="url"
               name="url"
               required
@@ -21,7 +18,7 @@
               placeholder="https://newsletter.example/issue-42"
               value="{{prefillUrl}}"
               data-test-import-from-url-input>
-            <button class="btn btn--primary btn--field import__from-url-btn" type="submit" data-test-action="import-from-url-submit">Fetch links</button>
+            <button class="btn btn--primary import__from-url-btn" type="submit" data-test-action="import-from-url-submit">Fetch links</button>
           </div>
           <p class="import__from-url-meta">Readplace will load the page and list every outbound link.</p>
         </form>

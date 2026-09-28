@@ -29,7 +29,7 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	url: "https://example.com/article",
 	status: "unread",
 	isUnread: true,
-	readTime: { value: "3", label: "~3 min read" },
+	readTime: { value: "3", label: "3 min read" },
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
 	deleteConfirm: {
@@ -110,6 +110,18 @@ function pageDoc(
 	return new JSDOM(buildPage(vmOverrides, optOverrides).content.html).window.document;
 }
 
+function saveInput(doc: Document): HTMLInputElement {
+	const input = doc.querySelector<HTMLInputElement>('[data-test-form="save-article"] input[name="url"]');
+	assert(input, "the save input must always render");
+	return input;
+}
+
+function saveErrorLine(doc: Document): Element {
+	const error = doc.getElementById("readlist-save-error");
+	assert(error, "the save error line must render while the save is rejected");
+	return error;
+}
+
 function emptyActionKeys(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-empty-action]"), (action) =>
 		action.getAttribute("data-test-empty-action"),
@@ -146,18 +158,20 @@ describe("ReadlistPage", () => {
 	it("shows the alert for a query the alert catalogue recognises", () => {
 		const doc = pageDoc({}, { query: { queue_error: "limit" } });
 
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert region must always render");
-		expect(alert.classList.contains("readlist__alert--visible")).toBe(true);
-		expect(doc.querySelector("[data-test-readlist-error-title]")?.textContent).toBe("Readlist limit reached");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe("Readlist limit reached");
 	});
 
 	it("hides the alert when the query carries no recognised error", () => {
 		const doc = pageDoc({}, { query: {} });
 
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert region must always render");
-		expect(alert.classList.contains("readlist__alert--hidden")).toBe(true);
+		expect(alert.classList.contains("alert--hidden")).toBe(true);
 	});
 
 	it("shows the save card on the All readlist", () => {
@@ -176,28 +190,41 @@ describe("ReadlistPage", () => {
 		expect(card.classList.contains("readlist-save--hidden")).toBe(true);
 	});
 
-	it("flags the save input invalid when the server rejected the url with a code", () => {
-		const doc = pageDoc({ saveErrorCode: "malformed_url" });
+	it("flags the save input invalid and describes it by the error line when the server rejected the url with a code", () => {
+		const doc = pageDoc({
+			saveErrorCode: "malformed_url",
+			errors: [{ message: "Please enter a valid URL" }],
+		});
 
-		const input = doc.querySelector(".readlist-save__input");
-		assert(input, "the save input must always render");
-		expect(input.classList.contains("readlist-save__input--invalid")).toBe(true);
+		const input = saveInput(doc);
+		expect(input.getAttribute("aria-invalid")).toBe("true");
+		expect(input.getAttribute("aria-describedby")).toBe("readlist-save-error");
+		expect(saveErrorLine(doc).textContent).toBe("Please enter a valid URL");
 	});
 
-	it("flags the save input invalid when validation left a field error", () => {
+	it("flags the save input invalid and describes it by the error line when validation left a field error", () => {
 		const doc = pageDoc({ errors: [{ message: "That link isn't shaped like a URL." }] });
 
-		const input = doc.querySelector(".readlist-save__input");
-		assert(input, "the save input must always render");
-		expect(input.classList.contains("readlist-save__input--invalid")).toBe(true);
+		const input = saveInput(doc);
+		expect(input.getAttribute("aria-invalid")).toBe("true");
+		expect(input.getAttribute("aria-describedby")).toBe("readlist-save-error");
+		expect(saveErrorLine(doc).textContent).toBe("That link isn't shaped like a URL.");
+	});
+
+	it("draws the save input and its error line with the shared form-field look", () => {
+		const doc = pageDoc({ errors: [{ message: "That link isn't shaped like a URL." }] });
+
+		expect(saveInput(doc).classList.contains("form-input")).toBe(true);
+		expect(saveErrorLine(doc).classList.contains("form-field__error")).toBe(true);
+		expect(saveErrorLine(doc).getAttribute("role")).toBe("alert");
 	});
 
 	it("keeps the save input valid when nothing is wrong with it", () => {
 		const doc = pageDoc();
 
-		const input = doc.querySelector(".readlist-save__input");
-		assert(input, "the save input must always render");
-		expect(input.classList.contains("readlist-save__input--valid")).toBe(true);
+		const input = saveInput(doc);
+		expect(input.hasAttribute("aria-invalid")).toBe(false);
+		expect(input.hasAttribute("aria-describedby")).toBe(false);
 	});
 
 	it("points every filter tab at its own listing", () => {
@@ -227,12 +254,16 @@ describe("ReadlistPage", () => {
 		expect(sort.textContent?.trim()).toBe("Oldest first");
 	});
 
-	it("disables the save form for a reader without write access", () => {
+	it("disables the save input for a reader without write access", () => {
 		const doc = pageDoc({ accessIsReadOnly: true });
 
-		const form = doc.querySelector('[data-test-form="save-article"]');
-		assert(form, "the save form must render");
-		expect(form.classList.contains("readlist-save__form--disabled")).toBe(true);
+		expect(saveInput(doc).disabled).toBe(true);
+	});
+
+	it("leaves the save input enabled for a reader with write access", () => {
+		const doc = pageDoc({ accessIsReadOnly: false });
+
+		expect(saveInput(doc).disabled).toBe(false);
 	});
 
 	it("points the counts loader at the counts route", () => {
@@ -466,8 +497,16 @@ describe("ReadlistPage", () => {
 		assert(readlistConfirm, "the readlist delete confirmation must render");
 		expect(articleConfirm.classList.contains("confirm-popover--illustrated")).toBe(true);
 		expect(readlistConfirm.classList.contains("confirm-popover--illustrated")).toBe(true);
-		expect(articleConfirm.querySelectorAll(".confirm-popover__illustration svg")).toHaveLength(1);
-		expect(readlistConfirm.querySelectorAll(".confirm-popover__illustration svg")).toHaveLength(1);
+		expect(articleConfirm.querySelectorAll('.confirm-popover__illustration [data-test-illustration="trash-can"]')).toHaveLength(1);
+		expect(readlistConfirm.querySelectorAll('.confirm-popover__illustration [data-test-illustration="trash-can"]')).toHaveLength(1);
+	});
+
+	it("leads the empty readlist with the book and lightbulb", () => {
+		const doc = pageDoc();
+
+		const empty = doc.querySelector("[data-test-empty-readlist]");
+		assert(empty, "the empty readlist must render");
+		expect(empty.querySelectorAll('.readlist-empty__illustration [data-test-illustration="book-lightbulb"]')).toHaveLength(1);
 	});
 
 	it("offers a rename popover for each readlist the reader owns", () => {

@@ -15,8 +15,8 @@ export interface PaginationProgress {
 
 const PAGINATION_LINK_COUNT = 10;
 const PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} .pagination__page`;
-const ACTIVE_PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} .pagination__page--active`;
-const PREV_PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} button[aria-label="Previous page"]`;
+const ACTIVE_PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} .pagination__page--current`;
+const PREV_PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} button.pagination__step--previous`;
 
 async function isListViewVisible(driver: WebDriver): Promise<boolean> {
 	try {

@@ -215,7 +215,7 @@ export const defaultDeps: TestPhaseRunnerDeps = {
 	// own — the only way a fresh clone works. Keyed on the path rather than CI
 	// because claude-listener.yml runs `CI=true pnpm check` on a bare runner.
 	shouldInstallBrowsers: () => (getEnv("PLAYWRIGHT_BROWSERS_PATH") ?? "") === "",
-	rendersNatively: () => process.platform === "linux" && getEnv("RUNNER_ENVIRONMENT") !== "github-hosted",
+	rendersNatively: () => process.platform === "linux",
 };
 
 export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {

@@ -21,9 +21,9 @@
       {{#if excerpt}}<a class="readlist-article__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader>{{excerpt}}</a>{{/if}}
       {{#if isStalePending}}<p class="readlist-article__stale" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
       <div class="readlist-article__foot">
-        <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>Processing</span></p>
         <div class="readlist-article__facts">
           {{#if isUnread}}<span class="readlist-article__status readlist-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="readlist-article__status readlist-article__status--read" data-test-read-status="read">{{icon "check"}}<span class="sr-only">Read</span></span>{{/if}}
+          <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>Processing</span></p>
           <div class="readlist-article__meta{{metaHiddenClass}}">
             <a class="readlist-article__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" title="{{siteName}}" data-test-article-url data-reader-field="site">{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></a>
             <span class="readlist-article__saved">{{icon "clock"}}<time class="readlist-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time></span>
@@ -33,11 +33,11 @@
         {{#each statusActions}}
         <form method="{{method}}" action="{{url}}" class="readlist-article__status-form{{fallbackClass}}" hx-boost="true" hx-target="closest .readlist-article" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button">
           {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-          <button class="btn btn--toggle btn--compact readlist-article__status-btn" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}><span class="readlist-article__action-btn-label">{{text}}</span>{{{loaderHtml}}}</button>
+          <button class="btn btn--secondary btn--m readlist-article__status-btn" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}><span class="readlist-article__action-btn-label">{{text}}</span>{{{loaderHtml}}}</button>
         </form>
         {{/each}}
         {{#each statusTriggers}}
-        <button class="btn btn--toggle btn--compact readlist-article__status-btn readlist-article__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}"><span class="readlist-article__action-btn-label">{{text}}</span></button>
+        <button class="btn btn--secondary btn--m readlist-article__status-btn readlist-article__confirm-trigger" type="button" popovertarget="{{popoverId}}" title="{{title}}" aria-haspopup="dialog" data-test-action="{{testAction}}"><span class="readlist-article__action-btn-label">{{text}}</span></button>
         {{/each}}
       </div>
     </div>

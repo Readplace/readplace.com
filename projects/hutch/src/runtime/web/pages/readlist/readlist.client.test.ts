@@ -27,7 +27,7 @@ function dialogsMarkup(): string {
 }
 
 function renameFormMarkup(action = "/queue/queues/work/rename"): string {
-	return `<form data-readlist-rename data-test-form="readlist-rename" action="${action}"><input name="label" value="Work Reading"><p data-readlist-rename-error class="readlist-rename__error readlist-rename__error--hidden"></p><button type="submit">Save</button></form>`;
+	return `<form data-readlist-rename data-test-form="readlist-rename" action="${action}"><input name="label" value="Work Reading"><p data-readlist-rename-error></p><button type="submit">Save</button></form>`;
 }
 
 const UNRELATED_FORM = `<form data-test-form="unrelated" action="/somewhere"><input name="x" value="y"><button type="submit">Go</button></form>`;
@@ -127,11 +127,11 @@ function init(
 		submitForm,
 		errorText: () =>
 			element("[data-readlist-rename-error]", "the rename form must carry its error line").textContent,
-		errorVisible: () =>
+		inputInvalid: () =>
 			element(
-				"[data-readlist-rename-error]",
-				"the rename form must carry its error line",
-			).classList.contains("readlist-rename__error--visible"),
+				"form[data-readlist-rename] input[name='label']",
+				"the rename form must carry its name input",
+			).getAttribute("aria-invalid"),
 	};
 }
 
@@ -214,7 +214,7 @@ describe("initReadlist", () => {
 		await settled();
 
 		expect(app.errorText()).toBe("You already have a readlist with that name.");
-		expect(app.errorVisible()).toBe(true);
+		expect(app.inputInvalid()).toBe("true");
 		expect(app.reloadCount()).toBe(0);
 	});
 
@@ -342,7 +342,7 @@ describe("initReadlist", () => {
 		const virtualConsole = new VirtualConsole();
 		const jsdomErrors: Error[] = [];
 		virtualConsole.on("jsdomError", (error) => jsdomErrors.push(error));
-		const actionlessForm = `<form data-readlist-rename><input name="label" value="Work Reading"><p data-readlist-rename-error class="readlist-rename__error readlist-rename__error--hidden"></p></form>`;
+		const actionlessForm = `<form data-readlist-rename><input name="label" value="Work Reading"><p data-readlist-rename-error></p></form>`;
 		const dom = new JSDOM(`<!DOCTYPE html><html><body>${actionlessForm}</body></html>`, { virtualConsole });
 		initReadlist({
 			document: dom.window.document,

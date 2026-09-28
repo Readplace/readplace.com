@@ -10,8 +10,8 @@
         <div class="readlist-nav__menu-panel">
           <button class="readlist-nav__menu-item readlist-nav__confirm-trigger" type="button" popovertarget="{{renamePopoverId}}" aria-haspopup="dialog" data-test-action="readlist-rename">{{icon "pencil"}}<span>Edit</span></button>
           <form class="readlist-nav__rename-fallback" method="POST" action="{{renameAction}}" hx-boost="false" data-test-form="readlist-rename-fallback">
-            <label class="readlist-rename__label" for="{{renameInputId}}">Readlist Name</label>
-            <input class="readlist-rename__input" id="{{renameInputId}}" type="text" name="{{renameField}}" value="{{title}}" maxlength="{{renameMaxLength}}" required autocomplete="off" data-test-readlist-rename-fallback-input>
+            <label class="form-field__label" for="{{renameInputId}}">Readlist Name</label>
+            <input class="form-input readlist-rename__input" id="{{renameInputId}}" type="text" name="{{renameField}}" value="{{title}}" maxlength="{{renameMaxLength}}" required autocomplete="off" data-test-readlist-rename-fallback-input>
             <button class="btn btn--primary" type="submit" data-test-action="readlist-rename-fallback">Save</button>
           </form>
           <button class="readlist-nav__menu-item readlist-nav__menu-item--danger readlist-nav__confirm-trigger" type="button" popovertarget="{{deletePopoverId}}" aria-haspopup="dialog" data-test-action="readlist-delete">{{icon "trash"}}<span>Delete</span></button>

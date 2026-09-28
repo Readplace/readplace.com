@@ -228,6 +228,7 @@ const disconnectGmail = initDisconnectGmail({
 				credentials: gmailCredentials,
 				fetch: globalThis.fetch,
 				now,
+				logger,
 			}),
 			fetch: globalThis.fetch,
 		}),

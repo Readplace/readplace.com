@@ -9,17 +9,11 @@
         </div>
         {{{cardHtml}}}
         {{#if showCardSection}}
-        <section class="{{cardSection.stateClass}}"{{#if cardSection.isError}} role="alert"{{/if}} data-test-cards-section data-test-cards-state="{{cardSection.state}}">
-          {{#if cardSection.isError}}
-          <span class="account-cards__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-          {{/if}}
+        <section class="{{cardSection.stateClass}}" data-test-cards-section data-test-cards-state="{{cardSection.state}}">
           <h2 class="account-cards__heading">{{cardSection.heading}}</h2>
           {{#if cardSection.isLoaded}}
           {{#if cardSection.hasNotice}}
-          <div class="account-cards__notice" role="alert" data-test-cards-notice>
-            <span class="account-cards__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-            <p class="account-cards__notice-text">{{cardSection.notice}}</p>
-          </div>
+          {{{cardSection.noticeAlertHtml}}}
           {{/if}}
           <ul class="account-cards__list">
             {{#each cardSection.cards}}
@@ -59,8 +53,8 @@
             data-publishable-key="{{cardSection.adding.publishableKey}}"
             data-client-secret="{{cardSection.adding.clientSecret}}"
             data-setup-id="{{cardSection.adding.setupId}}">
-            <div class="account-cards__element-mount" data-card-element></div>
-            <p class="account-cards__element-error" data-card-error role="alert"></p>
+            <div class="form-input form-input--within"><div class="form-input__control" data-card-element></div></div>
+            <p class="form-field__error" data-card-error role="alert"></p>
             <div class="account-cards__elements-actions">
               <button type="button" class="btn btn--primary" data-card-submit><span class="account__action-label">Save card</span>{{{actionLoaderHtml}}}</button>
               <a class="btn btn--secondary" href="{{track '/account' source='account' content='cancel-add-card'}}" data-card-cancel>Cancel</a>
@@ -68,7 +62,11 @@
           </div>
           {{/if}}
           {{else}}
+          {{#if cardSection.isError}}
+          {{{cardSection.alertHtml}}}
+          {{else}}
           <p class="account-cards__body" data-test-cards-message>{{cardSection.message}}</p>
+          {{/if}}
           {{/if}}
         </section>
         {{/if}}
@@ -77,7 +75,7 @@
           <p class="account-appearance__body">Choose how Readplace looks. System follows your device's light or dark setting.</p>
           <form class="account-appearance__form" method="POST" action="{{appearance.formAction}}">
             {{#each appearance.options}}
-            <button type="submit" name="appearance" value="{{value}}" aria-pressed="{{ariaPressed}}" class="btn btn--compact btn--{{variant}} account-appearance__option" data-test-appearance-option="{{value}}">{{label}}</button>
+            <button type="submit" name="appearance" value="{{value}}" aria-pressed="{{ariaPressed}}" class="btn btn--s btn--{{variant}} account-appearance__option" data-test-appearance-option="{{value}}">{{label}}</button>
             {{/each}}
           </form>
         </section>
@@ -92,14 +90,14 @@
           <form method="{{dangerAction.method}}" action="{{dangerAction.href}}" class="account-danger__action-form"
                 hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
                 data-test-danger-action="{{dangerAction.key}}">
-            <div class="account-danger__field">
-              <label class="account-danger__confirm-label" for="delete-account-confirmation">Type "{{dangerConfirmation.phrase}}" to confirm:</label>
-              <input type="text" id="delete-account-confirmation" class="account-danger__confirm-input"
+            <div class="form-field">
+              <label class="form-field__label" for="delete-account-confirmation">Type "{{dangerConfirmation.phrase}}" to confirm:</label>
+              <input type="text" id="delete-account-confirmation" class="form-input"
                 name="{{dangerConfirmation.field}}" required pattern="{{dangerConfirmation.pattern}}"
                 title="{{dangerConfirmation.title}}" autocomplete="off" autocapitalize="off" spellcheck="false"{{#if dangerConfirmation.hasNotice}} aria-invalid="true" aria-describedby="delete-account-confirmation-error"{{/if}}
                 data-test-danger-confirm-input>
               {{#if dangerConfirmation.hasNotice}}
-              <p id="delete-account-confirmation-error" class="account-danger__notice" role="alert" data-test-danger-notice>{{dangerConfirmation.notice}}</p>
+              <p id="delete-account-confirmation-error" class="form-field__error" role="alert" data-test-danger-notice>{{dangerConfirmation.notice}}</p>
               {{/if}}
             </div>
             <button type="submit" class="{{dangerAction.buttonClass}}"><span class="account__action-label">{{dangerAction.name}}</span>{{{actionLoaderHtml}}}</button>

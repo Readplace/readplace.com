@@ -124,14 +124,14 @@ A post announcing a shipped change must make the problem it solves legible. Thre
 | `title` | The post `<h1>`, the `<title>`, og/twitter titles, the JSON-LD headline | 21–88 characters, median 50 |
 | `description` | The blog index card, the meta description, og/twitter descriptions, JSON-LD | 115–416 characters, median 235 |
 
-The banner is the one an existing user sees first, and it is the only one of the three the banner renders. The banner markup carries a `NEW` chip, the `banner:` hook, and a literal "Read more" link — it never renders `title` or `description`. Those two reach a reader who has already landed on the post or seen it in an index or a search result.
+The banner is the one an existing user sees first, and it is the only one of the three the banner renders. The banner markup carries the `banner:` hook and a literal "Learn more" link — it never renders `title` or `description`. Those two reach a reader who has already landed on the post or seen it in an index or a search result.
 
 So none of the three may be a bare feature name. Name what the reader could not do before, or what went wrong that no longer does.
 
 **The banner has a second constraint that pulls against the first.** It is a conversion surface, so it keeps a curiosity gap: state *what* changed and let the click reveal *how*. Where the two pull apart, resolve it this way: **name the problem, withhold the mechanism.**
 
 - **Concise hook with a curiosity gap.** Name what the reader gets, then stop: *"Deleting an account is a thing you type out by hand"*. The three ways to miss are a bare feature name, which states no benefit (*"Sign in with Apple"*); the full mechanism, which leaves nothing to click for (*"Account deletion now requires typing a confirmation phrase into a text field"*); and any "I", "we" or team subject.
-- **Let the NEW chip carry the novelty.** Do not write "New:" or "Just shipped" in the hook.
+- **Let the bar carry the novelty.** Do not write "New:" or "Just shipped" in the hook.
 - **Brand voice.** No emoji, no exclamation marks, no superlatives. Talk like a person.
 
 ### Never date-bind pricing or promotions

@@ -194,7 +194,7 @@ describe("mountElements", () => {
 		const doc = makeDoc(`
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
 <div data-card-elements data-publishable-key="pk_test_123" data-client-secret="seti_123_secret" data-setup-id="seti_123">
-	<div data-card-element style="color: rgb(228, 228, 228); font-family: Inter; font-size: 16px; --color-text-muted: #6b6b6b"></div>
+	<div data-card-element style="color: rgb(228, 228, 228); font-family: Inter; font-size: 16px; --input-placeholder: #6b6b6b"></div>
 	<p data-card-error style="color: rgb(210, 128, 128)"></p>
 	<button type="button" data-card-submit>Save card</button>
 </div>

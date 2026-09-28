@@ -36,7 +36,7 @@ extension is already pinned.
 
 | Browser | Prepare |
 |---|---|
-| Chrome | Launch with `--user-data-dir="$CHROME_PROFILE_DIR" --no-first-run --no-default-browser-check` on the Web Store listing, click **Add to Chrome** then **Add extension**, dismiss the bubble so the icon stays unpinned, then open `chrome-extension://<id>/popup/popup.template.html?url=https://readplace.com/queue` and sign in through the popup's own **Log in to Readplace** |
+| Chrome | Launch with `--user-data-dir="$CHROME_PROFILE_DIR" --no-first-run --no-default-browser-check` on the Web Store listing, click **Add to Chrome** then **Add extension**, dismiss the bubble so the icon stays unpinned, then open `chrome-extension://<id>/popup/popup.template.html?url=https://readplace.com/queue` and sign in through the popup's own **Sign in to Readplace** |
 | Firefox | Download the signed XPI named by `latest.txt` in the extension's S3 bucket, launch with `-no-remote -profile "$FIREFOX_PROFILE_DIR"` on `file://<the xpi>`, click **Add**, unpin the toolbar button Firefox adds, then open the popup page as above and sign in |
 
 Opening the popup with `?url=` pointing at the app itself shows the list view

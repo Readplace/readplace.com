@@ -48,23 +48,8 @@ async function seedArticle(page: Page): Promise<void> {
 	);
 }
 
-const FOUNDING_SEATS_IN_THE_E2E_FIXTURE = [1, 2, 3];
-
-async function fillFoundingSeatsSoSignupStartsATrial(page: Page, stamp: string): Promise<void> {
-	for (const seat of FOUNDING_SEATS_IN_THE_E2E_FIXTURE) {
-		const response = await page.request.post(`${BASE_URL}/e2e/users`, {
-			data: { email: `founding-seat-${seat}-${stamp}@example.com`, password: PASSWORD },
-		});
-		assert.equal(
-			response.status(),
-			201,
-			"the e2e user fixture must seed a founding-seat filler",
-		);
-	}
-}
-
 // Sign up a fresh user through the real form. New accounts are unverified, so
-// the shell renders the "N days left" countdown banner on every page — and a
+// the shell renders the countdown banner on every page — and a
 // just-registered user is deterministically 7 days out.
 async function signUpUnverified(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/signup`, { waitUntil: "domcontentloaded" });
@@ -90,7 +75,7 @@ async function openReaderAsUnverified(page: Page, email: string): Promise<void> 
 	// Confirms we are authenticated-but-unverified before we measure or capture:
 	// this copy only renders for a counting-down verification state.
 	await expect(page.locator("[data-test-verify-banner]")).toContainText(
-		"before your account is locked",
+		"to keep your account active",
 	);
 }
 
@@ -134,7 +119,7 @@ async function narrowSoTheBannerGrows(page: Page): Promise<void> {
 	await bannerAreaHeightSettled(page);
 }
 
-const VOLATILE_CHROME = [".trial-countdown", ".offline-banner"];
+const VOLATILE_CHROME = [".offline-banner"];
 
 function initBannerNavSettled(keptUnderTest: readonly string[]) {
 	const stripped = VOLATILE_CHROME.filter((selector) => !keptUnderTest.includes(selector));
@@ -147,7 +132,6 @@ function initBannerNavSettled(keptUnderTest: readonly string[]) {
 }
 
 const bannerNavSettled = initBannerNavSettled([]);
-const bannerNavSettledKeepingTrialCountdown = initBannerNavSettled([".trial-countdown"]);
 const bannerNavSettledKeepingOfflineBanner = initBannerNavSettled([".offline-banner"]);
 
 async function navClearsBannerGeometry(page: Page): Promise<void> {
@@ -202,20 +186,6 @@ test.describe("Verify banner never overlaps the nav", () => {
 		);
 		await page.setViewportSize(NARROW);
 		await bannerNavSettled(page);
-		await navClearsBannerGeometry(page);
-	});
-
-	test("the nav stays clear of the banner while the trial countdown is live", async ({
-		page,
-	}, testInfo) => {
-		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
-		await fillFoundingSeatsSoSignupStartsATrial(page, stamp);
-		await openReaderAsUnverified(page, `verify-nav-trial-${stamp}@example.com`);
-		await expect(page.locator("[data-test-trial-countdown]")).toHaveClass(
-			/trial-countdown--visible/,
-		);
-		await narrowSoTheBannerGrows(page);
-		await bannerNavSettledKeepingTrialCountdown(page);
 		await navClearsBannerGeometry(page);
 	});
 

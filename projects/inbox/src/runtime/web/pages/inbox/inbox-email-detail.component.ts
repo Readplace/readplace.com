@@ -1,7 +1,7 @@
 import { INBOX_PATH } from "@packages/domain/inbox";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, renderToast } from "@packages/web-shell";
+import { render, renderAlert, renderToast } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
@@ -25,7 +25,14 @@ const INBOX_EMAIL_VIEW_PANEL_TEMPLATE = readFileSync(
 function renderViewPanel(vm: InboxEmailDetailViewModel): string {
 	return render(INBOX_EMAIL_VIEW_PANEL_TEMPLATE, {
 		canRenderBody: vm.canRenderBody,
-		unavailableAlert: vm.unavailableAlert,
+		unavailableAlertHtml: renderAlert({
+			key: "email-unavailable",
+			content: {
+				variant: "error",
+				title: { text: vm.unavailableAlert.title, element: "p" },
+				message: { text: vm.unavailableAlert.body },
+			},
+		}),
 		viewSrcdoc: vm.canRenderBody
 			? buildInboxEmailIframeSrcdoc({
 					bodyHtml: vm.bodyHtml,

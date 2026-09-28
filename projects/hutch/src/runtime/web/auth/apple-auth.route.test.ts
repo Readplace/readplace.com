@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertErrorAlert } from "./assert-error-alert";
 import { createHmac } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -141,7 +142,7 @@ describe("Apple auth routes", () => {
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Apple sign-in failed");
+			expect(assertErrorAlert(doc)?.textContent).toContain("Apple sign-in failed");
 		});
 
 		it("should 400 when state cookie is missing", async () => {
@@ -187,7 +188,7 @@ describe("Apple auth routes", () => {
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("expired");
+			expect(assertErrorAlert(doc)?.textContent).toContain("expired");
 		});
 
 		it("should 400 when token exchange throws", async () => {
@@ -230,7 +231,7 @@ describe("Apple auth routes", () => {
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not verified");
+			expect(assertErrorAlert(doc)?.textContent).toContain("not verified");
 		});
 
 		it("ignores the user field Apple posts on first authorization", async () => {
@@ -402,7 +403,7 @@ describe("Apple auth routes", () => {
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Account creation failed");
+			expect(assertErrorAlert(doc)?.textContent).toContain("Account creation failed");
 		});
 
 		it("refuses an existing account whose deletion is in flight instead of signing back into it", async () => {
@@ -427,7 +428,7 @@ describe("Apple auth routes", () => {
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Account creation failed",
 			);
 			expect(cookiesFrom(response).join(";")).not.toContain("hutch_sid=");

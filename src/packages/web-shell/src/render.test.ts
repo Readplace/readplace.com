@@ -82,6 +82,41 @@ describe("render", () => {
 		expect(() => render("{{icon missing}}", {})).toThrow(/requires an icon name/);
 	});
 
+	it('{{icon}} draws the solid glyph when variant="solid", so a current nav item can fill its icon', () => {
+		expect(render('{{icon "book" variant="solid"}}', {})).toBe(iconSvg("book", { variant: "solid" }));
+	});
+
+	it('{{icon}} draws the stroke glyph when variant="stroke" is named explicitly', () => {
+		expect(render('{{icon "book" variant="stroke"}}', {})).toBe(iconSvg("book"));
+	});
+
+	it("{{icon}} resolves a variant held in the render data, so a loop can mark one item current", () => {
+		const template = "{{#each items}}{{icon name variant=variant}}{{/each}}";
+		const items = [
+			{ name: "book", variant: "solid" },
+			{ name: "inbox", variant: "stroke" },
+			{ name: "file-down" },
+		];
+
+		expect(render(template, { items })).toBe(
+			`${iconSvg("book", { variant: "solid" })}${iconSvg("inbox")}${iconSvg("file-down")}`,
+		);
+	});
+
+	it("{{icon}} fails the render on a solid variant of an icon that has none rather than drawing nothing", () => {
+		expect(() => render('{{icon "check" variant="solid"}}', {})).toThrow(
+			'{{icon}} does not know the icon "check" in the solid variant',
+		);
+	});
+
+	it("{{icon}} fails the render on a variant outside the set, as it does on an unknown name", () => {
+		expect(() => render('{{icon "book" variant="duotone"}}', {})).toThrow('There is no "duotone" icon variant');
+	});
+
+	it("{{icon}} fails the render when variant= is present but not a string", () => {
+		expect(() => render("{{icon \"book\" variant=7}}", {})).toThrow("{{icon}} variant= must be a string when present");
+	});
+
 	it("registers caller-provided helpers for that render call", () => {
 		const result = render("<p>{{shout text}}</p>", { text: "hi" }, {
 			helpers: { shout: (value: string) => value.toUpperCase() },

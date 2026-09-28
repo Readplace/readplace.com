@@ -13,6 +13,6 @@ export function displayableReadTime(
 	}
 	return {
 		value: String(article.estimatedReadTime),
-		label: `~${article.estimatedReadTime} min read`,
+		label: `${article.estimatedReadTime} min read`,
 	};
 }
