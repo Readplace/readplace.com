@@ -46,7 +46,7 @@ While web sessions lasted 7 days those orphans expired on their own. [Web sessio
 
 ## Where a sign-out still comes from
 
-Pressing Sign out ends the session on the spot. So do a password reset and an account deletion, and a renewal racing any of them loses. 180 days with no visit at all ends it too.
+Pressing Sign out in the extension ends its sign-in on the spot. So does deleting the account. 180 days without the extension renewing its sign-in ends it too.
 
 2 tabs and an expired access token are no longer on that list.
 
