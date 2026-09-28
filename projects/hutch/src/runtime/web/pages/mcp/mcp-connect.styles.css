@@ -1,11 +1,5 @@
 .mcp-connect {
-  padding: 80px 16px;
-}
-
-@media (min-width: 1024px) {
-  .mcp-connect {
-    padding-inline: 24px;
-  }
+  padding: 80px var(--page-gutter);
 }
 
 .mcp-connect__container {
@@ -23,7 +17,7 @@
 }
 
 .mcp-connect__lead {
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   color: var(--muted-foreground);
   margin-bottom: 28px;
   text-wrap: pretty;
@@ -42,7 +36,7 @@
 
 .mcp-connect__copy-label {
   flex: 0 0 100%;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--muted-foreground);
 }
@@ -66,13 +60,13 @@
 }
 
 .mcp-connect__url-value {
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   word-break: break-all;
 }
 
 .mcp-connect__note {
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   color: var(--muted-foreground);
   margin-bottom: 40px;
@@ -93,7 +87,7 @@
 }
 
 .mcp-connect__tool-req {
-  font-size: 1rem;
+  font-size: var(--text-md);
   color: var(--muted-foreground);
   margin-bottom: 12px;
   text-wrap: pretty;
@@ -105,7 +99,7 @@
 }
 
 .mcp-connect__step {
-  font-size: 1rem;
+  font-size: var(--text-md);
   color: var(--foreground);
   margin-bottom: 6px;
   text-wrap: pretty;
@@ -129,7 +123,7 @@
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: 1rem;
+  font-size: var(--text-md);
   color: var(--muted-foreground);
 }
 

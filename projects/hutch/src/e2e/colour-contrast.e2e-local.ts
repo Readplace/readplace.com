@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 import { markReadWithConfirmation } from "./page-interactions";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 import { LENSES, NON_TEXT_MINIMUM, contrastRatio, textMinimum } from "./wcag-contrast";
@@ -14,6 +15,8 @@ const VIEWPORT = { width: 1280, height: 900 };
 const READER_ROOT = "main.reader";
 const AUTH_ROOT = "main.auth-page";
 const READLIST_ROOT = "main.readlist";
+const BANNER_AREA_ROOT = ".banner-area";
+const NAV_LIBRARY_ROOT = '[data-test-nav-group="library"]';
 const SETTLE_MS = 45000;
 
 function minimumRatio(measured: RenderedInk): number {
@@ -182,6 +185,28 @@ async function auditReadlistQueue(page: Page, where: { theme: string; view: stri
 	await auditDeleteConfirmation(page, where);
 }
 
+async function auditAnnouncementBars(
+	page: Page,
+	where: { theme: string; view: string },
+): Promise<void> {
+	await page.waitForSelector("body.page-readlist");
+	await expect(page.locator("[data-test-changelog-banner]")).toHaveClass(
+		/changelog-banner--visible/,
+		{ timeout: SETTLE_MS },
+	);
+	await expect(page.locator("[data-test-verify-banner]")).toBeVisible({ timeout: SETTLE_MS });
+	await page.mouse.move(0, 0);
+
+	for (const root of [BANNER_AREA_ROOT, NAV_LIBRARY_ROOT]) {
+		const measurements = await stableMeasurements(page, root);
+		assert.ok(
+			measurements.length > 0,
+			`${where.theme}/${where.view}: the audit measured nothing inside ${root}`,
+		);
+		assertContrast(measurements, where);
+	}
+}
+
 test.describe("Auth colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 
@@ -250,6 +275,10 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 				}
 				await auditReadlistQueue(page, { theme, view });
 			}
+			await page.setExtraHTTPHeaders({ [E2E_CHANGELOG_BANNER_HEADER]: "1" });
+			await page.goto(viewUrls["to-read"], { waitUntil: "domcontentloaded" });
+			await auditAnnouncementBars(page, { theme, view: "announcement-bars" });
+			await page.setExtraHTTPHeaders({});
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 			await auditReader(page, { theme, view: "reader" });
 		}

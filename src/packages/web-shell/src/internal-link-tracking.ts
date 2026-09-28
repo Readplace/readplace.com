@@ -54,6 +54,10 @@ export const CLICK_SURFACES = {
 
 export type ClickSurface = (typeof CLICK_SURFACES)[keyof typeof CLICK_SURFACES];
 
+export function isClickSurface(value: unknown): value is ClickSurface {
+	return Object.values<unknown>(CLICK_SURFACES).includes(value);
+}
+
 export function withClickSurface(href: string, surface: ClickSurface | undefined): string {
 	if (surface === undefined) return href;
 	if (!href.startsWith("/") || href.startsWith("//")) return href;

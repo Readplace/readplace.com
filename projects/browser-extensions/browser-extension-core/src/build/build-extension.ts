@@ -1,10 +1,13 @@
 import assert from "node:assert";
 import { cpSync as defaultCpSync, mkdirSync as defaultMkdirSync, readFileSync as defaultReadFileSync, writeFileSync as defaultWriteFileSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { DESIGN_SYSTEM_STYLES } from "@packages/web-shell/design-system.styles";
 import { build } from "esbuild";
+import { type PopupUtmSource, renderPopupTemplate } from "./popup-template";
 
 export interface ExtensionBuildConfig {
 	target: string;
+	utmSource: PopupUtmSource;
 }
 
 interface EsbuildOptions {
@@ -45,6 +48,9 @@ interface BuildPlanInput {
 function createPlanData(input: { config: ExtensionBuildConfig; projectDir: string; serverUrl: string; appDomains: readonly string[]; corePackageJsonPath: string }): {
 	esbuildOptions: EsbuildOptions;
 	copies: CopyOperation[];
+	popupTemplate: { src: string; dest: string };
+	popupViews: { src: string };
+	popupStylesheet: { src: string; dest: string };
 	directories: string[];
 } {
 	const srcDir = join(input.projectDir, "src");
@@ -63,6 +69,7 @@ function createPlanData(input: { config: ExtensionBuildConfig; projectDir: strin
 		entryPoints: [
 			join(srcDir, "runtime", "background", "background.browser.ts"),
 			join(srcDir, "runtime", "popup", "popup.browser.ts"),
+			join(srcDir, "runtime", "popup", "popup-entry.browser.ts"),
 			join(srcDir, "runtime", "content", "shortcut.browser.ts"),
 		],
 		bundle: true,
@@ -81,13 +88,25 @@ function createPlanData(input: { config: ExtensionBuildConfig; projectDir: strin
 
 	const copies: CopyOperation[] = [
 		{ src: join(srcDir, "runtime", "manifest.json"), dest: join(outDir, "manifest.json"), recursive: false },
-		{ src: join(srcDir, "runtime", "popup", "popup.template.html"), dest: join(outDir, "popup", "popup.template.html"), recursive: false },
-		{ src: join(coreDir, "src", "popup", "popup.styles.css"), dest: join(outDir, "popup", "popup.styles.css"), recursive: false },
 		{ src: join(coreDir, "src", "popup", "fonts"), dest: join(outDir, "popup", "fonts"), recursive: true },
 		{ src: join(srcDir, "icons"), dest: join(outDir, "icons"), recursive: true },
 	];
 
-	return { esbuildOptions, copies, directories };
+	const popupTemplate = {
+		src: join(coreDir, "src", "popup", "popup.template.html"),
+		dest: join(outDir, "popup", "popup.template.html"),
+	};
+
+	const popupViews = {
+		src: join(coreDir, "src", "popup", "popup-views.template.html"),
+	};
+
+	const popupStylesheet = {
+		src: join(coreDir, "src", "popup", "popup.styles.css"),
+		dest: join(outDir, "popup", "popup.styles.css"),
+	};
+
+	return { esbuildOptions, copies, popupTemplate, popupViews, popupStylesheet, directories };
 }
 
 export function initBuildExtension(deps: Partial<BuildExtensionDeps> = {}) {
@@ -122,7 +141,14 @@ export function initBuildExtension(deps: Partial<BuildExtensionDeps> = {}) {
 						resolvedDeps.mkdirSync(dir, { recursive: true });
 					}
 
-					await resolvedDeps.esbuild(planData.esbuildOptions);
+					const views = renderPopupTemplate({
+						template: resolvedDeps.readFileSync(planData.popupViews.src, "utf-8"),
+						utmSource: input.config.utmSource,
+					});
+					await resolvedDeps.esbuild({
+						...planData.esbuildOptions,
+						define: { ...planData.esbuildOptions.define, __POPUP_VIEWS__: JSON.stringify(views) },
+					});
 
 					for (const copy of planData.copies) {
 						if (copy.recursive) {
@@ -131,6 +157,15 @@ export function initBuildExtension(deps: Partial<BuildExtensionDeps> = {}) {
 							resolvedDeps.cpSync(copy.src, copy.dest, { force: true });
 						}
 					}
+
+					const template = resolvedDeps.readFileSync(planData.popupTemplate.src, "utf-8");
+					resolvedDeps.writeFileSync(
+						planData.popupTemplate.dest,
+						renderPopupTemplate({ template, utmSource: input.config.utmSource }),
+					);
+
+					const stylesheet = resolvedDeps.readFileSync(planData.popupStylesheet.src, "utf-8");
+					resolvedDeps.writeFileSync(planData.popupStylesheet.dest, `${DESIGN_SYSTEM_STYLES}\n${stylesheet}`);
 
 					const manifestDest = join(input.projectDir, "dist-extension-compiled", "manifest.json");
 					const manifest = JSON.parse(resolvedDeps.readFileSync(manifestDest, "utf-8"));

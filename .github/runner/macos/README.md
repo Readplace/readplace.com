@@ -9,7 +9,7 @@ Two shape constraints, both learned the hard way:
 
 That routing is also what lets the Playwright evidence be uploaded at all: it has to leave the ephemeral container, and adding an upload step to `ci.yml` is not available (see above).
 
-The review is advisory and must stay that way until its false-positive rate is known: a missing model, a timeout, an unparseable reply, or absent frames all log and exit 0. It writes to the job summary and holds no `GITHUB_TOKEN`.
+A review that does not verify its frames fails its run: a missing model, a timeout, an unparseable reply, absent frames, or a defect the model confirms on a single frame all end red, because a green review is read as "frames checked" (see the [e2e-testing skill](../../../.claude/skills/e2e-testing/SKILL.md#never-let-a-failed-or-unrun-visual-check-leave-ci-green)). It writes to the job summary, and its token can only post that verdict as a `Visual Review` commit status on the commit the CI run tested — the run itself attaches to the default branch, so without the status a pull request would never see it.
 
 ## Host setup (one-time)
 
@@ -23,11 +23,11 @@ Creates `~/.readplace-ci/vlm-venv`, installs `mlx-vlm`, downloads the model (~18
 
 The reviewer deletes the frames directory once it has reported, keeping only what a model flagged. Cleanup lives in the script because an `rm -rf` in a `run:` block is exactly the kind of pattern that gets a workflow held. Per-run directories under `~/ci-frames` are otherwise left alone; a green run leaves an empty shell, and a failed one leaves its screenshots.
 
-A fully nx-cache-replayed `pnpm check` writes no frames, and the review then reports none were captured. That is correct: identical inputs were already reviewed when the cache entry was created.
+A fully nx-cache-replayed `pnpm check` runs no e2e, so it has to deliver the frames its original run captured; a run that delivers none fails the review rather than being assumed already checked.
 
 ## Cost
 
-Each model call is a fresh `mlx_vlm.generate` process, so every call reloads the 18 GB of weights: ~10 s for a single-image verification, ~25–40 s for a multi-frame review pass. Every reported finding costs one verification call, because the 4-bit model invents cross-frame defects when handed a sequence and only holds up under single-frame questioning. If latency becomes the bottleneck, the fix is a resident `mlx_vlm.server` the script talks to over HTTP instead of spawning per call.
+The review starts one resident `mlx_vlm.server` per job and sends every call to it over HTTP, so the 18 GB of weights load once per job instead of once per call — the per-call reload is where the intermittent `Command failed` kills of a fresh `mlx_vlm.generate` process died on a contended host. Once loaded, a multi-frame review pass takes ~9 s and a single-image verification ~1–2 s. Every reported finding costs one verification call, because the 4-bit model invents cross-frame defects when handed a sequence and only holds up under single-frame questioning.
 
 ## Rollout
 

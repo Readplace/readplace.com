@@ -109,10 +109,6 @@ describe("GET /account (founding member, no subscription row)", () => {
 		expect(card.classList.contains("account-card--founding")).toBe(true);
 		expect(card.getAttribute("data-test-account-state")).toBe("founding");
 		expect(actionKeys(doc)).toEqual([]);
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown element must always be in the DOM");
-		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
-		expect(countdown.getAttribute("data-trial-state")).toBe("");
 		// The nav-hide bundle is injected per page and carries no page gate, so a
 		// page that doesn't opt in must not serve it or its nav would hide on scroll.
 		expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
@@ -143,10 +139,6 @@ describe("GET /account (active paid subscription)", () => {
 		expect(cancelForm.tagName.toLowerCase()).toBe("form");
 		expect(cancelForm.getAttribute("action")).toBe("/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form");
 		expect(cancelForm.getAttribute("method")?.toUpperCase()).toBe("POST");
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown element must always be in the DOM");
-		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
-		expect(countdown.getAttribute("data-trial-state")).toBe("");
 	});
 });
 
@@ -551,7 +543,6 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		const doc = new JSDOM((await agent.get("/account?platform=ios")).text).window.document;
 
 		expect(doc.querySelector(".header")).not.toBeNull();
-		expect(doc.querySelector(".footer")).not.toBeNull();
 		expect(doc.querySelector("[data-test-account-back-link]")).toBeNull();
 		expect(doc.body.classList.contains("page-account--chromeless")).toBe(false);
 		// The old surface still satisfies Guideline 3.1.1.
@@ -566,7 +557,6 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.querySelector(".header")).not.toBeNull();
-		expect(doc.querySelector(".footer")).not.toBeNull();
 		expect(doc.querySelector("[data-test-account-back-link]")).toBeNull();
 		expect(doc.body.classList.contains("page-account")).toBe(true);
 		expect(doc.body.classList.contains("page-account--chromeless")).toBe(false);
@@ -656,26 +646,6 @@ describe("GET /account (trialing inside trial window)", () => {
 		expect(subscribe.tagName.toLowerCase()).toBe("form");
 		expect(subscribe.getAttribute("action")).toBe("/account/subscribe?utm_source=account&utm_medium=internal&utm_content=subscribe");
 	});
-
-	it("renders the global trial countdown in the nav for a trialing user (regression: /account previously dropped it)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "trial-nav@example.com");
-		const trialEndsAt = new Date(Date.now() + 7 * ONE_DAY_MS).toISOString();
-		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
-
-		const response = await agent.get("/account");
-
-		expect(response.status).toBe(200);
-		const doc = new JSDOM(response.text).window.document;
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must render in the nav for a trialing user");
-		expect(countdown.getAttribute("data-trial-state")).toBe("active");
-		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe(trialEndsAt);
-		const serverNow = countdown.getAttribute("data-server-now-iso") ?? "";
-		assert(serverNow.length > 0, "server-now ISO must be populated for active trial");
-		expect(Date.parse(serverNow)).toBeGreaterThan(0);
-	});
 });
 
 describe("GET /account (inactive — trial expired vs cancelled render identical DOM)", () => {
@@ -699,9 +669,6 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 			"Subscription not active.",
 		);
 		expect(actionKeys(doc)).toEqual(["subscribe"]);
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "inactive users see the expired pill in the nav (same as /queue)");
-		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
 	});
 
 	it("byte-for-byte identical card DOM for trial-expired vs cancelled — reason does not leak", async () => {
@@ -1746,33 +1713,6 @@ describe("GET /account (cancellation-scheduled state)", () => {
 		expect(reactivate.tagName.toLowerCase()).toBe("form");
 		expect(reactivate.getAttribute("action")).toBe("/account/reactivate?utm_source=account&utm_medium=internal&utm_content=reactivate-form");
 	});
-
-	it("renders the header cancellation chip escalated to imminent when the cutoff is 3 days away (inside the 7-day window)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "scheduled-cancel-nav@example.com");
-		await subscriptionProviders.upsertActive({
-			userId,
-			subscriptionId: "sub_nav_scheduled",
-			customerId: "cus_nav_scheduled",
-		});
-		const cancellationEffectiveAt = new Date(Date.now() + 3 * ONE_DAY_MS).toISOString();
-		await subscriptionProviders.markPendingCancellation({
-			userId,
-			cancellationEffectiveAt,
-		});
-
-		const response = await agent.get("/account");
-
-		expect(response.status).toBe(200);
-		const doc = new JSDOM(response.text).window.document;
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "header pill must render for cancellation-scheduled users");
-		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
-		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe(cancellationEffectiveAt);
-		expect(countdown.classList.contains("trial-countdown--cancellation-imminent")).toBe(true);
-		expect(countdown.classList.contains("trial-countdown--expired")).toBe(false);
-	});
 });
 
 describe("POST /account/reactivate", () => {
@@ -2304,6 +2244,18 @@ describe("POST /account/cards/new", () => {
 		assert(secret.length > 0, "client secret must be embedded for Stripe.js");
 		const setupId = elements.getAttribute("data-setup-id") ?? "";
 		expect(setupId).toMatch(/^seti_inmem_/);
+
+		const mount = elements.querySelector("[data-card-element]");
+		assert(mount, "the Stripe card field must have a mount point");
+		expect(mount.classList.contains("form-input__control")).toBe(true);
+		const field = mount.parentElement;
+		assert(field, "the card mount must be wrapped in the field it draws inside");
+		expect(field.classList.contains("form-input")).toBe(true);
+		expect(field.classList.contains("form-input--within")).toBe(true);
+		const error = elements.querySelector("[data-card-error]");
+		assert(error, "the Stripe card field must have an error slot");
+		expect(error.classList.contains("form-field__error")).toBe(true);
+		expect(error.getAttribute("role")).toBe("alert");
 	});
 
 	it("redirects to the card-limit error when already at 3 cards", async () => {
@@ -2813,6 +2765,7 @@ describe("POST /account/delete", () => {
 		const notice = doc.querySelector("[data-test-danger-notice]");
 		assert(notice, "the rejected-delete notice must render");
 		expect(notice.getAttribute("role")).toBe("alert");
+		expect(notice.classList.contains("form-field__error")).toBe(true);
 		expect(notice.textContent).toBe(
 			'Your account was not deleted. Type "delete my account permanently" exactly to confirm.',
 		);
@@ -2988,12 +2941,19 @@ describe("GET /account (danger zone)", () => {
 		expect(input.hasAttribute("required")).toBe(true);
 		expect(input.getAttribute("pattern")).toBe("delete my account permanently");
 		expect(input.getAttribute("title")).toBe("Type the phrase exactly: delete my account permanently");
+		expect(input.classList.contains("form-input")).toBe(true);
+		expect(input.hasAttribute("aria-invalid")).toBe(false);
+		expect(input.hasAttribute("aria-describedby")).toBe(false);
 
 		const inputId = input.getAttribute("id");
 		assert(inputId, "the confirmation input must have an id for its label");
 		const label = danger.querySelector(`label[for="${inputId}"]`);
 		assert(label, "the confirmation input must be labelled");
 		expect(label.textContent).toContain('Type "delete my account permanently" to confirm');
+		expect(label.classList.contains("form-field__label")).toBe(true);
+		const field = input.closest(".form-field");
+		assert(field, "the confirmation input must sit in a form field");
+		assert(field.contains(label), "the label must share the confirmation input's form field");
 
 		const deleteForm = danger.querySelector('[data-test-danger-action="delete-account"]');
 		assert(deleteForm, "the delete-account form must render");

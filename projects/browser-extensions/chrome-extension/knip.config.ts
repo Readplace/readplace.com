@@ -27,6 +27,7 @@ export default {
 		// Extension entry points compiled by esbuild
 		"src/runtime/background/background.browser.ts",
 		"src/runtime/popup/popup.browser.ts",
+		"src/runtime/popup/popup-entry.browser.ts",
 		"src/runtime/content/shortcut.browser.ts",
 		// E2E test entry points (run via node --test)
 		"src/e2e/**/run.e2e-local.main.ts",

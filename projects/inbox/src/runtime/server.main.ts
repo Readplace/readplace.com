@@ -151,7 +151,6 @@ async function main(): Promise<void> {
 			findUserById: fixture.auth.findUserById,
 			markSessionEmailVerified: fixture.auth.markSessionEmailVerified,
 			findSubscriptionByUserId: fixture.subscriptionProviders.findByUserId,
-			getChangelogBanner: async () => undefined,
 			inboxAddressStore: fixture.inboxAddress.inboxAddressStore,
 			inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
 			inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,

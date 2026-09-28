@@ -4,7 +4,6 @@ export type { Core, CoreError, ResultCallbacks, ReadingList } from "./core";
 export type { BrowserShell } from "./shell.types";
 export type { SetIcon } from "./icon-status";
 export type {
-	ReadingListItem,
 	ReadingListItemId,
 	ActionDescriptor,
 	LinkDescriptor,
@@ -12,7 +11,6 @@ export type {
 export type {
 	SaveUrlResult,
 	SaveWarning,
-	Message,
 	InvokeActionResult,
 } from "./reading-list/reading-list.types";
 export type {
@@ -47,7 +45,7 @@ export type {
 } from "./reading-list/siren-reading-list";
 export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
 export { capturedContentBody } from "./reading-list/content-body-parsers";
-export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, CollectionPage, PageDescriptor, PageRel, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
+export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, PageRel, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
 export { initUploadQueue } from "./upload-queue/upload-queue";
 export {
 	initIndexedDbBulkPayloadStore,
@@ -65,53 +63,32 @@ export type {
 	WakeScheduler,
 } from "./upload-queue/upload-queue.types";
 export type { PopupMessage } from "./popup-message.types";
-export { filterByUrl } from "./popup/filter-by-url";
-export { buildPaginationView } from "./popup/pagination-view";
-export type { PaginationView, PaginationPageView, PaginationGap } from "./popup/pagination-view";
-export { avatarColor } from "./popup/avatar-color";
-export { relativeTime } from "./popup/relative-time";
-export { buildMessageView } from "./popup/message-view";
-export { buildSavedView, SAVE_RENDERED_MARK, POPUP_FIRST_FRAME_MARK } from "./popup/saved-view";
-export type { SavedViewLine } from "./popup/saved-view";
-export { initPaintAfterDelay, LIST_SKELETON_DELAY_MS } from "./popup/paint-after-delay";
-export type { MessageView } from "./popup/message-view";
+export { initPopup } from "./popup/popup.browser";
+export { SAVE_RENDERED_MARK, POPUP_FIRST_FRAME_MARK } from "./popup/saved-view";
 export { isAppUrl } from "./popup/is-app-url";
-export { itemDisplay } from "./popup/item-display";
-export type { ItemDisplay } from "./popup/item-display";
-export { actionIcon, actionLabel, actionVariant, humanize, linkLabel, linkPresentation } from "./popup/action-affordance";
-export type { ActionVariant, LinkPresentation } from "./popup/action-affordance";
-export { classifyTabs, summarizeBulkSave, buildSaveAllDetailLines, saveAllTabsLabel, SAVE_ALL_RENDERED_MARK } from "./popup/save-all-tabs";
+export { SAVE_ALL_RENDERED_MARK } from "./popup/save-all-tabs";
 export type { SaveableTab } from "./popup/save-all-tabs";
 export {
 	MENU_ITEM_SAVE_LINK,
 	MENU_ITEM_SAVE_ALL_TABS,
 } from "./get-context-menu-target";
-export { advertisesBulkSave } from "./advertised-capabilities";
-export {
-	BULK_SAVE_FAILED_MESSAGE,
-	BULK_SAVE_FAILED_TITLE,
-	bulkSaveNotification,
-} from "./bulk-save-notification";
+export { bulkSaveNotification } from "./bulk-save-notification";
 export type { ContextMenuItem, ContextMenuItemId } from "./advertised-capabilities";
 export {
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	initSyncContextMenus,
-	parseStoredCapabilities,
 } from "./sync-context-menus";
 export type { AdvertisedCapabilityStore } from "./sync-context-menus";
 export { installShortcuts } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
 export {
 	COMMAND_BINDINGS_STORAGE_KEY,
-	DEFAULT_SAVE_ALL_SHORTCUT,
 	DEFAULT_SAVE_SHORTCUT,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
 	SAVE_ALL_TABS_COMMAND,
 	commandBindingsFromGetAll,
 	matchesShortcut,
 	resolveContentShortcuts,
-	resolveShortcut,
-	shortcutHintSegments,
 } from "./command-shortcuts";
 export type { CommandShortcut, ContentShortcuts } from "./command-shortcuts";
 export { captureActiveTabBytes } from "./capture-active-tab-bytes";

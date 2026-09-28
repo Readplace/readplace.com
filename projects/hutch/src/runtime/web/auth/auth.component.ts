@@ -34,7 +34,6 @@ interface SignupFormData extends AuthFormData {
 }
 
 interface FieldViewModel {
-	errorClass: string;
 	error?: string;
 }
 
@@ -50,10 +49,8 @@ function toFieldViewModel(
 	errors: ComponentError[] | undefined,
 	field: string,
 ): FieldViewModel {
-	const error = errors?.find((e) => e.fieldName === field);
 	return {
-		errorClass: error ? " auth-form__input--error" : "",
-		error: error?.message,
+		error: errors?.find((e) => e.fieldName === field)?.message,
 	};
 }
 

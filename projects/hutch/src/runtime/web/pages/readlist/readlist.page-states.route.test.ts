@@ -420,6 +420,7 @@ describe("the save error", () => {
 
 		const input = doc.querySelector('[data-test-form="save-article"] input[name="url"]');
 		assert(input, "the save input must always be rendered");
-		expect(input.classList.contains("readlist-save__input--invalid")).toBe(true);
+		expect(input.getAttribute("aria-invalid")).toBe("true");
+		expect(input.getAttribute("aria-describedby")).toBe(error.getAttribute("id"));
 	});
 });

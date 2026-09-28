@@ -1,31 +1,34 @@
-<section
-  class="inbox-email-detail__panel"
-  data-test-tab-panel="articles"
-  data-articles-status="{{panelStatus}}"
-  {{#if panelPollUrl}} hx-get="{{panelPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}
->
-  {{#if isExtracting}}
-  <p class="inbox-email-detail__notice" data-test-articles-extracting>{{extractingMessage}}</p>
-  {{else}}
-  {{#if isExtractionFailed}}
-  <p class="inbox-email-detail__notice" data-test-articles-failed>{{staleMessage}}</p>
-  {{else}}
-  {{#if isStalePending}}
-  <p class="inbox-email-detail__notice" data-test-articles-stale>{{staleMessage}}</p>
-  {{else}}
-  {{#if truncatedNotice}}<p
-    class="inbox-email-detail__notice"
-    data-test-articles-truncated
-  >{{truncatedNotice}}</p>{{/if}}
-  {{#if isEmpty}}
-  <p class="inbox-email-detail__notice" data-test-articles-empty>{{emptyMessage}}</p>
-  {{else}}
-  <div class="inbox-email-detail__articles" data-test-inbox-articles>
-    {{#each articleHtmls}}{{{this}}}{{/each}}
-    {{{showMoreHtml}}}
-  </div>
-  {{/if}}
-  {{/if}}
-  {{/if}}
-  {{/if}}
-</section>
+<section class="inbox-email-detail__panel" data-test-tab-panel="articles" data-articles-status="{{panelStatus}}"{{#if panelPollUrl}} hx-get="{{panelPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
+      {{#each alerts}}
+      <div class="inbox-email-detail__alert" role="alert" data-test-panel-alert="{{key}}">
+        <span class="inbox-email-detail__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
+        <div class="inbox-email-detail__alert-text">
+          <p class="inbox-email-detail__alert-title" data-test-panel-alert-title>{{title}}</p>
+          <p class="inbox-email-detail__alert-body" data-test-panel-alert-body>{{body}}</p>
+        </div>
+      </div>
+      {{/each}}
+      {{#each notices}}
+      <p class="inbox-email-detail__notice" data-test-panel-notice="{{key}}">{{#if iconName}}{{icon iconName}}{{/if}}<span>{{text}}</span></p>
+      {{/each}}
+      {{#if listing}}
+      <div class="inbox-email-detail__listing" data-test-panel-listing>
+        <header class="inbox-email-detail__listing-header">
+          <span class="inbox-email-detail__count" data-test-panel-count>{{listing.countLabel}}</span>
+        </header>
+        {{#each listing.emptyStates}}
+        <div class="inbox-email-detail__empty" data-test-panel-empty>
+          <div class="inbox-email-detail__empty-illustration">{{{@root.emptyIllustrationHtml}}}</div>
+          <h2 class="inbox-email-detail__empty-title" data-test-panel-empty-title>{{title}}</h2>
+          {{#if body}}<p class="inbox-email-detail__empty-body" data-test-panel-empty-body>{{body}}</p>{{/if}}
+        </div>
+        {{/each}}
+        {{#unless isEmpty}}
+        <div class="inbox-email-detail__articles" data-test-inbox-articles>
+          {{#each articleHtmls}}{{{this}}}{{/each}}
+          {{{showMoreHtml}}}
+        </div>
+        {{/unless}}
+      </div>
+      {{/if}}
+    </section>

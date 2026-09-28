@@ -3,7 +3,7 @@ import { summarizeBulkSave } from "./popup/save-all-tabs";
 import type { BulkSaveResult } from "./reading-list/reading-list.types";
 
 export const BULK_SAVE_FAILED_TITLE = "Couldn't save tabs";
-export const BULK_SAVE_FAILED_MESSAGE = "Something went wrong. Please try again.";
+const BULK_SAVE_FAILED_MESSAGE = "Something went wrong. Please try again.";
 
 export function bulkSaveNotification(params: {
 	outcome: GuardedResult<BulkSaveResult>;

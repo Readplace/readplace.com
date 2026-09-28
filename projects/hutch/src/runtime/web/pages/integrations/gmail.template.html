@@ -30,7 +30,7 @@
           <p class="gmail__step-copy">Readplace confirms it for you — you never need the code Gmail mentions.</p>
           <div class="gmail__copy-field">
             <code class="gmail__copy-value" data-test-gmail-address>{{gatewayAddress}}</code>
-            <button type="button" class="btn btn--secondary btn--compact gmail__copy-button" data-integrations-copy data-integrations-address="{{gatewayAddress}}" aria-label="Copy the forwarding address" data-test-gmail-copy hidden>Copy</button>
+            <button type="button" class="btn btn--secondary btn--s gmail__copy-button" data-integrations-copy data-integrations-address="{{gatewayAddress}}" aria-label="Copy the forwarding address" data-test-gmail-copy hidden>Copy</button>
           </div>
           <div class="gmail__step-actions">
             <a class="btn btn--primary" href="{{mailboxUrl}}" target="_blank" rel="noopener" data-test-gmail-open>Open Gmail</a>
@@ -64,7 +64,7 @@
             {{{loadButton}}}
           </form>
           <div class="gmail__mapping-form">
-            <span class="gmail__add-label" id="gmail-sender-label" data-test-gmail-sender-label>Articles From ...</span>
+            <span class="form-field__label gmail__add-label" id="gmail-sender-label" data-test-gmail-sender-label>Articles From ...</span>
             <details class="gmail__picker" data-gmail-picker data-test-gmail-sender-picker>
               <summary class="gmail__picker-trigger" aria-labelledby="gmail-sender-label gmail-sender-choice" data-gmail-picker-trigger>
                 <span id="gmail-sender-choice">{{#if selectedSender}}{{selectedSender}}{{else}}Choose a sender{{/if}}</span>{{icon "chevron-down"}}
@@ -75,15 +75,15 @@
                   <input type="hidden" name="{{name}}" value="{{value}}">
                   {{/each}}
                   <label class="sr-only" for="gmail-sender-search">Search Gmail senders</label>
-                  <input class="gmail__add-input" id="gmail-sender-search" type="search" name="search" value="{{search}}" placeholder="Search sender or email" autocomplete="off" data-gmail-picker-focus>
-                  <button type="submit" class="btn btn--neutral btn--field">Search</button>
+                  <input class="form-input gmail__add-input" id="gmail-sender-search" type="search" name="search" value="{{search}}" placeholder="Search sender or email" autocomplete="off" data-gmail-picker-focus>
+                  <button type="submit" class="btn btn--neutral">Search</button>
                 </form>
                 {{{senderResults}}}
               </div>
             </details>
 
             {{#if selectedSender}}
-            <span class="gmail__add-label" id="gmail-destination-label" data-test-gmail-destination-label>... are saved to ...</span>
+            <span class="form-field__label gmail__add-label" id="gmail-destination-label" data-test-gmail-destination-label>... are saved to ...</span>
             <details class="gmail__picker" data-gmail-picker data-test-gmail-inbox-picker{{#if inboxPickerOpen}} open{{/if}}>
               <summary class="gmail__picker-trigger" aria-labelledby="gmail-destination-label gmail-destination-choice" data-gmail-picker-trigger>
                 <span id="gmail-destination-choice">{{destinationLabel}}</span>{{icon "chevron-down"}}
@@ -106,8 +106,8 @@
                   <form class="gmail__create-inbox" method="POST" action="{{createInboxAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
                     <input type="hidden" name="sender" value="{{selectedSender}}">
                     <input type="hidden" name="destination" value="new">
-                    <input class="gmail__add-input" id="gmail-inbox-name" type="text" name="inbox_name" value="{{inboxName}}" required maxlength="24" placeholder="New inbox" aria-label="New inbox name" autocomplete="off" data-gmail-picker-focus data-test-gmail-inbox-name>
-                    <button class="btn btn--secondary btn--field gmail__create-inbox-button gmail__submit" type="submit" aria-label="Create inbox and save mapping" data-test-gmail-create-inbox><span class="gmail__submit-label">{{icon "plus"}}</span><span class="sr-only">Create inbox and save mapping</span>{{{submitLoader}}}</button>
+                    <input class="form-input gmail__add-input" id="gmail-inbox-name" type="text" name="inbox_name" value="{{inboxName}}" required maxlength="24" placeholder="New inbox" aria-label="New inbox name" autocomplete="off" data-gmail-picker-focus data-test-gmail-inbox-name>
+                    <button class="btn btn--secondary gmail__create-inbox-button gmail__submit" type="submit" aria-label="Create inbox and save mapping" data-test-gmail-create-inbox><span class="gmail__submit-label">{{icon "plus"}}</span><span class="sr-only">Create inbox and save mapping</span>{{{submitLoader}}}</button>
                   </form>
                 </li>
                 {{/if}}
@@ -134,7 +134,7 @@
             <div class="gmail__filter-actions">
               {{#each filter.actions}}
               <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-                <button class="btn btn--neutral btn--compact" type="submit" data-test-gmail-filter-action="{{key}}">{{label}}</button>
+                <button class="btn btn--neutral btn--s" type="submit" data-test-gmail-filter-action="{{key}}">{{label}}</button>
               </form>
               {{/each}}
             </div>
@@ -149,7 +149,7 @@
                 <span class="gmail__mapped-sender-state">{{stateLabel}}</span>
                 <form method="POST" action="{{../../removeSenderAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
                   <input type="hidden" name="sender" value="{{email}}">
-                  <button class="btn btn--toggle btn--compact gmail__submit" type="submit" aria-label="Exclude {{email}} from this mapping" data-test-gmail-exclude-sender="{{email}}"><span class="gmail__submit-label">Exclude</span>{{{../../submitLoader}}}</button>
+                  <button class="btn btn--secondary btn--m gmail__submit" type="submit" aria-label="Exclude {{email}} from this mapping" data-test-gmail-exclude-sender="{{email}}"><span class="gmail__submit-label">Exclude</span>{{{../../submitLoader}}}</button>
                 </form>
               </li>
               {{/each}}

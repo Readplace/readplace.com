@@ -22,7 +22,7 @@ export type SignupValidationResult =
 			errors: ComponentError[];
 			email: string | undefined;
 		}
-	| { ok: false; kind: "duplicate-email"; email: string };
+	| { ok: false; kind: "duplicate-email"; email: string; password: string };
 
 export interface ValidateSignupInput {
 	body: Record<string, unknown>;
@@ -85,7 +85,7 @@ export function initValidateSignup(deps: {
 		const { email, password } = parsed.data;
 		const existing = await deps.findUserByEmail(email);
 		if (existing) {
-			return { ok: false, kind: "duplicate-email", email };
+			return { ok: false, kind: "duplicate-email", email, password };
 		}
 
 		return { ok: true, email, password };

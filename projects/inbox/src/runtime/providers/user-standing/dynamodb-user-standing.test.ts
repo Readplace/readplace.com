@@ -67,8 +67,29 @@ describe("initDynamoDbUserStanding", () => {
 			});
 			expect(captured.TableName).toBe(TABLES.users);
 			expect(captured.IndexName).toBe("userId-index");
-			expect(captured.ProjectionExpression).toBe("userId, email, emailVerified, registeredAt");
+			expect(captured.ProjectionExpression).toBe(
+				"userId, email, emailVerified, registeredAt, appearance",
+			);
 			expect(captured.ExpressionAttributeValues).toEqual({ ":userId": USER_ID });
+		});
+
+		it("reads the reader's appearance preference so inbox pages render in their chosen theme", async () => {
+			const { findUserById } = initWithFake(() => ({
+				Items: [
+					{
+						userId: USER_ID,
+						email: "user@example.com",
+						emailVerified: true,
+						registeredAt: "2026-01-01T00:00:00.000Z",
+						appearance: "dark",
+					},
+				],
+			}));
+
+			const user = await findUserById(USER_ID);
+
+			assert(user, "user must be returned");
+			expect(user.appearance).toBe("dark");
 		});
 
 		it("reads an absent emailVerified attribute as false (legacy row)", async () => {

@@ -13,7 +13,7 @@
 }
 
 .lp-section__lede {
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   line-height: 1.6;
   text-wrap: pretty;
   color: var(--muted-foreground);
@@ -24,7 +24,7 @@
  * 1. Reading measure. Chrome may run wider, body copy stays narrow.
  */
 .lp-band {
-  padding: 48px 16px;
+  padding: 48px var(--page-gutter);
 }
 
 .lp-band__inner {
@@ -50,7 +50,7 @@
 .lp-hero {
   background: linear-gradient(135deg, var(--color-secondary) 0%, #1E2A40 100%);
   color: var(--color-on-brand);
-  padding: calc(var(--header-height, 64px) + 64px) 16px 64px;
+  padding: calc(var(--header-height, 72px) + 64px) var(--page-gutter) 64px;
 }
 
 .lp-hero__inner {
@@ -59,7 +59,7 @@
 }
 
 .lp-hero__eyebrow {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: color-mix(in srgb, var(--color-on-brand) 72%, transparent);
   margin-bottom: 16px;
@@ -84,7 +84,7 @@
 }
 
 .lp-hero__lede {
-  font-size: 1.125rem;
+  font-size: var(--text-lg);
   line-height: 1.6;
   text-wrap: pretty;
   color: color-mix(in srgb, var(--color-on-brand) 86%, transparent);
@@ -100,7 +100,7 @@
 }
 
 .lp-hero__reassurance {
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   text-wrap: pretty;
   color: color-mix(in srgb, var(--color-on-brand) 66%, transparent);
 }
@@ -119,23 +119,6 @@
 .lp-action__input {
   flex: 1 1 12rem;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-size: var(--input-font-size);
-  font-family: inherit;
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-}
-
-.lp-action__input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.lp-action__input:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 /**
@@ -193,14 +176,14 @@
   height: 32px;
   border-radius: var(--radius-sm);
   background: var(--secondary);
-  color: var(--primary-text);
+  color: var(--primary-text-on-tint);
   font-weight: 600;
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
 }
 
 .lp-steps__heading {
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.3;
   text-wrap: balance;
@@ -209,14 +192,14 @@
 }
 
 .lp-steps__body {
-  font-size: 1rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   text-wrap: pretty;
   color: var(--muted-foreground);
 }
 
 .lp-prose__paragraph {
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   line-height: 1.6;
   text-wrap: pretty;
   color: var(--foreground);
@@ -246,7 +229,7 @@
 }
 
 .lp-proof__caption {
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   text-wrap: pretty;
   color: var(--muted-foreground);
@@ -266,14 +249,14 @@
 }
 
 .lp-proof__quote-source {
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   color: var(--muted-foreground);
   margin-top: 4px;
 }
 
 .lp-proof__founder {
-  font-size: 1rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   text-wrap: pretty;
   color: var(--muted-foreground);
@@ -285,7 +268,7 @@
 }
 
 .lp-offer__note {
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   text-wrap: pretty;
   color: var(--muted-foreground);
@@ -311,7 +294,7 @@
 
 .lp-limits__title {
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: var(--text-md);
   font-weight: 600;
   line-height: 1.3;
   text-wrap: balance;
@@ -333,7 +316,7 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  font-size: 1rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   color: var(--muted-foreground);
 }
@@ -358,7 +341,7 @@
 
 .lp-faq__question {
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.3;
   text-wrap: balance;
@@ -367,7 +350,7 @@
 }
 
 .lp-faq__answer {
-  font-size: 1rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   text-wrap: pretty;
   color: var(--muted-foreground);
@@ -394,7 +377,7 @@
 }
 
 .lp-close__note {
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   line-height: 1.6;
   text-wrap: pretty;
   color: var(--muted-foreground);
@@ -408,7 +391,7 @@
 
 @media (min-width: 768px) {
   .lp-hero {
-    padding: calc(var(--header-height, 64px) + 96px) 24px 96px;
+    padding: calc(var(--header-height, 72px) + 96px) var(--page-gutter) 96px;
   }
 
   .lp-hero__title {
@@ -416,6 +399,6 @@
   }
 
   .lp-band {
-    padding: 64px 24px;
+    padding: 64px var(--page-gutter);
   }
 }

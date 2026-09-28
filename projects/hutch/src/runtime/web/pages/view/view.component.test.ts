@@ -51,7 +51,7 @@ describe("ViewPage", () => {
 
 		expect(Array.from(meta.querySelectorAll("span")).map((span) => span.textContent?.trim())).toEqual([
 			"example.com",
-			"~3 min read",
+			"3 min read",
 		]);
 	});
 

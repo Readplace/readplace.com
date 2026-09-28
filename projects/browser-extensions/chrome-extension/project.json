@@ -27,6 +27,7 @@
       "command": "pnpm lint && pnpm test-with-coverage",
       "options": { "cwd": "{projectRoot}" },
       "dependsOn": ["compile", "^compile", "hutch:compile"],
+      "outputs": ["{projectRoot}/test-results/transition-frames"],
       "inputs": [
         "default",
         "^production",

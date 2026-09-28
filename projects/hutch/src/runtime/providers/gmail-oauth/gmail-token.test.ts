@@ -100,11 +100,34 @@ describe("initExchangeGmailCode", () => {
 		assert.deepEqual(await exchange({ code: "auth-code" }), { ok: false, reason: "metadata-scope-not-granted" });
 	});
 
-	it("reports an exchange failure when Google answers with an error body", async () => {
-		const { exchange } = exchangeWith({ error: "invalid_grant" }, 400);
+	it("carries Google's error, description and status when the exchange is refused", async () => {
+		const { exchange } = exchangeWith(
+			{ error: "invalid_grant", error_description: "Malformed auth code." },
+			400,
+		);
 
 		const result = await exchange({ code: "spent-code" });
 
-		assert.deepEqual(result, { ok: false, reason: "exchange-failed" });
+		assert.deepEqual(result, {
+			ok: false,
+			reason: "exchange-failed",
+			status: 400,
+			error: "invalid_grant",
+			errorDescription: "Malformed auth code.",
+		});
+	});
+
+	it("reports an exchange failure with no error detail when a 200 body is unreadable", async () => {
+		const { exchange } = exchangeWith({ scope: GMAIL_SCOPES, token_type: "Bearer" }, 200);
+
+		const result = await exchange({ code: "auth-code" });
+
+		assert.deepEqual(result, {
+			ok: false,
+			reason: "exchange-failed",
+			status: 200,
+			error: undefined,
+			errorDescription: undefined,
+		});
 	});
 });

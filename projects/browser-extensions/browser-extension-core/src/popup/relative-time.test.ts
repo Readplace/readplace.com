@@ -16,9 +16,9 @@ describe("relativeTime", () => {
 		assert.equal(relativeTime(threeHoursAgo), "3h ago");
 	});
 
-	it("returns 'Yesterday' for dates one day ago", () => {
+	it("counts a date one day ago in days, like every other age", () => {
 		const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-		assert.equal(relativeTime(yesterday), "Yesterday");
+		assert.equal(relativeTime(yesterday), "1d ago");
 	});
 
 	it("returns days for dates less than 30 days ago", () => {

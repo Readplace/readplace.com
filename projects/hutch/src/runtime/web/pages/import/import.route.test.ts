@@ -303,6 +303,20 @@ describe("Import routes", () => {
 			expect(summaryText(doc)).toContain("3 of 3 selected");
 		});
 
+		it("renders the master and row checkboxes as the shared choice control", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const file = Buffer.from("https://example.com/a https://example.com/b");
+			const { body, contentType } = multipartBody("urls.txt", file);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+
+			const response = await agent.get(create.headers.location);
+
+			const doc = new JSDOM(response.text).window.document;
+			const checkboxes = doc.querySelectorAll("[data-test-import-select-all], [data-test-import-checkbox]");
+			expect(Array.from(checkboxes, (checkbox) => checkbox.classList.contains("form-choice"))).toEqual([true, true, true]);
+		});
+
 		it("redirects to /queue for an invalid session id", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);

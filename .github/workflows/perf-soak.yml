@@ -57,5 +57,17 @@ jobs:
         if: always()
         with:
           name: save-latency-run-${{ matrix.run }}
-          path: projects/browser-extensions/*/test-results/perf/*.json
+          path: |
+            projects/browser-extensions/*/test-results/perf/*.json
+            projects/browser-extensions/*/test-results/perf/*.png
+          if-no-files-found: warn
+
+      - name: Check extension regressions
+        run: . ./.envrc && pnpm nx run-many --target=check --projects=chrome-extension,firefox-extension --parallel=1 --skip-nx-cache
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: extension-check-run-${{ matrix.run }}
+          path: projects/browser-extensions/*/test-results/
           if-no-files-found: warn
